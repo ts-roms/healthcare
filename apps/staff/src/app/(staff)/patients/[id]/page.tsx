@@ -16,7 +16,7 @@ import {
 import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { api } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientSummaryResponse } from "@/lib/api/types";
 import { bannerSeverity, currentConsents, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";

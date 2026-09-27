@@ -4,7 +4,7 @@ import { Badge, Button, Input, Table, TableBody, TableCell, TableHead, TableHead
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { ApiError, userMessage } from "@/lib/api/errors";
+import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
 import type { Page, PatientSummary } from "@/lib/api/types";
 import { label } from "@/lib/patient-mapping";

@@ -1,6 +1,6 @@
 import "server-only";
 import { unstable_rethrow } from "next/navigation";
-import { ApiError, userMessage } from "./errors";
+import { ApiError, userMessage } from "@healthcare/web-session";
 
 /** What a server action returns to a client form: never throws for API errors, so the form can show them. */
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; message: string; code?: string; details?: unknown };

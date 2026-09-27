@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIES } from "@/lib/api/config";
-import { forwardedHeaders } from "@/lib/api/forwarding";
+import { forwardedHeaders } from "@healthcare/web-session";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
 
 /**

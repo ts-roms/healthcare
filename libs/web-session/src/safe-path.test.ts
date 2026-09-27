@@ -9,3 +9,10 @@ describe("safeNextPath", () => {
     expect(safeNextPath(v)).toBe("/");
   });
 });
+
+describe("safeNextPath with custom auth paths", () => {
+  it("never redirects back to any sign-in page", () => {
+    expect(safeNextPath("/activate?x=1", "/", ["/login", "/activate"])).toBe("/");
+    expect(safeNextPath("/activities", "/", ["/login", "/activate"])).toBe("/activities");
+  });
+});

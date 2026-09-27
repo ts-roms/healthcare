@@ -3,7 +3,7 @@ import { AllergyBadge, PatientHeader, SummarySection, VitalSigns } from "@health
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientSummaryResponse, Visit } from "@/lib/api/types";
 import { canTriage, visitStatusLabel } from "@/lib/clinic-mapping";

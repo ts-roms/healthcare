@@ -2,7 +2,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { api } from "@/lib/api/client";
-import { ApiError, userMessage } from "@/lib/api/errors";
+import { ApiError, userMessage } from "@healthcare/web-session";
 import type { DuplicateCandidate, RegisteredPatient } from "@/lib/api/types";
 import { type DuplicateOverride, fieldErrorsFromApi, type RegistrationForm, registrationFormSchema, toRegisterPayload } from "@/lib/patient-registration";
 

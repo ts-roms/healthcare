@@ -3,7 +3,7 @@
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL, COOKIES, SECURE_COOKIES } from "@/lib/api/config";
-import { forwardedHeaders } from "@/lib/api/forwarding";
+import { forwardedHeaders } from "@healthcare/web-session";
 import { getFacilities } from "@/lib/api/session";
 import { clearSessionCookies } from "@/lib/api/tokens";
 

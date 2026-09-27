@@ -10,6 +10,3 @@ export const COOKIES = {
 } as const;
 
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";
-
-/** Refresh the access token this many seconds before it expires. */
-export const ACCESS_TOKEN_SKEW_SECONDS = 30;
