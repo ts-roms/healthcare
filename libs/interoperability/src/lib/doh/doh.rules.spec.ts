@@ -1,4 +1,14 @@
-import { buildCasePackage, canApply, caseReadiness, type DohCaseSource, isIcd10, matchRule, normalizeCode } from "./doh.rules";
+import {
+  buildCasePackage,
+  canApply,
+  caseReadiness,
+  type DohCaseSource,
+  isIcd10,
+  matchRule,
+  MAX_RESCAN_DAYS,
+  normalizeCode,
+  rescanRangeProblem,
+} from "./doh.rules";
 import { UnconfiguredDohReportingGateway } from "./gateway";
 
 const rule = (codePrefix: string, status = "active") => ({ id: codePrefix, codePrefix, status, category: `Category ${codePrefix}` });
@@ -85,5 +95,18 @@ describe("DOH case reporting (platform rules only)", () => {
     const gateway = new UnconfiguredDohReportingGateway();
     expect(gateway.specification).toMatchObject({ status: "dependency", specificationVersion: null });
     await expect(gateway.submitCaseReport()).resolves.toEqual({ outcome: "not_configured" });
+  });
+});
+
+describe("rescanRangeProblem", () => {
+  it("accepts up to 90 calendar days ending today or earlier", () => {
+    expect(rescanRangeProblem("2026-07-01", "2026-09-28", "2026-09-28")).toBeNull(); // 90 days
+    expect(rescanRangeProblem("2026-09-28", "2026-09-28", "2026-09-28")).toBeNull();
+  });
+
+  it("refuses reversed, future and longer ranges", () => {
+    expect(rescanRangeProblem("2026-09-02", "2026-09-01", "2026-09-28")).toBe("The start date is after the end date");
+    expect(rescanRangeProblem("2026-09-01", "2026-09-29", "2026-09-28")).toBe("The range cannot end in the future");
+    expect(rescanRangeProblem("2026-06-30", "2026-09-28", "2026-09-28")).toBe(`A check covers at most ${MAX_RESCAN_DAYS} days; split the range`);
   });
 });

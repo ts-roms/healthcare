@@ -27,6 +27,18 @@ export function matchRule<R extends { codePrefix: string; status: string }>(rule
   return rules.filter((r) => r.status === "active" && normalized.startsWith(r.codePrefix)).sort((a, b) => b.codePrefix.length - a.codePrefix.length)[0];
 }
 
+/** The longest date range one check of earlier diagnoses may cover (calendar days, both ends included). */
+export const MAX_RESCAN_DAYS = 90;
+
+/** Why a check of earlier diagnoses cannot cover this range (dates YYYY-MM-DD, `today` in the same time zone), or null. */
+export function rescanRangeProblem(from: string, to: string, today: string): string | null {
+  if (from > to) return "The start date is after the end date";
+  if (to > today) return "The range cannot end in the future";
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
+  if (days > MAX_RESCAN_DAYS) return `A check covers at most ${MAX_RESCAN_DAYS} days; split the range`;
+  return null;
+}
+
 type Action = "record_external" | "dismiss" | "submit" | "queue_result";
 
 const ALLOWED: Record<Action, CaseReportStatus[]> = {

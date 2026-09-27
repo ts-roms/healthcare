@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { loadAppConfig, OutboxRelay } from "@healthcare/core";
+import { DohRescans } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
@@ -20,6 +21,8 @@ async function bootstrap(): Promise<void> {
   app.get(OutboxRelay).start();
   // Hourly, daytime only: care-plan follow-up reminders (patient recall).
   app.get(CarePlanRecallReminders).start();
+  // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
+  app.get(DohRescans).start();
   // Renders released laboratory reports and archives them in object storage (BullMQ, see printable-documents.md).
   app.get(LabReportArchiveWorker).start();
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");

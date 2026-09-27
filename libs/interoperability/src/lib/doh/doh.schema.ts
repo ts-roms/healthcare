@@ -1,6 +1,6 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0023_doh_reporting.sql (the migration is the source of truth).
+// Mirrors database/migrations/0023_doh_reporting.sql and 0045_doh_rescan.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -49,8 +49,37 @@ export const dohCaseReport = pgTable("doh_case_report", {
   reviewedBy: uuid("reviewed_by"),
   reviewedAt: ts("reviewed_at"),
   version: integer("version").notNull().default(1),
+  /** The check of earlier diagnoses that opened it; null when opened as the diagnosis was recorded. */
+  rescanId: uuid("rescan_id"),
+});
+
+export const RESCAN_STATUSES = ["queued", "running", "completed", "failed"] as const;
+export type RescanStatus = (typeof RESCAN_STATUSES)[number];
+
+/** A check of earlier diagnoses against the organization's active rules (run in the background by DohRescans). */
+export const dohRescan = pgTable("doh_rescan", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date").notNull(),
+  timeZone: text("time_zone").notNull(),
+  status: text("status").$type<RescanStatus>().notNull().default("queued"),
+  scanned: integer("scanned").notNull().default(0),
+  matched: integer("matched").notNull().default(0),
+  opened: integer("opened").notNull().default(0),
+  // Full (microsecond) precision is kept as text: the cursor must not re-read or skip a diagnosis.
+  cursorRecordedAt: timestamp("cursor_recorded_at", { withTimezone: true, mode: "string" }),
+  cursorDiagnosisId: uuid("cursor_diagnosis_id"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  requestedBy: uuid("requested_by").notNull(),
+  requestedAt: ts("requested_at").notNull().defaultNow(),
+  startedAt: ts("started_at"),
+  heartbeatAt: ts("heartbeat_at"),
+  completedAt: ts("completed_at"),
 });
 
 export type ReportableRuleRecord = typeof dohReportableRule.$inferSelect;
 export type FacilitySettingRecord = typeof dohFacilitySetting.$inferSelect;
 export type CaseReportRecord = typeof dohCaseReport.$inferSelect;
+export type RescanRecord = typeof dohRescan.$inferSelect;

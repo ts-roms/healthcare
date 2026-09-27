@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, localDate } from "@healthcare/core";
-import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import { allergyIntolerance, allergyReview, appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
@@ -257,6 +257,39 @@ export class ClinicQueries {
       .leftJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
       .where(and(eq(diagnosis.organizationId, organizationId), eq(diagnosis.id, diagnosisId)));
     return row;
+  }
+
+  /**
+   * Coded diagnoses recorded in [start, end), not entered in error, in (recorded_at, id) order after the cursor — for
+   * checking earlier diagnoses against DOH reportable-condition rules. `recordedAt` is returned as text at full
+   * (microsecond) precision so it can serve as the next page's cursor.
+   */
+  codedDiagnosesRecorded(
+    organizationId: string,
+    range: { start: Date; end: Date },
+    after: { recordedAt: string; diagnosisId: string } | null,
+    limit: number,
+  ): Promise<Array<{ id: string; codeSystemKey: string | null; code: string; recordedAt: string }>> {
+    return this.db
+      .select({
+        id: diagnosis.id,
+        codeSystemKey: diagnosis.codeSystemKey,
+        code: sql<string>`${diagnosis.code}`,
+        recordedAt: sql<string>`${diagnosis.recordedAt}::text`,
+      })
+      .from(diagnosis)
+      .where(
+        and(
+          eq(diagnosis.organizationId, organizationId),
+          gte(diagnosis.recordedAt, range.start),
+          lt(diagnosis.recordedAt, range.end),
+          isNotNull(diagnosis.code),
+          ne(diagnosis.status, "entered_in_error"),
+          after ? sql`(${diagnosis.recordedAt}, ${diagnosis.id}) > (${after.recordedAt}::timestamptz, ${after.diagnosisId}::uuid)` : undefined,
+        ),
+      )
+      .orderBy(asc(diagnosis.recordedAt), asc(diagnosis.id))
+      .limit(limit);
   }
 
   /** Practitioner records by id (record exports). */

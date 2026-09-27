@@ -1,4 +1,4 @@
-import { type DynamicModule, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from "@nestjs/common";
+import { type DynamicModule, Logger, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from "@nestjs/common";
 import { AuditModule } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
@@ -22,13 +22,20 @@ export interface IntegrationWorkerModuleOptions {
 }
 
 class WorkerLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
+  private readonly logger = new Logger("IntegrationWorker");
+
   constructor(
     private readonly runner: IntegrationWorkerRunner,
+    private readonly processor: IntegrationExchangeProcessor,
     private readonly autoStart: boolean,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.autoStart) this.runner.start();
+  async onApplicationBootstrap(): Promise<void> {
+    if (!this.autoStart) return;
+    // A key removed from INTEGRATION_PAYLOAD_KEYS before its payloads were sent: say so before those exchanges fail.
+    const missing = await this.processor.unavailableKeyIds();
+    if (missing.length) this.logger.error(`Queued payloads are sealed with key id(s) not configured here: ${missing.join(", ")} — they will fail unsent`);
+    this.runner.start();
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -66,8 +73,9 @@ export class IntegrationWorkerModule {
         },
         {
           provide: WorkerLifecycle,
-          inject: [IntegrationWorkerRunner],
-          useFactory: (runner: IntegrationWorkerRunner) => new WorkerLifecycle(runner, options.autoStart ?? true),
+          inject: [IntegrationWorkerRunner, IntegrationExchangeProcessor],
+          useFactory: (runner: IntegrationWorkerRunner, processor: IntegrationExchangeProcessor) =>
+            new WorkerLifecycle(runner, processor, options.autoStart ?? true),
         },
       ],
       exports: [IntegrationExchangeProcessor, IntegrationWorkerRunner],

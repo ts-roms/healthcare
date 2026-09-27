@@ -1393,3 +1393,24 @@ export interface BillingPrefixes {
   receiptPrefix: string;
   creditNotePrefix: string;
 }
+
+// ---- DOH: checks of earlier diagnoses against the rules (libs/interoperability/src/lib/doh/doh-rescans.service.ts) ----
+
+export type DohRescanStatus = "queued" | "running" | "completed" | "failed";
+
+export interface DohRescan {
+  id: string;
+  fromDate: string;
+  toDate: string;
+  timeZone: string;
+  status: DohRescanStatus;
+  /** Coded diagnoses checked, those matching an active rule, and case reports this check opened. */
+  scanned: number;
+  matched: number;
+  opened: number;
+  lastError: string | null;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}

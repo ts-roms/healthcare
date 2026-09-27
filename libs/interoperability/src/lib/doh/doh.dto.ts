@@ -34,3 +34,9 @@ export class DismissDto extends createZodDto(dismissSchema) {}
 
 export const submitCaseSchema = z.object({ idempotencyKey: z.string().trim().min(8).max(100), version });
 export class SubmitCaseDto extends createZodDto(submitCaseSchema) {}
+
+const calendarDate = z.iso.date("A calendar date (YYYY-MM-DD)");
+
+/** Check the organization's diagnoses recorded in this range (both dates included, Philippine time) against its rules. */
+export const rescanSchema = z.object({ from: calendarDate, to: calendarDate });
+export class RescanDto extends createZodDto(rescanSchema) {}

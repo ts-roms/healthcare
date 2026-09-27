@@ -241,7 +241,7 @@ describe("PhilHealth claims — through an adapter (test double) and the integra
 
     // The prepared claim is sealed (encrypted) for the worker; the queue job carries only the exchange id.
     const payload = await sealed(queued.body.id);
-    expect(payload.ciphertext).toMatch(/^v1\./);
+    expect(payload.ciphertext).toMatch(/^v2\.development\./); // sealed with the key ring's current key, tagged with its id
     expect(payload.ciphertext).not.toMatch(/345678901|Dela|E11/);
     await drainEvents(ctx);
     expect(ctx.integrations.enqueued).toEqual([queued.body.id]);

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ClinicQueries } from "@healthcare/clinic";
-import type { DohCaseSource, DohCaseSources } from "@healthcare/interoperability";
+import type { DohCaseSource, DohCaseSources, DohDiagnosisBrief } from "@healthcare/interoperability";
 import { PatientRecordService } from "@healthcare/patient";
 
 /** DOH reporting → clinic and patient: the diagnosis, its encounter and facility, the patient's identity and address. */
@@ -42,6 +42,15 @@ export class AppDohCaseSources implements DohCaseSources {
       },
       patient: { ...patient, ...reach },
     };
+  }
+
+  codedDiagnosesRecorded(
+    organizationId: string,
+    range: { start: Date; end: Date },
+    after: { recordedAt: string; diagnosisId: string } | null,
+    limit: number,
+  ): Promise<DohDiagnosisBrief[]> {
+    return this.clinic.codedDiagnosesRecorded(organizationId, range, after, limit);
   }
 
   async patientBriefs(organizationId: string, patientIds: string[]) {

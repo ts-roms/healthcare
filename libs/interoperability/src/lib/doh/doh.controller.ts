@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
-import { CreateRuleDto, DismissDto, FacilityCodeDto, ListCasesDto, RecordExternalDto, SubmitCaseDto } from "./doh.dto";
+import { CreateRuleDto, DismissDto, FacilityCodeDto, ListCasesDto, RecordExternalDto, RescanDto, SubmitCaseDto } from "./doh.dto";
+import { DohRescans } from "./doh-rescans.service";
 import { DohReportsService } from "./doh-reports.service";
 import { DohSettingsService, strip } from "./doh-settings.service";
 
@@ -12,6 +13,7 @@ export class DohController {
   constructor(
     private readonly reports: DohReportsService,
     private readonly settings: DohSettingsService,
+    private readonly rescans: DohRescans,
   ) {}
 
   @Get("integration")
@@ -40,6 +42,29 @@ export class DohController {
   @RequirePermissions("doh.settings.manage")
   deactivateRule(@CurrentActor() actor: Actor, @Param("ruleId", ParseUUIDPipe) ruleId: string) {
     return this.settings.deactivateRule(actor, ruleId);
+  }
+
+  @Post("rescans")
+  @HttpCode(202)
+  @RequirePermissions("doh.settings.manage")
+  @ApiOperation({
+    summary: "Check the organization's diagnoses recorded in a date range (at most 90 days) against the active rules, in the background",
+  })
+  requestRescan(@CurrentActor() actor: Actor, @Body() body: RescanDto) {
+    return this.rescans.request(actor, body);
+  }
+
+  @Get("rescans")
+  @RequirePermissions("doh.settings.manage")
+  @ApiOperation({ summary: "Recent checks of earlier diagnoses: status and how many diagnoses were checked, matched and opened" })
+  listRescans(@CurrentActor() actor: Actor) {
+    return this.rescans.list(actor);
+  }
+
+  @Get("rescans/:rescanId")
+  @RequirePermissions("doh.settings.manage")
+  getRescan(@CurrentActor() actor: Actor, @Param("rescanId", ParseUUIDPipe) rescanId: string) {
+    return this.rescans.get(actor, rescanId);
   }
 
   @Get("facilities/:facilityId/facility-code")

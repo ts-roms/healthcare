@@ -52,7 +52,8 @@ export interface TestContext {
   close: () => Promise<void>;
 }
 
-export function testConfig(): AppConfig {
+/** Test configuration; `env` adds or replaces variables (e.g. an integration payload key ring). */
+export function testConfig(env: Record<string, string> = {}): AppConfig {
   return loadAppConfig({
     NODE_ENV: "test",
     DATABASE_URL: TEST_DATABASE_URL,
@@ -63,6 +64,7 @@ export function testConfig(): AppConfig {
     LIVEKIT_URL: "wss://video.test.invalid",
     LIVEKIT_API_KEY: "test-key",
     LIVEKIT_API_SECRET: randomBytes(32).toString("hex"),
+    ...env,
   });
 }
 
@@ -74,10 +76,11 @@ export async function resetDatabase(pool: Pool): Promise<void> {
 
 export async function createTestApp(
   overrides: Pick<AppModuleOverrides, "philhealthGateway" | "philhealthEligibilityGateway" | "dohGateway"> = {},
+  env: Record<string, string> = {},
 ): Promise<TestContext> {
   const integrations = new RecordingIntegrationQueue();
   const archives = new RecordingArchiveQueue();
-  const config = testConfig();
+  const config = testConfig(env);
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
   await resetDatabase(pool);
   const storage = new InMemoryObjectStorage();
