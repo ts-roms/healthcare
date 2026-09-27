@@ -17,10 +17,13 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, gte, inArray, lt, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { applyDiscountSchema, createInvoiceSchema, listInvoicesSchema, payerStatusSchema, setPayerSchema, voidInvoiceSchema } from "../billing.dto";
-import { computeInvoice, discountConflict, documentNumber, paidNet } from "../billing.rules";
+import { computeInvoice, depositApplied, discountConflict, documentNumber, invoiceBalance, paidNet, type Settlement } from "../billing.rules";
 import {
+  billingAccountEntry,
   billingCharge,
   type BillingChargeRecord,
+  billingCreditNote,
+  billingCreditNoteLine,
   billingDiscountRule,
   billingInvoice,
   billingInvoiceDiscount,
@@ -41,8 +44,10 @@ import { BILLING_PATIENTS, type BillingPatientDirectory } from "../ports";
  * takes discounts (with eligibility evidence) and payer coverage (HMO LOA,
  * PhilHealth, insurer); every change recomputes the totals. Issuing assigns
  * the number and freezes the invoice (database trigger). Corrections are a
- * void — only once nothing is paid — optionally with a new draft carrying the
- * same charges, discounts and coverage.
+ * void — only once nothing is paid and no credit note was issued — optionally
+ * with a new draft carrying the same charges, discounts and coverage (deposit
+ * applied to it returns to the patient's account), or a credit note
+ * (CreditNoteService).
  */
 @Injectable()
 export class InvoiceService {
@@ -259,6 +264,8 @@ export class InvoiceService {
         .from(billingPayment)
         .where(eq(billingPayment.invoiceId, invoiceId));
       if (paidNet(ledger) !== 0) throw new BusinessRuleError("Refund the payments before voiding this invoice", "invoice_has_payments");
+      const [credited] = await tx.select({ id: billingCreditNote.id }).from(billingCreditNote).where(eq(billingCreditNote.invoiceId, invoiceId)).limit(1);
+      if (credited) throw new BusinessRuleError("A credit note was issued for this invoice; correct it with another credit note", "invoice_has_credit_notes");
       const settled = await tx
         .select({ id: billingInvoicePayer.id })
         .from(billingInvoicePayer)
@@ -302,6 +309,7 @@ export class InvoiceService {
       } else {
         await this.releaseCharges(tx, invoiceId);
       }
+      const released = await this.releaseDeposits(tx, actor, invoice);
       const [voided] = await tx
         .update(billingInvoice)
         .set({
@@ -322,7 +330,7 @@ export class InvoiceService {
         resourceId: invoiceId,
         patientId: row.patientId,
         reason: input.reason,
-        metadata: { invoiceNumber: row.invoiceNumber, replacementId: replacement?.id ?? null },
+        metadata: { invoiceNumber: row.invoiceNumber, replacementId: replacement?.id ?? null, depositReleased: released },
       });
       await this.events.record(tx, invoiceEvent("InvoiceVoided", row, { replacementId: replacement?.id ?? null }));
       return replacement?.id ?? null;
@@ -443,7 +451,7 @@ export class InvoiceService {
       .from(billingInvoice)
       .where(and(eq(billingInvoice.organizationId, organizationId), eq(billingInvoice.id, invoiceId)));
     const row = found(invoice, "Invoice");
-    const [items, discounts, payers, ledger] = await Promise.all([
+    const [items, discounts, payers, ledger, account, creditNotes, creditLines] = await Promise.all([
       this.db
         .select()
         .from(billingInvoiceItem)
@@ -456,8 +464,19 @@ export class InvoiceService {
         .innerJoin(billingPayer, eq(billingPayer.id, billingInvoicePayer.payerId))
         .where(eq(billingInvoicePayer.invoiceId, invoiceId)),
       this.db.select().from(billingPayment).where(eq(billingPayment.invoiceId, invoiceId)).orderBy(asc(billingPayment.recordedAt)),
+      this.db.select().from(billingAccountEntry).where(eq(billingAccountEntry.invoiceId, invoiceId)).orderBy(asc(billingAccountEntry.recordedAt)),
+      this.db.select().from(billingCreditNote).where(eq(billingCreditNote.invoiceId, invoiceId)).orderBy(asc(billingCreditNote.issuedAt)),
+      this.db
+        .select({ line: billingCreditNoteLine })
+        .from(billingCreditNoteLine)
+        .innerJoin(billingCreditNote, eq(billingCreditNote.id, billingCreditNoteLine.creditNoteId))
+        .where(eq(billingCreditNote.invoiceId, invoiceId)),
     ]);
-    const paid = paidNet(ledger);
+    const settlement: Settlement = {
+      paid: paidNet(ledger),
+      depositApplied: depositApplied(account),
+      credited: creditNotes.reduce((a, c) => a + c.appliedAmount, 0),
+    };
     return {
       ...publicView(row),
       items: items.map(publicView),
@@ -465,8 +484,17 @@ export class InvoiceService {
       discounts: discounts.map(({ evidenceIdNumber, ...d }) => ({ ...publicView(d), evidenceIdMasked: maskIdNumber(evidenceIdNumber) })),
       payers: payers.map((p) => ({ ...publicView(p.coverage), payerName: p.name, payerType: p.payerType })),
       payments: ledger.map(publicView),
-      paidTotal: paid,
-      balance: row.status === "issued" ? row.patientTotal - paid : 0,
+      /** Deposit or account credit applied to this invoice, and released by a void. */
+      accountEntries: account.map(({ idempotencyKey: _key, ...e }) => publicView(e)),
+      creditNotes: creditNotes.map(({ idempotencyKey: _key, ...c }) => ({
+        ...publicView(c),
+        lines: creditLines.filter((l) => l.line.creditNoteId === c.id).map((l) => publicView(l.line)),
+      })),
+      paidTotal: settlement.paid,
+      depositAppliedTotal: settlement.depositApplied,
+      creditedTotal: settlement.credited,
+      creditNoteTotal: creditNotes.reduce((a, c) => a + c.amount, 0),
+      balance: row.status === "issued" ? invoiceBalance(row.patientTotal, settlement) : 0,
     };
   }
 
@@ -483,9 +511,13 @@ export class InvoiceService {
     }
     // Qualified by hand: inside a single-table select Drizzle would render the column unqualified.
     const paid = sql<number>`coalesce((SELECT sum(CASE WHEN p.kind = 'payment' THEN p.amount ELSE -p.amount END) FROM billing_payment p WHERE p.invoice_id = "billing_invoice"."id"), 0)::bigint`;
-    if (query.unpaid) filters.push(eq(billingInvoice.status, "issued"), sql`${billingInvoice.patientTotal} > ${paid}`);
+    // Payments, deposit applied (less releases) and credit notes (the part that reduced the balance).
+    const settled = sql<number>`(${paid}
+      + coalesce((SELECT sum(CASE WHEN a.kind = 'application' THEN a.amount ELSE -a.amount END) FROM billing_account_entry a WHERE a.invoice_id = "billing_invoice"."id" AND a.kind IN ('application', 'release')), 0)
+      + coalesce((SELECT sum(c.applied_amount) FROM billing_credit_note c WHERE c.invoice_id = "billing_invoice"."id"), 0))::bigint`;
+    if (query.unpaid) filters.push(eq(billingInvoice.status, "issued"), sql`${billingInvoice.patientTotal} > ${settled}`);
     const rows = await this.db
-      .select({ invoice: billingInvoice, paid })
+      .select({ invoice: billingInvoice, paid, settled })
       .from(billingInvoice)
       .where(and(...filters))
       .orderBy(desc(sql`coalesce(${billingInvoice.issuedAt}, ${billingInvoice.createdAt})`))
@@ -497,12 +529,12 @@ export class InvoiceService {
       patientId: query.patientId,
       metadata: { facilityId, count: rows.length },
     });
-    return rows.map(({ invoice, paid: paidRaw }) => {
+    return rows.map(({ invoice, paid: paidRaw, settled: settledRaw }) => {
       const paidTotal = Number(paidRaw);
       return {
         ...publicView(invoice),
         paidTotal,
-        balance: invoice.status === "issued" ? invoice.patientTotal - paidTotal : 0,
+        balance: invoice.status === "issued" ? invoice.patientTotal - Number(settledRaw) : 0,
         patient: patients.get(invoice.patientId) ?? null,
       };
     });
@@ -530,6 +562,8 @@ export class InvoiceService {
       payerTotal: inv.payerTotal,
       patientTotal: inv.patientTotal,
       paidTotal: inv.paidTotal,
+      depositAppliedTotal: inv.depositAppliedTotal,
+      creditedTotal: inv.creditedTotal,
       balance: inv.balance,
       items: inv.items.map((i) => ({
         description: i.description,
@@ -542,10 +576,56 @@ export class InvoiceService {
       discounts: inv.discounts.map((d) => ({ name: d.ruleName, amount: d.amount })),
       payers: inv.payers.map((p) => ({ name: p.payerName, amount: p.amount, status: p.status })),
       payments: inv.payments.map((p) => ({ kind: p.kind, amount: p.amount, method: p.method, receiptNumber: p.receiptNumber, recordedAt: p.recordedAt })),
+      depositApplications: inv.accountEntries.map((e) => ({ kind: e.kind as "application" | "release", amount: e.amount, recordedAt: e.recordedAt })),
+      creditNotes: inv.creditNotes.map((c) => ({
+        id: c.id,
+        creditNoteNumber: c.creditNoteNumber,
+        issuedAt: c.issuedAt,
+        reason: c.reason,
+        amount: c.amount,
+        appliedAmount: c.appliedAmount,
+        accountCredit: c.accountCredit,
+      })),
     }));
   }
 
   // ---- internals ----------------------------------------------------------------------------
+
+  /** What settles an invoice (payments, deposit applied, credit notes), read inside the caller's transaction. */
+  async settlement(tx: DbExecutor, invoiceId: string): Promise<Settlement> {
+    const [ledger, account, credits] = await Promise.all([
+      tx.select({ kind: billingPayment.kind, amount: billingPayment.amount }).from(billingPayment).where(eq(billingPayment.invoiceId, invoiceId)),
+      tx
+        .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
+        .from(billingAccountEntry)
+        .where(eq(billingAccountEntry.invoiceId, invoiceId)),
+      tx
+        .select({ total: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint` })
+        .from(billingCreditNote)
+        .where(eq(billingCreditNote.invoiceId, invoiceId)),
+    ]);
+    return { paid: paidNet(ledger), depositApplied: depositApplied(account), credited: Number(credits[0]?.total ?? 0) };
+  }
+
+  /** On a void, deposit or account credit applied to the invoice goes back to the patient's account. Returns the amount. */
+  private async releaseDeposits(tx: DbExecutor, actor: Actor, invoice: BillingInvoiceRecord): Promise<number> {
+    const entries = await tx.select().from(billingAccountEntry).where(eq(billingAccountEntry.invoiceId, invoice.id));
+    const releasedIds = new Set(entries.filter((e) => e.kind === "release").map((e) => e.applicationId));
+    const open = entries.filter((e) => e.kind === "application" && !releasedIds.has(e.id));
+    for (const application of open) {
+      await tx.insert(billingAccountEntry).values({
+        organizationId: invoice.organizationId,
+        facilityId: invoice.facilityId,
+        patientId: invoice.patientId,
+        kind: "release",
+        amount: application.amount,
+        invoiceId: invoice.id,
+        applicationId: application.id,
+        recordedBy: actor.userId,
+      });
+    }
+    return open.reduce((a, e) => a + e.amount, 0);
+  }
 
   async lock(tx: DbExecutor, actor: Actor, invoiceId: string) {
     const [row] = await tx

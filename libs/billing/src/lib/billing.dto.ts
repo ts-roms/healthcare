@@ -55,17 +55,16 @@ export const createDiscountRuleSchema = z.object({
 });
 export class CreateDiscountRuleDto extends createZodDto(createDiscountRuleSchema) {}
 
+const prefix = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9-]{1,12}$/);
 export const updateSettingsSchema = z.object({
-  invoicePrefix: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z0-9-]{1,12}$/),
-  receiptPrefix: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z0-9-]{1,12}$/),
+  invoicePrefix: prefix,
+  receiptPrefix: prefix,
+  /** Unchanged when omitted. */
+  creditNotePrefix: prefix.optional(),
 });
 export class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
 
@@ -174,3 +173,47 @@ export class RefundDto extends createZodDto(refundSchema) {}
 
 export const dailyReportSchema = z.object({ date: z.iso.date() });
 export class DailyReportDto extends createZodDto(dailyReportSchema) {}
+
+// ---- patient account (deposits and credit) -------------------------------------------------------
+
+const idempotencyKey = z.string().trim().min(8).max(100);
+
+export const recordDepositSchema = z.object({
+  amount: positiveCentavos,
+  method: z.enum(PAYMENT_METHODS),
+  reference: z.string().trim().min(1).max(60).optional(),
+  /** One per real-world deposit, so a retried request is recorded once. */
+  idempotencyKey,
+});
+export class RecordDepositDto extends createZodDto(recordDepositSchema) {}
+
+export const applyDepositSchema = z.object({ amount: positiveCentavos, idempotencyKey });
+export class ApplyDepositDto extends createZodDto(applyDepositSchema) {}
+
+export const refundAccountSchema = z.object({
+  amount: positiveCentavos,
+  method: z.enum(PAYMENT_METHODS),
+  reason,
+  reference: z.string().trim().min(1).max(60).optional(),
+  idempotencyKey,
+});
+export class RefundAccountDto extends createZodDto(refundAccountSchema) {}
+
+// ---- credit notes -----------------------------------------------------------------------------
+
+export const issueCreditNoteSchema = z.object({
+  reason,
+  lines: z
+    .array(
+      z.object({
+        invoiceItemId: z.string().uuid(),
+        amount: positiveCentavos,
+        /** The invoice line's description when omitted. */
+        description: text(200).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
+  idempotencyKey,
+});
+export class IssueCreditNoteDto extends createZodDto(issueCreditNoteSchema) {}

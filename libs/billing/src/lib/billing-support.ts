@@ -1,4 +1,5 @@
-import { NotFoundError, VersionConflictError } from "@healthcare/core";
+import { type DbExecutor, NotFoundError, VersionConflictError } from "@healthcare/core";
+import { sql } from "drizzle-orm";
 
 /** Drops internal columns before returning a record to API callers. */
 export function publicView<T extends { organizationId: string }>(record: T): Omit<T, "organizationId"> {
@@ -26,4 +27,12 @@ export function maskIdNumber(value: string | null): string | null {
   if (!value) return null;
   const tail = value.replace(/\s/g, "").slice(-4);
   return `•••• ${tail}`;
+}
+
+/**
+ * Serializes changes to one patient's account at one facility (deposits, applications, credit, refunds) for the
+ * rest of the transaction. Taken after any invoice lock, never before, so the lock order is always the same.
+ */
+export async function lockPatientAccount(tx: DbExecutor, organizationId: string, facilityId: string, patientId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`billing-account:${organizationId}:${facilityId}:${patientId}`}, 0))`);
 }
