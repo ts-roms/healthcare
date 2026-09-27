@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { diagnosisLabel, encounterControls, isNoteDirty, noteFromRevision, notePayload, noteReadyToSign, sortDiagnoses } from "./encounter-mapping";
+import {
+  diagnosisLabel,
+  encounterControls,
+  prescriptionControls,
+  isNoteDirty,
+  noteFromRevision,
+  notePayload,
+  noteReadyToSign,
+  sortDiagnoses,
+} from "./encounter-mapping";
 
 const doctor = ["encounter.read", "encounter.write", "encounter.sign", "encounter.amend"];
 
@@ -67,5 +76,24 @@ describe("diagnoses", () => {
       { id: "r", status: "resolved", rank: "secondary", recordedAt: "0" },
     ] as const;
     expect(sortDiagnoses([...rows]).map((r) => r.id)).toEqual(["p", "s", "r", "e"]);
+  });
+});
+
+describe("prescriptionControls", () => {
+  const prescriber = ["prescription.read", "prescription.issue", "prescription.cancel"];
+  it("issues only in an open encounter, corrects active prescriptions after signing too", () => {
+    const open = prescriptionControls("in_progress", prescriber);
+    expect(open.issue).toBe(true);
+    const signed = prescriptionControls("completed", prescriber);
+    expect(signed.issue).toBe(false);
+    expect(signed.replace({ status: "active" })).toBe(true);
+    expect(signed.replace({ status: "superseded" })).toBe(false);
+    expect(signed.cancel({ status: "cancelled" })).toBe(false);
+  });
+
+  it("offers nothing without permission or on an encounter entered in error", () => {
+    const readOnly = prescriptionControls("in_progress", ["prescription.read"]);
+    expect([readOnly.issue, readOnly.replace({ status: "active" }), readOnly.cancel({ status: "active" })]).toEqual([false, false, false]);
+    expect(prescriptionControls("entered_in_error", prescriber).replace({ status: "active" })).toBe(false);
   });
 });

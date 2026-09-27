@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consentState, consentTypeLabel, EMPTY_CONSENT_FORM, parseConsentForm, todayInManila } from "./consent-form";
+import { checkConsentFile, consentDocumentTitle, consentState, consentTypeLabel, EMPTY_CONSENT_FORM, parseConsentForm, todayInManila } from "./consent-form";
 
 const TODAY = "2026-09-27";
 
@@ -62,5 +62,23 @@ describe("helpers", () => {
   it("labels consent types in plain language", () => {
     expect(consentTypeLabel("portal_access")).toBe("Patient portal access (MyHealth)");
     expect(consentTypeLabel("something_new")).toBe("something new");
+  });
+});
+
+describe("checkConsentFile", () => {
+  const pdf = { name: "consent.pdf", type: "application/pdf", size: 200_000 };
+  it("accepts PDFs and photos up to 10 MB", () => {
+    expect(checkConsentFile(pdf)).toBeNull();
+    expect(checkConsentFile({ ...pdf, type: "image/heic", name: "IMG_0001.HEIC" })).toBeNull();
+    expect(checkConsentFile({ ...pdf, size: 10 * 1024 * 1024 })).toBeNull();
+  });
+  it("rejects empty, oversized, unsupported and oddly named files", () => {
+    expect(checkConsentFile({ ...pdf, size: 0 })).toMatch(/empty/);
+    expect(checkConsentFile({ ...pdf, size: 10 * 1024 * 1024 + 1 })).toMatch(/larger than 10 MB/);
+    expect(checkConsentFile({ ...pdf, type: "application/msword", name: "consent.doc" })).toMatch(/PDF or a photo/);
+    expect(checkConsentFile({ ...pdf, name: "../consent.pdf" })).toMatch(/Rename/);
+  });
+  it("titles the document after the consent", () => {
+    expect(consentDocumentTitle("telemedicine")).toBe("Signed consent: Telemedicine consultations");
   });
 });

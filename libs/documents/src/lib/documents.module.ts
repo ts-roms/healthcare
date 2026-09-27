@@ -19,6 +19,8 @@ export class DocumentsModule {
     };
     return {
       module: DocumentsModule,
+      // Global so domain modules (e.g. patient consent) can check documents without re-registering the controller.
+      global: true,
       controllers: [DocumentsController],
       providers: [DocumentsService, storage],
       exports: [DocumentsService],

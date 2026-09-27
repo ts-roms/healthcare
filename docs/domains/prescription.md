@@ -40,3 +40,5 @@ strength, form, dose, route, frequency, duration, quantity, refills, instruction
 
 `PrescribingContext` port (prescriber, encounter state, allergies) implemented in `apps/api` over `ClinicQueries`.
 The FK `(patient_id, encounter_id)` guarantees a prescription's encounter belongs to the same patient.
+The staff app prescribes from the encounter workspace (`docs/architecture/staff-app.md`); it shows the API's
+`allergy_warning` details as decision support and sends the prescriber's override reason.
