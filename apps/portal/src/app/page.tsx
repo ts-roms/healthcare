@@ -17,7 +17,12 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-7">
       <section>
-        <h1 className="text-page-lg font-semibold tracking-tight">Good morning, {mariaSantos.givenName} 👋</h1>
+        <h1 className="text-page-lg font-semibold tracking-tight">
+          Good morning, {mariaSantos.givenName}{" "}
+          <span role="img" aria-label="waving hand">
+            👋
+          </span>
+        </h1>
         <p className="text-muted-foreground">How can we help today?</p>
       </section>
 

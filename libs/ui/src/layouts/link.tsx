@@ -9,7 +9,11 @@ export type LinkComponent = React.ComponentType<{
   onClick?: () => void;
 }>;
 
-export const DefaultLink: LinkComponent = ({ href, ...props }) => <a href={href} {...props} />;
+export const DefaultLink: LinkComponent = ({ href, children, ...props }) => (
+  <a href={href} {...props}>
+    {children}
+  </a>
+);
 
 export function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);

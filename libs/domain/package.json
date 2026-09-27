@@ -14,5 +14,11 @@
   },
   "devDependencies": {
     "typescript": "^5.9.0"
+  },
+  "nx": {
+    "tags": [
+      "scope:shared",
+      "type:domain"
+    ]
   }
 }

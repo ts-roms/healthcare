@@ -3,7 +3,7 @@
   "defaultBase": "main",
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
-    "production": ["default", "!{projectRoot}/**/*.stories.tsx", "!{projectRoot}/.storybook/**/*"],
+    "production": ["default", "!{projectRoot}/**/*.stories.tsx", "!{projectRoot}/.storybook/**/*", "!{projectRoot}/eslint.config.mjs"],
     "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
   },
   "targetDefaults": {
@@ -12,8 +12,24 @@
       "inputs": ["production", "^production"],
       "cache": true
     },
-    "typecheck": { "inputs": ["default", "^production"], "cache": true },
-    "lint": { "cache": true },
-    "build-storybook": { "cache": true }
-  }
+    "typecheck": {
+      "inputs": ["default", "^production"],
+      "cache": true
+    },
+    "lint": {
+      "cache": true,
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs"]
+    },
+    "build-storybook": {
+      "cache": true
+    }
+  },
+  "plugins": [
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    }
+  ]
 }
