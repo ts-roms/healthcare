@@ -1,6 +1,6 @@
 # Architecture overview
 
-Status: Phase 1 (Foundation) and Phase 2 (Clinic) implemented in the API; the Next.js apps are a prototype on demo data. See `CLAUDE.md` for the rules this follows.
+Status: Phase 1 (Foundation) and Phase 2 (Clinic) implemented in the API; the staff app and patient portal sign in against the API; most clinical screens are still demo previews. See `CLAUDE.md` for the rules this follows.
 
 ## Shape
 
@@ -13,7 +13,7 @@ apps/
   api/                   NestJS HTTP API — composition root for all modules
   notification-worker/   BullMQ consumer that delivers notifications
   staff/                 Next.js staff app — backend-for-frontend to the API (see staff-app.md); clinical modules still demo
-  portal/                Next.js patient portal (prototype on demo fixtures)
+  portal/                Next.js patient portal — backend-for-frontend (see portal-app.md): sign-in, activation, profile
 libs/
   core/          config, database, errors, access decorators, events outbox, PH helpers, zoned time
   audit/         append-only audit trail
@@ -21,11 +21,12 @@ libs/
   auth/          users, roles, sessions, MFA, global AccessGuard, ActorResolver
   documents/     document metadata + S3 presigned upload/download
   notification/  NotificationService, templates, channel adapters, dispatcher
-  patient/       Patient Master, lookup, duplicates, consent, preferences
+  patient/       Patient Master, lookup, duplicates, consent, preferences, patient portal accounts
   clinic/        scheduling, appointments, queue, triage, vitals, allergies, encounters, diagnoses, dashboard
   prescription/  immutable prescriptions, cancel/replace, drug–allergy decision support
   care-plan/     care plans, goals, activities, recall
   ui/ domain/    frontend design system and shared frontend types
+  web-session/   session code shared by the Next.js apps (cookies, refresh, errors, forwarding)
 database/migrations/   forward-only SQL migrations (source of truth for the schema)
 tools/db/              migrate and seed scripts
 ```

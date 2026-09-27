@@ -4,9 +4,10 @@
 
 The single canonical patient identity for an organization (CLAUDE.md §5–7):
 registration, demographics, identifiers, contacts, addresses, relationships,
-consent, communication preferences, lookup and duplicate detection.
-**Not** responsible for clinical data (allergies, histories, encounters —
-Phase 2), billing, or portal accounts.
+consent, communication preferences, lookup and duplicate detection, and the
+patient's own **portal account** (sign-in to MyHealth).
+**Not** responsible for clinical data (allergies, histories, encounters live in
+`libs/clinic`) or billing.
 
 ## Entities
 
@@ -19,6 +20,8 @@ Phase 2), billing, or portal accounts.
 | `patient_relationship`             | Family, guardians, dependents and emergency contacts; may link another patient                                                                                                                                |
 | `patient_consent`                  | Append-only decisions per consent type; current = latest                                                                                                                                                      |
 | `patient_communication_preference` | Opt-in/out per channel × category                                                                                                                                                                             |
+| `patient_portal_account`           | One per patient: `invited` (hashed one-time code, expiry, attempts) → `active` (email, argon2id password, lockout) → `disabled` (who, when, reason). Email unique per organization                            |
+| `patient_portal_session`           | Portal refresh sessions (hashed, rotated; reuse of a rotated token revokes the session)                                                                                                                       |
 
 Sub-records are **retired**, never deleted. `merged_into_patient_id` exists so
 merging can be added without schema changes.
@@ -33,6 +36,8 @@ merging can be added without schema changes.
 | Add / retire contact, address, identifier, relationship | Primary handling; identifiers unique; retire requires reason                                                                                                                                                                                                                                                             |
 | Record consent                                          | Append-only; optional link to a consent document                                                                                                                                                                                                                                                                         |
 | Set communication preferences                           | Upsert; before/after audited                                                                                                                                                                                                                                                                                             |
+| Invite to portal / disable portal access                | Invite requires an active patient and granted `portal_access` consent; returns the activation code once. Disable requires a reason and revokes all portal sessions. See `docs/architecture/portal-app.md`                                                                                                                |
+| Portal activate / login / refresh / logout              | Patient-facing, `@Public()` to the staff guard, protected by `PatientAccessGuard` (session, account and consent re-checked on every request). Rate-limited; failures audited                                                                                                                                             |
 
 ## Queries
 
@@ -42,6 +47,7 @@ merging can be added without schema changes.
   mobile only. Inactive and merged records are hidden unless `includeInactive=true`.
 - **Duplicate check** `POST /patients/duplicate-check`.
 - **Detail** `GET /patients/:id` (audited view), **consent history**.
+- **Portal account status** `GET /patients/:id/portal-account` (`patient.read`), **portal profile** `GET /portal/me` (the signed-in patient's identity only).
 - `resolveContact` — used by notifications through the app's `RecipientDirectory`.
 
 ## Duplicate detection policy
@@ -68,7 +74,8 @@ None published yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`,
 ## Permissions
 
 `patient.search`, `patient.read`, `patient.register` (+ facility context),
-`patient.update`, `patient.consent.manage`.
+`patient.update`, `patient.consent.manage`, `patient.portal.manage` (invite and
+disable portal accounts; org admin, receptionist, records officer).
 
 ## Integration points
 
@@ -83,3 +90,6 @@ None published yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`,
 - Identifier formats are normalized but not validated against issuer rules
   (e.g. PhilHealth PIN check digits) until official specifications are confirmed.
 - Patient merge (with survivor selection and record re-pointing) is not implemented.
+- Portal: no self-service password reset, email verification, patient MFA, or
+  guardian/dependent proxy access yet. One portal deployment serves one
+  organization (`PORTAL_ORGANIZATION_CODE`).
