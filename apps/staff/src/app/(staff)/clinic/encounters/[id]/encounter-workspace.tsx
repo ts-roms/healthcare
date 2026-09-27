@@ -21,7 +21,7 @@ import {
   Textarea,
   toast,
 } from "@healthcare/ui/primitives";
-import type { CodingSystem, Encounter, EncounterDetail, NoteRevision, PatientSummaryResponse } from "@/lib/api/types";
+import type { CodingSystem, Encounter, EncounterDetail, NoteRevision, PatientSummaryResponse, Prescription } from "@/lib/api/types";
 import {
   ENCOUNTER_STATUS_LABEL,
   type EncounterControls,
@@ -29,12 +29,14 @@ import {
   noteFromRevision,
   notePayload,
   noteReadyToSign,
+  prescriptionControls,
   REVISION_KIND_LABEL,
 } from "@/lib/encounter-mapping";
 import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
+import { PrescriptionsPanel } from "./prescriptions-panel";
 
 type HistoryItem = Encounter & { practitionerName: string | null };
 
@@ -46,6 +48,8 @@ export function EncounterWorkspace({
   history,
   codingSystems,
   controls,
+  prescriptions,
+  prescriptionPermissions,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -54,6 +58,9 @@ export function EncounterWorkspace({
   history: HistoryItem[];
   codingSystems: CodingSystem[];
   controls: EncounterControls;
+  /** null: the user may not read prescriptions. */
+  prescriptions: Prescription[] | null;
+  prescriptionPermissions: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -285,6 +292,13 @@ export function EncounterWorkspace({
                 codingSystems={codingSystems}
                 canEdit={controls.addDiagnosis}
                 needsReason={controls.diagnosisNeedsReason}
+              />
+              <PrescriptionsPanel
+                encounterId={encounter.id}
+                prescriptions={prescriptions}
+                controls={prescriptionControls(encounter.status, prescriptionPermissions)}
+                allergies={banner.allergies}
+                allergyStatus={summary ? summary.allergies.status : "unknown"}
               />
               <section className="flex flex-col gap-2">
                 <h3 className="text-meta font-semibold tracking-wide text-muted-foreground uppercase">This visit</h3>
