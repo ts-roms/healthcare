@@ -4,6 +4,7 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const ROUTES: Array<[RegExp, (id: string) => string]> = [
   [new RegExp(`^lab-reports/(${UUID})$`, "i"), (id) => `/portal/results/orders/${id}/report.pdf`],
   [new RegExp(`^invoices/(${UUID})$`, "i"), (id) => `/portal/billing/${id}/pdf`],
+  [new RegExp(`^credit-notes/(${UUID})$`, "i"), (id) => `/portal/billing/credit-notes/${id}/pdf`],
 ];
 
 export function fileApiPath(segments: string[]): string | null {
@@ -18,4 +19,5 @@ export function fileApiPath(segments: string[]): string | null {
 export const fileHref = {
   labReport: (orderId: string) => `/files/lab-reports/${orderId}`,
   invoice: (invoiceId: string) => `/files/invoices/${invoiceId}`,
+  creditNote: (creditNoteId: string) => `/files/credit-notes/${creditNoteId}`,
 };

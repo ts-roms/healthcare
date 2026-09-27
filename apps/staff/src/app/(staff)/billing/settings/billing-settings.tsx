@@ -23,7 +23,7 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { BillingCategory, BillingPayer, BillingService, DiscountRule, PhilHealthAccreditation } from "@/lib/api/types";
+import type { BillingCategory, BillingPayer, BillingPrefixes, BillingService, DiscountRule, PhilHealthAccreditation } from "@/lib/api/types";
 import { CATEGORY_LABEL, parsePesos, percent, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import {
@@ -82,7 +82,7 @@ export function BillingSettings({
   services: BillingService[];
   payers: BillingPayer[];
   rules: DiscountRule[];
-  prefixes: { invoicePrefix: string; receiptPrefix: string };
+  prefixes: BillingPrefixes;
   visitTypes: Source[];
   labTests: Source[];
   canManage: boolean;
@@ -530,7 +530,7 @@ function Payers({ payers, canManage }: { payers: BillingPayer[]; canManage: bool
   );
 }
 
-function Prefixes({ prefixes, canManage }: { prefixes: { invoicePrefix: string; receiptPrefix: string }; canManage: boolean }) {
+function Prefixes({ prefixes, canManage }: { prefixes: BillingPrefixes; canManage: boolean }) {
   const { pending, submit } = useSubmit();
   const [f, setF] = React.useState(prefixes);
   return (
@@ -540,8 +540,8 @@ function Prefixes({ prefixes, canManage }: { prefixes: { invoicePrefix: string; 
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-body">
         <p className="text-meta text-muted-foreground">
-          Invoices are numbered {prefixes.invoicePrefix}-YYYY-000001 and payment receipts {prefixes.receiptPrefix}-YYYY-000001. The format BIR requires for your
-          facility must be confirmed before production use.
+          Invoices are numbered {prefixes.invoicePrefix}-YYYY-000001, payment and deposit receipts {prefixes.receiptPrefix}-YYYY-000001 and credit notes{" "}
+          {prefixes.creditNotePrefix}-YYYY-000001. The format BIR requires for your facility must be confirmed before production use.
         </p>
         {canManage ? (
           <form
@@ -555,6 +555,15 @@ function Prefixes({ prefixes, canManage }: { prefixes: { invoicePrefix: string; 
             <Label htmlFor="receipt-prefix">Receipt prefix</Label>
             <Input id="invoice-prefix" value={f.invoicePrefix} maxLength={12} onChange={(e) => setF({ ...f, invoicePrefix: e.target.value.toUpperCase() })} />
             <Input id="receipt-prefix" value={f.receiptPrefix} maxLength={12} onChange={(e) => setF({ ...f, receiptPrefix: e.target.value.toUpperCase() })} />
+            <Label htmlFor="credit-note-prefix" className="col-span-2">
+              Credit note prefix
+            </Label>
+            <Input
+              id="credit-note-prefix"
+              value={f.creditNotePrefix}
+              maxLength={12}
+              onChange={(e) => setF({ ...f, creditNotePrefix: e.target.value.toUpperCase() })}
+            />
             <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
               Save
             </Button>

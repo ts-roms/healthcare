@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { BillingPayer, BillingService, DiscountRule, LabTest, PhilHealthAccreditation, VisitType } from "@/lib/api/types";
+import type { BillingPayer, BillingPrefixes, BillingService, DiscountRule, LabTest, PhilHealthAccreditation, VisitType } from "@/lib/api/types";
 import { BillingNav } from "../billing-nav";
 import { BillingSettings } from "./billing-settings";
 
@@ -17,7 +17,7 @@ export default async function BillingSettingsPage() {
     api<BillingService[]>("/billing/services"),
     api<BillingPayer[]>("/billing/payers"),
     api<DiscountRule[]>("/billing/discount-rules"),
-    api<{ invoicePrefix: string; receiptPrefix: string }>("/billing/settings"),
+    api<BillingPrefixes>("/billing/settings"),
     // Sources for automatic capture; staff without access to them can still type the code.
     can(session, "appointment.read") ? api<VisitType[]>("/clinic/visit-types").catch(() => []) : Promise.resolve([]),
     can(session, "lab.order.read") ? api<LabTest[]>("/laboratory/tests").catch(() => []) : Promise.resolve([]),

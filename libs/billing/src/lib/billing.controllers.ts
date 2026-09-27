@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
+  ApplyDepositDto,
   ApplyDiscountDto,
   CancelChargeDto,
   CreateDiscountRuleDto,
@@ -10,12 +11,15 @@ import {
   CreatePayerDto,
   CreateServiceDto,
   DailyReportDto,
+  IssueCreditNoteDto,
   IssueInvoiceDto,
   ListChargesDto,
   ListInvoicesDto,
   ManualChargeDto,
   PayerStatusDto,
+  RecordDepositDto,
   RecordPaymentDto,
+  RefundAccountDto,
   RefundDto,
   RemoveLineDto,
   SetPayerDto,
@@ -25,8 +29,10 @@ import {
 } from "./billing.dto";
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeService } from "./charges/charge.service";
+import { CreditNoteService } from "./credit-notes/credit-note.service";
 import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
+import { DepositService } from "./payments/deposit.service";
 import { PaymentService } from "./payments/payment.service";
 
 /** Services and prices, payers, discount rules, document numbering. */
@@ -102,7 +108,7 @@ export class BillingCatalogController {
 
   @Put("settings")
   @RequirePermissions("billing.pricelist.manage")
-  @ApiOperation({ summary: "Invoice and receipt number prefixes (format is a BIR compliance dependency)" })
+  @ApiOperation({ summary: "Invoice, receipt and credit note number prefixes (format is a BIR compliance dependency)" })
   updateSettings(@CurrentActor() actor: Actor, @Body() body: UpdateSettingsDto) {
     return this.catalog.updateSettings(actor, body);
   }
@@ -118,6 +124,8 @@ export class BillingController {
     private readonly charges: ChargeService,
     private readonly invoices: InvoiceService,
     private readonly payments: PaymentService,
+    private readonly deposits: DepositService,
+    private readonly creditNotes: CreditNoteService,
     private readonly documents: BillingDocuments,
   ) {}
 
@@ -277,6 +285,67 @@ export class BillingController {
   @ApiOperation({ summary: "Refund all or part of a payment (reason required; idempotent per key)" })
   refund(@CurrentActor() actor: Actor, @Param("paymentId", ParseUUIDPipe) id: string, @Body() body: RefundDto) {
     return this.payments.refund(actor, id, body);
+  }
+
+  // ---- patient account: deposits and credit ----------------------------------------------------
+
+  @Get("patients/:patientId/account")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "The patient's deposit and credit balance at this facility, with its ledger" })
+  account(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
+    return this.deposits.account(actor, patientId);
+  }
+
+  @Post("patients/:patientId/deposits")
+  @RequirePermissions("billing.deposit.record")
+  @ApiOperation({ summary: "Record a deposit (advance payment) on the patient's account (idempotent per key)" })
+  deposit(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RecordDepositDto) {
+    return this.deposits.deposit(actor, patientId, body);
+  }
+
+  @Post("patients/:patientId/account-refunds")
+  @RequirePermissions("billing.refund.issue")
+  @ApiOperation({ summary: "Refund unapplied deposit or credit (reason required; idempotent per key)" })
+  refundAccount(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RefundAccountDto) {
+    return this.deposits.refund(actor, patientId, body);
+  }
+
+  @Get("account-entries/:entryId/receipt.pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable acknowledgement receipt of a deposit (audited)" })
+  async depositReceiptPdf(@CurrentActor() actor: Actor, @Param("entryId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.depositReceiptPdf(actor, id);
+    return pdfFile(pdf, filename);
+  }
+
+  @Post("invoices/:invoiceId/deposit-applications")
+  @RequirePermissions("billing.deposit.record")
+  @ApiOperation({ summary: "Apply deposit or credit balance to an issued invoice (never beyond either balance; idempotent per key)" })
+  applyDeposit(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: ApplyDepositDto) {
+    return this.deposits.apply(actor, id, body);
+  }
+
+  // ---- credit notes ------------------------------------------------------------------------------
+
+  @Post("invoices/:invoiceId/credit-notes")
+  @RequirePermissions("billing.credit-note.issue")
+  @ApiOperation({ summary: "Issue a credit note against lines of an issued invoice (reason required; immutable; idempotent per key)" })
+  issueCreditNote(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: IssueCreditNoteDto) {
+    return this.creditNotes.issue(actor, id, body);
+  }
+
+  @Get("credit-notes/:creditNoteId")
+  @RequirePermissions("billing.charge.read")
+  creditNote(@CurrentActor() actor: Actor, @Param("creditNoteId", ParseUUIDPipe) id: string) {
+    return this.creditNotes.get(actor, id);
+  }
+
+  @Get("credit-notes/:creditNoteId/pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable credit note (audited)" })
+  async creditNotePdf(@CurrentActor() actor: Actor, @Param("creditNoteId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.creditNotePdf(actor, id);
+    return pdfFile(pdf, filename);
   }
 
   @Get("reports/daily")

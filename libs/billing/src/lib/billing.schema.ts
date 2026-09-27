@@ -14,6 +14,8 @@ export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export type ChargeStatus = "pending" | "invoiced" | "cancelled";
 export type InvoiceStatus = "draft" | "issued" | "void";
 export type ChargeSourceType = "encounter" | "lab_order_item" | "manual";
+export type SequenceKind = "invoice" | "receipt" | "credit_note";
+export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund";
 
 export const billingService = pgTable("billing_service", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -71,7 +73,7 @@ export const billingSequence = pgTable(
   "billing_sequence",
   {
     organizationId: uuid("organization_id").notNull(),
-    kind: text("kind").$type<"invoice" | "receipt">().notNull(),
+    kind: text("kind").$type<SequenceKind>().notNull(),
     prefix: text("prefix").notNull(),
     nextValue: bigint("next_value", { mode: "number" }).notNull().default(1),
   },
@@ -189,6 +191,53 @@ export const billingPayment = pgTable("billing_payment", {
   recordedAt: ts("recorded_at").notNull().defaultNow(),
 });
 
+export const billingCreditNote = pgTable("billing_credit_note", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  creditNoteNumber: text("credit_note_number").notNull(),
+  reason: text("reason").notNull(),
+  amount: money("amount").notNull(),
+  appliedAmount: money("applied_amount").notNull(),
+  accountCredit: money("account_credit").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  issuedBy: uuid("issued_by").notNull(),
+  issuedAt: ts("issued_at").notNull().defaultNow(),
+});
+
+export const billingCreditNoteLine = pgTable("billing_credit_note_line", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  creditNoteId: uuid("credit_note_id").notNull(),
+  invoiceItemId: uuid("invoice_item_id").notNull(),
+  description: text("description").notNull(),
+  amount: money("amount").notNull(),
+});
+
+/** The patient's account at a facility: deposits and credit, applied to invoices or refunded (append-only). */
+export const billingAccountEntry = pgTable("billing_account_entry", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  kind: text("kind").$type<AccountEntryKind>().notNull(),
+  amount: money("amount").notNull(),
+  method: text("method").$type<(typeof PAYMENT_METHODS)[number]>(),
+  reference: text("reference"),
+  receiptNumber: text("receipt_number"),
+  invoiceId: uuid("invoice_id"),
+  creditNoteId: uuid("credit_note_id"),
+  applicationId: uuid("application_id"),
+  reason: text("reason"),
+  idempotencyKey: text("idempotency_key"),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+
 export type BillingChargeRecord = typeof billingCharge.$inferSelect;
 export type BillingInvoiceRecord = typeof billingInvoice.$inferSelect;
 export type BillingPaymentRecord = typeof billingPayment.$inferSelect;
+export type BillingCreditNoteRecord = typeof billingCreditNote.$inferSelect;
+export type BillingAccountEntryRecord = typeof billingAccountEntry.$inferSelect;

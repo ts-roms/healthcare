@@ -1,6 +1,6 @@
 # Printable documents (PDF)
 
-Laboratory result reports, specimen tube labels, invoices and payment receipts are PDFs rendered by the API from the
+Laboratory result reports, specimen tube labels, invoices, payment and deposit receipts and credit notes are PDFs rendered by the API from the
 platform's own records. Released laboratory reports are also archived in object storage.
 
 | Document                | Staff (API)                                       | Patient (MyHealth API)                           | Rules                                                                                                                                                                                                         |
@@ -10,10 +10,13 @@ platform's own records. Released laboratory reports are also archived in object 
 | Acknowledgement receipt | `GET /billing/payments/:id/receipt.pdf`           | —                                                | Payments only; amount in words; balance right after the payment. "Not an official receipt".                                                                                                                   |
 | Specimen tube label     | `GET /laboratory/specimens/:id/label.pdf?copies=` | —                                                | 2.25 × 1.25 in, one label per page; Code 128 barcode of the accession number; name, patient number, sex/age, specimen type, STAT, collection time, test codes — nothing else. `lab.specimen.collect`.         |
 | Archived lab report     | `GET /laboratory/report-archive/:id/report.pdf`   | —                                                | The stored copy, byte for byte, of the report as a release left it ("Archived copy, version N"); listed per patient at `GET /laboratory/patients/:patientId/report-archive`.                                  |
+| Deposit receipt         | `GET /billing/account-entries/:id/receipt.pdf`    | —                                                | Deposits only; amount in words; deposit and credit balance right after the deposit. "Not an official receipt".                                                                                                |
+| Credit note             | `GET /billing/credit-notes/:id/pdf`               | `GET /portal/billing/credit-notes/:id/pdf`       | Number, invoice, reason, credited lines, what was taken off the balance and what went to the patient's account; amount in words. BIR conformity subject to confirmation.                                      |
 
 Every download is audited (`lab.report.print`, `lab.specimen.label-print`, `lab.report.archive.download` with
-`document.download`, `billing.invoice.print`, `billing.receipt.print`; patient downloads `portal.lab-report-download`,
-`portal.invoice-download` with actor type `patient`).
+`document.download`, `billing.invoice.print`, `billing.receipt.print`, `billing.deposit-receipt.print`, `billing.credit-note.print`; patient
+downloads `portal.lab-report-download`, `portal.invoice-download`, `portal.credit-note-download` with actor type
+`patient`).
 
 ## How
 
@@ -30,7 +33,8 @@ Every download is audited (`lab.report.print`, `lab.specimen.label-print`, `lab.
   also read back with an independent decoder (ZXing) at 203 and 300 dpi.
 - The web apps never hold tokens in the browser: `/files/...` route handlers in the staff app
   (`lab-reports/:orderId`, `invoices/:id`, `receipts/:paymentId`, `specimen-labels/:specimenId`,
-  `lab-report-archive/:archiveId`) and MyHealth (`lab-reports/:orderId`, `invoices/:id`)
+  `lab-report-archive/:archiveId`, `deposit-receipts/:entryId`, `credit-notes/:id`) and MyHealth (`lab-reports/:orderId`,
+  `invoices/:id`, `credit-notes/:id`)
   fetch the PDF from the API with the user's session and stream it back. Only those paths are passed through
   (`lib/files.ts`).
 - pdfkit is loaded from `node_modules` at runtime, not bundled (`ExternalsPlugin` in `apps/api/webpack.config.js`): it
@@ -67,6 +71,6 @@ the staff copy and are not offered to patients.
 
 ## Compliance dependencies
 
-Whether the invoice or the acknowledgement receipt satisfies BIR requirements (and what an official receipt must
+Whether the invoice, the acknowledgement receipt (of a payment or a deposit) or the credit note satisfies BIR requirements (and what an official receipt must
 contain), and what a laboratory report must show under DOH licensing rules (e.g. signatories' license numbers), must be
 confirmed before production use. The documents state what they are not.

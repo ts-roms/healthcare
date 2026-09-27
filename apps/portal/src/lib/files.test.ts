@@ -7,6 +7,7 @@ describe("file routes", () => {
   it("maps the patient's documents to portal API paths only", () => {
     expect(fileApiPath(["lab-reports", id])).toBe(`/portal/results/orders/${id}/report.pdf`);
     expect(fileApiPath(["invoices", id])).toBe(`/portal/billing/${id}/pdf`);
+    expect(fileApiPath(["credit-notes", id])).toBe(`/portal/billing/credit-notes/${id}/pdf`);
     expect(fileApiPath(["receipts", id])).toBeNull();
     expect(fileApiPath(["invoices", "x"])).toBeNull();
   });

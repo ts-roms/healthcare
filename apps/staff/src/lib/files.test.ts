@@ -13,6 +13,9 @@ describe("file routes", () => {
     expect(fileHref.invoice(id)).toBe(`/files/invoices/${id}`);
     expect(fileHref.specimenLabel(id)).toBe(`/files/specimen-labels/${id}`);
     expect(fileHref.archivedLabReport(id)).toBe(`/files/lab-report-archive/${id}`);
+    expect(fileApiPath(["deposit-receipts", id])).toBe(`/billing/account-entries/${id}/receipt.pdf`);
+    expect(fileApiPath(["credit-notes", id])).toBe(`/billing/credit-notes/${id}/pdf`);
+    expect(fileHref.creditNote(id)).toBe(`/files/credit-notes/${id}`);
   });
 
   it("passes nothing else through", () => {
