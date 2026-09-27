@@ -28,6 +28,12 @@ foreign key `(organization_id, patient_id, document_id)` (migration 0014).
 `DocumentsModule` is registered as a global module so domain libraries can use
 `DocumentsService` without registering the controller twice.
 
+## Queries for other domains
+
+`DocumentRecordQueries.patientRecord(organizationId, patientId)` — metadata of a patient's `available` documents (no
+storage key), unaudited, for record exports composed in the API: the FHIR interface maps them to `DocumentReference`
+and serves the content through `DocumentsService.downloadUrl` (audited). See `docs/interoperability/fhir.md`.
+
 ## Permissions
 
 `document.upload`, `document.read`, `document.archive`.

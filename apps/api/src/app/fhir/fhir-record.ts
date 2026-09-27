@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { CarePlanService } from "@healthcare/care-plan";
 import { ClinicQueries } from "@healthcare/clinic";
 import { type Actor, APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { DocumentRecordQueries } from "@healthcare/documents";
 import type { FhirContext, PatientRecordSource } from "@healthcare/interoperability";
 import { LabRecordQueries } from "@healthcare/laboratory";
 import { OrganizationService } from "@healthcare/organization";
@@ -10,10 +11,14 @@ import { PrescriptionService } from "@healthcare/prescription";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
+/** Documents (and their content) are for callers who may read documents, as on the documents API. */
+export const canReadDocuments = (actor: Actor) => actor.permissions.has("document.read");
+
 /**
  * Composes one patient's record from the domains' read queries into the
  * interoperability layer's source model (libs/interoperability maps it to FHIR).
- * Laboratory results are the current released versions only.
+ * Laboratory results are the current released versions only. Documents are
+ * included only for a caller who may read documents (`document.read`).
  */
 @Injectable()
 export class FhirRecordComposer {
@@ -25,6 +30,7 @@ export class FhirRecordComposer {
     private readonly lab: LabRecordQueries,
     private readonly prescriptions: PrescriptionService,
     private readonly carePlans: CarePlanService,
+    private readonly documents: DocumentRecordQueries,
   ) {}
 
   async context(organizationId: string, requestBaseUrl: string): Promise<FhirContext> {
@@ -43,12 +49,13 @@ export class FhirRecordComposer {
   async record(actor: Actor, patientId: string): Promise<PatientRecordSource> {
     const organizationId = actor.organizationId;
     const patient = await this.patients.getDetail(actor, patientId);
-    const [clinic, labOrders, prescriptions, carePlans, facilities] = await Promise.all([
+    const [clinic, labOrders, prescriptions, carePlans, facilities, documents] = await Promise.all([
       this.clinic.patientRecord(organizationId, patientId),
       this.lab.patientRecord(organizationId, patientId),
       this.prescriptions.allForPatient(organizationId, patientId),
       this.carePlans.allForPatient(organizationId, patientId),
       this.organizations.listFacilities(organizationId),
+      canReadDocuments(actor) ? this.documents.patientRecord(organizationId, patientId) : null,
     ]);
 
     const practitionerIds = new Set<string>();
@@ -160,6 +167,7 @@ export class FhirRecordComposer {
         encounterId: p.encounterId,
         prescriberPractitionerId: p.prescriberPractitionerId,
         issuedAt: p.issuedAt.toISOString(),
+        cancelledAt: iso(p.cancelledAt),
         items: p.items.map((i) => ({ ...i, asNeeded: i.frequency === "as_needed" })),
       })),
       carePlans: carePlans.map((c) => ({
@@ -174,6 +182,16 @@ export class FhirRecordComposer {
         createdAt: c.createdAt.toISOString(),
         activities: c.activities.map((a) => ({ id: a.id, kind: a.kind, description: a.description, status: a.status, dueDate: a.dueDate })),
       })),
+      documents:
+        documents?.map((d) => ({
+          id: d.id,
+          category: d.category,
+          title: d.title,
+          fileName: d.fileName,
+          contentType: d.contentType,
+          sizeBytes: d.sizeBytes,
+          uploadedAt: d.uploadedAt.toISOString(),
+        })) ?? null,
     };
   }
 }

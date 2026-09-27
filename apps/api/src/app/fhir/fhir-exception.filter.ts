@@ -1,6 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from "@nestjs/common";
 import { DomainError } from "@healthcare/core";
-import { operationOutcome } from "@healthcare/interoperability";
+import { FhirSearchError, operationOutcome } from "@healthcare/interoperability";
 import type { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 
@@ -25,7 +25,12 @@ export class FhirExceptionFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<Response>();
     let status = 500;
     let message = "An unexpected error occurred";
-    if (exception instanceof DomainError) {
+    let code: IssueCode | undefined;
+    if (exception instanceof FhirSearchError) {
+      status = 400;
+      message = exception.message;
+      code = exception.code;
+    } else if (exception instanceof DomainError) {
       status = exception.httpStatus;
       message = exception.message;
     } else if (exception instanceof ZodValidationException) {
@@ -43,6 +48,6 @@ export class FhirExceptionFilter implements ExceptionFilter {
     response
       .status(status)
       .type("application/fhir+json")
-      .json(operationOutcome(issueCode(status), request.requestId ? `${message} (request ${request.requestId})` : message));
+      .json(operationOutcome(code ?? issueCode(status), request.requestId ? `${message} (request ${request.requestId})` : message));
   }
 }

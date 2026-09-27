@@ -143,6 +143,8 @@ export function toMedicationRequests(ctx: FhirContext, patientId: string, p: Pre
     return compact<MedicationRequest>({
       resourceType: "MedicationRequest",
       id: `${p.id}-${item.lineNumber}`,
+      // Reliable: a prescription is immutable once issued (database triggers); cancel/replace is its only change.
+      meta: { lastUpdated: p.cancelledAt ?? p.issuedAt },
       groupIdentifier: identifier(localSystem(ctx, "prescription-number"), p.prescriptionNumber),
       status: PRESCRIPTION_STATUS[p.status as keyof typeof PRESCRIPTION_STATUS] ?? "unknown",
       intent: "order",

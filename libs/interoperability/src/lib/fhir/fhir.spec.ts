@@ -1,5 +1,6 @@
-import type { Bundle, FhirResource, Observation, Patient } from "fhir/r4";
+import type { Bundle, CapabilityStatement, DocumentReference, FhirResource, Observation, OperationOutcome, Patient } from "fhir/r4";
 import { capabilityStatement, operationOutcome, patientEverything, searchByPatient } from "./bundle";
+import { DEFAULT_PAGING, FhirSearchError, PAGE_SIZE, parseLastUpdated, parsePaging, parseSearchParameters, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
 
 // The official FHIR R4 (4.0) JSON schema, bundled by this validator (dev dependency). Each resource is checked against
@@ -243,6 +244,7 @@ const source: PatientRecordSource = {
       encounterId: ENC,
       prescriberPractitionerId: DR,
       issuedAt: "2026-09-27T01:28:00.000Z",
+      cancelledAt: null,
       items: [
         {
           lineNumber: 1,
@@ -304,6 +306,17 @@ const source: PatientRecordSource = {
       ],
     },
   ],
+  documents: [
+    {
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      category: "referral_letter",
+      title: "Referral to cardiology",
+      fileName: "referral-reyes.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 48213,
+      uploadedAt: "2026-09-27T01:40:00.000Z",
+    },
+  ],
 };
 
 function errors(resource: { resourceType: string }): unknown[] {
@@ -320,7 +333,7 @@ function errors(resource: { resourceType: string }): unknown[] {
 }
 
 describe("FHIR R4 mapping", () => {
-  const everything = patientEverything(ctx, source, new Date("2026-09-28T00:00:00Z"));
+  const everything = patientEverything(ctx, source, DEFAULT_PAGING, new Date("2026-09-28T00:00:00Z"));
   const resources = (everything.entry ?? []).map((e) => e.resource as FhirResource);
   const find = <T extends FhirResource>(type: T["resourceType"], id?: string) => resources.find((r) => r.resourceType === type && (!id || r.id === id)) as T;
 
@@ -432,5 +445,173 @@ describe("FHIR R4 mapping", () => {
     expect(errors(allergy as FhirResource)).toEqual([]);
     const none = patientEverything(ctx, { ...source, allergies: [], allergyReview: null });
     expect(none.entry?.some((e) => e.resource?.resourceType === "AllergyIntolerance")).toBe(false);
+  });
+
+  it("maps stored documents as DocumentReference with an authenticated content URL on this endpoint", () => {
+    const doc = find<DocumentReference>("DocumentReference");
+    expect(doc).toMatchObject({
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      meta: { lastUpdated: "2026-09-27T01:40:00.000Z" },
+      status: "current",
+      type: { coding: [{ system: "https://ids.example.ph/demo/codesystem/document-category", code: "referral_letter", display: "Referral letter" }] },
+      subject: { reference: `Patient/${P}` },
+      description: "Referral to cardiology",
+      content: [
+        {
+          attachment: {
+            contentType: "application/pdf",
+            url: "https://api.example.ph/api/v1/fhir/r4/Binary/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            size: 48213,
+            title: "referral-reyes.pdf",
+          },
+        },
+      ],
+    });
+    expect(everything.entry?.some((e) => e.search?.mode === "outcome")).toBe(false);
+  });
+
+  it("withholds documents with a notice when the caller may not read them", () => {
+    const withheld = patientEverything(ctx, { ...source, documents: null });
+    expect(withheld.entry?.some((e) => e.resource?.resourceType === "DocumentReference")).toBe(false);
+    const notices = withheld.entry?.filter((e) => e.search?.mode === "outcome") ?? [];
+    expect(notices).toHaveLength(1);
+    expect((notices[0]?.resource as OperationOutcome).issue[0]).toMatchObject({ severity: "information", code: "suppressed" });
+    expect(errors(withheld)).toEqual([]);
+    expect(errors(notices[0]?.resource as OperationOutcome)).toEqual([]);
+    expect(withheld.total).toBe((everything.total ?? 0) - 1);
+  });
+
+  it("declares every served type, paging and _lastUpdated where supported", () => {
+    const capability: CapabilityStatement = capabilityStatement(ctx);
+    const resources = capability.rest?.[0]?.resource ?? [];
+    expect(resources.map((r) => r.type)).toEqual(expect.arrayContaining(["Patient", "DocumentReference", "Binary"]));
+    const withLastUpdated = resources.filter((r) => r.searchParam?.some((p) => p.name === "_lastUpdated")).map((r) => r.type);
+    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest"]);
+  });
+});
+
+describe("FHIR paging", () => {
+  const all = patientEverything(ctx, source, { count: PAGE_SIZE.max, offset: 0 });
+  const allMatches = (all.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.fullUrl);
+
+  it("pages $everything in a stable order with self/next/previous links and the full total", () => {
+    const seen: Array<string | undefined> = [];
+    let paging = { count: 7, offset: 0 };
+    for (let guard = 0; guard < 20; guard++) {
+      const page = patientEverything(ctx, source, paging);
+      expect(errors(page)).toEqual([]);
+      expect(page.total).toBe(allMatches.length);
+      const matches = (page.entry ?? []).filter((e) => e.search?.mode === "match");
+      expect(matches.length).toBeLessThanOrEqual(7);
+      seen.push(...matches.map((e) => e.fullUrl));
+      // Includes are the shared resources this page references (other matches may be on other pages).
+      const present = new Set((page.entry ?? []).map((e) => `${e.resource?.resourceType}/${e.resource?.id}`));
+      const shared = [...JSON.stringify(page).matchAll(/"reference":"((Organization|Location|Practitioner)\/[^"]+)"/g)].map((m) => m[1]);
+      expect(shared.filter((r) => !present.has(r!))).toEqual([]);
+      const included = (page.entry ?? []).filter((e) => e.search?.mode === "include").map((e) => `${e.resource?.resourceType}/${e.resource?.id}`);
+      expect(included.filter((r) => !shared.includes(r))).toEqual([]);
+
+      const link = (relation: string) => page.link?.find((l) => l.relation === relation)?.url;
+      expect(link("self")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=${paging.offset}`);
+      if (paging.offset === 0) expect(link("previous")).toBeUndefined();
+      else expect(link("previous")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=${paging.offset - 7}`);
+      const next = link("next");
+      if (!next) break;
+      paging = { count: 7, offset: Number(new URL(next).searchParams.get("_offset")) };
+    }
+    expect(seen).toEqual(allMatches);
+    expect(seen[0]).toBe(`${ctx.baseUrl}/Patient/${P}`);
+  });
+
+  it("orders deterministically whatever order the source rows come in", () => {
+    const reversed = {
+      ...source,
+      vitals: [...source.vitals].reverse(),
+      prescriptions: source.prescriptions.map((p) => ({ ...p, items: [...p.items].reverse() })),
+    };
+    const urls = (patientEverything(ctx, reversed, { count: PAGE_SIZE.max, offset: 0 }).entry ?? []).map((e) => e.fullUrl);
+    expect(urls).toEqual((all.entry ?? []).map((e) => e.fullUrl));
+  });
+
+  it("returns only the total for _count=0 and an empty page past the end", () => {
+    const counted = searchByPatient(ctx, source, "Observation", { paging: { count: 0, offset: 0 }, lastUpdated: {} });
+    expect(counted.total).toBe(10);
+    expect(counted).not.toHaveProperty("entry");
+    expect(counted.link?.map((l) => l.relation)).toEqual(["self"]);
+    const past = searchByPatient(ctx, source, "Observation", { paging: { count: 4, offset: 40 }, lastUpdated: {} });
+    expect(past).not.toHaveProperty("entry");
+    expect(past.link?.find((l) => l.relation === "previous")?.url).toBe(`${ctx.baseUrl}/Observation?patient=${P}&_count=4&_offset=6`);
+    expect(errors(past)).toEqual([]);
+  });
+
+  it("parses _count and _offset: default, maximum, and invalid values", () => {
+    expect(parsePaging({})).toEqual({ count: PAGE_SIZE.default, offset: 0 });
+    expect(parsePaging({ _count: "10", _offset: "20" })).toEqual({ count: 10, offset: 20 });
+    expect(parsePaging({ _count: "100000" })).toEqual({ count: PAGE_SIZE.max, offset: 0 });
+    for (const query of [{ _count: "-1" }, { _count: "ten" }, { _offset: "1.5" }, { _count: ["1", "2"] }]) {
+      expect(() => parsePaging(query)).toThrow(FhirSearchError);
+    }
+  });
+});
+
+describe("FHIR _lastUpdated", () => {
+  const RX2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const later: typeof source = {
+    ...source,
+    prescriptions: [
+      ...source.prescriptions,
+      // Issued 2026-09-01, cancelled 2026-09-29 (Manila): last updated at the cancellation.
+      {
+        ...source.prescriptions[0]!,
+        id: RX2,
+        prescriptionNumber: "RX00000002",
+        status: "cancelled",
+        issuedAt: "2026-09-01T02:00:00.000Z",
+        cancelledAt: "2026-09-28T16:30:00.000Z",
+        items: [source.prescriptions[0]!.items[0]!],
+      },
+    ],
+  };
+  const search = (lastUpdated: SearchParameters["lastUpdated"]) =>
+    (searchByPatient(ctx, later, "MedicationRequest", { paging: DEFAULT_PAGING, lastUpdated }).entry ?? []).map((e) => e.resource?.id);
+
+  it("filters on meta.lastUpdated with ge and le, dates as whole days in Manila time", () => {
+    expect(search({})).toHaveLength(3);
+    expect(search({ ge: "2026-09-29" })).toEqual([`${RX2}-1`]); // 2026-09-28T16:30Z is 2026-09-29 00:30 in Manila
+    expect(search({ le: "2026-09-28" })).toEqual(["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-1", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-2"]);
+    expect(search({ le: "2026-09-27" })).toHaveLength(2); // issued 2026-09-27T01:28Z, the whole day included
+    expect(search({ ge: "2026-09-27T01:28:00Z", le: "2026-09-27T01:28:00Z" })).toHaveLength(2);
+    expect(search({ ge: "2026-09-28T16:30:00.001Z" })).toEqual([]);
+    const bundle = searchByPatient(ctx, later, "MedicationRequest", { paging: { count: 1, offset: 0 }, lastUpdated: { ge: "2026-09-01" } });
+    expect(bundle.link?.find((l) => l.relation === "next")?.url).toBe(
+      `${ctx.baseUrl}/MedicationRequest?patient=${P}&_lastUpdated=ge2026-09-01&_count=1&_offset=1`,
+    );
+    expect(errors(bundle)).toEqual([]);
+  });
+
+  it("filters documents by their upload time", () => {
+    const documents = (lastUpdated: SearchParameters["lastUpdated"]) =>
+      searchByPatient(ctx, source, "DocumentReference", { paging: DEFAULT_PAGING, lastUpdated }).total;
+    expect(documents({ ge: "2026-09-27T01:40:00.000Z" })).toBe(1);
+    expect(documents({ le: "2026-09-27T09:39:59+08:00" })).toBe(0);
+  });
+
+  it("parses ge/le only, once each, and refuses types without a reliable last-updated time", () => {
+    expect(parseLastUpdated(["ge2026-09-01", "le2026-09-30T23:59:59+08:00"])).toEqual({ ge: "2026-09-01", le: "2026-09-30T23:59:59+08:00" });
+    const code = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        return (e as FhirSearchError).code;
+      }
+      return undefined;
+    };
+    expect(code(() => parseLastUpdated("2026-09-01"))).toBe("not-supported");
+    expect(code(() => parseLastUpdated("gt2026-09-01"))).toBe("not-supported");
+    expect(code(() => parseLastUpdated(["ge2026-09-01", "ge2026-09-02"]))).toBe("invalid");
+    expect(code(() => parseLastUpdated("ge2026-02-30"))).toBe("invalid");
+    expect(code(() => parseLastUpdated("ge2026-09-01T10:00:00"))).toBe("invalid"); // an instant needs its time zone
+    expect(code(() => parseSearchParameters({ _lastUpdated: "ge2026-09-01" }, { type: "Encounter", lastUpdated: false }))).toBe("not-supported");
+    expect(parseSearchParameters({ _count: "5" }, { type: "Encounter", lastUpdated: false })).toEqual({ paging: { count: 5, offset: 0 }, lastUpdated: {} });
   });
 });
