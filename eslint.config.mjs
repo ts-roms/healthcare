@@ -35,6 +35,7 @@ const DOMAIN_SCOPES = [
   "care-plan",
   "prescription",
   "billing",
+  "inventory",
   "interoperability",
   "notification",
   "audit",

@@ -153,3 +153,10 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 unresolved, or stalled — with a link to the source to prepare the request again, re-queue for stalled exchanges, and
 resolve with a note. Labels for systems/operations and source links live in
 `app/(staff)/admin/integrations/exchange-labels.ts`. See `docs/architecture/integration-worker.md`.
+
+## Inventory
+
+`/inventory` (`inventory.read`; a selected facility is required): stock by location, item and lot with expiry and
+reorder status (filters: low or out, expiring), and a form to record a movement (receive, issue, transfer; count and
+write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/inventory/catalog`
+(`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels. See `docs/domains/inventory.md`.

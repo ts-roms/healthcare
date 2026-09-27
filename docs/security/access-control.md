@@ -59,6 +59,10 @@ and `philhealth.settings.manage` (org_admin); audited `philhealth.claim.preview`
 PhilHealth eligibility (migration 0024): `philhealth.eligibility.manage`
 (org_admin, receptionist, cashier); audited `philhealth.eligibility.*`
 (answers from an adapter as the system); recorded answers are immutable.
+Inventory (migration 0026): `inventory.read`, `inventory.move`,
+`inventory.adjust`, `inventory.catalog.manage`; new system role
+`inventory_officer`; nurses and medical technologists read and move stock;
+every movement is audited (`inventory.*`, reasons for counts and write-offs).
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

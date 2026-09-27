@@ -7,6 +7,7 @@ import { CarePlanModule } from "@healthcare/care-plan";
 import { ClinicModule } from "@healthcare/clinic";
 import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
 import { DocumentsModule } from "@healthcare/documents";
+import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
 import { BillingModule } from "@healthcare/billing";
 import { DohReportingModule, IntegrationModule, PhilHealthModule } from "@healthcare/interoperability";
@@ -112,6 +113,8 @@ export class AppModule implements NestModule {
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
+        // Phase 9 — inventory: stock ledger, lots and expiry, reorder levels.
+        InventoryModule,
         // Outbound exchanges are sealed here and sent by apps/integration-worker.
         IntegrationModule.forRoot({ imports: [PatientModule], patients: AppExchangePatients, queue: overrides.integrationQueue }),
       ],
