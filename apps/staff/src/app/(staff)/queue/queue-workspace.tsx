@@ -9,6 +9,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, 
 import type { ActionResult } from "@/lib/api/action-result";
 import type { QueueVisit } from "@/lib/api/types";
 import {
+  canStartConsultation,
   canTriage,
   moveNeedsReason,
   QUEUE_BOARD_STATUSES,
@@ -18,6 +19,7 @@ import {
   toQueueEntry,
   visitStatusLabel,
 } from "@/lib/clinic-mapping";
+import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
 import { callVisit, moveVisit } from "./actions";
 
 /** Until realtime reaches the browser (the socket needs a token the BFF keeps server-side), the board polls. */
@@ -28,11 +30,17 @@ export function QueueWorkspace({
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
+  canConsult,
+  canOpenEncounter,
 }: {
   visits: QueueVisit[];
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
+  /** encounter.write: may start a consultation. */
+  canConsult: boolean;
+  /** encounter.read: may open a consultation. */
+  canOpenEncounter: boolean;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -96,6 +104,8 @@ export function QueueWorkspace({
           canManage={canManage}
           canTriage={mayTriage}
           canOpenRecord={canOpenRecord}
+          canConsult={canConsult}
+          canOpenEncounter={canOpenEncounter}
           pending={pending}
           onClose={() => setSelectedId(null)}
           onMove={(move, reason) =>
@@ -117,6 +127,8 @@ function VisitPanel({
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
+  canConsult,
+  canOpenEncounter,
   pending,
   onClose,
   onMove,
@@ -126,6 +138,8 @@ function VisitPanel({
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
+  canConsult: boolean;
+  canOpenEncounter: boolean;
   pending: boolean;
   onClose: () => void;
   onMove: (move: QueueMove, reason?: string) => void;
@@ -188,6 +202,15 @@ function VisitPanel({
           ) : null}
         </dl>
 
+        {visit.encounterId && canOpenEncounter ? (
+          <Button asChild size="sm">
+            <Link href={`/clinic/encounters/${visit.encounterId}`}>
+              <StethoscopeIcon /> Open consultation
+            </Link>
+          </Button>
+        ) : canConsult && canStartConsultation(visit.status) ? (
+          <StartConsultationButton visitId={visit.id} />
+        ) : null}
         {mayTriage && canTriage(visit.status) ? (
           <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>
             <Link href={`/queue/visits/${visit.id}/triage`}>

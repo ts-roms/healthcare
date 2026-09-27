@@ -66,7 +66,7 @@ cancel/reschedule/no-show) and the realtime queue gateway.
 `/queue` (+ `walk-ins`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only).
-Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
+Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
 
 ## Integration points

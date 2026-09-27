@@ -15,10 +15,10 @@ import {
   requireFacilityId,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, walkInSchema } from "../clinic.dto";
-import { appointment, facilityQueueCounter, visit, type VisitRecord, type VisitStatus } from "../clinic.schema";
+import { appointment, encounter, facilityQueueCounter, visit, type VisitRecord, type VisitStatus } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
 import { appointmentEvent } from "../appointments/appointment.service";
@@ -31,6 +31,8 @@ export type VisitView = Omit<VisitRecord, "organizationId"> & { ticket: string }
 export interface QueueEntryView extends VisitView {
   patient: PatientBrief | null;
   waitingMinutes: number;
+  /** The visit's consultation, once started (encounters entered in error are ignored). */
+  encounterId: string | null;
 }
 
 export function toVisitView(row: VisitRecord): VisitView {
@@ -146,11 +148,20 @@ export class VisitService {
       .from(visit)
       .where(and(...conditions));
     const patients = await this.patients.summaries(actor.organizationId, [...new Set(rows.map((r) => r.patientId))]);
+    const visitIds = rows.map((r) => r.id);
+    const encounters = visitIds.length
+      ? await this.db
+          .select({ id: encounter.id, visitId: encounter.visitId })
+          .from(encounter)
+          .where(and(eq(encounter.organizationId, actor.organizationId), inArray(encounter.visitId, visitIds), ne(encounter.status, "entered_in_error")))
+      : [];
+    const encounterByVisit = new Map(encounters.map((e) => [e.visitId, e.id]));
     const now = Date.now();
     await this.audit.recordStandalone(actor, { action: "queue.view", resourceType: "visit", metadata: { facilityId, date, count: rows.length } });
     return rows.sort(compareQueueOrder).map((row) => ({
       ...toVisitView(row),
       patient: patients.get(row.patientId) ?? null,
+      encounterId: encounterByVisit.get(row.id) ?? null,
       waitingMinutes: Math.max(0, Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000)),
     }));
   }

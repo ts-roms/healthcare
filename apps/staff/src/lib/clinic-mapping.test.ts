@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api/types";
 import {
   appointmentActions,
+  canStartConsultation,
   canTriage,
   groupByPractitioner,
   moveNeedsReason,
@@ -30,6 +31,7 @@ const visit: QueueVisit = {
   assignedPractitionerId: null,
   version: 3,
   waitingMinutes: 12,
+  encounterId: null,
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
 };
 
@@ -64,8 +66,8 @@ describe("queue moves", () => {
 });
 
 const practitioners = new Map<string, Practitioner>([
-  ["dr-b", { id: "dr-b", displayName: "Dr. Santos", profession: "physician", specialty: null, status: "active" }],
-  ["dr-a", { id: "dr-a", displayName: "Dr. Reyes", profession: "physician", specialty: null, status: "active" }],
+  ["dr-b", { id: "dr-b", userId: null, displayName: "Dr. Santos", profession: "physician", specialty: null, status: "active" }],
+  ["dr-a", { id: "dr-a", userId: null, displayName: "Dr. Reyes", profession: "physician", specialty: null, status: "active" }],
 ]);
 const visitTypes = new Map<string, VisitType>([
   ["vt", { id: "vt", code: "consult", name: "Consultation", defaultDurationMinutes: 15, modality: "in_person", status: "active" }],
@@ -149,5 +151,14 @@ describe("canTriage", () => {
     expect(canTriage("awaiting_consultation")).toBe(true);
     expect(canTriage("in_consultation")).toBe(false);
     expect(canTriage("completed")).toBe(false);
+  });
+});
+
+describe("canStartConsultation", () => {
+  it("allows starting before the consultation, not after", () => {
+    expect(canStartConsultation("awaiting_consultation")).toBe(true);
+    expect(canStartConsultation("waiting")).toBe(true);
+    expect(canStartConsultation("in_consultation")).toBe(false);
+    expect(canStartConsultation("cancelled")).toBe(false);
   });
 });

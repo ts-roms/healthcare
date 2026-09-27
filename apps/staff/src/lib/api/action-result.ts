@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   version_conflict: "Someone else updated this just now. The screen has been refreshed — check it and try again.",
   facility_required: "Select your facility in the top bar first.",
   slot_unavailable: "That time was just taken. Choose another slot.",
+  note_revision_conflict: "The note was changed elsewhere. Compare your text with the latest version before saving again.",
 };
 
 /** Runs an API call for a server action, turning API errors into a result and letting Next's redirects through. */

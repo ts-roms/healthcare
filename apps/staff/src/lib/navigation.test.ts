@@ -27,13 +27,18 @@ describe("navigationForPermissions", () => {
     expect(nav.find((i) => i.href === "/queue")?.badge).toBeUndefined();
   });
 
+  it("shows the API-backed clinic (consultations) by encounter permission, without a demo badge", () => {
+    expect(hrefs(["patient.read"])).not.toContain("/clinic");
+    expect(navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic")?.badge).toBeUndefined();
+  });
+
   it("shows administration only to user or organization managers", () => {
     expect(hrefs(["patient.read"])).not.toContain("/admin");
     expect(hrefs(["user.manage"])).toContain("/admin");
   });
 
   it("drops demo role filters from items and children", () => {
-    const clinic = navigationForPermissions(["patient.read"]).find((i) => i.href === "/clinic");
+    const clinic = navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);
     expect(clinic?.children?.every((c) => !("roles" in c))).toBe(true);
     expect(clinic?.children?.length).toBe(4);
@@ -47,6 +52,7 @@ describe("isDemoPath", () => {
     expect(isDemoPath("/patients/abc")).toBe(false);
     expect(isDemoPath("/")).toBe(false);
     expect(isDemoPath("/queue")).toBe(false);
+    expect(isDemoPath("/clinic/encounters/abc")).toBe(false);
     expect(isDemoPath("/appointments/new")).toBe(false);
   });
 });

@@ -40,7 +40,14 @@ export default async function QueuePage() {
           ) : null
         }
       />
-      <QueueWorkspace visits={visits} canManage={canManage} canTriage={can(session, "clinic.triage.write")} canOpenRecord={can(session, "patient.read")} />
+      <QueueWorkspace
+        visits={visits}
+        canManage={canManage}
+        canTriage={can(session, "clinic.triage.write")}
+        canOpenRecord={can(session, "patient.read")}
+        canConsult={can(session, "encounter.write")}
+        canOpenEncounter={can(session, "encounter.read")}
+      />
     </>
   );
 }

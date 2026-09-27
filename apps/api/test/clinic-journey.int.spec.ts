@@ -152,6 +152,10 @@ describe("clinic journey", () => {
     await ctx.http().post("/api/v1/encounters").set(as(otherDoctor, tenant.facilityId)).send({ visitId }).expect(409);
     const visit = await ctx.http().get(`/api/v1/queue/visits/${visitId}`).set(nurseAt()).expect(200);
     expect(visit.body.status).toBe("in_consultation");
+    // The queue row links to the consultation so staff can open it.
+    const queue = await ctx.http().get("/api/v1/queue").set(nurseAt()).expect(200);
+    expect(queue.body.find((q: { id: string }) => q.id === visitId)).toMatchObject({ encounterId });
+    expect(queue.body.filter((q: { id: string }) => q.id !== visitId).every((q: { encounterId: unknown }) => q.encounterId === null)).toBe(true);
   });
 
   it("keeps every note revision and refuses stale edits", async () => {

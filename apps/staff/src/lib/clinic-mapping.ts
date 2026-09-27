@@ -70,6 +70,11 @@ export function canTriage(status: VisitStatus): boolean {
   return status === "waiting" || status === "in_triage" || status === "awaiting_consultation";
 }
 
+/** A consultation can start from any active status before it (`libs/clinic` queue-state transitions to in_consultation). */
+export function canStartConsultation(status: VisitStatus): boolean {
+  return status === "waiting" || status === "in_triage" || status === "awaiting_consultation";
+}
+
 export function moveNeedsReason(move: QueueMove): boolean {
   return move === "cancelled" || move === "left_without_being_seen";
 }
