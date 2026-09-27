@@ -10,6 +10,7 @@ import {
   shiftDate,
   toAppointment,
   todayIn,
+  upcomingAppointments,
   toQueueEntry,
 } from "./clinic-mapping";
 
@@ -160,5 +161,18 @@ describe("canStartConsultation", () => {
     expect(canStartConsultation("waiting")).toBe(true);
     expect(canStartConsultation("in_consultation")).toBe(false);
     expect(canStartConsultation("cancelled")).toBe(false);
+  });
+});
+
+describe("upcomingAppointments", () => {
+  it("keeps open appointments that have not ended, in start order", () => {
+    const at = (h: string) => `2026-09-27T${h}:00Z`;
+    const rows = [
+      { id: "later", status: "confirmed" as const, startsAt: at("05"), endsAt: at("06") },
+      { id: "now", status: "booked" as const, startsAt: at("01"), endsAt: at("03") },
+      { id: "past", status: "booked" as const, startsAt: at("00"), endsAt: at("01") },
+      { id: "arrived", status: "checked_in" as const, startsAt: at("04"), endsAt: at("05") },
+    ];
+    expect(upcomingAppointments(rows, new Date(at("02"))).map((r) => r.id)).toEqual(["now", "later"]);
   });
 });

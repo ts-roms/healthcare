@@ -587,3 +587,35 @@ export interface CarePlanDetail extends CarePlan {
   activities: CareActivity[];
   progressNotes: Array<{ id: string; note: string; recordedBy: string; recordedAt: string }>;
 }
+
+// ---- Clinic dashboard (Phase 2) ---------------------------------------------------------------------
+
+/** GET /clinic/dashboard — one facility, one day. */
+export interface ClinicDashboard {
+  facilityId: string;
+  date: string;
+  appointments: { byStatus: Record<string, number>; total: number; noShowRate: number };
+  queue: {
+    byStatus: Record<string, number>;
+    waiting: number;
+    inConsultation: number;
+    walkedOut: number;
+    averageWaitMinutes: number | null;
+    longestCurrentWaitMinutes: number | null;
+  };
+  /** inProgress counts every unsigned encounter at the facility, not only today's. */
+  encounters: { inProgress: number; completedToday: number };
+  providerWorkload: Array<{ practitionerId: string; displayName: string; booked: number; seen: number; waiting: number }>;
+}
+
+/** GET /care-plans/activities/due row (recall list). */
+export interface DueCareActivity {
+  id: string;
+  carePlanId: string;
+  patientId: string;
+  kind: CareActivityKind;
+  description: string;
+  dueDate: string | null;
+  planTitle: string;
+  overdue: boolean;
+}

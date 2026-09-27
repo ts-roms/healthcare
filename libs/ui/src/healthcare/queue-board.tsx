@@ -15,6 +15,9 @@ const COLUMNS: { status: QueueStatus; label: string }[] = [
   { status: "done", label: "Done" },
 ];
 
+/** The wait timer runs only while the patient is still waiting for the provider. */
+const WAITING_COLUMNS: QueueStatus[] = ["waiting", "vitals", "ready"];
+
 const PRIORITY_LABEL = { senior: "Senior", pwd: "PWD", pregnant: "Pregnant", urgent: "Urgent", emergency: "Emergency" } as const;
 const PRIORITY_VARIANT = { senior: "info", pwd: "info", pregnant: "info", urgent: "danger", emergency: "critical" } as const;
 
@@ -59,7 +62,7 @@ export function QueueBoard({
                       <span className="flex items-center gap-1.5">
                         <span className="font-mono text-table font-bold">{e.ticket}</span>
                         {e.priority ? <Badge variant={PRIORITY_VARIANT[e.priority]}>{PRIORITY_LABEL[e.priority]}</Badge> : null}
-                        {col.status !== "done" ? (
+                        {WAITING_COLUMNS.includes(col.status) ? (
                           <span className={cn("tabular ml-auto text-meta", wait > 45 ? "font-semibold text-warning-foreground" : "text-muted-foreground")}>
                             {wait > 45 ? "⚠ " : ""}
                             {wait}m

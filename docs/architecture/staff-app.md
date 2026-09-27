@@ -33,7 +33,7 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 | Area                                                                                                                                                         | Source                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
 | Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters | API                                                        |
-| Laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`                                                                          | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Laboratory, dental, telemedicine, the dashboard laboratory panel, `/preview/patient-360`                                                                     | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -57,6 +57,16 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
 - **Refresh.** The queue page re-renders from the server every 15 s while visible (`router.refresh()`). The API's Socket.IO `/realtime` gateway needs an access token, which the staff app keeps server-side; connecting browsers to it needs a short-lived socket ticket endpoint (follow-up).
+
+## Dashboard
+
+`/` shows **Clinic today** for the selected facility (`clinic.dashboard.read`), from `GET /clinic/dashboard`:
+
+- Figures: appointments, waiting, with provider, seen, average wait and no-show rate (links only to screens the user may open).
+- **Attention required** (`lib/dashboard-mapping.ts`): a current wait longer than 45 minutes (the queue board's threshold), unsigned encounters at the facility, patients who left without being seen, and overdue / due-this-week care-plan activities (`GET /care-plans/activities/due`, with `care-plan.read`). Operational thresholds only, no clinical rules.
+- **Next patients**: today's open appointments that have not ended — the user's own if their account is linked to a practitioner, otherwise the facility's.
+- Provider workload (booked, seen, waiting) and the live queue board (`clinic.queue.read`).
+- The laboratory panel stays a labelled demo preview until Phase 3.
 
 ## Allergies
 
