@@ -110,3 +110,28 @@ export function consentState(c: { decision: string; effectiveAt: string; expires
   if (c.expiresAt && new Date(c.expiresAt) <= now) return "expired";
   return "in_effect";
 }
+
+/** Signed consent forms: scans and phone photos. The API accepts more formats; staff uploads are limited to these. */
+export const CONSENT_FILE_TYPES: Record<string, string> = {
+  "application/pdf": "PDF",
+  "image/jpeg": "JPEG",
+  "image/png": "PNG",
+  "image/heic": "HEIC",
+};
+
+/** Uploads pass through the staff app's server (see next.config.ts), so they are capped below its request limit. */
+export const MAX_CONSENT_FILE_BYTES = 10 * 1024 * 1024;
+
+/** A problem with the chosen file, or null when it can be uploaded. */
+export function checkConsentFile(file: { name: string; type: string; size: number }): string | null {
+  if (file.size === 0) return "The file is empty.";
+  if (!CONSENT_FILE_TYPES[file.type]) return "Attach a PDF or a photo (JPEG, PNG or HEIC).";
+  if (file.size > MAX_CONSENT_FILE_BYTES) return "The file is larger than 10 MB. Scan at a lower resolution or attach a PDF.";
+  if (/[\\/\0]/.test(file.name) || file.name.length > 200) return "Rename the file (no slashes, at most 200 characters).";
+  return null;
+}
+
+/** Document title for a signed form, e.g. "Signed consent: Patient portal access (MyHealth)". */
+export function consentDocumentTitle(consentType: string): string {
+  return `Signed consent: ${consentTypeLabel(consentType)}`;
+}

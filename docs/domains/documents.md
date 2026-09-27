@@ -19,6 +19,15 @@ Metadata and controlled access for files kept in S3-compatible storage
 `document` — category, title, file name, content type, size, opaque storage
 key (`org/<orgId>/documents/<id>`), status, patient/facility links.
 
+## Consent forms
+
+A patient consent may reference a document (`patient_consent.document_id`). It
+must be an `available` `consent_form` document of the **same patient**:
+checked by the patient library through `DocumentsService` and enforced by the
+foreign key `(organization_id, patient_id, document_id)` (migration 0014).
+`DocumentsModule` is registered as a global module so domain libraries can use
+`DocumentsService` without registering the controller twice.
+
 ## Permissions
 
 `document.upload`, `document.read`, `document.archive`.

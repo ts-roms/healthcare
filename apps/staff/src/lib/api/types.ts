@@ -120,6 +120,8 @@ export interface PatientConsent {
   effectiveAt: string;
   expiresAt: string | null;
   capturedVia: string;
+  /** The signed form, when one was attached. */
+  documentId: string | null;
   notes: string | null;
   recordedAt: string;
 }

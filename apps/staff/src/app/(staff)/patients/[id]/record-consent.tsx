@@ -1,20 +1,38 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangleIcon, FilePenLineIcon, InfoIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, FilePenLineIcon, InfoIcon } from "lucide-react";
 import { Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import { CONSENT_CAPTURE, CONSENT_DECISIONS, CONSENT_TYPES, type ConsentForm, type ConsentType, EMPTY_CONSENT_FORM } from "@/lib/consent-form";
+import {
+  checkConsentFile,
+  CONSENT_CAPTURE,
+  CONSENT_DECISIONS,
+  CONSENT_FILE_TYPES,
+  CONSENT_TYPES,
+  type ConsentForm,
+  type ConsentType,
+  EMPTY_CONSENT_FORM,
+} from "@/lib/consent-form";
 import { recordConsent } from "./consent-actions";
 
-type FieldErrors = Partial<Record<keyof ConsentForm, string>>;
+type FieldErrors = Partial<Record<keyof ConsentForm | "file", string>>;
 
-/** "Record consent" button and inline form on the patient record. The API checks permission, validates and audits. */
-export function RecordConsent({ patientId }: { patientId: string }) {
+/**
+ * "Record consent" button and inline form on the patient record, with an
+ * optional signed form (PDF or photo). The API checks permission, validates
+ * and audits; the file is uploaded by the staff app's server.
+ */
+export function RecordConsent({ patientId, canUpload }: { patientId: string; canUpload: boolean }) {
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<ConsentForm>(EMPTY_CONSENT_FORM);
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [message, setMessage] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+  const [file, setFile] = React.useState<File | null>(null);
+  // Set when the form was stored but the consent was not: a retry links it instead of uploading again.
+  const [uploadedId, setUploadedId] = React.useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = React.useState(() => crypto.randomUUID());
+  const fileInput = React.useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof ConsentForm>(key: K, value: ConsentForm[K]) => {
     setForm((f) => ({ ...f, [key]: value, ...(key === "decision" && value !== "granted" ? { expiresOn: "" } : {}) }));
@@ -27,13 +45,29 @@ export function RecordConsent({ patientId }: { patientId: string }) {
     setForm(EMPTY_CONSENT_FORM);
     setErrors({});
     setMessage(null);
+    chooseFile(null);
+  };
+
+  const chooseFile = (next: File | null) => {
+    setFile(next);
+    setUploadedId(null);
+    setIdempotencyKey(crypto.randomUUID());
+    setErrors((e) => ({ ...e, file: next ? (checkConsentFile(next) ?? undefined) : undefined }));
+    if (!next && fileInput.current) fileInput.current.value = "";
   };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     startTransition(async () => {
       setMessage(null);
-      const result = await recordConsent(patientId, form);
+      const data = new FormData();
+      for (const [key, value] of Object.entries(form)) data.set(key, value);
+      if (uploadedId) data.set("documentId", uploadedId);
+      else if (file) {
+        data.set("file", file);
+        data.set("idempotencyKey", idempotencyKey);
+      }
+      const result = await recordConsent(patientId, data);
       if (result.ok) {
         toast.success(
           `${CONSENT_TYPES[form.consentType as ConsentType]?.label ?? "Consent"}: ${CONSENT_DECISIONS[form.decision as keyof typeof CONSENT_DECISIONS].toLowerCase()}`,
@@ -42,7 +76,8 @@ export function RecordConsent({ patientId }: { patientId: string }) {
         return;
       }
       setMessage(result.message);
-      if ("fieldErrors" in result) setErrors(result.fieldErrors);
+      if (result.fieldErrors) setErrors(result.fieldErrors);
+      if (result.documentId) setUploadedId(result.documentId);
     });
   };
 
@@ -108,6 +143,29 @@ export function RecordConsent({ patientId }: { patientId: string }) {
         </Field>
       </div>
 
+      {canUpload ? (
+        <Field
+          id="consent-file"
+          label="Signed form (optional)"
+          error={errors.file}
+          hint={uploadedId ? undefined : `${Object.values(CONSENT_FILE_TYPES).join(", ")}; up to 10 MB. Stored securely with the patient's documents.`}
+        >
+          <Input
+            ref={fileInput}
+            id="consent-file"
+            type="file"
+            accept={Object.keys(CONSENT_FILE_TYPES).join(",")}
+            onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
+            className="h-auto py-1.5"
+          />
+          {uploadedId ? (
+            <p className="flex items-center gap-1 text-meta text-success-foreground">
+              <CheckCircle2Icon className="size-3.5" aria-hidden /> {file?.name ?? "Signed form"} is uploaded. Saving again links it to the consent.
+            </p>
+          ) : null}
+        </Field>
+      ) : null}
+
       <Field id="consent-notes" label="Notes (optional)" error={errors.notes} hint="e.g. who signed for the patient, form reference.">
         <Textarea id="consent-notes" value={form.notes} onChange={(e) => set("notes", e.target.value)} maxLength={1000} rows={2} />
       </Field>
@@ -132,7 +190,7 @@ export function RecordConsent({ patientId }: { patientId: string }) {
 
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
-          {pending ? "Saving…" : "Save consent"}
+          {pending ? (file && !uploadedId ? "Uploading…" : "Saving…") : "Save consent"}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={close} disabled={pending}>
           Cancel

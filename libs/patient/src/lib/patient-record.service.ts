@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, diffChanges } from "@healthcare/audit";
+import { DocumentsService } from "@healthcare/documents";
 import {
   type Actor,
   ageInYears,
@@ -66,6 +67,7 @@ export class PatientRecordService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly documents: DocumentsService,
   ) {}
 
   /** Full registration record. Viewing is audited. */
@@ -334,6 +336,26 @@ export class PatientRecordService {
   }
 
   async recordConsent(actor: Actor, patientId: string, input: z.infer<typeof recordConsentSchema>): Promise<ConsentView> {
+    if (input.documentId) await this.assertConsentDocument(actor, patientId, input.documentId);
+    try {
+      return await this.recordConsentTx(actor, patientId, input);
+    } catch (error) {
+      // The same-patient foreign key (0014) also guards against a document moved or replaced concurrently.
+      if (input.documentId && asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw invalidConsentDocument();
+      throw error;
+    }
+  }
+
+  /** The signed form must be this patient's uploaded consent form (not pending, archived or another category). */
+  private async assertConsentDocument(actor: Actor, patientId: string, documentId: string): Promise<void> {
+    const doc = await this.documents.get(actor, documentId).catch((error: unknown) => {
+      if (error instanceof NotFoundError) throw invalidConsentDocument();
+      throw error;
+    });
+    if (doc.patientId !== patientId || doc.category !== "consent_form" || doc.status !== "available") throw invalidConsentDocument();
+  }
+
+  private recordConsentTx(actor: Actor, patientId: string, input: z.infer<typeof recordConsentSchema>): Promise<ConsentView> {
     return this.db.transaction(async (tx) => {
       await this.assertMutable(tx, actor.organizationId, patientId);
       const [created] = await tx
@@ -512,4 +534,8 @@ export class PatientRecordService {
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function invalidConsentDocument(): BusinessRuleError {
+  return new BusinessRuleError("The attached document must be this patient's uploaded consent form", "consent_document_invalid");
 }
