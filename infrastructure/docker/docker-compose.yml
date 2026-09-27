@@ -19,22 +19,30 @@ services:
     image: redis:7
     ports: ["6379:6379"]
 
-  # S3-compatible object storage for documents.
-  minio:
-    image: minio/minio
-    command: server /data --console-address ':9001'
+  # S3-compatible object storage for documents (console on :9001).
+  # MinIO no longer publishes images to Docker Hub; RustFS is an Apache-2.0,
+  # S3-compatible replacement. Dev only — the app talks plain S3 (S3_ENDPOINT).
+  object-storage:
+    image: rustfs/rustfs:1.0.0
     environment:
-      MINIO_ROOT_USER: healthcare
-      MINIO_ROOT_PASSWORD: healthcare-dev-secret
+      RUSTFS_ACCESS_KEY: healthcare
+      RUSTFS_SECRET_KEY: healthcare-dev-secret
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports: ["9000:9000", "9001:9001"]
-    volumes: [minio-data:/data]
+    volumes: [object-storage-data:/data]
 
-  minio-init:
-    image: minio/mc
-    depends_on: [minio]
+  # Creates the documents bucket once storage is reachable, then exits.
+  object-storage-init:
+    image: amazon/aws-cli
+    depends_on: [object-storage]
+    environment:
+      AWS_ACCESS_KEY_ID: healthcare
+      AWS_SECRET_ACCESS_KEY: healthcare-dev-secret
+      AWS_DEFAULT_REGION: ap-southeast-1
     entrypoint: >
-      /bin/sh -c "until mc alias set local http://minio:9000 healthcare healthcare-dev-secret; do sleep 1; done;
-      mc mb --ignore-existing local/healthcare-documents"
+      /bin/sh -c "until aws --endpoint-url http://object-storage:9000 s3api list-buckets > /dev/null 2>&1; do sleep 1; done;
+      aws --endpoint-url http://object-storage:9000 s3api head-bucket --bucket healthcare-documents 2> /dev/null
+      || aws --endpoint-url http://object-storage:9000 s3 mb s3://healthcare-documents"
 
   # Captures outbound email in development (UI on :8025).
   mailpit:
@@ -43,4 +51,4 @@ services:
 
 volumes:
   postgres-data:
-  minio-data:
+  object-storage-data:
