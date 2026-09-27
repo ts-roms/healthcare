@@ -1,0 +1,30 @@
+import Link from "next/link";
+import { safeNextPath } from "@healthcare/web-session";
+import { LoginForm } from "./login-form";
+
+export const metadata = { title: "Sign in" };
+
+const NOTICES: Record<string, string> = {
+  session: "You were signed out. Sign in again to continue.",
+  signed_out: "You have signed out.",
+};
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
+  const { next, reason } = await searchParams;
+  return (
+    <>
+      <div>
+        <h1 className="text-page-lg font-semibold tracking-tight">Sign in</h1>
+        <p className="text-muted-foreground">See your visits and results, and message your care team.</p>
+      </div>
+      <LoginForm next={safeNextPath(next, "/", ["/login", "/activate"])} notice={reason ? NOTICES[reason] : undefined} />
+      <section className="rounded-xl border bg-card p-4">
+        <h2 className="font-semibold">First time here?</h2>
+        <p className="text-body text-muted-foreground">Ask the clinic front desk for an activation code, then set up your account.</p>
+        <Link href="/activate" className="mt-2 inline-block font-medium text-primary underline-offset-4 hover:underline">
+          Set up your account
+        </Link>
+      </section>
+    </>
+  );
+}

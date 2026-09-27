@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CalendarPlusIcon, ChevronRightIcon, FlaskConicalIcon, PillIcon, VideoIcon, type LucideIcon } from "lucide-react";
-import { appointments, mariaSantos } from "@healthcare/domain/fixtures";
-import { AppointmentCard } from "@healthcare/ui/healthcare";
-import { Badge, Button } from "@healthcare/ui/primitives";
+import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, FlaskConicalIcon, PillIcon, VideoIcon, type LucideIcon } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { getMe } from "@/lib/api/session";
+import { greeting } from "@/lib/greeting";
 
 const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
   { label: "Book appointment", href: "/appointments", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
@@ -11,19 +11,21 @@ const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[]
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
 ];
 
-export default function HomePage() {
-  const next = appointments.find((a) => a.patientId === mariaSantos.id) ?? appointments[0]!;
-  const upcoming = { ...next, start: "2026-09-28T10:00:00+08:00", provider: "Dr. Elena Reyes", status: "booked" as const };
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
+  const [me, { welcome }] = await Promise.all([getMe(), searchParams]);
   return (
     <div className="flex flex-col gap-7">
+      {welcome ? (
+        <p role="status" className="flex items-start gap-2 rounded-xl border border-success/30 bg-success-subtle p-4 text-body text-success-foreground">
+          <CheckCircle2Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
+          Your account is ready. Next time, sign in with {me.account.email}.
+        </p>
+      ) : null}
       <section>
         <h1 className="text-page-lg font-semibold tracking-tight">
-          Good morning, {mariaSantos.givenName}{" "}
-          <span role="img" aria-label="waving hand">
-            👋
-          </span>
+          {greeting()}, {me.patient.givenName}
         </h1>
-        <p className="text-muted-foreground">How can we help today?</p>
+        <p className="text-muted-foreground">{me.organization.name} · How can we help today?</p>
       </section>
 
       <nav aria-label="Quick actions" className="grid grid-cols-2 gap-3">
@@ -43,30 +45,16 @@ export default function HomePage() {
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Upcoming" href="/appointments" />
-        <AppointmentCard
-          variant="card"
-          appointment={upcoming}
-          action={
-            <Button variant="outline" size="sm">
-              Details
-            </Button>
-          }
-        />
+        <EmptyState icon={CalendarIcon} title="No visits to show yet">
+          Your clinic visits will appear here once MyHealth is connected to scheduling. To book or change a visit, contact the clinic.
+        </EmptyState>
       </section>
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Recent results" href="/results" />
-        <Link href="/results" className="flex items-center gap-4 rounded-xl border bg-card p-4 hover:bg-accent/50">
-          <div className="flex-1">
-            <p className="font-semibold">HbA1c (blood sugar, 3-month average)</p>
-            <p className="tabular text-page-lg font-semibold">7.1%</p>
-            <p className="text-body text-muted-foreground">Improved from 7.4% · Your doctor has reviewed this</p>
-          </div>
-          <Badge variant="success" className="text-body">
-            Available
-          </Badge>
-          <ChevronRightIcon className="size-5 text-muted-foreground" aria-hidden />
-        </Link>
+        <EmptyState icon={FlaskConicalIcon} title="No results to show yet">
+          Results appear here only after the laboratory and your doctor release them to you.
+        </EmptyState>
       </section>
     </div>
   );

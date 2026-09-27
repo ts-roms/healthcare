@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BellIcon, CalendarIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, MessageSquareIcon, UserIcon } from "lucide-react";
+import { CalendarIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, UserIcon } from "lucide-react";
 import { PatientLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { Button } from "@healthcare/ui/primitives";
 
@@ -17,7 +17,7 @@ const NAV = [
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
+export function PortalShell({ givenName, signOut, children }: { givenName: string; signOut: () => Promise<void>; children: React.ReactNode }) {
   return (
     <PatientLayout
       nav={NAV}
@@ -32,9 +32,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </Link>
       }
       headerEnd={
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <BellIcon />
-        </Button>
+        <>
+          <span className="hidden text-body text-muted-foreground sm:inline">{givenName}</span>
+          <form action={signOut}>
+            <Button type="submit" variant="ghost" size="sm">
+              <LogOutIcon aria-hidden /> Sign out
+            </Button>
+          </form>
+        </>
       }
     >
       {children}
