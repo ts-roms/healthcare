@@ -1,0 +1,27 @@
+/*
+ * Entry stylesheet for apps and Storybook.
+ * Apps import this, then add their own `@source` for app code.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./theme.css";
+
+/* Scan the design-system sources for class names. */
+@source "../";
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-feature-settings: "cv11", "ss01", "tnum";
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background font-sans text-body text-foreground;
+  }
+  /* Tabular numerals everywhere numbers are compared: results, vitals, times. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

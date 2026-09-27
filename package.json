@@ -1,0 +1,24 @@
+{
+  "name": "healthcare",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev:staff": "nx run staff:dev",
+    "dev:portal": "nx run portal:dev",
+    "build": "nx run-many -t build",
+    "typecheck": "nx run-many -t typecheck",
+    "lint": "nx run-many -t lint",
+    "storybook": "nx run @healthcare/ui:storybook",
+    "build-storybook": "nx run @healthcare/ui:build-storybook",
+    "graph": "nx graph",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "nx": "^23.2.1",
+    "prettier": "^3.9.9",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript": "^5.9.0"
+  }
+}
