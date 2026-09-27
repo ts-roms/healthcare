@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "nx run-many -t serve dev -p api notification-worker staff portal --parallel=8 --output-style=stream",
     "dev:staff": "nx run staff:dev",
     "dev:portal": "nx run portal:dev",
     "dev:api": "nx serve api",

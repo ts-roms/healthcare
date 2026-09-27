@@ -8,14 +8,15 @@ cp .env.example .env              # then set SEED_ADMIN_PASSWORD
 pnpm dev:deps                     # PostgreSQL, Redis, MinIO, Mailpit
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
-pnpm dev:api                     # http://localhost:3333/api, docs at /api/docs
-pnpm dev:worker
+pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
-Frontend (both apps need the API running; sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
+`pnpm dev` starts the API, the notification worker, the staff app and the portal together with prefixed, interleaved logs (`nx run-many -t serve dev`); stop them all with Ctrl+C. The Next.js `dev` targets are marked `continuous` in each app's `package.json` so Nx runs them alongside the API. To run one app on its own (sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
 
 ```bash
-pnpm dev:staff                    # http://localhost:3000 — staff app
+pnpm dev:api                      # http://localhost:3333/api, docs at /api/docs
+pnpm dev:worker                   # notification worker
+pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
 pnpm storybook                    # http://localhost:6006 — design system
 ```

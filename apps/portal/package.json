@@ -35,6 +35,11 @@
     "tags": [
       "scope:portal",
       "type:app"
-    ]
+    ],
+    "targets": {
+      "dev": {
+        "continuous": true
+      }
+    }
   }
 }
