@@ -95,7 +95,12 @@ export const Patient: StoryObj = {
         { label: "Profile", href: "/profile", icon: UserIcon },
       ]}
     >
-      <h1 className="text-page-lg font-semibold">Good morning, Maria 👋</h1>
+      <h1 className="text-page-lg font-semibold">
+        Good morning, Maria{" "}
+        <span role="img" aria-label="waving hand">
+          👋
+        </span>
+      </h1>
     </PatientLayout>
   ),
 };

@@ -16,7 +16,7 @@ pnpm install
 pnpm dev:staff        # http://localhost:3000  — staff workstation
 pnpm dev:portal       # http://localhost:3001  — patient portal
 pnpm storybook        # http://localhost:6006  — design system
-pnpm typecheck && pnpm build
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm format
 ```
 
@@ -66,14 +66,16 @@ Import paths: `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@health
    "No known allergies".
 4. **One workspace per job.** Patient 360, the three-column doctor encounter workspace, the lab workbench and the
    telemedicine workspace replace multi-screen flows.
-5. **Keyboard first for staff.** `/` patient search · `↑/↓` or `j/k` worklist · `Enter` next result · `F2` barcode ·
+5. **Clinical decision support, never silent blocking.** Drug–allergy checks (`findAllergyConflict` in `libs/domain`)
+   show their evidence and allow an override with a documented reason, returned to the caller for the audit trail.
+6. **Keyboard first for staff.** `/` patient search · `↑/↓` or `j/k` worklist · `Enter` next result · `F2` barcode ·
    `Alt+P` prescription · `Alt+L` lab order.
-6. **Role-aware navigation.** `navigationForRole()` filters `STAFF_NAVIGATION`.
-7. **Action-first dashboards.** "What do I need to do next?" (`AttentionList`, `ActionMetric`) rather than charts.
-8. **Facility time, always.** Clinical times render in the facility timezone (`setClinicTimeZone`, default
+7. **Role-aware navigation.** `navigationForRole()` filters `STAFF_NAVIGATION`.
+8. **Action-first dashboards.** "What do I need to do next?" (`AttentionList`, `ActionMetric`) rather than charts.
+9. **Facility time, always.** Clinical times render in the facility timezone (`setClinicTimeZone`, default
    `Asia/Manila`), never the server's.
-9. **Staff and patients get different products.** The portal is mobile-first with a bottom tab bar, 16px base text and
-   plain-language results.
+10. **Staff and patients get different products.** The portal is mobile-first with a bottom tab bar, 16px base text and
+    plain-language results.
 
 ## Screens (staff app)
 

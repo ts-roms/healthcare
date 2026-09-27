@@ -1,0 +1,70 @@
+# CI per CLAUDE.md §32: every pull request runs the affected
+# lint → typecheck → unit tests → integration tests → E2E → build pipeline.
+# Targets a project does not define are skipped by Nx, so each stage turns on
+# automatically as projects add `lint`, `test`, `integration` or `e2e` targets.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # nx-set-shas looks up the last successful run on main
+
+env:
+  NX_NO_CLOUD: true
+  NX_DAEMON: false
+  NEXT_TELEMETRY_DISABLED: 1
+  STORYBOOK_DISABLE_TELEMETRY: 1
+
+jobs:
+  ci:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Nx affected needs history to compare against the base
+
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - run: pnpm install --frozen-lockfile
+
+      # Sets NX_BASE / NX_HEAD: the PR base, or the last green commit on main.
+      - uses: nrwl/nx-set-shas@v5
+        with:
+          main-branch-name: main
+
+      - name: Format
+        run: pnpm exec prettier --check .
+
+      - name: Lint
+        run: pnpm exec nx affected -t lint --outputStyle=static
+
+      - name: Typecheck
+        run: pnpm exec nx affected -t typecheck --outputStyle=static
+
+      - name: Unit tests
+        run: pnpm exec nx affected -t test --outputStyle=static
+
+      - name: Integration tests
+        run: pnpm exec nx affected -t integration --outputStyle=static
+
+      - name: E2E tests
+        run: pnpm exec nx affected -t e2e --outputStyle=static
+
+      - name: Build
+        run: pnpm exec nx affected -t build build-storybook --outputStyle=static

@@ -25,5 +25,11 @@
     "@types/react-dom": "^19.2.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0"
+  },
+  "nx": {
+    "tags": [
+      "scope:portal",
+      "type:app"
+    ]
   }
 }

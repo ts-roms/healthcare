@@ -10,8 +10,12 @@ function CardHeader({ className, ...props }: React.ComponentProps<"header">) {
   return <header data-slot="card-header" className={cn("flex items-center gap-2 border-b px-3 py-2", className)} {...props} />;
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"h2">) {
-  return <h2 data-slot="card-title" className={cn("text-body leading-none font-semibold", className)} {...props} />;
+function CardTitle({ className, children, ...props }: React.ComponentProps<"h2">) {
+  return (
+    <h2 data-slot="card-title" className={cn("text-body leading-none font-semibold", className)} {...props}>
+      {children}
+    </h2>
+  );
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
