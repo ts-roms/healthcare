@@ -6,9 +6,10 @@ The Laboratory Information System: test catalog and reference ranges, orders, sp
 result entry, verification, approval, release, corrections, critical-result communication, worklists, trends and the
 laboratory dashboard. Rules for this domain are in `libs/laboratory/CLAUDE.md`.
 
-Not in scope yet: billing charges (Phase 7: the LIS emits events and never computes invoices), result attachments and
-printed reports (PDF), instrument and outsourced-lab interfaces (`libs/interoperability`), QC, reagent lots and
-inventory (Phase 9).
+Also: printable reports (PDF), specimen tube labels, and an archive of each released report in object storage.
+
+Not in scope yet: result attachments, instrument and outsourced-lab interfaces (`libs/interoperability`), QC, reagent
+lots and inventory (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
 
 ## Entities
 
@@ -78,7 +79,8 @@ self_verified`). Holding the permission is required in every case.
 ## Commands
 
 Catalog: create/update departments, specimen types, tests; add reference ranges; create/update panels; set facility
-policy. Orders: create, cancel, cancel one test. Specimens: collect (assigns accession), receive, reject. Results:
+policy. Orders: create, cancel, cancel one test. Specimens: collect (assigns accession), print tube labels, receive,
+reject. Results:
 enter, verify, approve (auto-release if the policy says so), release, release all approved on an order, correct,
 cancel. Critical results: communicate, acknowledge.
 
@@ -88,7 +90,8 @@ Catalog lists; orders by patient or encounter; order detail; barcode lookup by a
 worklists by stage (`collect | receive | enter | verify | approve | release`, STAT first, optional department filter);
 dashboard (per-stage counts, STAT open, overdue against turnaround time, released today, average collection-to-release
 minutes, rejections today, unacknowledged criticals); a patient's released results; result history per test; trend of
-one analyte (tests sharing a LOINC code line up) with each point's range snapshot; critical-result list.
+one analyte (tests sharing a LOINC code line up) with each point's range snapshot; critical-result list; a patient's
+archived reports and the stored PDF of one.
 
 ## Events
 
@@ -96,8 +99,13 @@ one analyte (tests sharing a LOINC code line up) with each point's range snapsho
 `SpecimenReceived`, `SpecimenRejected`, `LaboratoryResultEntered`, `LaboratoryResultVerified`,
 `LaboratoryResultApproved`, `LaboratoryResultReleased`, `LaboratoryResultCorrectionStarted`,
 `LaboratoryResultAmended` (a released result's correction was released), `LaboratoryResultCancelled`,
-`CriticalResultRaised`, `CriticalResultCommunicated`, `CriticalResultAcknowledged`. Payloads carry ids, numbers,
-statuses and the `critical` flag — never values, test names or clinical text.
+`CriticalResultRaised`, `CriticalResultCommunicated`, `CriticalResultAcknowledged`, `LaboratoryReportReleased` (once per
+releasing transaction: the order and the ids of every result version then released — what the report shows). Payloads
+carry ids, numbers, statuses and the `critical` flag — never values, test names or clinical text.
+
+`LabReportArchive` (in this library) handles `LaboratoryReportReleased`: it records a `lab_report_archive` row for the
+order and that set of result versions (idempotent: SHA-256 of the sorted ids) and queues it on BullMQ; the consumer
+renders the report and stores it through `libs/documents`. See [Report archive](#report-archive).
 
 The API (`apps/api/src/app/laboratory-notifications.ts`) sends the ordering practitioner an in-app notice
 (`lab.result-notice`: order and patient numbers only) on `CriticalResultRaised` and `LaboratoryResultAmended`.
@@ -140,28 +148,38 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory`):
 - Orders: `POST orders` (Idempotency-Key), `GET orders?patientId=|encounterId=`, `GET orders/:id`,
   `POST orders/:id/cancel`, `POST orders/:id/items/:itemId/cancel`.
 - Specimens: `POST orders/:id/specimens` (collect), `GET specimens/by-accession/:accession`, `GET specimens/:id/events`,
+  `GET specimens/:id/label.pdf?copies=` (`lab.specimen.collect`, selected facility, 1–10 copies),
   `POST specimens/:id/{receive,reject}`.
 - Results: `POST order-items/:itemId/results` (enter), `GET order-items/:itemId/results` (history),
   `POST results/:id/{verify,approve,release,correct,cancel}`, `POST orders/:id/release`,
-  `GET patients/:patientId/results`, `GET patients/:patientId/trends?testId=`.
+  `GET patients/:patientId/results`, `GET patients/:patientId/trends?testId=`, `GET orders/:id/report.pdf`.
+- Archived reports (`lab.order.read` + `lab.result.read`): `GET patients/:patientId/report-archive`,
+  `GET report-archive/:id/report.pdf`.
 - Critical results: `GET critical-results?status=`, `POST critical-results/:id/{communicate,acknowledge}`.
 - `GET worklist?stage=&departmentId=`, `GET dashboard`.
 
 Views and reads of patient results are audited (`lab.order.view`, `lab.order.list`, `lab.result.list`,
-`lab.result.history`, `lab.result.trend`, `lab.worklist.view`); every change is audited in its transaction.
+`lab.result.history`, `lab.result.trend`, `lab.worklist.view`, `lab.specimen.label-print`, `lab.report.print`,
+`lab.report.archive.list`, `lab.report.archive.download`); every change is audited in its transaction (archiving:
+`lab.report.archive.schedule`, `lab.report.archive`, and `document.generate` by the documents library).
 
 ## Database relationships
 
-Migration `0015_laboratory.sql`. Same-organization composite FKs throughout; same-patient FKs tie items, specimens,
+Migrations `0015_laboratory.sql` and `0030_lab_report_archive.sql`. Same-organization composite FKs throughout; same-patient FKs tie items, specimens,
 results and critical alerts to their order's patient, and an order's encounter to the same patient. Triggers:
-`lab_result_immutable`, `lab_reference_range_immutable`, `lab_specimen_event_append_only`, `lab_critical_alert_no_delete`.
+`lab_result_immutable`, `lab_reference_range_immutable`, `lab_specimen_event_append_only`, `lab_critical_alert_no_delete`,
+`lab_report_archive_immutable` (a stored archive never changes; none is deleted). `lab_report_archive` references its
+order, patient, facility and the `document` holding the PDF (same id); unique per order and result set, and per order and
+archive version.
 Results reference instrument and method as text today; QC runs and reagent lots (Phase 9) can be linked later.
 
 ## Integration points
 
 `LaboratoryContext` port (patient briefs and demographics, practitioner for a user and names, staff names, encounter
 state) implemented in `apps/api/src/app/adapters/laboratory-adapters.ts` over `PatientRecordService`, `ClinicQueries`
-and `UsersService`. Other domains order tests only through the API above; they never read laboratory tables.
+and `UsersService`. Other domains order tests only through the API above; they never read laboratory tables. Archived
+reports are stored through `DocumentsService` (`libs/documents`, a shared platform service): private S3-compatible
+storage, category `laboratory_report`, source `generated`.
 
 ## Staff app
 
@@ -179,3 +197,28 @@ record: see [staff-app.md](../architecture/staff-app.md#laboratory).
 
 Per order, released results only (`LabReportService`); staff and patient copies — see
 [printable-documents.md](../architecture/printable-documents.md).
+
+## Specimen labels
+
+`LabLabelService`: one label per page on 2.25 × 1.25 in (57 × 32 mm) stock, for the thermal label printers laboratories
+use. **Code 128** barcode of the accession number (code set C for the all-digit accession: short enough for a tube;
+set B otherwise) — the linear symbology every handheld scanner reads, and what the workbench's scan field receives.
+Encoded in `libs/pdf` (`barcode.ts`, no extra dependency) and checked with an independent decoder. Only what identifies
+the specimen at the bench is printed: patient name and number, sex/age, specimen type, STAT, collection time (facility
+time zone) and test codes — no birth date, address, indication, orderer or results. Rejected specimens are not
+labelled. Printing is `lab.specimen.collect` at the specimen's facility, and audited.
+
+## Report archive
+
+Each release of an order's results (a single result, "release all", or approval with release-on-approval) records one
+`LaboratoryReportReleased` event with the result versions then released. The archive keeps one PDF per order and set:
+releasing another test of the order, or releasing a correction, adds the next `archive_version`; earlier versions stay
+as they were (object written with a conditional put that never replaces, database trigger against changes). The PDF is
+the staff copy, labelled "Archived copy, version N", with tests not yet released listed as pending.
+
+Why BullMQ and not the outbox alone: rendering and uploading take longer than an outbox handler should (the relay
+dispatches events in one transaction); the queue gives retries with backoff and a bounded concurrency, while the outbox
+gives the durable, at-least-once hand-off from the release transaction. The consumer (`LabReportArchiveWorker`) runs
+in the API process, started in `main.ts` — rendering needs the laboratory's data and the patient adapters wired only in
+the API's composition root; it can move to its own process by composing the same module there. Pending archives whose
+job was lost are re-queued every 5 minutes; after 8 failed attempts an archive is marked `failed` (shown to staff).

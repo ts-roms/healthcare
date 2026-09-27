@@ -1,4 +1,4 @@
-import { GetObjectCommand, HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, NotFound, NoSuchKey, PutObjectCommand, S3Client, S3ServiceException } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { AppConfig } from "@healthcare/core";
 
@@ -23,6 +23,13 @@ export interface ObjectStorage {
   presignUpload(key: string, contentType: string, sizeBytes: number, expiresInSeconds: number): Promise<PresignedUpload>;
   presignDownload(key: string, fileName: string, contentType: string, expiresInSeconds: number): Promise<string>;
   head(key: string): Promise<StoredObjectInfo | undefined>;
+  /**
+   * Writes an object the server generated, only if no object exists at the key (never overwrites).
+   * Resolves "exists" when one is already there.
+   */
+  putIfAbsent(key: string, body: Buffer, contentType: string): Promise<"created" | "exists">;
+  /** Reads an object's bytes (server side, after an authorization check); undefined when missing. */
+  get(key: string): Promise<Buffer | undefined>;
 }
 
 export const OBJECT_STORAGE = Symbol("OBJECT_STORAGE");
@@ -79,15 +86,53 @@ export class S3ObjectStorage implements ObjectStorage {
       const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
       return { sizeBytes: result.ContentLength ?? 0, contentType: result.ContentType };
     } catch (error) {
-      if (error instanceof NotFound || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return undefined;
+      if (error instanceof NotFound || httpStatus(error) === 404) return undefined;
+      throw error;
+    }
+  }
+
+  async putIfAbsent(key: string, body: Buffer, contentType: string): Promise<"created" | "exists"> {
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+          ContentLength: body.length,
+          ServerSideEncryption: "AES256",
+          // Conditional write: S3 (and MinIO) refuse with 412 when the key exists, so an object is never replaced.
+          IfNoneMatch: "*",
+        }),
+      );
+      return "created";
+    } catch (error) {
+      if (httpStatus(error) === 412) return "exists";
+      throw error;
+    }
+  }
+
+  async get(key: string): Promise<Buffer | undefined> {
+    try {
+      const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      if (!result.Body) return undefined;
+      return Buffer.from(await result.Body.transformToByteArray());
+    } catch (error) {
+      if (error instanceof NoSuchKey || httpStatus(error) === 404) return undefined;
       throw error;
     }
   }
 }
 
+function httpStatus(error: unknown): number | undefined {
+  if (error instanceof S3ServiceException) return error.$metadata.httpStatusCode;
+  return (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+}
+
 /** For tests and local runs without object storage. */
 export class InMemoryObjectStorage implements ObjectStorage {
   readonly objects = new Map<string, StoredObjectInfo>();
+  readonly contents = new Map<string, Buffer>();
 
   async presignUpload(key: string, contentType: string, sizeBytes: number, expiresInSeconds: number): Promise<PresignedUpload> {
     return {
@@ -104,6 +149,17 @@ export class InMemoryObjectStorage implements ObjectStorage {
 
   async head(key: string): Promise<StoredObjectInfo | undefined> {
     return this.objects.get(key);
+  }
+
+  async putIfAbsent(key: string, body: Buffer, contentType: string): Promise<"created" | "exists"> {
+    if (this.objects.has(key)) return "exists";
+    this.objects.set(key, { sizeBytes: body.length, contentType });
+    this.contents.set(key, Buffer.from(body));
+    return "created";
+  }
+
+  async get(key: string): Promise<Buffer | undefined> {
+    return this.contents.get(key);
   }
 
   /** Simulates the client completing the presigned upload. */

@@ -197,3 +197,8 @@ export const trendQuerySchema = z.object({ testId: z.uuid() });
 export class TrendQueryDto extends createZodDto(trendQuerySchema) {}
 
 export type ResultValueInput = z.infer<typeof enterResultSchema>;
+
+// ---- Labels ---------------------------------------------------------------------------------
+
+export const labelQuerySchema = z.object({ copies: z.coerce.number().int().min(1).max(10).default(1) });
+export class LabelQueryDto extends createZodDto(labelQuerySchema) {}

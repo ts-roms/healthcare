@@ -1,6 +1,6 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0015_laboratory.sql (the migration is the source of truth).
+// Mirrors database/migrations/0015_laboratory.sql and 0030_lab_report_archive.sql (the migrations are the source of truth).
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
 export type ResultType = (typeof RESULT_TYPES)[number];
@@ -271,6 +271,27 @@ export const labCriticalAlert = pgTable("lab_critical_alert", {
   acknowledgedBy: uuid("acknowledged_by"),
 });
 
+export type LabReportArchiveStatus = "pending" | "stored" | "failed";
+
+export const labReportArchive = pgTable("lab_report_archive", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  archiveVersion: smallint("archive_version").notNull(),
+  resultIds: uuid("result_ids").array().notNull(),
+  resultSetKey: text("result_set_key").notNull(),
+  corrected: boolean("corrected").notNull().default(false),
+  status: text("status").$type<LabReportArchiveStatus>().notNull().default("pending"),
+  documentId: uuid("document_id"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  storedAt: timestamp("stored_at", { withTimezone: true }),
+});
+
 export type LabDepartmentRecord = typeof labDepartment.$inferSelect;
 export type LabSpecimenTypeRecord = typeof labSpecimenType.$inferSelect;
 export type LabTestRecord = typeof labTest.$inferSelect;
@@ -283,3 +304,4 @@ export type LabSpecimenRecord = typeof labSpecimen.$inferSelect;
 export type LabSpecimenEventRecord = typeof labSpecimenEvent.$inferSelect;
 export type LabResultRecord = typeof labResult.$inferSelect;
 export type LabCriticalAlertRecord = typeof labCriticalAlert.$inferSelect;
+export type LabReportArchiveRecord = typeof labReportArchive.$inferSelect;
