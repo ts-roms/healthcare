@@ -16,10 +16,12 @@
     "name": "interoperability",
     "tags": [
       "scope:interoperability",
-      "type:domain"
+      "type:feature"
     ]
   },
   "dependencies": {
+    "@healthcare/audit": "workspace:*",
+    "@healthcare/core": "workspace:*",
     "@types/fhir": "^0.0.44"
   },
   "devDependencies": {

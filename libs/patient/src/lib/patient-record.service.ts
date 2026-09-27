@@ -34,6 +34,7 @@ import type {
 import { patientNameFields } from "./patient-registration.service";
 import {
   type CommunicationCategory,
+  type IdentifierType,
   type CommunicationChannel,
   patient,
   patientAddress,
@@ -449,6 +450,35 @@ export class PatientRecordService {
       .from(patient)
       .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
     return row;
+  }
+
+  /**
+   * Name, sex, birth date and one active identifier of a given type (e.g. `philhealth_pin` for claims).
+   * Not audited here: the caller audits the access it serves.
+   */
+  async identity(organizationId: string, patientId: string, identifierType: IdentifierType) {
+    const [row] = await this.db
+      .select()
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
+    if (!row) return undefined;
+    const [id] = await this.db
+      .select({ value: patientIdentifier.value })
+      .from(patientIdentifier)
+      .where(and(eq(patientIdentifier.patientId, patientId), eq(patientIdentifier.type, identifierType), eq(patientIdentifier.status, "active")))
+      .orderBy(desc(patientIdentifier.createdAt))
+      .limit(1);
+    return {
+      id: row.id,
+      patientNumber: row.patientNumber,
+      familyName: row.familyName,
+      givenName: row.givenName,
+      middleName: row.middleName,
+      suffix: row.suffix,
+      sex: row.sex,
+      birthDate: row.birthDate,
+      identifier: id?.value ?? null,
+    };
   }
 
   /** Destination and permission for contacting a patient (used by notifications). */

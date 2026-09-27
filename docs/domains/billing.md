@@ -132,5 +132,5 @@ issued invoices only — the patient in MyHealth. See [printable-documents.md](.
   VAT treatment of medical services and of statutory discounts must be confirmed and configured before production.
 - **Statutory discounts (RA 9994, RA 10754):** rates, covered services, VAT exemption and combination rules are
   configuration to be verified against current issuances. Nothing is hard-coded; no rule is seeded.
-- **PhilHealth:** coverage amounts and claim references are recorded manually; eClaims is an integration dependency.
+- **PhilHealth:** coverage amounts and claim references are recorded manually; eClaims is an integration dependency. Claims can be prepared and checked from an issued invoice (`docs/interoperability/philhealth-eclaims.md`); an eClaims adapter, once one exists, marks the coverage line submitted through `recordIntegrationClaimSubmitted`.
 - **Payment provider** (cards/e-wallets online): an integration dependency; MyHealth shows balances only.

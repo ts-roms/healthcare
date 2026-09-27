@@ -3,9 +3,10 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { BillingPayer, DiscountRule, InvoiceDetail } from "@/lib/api/types";
+import type { BillingPayer, DiscountRule, InvoiceDetail, PhilHealthClaimPreview } from "@/lib/api/types";
 import { BillingNav } from "../../billing-nav";
 import { InvoiceWorkspace } from "./invoice-workspace";
+import { PhilHealthClaim } from "./philhealth-claim";
 
 export const metadata = { title: "Invoice" };
 
@@ -19,7 +20,12 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
-  const [rules, payers] = await Promise.all([api<DiscountRule[]>("/billing/discount-rules"), api<BillingPayer[]>("/billing/payers")]);
+  const claimable = invoice.status === "issued" && invoice.payers.some((p) => p.payerType === "philhealth");
+  const [rules, payers, philhealth] = await Promise.all([
+    api<DiscountRule[]>("/billing/discount-rules"),
+    api<BillingPayer[]>("/billing/payers"),
+    claimable && can(session, "philhealth.claim.submit") ? api<PhilHealthClaimPreview>(`/philhealth/claims/invoices/${invoiceId}`) : Promise.resolve(null),
+  ]);
   return (
     <>
       <PageHeader
@@ -38,6 +44,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
           refund: can(session, "billing.refund.issue"),
           void: can(session, "billing.invoice.void"),
         }}
+        aside={philhealth ? <PhilHealthClaim preview={philhealth} canSubmit /> : null}
       />
     </>
   );

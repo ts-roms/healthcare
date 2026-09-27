@@ -11,6 +11,7 @@ import {
   localDayBounds,
   NotFoundError,
   requireFacilityId,
+  systemActor,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, gte, inArray, lt, type SQL, sql } from "drizzle-orm";
@@ -365,6 +366,60 @@ export class InvoiceService {
       await this.events.record(tx, invoiceEvent("ClaimStatusChanged", invoice, { invoicePayerId, status: input.status }));
     });
     return this.get(actor, invoiceId);
+  }
+
+  /**
+   * An integration (PhilHealth eClaims) reports that the payer acknowledged the claim: the coverage line becomes
+   * "submitted" with the external reference. Idempotent — a line already past "pending" is left as it is. Attributed
+   * to the user who requested the submission; audited as the system.
+   */
+  async recordIntegrationClaimSubmitted(input: {
+    organizationId: string;
+    invoiceId: string;
+    invoicePayerId: string;
+    reference: string;
+    requestedBy: string;
+    system: string;
+  }) {
+    const actor = systemActor(input.organizationId, null, input.system);
+    await this.db.transaction(async (tx) => {
+      const invoice = await this.lock(tx, actor, input.invoiceId);
+      const [current] = await tx
+        .select()
+        .from(billingInvoicePayer)
+        .where(and(eq(billingInvoicePayer.invoiceId, input.invoiceId), eq(billingInvoicePayer.id, input.invoicePayerId)))
+        .for("update");
+      const coverage = found(current, "Payer coverage");
+      if (invoice.status !== "issued" || coverage.status !== "pending") return;
+      await tx
+        .update(billingInvoicePayer)
+        .set({
+          status: "submitted",
+          reference: input.reference,
+          statusNote: `Submitted through ${input.system}`,
+          updatedBy: input.requestedBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(billingInvoicePayer.id, input.invoicePayerId));
+      await this.audit.record(tx, actor, {
+        action: "billing.claim.status",
+        resourceType: "billing_invoice",
+        resourceId: input.invoiceId,
+        patientId: invoice.patientId,
+        changes: { status: { from: coverage.status, to: "submitted" } },
+        metadata: { payerId: coverage.payerId, via: input.system, requestedBy: input.requestedBy },
+      });
+      await this.events.record(tx, invoiceEvent("ClaimStatusChanged", invoice, { invoicePayerId: input.invoicePayerId, status: "submitted" }));
+    });
+  }
+
+  /** Invoice lines with the clinical source of their charge (for claim preparation; no audit — callers audit). */
+  async itemSources(organizationId: string, invoiceId: string) {
+    return this.db
+      .select({ itemId: billingInvoiceItem.id, sourceType: billingCharge.sourceType, sourceId: billingCharge.sourceId })
+      .from(billingInvoiceItem)
+      .innerJoin(billingCharge, eq(billingCharge.id, billingInvoiceItem.chargeId))
+      .where(and(eq(billingInvoiceItem.organizationId, organizationId), eq(billingInvoiceItem.invoiceId, invoiceId)));
   }
 
   // ---- reads --------------------------------------------------------------------------------

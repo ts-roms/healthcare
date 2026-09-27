@@ -52,6 +52,10 @@ saves/sign/amend, diagnoses, prescriptions (issue/view/replace/cancel),
 Audited for interoperability: every FHIR read (`fhir.patient-read`,
 `fhir.patient-everything`, `fhir.search`) with the patient, resource types and
 count; the FHIR interface requires `interop.fhir.read` (migration 0020).
+PhilHealth claims (migration 0021): `philhealth.claim.submit` (org_admin, cashier)
+and `philhealth.settings.manage` (org_admin); audited `philhealth.claim.preview`,
+`philhealth.claim.submit-request`, `philhealth.claim.exchange` (system) and
+`philhealth.accreditation.record`.
 
 Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /

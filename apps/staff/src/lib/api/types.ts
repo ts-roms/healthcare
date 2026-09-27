@@ -1128,3 +1128,54 @@ export interface DailyBillingReport {
   refundedTotal: number;
   receivables: { patientBalance: number; invoices: number; payerPending: number };
 }
+
+// ---- PhilHealth claims (libs/interoperability/src/lib/philhealth) ----------------------------------
+
+export interface IntegrationSpecification {
+  system: string;
+  name: string;
+  /** "dependency": no official specification yet — nothing can be transmitted. */
+  status: "dependency" | "stubbed" | "implemented" | "certified";
+  specificationVersion: string | null;
+  note: string;
+}
+
+export interface ClaimReadinessCheck {
+  code: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface ClaimExchange {
+  id: string;
+  status: "queued" | "accepted" | "rejected" | "failed" | "not_configured";
+  attempts: number;
+  externalReference: string | null;
+  outcomeDetail: { reasons?: Array<{ code: string; message: string }> };
+  lastError: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+}
+
+export interface PhilHealthClaimPreview {
+  integration: IntegrationSpecification;
+  invoiceId: string;
+  ready: boolean;
+  checks: ClaimReadinessCheck[];
+  claim: {
+    facility: { accreditationNumber: string | null };
+    patient: { patientNumber: string; familyName: string; givenName: string; philhealthPin: string | null };
+    coverage: { amountClaimed: number };
+    servicePeriod: { from: string; to: string };
+    diagnoses: Array<{ codeSystem: string; code: string; display: string; primary: boolean }>;
+  } | null;
+  submissions: ClaimExchange[];
+}
+
+export interface PhilHealthAccreditation {
+  facilityId: string;
+  accreditationNumber: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  version: number;
+}

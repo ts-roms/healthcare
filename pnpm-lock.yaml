@@ -531,6 +531,12 @@ importers:
 
   libs/interoperability:
     dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/fhir':
         specifier: ^0.0.44
         version: 0.0.44
