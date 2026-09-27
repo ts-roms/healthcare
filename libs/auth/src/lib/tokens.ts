@@ -5,12 +5,27 @@ import { APP_CONFIG, type AppConfig, UnauthenticatedError } from "@healthcare/co
 const ISSUER = "healthcare-platform";
 const AUDIENCE = "healthcare-api";
 const MFA_CHALLENGE_TTL_SECONDS = 300;
+/** Realtime tickets are exchanged immediately for a socket connection. */
+export const REALTIME_TICKET_TTL_SECONDS = 60;
 
 export interface AccessTokenClaims {
   sub: string;
   sid: string;
   org: string;
   typ: "access";
+}
+
+/**
+ * Short-lived ticket for the realtime gateway, bound to a session and a
+ * facility. It lets a browser open a socket without ever holding an access
+ * token (the staff app keeps those server-side). It is not an access token.
+ */
+export interface RealtimeTicketClaims {
+  sub: string;
+  sid: string;
+  org: string;
+  fac: string;
+  typ: "realtime";
 }
 
 export interface MfaChallengeClaims {
@@ -36,6 +51,14 @@ export class TokenService {
 
   signMfaChallenge(claims: Omit<MfaChallengeClaims, "typ">): Promise<string> {
     return this.sign({ ...claims, typ: "mfa_challenge" }, MFA_CHALLENGE_TTL_SECONDS);
+  }
+
+  signRealtimeTicket(claims: Omit<RealtimeTicketClaims, "typ">): Promise<string> {
+    return this.sign({ ...claims, typ: "realtime" }, REALTIME_TICKET_TTL_SECONDS);
+  }
+
+  verifyRealtimeTicket(token: string): Promise<RealtimeTicketClaims> {
+    return this.verify<RealtimeTicketClaims>(token, "realtime");
   }
 
   verifyAccessToken(token: string): Promise<AccessTokenClaims> {

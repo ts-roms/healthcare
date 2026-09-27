@@ -28,6 +28,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/laboratory/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/care-plan/tsconfig.lib.json"
     },
     {

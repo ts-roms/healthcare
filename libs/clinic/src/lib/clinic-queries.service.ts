@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
-import { appointment, diagnosis, encounter, vitalSignSet } from "./clinic.schema";
+import { appointment, diagnosis, encounter, practitioner, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { TriageService, toVitalsView } from "./triage/triage.service";
@@ -21,6 +21,27 @@ export class ClinicQueries {
 
   practitionerForUser(organizationId: string, userId: string) {
     return this.config.practitionerForUser(organizationId, userId);
+  }
+
+  /** Practitioner display names by id (ordering provider labels). */
+  async practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    if (practitionerIds.length === 0) return names;
+    const rows = await this.db
+      .select({ id: practitioner.id, displayName: practitioner.displayName })
+      .from(practitioner)
+      .where(and(eq(practitioner.organizationId, organizationId), inArray(practitioner.id, practitionerIds)));
+    for (const row of rows) names.set(row.id, row.displayName);
+    return names;
+  }
+
+  /** The staff account linked to a practitioner, if any. */
+  async practitionerUserId(organizationId: string, practitionerId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ userId: practitioner.userId })
+      .from(practitioner)
+      .where(and(eq(practitioner.organizationId, organizationId), eq(practitioner.id, practitionerId)));
+    return row?.userId ?? null;
   }
 
   async encounter(organizationId: string, encounterId: string) {

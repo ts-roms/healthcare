@@ -616,6 +616,12 @@ export interface DueCareActivity {
   kind: CareActivityKind;
   description: string;
   dueDate: string | null;
+  status: CareActivityStatus;
+  assignee: "patient" | "care_team";
+  recurrenceIntervalDays: number | null;
   planTitle: string;
+  planCategory: CarePlanCategory;
   overdue: boolean;
+  /** Minimal identification (number, name, sex, age). */
+  patient: PatientBrief | null;
 }

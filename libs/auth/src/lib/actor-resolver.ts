@@ -30,6 +30,17 @@ export class ActorResolver {
 
   async resolve(accessToken: string, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
     const claims = await this.tokens.verifyAccessToken(accessToken);
+    return this.fromSession(claims, context, request);
+  }
+
+  /** For the realtime gateway: a ticket from `POST /auth/realtime-tickets`, bound to one session and facility. */
+  async resolveRealtimeTicket(ticket: string, request: RequestMetadata): Promise<Actor> {
+    const claims = await this.tokens.verifyRealtimeTicket(ticket);
+    return this.fromSession(claims, { facilityId: claims.fac }, request);
+  }
+
+  /** The session, account and membership are re-checked on every resolution, so revocation takes effect immediately. */
+  private async fromSession(claims: { sub: string; sid: string; org: string }, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
     const session = await this.sessions.findActive(claims.sid);
     if (!session || session.userId !== claims.sub || session.organizationId !== claims.org) {
       throw new UnauthenticatedError("Session has ended", "session_ended");

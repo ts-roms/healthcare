@@ -38,6 +38,9 @@
     },
     {
       "path": "./libs/care-plan"
+    },
+    {
+      "path": "./libs/laboratory"
     }
   ],
   "compilerOptions": {}

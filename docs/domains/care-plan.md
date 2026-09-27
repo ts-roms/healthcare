@@ -21,8 +21,9 @@ recorded diagnosis), `care_plan_goal` (clinician-set target measure/value — tr
 
 ## Queries
 
-- `GET /care-plans/activities/due?withinDays=` — **patient recall list**: overdue and upcoming open activities of
-  active plans.
+- `GET /care-plans/activities/due?withinDays=&kind=` — **patient recall list**: overdue and upcoming open activities of
+  active plans. Each row carries a minimal patient brief (number, name, sex, age) from the `CarePlanPatientDirectory`
+  port, implemented in `apps/api` over the patient library (the care-plan library does not import it).
 - Open plans with their next activities feed Patient 360.
 
 ## Events

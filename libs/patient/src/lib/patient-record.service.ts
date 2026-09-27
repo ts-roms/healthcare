@@ -442,6 +442,15 @@ export class PatientRecordService {
     return result;
   }
 
+  /** Sex and birth date for age- and sex-specific reference ranges (laboratory). Not audited here. */
+  async demographics(organizationId: string, patientId: string): Promise<{ sex: string; birthDate: string } | undefined> {
+    const [row] = await this.db
+      .select({ sex: patient.sex, birthDate: patient.birthDate })
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
+    return row;
+  }
+
   /** Destination and permission for contacting a patient (used by notifications). */
   async resolveContact(organizationId: string, patientId: string, channel: CommunicationChannel, category: CommunicationCategory): Promise<ContactResolution> {
     const [record] = await this.db

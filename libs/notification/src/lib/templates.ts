@@ -71,6 +71,28 @@ export const TEMPLATES = [
     variables: z.object({ title: shortText, body: z.string().trim().min(1).max(2000) }),
     render: (v) => ({ subject: v.title, text: v.body }),
   }),
+  defineTemplate({
+    key: "lab.result-notice",
+    version: 1,
+    category: "clinical",
+    // In-app to the ordering practitioner. Identifiers only: the value is read in the order, behind access control.
+    channels: ["in_app"],
+    variables: z.object({
+      kind: z.enum(["critical", "corrected"]),
+      orderNumber: z.string().regex(/^LO\d{8}$/),
+      patientNumber: z.string().regex(/^P\d{8}$/),
+    }),
+    render: (v) =>
+      v.kind === "critical"
+        ? {
+            subject: `Critical laboratory result — ${v.patientNumber}`,
+            text: `A critical result was verified on laboratory order ${v.orderNumber} for patient ${v.patientNumber}. Open the order to review and acknowledge it.`,
+          }
+        : {
+            subject: `Corrected laboratory result — ${v.patientNumber}`,
+            text: `A released result on laboratory order ${v.orderNumber} for patient ${v.patientNumber} was corrected. Open the order to see the new version and its reason.`,
+          },
+  }),
 ] as const;
 
 export type TemplateKey = (typeof TEMPLATES)[number]["key"];

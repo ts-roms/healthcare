@@ -64,8 +64,14 @@ sub-records / consent / preferences, document create / upload / list / download
   clinical detail. Free text is limited to in-app messages.
 - Logs never contain message bodies; destinations are masked.
 - Domain events and realtime messages carry identifiers and statuses only —
-  never names or clinical text. Realtime clients authenticate with the same
-  access token and facility rules as the REST API.
+  never names or clinical text. Realtime clients are checked on connect with
+  the same session, account, facility and permission rules as the REST API
+  (`clinic.queue.read`). Browsers present a ticket from
+  `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
+  bound to one session and facility, and refused as an access token (and vice
+  versa). A ticket is not single-use: replayed within its minute it opens a
+  socket for the same user and facility only, and never after the session ends.
+  Server-side clients may still connect with an access token and facility id.
 
 ## Known gaps (tracked for later phases)
 

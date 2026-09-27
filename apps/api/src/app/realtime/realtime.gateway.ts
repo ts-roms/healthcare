@@ -12,8 +12,10 @@ function facilityRoom(facilityId: string): string {
 
 /**
  * Realtime queue updates for display boards and worklists (CLAUDE.md §1).
- * Clients connect with { auth: { token, facilityId } }; they must hold
- * clinic.queue.read at that facility. Messages carry ids and statuses only —
+ * Browsers connect with { auth: { ticket } } (a 60-second ticket from
+ * POST /auth/realtime-tickets, bound to their session and facility); server
+ * clients may use { auth: { token, facilityId } }. Either way the session,
+ * account and clinic.queue.read at that facility are checked on connect. Messages carry ids and statuses only —
  * clients refetch details through the authorized REST API.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
@@ -30,17 +32,22 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
   }
 
   async handleConnection(client: Socket): Promise<void> {
-    const { token, facilityId } = (client.handshake.auth ?? {}) as { token?: unknown; facilityId?: unknown };
+    const { ticket, token, facilityId } = (client.handshake.auth ?? {}) as { ticket?: unknown; token?: unknown; facilityId?: unknown };
+    const request = { ipAddress: client.handshake.address, userAgent: client.handshake.headers["user-agent"] };
     try {
-      if (typeof token !== "string" || typeof facilityId !== "string") throw new Error("token and facilityId are required");
-      const actor = await this.actors.resolve(
-        token,
-        { facilityId },
-        { ipAddress: client.handshake.address, userAgent: client.handshake.headers["user-agent"] },
-      );
-      if (!actor.permissions.has("clinic.queue.read")) throw new Error("Not permitted");
-      await client.join(facilityRoom(facilityId));
-      client.emit("ready", { facilityId });
+      let actor;
+      if (typeof ticket === "string") {
+        // Browsers: a short-lived ticket bound to the session and facility (POST /auth/realtime-tickets).
+        actor = await this.actors.resolveRealtimeTicket(ticket, request);
+      } else if (typeof token === "string" && typeof facilityId === "string") {
+        // Server-side clients (e.g. display boards) may still use an access token.
+        actor = await this.actors.resolve(token, { facilityId }, request);
+      } else {
+        throw new Error("A ticket (or token and facilityId) is required");
+      }
+      if (!actor.facilityId || !actor.permissions.has("clinic.queue.read")) throw new Error("Not permitted");
+      await client.join(facilityRoom(actor.facilityId));
+      client.emit("ready", { facilityId: actor.facilityId });
     } catch (error) {
       client.emit("unauthorized", { message: error instanceof Error ? error.message : "Unauthorized" });
       client.disconnect(true);

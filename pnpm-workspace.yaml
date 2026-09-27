@@ -3,8 +3,8 @@ packages:
   - "libs/*"
 
 onlyBuiltDependencies:
-  - '@parcel/watcher'
-  - '@scarf/scarf'
+  - "@parcel/watcher"
+  - "@scarf/scarf"
   - "@swc/core"
   - "@tailwindcss/oxide"
   - esbuild

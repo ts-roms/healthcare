@@ -1,11 +1,12 @@
 import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { type Actor, CurrentActor, Public, requestMetadataFrom } from "@healthcare/core";
+import { type Actor, CurrentActor, ForbiddenError, Public, RequireFacility, requestMetadataFrom, requireFacilityId } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
 import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from "./auth.dto";
 import { AuthService } from "./auth.service";
+import { REALTIME_TICKET_TTL_SECONDS, TokenService } from "./tokens";
 
 // Credential endpoints get a much tighter rate limit than the API default.
 const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
@@ -16,7 +17,20 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly organizations: OrganizationService,
+    private readonly tokens: TokenService,
   ) {}
+
+  @Post("realtime-tickets")
+  @ApiBearerAuth()
+  @RequireFacility()
+  @ApiOperation({
+    summary: "Short-lived ticket to open the realtime socket for the current session and facility (never an access token)",
+  })
+  async realtimeTicket(@CurrentActor() actor: Actor): Promise<{ ticket: string; expiresInSeconds: number }> {
+    if (!actor.sessionId) throw new ForbiddenError("A user session is required");
+    const ticket = await this.tokens.signRealtimeTicket({ sub: actor.userId, sid: actor.sessionId, org: actor.organizationId, fac: requireFacilityId(actor) });
+    return { ticket, expiresInSeconds: REALTIME_TICKET_TTL_SECONDS };
+  }
 
   @Post("login")
   @Public()

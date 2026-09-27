@@ -39,6 +39,22 @@ export const PERMISSIONS = [
   "care-plan.read",
   "care-plan.manage",
   "clinic.dashboard.read",
+  // Phase 3 — laboratory (migration 0015)
+  "lab.catalog.manage",
+  "lab.order.read",
+  "lab.order.create",
+  "lab.order.cancel",
+  "lab.specimen.collect",
+  "lab.specimen.receive",
+  "lab.specimen.reject",
+  "lab.result.read",
+  "lab.result.enter",
+  "lab.result.verify",
+  "lab.result.approve",
+  "lab.result.release",
+  "lab.result.amend",
+  "lab.critical.manage",
+  "lab.dashboard.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

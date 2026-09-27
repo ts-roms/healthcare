@@ -19,11 +19,9 @@ import {
   toQueueEntry,
   visitStatusLabel,
 } from "@/lib/clinic-mapping";
+import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
 import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
 import { callVisit, moveVisit } from "./actions";
-
-/** Until realtime reaches the browser (the socket needs a token the BFF keeps server-side), the board polls. */
-const REFRESH_MS = 15_000;
 
 export function QueueWorkspace({
   visits,
@@ -47,14 +45,8 @@ export function QueueWorkspace({
   const [pending, startTransition] = React.useTransition();
   const [now, setNow] = React.useState(() => new Date());
 
-  React.useEffect(() => {
-    const timer = window.setInterval(() => {
-      // Keep waiting times current; fetch fresh data only while the board is on screen.
-      setNow(new Date());
-      if (document.visibilityState === "visible") router.refresh();
-    }, REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [router]);
+  // Live updates over the realtime socket, polling as a fallback; the tick keeps waiting times current.
+  const live = useQueueUpdates(() => setNow(new Date()));
 
   const entries = React.useMemo(() => visits.map(toQueueEntry), [visits]);
   const selected = visits.find((v) => v.id === selectedId) ?? null;
@@ -79,6 +71,7 @@ export function QueueWorkspace({
           <span>
             {entries.filter((e) => e.status !== "done").length} active · updated {clinicalTime(now.toISOString())}
           </span>
+          <LiveIndicator status={live} />
           <Button
             variant="ghost"
             size="xs"

@@ -30,6 +30,6 @@ import { UsersService } from "./users.service";
     UsersService,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AccessService, ActorResolver, AuthService],
+  exports: [AccessService, ActorResolver, AuthService, UsersService],
 })
 export class AuthModule {}
