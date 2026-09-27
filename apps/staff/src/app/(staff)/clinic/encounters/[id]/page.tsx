@@ -95,6 +95,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       }}
       canManageCarePlans={can(session, "care-plan.manage")}
       canBookFollowUp={can(session, "appointment.manage")}
+      canManageAllergies={can(session, "allergy.manage")}
     />
   );
 }

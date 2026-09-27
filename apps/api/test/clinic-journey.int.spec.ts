@@ -144,6 +144,34 @@ describe("clinic journey", () => {
     expect(nka.body.error.code).toBe("allergies_recorded");
   });
 
+  it("does not let an older 'no known allergies' outlive a later allergy", async () => {
+    const other = (
+      await ctx
+        .http()
+        .post("/api/v1/patients")
+        .set(deskAt())
+        .send({ ...juan, givenName: "Pedro", birthDate: "1975-05-06", contacts: [], identifiers: [] })
+        .expect(201)
+    ).body.id;
+    await ctx.http().post(`/api/v1/patients/${other}/allergy-reviews`).set(as(nurse)).send({ noKnownAllergies: true }).expect(201);
+    const reviewed = await ctx.http().get(`/api/v1/patients/${other}/allergies`).set(as(nurse)).expect(200);
+    expect(reviewed.body.status).toBe("no_known_allergies");
+
+    const added = await ctx.http().post(`/api/v1/patients/${other}/allergies`).set(as(nurse)).send({ category: "food", substance: "Shrimp" }).expect(201);
+    await ctx
+      .http()
+      .patch(`/api/v1/patients/${other}/allergies/${added.body.id}`)
+      .set(as(nurse))
+      .send({ status: "resolved", reason: "Tolerated on challenge", version: added.body.version })
+      .expect(200);
+    // The earlier assertion predates the allergy: the history must be taken again.
+    const after = await ctx.http().get(`/api/v1/patients/${other}/allergies`).set(as(nurse)).expect(200);
+    expect(after.body).toMatchObject({ status: "not_reviewed", allergies: [] });
+
+    await ctx.http().post(`/api/v1/patients/${other}/allergy-reviews`).set(as(nurse)).send({ noKnownAllergies: true }).expect(201);
+    expect((await ctx.http().get(`/api/v1/patients/${other}/allergies`).set(as(nurse)).expect(200)).body.status).toBe("no_known_allergies");
+  });
+
   it("lets only a linked practitioner start the consultation", async () => {
     await ctx.http().post("/api/v1/encounters").set(nurseAt()).send({ visitId }).expect(403);
     const started = await ctx.http().post("/api/v1/encounters").set(doctorAt()).send({ visitId }).expect(201);

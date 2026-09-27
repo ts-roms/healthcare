@@ -58,6 +58,15 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
 - **Refresh.** The queue page re-renders from the server every 15 s while visible (`router.refresh()`). The API's Socket.IO `/realtime` gateway needs an access token, which the staff app keeps server-side; connecting browsers to it needs a short-lived socket ticket endpoint (follow-up).
 
+## Allergies
+
+`components/allergies-panel.tsx` shows the patient's active allergies (most dangerous first) and, with `allergy.manage`, records them wherever they are asked about: the patient record, triage and the encounter workspace.
+
+- **Record allergy**: substance, category, reaction, severity, criticality, verification (`POST /patients/:id/allergies`; an active duplicate is refused with `allergy_exists`).
+- Allergies are never edited or deleted: **Resolved…**, **No longer relevant…** and **Entered in error…** change the status with a reason and the row's `version`. A wrong entry is marked entered in error and recorded again.
+- **Patient reports no known allergies** records a review (`POST /patients/:id/allergy-reviews`) and is offered only when nothing active is recorded; **Reviewed with patient** records a review when allergies exist. "Not reviewed" is never shown as "no allergies", and an older "no known allergies" does not survive a later allergy change (API rule).
+- New allergies appear immediately in the banner and in the prescription dialog, and the API's drug–allergy check uses them.
+
 ## Encounter workspace
 
 Doctor flow: queue board or **Consultations** (`/clinic/encounters`) → **Start consultation** (`POST /encounters` with the visit; the visit moves to _with provider_) → workspace (`/clinic/encounters/[id]`) → **Sign encounter** (the visit and appointment complete).
