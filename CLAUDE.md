@@ -24,7 +24,43 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 ## 0. Current repository state
 
-The repository has not been scaffolded yet. Phase 1 (Foundation, §38) is the next step. Inspect the repository before every change — do not assume any file, library, table, or API exists.
+The Nx monorepo and a **frontend prototype** exist. There is **no backend yet**: no NestJS API, database, authentication, or persistence. Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
+
+**Projects**
+
+| Project              | Path          | Nx tags                       | What it is                                                                                                                                                                             |
+| -------------------- | ------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `staff`              | `apps/staff`  | `scope:staff`, `type:app`     | Next.js staff app: role-aware dashboards, Patient 360, doctor encounter workspace, lab workbench, odontogram, telemedicine, queue, appointments. Unbuilt modules render a placeholder. |
+| `portal`             | `apps/portal` | `scope:portal`, `type:app`    | Next.js patient portal (mobile-first): home, visits, results.                                                                                                                          |
+| `@healthcare/ui`     | `libs/ui`     | `scope:shared`, `type:ui`     | Healthcare Design System on shadcn/ui + Tailwind v4: tokens (`src/styles/theme.css`), `primitives/`, `healthcare/` components, `layouts/`. Storybook.                                  |
+| `@healthcare/domain` | `libs/domain` | `scope:shared`, `type:domain` | Shared clinical types, staff roles, drug–allergy decision-support rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                             |
+
+`libs/clinic`, `libs/laboratory`, `libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
+
+**Prototype limitations — do not mistake these for implemented features**
+
+- All data is demo fixtures. The staff app reads them through `apps/staff/src/lib/data.ts` (the seam to replace with API calls); portal pages import `@healthcare/domain/fixtures` directly. Nothing is persisted: "Sign", "Verify", "Save" change in-memory state and show toasts only.
+- The staff **role is a demo cookie** (`hc-role`) set from a top-bar switcher. There is no authentication or server-side authorization.
+- Audit events (e.g. allergy overrides) are surfaced as toasts only; there is no audit store.
+- The drug–allergy class map is a labelled demo list, not a clinical knowledge source.
+
+**Tooling**
+
+- Nx 23 + pnpm 10, Node 22 (`.nvmrc`), TypeScript 5.9 strict, Next.js 16, React 19, Tailwind CSS 4, Storybook 10.
+- ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Pinned to v9 until `eslint-plugin-react` / `jsx-a11y` support v10.
+- Vitest 4 unit tests in `libs/domain` and `libs/ui` (`*.test.ts`). Prettier with the Tailwind plugin.
+- CI: `.github/workflows/ci.yml` runs `prettier --check` then `nx affected` for lint → typecheck → test → integration → e2e → build (+ `build-storybook`). Targets a project doesn't define are skipped.
+- Commands: `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm format`.
+
+**Conventions already established**
+
+- Import the design system via `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@healthcare/ui/layouts`; shared types via `@healthcare/domain`.
+- Clinical status is never colour alone (colour + icon + text; see `libs/ui/src/healthcare/status.tsx`).
+- Clinical times render in the facility timezone via `libs/ui/src/lib/format.ts` (default `Asia/Manila`).
+- Business rules live in `libs/domain` (or future domain libs), not in React components.
+- Every new project needs `nx.tags` in its `package.json` and its own `eslint.config.mjs`.
+
+**Next steps (§38 Phase 1, Foundation)** — still to do: NestJS API, PostgreSQL, authentication, organizations/facilities, users/roles, Patient Master, patient lookup, audit, documents, notifications.
 
 ---
 
@@ -68,21 +104,24 @@ The NestJS API is one deployable application with strict domain boundaries. Extr
 
 ```
 apps/
-  staff-web/            Next.js — clinic, lab, dental, billing, admin staff
-  patient-portal/       Next.js — patients
-  mobile/               Expo — patients
-  api/                  NestJS modular monolith
-  notification-worker/  BullMQ worker
-  integration-worker/   BullMQ worker for external systems
+  staff/                Next.js — clinic, lab, dental, billing, admin staff      [exists]
+  portal/               Next.js — patients                                       [exists]
+  mobile/               Expo — patients                                          [planned]
+  api/                  NestJS modular monolith                                  [planned]
+  notification-worker/  BullMQ worker                                            [planned]
+  integration-worker/   BullMQ worker for external systems                       [planned]
 
 libs/
+  ui/ domain/                                                                    [exist, shared]
   core/ auth/ patient/ appointment/ queue/ clinic/ encounter/ care-plan/
   prescription/ telemedicine/ dental/ laboratory/ billing/ inventory/
-  crm/ notification/ documents/ audit/ reporting/ interoperability/ philhealth/
+  crm/ notification/ documents/ audit/ reporting/ interoperability/ philhealth/  [planned]
 
 tools/  docs/  infrastructure/
 nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json
 ```
+
+`libs/ui` is the shared Healthcare Design System; `libs/domain` holds shared clinical types and cross-cutting rules. Domain-specific logic belongs in the planned domain libraries as they are created.
 
 Prefer domain-oriented libraries. Do not create hundreds of tiny libraries.
 
