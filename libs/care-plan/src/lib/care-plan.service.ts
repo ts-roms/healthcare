@@ -28,6 +28,7 @@ import { canChangeActivityStatus, canChangePlanStatus, nextDueDate } from "./car
 import {
   carePlan,
   carePlanActivity,
+  carePlanActivityReminder,
   type CarePlanActivityRecord,
   carePlanGoal,
   carePlanProblem,
@@ -395,12 +396,27 @@ export class CarePlanService {
     });
     // Minimal identification only (number, name, sex, age): a recall list is a work list, not a record.
     const patients = await this.patients.summaries(actor.organizationId, [...new Set(rows.map((r) => r.activity.patientId))]);
+    const reminders = rows.length
+      ? await this.db
+          .select({ activityId: carePlanActivityReminder.activityId, last: sql<Date>`max(${carePlanActivityReminder.sentAt})` })
+          .from(carePlanActivityReminder)
+          .where(
+            inArray(
+              carePlanActivityReminder.activityId,
+              rows.map((r) => r.activity.id),
+            ),
+          )
+          .groupBy(carePlanActivityReminder.activityId)
+      : [];
+    const lastReminder = new Map(reminders.map((r) => [r.activityId, new Date(r.last)]));
     return rows.map(({ activity, planTitle, planCategory }) => ({
       ...strip(activity),
       planTitle,
       planCategory,
       overdue: activity.dueDate !== null && activity.dueDate < today,
       patient: patients.get(activity.patientId) ?? null,
+      /** When the patient was last reminded (recall reminders), if ever. */
+      lastReminderAt: lastReminder.get(activity.id) ?? null,
     }));
   }
 

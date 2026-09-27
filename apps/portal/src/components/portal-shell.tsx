@@ -17,10 +17,21 @@ const NAV = [
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];
 
-export function PortalShell({ givenName, signOut, children }: { givenName: string; signOut: () => Promise<void>; children: React.ReactNode }) {
+export function PortalShell({
+  givenName,
+  unreadMessages,
+  signOut,
+  children,
+}: {
+  givenName: string;
+  unreadMessages: number;
+  signOut: () => Promise<void>;
+  children: React.ReactNode;
+}) {
+  const nav = NAV.map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
   return (
     <PatientLayout
-      nav={NAV}
+      nav={nav}
       pathname={usePathname()}
       Link={NextLink}
       brand={

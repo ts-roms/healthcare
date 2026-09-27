@@ -41,14 +41,14 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "appointment.reminder",
-    version: 1,
+    version: 2,
     category: "administrative",
     channels: ["sms", "email"],
     // No patient name, practitioner specialty or reason: only where and when.
     variables: z.object({ facilityName: shortText, date: z.string().max(40), time: z.string().max(20) }),
     render: (v) => ({
       subject: `Appointment reminder: ${v.date}`,
-      text: `Reminder: you have an appointment at ${v.facilityName} on ${v.date} at ${v.time}. Please arrive 15 minutes early. To reschedule, contact the clinic.`,
+      text: `Reminder: you have an appointment at ${v.facilityName} on ${v.date} at ${v.time}. Please arrive 15 minutes early. To reschedule, use MyHealth or contact the clinic.`,
     }),
   }),
   defineTemplate({
@@ -75,6 +75,46 @@ export const TEMPLATES = [
           },
   }),
   defineTemplate({
+    key: "appointment.no-show",
+    version: 1,
+    category: "administrative",
+    channels: ["sms", "email", "in_app"],
+    // A friendly follow-up after a missed visit: where and when only, never why the patient was booked.
+    variables: z.object({ facilityName: shortText, date: z.string().max(40) }),
+    render: (v) => ({
+      subject: `We missed you on ${v.date}`,
+      text: `We missed you at ${v.facilityName} on ${v.date}. If you still need care, book a new visit in MyHealth or call the clinic.`,
+    }),
+  }),
+  defineTemplate({
+    key: "care-plan.follow-up-due",
+    version: 1,
+    // Part of the care the patient's own clinician planned (not marketing), so a care message the patient can opt out of.
+    category: "clinical",
+    channels: ["sms", "email", "in_app"],
+    // No plan name, condition, test or activity text: only that something planned is due and whom to contact.
+    variables: z.object({ kind: z.enum(["due", "overdue"]), organizationName: shortText, date: z.string().max(40) }),
+    render: (v) =>
+      v.kind === "due"
+        ? {
+            subject: `A follow-up is due from ${v.date}`,
+            text: `${v.organizationName}: your care plan has a follow-up due from ${v.date}. Book it in MyHealth or call the clinic.`,
+          }
+        : {
+            subject: "A follow-up is overdue",
+            text: `${v.organizationName}: a follow-up in your care plan was due on ${v.date} and has not been booked yet. Book it in MyHealth or call the clinic.`,
+          },
+  }),
+  defineTemplate({
+    key: "clinic.message",
+    version: 1,
+    category: "administrative",
+    // In-app only: free text written by the clinic stays inside MyHealth, behind sign-in.
+    channels: ["in_app"],
+    variables: z.object({ title: shortText, body: z.string().trim().min(1).max(2000) }),
+    render: (v) => ({ subject: v.title, text: v.body }),
+  }),
+  defineTemplate({
     key: "security.mfa-enabled",
     version: 1,
     category: "security",
@@ -99,7 +139,7 @@ export const TEMPLATES = [
     version: 1,
     category: "clinical",
     // Leaves the platform (SMS/email): no test names, values or flags — only a pointer to MyHealth.
-    channels: ["sms", "email"],
+    channels: ["sms", "email", "in_app"],
     variables: z.object({ kind: z.enum(["ready", "updated"]), organizationName: shortText }),
     render: (v) =>
       v.kind === "ready"

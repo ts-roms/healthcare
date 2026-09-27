@@ -171,3 +171,13 @@ export interface BookedAppointment {
   reason: string | null;
   version: number;
 }
+
+/** `GET /portal/messages` row: an in-app message, rendered by the API. */
+export interface PortalMessage {
+  id: string;
+  templateKey: string;
+  subject: string | null;
+  text: string;
+  createdAt: string;
+  readAt: string | null;
+}

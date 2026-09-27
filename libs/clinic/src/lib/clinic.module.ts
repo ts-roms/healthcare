@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nes
 import { OrganizationModule } from "@healthcare/organization";
 import { AppointmentReminders } from "./appointments/appointment-reminders";
 import { AppointmentService } from "./appointments/appointment.service";
+import { NoShowFollowUp } from "./appointments/no-show-follow-up";
 import { PatientBookingNotices } from "./appointments/patient-booking-notices";
 import { PatientBookingService } from "./appointments/patient-booking.service";
 import {
@@ -43,6 +44,7 @@ export class ClinicModule {
         ClinicDashboardService,
         ClinicQueries,
         EncounterService,
+        NoShowFollowUp,
         OnlineVisitService,
         PatientBookingNotices,
         PatientBookingService,

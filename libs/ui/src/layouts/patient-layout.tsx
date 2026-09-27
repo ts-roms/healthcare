@@ -9,6 +9,8 @@ export interface PatientNavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Unread or new items (e.g. messages); shown as a number badge with an accessible label. */
+  count?: number;
 }
 
 export interface PatientLayoutProps {
@@ -43,6 +45,7 @@ export function PatientLayout({ nav, pathname, brand, headerEnd, children, Link 
                 )}
               >
                 {n.label}
+                <CountBadge count={n.count} />
               </Link>
             ))}
           </nav>
@@ -62,7 +65,10 @@ export function PatientLayout({ nav, pathname, brand, headerEnd, children, Link 
                   aria-current={active ? "page" : undefined}
                   className={cn("flex h-16 flex-col items-center justify-center gap-1 text-meta font-medium text-muted-foreground", active && "text-primary")}
                 >
-                  <Icon className="size-5" aria-hidden />
+                  <span className="relative">
+                    <Icon className="size-5" aria-hidden />
+                    <CountBadge count={n.count} floating />
+                  </span>
                   {n.label}
                 </Link>
               </li>
@@ -71,5 +77,20 @@ export function PatientLayout({ nav, pathname, brand, headerEnd, children, Link 
         </ul>
       </nav>
     </div>
+  );
+}
+
+function CountBadge({ count, floating }: { count?: number; floating?: boolean }) {
+  if (!count) return null;
+  return (
+    <span
+      className={cn(
+        "ml-1 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.625rem] leading-4 font-semibold text-primary-foreground",
+        floating && "absolute -top-1.5 -right-2.5 ml-0",
+      )}
+    >
+      {count > 9 ? "9+" : count}
+      <span className="sr-only"> unread</span>
+    </span>
   );
 }

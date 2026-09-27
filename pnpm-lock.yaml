@@ -457,6 +457,12 @@ importers:
       '@healthcare/core':
         specifier: workspace:*
         version: link:../core
+      '@healthcare/notification':
+        specifier: workspace:*
+        version: link:../notification
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
 
   libs/clinic:
     dependencies:

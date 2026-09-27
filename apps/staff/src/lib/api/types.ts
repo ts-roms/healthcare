@@ -628,6 +628,8 @@ export interface DueCareActivity {
   planTitle: string;
   planCategory: CarePlanCategory;
   overdue: boolean;
+  /** When the patient was last sent a recall reminder for this activity (SMS / MyHealth), if ever. */
+  lastReminderAt?: string | null;
   /** Minimal identification (number, name, sex, age). */
   patient: PatientBrief | null;
 }

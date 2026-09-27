@@ -98,6 +98,7 @@ export default async function RecallListPage({ searchParams }: { searchParams: P
                       <span className="block text-meta text-muted-foreground">
                         {r.assignee === "patient" ? "Patient task" : "Care team"}
                         {r.recurrenceIntervalDays ? ` · every ${r.recurrenceIntervalDays} days` : ""}
+                        {r.lastReminderAt ? ` · patient reminded ${clinicalDate(r.lastReminderAt)}` : ""}
                       </span>
                     </TableCell>
                     <TableCell>

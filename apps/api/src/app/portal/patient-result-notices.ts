@@ -39,6 +39,14 @@ export class PatientResultNotices implements OnModuleInit {
     // One message per order per day (several results are usually released together); corrections get their own.
     const key = kind === "ready" ? `lab-ready:${orderId}:${localDate(new Date(), PH_TIMEZONE)}` : `lab-updated:${event.aggregateId}`;
     const variables = { kind, organizationName: organization.name.slice(0, 80) };
+    // A copy in the MyHealth inbox, and a nudge by SMS (or email) to go and look.
+    await this.notifications.send(actor, {
+      recipient: { type: "patient", patientId: event.patientId },
+      channel: "in_app",
+      templateKey: "lab.results-available",
+      variables,
+      idempotencyKey: `${key}:in_app`,
+    });
     const sms = await this.notifications.send(actor, {
       recipient: { type: "patient", patientId: event.patientId },
       channel: "sms",

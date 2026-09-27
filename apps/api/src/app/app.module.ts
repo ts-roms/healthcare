@@ -22,6 +22,7 @@ import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBookingController } from "./portal/portal-booking.controller";
+import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
 import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
 import { RealtimeGateway } from "./realtime/realtime.gateway";
@@ -73,7 +74,14 @@ export class AppModule implements NestModule {
         // Phase 5 — telemedicine.
         TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
       ],
-      controllers: [HealthController, PatientSummaryController, PortalBookingController, PortalRecordsController, PortalTeleconsultController],
+      controllers: [
+        HealthController,
+        PatientSummaryController,
+        PortalBookingController,
+        PortalMessagesController,
+        PortalRecordsController,
+        PortalTeleconsultController,
+      ],
       providers: [
         RealtimeGateway,
         LaboratoryNotifications,

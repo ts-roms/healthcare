@@ -452,7 +452,13 @@ export class PatientRecordService {
   }
 
   /** Destination and permission for contacting a patient (used by notifications). */
-  async resolveContact(organizationId: string, patientId: string, channel: CommunicationChannel, category: CommunicationCategory): Promise<ContactResolution> {
+  async resolveContact(
+    organizationId: string,
+    patientId: string,
+    channel: CommunicationChannel,
+    category: CommunicationCategory,
+    portalActive = false,
+  ): Promise<ContactResolution> {
     const [record] = await this.db
       .select({ status: patient.status })
       .from(patient)
@@ -479,6 +485,7 @@ export class PatientRecordService {
       optedIn: preference?.optedIn,
       primaryMobile: primaries.find((c) => c.system === "mobile")?.value,
       primaryEmail: primaries.find((c) => c.system === "email")?.value,
+      portalActive,
     });
   }
 

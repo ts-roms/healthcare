@@ -44,7 +44,7 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | Medicines                     | `GET /portal/prescriptions` (active)                                                                                    |
 | Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                      |
 | Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                              |
-| Messages                      | Not available yet ("coming soon")                                                                                       |
+| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                           |
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
@@ -66,6 +66,12 @@ confirmed by SMS (`appointment.self-service`: facility, date and time only); the
 shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
 waiting room above.
 
+**Messages.** `/messages` lists the patient's in-app messages newest first — results-ready notices, booking
+confirmations, "we missed you" after a no-show, care-plan follow-up reminders and messages staff send from the patient
+record ("Message in MyHealth", `clinic.message`). New ones are labelled and marked read once shown; the navigation shows
+the unread count. Each message links to where to act (results, visits, booking; `lib/messages.ts`). Messages are
+one-way: the page tells patients to call the clinic, or 911 in an emergency.
+
 Patients cannot edit their record; Profile tells them to ask the clinic.
 
 ## Configuration
@@ -77,4 +83,4 @@ Patients cannot edit their record; Profile tells them to ask the clinic.
 
 ## Not yet
 
-Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, messages and outreach (Phase 4c).
+Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, replying to messages (two-way messaging), patients managing their own communication preferences, push notifications (needs the mobile app).
