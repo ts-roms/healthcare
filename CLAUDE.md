@@ -67,7 +67,7 @@ Inspect the repository before every change — do not assume any file, library, 
 - Frontend: Next.js 16, React 19, Tailwind CSS 4, Storybook 10, Vitest 4 (`*.test.ts`). Backend: NestJS 11, Drizzle, Jest 30 (`*.spec.ts`), API integration tests (`apps/api/test/*.int.spec.ts`, target `integration`) against real PostgreSQL.
 - ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
 - CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e → build (+ `build-storybook`).
-- Commands: `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
+- Commands: `pnpm dev` (API, worker, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
 
 **Backend conventions** (details in `docs/architecture/`)
 
