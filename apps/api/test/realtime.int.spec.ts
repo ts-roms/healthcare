@@ -78,4 +78,40 @@ describe("realtime queue updates", () => {
     const elsewhere = connect({ token: desk, facilityId: tenant.otherFacilityId });
     await expect(next(elsewhere, "unauthorized")).resolves.toBeDefined();
   });
+
+  describe("tickets for browsers", () => {
+    function ticketFor(token: string, facilityId?: string) {
+      return ctx.http().post("/api/v1/auth/realtime-tickets").set(as(token, facilityId));
+    }
+
+    it("issues a short-lived ticket bound to the facility, which opens the socket", async () => {
+      const issued = await ticketFor(desk, tenant.facilityId).expect(201);
+      expect(issued.body).toEqual({ ticket: expect.any(String), expiresInSeconds: 60 });
+
+      const socket = connect({ ticket: issued.body.ticket });
+      await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId });
+    });
+
+    it("needs a facility, and a ticket is never accepted as an access token", async () => {
+      await ticketFor(desk).expect(400);
+      const issued = await ticketFor(desk, tenant.facilityId).expect(201);
+      await ctx.http().get("/api/v1/queue").set(as(issued.body.ticket, tenant.facilityId)).expect(401);
+      // Nor is an access token accepted as a ticket.
+      const socket = connect({ ticket: desk });
+      await expect(next(socket, "unauthorized")).resolves.toBeDefined();
+    });
+
+    it("refuses a ticket whose session has ended or whose holder lacks queue access", async () => {
+      const session = await login(ctx, "desk@example.ph");
+      const issued = await ticketFor(session.accessToken, tenant.facilityId).expect(201);
+      await ctx.http().post("/api/v1/auth/logout").set(as(session.accessToken)).expect(204);
+      const ended = connect({ ticket: issued.body.ticket });
+      await expect(next(ended, "unauthorized")).resolves.toBeDefined();
+
+      const auditor = (await login(ctx, "auditor@example.ph")).accessToken;
+      const auditorTicket = await ticketFor(auditor, tenant.facilityId).expect(201);
+      const socket = connect({ ticket: auditorTicket.body.ticket });
+      await expect(next(socket, "unauthorized")).resolves.toMatchObject({ message: "Not permitted" });
+    });
+  });
 });

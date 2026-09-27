@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@healthcare/ui/primitives";
+import { LiveQueueRefresh } from "@/components/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
@@ -78,6 +79,11 @@ async function ClinicToday({ session, facility }: { session: Me; facility: { id:
     <section className="flex flex-col gap-4 p-4" aria-labelledby="today-heading">
       <h2 id="today-heading" className="text-section font-semibold">
         Clinic today <span className="text-table font-normal text-muted-foreground">· {facility.name}</span>
+        {canQueue ? (
+          <span className="ml-2 align-middle">
+            <LiveQueueRefresh />
+          </span>
+        ) : null}
       </h2>
       <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="p-1">
