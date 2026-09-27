@@ -1,6 +1,7 @@
 import type { DocumentReference } from "fhir/r4";
 import type { DocumentSource, FhirContext } from "./sources";
 import { compact, localSystem, ref } from "./support";
+import { LAB_REPORT_CODE } from "./terminology";
 
 /** Display names for the platform's own document categories (a local code system: no official one is claimed). */
 const CATEGORY_DISPLAY: Record<string, string> = {
@@ -30,13 +31,20 @@ export function toDocumentReference(ctx: FhirContext, patientId: string, d: Docu
   return compact<DocumentReference>({
     resourceType: "DocumentReference",
     id: d.id,
-    // Reliable: an exported document never changes after its upload is verified (archiving withdraws it from export).
-    meta: { lastUpdated: d.uploadedAt },
-    status: "current",
-    type: { coding: [{ system: localSystem(ctx, "codesystem/document-category"), code: d.category, display }], text: display },
+    // Reliable: after upload an exported document changes only when a newer version supersedes it (archiving withdraws it).
+    meta: { lastUpdated: d.supersededAt ?? d.uploadedAt },
+    status: d.supersededAt ? "superseded" : "current",
+    type: {
+      coding: [
+        ...(d.category === "laboratory_report" ? [{ ...LAB_REPORT_CODE }] : []),
+        { system: localSystem(ctx, "codesystem/document-category"), code: d.category, display },
+      ],
+      text: display,
+    },
     subject: ref("Patient", patientId),
     date: d.uploadedAt,
     custodian: ref("Organization", ctx.organization.id, ctx.organization.name),
+    relatesTo: d.replaces.map((id) => ({ code: "replaces" as const, target: ref("DocumentReference", id) })),
     description: d.title,
     content: [
       {
@@ -49,5 +57,6 @@ export function toDocumentReference(ctx: FhirContext, patientId: string, d: Docu
         },
       },
     ],
+    context: d.related.length ? { related: d.related.map((r) => ref(r.type, r.id)) } : undefined,
   });
 }

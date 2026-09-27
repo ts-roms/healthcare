@@ -74,13 +74,13 @@ time; `le` includes that day) or an instant with a time zone (`2026-09-01T08:00:
 prefixes (and none) are `not-supported`. The filter applies to `meta.lastUpdated`, which is set only where the
 underlying record has a reliable last-updated time:
 
-| Type                                                                      | `_lastUpdated`  | Why                                                                                                                                                                                             |
-| ------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                     |
-| `DocumentReference`                                                       | Supported       | An exported document never changes after its upload is verified (archiving withdraws it). Last updated = `uploaded_at`.                                                                         |
-| `Encounter`, `Condition`, `AllergyIntolerance`, `Appointment`, `CarePlan` | Refused (`400`) | `updated_at` is maintained by application code, not the database, and the resource also shows related rows (an Encounter's diagnoses, a CarePlan's activities) that change without touching it. |
-| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change (released laboratory results would qualify; one type cannot be filtered only in part).                                        |
-| `ServiceRequest`, `DiagnosticReport`                                      | Refused (`400`) | Their status derives from laboratory item and result progress; no single row holds a change time for everything shown.                                                                          |
+| Type                                                                      | `_lastUpdated`  | Why                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                           |
+| `DocumentReference`                                                       | Supported       | An exported document never changes after upload (archiving withdraws it); an archived lab report version is superseded when the next version is stored. Last updated = that time, else `uploaded_at`. |
+| `Encounter`, `Condition`, `AllergyIntolerance`, `Appointment`, `CarePlan` | Refused (`400`) | `updated_at` is maintained by application code, not the database, and the resource also shows related rows (an Encounter's diagnoses, a CarePlan's activities) that change without touching it.       |
+| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change (released laboratory results would qualify; one type cannot be filtered only in part).                                              |
+| `ServiceRequest`, `DiagnosticReport`                                      | Refused (`400`) | Their status derives from laboratory item and result progress; no single row holds a change time for everything shown.                                                                                |
 
 Refusing is deliberate: silently ignoring the filter, or answering it approximately, would let a client miss changes.
 The Patient resource carries `meta.lastUpdated` (the patient row's `updated_at`) for information; `_lastUpdated` is not
@@ -123,6 +123,11 @@ answers with a redirect to a signed download that expires in 5 minutes; no objec
   document — e.g. uploaded to the wrong patient or replaced — and its file is no longer served by the documents API
   either. FHIR's `superseded` and `entered-in-error` each claim a specific reason the platform does not record, so
   neither is asserted. Pending uploads (no verified file) are not exported.
+- **Archived laboratory reports** (generated documents, one per released result set of an order — see
+  [printable-documents.md](../architecture/printable-documents.md)) carry LOINC `11502-2` _Laboratory report_ in
+  their type and `context.related` → the order's `DiagnosticReport`. Every version but the latest is `superseded`
+  (from the time the next version was stored; stored archives never change), and each later version `relatesTo`
+  `replaces` → the previous one when that one is exported. `LabRecordQueries.reportArchives` supplies the versions.
 
 **Entered in error:** resources keep their `entered-in-error` status (FHIR expects them to be visible as such), and
 conditions/allergies in error carry no clinical status (invariants `con-5`, `ait-2`).
@@ -142,7 +147,7 @@ No official URIs for Philippine national identifiers are on record, so none are 
 ## Not yet
 
 Cursor (snapshot) paging; `_since` on `$everything` and `_lastUpdated` for the types above (each needs a reliable
-change time first, e.g. database-maintained timestamps); `DocumentReference` for generated PDFs that are not stored
-documents (laboratory reports, invoices — see printable-documents.md); `Binary` as a FHIR resource (only the native
+change time first, e.g. database-maintained timestamps); `DocumentReference` for invoices and receipts (rendered on
+request, not stored); `DiagnosticReport.presentedForm` for the archived report; `Binary` as a FHIR resource (only the native
 content is served); dental resources (Phase 6); write/transaction; SMART on FHIR app authorization and patient-facing access; bulk data export;
 a Philippine national profile (conformance must be validated against the official specification when obtained).

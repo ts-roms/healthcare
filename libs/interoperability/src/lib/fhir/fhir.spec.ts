@@ -315,6 +315,9 @@ const source: PatientRecordSource = {
       contentType: "application/pdf",
       sizeBytes: 48213,
       uploadedAt: "2026-09-27T01:40:00.000Z",
+      supersededAt: null,
+      replaces: [],
+      related: [],
     },
   ],
 };
@@ -468,6 +471,53 @@ describe("FHIR R4 mapping", () => {
       ],
     });
     expect(everything.entry?.some((e) => e.search?.mode === "outcome")).toBe(false);
+  });
+
+  it("maps archived laboratory reports: LOINC type, linked to the DiagnosticReport, newer version replaces the superseded one", () => {
+    const ORDER = "88888888-8888-4888-8888-888888888888";
+    const [V1, V2] = ["f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1", "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2"];
+    const report = { category: "laboratory_report", contentType: "application/pdf", sizeBytes: 9000, related: [{ type: "DiagnosticReport", id: ORDER }] };
+    const withReports: PatientRecordSource = {
+      ...source,
+      documents: [
+        {
+          ...report,
+          id: V1,
+          title: "Laboratory report L1",
+          fileName: "L1.pdf",
+          uploadedAt: "2026-09-27T04:01:00.000Z",
+          supersededAt: "2026-09-27T05:01:00.000Z",
+          replaces: [],
+        },
+        {
+          ...report,
+          id: V2,
+          title: "Laboratory report L1 (update 2)",
+          fileName: "L1-2.pdf",
+          uploadedAt: "2026-09-27T05:01:00.000Z",
+          supersededAt: null,
+          replaces: [V1],
+        },
+      ],
+    };
+    const bundle = patientEverything(ctx, withReports);
+    const docs = (bundle.entry ?? []).map((e) => e.resource as FhirResource).filter((r): r is DocumentReference => r.resourceType === "DocumentReference");
+    expect(docs.map((d) => [d.id, d.status, d.meta?.lastUpdated])).toEqual([
+      [V1, "superseded", "2026-09-27T05:01:00.000Z"],
+      [V2, "current", "2026-09-27T05:01:00.000Z"],
+    ]);
+    expect(docs[1]).toMatchObject({
+      type: { coding: [{ system: "http://loinc.org", code: "11502-2" }, { code: "laboratory_report" }] },
+      relatesTo: [{ code: "replaces", target: { reference: `DocumentReference/${V1}` } }],
+      context: { related: [{ reference: `DiagnosticReport/${ORDER}` }] },
+    });
+    for (const d of docs) expect(errors(d)).toEqual([]);
+    const present = new Set((bundle.entry ?? []).map((e) => `${e.resource?.resourceType}/${e.resource?.id}`));
+    const references = [...JSON.stringify(bundle).matchAll(/"reference":"([A-Za-z]+\/[^"]+)"/g)].map((m) => m[1]);
+    expect(references.filter((r) => !present.has(r!))).toEqual([]);
+    // A superseded version changed when it was superseded: _lastUpdated sees that time.
+    const since = searchByPatient(ctx, withReports, "DocumentReference", { paging: DEFAULT_PAGING, lastUpdated: { ge: "2026-09-27T05:00:00Z" } });
+    expect(since.total).toBe(2);
   });
 
   it("withholds documents with a notice when the caller may not read them", () => {
