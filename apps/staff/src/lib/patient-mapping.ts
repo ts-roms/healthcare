@@ -1,17 +1,14 @@
-import type { Patient, Sex } from "@healthcare/domain";
-import type { PatientAddress, PatientDetail, PatientSex } from "./api/types";
+import type { Allergy, Patient, Severity, Sex, VitalSigns } from "@healthcare/domain";
+import type { AllergyRecord, AllergySummary, PatientAddress, PatientDetail, PatientSex, VitalsRecord } from "./api/types";
 
 const SEX: Record<PatientSex, Sex> = { male: "male", female: "female", intersex: "intersex", unknown: "unknown" };
 
 /**
- * Adapts an API patient to the design system's patient banner.
- *
- * Allergies, medications and problems are empty because the API has no
- * clinical record yet (Phase 2). Render the banner with
- * `allergiesRecorded={false}` so the empty list reads "Allergies not recorded",
- * never "No known allergies".
+ * Adapts an API patient (and, when the viewer may see it, the allergy summary)
+ * to the design system's patient banner. Without a summary the allergy list is
+ * empty: render the banner with `allergiesHidden` so it never implies "no allergies".
  */
-export function toBannerPatient(p: PatientDetail): Patient {
+export function toBannerPatient(p: PatientDetail, allergies?: AllergySummary): Patient {
   const primaryMobile = p.contacts.find((c) => c.system === "mobile" && c.isPrimary) ?? p.contacts.find((c) => c.system === "mobile");
   return {
     id: p.id,
@@ -21,9 +18,46 @@ export function toBannerPatient(p: PatientDetail): Patient {
     birthDate: p.birthDate,
     sex: SEX[p.sex] ?? "unknown",
     phone: primaryMobile?.value,
-    allergies: [],
+    allergies: sortByDanger(allergies?.allergies.map(toBannerAllergy) ?? []),
     medications: [],
     problems: [],
+  };
+}
+
+/**
+ * High criticality means a potential for a life-threatening reaction, so it is
+ * shown at the highest level even when the recorded severity is lower or unknown.
+ * An unknown severity is never shown as "mild".
+ */
+export function bannerSeverity(a: Pick<AllergyRecord, "severity" | "criticality">): Severity {
+  if (a.criticality === "high") return "life-threatening";
+  return a.severity ?? "moderate";
+}
+
+const DANGER: Record<Severity, number> = { "life-threatening": 0, severe: 1, moderate: 2, mild: 3 };
+
+/** Most dangerous first, so the banner leads with what matters at the bedside. */
+export function sortByDanger<T extends { severity: Severity }>(items: T[]): T[] {
+  return [...items].sort((a, b) => DANGER[a.severity] - DANGER[b.severity]);
+}
+
+function toBannerAllergy(a: AllergyRecord): Allergy {
+  const details = [a.reaction, a.verification === "unconfirmed" ? "unconfirmed" : null, a.criticality === "high" ? "high criticality" : null].filter(Boolean);
+  return { id: a.id, substance: a.substance, reaction: details.join(" · ") || undefined, severity: bannerSeverity(a) };
+}
+
+export function toVitalSigns(v: VitalsRecord): VitalSigns {
+  const n = (x: number | null) => x ?? undefined;
+  return {
+    recordedAt: v.measuredAt,
+    systolic: n(v.systolicMmhg),
+    diastolic: n(v.diastolicMmhg),
+    heartRate: n(v.heartRateBpm),
+    respiratoryRate: n(v.respiratoryRateBpm),
+    temperatureC: n(v.temperatureC),
+    spo2: n(v.spo2Percent),
+    weightKg: n(v.weightKg),
+    heightCm: n(v.heightCm),
   };
 }
 

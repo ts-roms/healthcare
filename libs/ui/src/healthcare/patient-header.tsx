@@ -1,5 +1,6 @@
 import * as React from "react";
-import { BadgeCheckIcon, BadgeXIcon, DropletIcon, PhoneIcon } from "lucide-react";
+import { BadgeCheckIcon, BadgeXIcon, DropletIcon, EyeOffIcon, PhoneIcon } from "lucide-react";
+import { Badge } from "../primitives/badge";
 import type { Patient } from "@healthcare/domain";
 import { ageFrom, fullName, sexLabel } from "../lib/format";
 import { cn } from "../lib/utils";
@@ -18,6 +19,8 @@ export interface PatientHeaderProps {
    * instead of "No known allergies" — an empty list must never read as "no allergies".
    */
   allergiesRecorded?: boolean;
+  /** True when the viewer may not see clinical data: shows "Allergies: no access" instead of any allergy statement. */
+  allergiesHidden?: boolean;
   className?: string;
 }
 
@@ -25,7 +28,7 @@ export interface PatientHeaderProps {
  * The patient banner. Identity + allergies are always visible together at the
  * top of any patient-context screen (a core patient-safety pattern).
  */
-export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, className }: PatientHeaderProps) {
+export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, allergiesHidden = false, className }: PatientHeaderProps) {
   const age = ageFrom(patient.birthDate);
   const name = fullName(patient);
 
@@ -40,7 +43,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
           </span>
           <PatientIdentifier mrn={patient.mrn} />
         </div>
-        <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />
+        {allergiesHidden ? <AllergiesHidden /> : <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />}
         {patient.bloodType ? <BloodType value={patient.bloodType} /> : null}
         {aside ? <div className="ml-auto flex items-center gap-2">{aside}</div> : null}
       </header>
@@ -61,9 +64,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
         <dl className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-table">
           <div className="flex items-center gap-1.5">
             <dt className="sr-only">Allergies</dt>
-            <dd>
-              <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />
-            </dd>
+            <dd>{allergiesHidden ? <AllergiesHidden /> : <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />}</dd>
           </div>
           {patient.bloodType ? (
             <div className="flex items-center gap-1.5">
@@ -94,6 +95,14 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
       </div>
       {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
     </header>
+  );
+}
+
+function AllergiesHidden() {
+  return (
+    <Badge variant="neutral">
+      <EyeOffIcon aria-hidden /> Allergies: no access
+    </Badge>
   );
 }
 

@@ -19,3 +19,6 @@ export const ModerateAllergy: Story = { args: { patient: anaReyes, variant: "com
 
 /** A patient with no allergy record yet (e.g. registered before clinical modules exist): never "No known allergies". */
 export const AllergiesNotRecorded: Story = { args: { patient: { ...juanCruz, allergies: [] }, allergiesRecorded: false } };
+
+/** The viewer lacks clinical access (e.g. front desk): no allergy statement at all, never "not recorded". */
+export const AllergiesHidden: Story = { args: { patient: mariaSantos, variant: "compact", allergiesHidden: true } };

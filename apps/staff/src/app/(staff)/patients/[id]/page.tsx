@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangleIcon, ClipboardXIcon, PhoneIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
-import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel } from "@healthcare/ui/healthcare";
+import { ActivityIcon, AlertTriangleIcon, CalendarIcon, EyeOffIcon, PhoneIcon, PillIcon, ShieldAlertIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
+import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import type { PatientDetail } from "@/lib/api/types";
-import { currentConsents, formatAddress, label, toBannerPatient } from "@/lib/patient-mapping";
+import { can, getSession } from "@/lib/api/session";
+import type { PatientDetail, PatientSummaryResponse } from "@/lib/api/types";
+import { bannerSeverity, currentConsents, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,14 +24,31 @@ async function loadPatient(id: string): Promise<PatientDetail> {
 // Never put patient names in the tab title (shoulder surfing, browser history).
 export const metadata = { title: "Patient record" };
 
+/** Clinical snapshot (allergies, problems, meds, vitals, visits, care plans), only for users with clinical access. */
+async function loadSummary(id: string): Promise<PatientSummaryResponse | null> {
+  const session = await getSession();
+  if (!can(session, "patient.read") || !can(session, "clinical.read")) return null;
+  try {
+    return await api<PatientSummaryResponse>(`/patients/${id}/summary`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
+}
+
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
-  const p = await loadPatient((await params).id);
+  const { id } = await params;
+  const [p, summary] = await Promise.all([loadPatient(id), loadSummary(id)]);
   const consents = currentConsents(p.consents);
   const emergency = p.relationships.filter((r) => r.isEmergencyContact || r.isLegalGuardian);
 
   return (
     <div className="flex min-h-full flex-col">
-      <PatientHeader patient={toBannerPatient(p)} allergiesRecorded={false} />
+      <PatientHeader
+        patient={toBannerPatient(p, summary?.allergies)}
+        allergiesHidden={!summary}
+        allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
+      />
       {p.status !== "active" ? (
         <p
           role="alert"
@@ -102,21 +120,12 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
-        <Card className="lg:row-span-2">
+        <Card className="lg:row-span-3">
           <CardHeader>
-            <ClipboardXIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Clinical record</CardTitle>
+            <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
+            <CardTitle>Clinical summary</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-body">
-            <p className="font-medium">Not available yet.</p>
-            <p className="text-muted-foreground">
-              Allergies, medications, problems, encounters and results are recorded in the clinical modules (Phase 2). Until then, confirm allergies with the
-              patient before prescribing.
-            </p>
-            <Link href="/preview/patient-360" className="text-table text-primary hover:underline">
-              See the Patient 360 design preview (sample patient)
-            </Link>
-          </CardContent>
+          <CardContent>{summary ? <ClinicalPanel summary={summary} /> : <NoClinicalAccess />}</CardContent>
         </Card>
 
         <Card>
@@ -200,6 +209,121 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         Registered {clinicalDateTime(p.createdAt)} · last updated {clinicalDateTime(p.updatedAt)} · version {p.version}. Viewing this record is recorded in the
         audit trail.
       </p>
+    </div>
+  );
+}
+
+function NoClinicalAccess() {
+  return (
+    <div className="flex flex-col gap-1.5 text-body text-muted-foreground">
+      <p className="flex items-center gap-1.5 font-medium text-foreground">
+        <EyeOffIcon className="size-4" aria-hidden /> No access to clinical information
+      </p>
+      <p>Allergies, problems, medications and visits are shown to clinical staff. Ask a nurse or physician before any clinical decision.</p>
+    </div>
+  );
+}
+
+function ClinicalPanel({ summary }: { summary: PatientSummaryResponse }) {
+  const { allergies } = summary;
+  const vitals = summary.latestVitals[0];
+  return (
+    <div className="flex flex-col gap-4">
+      <SummarySection title="Allergies" icon={ShieldAlertIcon}>
+        {allergies.status === "has_allergies" ? (
+          <ul className="flex flex-col gap-1.5">
+            {sortByDanger(allergies.allergies.map((a) => ({ ...a, severity: bannerSeverity(a), recorded: a }))).map(({ recorded: a }) => (
+              <li key={a.id} className="flex flex-col gap-0.5">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <AllergyBadge allergy={{ id: a.id, substance: a.substance, severity: bannerSeverity(a) }} />
+                  <span className="text-meta text-muted-foreground">
+                    {label(a.category)} · {a.severity ? label(a.severity) : "severity not recorded"}
+                    {a.criticality === "high" ? " · high criticality" : ""}
+                  </span>
+                  {a.verification === "unconfirmed" ? <Badge variant="warning">Unconfirmed</Badge> : null}
+                </span>
+                {a.reaction ? <span className="text-table text-muted-foreground">{a.reaction}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : allergies.status === "no_known_allergies" ? (
+          <Badge variant="success">
+            <ShieldCheckIcon aria-hidden /> No known allergies
+          </Badge>
+        ) : (
+          <Badge variant="warning">
+            <AlertTriangleIcon aria-hidden /> Allergies not recorded — ask the patient
+          </Badge>
+        )}
+        {allergies.lastReviewedAt ? <p className="text-meta text-muted-foreground">Last reviewed {clinicalDateTime(allergies.lastReviewedAt)}</p> : null}
+      </SummarySection>
+
+      <SummarySection title="Problems" icon={ActivityIcon}>
+        {summary.problemList.length ? (
+          <ul className="flex flex-col gap-1">
+            {summary.problemList.map((d) => (
+              <li key={d.id} className="flex items-baseline gap-2 text-body">
+                <span className="w-14 shrink-0 font-mono text-meta text-muted-foreground">{d.code}</span>
+                <span>{d.display}</span>
+                {d.isChronic ? <Badge>Chronic</Badge> : null}
+                {d.certainty === "provisional" ? <Badge variant="outline">Provisional</Badge> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-table text-muted-foreground">No active problems recorded.</p>
+        )}
+      </SummarySection>
+
+      {summary.activePrescriptions ? (
+        <SummarySection title="Active prescriptions" icon={PillIcon}>
+          {summary.activePrescriptions.length ? (
+            <ul className="flex flex-col gap-1">
+              {summary.activePrescriptions.flatMap((rx) =>
+                rx.items.map((i) => (
+                  <li key={i.id} className="text-body">
+                    <span className="font-medium">{i.genericName}</span>
+                    {i.strength ? ` ${i.strength}` : ""} <span className="text-muted-foreground">· {i.instructions}</span>
+                  </li>
+                )),
+              )}
+            </ul>
+          ) : (
+            <p className="text-table text-muted-foreground">No active prescriptions.</p>
+          )}
+        </SummarySection>
+      ) : null}
+
+      <SummarySection title="Latest vitals">
+        {vitals ? <VitalSigns vitals={toVitalSigns(vitals)} /> : <p className="text-table text-muted-foreground">No vital signs recorded.</p>}
+      </SummarySection>
+
+      <SummarySection title="Upcoming visits" icon={CalendarIcon}>
+        {summary.upcomingAppointments.length ? (
+          <ul className="flex flex-col gap-1 text-body">
+            {summary.upcomingAppointments.map((a) => (
+              <li key={a.id}>
+                <span className="tabular">{clinicalDateTime(a.startsAt)}</span>
+                {a.reason ? <span className="text-muted-foreground"> · {a.reason}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-table text-muted-foreground">None booked.</p>
+        )}
+      </SummarySection>
+
+      {summary.openCarePlans?.length ? (
+        <SummarySection title="Care plans">
+          <ul className="flex flex-col gap-1 text-body">
+            {summary.openCarePlans.map((c) => (
+              <li key={c.id}>
+                {c.title} <span className="text-muted-foreground">· {c.openActivities.length} open activities</span>
+              </li>
+            ))}
+          </ul>
+        </SummarySection>
+      ) : null}
     </div>
   );
 }

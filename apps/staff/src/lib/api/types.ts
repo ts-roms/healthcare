@@ -165,3 +165,90 @@ export interface RegisteredPatient {
   patientNumber: string;
   version: number;
 }
+
+// ---- Patient 360 summary (GET /patients/:id/summary; needs patient.read + clinical.read) -----------
+
+export interface AllergyRecord {
+  id: string;
+  category: "medication" | "food" | "environment" | "biologic" | "other";
+  substance: string;
+  reaction: string | null;
+  severity: "mild" | "moderate" | "severe" | null;
+  criticality: "low" | "high" | "unable_to_assess";
+  verification: "unconfirmed" | "confirmed";
+  recordedAt: string;
+}
+
+export interface AllergySummary {
+  allergies: AllergyRecord[];
+  /** "not_reviewed" (never asked) is clinically different from "no_known_allergies". */
+  status: "has_allergies" | "no_known_allergies" | "not_reviewed";
+  lastReviewedAt: string | null;
+}
+
+export interface ProblemRecord {
+  id: string;
+  code: string;
+  display: string;
+  codeSystemKey: string;
+  isChronic: boolean;
+  certainty: "provisional" | "confirmed" | "refuted";
+  recordedAt: string;
+}
+
+export interface VitalsRecord {
+  id: string;
+  measuredAt: string;
+  systolicMmhg: number | null;
+  diastolicMmhg: number | null;
+  heartRateBpm: number | null;
+  respiratoryRateBpm: number | null;
+  temperatureC: number | null;
+  spo2Percent: number | null;
+  weightKg: number | null;
+  heightCm: number | null;
+}
+
+export interface UpcomingAppointment {
+  id: string;
+  startsAt: string;
+  status: string;
+  reason: string | null;
+}
+
+export interface PrescriptionItemView {
+  id: string;
+  genericName: string;
+  brandName: string | null;
+  strength: string | null;
+  dosageForm: string | null;
+  frequency: string;
+  frequencyText: string | null;
+  instructions: string;
+}
+
+export interface PrescriptionSummaryView {
+  id: string;
+  issuedAt: string;
+  items: PrescriptionItemView[];
+}
+
+export interface CarePlanSummaryView {
+  id: string;
+  title: string;
+  status: string;
+  startDate: string;
+  openActivities: Array<{ id: string }>;
+}
+
+export interface PatientSummaryResponse {
+  allergies: AllergySummary;
+  problemList: ProblemRecord[];
+  recentEncounters: Array<{ id: string; startedAt: string | null; status: string }>;
+  latestVitals: VitalsRecord[];
+  upcomingAppointments: UpcomingAppointment[];
+  /** null when the viewer lacks prescription.read. */
+  activePrescriptions: PrescriptionSummaryView[] | null;
+  /** null when the viewer lacks care-plan.read. */
+  openCarePlans: CarePlanSummaryView[] | null;
+}
