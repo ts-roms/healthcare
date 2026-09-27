@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { AllergyBadge, PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { AllergiesPanel } from "@/components/allergies-panel";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
@@ -60,19 +61,7 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
             {summary ? (
               <>
                 <SummarySection title="Allergies">
-                  {banner.allergies.length ? (
-                    <ul className="flex flex-wrap gap-1.5">
-                      {banner.allergies.map((a) => (
-                        <li key={a.id}>
-                          <AllergyBadge allergy={a} />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-table text-muted-foreground">
-                      {summary.allergies.status === "not_reviewed" ? "Allergies not recorded — ask the patient." : "No known allergies (reviewed)."}
-                    </p>
-                  )}
+                  <AllergiesPanel patientId={visit.patientId} summary={summary.allergies} canManage={can(session, "allergy.manage")} />
                 </SummarySection>
                 <SummarySection title="Previous vitals">
                   {latest ? <VitalSigns vitals={toVitalSigns(latest)} /> : <p className="text-table text-muted-foreground">No vital signs recorded.</p>}

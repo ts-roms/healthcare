@@ -179,7 +179,10 @@ export interface AllergyRecord {
   severity: "mild" | "moderate" | "severe" | null;
   criticality: "low" | "high" | "unable_to_assess";
   verification: "unconfirmed" | "confirmed";
+  status?: "active" | "inactive" | "resolved" | "entered_in_error";
   recordedAt: string;
+  /** Optimistic lock for status changes. */
+  version?: number;
 }
 
 export interface AllergySummary {

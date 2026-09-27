@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CalendarPlusIcon, FileClockIcon, FileSignatureIcon, PencilLineIcon, SaveIcon, XCircleIcon } from "lucide-react";
 import type { Patient } from "@healthcare/domain";
 import { DoctorLayout } from "@healthcare/ui/layouts";
-import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { AllergiesPanel } from "@/components/allergies-panel";
+import { clinicalDate, clinicalDateTime, PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import {
   Badge,
   Button,
@@ -57,6 +58,7 @@ export function EncounterWorkspace({
   followUp,
   canManageCarePlans,
   canBookFollowUp,
+  canManageAllergies,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -74,6 +76,7 @@ export function EncounterWorkspace({
   canManageCarePlans: boolean;
   /** appointment.manage: may book a follow-up. */
   canBookFollowUp: boolean;
+  canManageAllergies: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -347,19 +350,7 @@ export function EncounterWorkspace({
           content: summary ? (
             <div className="flex flex-col gap-3">
               <SummarySection title="Allergies">
-                {banner.allergies.length ? (
-                  <ul className="flex flex-wrap gap-1.5">
-                    {banner.allergies.map((a) => (
-                      <li key={a.id}>
-                        <AllergyBadge allergy={a} />
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-table text-muted-foreground">
-                    {summary.allergies.status === "not_reviewed" ? "Allergies not recorded — ask the patient." : "No known allergies (reviewed)."}
-                  </p>
-                )}
+                <AllergiesPanel patientId={encounter.patientId} summary={summary.allergies} canManage={canManageAllergies} />
               </SummarySection>
               <SummarySection title="Problems">
                 {summary.problemList.length ? (
