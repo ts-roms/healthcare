@@ -3,7 +3,7 @@
  * Shapes are intentionally FHIR-inspired but simplified for the UI layer.
  */
 
-export type Sex = "female" | "male" | "other" | "unknown";
+export type Sex = "female" | "male" | "intersex" | "other" | "unknown";
 
 export type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 

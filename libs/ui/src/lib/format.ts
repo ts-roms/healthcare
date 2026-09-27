@@ -48,6 +48,7 @@ export function sexLabel(sex: Sex, short = false) {
   const map: Record<Sex, [string, string]> = {
     female: ["Female", "F"],
     male: ["Male", "M"],
+    intersex: ["Intersex", "I"],
     other: ["Other", "O"],
     unknown: ["Unknown", "U"],
   };

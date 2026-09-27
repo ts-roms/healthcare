@@ -13,6 +13,11 @@ export interface PatientHeaderProps {
   variant?: "compact" | "full";
   /** Right-aligned slot for context (visit info, actions). */
   aside?: React.ReactNode;
+  /**
+   * False when no allergy record exists for this patient yet. Shows "Allergies not recorded"
+   * instead of "No known allergies" — an empty list must never read as "no allergies".
+   */
+  allergiesRecorded?: boolean;
   className?: string;
 }
 
@@ -20,7 +25,7 @@ export interface PatientHeaderProps {
  * The patient banner. Identity + allergies are always visible together at the
  * top of any patient-context screen (a core patient-safety pattern).
  */
-export function PatientHeader({ patient, variant = "full", aside, className }: PatientHeaderProps) {
+export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, className }: PatientHeaderProps) {
   const age = ageFrom(patient.birthDate);
   const name = fullName(patient);
 
@@ -35,7 +40,7 @@ export function PatientHeader({ patient, variant = "full", aside, className }: P
           </span>
           <PatientIdentifier mrn={patient.mrn} />
         </div>
-        <AllergyList allergies={patient.allergies} />
+        <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />
         {patient.bloodType ? <BloodType value={patient.bloodType} /> : null}
         {aside ? <div className="ml-auto flex items-center gap-2">{aside}</div> : null}
       </header>
@@ -57,7 +62,7 @@ export function PatientHeader({ patient, variant = "full", aside, className }: P
           <div className="flex items-center gap-1.5">
             <dt className="sr-only">Allergies</dt>
             <dd>
-              <AllergyList allergies={patient.allergies} />
+              <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />
             </dd>
           </div>
           {patient.bloodType ? (
