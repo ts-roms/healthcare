@@ -2,7 +2,8 @@ import { apiFile } from "@/lib/api/client";
 import { fileApiPath } from "@/lib/files";
 
 /**
- * Printable documents (laboratory reports, invoices, receipts) fetched from
+ * Printable documents (laboratory reports and their archived copies, invoices,
+ * receipts, specimen labels) fetched from
  * the API with the user's session and shown inline. The API authorizes and
  * audits every download; this only passes known document paths through.
  */

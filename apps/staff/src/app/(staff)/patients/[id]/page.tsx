@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  ArchiveIcon,
   BadgeCheckIcon,
   CalendarIcon,
   CalendarPlusIcon,
@@ -23,9 +24,10 @@ import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { EligibilityOverview, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import type { EligibilityOverview, LabReportArchiveEntry, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { ConsentHistory } from "./consent-history";
+import { ArchivedLabReports } from "./archived-lab-reports";
 import { PatientLabResults } from "./lab-results";
 import { PhilHealthEligibility } from "./philhealth-eligibility";
 import { ConsentList } from "./consent-list";
@@ -73,6 +75,18 @@ async function loadLabResults(id: string): Promise<PatientLabResult[] | null> {
   }
 }
 
+/** Archived copies of released laboratory reports (audited by the API); null without access. */
+async function loadArchivedLabReports(id: string): Promise<LabReportArchiveEntry[] | null> {
+  const session = await getSession();
+  if (!can(session, "lab.result.read") || !can(session, "lab.order.read")) return null;
+  try {
+    return await api<LabReportArchiveEntry[]>(`/laboratory/patients/${id}/report-archive`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -97,11 +111,12 @@ async function loadEligibility(id: string): Promise<EligibilityOverview | null> 
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, eligibility, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
     loadLabResults(id),
+    loadArchivedLabReports(id),
     loadEligibility(id),
     getSelectedFacility(),
     getSession(),
@@ -332,6 +347,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <PatientLabResults patientId={p.id} results={labResults} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {labArchives ? (
+          <Card className="lg:col-span-2" id="laboratory-archive">
+            <CardHeader>
+              <ArchiveIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Archived laboratory reports</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ArchivedLabReports archives={labArchives} />
             </CardContent>
           </Card>
         ) : null}

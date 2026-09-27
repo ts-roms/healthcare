@@ -17,6 +17,7 @@ import {
   CriticalQueryDto,
   EnterResultDto,
   FacilityPolicyDto,
+  LabelQueryDto,
   ListOrdersDto,
   RejectSpecimenDto,
   TrendQueryDto,
@@ -24,9 +25,11 @@ import {
   UpdateTestDto,
   WorklistDto,
 } from "./laboratory.dto";
+import { LabLabelService } from "./orders/lab-labels";
 import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
+import { LabReportArchive } from "./results/lab-report-archive";
 import { LabResultService } from "./results/lab-result.service";
 
 const uuid = new ParseUUIDPipe();
@@ -148,6 +151,7 @@ export class LabOrderController {
   constructor(
     private readonly orders: LabOrderService,
     private readonly worklists: LabWorklistService,
+    private readonly labels: LabLabelService,
   ) {}
 
   @Post("orders")
@@ -202,6 +206,15 @@ export class LabOrderController {
     return this.orders.byAccession(actor, accession.trim());
   }
 
+  @Get("specimens/:id/label.pdf")
+  @RequireFacility()
+  @RequirePermissions("lab.specimen.collect")
+  @ApiOperation({ summary: "Tube label(s) for a specimen: Code 128 barcode of the accession number, minimal identification (audited)" })
+  async label(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Query() query: LabelQueryDto): Promise<StreamableFile> {
+    const { filename, pdf } = await this.labels.specimenLabels(actor, id, query.copies);
+    return pdfFile(pdf, filename);
+  }
+
   @Get("specimens/:id/events")
   @RequirePermissions("lab.order.read")
   specimenEvents(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
@@ -246,6 +259,7 @@ export class LabResultController {
   constructor(
     private readonly results: LabResultService,
     private readonly reports: LabReportService,
+    private readonly archive: LabReportArchive,
   ) {}
 
   @Post("order-items/:itemId/results")
@@ -318,6 +332,21 @@ export class LabResultController {
   @ApiOperation({ summary: "Printable result report of an order (released results only; audited)" })
   async report(@CurrentActor() actor: Actor, @Param("id", uuid) id: string): Promise<StreamableFile> {
     const { filename, pdf } = await this.reports.staffReport(actor, id);
+    return pdfFile(pdf, filename);
+  }
+
+  @Get("patients/:patientId/report-archive")
+  @RequirePermissions("lab.order.read", "lab.result.read")
+  @ApiOperation({ summary: "The patient's archived laboratory reports (one per order and set of released result versions), newest first" })
+  archivedReports(@CurrentActor() actor: Actor, @Param("patientId", uuid) patientId: string) {
+    return this.archive.listForPatient(actor, patientId);
+  }
+
+  @Get("report-archive/:id/report.pdf")
+  @RequirePermissions("lab.order.read", "lab.result.read")
+  @ApiOperation({ summary: "The stored PDF of an archived laboratory report, exactly as archived (audited)" })
+  async archivedReport(@CurrentActor() actor: Actor, @Param("id", uuid) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.archive.download(actor, id);
     return pdfFile(pdf, filename);
   }
 

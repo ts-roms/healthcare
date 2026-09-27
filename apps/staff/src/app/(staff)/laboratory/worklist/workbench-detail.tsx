@@ -1,10 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { AlertOctagonIcon, BanIcon, CheckIcon, FlaskConicalIcon, PencilIcon, SendIcon, ShieldCheckIcon, TriangleAlertIcon, ZapIcon } from "lucide-react";
+import {
+  AlertOctagonIcon,
+  BanIcon,
+  CheckIcon,
+  FlaskConicalIcon,
+  PencilIcon,
+  PrinterIcon,
+  SendIcon,
+  ShieldCheckIcon,
+  TriangleAlertIcon,
+  ZapIcon,
+} from "lucide-react";
 import { clinicalDateTime, LabFlagBadge } from "@healthcare/ui/healthcare";
 import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { LabOrderItem, LabResult, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import { fileHref } from "@/lib/files";
 import {
   bySpecimenType,
   ITEM_STATUS_LABEL,
@@ -85,6 +97,13 @@ export function WorkbenchDetail({
             {specimen.receivedAt ? ` · received ${clinicalDateTime(specimen.receivedAt)}` : ""}
           </p>
         ) : null}
+        {specimen && permissions.collect && specimen.status !== "rejected" ? (
+          <Button asChild size="xs" variant="outline" className="self-start">
+            <a href={fileHref.specimenLabel(specimen.id)} target="_blank" rel="noreferrer">
+              <PrinterIcon /> Print tube label
+            </a>
+          </Button>
+        ) : null}
       </header>
 
       {stage === "collect" && permissions.collect ? <CollectPanel row={row} specimenTypeName={specimenTypeName} onChanged={onChanged} /> : null}
@@ -144,8 +163,11 @@ function CollectPanel({ row, specimenTypeName, onChanged }: { row: LabWorklistRo
       const itemIds = items.filter((i) => !excluded.has(i.id)).map((i) => i.id);
       const result = await collectSpecimen({ orderId: row.order.id, specimenTypeId, itemIds }, crypto.randomUUID());
       if (!result.ok) return void toast.error(result.message);
-      const accession = result.data.specimens.at(-1)?.accessionNumber;
-      toast.success(`Collected. Label the tube: ${accession}`, { duration: 15_000 });
+      const specimen = result.data.specimens.at(-1);
+      toast.success(`Collected. Label the tube: ${specimen?.accessionNumber}`, {
+        duration: 15_000,
+        action: specimen ? { label: "Print label", onClick: () => window.open(fileHref.specimenLabel(specimen.id), "_blank", "noopener") } : undefined,
+      });
       onChanged();
     });
 
