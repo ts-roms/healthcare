@@ -625,3 +625,255 @@ export interface DueCareActivity {
   /** Minimal identification (number, name, sex, age). */
   patient: PatientBrief | null;
 }
+
+// ---- Laboratory (Phase 3) ---------------------------------------------------------------------------
+
+export type LabResultType = "numeric" | "text" | "coded";
+export type LabOrderSource = "clinic" | "telemedicine" | "dental" | "external" | "patient_request";
+export type LabPriority = "routine" | "stat" | "scheduled";
+export type LabOrderStatus = "active" | "completed" | "cancelled";
+export type LabItemStatus = "pending_collection" | "collected" | "received" | "resulted" | "released" | "cancelled";
+export type LabSpecimenStatus = "collected" | "received" | "rejected" | "stored" | "disposed";
+export type LabResultStatus = "entered" | "verified" | "approved" | "released" | "superseded" | "cancelled";
+export type LabResultFlag = "normal" | "low" | "high" | "critical_low" | "critical_high" | "abnormal";
+export type LabWorklistStage = "collect" | "receive" | "enter" | "verify" | "approve" | "release";
+
+export interface LabCatalogEntry {
+  id: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+  version: number;
+}
+
+export interface LabSpecimenType extends LabCatalogEntry {
+  container: string | null;
+  collectionInstructions: string | null;
+}
+
+export interface LabReferenceRange {
+  id: string;
+  testId: string;
+  sex: "male" | "female" | null;
+  ageMinDays: number;
+  ageMaxDays: number | null;
+  low: number | null;
+  high: number | null;
+  criticalLow: number | null;
+  criticalHigh: number | null;
+  textRange: string | null;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** GET /laboratory/tests row (current ranges) or /laboratory/tests/:id (full range history). */
+export interface LabTest extends LabCatalogEntry {
+  departmentId: string;
+  specimenTypeId: string;
+  loincCode: string | null;
+  resultType: LabResultType;
+  unit: string | null;
+  decimalPlaces: number | null;
+  codedValues: string[];
+  abnormalCodedValues: string[];
+  turnaroundMinutes: number | null;
+  requiresFasting: boolean;
+  patientReleasable: boolean;
+  collectionInstructions: string | null;
+  referenceRanges: LabReferenceRange[];
+}
+
+export interface LabPanel extends LabCatalogEntry {
+  testIds: string[];
+}
+
+export interface LabPolicy {
+  facilityId: string;
+  allowSelfVerification: boolean;
+  allowSelfApproval: boolean;
+  releaseOnApproval: boolean;
+  version: number;
+}
+
+export interface LabResult {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  orderId: string;
+  orderItemId: string;
+  testId: string;
+  versionNumber: number;
+  supersedesResultId: string | null;
+  correctionReason: string | null;
+  status: LabResultStatus;
+  resultType: LabResultType;
+  valueNumeric: number | null;
+  valueText: string | null;
+  valueCoded: string | null;
+  unit: string | null;
+  flag: LabResultFlag | null;
+  critical: boolean;
+  refLow: number | null;
+  refHigh: number | null;
+  refCriticalLow: number | null;
+  refCriticalHigh: number | null;
+  refText: string | null;
+  comment: string | null;
+  method: string | null;
+  instrument: string | null;
+  patientReleasable: boolean;
+  enteredAt: string;
+  enteredBy: string;
+  enteredByName: string | null;
+  verifiedAt: string | null;
+  verifiedByName: string | null;
+  selfVerified: boolean;
+  approvedAt: string | null;
+  approvedByName: string | null;
+  selfApproved: boolean;
+  releasedAt: string | null;
+  releasedByName: string | null;
+  cancellationReason: string | null;
+}
+
+export interface LabSpecimen {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  orderId: string;
+  specimenTypeId: string;
+  accessionNumber: string;
+  status: LabSpecimenStatus;
+  collectedAt: string;
+  collectedByName: string | null;
+  receivedAt: string | null;
+  receivedByName: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  version: number;
+}
+
+export interface LabOrderItem {
+  id: string;
+  orderId: string;
+  testId: string;
+  testCode: string;
+  testName: string;
+  panelCode: string | null;
+  specimenId: string | null;
+  status: LabItemStatus;
+  cancellationReason: string | null;
+  departmentId: string;
+  specimenTypeId: string;
+  resultType: LabResultType;
+  unit: string | null;
+  codedValues: string[];
+  turnaroundMinutes: number | null;
+  /** Current result; before release only laboratory staff receive it. */
+  result: LabResult | null;
+}
+
+/** GET /laboratory/orders/:id */
+export interface LabOrder {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string | null;
+  orderNumber: string;
+  source: LabOrderSource;
+  priority: LabPriority;
+  scheduledFor: string | null;
+  clinicalIndication: string | null;
+  notes: string | null;
+  fastingRequired: boolean;
+  status: LabOrderStatus;
+  orderedAt: string;
+  orderingPractitionerName: string | null;
+  externalOrderer: string | null;
+  orderedByName: string | null;
+  cancellationReason: string | null;
+  version: number;
+  patient: PatientBrief | null;
+  items: LabOrderItem[];
+  specimens: LabSpecimen[];
+}
+
+/** GET /laboratory/worklist row: one specimen (or, to collect, one order) and the tests waiting at that stage. */
+export interface LabWorklistRow {
+  key: string;
+  order: Omit<LabOrder, "items" | "specimens" | "patient">;
+  patient: PatientBrief | null;
+  specimen: LabSpecimen | null;
+  items: LabOrderItem[];
+}
+
+/** GET /laboratory/dashboard */
+export interface LabDashboard {
+  facilityId: string;
+  date: string;
+  pendingCollection: number;
+  awaitingReceipt: number;
+  awaitingEntry: number;
+  awaitingVerification: number;
+  awaitingApproval: number;
+  awaitingRelease: number;
+  statOpen: number;
+  overdue: number;
+  releasedToday: number;
+  averageTurnaroundMinutes: number | null;
+  rejectedToday: number;
+  criticalUnacknowledged: number;
+}
+
+/** GET /laboratory/critical-results row */
+export interface LabCriticalAlert {
+  id: string;
+  resultId: string;
+  status: "open" | "communicated" | "acknowledged";
+  raisedAt: string;
+  communicatedAt: string | null;
+  communicatedTo: string | null;
+  communicationMethod: "phone" | "in_person" | "secure_message" | "other" | null;
+  readBackConfirmed: boolean | null;
+  communicationNote: string | null;
+  communicatedByName: string | null;
+  acknowledgedAt: string | null;
+  acknowledgedByName: string | null;
+  orderId: string;
+  orderNumber: string;
+  testName: string;
+  patient: PatientBrief | null;
+  orderingPractitionerName: string | null;
+  result: LabResult;
+}
+
+/** GET /laboratory/patients/:id/results row: a released result with its test. */
+export interface PatientLabResult extends LabResult {
+  testCode: string;
+  testName: string;
+  orderNumber: string;
+  collectedAt: string | null;
+}
+
+/** GET /laboratory/patients/:id/trends */
+export interface LabTrend {
+  analyte: string;
+  testName: string;
+  unit: string | null;
+  points: Array<{
+    resultId: string;
+    collectedAt: string | null;
+    releasedAt: string | null;
+    testCode: string;
+    valueNumeric: number | null;
+    valueText: string | null;
+    valueCoded: string | null;
+    unit: string | null;
+    flag: LabResultFlag | null;
+    critical: boolean;
+    refLow: number | null;
+    refHigh: number | null;
+    refText: string | null;
+    corrected: boolean;
+  }>;
+}

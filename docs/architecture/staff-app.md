@@ -30,10 +30,10 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 ## Data
 
-| Area                                                                                                                                                         | Source                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters | API                                                        |
-| Laboratory, dental, telemedicine, the dashboard laboratory panel, `/preview/patient-360`                                                                     | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                                     | Source                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory | API                                                        |
+| Dental, telemedicine, `/preview/patient-360`                                                                                                                             | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -66,7 +66,7 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Attention required** (`lib/dashboard-mapping.ts`): a current wait longer than 45 minutes (the queue board's threshold), unsigned encounters at the facility, patients who left without being seen, and overdue / due-this-week care-plan activities (`GET /care-plans/activities/due`, with `care-plan.read`). Operational thresholds only, no clinical rules.
 - **Next patients**: today's open appointments that have not ended — the user's own if their account is linked to a practitioner, otherwise the facility's.
 - Provider workload (booked, seen, waiting) and the live queue board (`clinic.queue.read`).
-- The laboratory panel stays a labelled demo preview until Phase 3.
+- **Laboratory** (facility): with `lab.dashboard.read`, work waiting per stage, STAT open, released today, average collection-to-release time and rejections (`GET /laboratory/dashboard`); with `lab.result.read`, critical results not yet acknowledged and tests past their turnaround time in the attention list.
 
 ## Allergies
 
@@ -92,8 +92,22 @@ Doctor flow: queue board or **Consultations** (`/clinic/encounters`) → **Start
 - Prescriptions are immutable: **Replace** (with a reason) supersedes an active prescription with a new one, also after signing; **Cancel** needs a reason. New prescriptions are issued only while the encounter is open.
 - **Follow-up**: the action bar offers "Follow-up in 1 week / 2 weeks / 1 month / 3 months", opening the booking page with the patient, the encounter's practitioner, the date and `returnTo` (the encounter; same-origin paths only, via `safeNextPath`). After booking, the user returns to the encounter.
 - **Care plans** (`care-plan.read` / `care-plan.manage`): the workspace lists the patient's open plans with their open activities (overdue ones flagged) and creates new plans from the encounter (`sourceEncounterId`), offering the encounter's active diagnoses as problems, with goals and activities (kind, assignee, due date, repeat interval, goal). **Book** on a planned follow-up activity opens the booking page with `carePlanId`/`activityId`; once booked, the staff app links the appointment and the activity becomes _scheduled_. **Done** on a recurring activity makes the API create the next occurrence. `/clinic/care-plans/[id]` shows the whole plan: goal status, all activities (add, complete, cancel with reason), progress notes and plan status (on hold / cancelled with a reason). `lib/care-plan-form.ts` mirrors `libs/care-plan` transitions for which buttons to offer.
-- Lab orders, referrals and printing prescriptions are not in the workspace yet. The **recall list** (`/clinic/care-plans`, `GET /care-plans/activities/due`) shows open activities of active plans that are overdue or due within 7, 30 or 90 days (filter by activity type), with the patient's number and name (no contact details), the plan, and Book / Done / Cancel; booking returns to the list and links the appointment. The dashboard's care-plan items link here.
+- **Laboratory orders** (`lab.order.create`, open encounter, account linked to a practitioner): **Order tests** picks tests and panels (a panel's tests are ticked for it), priority (routine or STAT), clinical indication (pre-filled from the active diagnoses) and notes, with a fasting reminder; one `Idempotency-Key` per form. Each order shows its tests' progress; results appear only once released, with the laboratory's flag and reference range, and corrections are labelled. An order without results can be cancelled with a reason (`lab.order.cancel`). The clinical context pane lists the patient's recent released results.
+- Referrals and printing prescriptions are not in the workspace yet. The **recall list** (`/clinic/care-plans`, `GET /care-plans/activities/due`) shows open activities of active plans that are overdue or due within 7, 30 or 90 days (filter by activity type), with the patient's number and name (no contact details), the plan, and Book / Done / Cancel; booking returns to the list and links the appointment. The dashboard's care-plan items link here.
 
 ## Configuration
 
 `API_BASE_URL` (server-side, default `http://localhost:3333/api/v1`). `REALTIME_URL` (default: the API origin + `/realtime`) is the one address the **browser** connects to; in production route `/realtime` to the API through the same trusted proxy (WebSocket only; the socket accepts nothing but a ticket or token). The API's `CORS_ORIGINS` is irrelevant to the staff app's server-to-server calls but still lists the web origins for any direct browser use.
+
+## Laboratory
+
+Laboratory staff work at the selected facility (`docs/domains/laboratory.md` has the rules; the API enforces all of them).
+
+- **Workbench** (`/laboratory/worklist?stage=`, `lab.order.read`): stage tabs with counts — _Collect, Receive, Enter results, Verify, Approve, Release_ — STAT first, filterable by department. The page opens on the first stage the user can act at. **Scan accession** (F2 focuses it; scanners type the number and Enter) opens that specimen with every action that applies now, whatever the tab.
+- **Collect** groups an order's tests by specimen type; **Collect serum** (etc.) assigns the accession number, shown in a toast to label the tube. **Receive specimen** and **Reject specimen…** (reason; recollect or cancel the tests) follow.
+- **Enter results**: one field per test by result type (number with unit, a list for coded tests, text); several results save in one go and errors stay on their fields. The API flags values against the range for the patient's sex and age and snapshots it.
+- **Sign-off**: each result shows value, unit, flag (icon and text), the reference range snapshot, who entered, verified, approved and released it (self sign-offs are labelled), and version and correction reason. **Verify / Approve / Release** (and "… all N" for a specimen) follow the result's status; the API refuses a sign-off by the person who entered the result unless the facility policy allows it, and the refusal is shown as is. **Correct…** (value and reason; released results need `lab.result.amend`) adds a new version that is signed off again; **Cancel result…** is for unreleased results.
+- **Critical results** (`/laboratory/critical`): each alert shows the patient, test, value and range and the ordering practitioner. Laboratory staff (`lab.critical.manage`) document who was told, how, and whether the value was read back; the ordering side (`lab.result.read`) acknowledges. The ordering practitioner also gets an in-app notice.
+- **Catalog** (`/laboratory/catalog`; editing with `lab.catalog.manage`): tests with their current ranges, **+ Range** (a range for the same sex and ages replaces the current one from now on), activate/deactivate, new tests, departments, specimen types, panels, and the facility's laboratory policy (changes need a reason).
+- **Patient record**: _Laboratory results_ (with `lab.result.read`) lists the latest released result per test; **Trend** draws released values of one analyte over time with the latest range shaded, and a table keeps each value's own range. Mixed units are shown as a table only. Trends are labelled as a display aid.
+- `lib/lab-mapping.ts` holds the display rules (flag vocabulary, value and range text, stages, grouping, trend points); it never re-interprets a result.

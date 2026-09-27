@@ -7,6 +7,7 @@ import { AlertTriangleIcon, CalendarPlusIcon, FileClockIcon, FileSignatureIcon, 
 import type { Patient } from "@healthcare/domain";
 import { DoctorLayout } from "@healthcare/ui/layouts";
 import { AllergiesPanel } from "@/components/allergies-panel";
+import { LabResultsSummary } from "@/components/lab-results-summary";
 import { clinicalDate, clinicalDateTime, PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import {
   Badge,
@@ -22,7 +23,19 @@ import {
   Textarea,
   toast,
 } from "@healthcare/ui/primitives";
-import type { CarePlanDetail, CodingSystem, Encounter, EncounterDetail, NoteRevision, PatientSummaryResponse, Prescription } from "@/lib/api/types";
+import type {
+  CarePlanDetail,
+  CodingSystem,
+  Encounter,
+  EncounterDetail,
+  LabOrder,
+  LabPanel,
+  LabTest,
+  NoteRevision,
+  PatientLabResult,
+  PatientSummaryResponse,
+  Prescription,
+} from "@/lib/api/types";
 import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
   diagnosisLabel,
@@ -39,6 +52,7 @@ import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
+import { LabOrdersPanel } from "./lab-orders-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 
@@ -59,6 +73,7 @@ export function EncounterWorkspace({
   canManageCarePlans,
   canBookFollowUp,
   canManageAllergies,
+  lab,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -77,6 +92,16 @@ export function EncounterWorkspace({
   /** appointment.manage: may book a follow-up. */
   canBookFollowUp: boolean;
   canManageAllergies: boolean;
+  lab: {
+    /** null: the user may not read laboratory orders. */
+    orders: LabOrder[] | null;
+    tests: LabTest[];
+    panels: LabPanel[];
+    /** The patient's released results; null: no access. */
+    results: PatientLabResult[] | null;
+    canOrder: boolean;
+    canCancel: boolean;
+  };
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -316,6 +341,20 @@ export function EncounterWorkspace({
                 allergies={banner.allergies}
                 allergyStatus={summary ? summary.allergies.status : "unknown"}
               />
+              <LabOrdersPanel
+                encounterId={encounter.id}
+                patientId={encounter.patientId}
+                orders={lab.orders}
+                tests={lab.tests}
+                panels={lab.panels}
+                canOrder={lab.canOrder}
+                canCancel={lab.canCancel}
+                defaultIndication={encounter.diagnoses
+                  .filter((d) => d.status === "active")
+                  .map((d) => diagnosisLabel(d))
+                  .join("; ")
+                  .slice(0, 1000)}
+              />
               <CarePlansPanel
                 plans={carePlans}
                 followUp={followUp}
@@ -394,6 +433,11 @@ export function EncounterWorkspace({
                       </li>
                     ))}
                   </ul>
+                </SummarySection>
+              ) : null}
+              {lab.results ? (
+                <SummarySection title="Recent laboratory results">
+                  <LabResultsSummary results={lab.results} limit={6} href={`/patients/${encounter.patientId}#laboratory`} />
                 </SummarySection>
               ) : null}
               <SummarySection title="Latest vitals">

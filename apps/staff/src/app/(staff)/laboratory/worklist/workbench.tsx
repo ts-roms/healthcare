@@ -1,32 +1,46 @@
 "use client";
 
 import * as React from "react";
-import { AlertOctagonIcon, BanIcon, CheckIcon, PrinterIcon, SaveIcon, ScanBarcodeIcon, SearchIcon } from "lucide-react";
-import type { LabObservation, LabOrder } from "@healthcare/domain";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { AlertOctagonIcon, ScanBarcodeIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
-import { isCriticalFlag, LabOrderStatusBadge, LabResultTable, LabWorklist, sexLabel, SpecimenStatus } from "@healthcare/ui/healthcare";
-import { Button, Input, Kbd, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { clinicalTime } from "@healthcare/ui/healthcare";
+import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
+import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
+import { findByAccession } from "../actions";
+import { type LabPermissions, WorkbenchDetail } from "./workbench-detail";
 
-export function LabWorkbench({ orders: initial }: { orders: LabOrder[] }) {
-  const [orders, setOrders] = React.useState(initial);
-  const [query, setQuery] = React.useState("");
-  const [dept, setDept] = React.useState("all");
-  const [status, setStatus] = React.useState("open");
-  const [selectedId, setSelectedId] = React.useState(initial[0]?.id);
+export function LabWorkbench({
+  facilityName,
+  stage,
+  departmentId,
+  rows,
+  dashboard,
+  departments,
+  specimenTypes,
+  permissions,
+}: {
+  facilityName: string;
+  stage: LabWorklistStage;
+  departmentId: string | null;
+  rows: LabWorklistRow[];
+  dashboard: LabDashboard | null;
+  departments: LabCatalogEntry[];
+  specimenTypes: LabSpecimenType[];
+  permissions: LabPermissions;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(rows[0]?.key ?? null);
+  const [scanned, setScanned] = React.useState<LabWorklistRow | null>(null);
+  const [scanning, startScan] = React.useTransition();
   const scanRef = React.useRef<HTMLInputElement>(null);
+  const selected = scanned ?? rows.find((r) => r.key === selectedKey) ?? null;
+  const specimenTypeName = React.useMemo(() => new Map(specimenTypes.map((s) => [s.id, s.name])), [specimenTypes]);
 
-  const shown = orders.filter(
-    (o) =>
-      (dept === "all" || o.department === dept) &&
-      (status === "all" || (status === "open" ? !["verified", "rejected"].includes(o.status) : o.status === status)),
-  );
-  const selected = orders.find((o) => o.id === selectedId);
-
-  const update = (id: string, patch: Partial<LabOrder>) => setOrders((os) => os.map((o) => (o.id === id ? { ...o, ...patch } : o)));
-  const setObservations = (obs: LabObservation[]) => selected && update(selected.id, { observations: obs });
-  const hasCritical = selected?.observations.some((o) => isCriticalFlag(o.flag));
-
-  // F2 focuses the barcode field: scanners type + Enter.
+  // F2 focuses the barcode field: scanners type the accession number and Enter.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F2") {
@@ -38,141 +52,158 @@ export function LabWorkbench({ orders: initial }: { orders: LabOrder[] }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const href = (next: { stage?: LabWorklistStage; department?: string | null }) => {
+    const params = new URLSearchParams();
+    params.set("stage", next.stage ?? stage);
+    const department = next.department === undefined ? departmentId : next.department;
+    if (department) params.set("department", department);
+    return `${pathname}?${params}`;
+  };
+
+  const scan = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = scanRef.current?.value ?? "";
+    startScan(async () => {
+      const result = await findByAccession(code);
+      if (!result.ok) return void toast.error(result.message);
+      if (!result.data) return void toast.error(`No specimen ${code.trim()} at ${facilityName}.`);
+      const { specimen, order } = result.data;
+      const { items, specimens: _specimens, patient, ...orderFields } = order;
+      setScanned({ key: specimen.id, order: orderFields, patient, specimen, items: items.filter((i) => i.specimenId === specimen.id) });
+      if (scanRef.current) scanRef.current.value = "";
+    });
+  };
+
+  const afterChange = () => {
+    // Scanned specimens are looked up again on the next scan; the worklist re-reads from the server.
+    setScanned(null);
+    router.refresh();
+  };
+
   return (
     <LaboratoryLayout
+      title={`Laboratory · ${facilityName}`}
       status={
-        <>
-          <span className="tabular">{orders.filter((o) => !["verified", "rejected"].includes(o.status)).length} open</span>
-          <span className="tabular font-semibold text-critical">
-            ⚠ {orders.filter((o) => o.observations.some((x) => isCriticalFlag(x.flag))).length} critical
-          </span>
-        </>
+        dashboard ? (
+          <>
+            <span className="tabular">{dashboard.statOpen} STAT open</span>
+            {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
+            {dashboard.criticalUnacknowledged ? (
+              <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
+                <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
+              </Link>
+            ) : null}
+          </>
+        ) : null
       }
       toolbar={
         <>
-          <div className="relative w-56">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              aria-label="Search accession, patient or test"
-              placeholder="Search accession / patient"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-          <form
-            className="relative w-48"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const code = scanRef.current?.value.trim().toUpperCase();
-              const hit = orders.find((o) => o.accession === code);
-              if (hit) {
-                setSelectedId(hit.id);
-                scanRef.current!.value = "";
-              } else toast.error(`No order for barcode ${code}`);
-            }}
-          >
+          <nav aria-label="Worklist stage" className="flex flex-wrap gap-1">
+            {STAGES.map((s) => (
+              <Link
+                key={s.stage}
+                href={href({ stage: s.stage })}
+                aria-current={s.stage === stage ? "page" : undefined}
+                className={`rounded-md border px-2.5 py-1 text-table ${s.stage === stage ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}
+              >
+                {s.label}
+                {dashboard ? <span className="tabular ml-1.5 opacity-80">{s.count(dashboard)}</span> : null}
+              </Link>
+            ))}
+          </nav>
+          <NativeSelect aria-label="Department" value={departmentId ?? ""} onChange={(e) => router.push(href({ department: e.target.value || null }))}>
+            <option value="">All departments</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </NativeSelect>
+          <form className="relative w-56" onSubmit={scan}>
             <ScanBarcodeIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input ref={scanRef} aria-label="Scan barcode" placeholder="Scan barcode" className="pr-9 pl-8 font-mono" />
+            <Input
+              ref={scanRef}
+              aria-label="Scan accession barcode"
+              placeholder="Scan accession"
+              className="pr-9 pl-8 font-mono"
+              disabled={scanning}
+              inputMode="numeric"
+            />
             <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">F2</Kbd>
           </form>
-          <NativeSelect aria-label="Department" value={dept} onChange={(e) => setDept(e.target.value)}>
-            <option value="all">All departments</option>
-            <option value="hematology">Hematology</option>
-            <option value="chemistry">Chemistry</option>
-            <option value="microscopy">Clinical microscopy</option>
-            <option value="immunology">Immunology</option>
-          </NativeSelect>
-          <NativeSelect aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="open">Open</option>
-            <option value="all">All statuses</option>
-            <option value="processing">Processing</option>
-            <option value="awaiting-verification">Awaiting verification</option>
-            <option value="verified">Verified</option>
-            <option value="rejected">Rejected</option>
-          </NativeSelect>
-          <span className="ml-auto hidden text-meta text-muted-foreground md:inline">
-            <Kbd>↑</Kbd> <Kbd>↓</Kbd> move · <Kbd>Enter</Kbd> next result
-          </span>
         </>
       }
-      list={<LabWorklist orders={shown} filter={query} selectedId={selectedId} onSelect={(o) => setSelectedId(o.id)} />}
+      list={
+        rows.length === 0 ? (
+          <p className="p-4 text-body text-muted-foreground">Nothing waiting at this stage{departmentId ? " in this department" : ""}.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-24">Priority</TableHead>
+                <TableHead>{stage === "collect" ? "Order" : "Accession"}</TableHead>
+                <TableHead>Patient</TableHead>
+                <TableHead>Tests</TableHead>
+                <TableHead className="text-right">{stage === "collect" ? "Ordered" : "Collected"}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow
+                  key={row.key}
+                  data-state={selected?.key === row.key ? "selected" : undefined}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setScanned(null);
+                    setSelectedKey(row.key);
+                  }}
+                >
+                  <TableCell>
+                    {row.order.priority === "stat" ? (
+                      <Badge variant="critical">
+                        <ZapIcon aria-hidden /> STAT
+                      </Badge>
+                    ) : (
+                      <span className="text-meta text-muted-foreground">{PRIORITY_LABEL[row.order.priority]}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    <button type="button" className="text-left hover:underline" aria-label={`Open ${row.specimen?.accessionNumber ?? row.order.orderNumber}`}>
+                      {row.specimen?.accessionNumber ?? row.order.orderNumber}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{row.patient?.displayName ?? "Patient"}</span>
+                    <span className="block text-meta text-muted-foreground">{row.patient ? `${row.patient.patientNumber} · ${row.patient.age} y` : null}</span>
+                  </TableCell>
+                  <TableCell className="text-table">
+                    {row.items.map((i) => i.testName).join(", ")}
+                    {stage === "collect" ? (
+                      <span className="block text-meta text-muted-foreground">
+                        {[...new Set(row.items.map((i) => specimenTypeName.get(i.specimenTypeId) ?? "Specimen"))].join(" · ")}
+                        {row.order.fastingRequired ? " · fasting" : ""}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="tabular text-right">{clinicalTime(row.specimen?.collectedAt ?? row.order.orderedAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )
+      }
       detail={
         selected ? (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-section font-semibold">{selected.accession}</span>
-              <LabOrderStatusBadge status={selected.status} />
-              {selected.priority !== "routine" ? <span className="text-meta font-semibold text-critical uppercase">{selected.priority}</span> : null}
-            </div>
-            <dl className="grid grid-cols-[5rem_1fr] gap-y-1 text-table">
-              <dt className="text-muted-foreground">Patient</dt>
-              <dd className="font-medium">
-                {selected.patientName}{" "}
-                <span className="text-muted-foreground">
-                  | {selected.patientAge} {sexLabel(selected.patientSex, true)}
-                </span>
-              </dd>
-              <dt className="text-muted-foreground">Test</dt>
-              <dd className="font-medium">{selected.test}</dd>
-              <dt className="text-muted-foreground">Ordered by</dt>
-              <dd>{selected.orderedBy}</dd>
-              <dt className="text-muted-foreground">Specimen</dt>
-              <dd>{selected.specimen ? <SpecimenStatus specimen={selected.specimen} /> : "—"}</dd>
-            </dl>
-            {selected.observations.length ? (
-              <div className="rounded-md border bg-card">
-                <LabResultTable observations={selected.observations} onChange={selected.status === "verified" ? undefined : setObservations} />
-              </div>
-            ) : (
-              <p className="text-table text-muted-foreground">No results — specimen {selected.status === "rejected" ? "rejected" : "not yet processed"}.</p>
-            )}
-            {hasCritical ? (
-              <p role="alert" className="flex items-center gap-2 rounded-md bg-critical px-2.5 py-2 text-table font-semibold text-critical-foreground">
-                <AlertOctagonIcon className="size-4" aria-hidden /> Critical value — notify ordering physician and document read-back.
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" variant="outline" onClick={() => toast.success(`${selected.accession} saved`)}>
-                <SaveIcon /> Save
-              </Button>
-              <Button
-                size="sm"
-                variant="success"
-                disabled={selected.status === "verified" || selected.status === "rejected"}
-                onClick={() => {
-                  update(selected.id, { status: "verified" });
-                  toast.success(`${selected.accession} verified`);
-                }}
-              >
-                <CheckIcon /> Verify
-              </Button>
-              <Button
-                size="sm"
-                variant="critical"
-                onClick={() => toast.warning("Critical result call logged", { description: `${selected.orderedBy} notified` })}
-              >
-                <AlertOctagonIcon /> Critical
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-danger-foreground"
-                disabled={selected.status === "verified" || selected.status === "rejected"}
-                onClick={() => {
-                  update(selected.id, { status: "rejected" });
-                  toast.error(`${selected.accession} rejected`);
-                }}
-              >
-                <BanIcon /> Reject
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => window.print()}>
-                <PrinterIcon /> Print
-              </Button>
-            </div>
-          </div>
+          <WorkbenchDetail
+            key={`${selected.key}:${stage}:${scanned ? "scan" : "list"}`}
+            row={selected}
+            stage={scanned ? null : stage}
+            permissions={permissions}
+            specimenTypeName={specimenTypeName}
+            onChanged={afterChange}
+          />
         ) : (
-          <p className="p-3 text-muted-foreground">Select an order.</p>
+          <p className="p-4 text-table text-muted-foreground">Select a row or scan a specimen barcode.</p>
         )
       }
     />

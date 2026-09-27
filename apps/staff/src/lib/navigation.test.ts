@@ -15,9 +15,13 @@ describe("navigationForPermissions", () => {
 
   it("shows clinical demo modules, badged, to users who can read patient records", () => {
     const nav = navigationForPermissions(["patient.search", "patient.read"]);
-    const lab = nav.find((i) => i.href === "/laboratory");
-    expect(lab?.badge).toBe("Demo");
+    expect(nav.find((i) => i.href === "/dental")?.badge).toBe("Demo");
     expect(nav.find((i) => i.href === "/patients")?.badge).toBeUndefined();
+  });
+
+  it("shows the API-backed laboratory by laboratory permission, without a demo badge", () => {
+    expect(hrefs(["patient.read"])).not.toContain("/laboratory");
+    expect(navigationForPermissions(["lab.order.read"]).find((i) => i.href === "/laboratory")?.badge).toBeUndefined();
   });
 
   it("shows the API-backed appointments and queue by their clinic permissions, without a demo badge", () => {
@@ -47,7 +51,8 @@ describe("navigationForPermissions", () => {
 
 describe("isDemoPath", () => {
   it("flags fixture-backed modules and previews, not API-backed pages", () => {
-    expect(isDemoPath("/laboratory/worklist")).toBe(true);
+    expect(isDemoPath("/dental")).toBe(true);
+    expect(isDemoPath("/laboratory/worklist")).toBe(false);
     expect(isDemoPath("/preview/patient-360")).toBe(true);
     expect(isDemoPath("/patients/abc")).toBe(false);
     expect(isDemoPath("/")).toBe(false);
