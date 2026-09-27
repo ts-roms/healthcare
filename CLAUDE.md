@@ -26,7 +26,7 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory API)**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 5 Telemedicine)**
 
 | Project                                              | Path                       | Nx tags                              | What it is                                                                                                   |
 | ---------------------------------------------------- | -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -40,6 +40,7 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                      |
 | `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                  |
 | `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.  |
+| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.   |
 
 **Frontend — partly connected to the API**
 
@@ -56,7 +57,8 @@ Inspect the repository before every change — do not assume any file, library, 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
 - **Connected to the API:** sign-in/sign-out (password, TOTP MFA, organization choice), session refresh, navigation (from the user's permissions), facility selection, patient search, the patient record (`/patients/[id]`, including allergy recording and review (also at triage and in the encounter workspace), the Patient 360 clinical summary and consent recording with history), registration with duplicate review, the **queue** (`/queue`: board, call, move, walk-in check-in; live updates over the realtime socket with a short-lived ticket, polling every 15 s as a fallback), **triage and vitals** (`/queue/visits/[id]/triage`, with allergies and previous vitals alongside), the **encounter workspace** (`/clinic/encounters`: today's consultations; `/clinic/encounters/[id]`: SOAP note drafts, diagnoses, signing, amendments, revision history, entered-in-error, prescribing with drug–allergy decision support, replace and cancel, follow-up booking and care plans), **care plans** (`/clinic/care-plans`: the patient recall list; `/clinic/care-plans/[id]`: goals, activities incl. recurring ones, booking a follow-up that links the appointment, progress notes, status), the **clinic dashboard** (`/`: today's figures, what needs attention, next patients, provider workload, live queue for the selected facility), **appointments** (`/appointments`: day schedule, confirm, check in, cancel, no-show; `/appointments/new`: booking from open slots) and the **laboratory** (`/laboratory/worklist`: stage worklists, barcode scan, collection, receipt, rejection, result entry, verify/approve/release, corrections; `/laboratory/critical`: communication and acknowledgement; `/laboratory/catalog`: tests, ranges, panels, facility policy; ordering from the encounter workspace; results and trends on the patient record; the dashboard's laboratory panel). See `docs/architecture/staff-app.md`.
-- **Still demo fixtures** (badged "Demo" with a demo-data banner): dental, telemedicine and `/preview/patient-360`. They read `apps/staff/src/lib/demo-data.ts`.
+- **Online consultations (telemedicine):** staff `/telemedicine` (today's online consultations, who is waiting), `/telemedicine/[appointmentId]` (pre-consult answers, start), and a telemedicine panel in the encounter workspace (LiveKit video via `VideoCall` in `@healthcare/ui/healthcare`, callback number, end with instructions, escalate to in-person care); MyHealth `/consultations/[appointmentId]` (questionnaire with red flags, waiting room, video, instructions). See `docs/domains/telemedicine.md`.
+- **Still demo fixtures** (badged "Demo" with a demo-data banner): dental and `/preview/patient-360`. They read `apps/staff/src/lib/demo-data.ts`.
 - **Patient portal:** activation with a staff-issued one-time code, sign-in/sign-out, session refresh, the patient's profile, visits, released results (plain language, trends), active prescriptions and care plans run against `/api/v1/portal/*` (results only when released, releasable to patients and, if critical, acknowledged by the care team; a results-ready SMS/email names no test or value); staff invite and disable portal access from the patient record (`patient.portal.manage`, requires `portal_access` consent). No fixture data is shown to signed-in patients. See `docs/architecture/portal-app.md`.
 - **Never mix fixture clinical data with a real patient.** Real patient pages show only API data. "No known allergies" appears only after a recorded review; never-reviewed shows "Allergies not recorded — ask the patient"; users without clinical access see "Allergies: no access".
 - UI audit events in demo modules (e.g. allergy overrides) are toasts only; the API audits the real workflows.
@@ -143,8 +145,8 @@ apps/
 libs/
   ui/ domain/                                                                    [exist, frontend shared]
   core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
-  patient/ clinic/ prescription/ care-plan/ laboratory/                          [exist, backend domains]
-  telemedicine/ dental/ billing/ inventory/ crm/ reporting/
+  patient/ clinic/ prescription/ care-plan/ laboratory/ telemedicine/            [exist, backend domains]
+  dental/ billing/ inventory/ crm/ reporting/
   interoperability/ philhealth/                                                  [planned]
 
 database/migrations/  tools/  docs/  infrastructure/

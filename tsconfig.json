@@ -41,6 +41,9 @@
     },
     {
       "path": "./libs/laboratory"
+    },
+    {
+      "path": "./libs/telemedicine"
     }
   ],
   "compilerOptions": {}

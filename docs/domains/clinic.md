@@ -69,6 +69,11 @@ Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
 
+**Online visits.** `OnlineVisitService` (exported for the telemedicine adapter) lists online appointments (visit type
+modality `telemedicine`), checks a patient in from the MyHealth waiting room — no staff user (`visit.checked_in_via =
+'patient_portal'`), straight to _awaiting consultation_, from 30 minutes before the start until the end, idempotent — and
+starts the telemedicine encounter for the visit. See [telemedicine.md](telemedicine.md).
+
 ## Integration points
 
 - Patient names for queue boards and schedules via the `PatientDirectory` port (adapter in `apps/api`).

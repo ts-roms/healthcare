@@ -39,6 +39,10 @@ export function testConfig(): AppConfig {
     JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
     LOG_LEVEL: "error",
+    // Video tokens are signed locally; no LiveKit server is contacted in tests.
+    LIVEKIT_URL: "wss://video.test.invalid",
+    LIVEKIT_API_KEY: "test-key",
+    LIVEKIT_API_SECRET: randomBytes(32).toString("hex"),
   });
 }
 

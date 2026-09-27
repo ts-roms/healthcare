@@ -26,6 +26,7 @@ libs/
   prescription/  immutable prescriptions, cancel/replace, drug–allergy decision support
   care-plan/     care plans, goals, activities, recall
   laboratory/    LIS: catalog, reference ranges, orders, specimens, versioned results, critical values, worklists, trends
+  telemedicine/  online consultations: questionnaire, waiting room, video (LiveKit port), escalation to in-person care
   ui/ domain/    frontend design system and shared frontend types
   web-session/   session code shared by the Next.js apps (cookies, refresh, errors, forwarding)
 database/migrations/   forward-only SQL migrations (source of truth for the schema)
@@ -46,7 +47,7 @@ Enforced by `@nx/enforce-module-boundaries`; tags and the full rule table are in
 
 When a library needs something another domain owns, it defines a **port** and the app wires an adapter
 (`apps/api/src/app/adapters`, `recipient-directory.ts`). Examples: notification → `RecipientDirectory`;
-clinic → `PatientDirectory`; prescription → `PrescribingContext`; laboratory → `LaboratoryContext`. Cross-domain read models such as
+clinic → `PatientDirectory`; prescription → `PrescribingContext`; laboratory → `LaboratoryContext`; telemedicine → `TelemedicineClinic`, `VideoProvider`. Cross-domain read models such as
 Patient 360 (`GET /patients/:id/summary`) are composed in the API.
 
 ## Request pipeline

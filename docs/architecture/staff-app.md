@@ -33,7 +33,7 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 | Area                                                                                                                                                                     | Source                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
 | Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory | API                                                        |
-| Dental, telemedicine, `/preview/patient-360`                                                                                                                             | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Dental, `/preview/patient-360`                                                                                                                                           | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -111,3 +111,11 @@ Laboratory staff work at the selected facility (`docs/domains/laboratory.md` has
 - **Catalog** (`/laboratory/catalog`; editing with `lab.catalog.manage`): tests with their current ranges, **+ Range** (a range for the same sex and ages replaces the current one from now on), activate/deactivate, new tests, departments, specimen types, panels, and the facility's laboratory policy (changes need a reason).
 - **Patient record**: _Laboratory results_ (with `lab.result.read`) lists the latest released result per test; **Trend** draws released values of one analyte over time with the latest range shaded, and a table keeps each value's own range. Mixed units are shown as a table only. Trends are labelled as a display aid.
 - `lib/lab-mapping.ts` holds the display rules (flag vocabulary, value and range text, stages, grouping, trend points); it never re-interprets a result.
+
+## Online consultations
+
+Doctor flow: **Telemedicine** (`/telemedicine`, `telemedicine.read`) lists the facility's online consultations for today — waiting patients first with how long they have waited, then by time — with whether the questions are answered and red flags. **Review and start** opens `/telemedicine/[appointmentId]` (the pre-consult answers; it refreshes until the patient is in the waiting room), and **Start consultation** (`telemedicine.conduct` + `encounter.write`) opens the telemedicine encounter and goes to the encounter workspace.
+
+- In the workspace, a **telemedicine panel** sits above the note: **Join video** (a room token from the API; `VideoCall` in `@healthcare/ui/healthcare`, the browser side of the LiveKit adapter), the callback number, the pre-consult answers (open when there are red flags), **End consultation…** and **Escalate to in-person care…** (reason for the record; instructions for the patient). After ending, instructions can still be edited, and an escalated consultation offers **Book the in-person visit**. Everything else — note, diagnoses, prescriptions, lab orders, care plans, signing — is the ordinary workspace.
+- Without video configured the panel says so and shows the callback number.
+- The list uses the live queue refresh (the waiting-room check-in is a queue update).

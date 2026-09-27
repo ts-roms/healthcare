@@ -12,7 +12,9 @@ export default async function AppointmentsPage() {
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-page-lg font-semibold">Visits</h1>
-        <p className="text-body text-muted-foreground">To book, change or cancel a visit, contact the clinic. Online booking is coming to MyHealth.</p>
+        <p className="text-body text-muted-foreground">
+          To book, change or cancel a visit, contact the clinic. For an online consultation, open it below to answer the questions and join.
+        </p>
       </div>
       <section className="flex flex-col gap-3">
         <h2 className="text-section-lg font-semibold">Upcoming</h2>
@@ -21,7 +23,7 @@ export default async function AppointmentsPage() {
             Visits booked with the clinic appear here.
           </EmptyState>
         ) : (
-          upcoming.map((v) => <VisitCard key={v.id} visit={v} />)
+          upcoming.map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         )}
       </section>
       {past.length ? (

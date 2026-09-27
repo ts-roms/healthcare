@@ -9,6 +9,7 @@ import * as notification from "@healthcare/notification";
 import * as organization from "@healthcare/organization";
 import * as patient from "@healthcare/patient";
 import * as prescription from "@healthcare/prescription";
+import * as telemedicine from "@healthcare/telemedicine";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import { resetDatabase, TEST_DATABASE_URL } from "./harness";
@@ -19,7 +20,7 @@ import { resetDatabase, TEST_DATABASE_URL } from "./harness";
  */
 describe("Drizzle schema matches migrations", () => {
   let pool: Pool;
-  const tables = [audit, auth, carePlan, clinic, core, documents, laboratory, notification, organization, patient, prescription]
+  const tables = [audit, auth, carePlan, clinic, core, documents, laboratory, notification, organization, patient, prescription, telemedicine]
     .flatMap((module) => Object.values(module))
     .filter((value): value is PgTable => value instanceof PgTable);
 

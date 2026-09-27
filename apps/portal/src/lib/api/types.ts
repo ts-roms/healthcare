@@ -105,3 +105,27 @@ export interface PortalCarePlan {
   goals: Array<{ id: string; description: string; targetMeasure: string | null; targetValue: string | null; targetDate: string | null; status: string }>;
   activities: Array<{ id: string; kind: string; description: string; assignee: "patient" | "care_team"; dueDate: string | null; status: string }>;
 }
+
+/** `GET /portal/teleconsults[/:appointmentId]` */
+export interface PortalTeleconsult {
+  appointmentId: string;
+  startsAt: string;
+  endsAt: string;
+  appointmentStatus: string;
+  practitionerName: string;
+  visitType: string;
+  status: "scheduled" | "waiting" | "in_consultation" | "ended" | "escalated";
+  questionnaireSubmitted: boolean;
+  waitingRoomOpensAt: string;
+  videoConfigured: boolean;
+  patientInstructions: string | null;
+  escalated: boolean;
+}
+
+/** `POST /portal/teleconsults/:appointmentId/video` */
+export interface VideoJoin {
+  url: string;
+  token: string;
+  room: string;
+  expiresInSeconds: number;
+}

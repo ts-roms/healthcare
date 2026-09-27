@@ -13,6 +13,7 @@ import {
   NotFoundError,
   PgErrorCode,
   requireFacilityId,
+  systemActor,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
@@ -132,6 +133,60 @@ export class VisitService {
         });
         await this.events.record(tx, appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: row.id }), queueEvent(row));
         return toVisitView(row);
+      }),
+    );
+  }
+
+  /**
+   * The patient joins the waiting room of an online consultation (from the
+   * portal): the appointment is checked in and the visit goes straight to the
+   * consultation queue. Idempotent — joining again returns the same visit.
+   * Allowed from 30 minutes before the start until the appointment ends.
+   */
+  async checkInOnline(organizationId: string, appointmentId: string, now = new Date()): Promise<VisitRecord> {
+    const actor = systemActor(organizationId, null, "telemedicine-waiting-room");
+    return this.guardArrival(undefined, () =>
+      this.db.transaction(async (tx) => {
+        const [booked] = await tx
+          .select()
+          .from(appointment)
+          .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, appointmentId)))
+          .for("update");
+        const current = found(booked, "Appointment");
+        if (current.status === "checked_in") {
+          const [existing] = await tx.select().from(visit).where(eq(visit.appointmentId, appointmentId));
+          if (existing) return existing;
+        }
+        if (!canApply("check_in", current.status)) {
+          throw new BusinessRuleError(`This consultation is ${current.status.replace(/_/g, " ")}`, "invalid_appointment_status");
+        }
+        if (now.getTime() < current.startsAt.getTime() - ONLINE_EARLY_JOIN_MS || now > current.endsAt) {
+          throw new BusinessRuleError("The waiting room opens 30 minutes before the consultation", "outside_join_window");
+        }
+        const [updated] = await tx
+          .update(appointment)
+          .set({ status: "checked_in", checkedInAt: now, updatedAt: now, version: sql`${appointment.version} + 1` })
+          .where(eq(appointment.id, appointmentId))
+          .returning();
+        const row = await this.insertVisit(tx, actor, current.facilityId, {
+          patientId: current.patientId,
+          appointmentId,
+          visitTypeId: current.visitTypeId,
+          arrivalMode: "appointment",
+          priority: "routine",
+          chiefComplaint: current.reason ?? null,
+          assignedPractitionerId: current.practitionerId,
+          viaPortal: true,
+        });
+        await this.audit.record(tx, actor, {
+          action: "appointment.check-in",
+          resourceType: "appointment",
+          resourceId: appointmentId,
+          patientId: row.patientId,
+          metadata: { visitId: row.id, via: "patient_portal" },
+        });
+        await this.events.record(tx, appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: row.id }), queueEvent(row));
+        return row;
       }),
     );
   }
@@ -275,6 +330,8 @@ export class VisitService {
     facilityId: string,
     values: Pick<typeof visit.$inferInsert, "patientId" | "visitTypeId" | "arrivalMode" | "priority" | "chiefComplaint" | "assignedPractitionerId"> & {
       appointmentId?: string;
+      /** Online check-in by the patient: no staff user, straight to the consultation queue (no triage). */
+      viaPortal?: boolean;
     },
   ): Promise<VisitRecord> {
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
@@ -288,15 +345,18 @@ export class VisitService {
         set: { nextValue: sql`${facilityQueueCounter.nextValue} + 1` },
       })
       .returning({ value: facilityQueueCounter.nextValue });
+    const { viaPortal, ...fields } = values;
     const [row] = await tx
       .insert(visit)
       .values({
-        ...values,
+        ...fields,
         organizationId: actor.organizationId,
         facilityId,
         queueDate,
         queueNumber: found(counter, "Queue counter").value,
-        checkedInBy: actor.userId,
+        checkedInBy: viaPortal ? null : actor.userId,
+        checkedInVia: viaPortal ? "patient_portal" : "staff",
+        status: viaPortal ? "awaiting_consultation" : "waiting",
       })
       .returning();
     return found(row, "Visit");
@@ -315,6 +375,8 @@ export class VisitService {
     }
   }
 }
+
+const ONLINE_EARLY_JOIN_MS = 30 * 60_000;
 
 function invalidMove(from: VisitStatus, to: VisitStatus): BusinessRuleError {
   return new BusinessRuleError(`Cannot move a visit from ${from.replace(/_/g, " ")} to ${to.replace(/_/g, " ")}`, "invalid_queue_transition");

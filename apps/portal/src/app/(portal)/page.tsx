@@ -57,7 +57,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <section className="flex flex-col gap-3">
         <SectionTitle title="Upcoming" href="/appointments" />
         {appointments.upcoming.length ? (
-          appointments.upcoming.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} />)
+          appointments.upcoming.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         ) : (
           <EmptyState icon={CalendarIcon} title="No upcoming visits">
             To book or change a visit, contact the clinic.
