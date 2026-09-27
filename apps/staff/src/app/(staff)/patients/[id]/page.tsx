@@ -14,8 +14,9 @@ import {
   SmartphoneIcon,
   UsersIcon,
 } from "lucide-react";
-import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
@@ -24,7 +25,7 @@ import { ConsentHistory } from "./consent-history";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
 import { RecordConsent } from "./record-consent";
-import { bannerSeverity, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -176,7 +177,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardHeader>
           <CardContent>
             {summary ? (
-              <ClinicalPanel summary={summary} canOpenEncounters={can(session, "encounter.read")} canOpenCarePlans={can(session, "care-plan.read")} />
+              <ClinicalPanel
+                summary={summary}
+                patientId={p.id}
+                canOpenEncounters={can(session, "encounter.read")}
+                canOpenCarePlans={can(session, "care-plan.read")}
+                canManageAllergies={can(session, "allergy.manage")}
+              />
             ) : (
               <NoClinicalAccess />
             )}
@@ -294,44 +301,23 @@ function NoClinicalAccess() {
 
 function ClinicalPanel({
   summary,
+  patientId,
   canOpenEncounters,
   canOpenCarePlans,
+  canManageAllergies,
 }: {
   summary: PatientSummaryResponse;
+  patientId: string;
   canOpenEncounters: boolean;
   canOpenCarePlans: boolean;
+  canManageAllergies: boolean;
 }) {
   const { allergies } = summary;
   const vitals = summary.latestVitals[0];
   return (
     <div className="flex flex-col gap-4">
       <SummarySection title="Allergies" icon={ShieldAlertIcon}>
-        {allergies.status === "has_allergies" ? (
-          <ul className="flex flex-col gap-1.5">
-            {sortByDanger(allergies.allergies.map((a) => ({ ...a, severity: bannerSeverity(a), recorded: a }))).map(({ recorded: a }) => (
-              <li key={a.id} className="flex flex-col gap-0.5">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <AllergyBadge allergy={{ id: a.id, substance: a.substance, severity: bannerSeverity(a) }} />
-                  <span className="text-meta text-muted-foreground">
-                    {label(a.category)} · {a.severity ? label(a.severity) : "severity not recorded"}
-                    {a.criticality === "high" ? " · high criticality" : ""}
-                  </span>
-                  {a.verification === "unconfirmed" ? <Badge variant="warning">Unconfirmed</Badge> : null}
-                </span>
-                {a.reaction ? <span className="text-table text-muted-foreground">{a.reaction}</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : allergies.status === "no_known_allergies" ? (
-          <Badge variant="success">
-            <ShieldCheckIcon aria-hidden /> No known allergies
-          </Badge>
-        ) : (
-          <Badge variant="warning">
-            <AlertTriangleIcon aria-hidden /> Allergies not recorded — ask the patient
-          </Badge>
-        )}
-        {allergies.lastReviewedAt ? <p className="text-meta text-muted-foreground">Last reviewed {clinicalDateTime(allergies.lastReviewedAt)}</p> : null}
+        <AllergiesPanel patientId={patientId} summary={allergies} canManage={canManageAllergies} />
       </SummarySection>
 
       <SummarySection title="Problems" icon={ActivityIcon}>

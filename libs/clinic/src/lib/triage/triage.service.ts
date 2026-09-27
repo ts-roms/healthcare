@@ -151,13 +151,19 @@ export class TriageService {
     return summary;
   }
 
-  /** Active allergies plus the latest "reviewed" assertion, for triage, consultation and prescribing. */
+  /**
+   * Active allergies plus the latest "reviewed" assertion, for triage, consultation and prescribing.
+   * "No known allergies" holds only if it was asserted after the last change to the patient's
+   * allergy list: once an allergy was recorded (even if later resolved or entered in error), an
+   * older assertion no longer describes the patient and the history must be taken again.
+   */
   async allergySummary(organizationId: string, patientId: string) {
-    const [active, [review]] = await Promise.all([
+    const ofPatient = and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId));
+    const [active, [review], [lastChange]] = await Promise.all([
       this.db
         .select()
         .from(allergyIntolerance)
-        .where(and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, "active")))
+        .where(and(ofPatient, eq(allergyIntolerance.status, "active")))
         .orderBy(desc(allergyIntolerance.recordedAt)),
       this.db
         .select()
@@ -165,11 +171,17 @@ export class TriageService {
         .where(and(eq(allergyReview.organizationId, organizationId), eq(allergyReview.patientId, patientId)))
         .orderBy(desc(allergyReview.reviewedAt))
         .limit(1),
+      this.db
+        .select({ at: sql<Date | null>`max(${allergyIntolerance.updatedAt})` })
+        .from(allergyIntolerance)
+        .where(ofPatient),
     ]);
+    const changedAt = lastChange?.at ? new Date(lastChange.at) : null;
+    const noneStillAsserted = Boolean(review?.noKnownAllergies) && (!changedAt || (review?.reviewedAt ?? new Date(0)) >= changedAt);
     return {
       allergies: active.map(publicView),
       // "Unknown" (never asked) is clinically different from "no known allergies".
-      status: active.length > 0 ? "has_allergies" : review?.noKnownAllergies ? "no_known_allergies" : "not_reviewed",
+      status: active.length > 0 ? "has_allergies" : noneStillAsserted ? "no_known_allergies" : "not_reviewed",
       lastReviewedAt: review?.reviewedAt ?? null,
     } as const;
   }
