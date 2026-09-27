@@ -22,10 +22,9 @@ pnpm storybook                    # http://localhost:6006 — design system
 
 `CORS_ORIGINS` in `.env.example` already allows both web apps.
 
-To try the patient portal: in the staff app, open a patient, record their
-`portal_access` consent (API: `POST /api/v1/patients/:id/consents` with
-`{"consentType":"portal_access","decision":"granted","capturedVia":"paper"}`),
-then **Invite to portal** on the patient page. On http://localhost:3001 choose
+To try the patient portal: in the staff app, open a patient, use **Record
+consent** (Consent & communication) to record "Patient portal access" as
+granted, then **Invite to portal** on the patient page. On http://localhost:3001 choose
 "Set up your account" and enter the patient number, date of birth and the code.
 The portal serves the organization in `PORTAL_ORGANIZATION_CODE` (seeded: `demo`).
 

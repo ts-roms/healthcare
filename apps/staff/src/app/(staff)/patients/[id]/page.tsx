@@ -20,8 +20,11 @@ import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import { ConsentHistory } from "./consent-history";
+import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
-import { bannerSeverity, currentConsents, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { RecordConsent } from "./record-consent";
+import { bannerSeverity, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -65,7 +68,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   const [p, summary, portal, session] = await Promise.all([loadPatient(id), loadSummary(id), loadPortalAccount(id), getSession()]);
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBook = can(session, "appointment.manage");
-  const consents = currentConsents(p.consents);
+  const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
   const emergency = p.relationships.filter((r) => r.isEmergencyContact || r.isLegalGuardian);
 
   return (
@@ -222,19 +225,12 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <CardTitle>Consent &amp; communication</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            {consents.length ? (
-              <ul className="flex flex-col gap-1 text-body">
-                {consents.map((c) => (
-                  <li key={c.id} className="flex items-baseline gap-2">
-                    <Badge variant={c.decision === "granted" ? "success" : "warning"}>{label(c.decision)}</Badge>
-                    <span>{label(c.consentType)}</span>
-                    <span className="text-meta text-muted-foreground">{clinicalDate(c.effectiveAt)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-body text-muted-foreground">No consent recorded.</p>
-            )}
+            <div className="flex flex-col gap-3">
+              <ConsentList consents={p.consents} />
+              {canRecordConsent ? <RecordConsent patientId={p.id} /> : null}
+              {/* Reset (hide) a stale history when a new decision is recorded. */}
+              {p.consents.length ? <ConsentHistory key={p.consents.map((c) => c.id).join()} patientId={p.id} /> : null}
+            </div>
             {p.communicationPreferences.length ? (
               <ul className="flex flex-col gap-1 text-body">
                 {p.communicationPreferences.map((c) => (
