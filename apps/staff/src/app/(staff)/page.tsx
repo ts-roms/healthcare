@@ -108,7 +108,7 @@ async function DoctorDashboard() {
         </CardHeader>
         <CardContent className="divide-y py-0">
           {appts.map((a) => (
-            <Link key={a.id} href={a.mode === "online" ? `/telemedicine/e-5302` : `/clinic/encounters/e-5501`} className="block hover:bg-accent/40">
+            <Link key={a.id} href={a.mode === "online" ? `/telemedicine/e-5302` : `/clinic/encounters`} className="block hover:bg-accent/40">
               <AppointmentCard appointment={a} />
             </Link>
           ))}

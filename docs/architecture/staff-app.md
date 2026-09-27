@@ -30,10 +30,10 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 ## Data
 
-| Area                                                                                                                                             | Source                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments | API                                                        |
-| Clinic/encounters, laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`                                           | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                         | Source                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters | API                                                        |
+| Laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`                                                                          | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -55,6 +55,18 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
 - **Refresh.** The queue page re-renders from the server every 15 s while visible (`router.refresh()`). The API's Socket.IO `/realtime` gateway needs an access token, which the staff app keeps server-side; connecting browsers to it needs a short-lived socket ticket endpoint (follow-up).
+
+## Encounter workspace
+
+Doctor flow: queue board or **Consultations** (`/clinic/encounters`) → **Start consultation** (`POST /encounters` with the visit; the visit moves to _with provider_) → workspace (`/clinic/encounters/[id]`) → **Sign encounter** (the visit and appointment complete).
+
+- **Three panes** (`DoctorLayout`): the patient's encounters · the current note, diagnoses and this visit's triage and vitals · clinical context from `GET /patients/:id/summary` (allergies, problems, active prescriptions, care plans, latest vitals). Below 1280 px the panes become tabs.
+- **Notes are append-only revisions.** "Save draft" (Ctrl/Cmd+S) sends `basedOnRevision`; if someone saved a newer revision the API answers `409 note_revision_conflict`, and the workspace keeps the clinician's text, shows the latest saved version beside it and lets them choose (nothing is overwritten silently). Leaving with unsaved text asks for confirmation.
+- **Signing** is offered to the responsible practitioner (their account is linked to the encounter's practitioner) with `encounter.sign`; unsaved text is saved as a draft first, so what is signed is what is on screen. The API refuses a note without an assessment or plan, and anyone but the responsible practitioner.
+- **After signing** the note is read-only; **Amend note** (`encounter.amend`) adds an amendment with a reason, and adding or correcting a diagnosis also needs a reason. The **revision history** shows every draft, the signed version and amendments (viewing it is audited).
+- **Opened in error** (wrong patient, duplicate) marks the encounter entered in error with a reason; it stays for audit and the patient returns to _ready for provider_.
+- `lib/encounter-mapping.ts` decides which controls to offer by mirroring `libs/clinic`; the API enforces every rule. Queue rows carry `encounterId`, so the board and the consultations list open the right encounter.
+- Prescribing, lab orders, referrals and follow-up booking are not in the workspace yet.
 
 ## Configuration
 

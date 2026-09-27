@@ -173,7 +173,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
             <CardTitle>Clinical summary</CardTitle>
           </CardHeader>
-          <CardContent>{summary ? <ClinicalPanel summary={summary} /> : <NoClinicalAccess />}</CardContent>
+          <CardContent>{summary ? <ClinicalPanel summary={summary} canOpenEncounters={can(session, "encounter.read")} /> : <NoClinicalAccess />}</CardContent>
         </Card>
 
         <Card>
@@ -285,7 +285,7 @@ function NoClinicalAccess() {
   );
 }
 
-function ClinicalPanel({ summary }: { summary: PatientSummaryResponse }) {
+function ClinicalPanel({ summary, canOpenEncounters }: { summary: PatientSummaryResponse; canOpenEncounters: boolean }) {
   const { allergies } = summary;
   const vitals = summary.latestVitals[0];
   return (
@@ -357,6 +357,27 @@ function ClinicalPanel({ summary }: { summary: PatientSummaryResponse }) {
 
       <SummarySection title="Latest vitals">
         {vitals ? <VitalSigns vitals={toVitalSigns(vitals)} /> : <p className="text-table text-muted-foreground">No vital signs recorded.</p>}
+      </SummarySection>
+
+      <SummarySection title="Recent encounters">
+        {summary.recentEncounters.length ? (
+          <ul className="flex flex-col gap-1 text-body">
+            {summary.recentEncounters.map((e) => (
+              <li key={e.id} className="flex items-baseline gap-2">
+                {canOpenEncounters ? (
+                  <Link href={`/clinic/encounters/${e.id}`} className="tabular text-primary hover:underline">
+                    {e.startedAt ? clinicalDateTime(e.startedAt) : "Encounter"}
+                  </Link>
+                ) : (
+                  <span className="tabular">{e.startedAt ? clinicalDateTime(e.startedAt) : "Encounter"}</span>
+                )}
+                <span className="text-meta text-muted-foreground">{e.status === "completed" ? "Signed" : label(e.status)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-table text-muted-foreground">None recorded.</p>
+        )}
       </SummarySection>
 
       <SummarySection title="Upcoming visits" icon={CalendarIcon}>

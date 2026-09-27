@@ -286,10 +286,12 @@ export interface QueueVisit {
   version: number;
   waitingMinutes: number;
   patient: PatientBrief | null;
+  /** The visit's consultation once started. */
+  encounterId: string | null;
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId">;
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 
@@ -311,6 +313,7 @@ export interface AppointmentItem {
 
 export interface Practitioner {
   id: string;
+  userId: string | null;
   displayName: string;
   profession: string;
   specialty: string | null;
@@ -353,4 +356,85 @@ export interface PortalAccountStatus {
 export interface PortalInvitation {
   activationCode: string;
   expiresAt: string;
+}
+
+// ---- Clinic: encounters (Phase 2) -----------------------------------------------------------------
+
+export type EncounterStatus = "in_progress" | "completed" | "entered_in_error";
+
+export interface Encounter {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  visitId: string | null;
+  appointmentId: string | null;
+  practitionerId: string;
+  modality: "in_person" | "telemedicine";
+  status: EncounterStatus;
+  chiefComplaint: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  signedByPractitionerId: string | null;
+  enteredInErrorReason: string | null;
+  updatedAt: string;
+  version: number;
+}
+
+export interface NoteRevision {
+  id: string;
+  encounterId: string;
+  revisionNumber: number;
+  kind: "draft" | "signed" | "amendment";
+  templateKey: string;
+  subjective: string | null;
+  objective: string | null;
+  assessment: string | null;
+  plan: string | null;
+  sections: Record<string, unknown>;
+  amendmentReason: string | null;
+  authoredBy: string;
+  authoredAt: string;
+}
+
+export interface DiagnosisView {
+  id: string;
+  encounterId: string;
+  codeSystemKey: string | null;
+  codeSystemVersion: string | null;
+  code: string | null;
+  display: string;
+  rank: "primary" | "secondary";
+  certainty: "provisional" | "confirmed" | "refuted";
+  isChronic: boolean;
+  notes: string | null;
+  status: "active" | "resolved" | "entered_in_error";
+  statusReason: string | null;
+  recordedAt: string;
+}
+
+export interface TriageView {
+  id: string;
+  chiefComplaint: string;
+  painScore: number | null;
+  priority: VisitPriority;
+  riskFlags: string[];
+  notes: string | null;
+  assessedAt: string;
+}
+
+/** GET /encounters/:id */
+export interface EncounterDetail extends Encounter {
+  note: NoteRevision | null;
+  revisionCount: number;
+  diagnoses: DiagnosisView[];
+  vitals: Array<VitalsRecord & { bmi: number | null }>;
+  triage: TriageView[];
+}
+
+export interface CodingSystem {
+  id: string;
+  key: string;
+  name: string;
+  version: string | null;
+  status: "active" | "inactive";
 }

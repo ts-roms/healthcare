@@ -1,6 +1,6 @@
 /**
- * Demo fixtures for screens not yet wired to the API (clinic/encounters,
- * laboratory, dental, telemedicine, the dashboard's clinical panels). Pages using this module
+ * Demo fixtures for screens not yet wired to the API (laboratory, dental,
+ * telemedicine, the dashboard's clinical panels, the Patient 360 preview). Pages using this module
  * are badged "Demo" and show a demo-data banner. Real patient data comes from
  * the API via `@/lib/api`; never mix the two on one screen.
  */
@@ -28,9 +28,6 @@ export async function getPatientChart(id: string) {
     audit: fx.auditHistory,
   };
 }
-export async function getEncounter(id: string) {
-  return fx.encounters.find((e) => e.id === id);
-}
 export async function getLabWorklist() {
   return fx.labWorklist;
 }
@@ -40,7 +37,6 @@ export async function getAppointments() {
 export async function getQueue() {
   return fx.queue;
 }
-export const catalogs = { diagnoses: fx.diagnosisCatalog, providers: fx.providers, facilities: fx.facilities, prescriptionDraft: fx.prescriptionDraft };
 
 /** Fixed "now" so the demo data reads consistently. */
 export const DEMO_NOW = new Date("2026-09-27T10:05:00+08:00");
