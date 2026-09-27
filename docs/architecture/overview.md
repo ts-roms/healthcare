@@ -12,7 +12,8 @@ workspace.
 apps/
   api/                   NestJS HTTP API — composition root for all modules
   notification-worker/   BullMQ consumer that delivers notifications
-  staff/  portal/        Next.js frontends (prototype on demo data; see CLAUDE.md §0)
+  staff/                 Next.js staff app — backend-for-frontend to the API (see staff-app.md); clinical modules still demo
+  portal/                Next.js patient portal (prototype on demo fixtures)
 libs/
   core/          config, database, errors, access decorators, events outbox, PH helpers, zoned time
   audit/         append-only audit trail

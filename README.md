@@ -12,6 +12,12 @@ Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Desig
                                                           └── Patient portal (mobile-first, plain language)
 ```
 
+## Status
+
+- **Backend — Phase 1 (Foundation) and Phase 2 (Clinic) implemented:** authentication with MFA, RBAC, Patient Master, audit, documents, notifications; scheduling, queue, triage, encounters, diagnoses, prescriptions, care plans. See [docs/architecture/overview.md](docs/architecture/overview.md).
+- **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review run against the API ([how](docs/architecture/staff-app.md)). Clinical modules (appointments, queue, encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
+- **Patient portal — prototype** on demo fixtures. The Healthcare Design System (`libs/ui`) is documented in Storybook.
+
 ## Getting started
 
 ```bash
@@ -24,17 +30,16 @@ pnpm db:migrate && pnpm db:seed
 pnpm dev:api          # NestJS API
 pnpm dev:worker       # notification worker
 
-# Frontend
+# Frontend (the staff app needs the API; sign in with SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
 pnpm dev:staff        # http://localhost:3000  — staff workstation
-pnpm dev:portal       # http://localhost:3001  — patient portal
+pnpm dev:portal       # http://localhost:3001  — patient portal (demo data)
 pnpm storybook        # http://localhost:6006  — design system
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm test:integration # API integration tests (wipes TEST_DATABASE_URL)
 pnpm format
 ```
 
-In the staff app, switch the **role** in the top bar (Doctor, Lab Technician, Reception…) to see the role-aware
-navigation and dashboards. (Demo only: the role is a cookie; production must derive it from the authenticated session.)
+The staff app's navigation follows the signed-in user's permissions from the API; modules marked **Demo** show sample data only.
 
 ## Layout
 
@@ -104,16 +109,20 @@ facility / department, TOTP MFA, a transactional event outbox, and API integrati
 
 ## Screens (staff app)
 
-| Route                         | Screen                                                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `/`                           | Role-specific dashboard (doctor · lab · front desk)                                                                |
-| `/patients`, `/patients/[id]` | Patient list · **Patient 360** (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline) |
-| `/clinic/encounters/[id]`     | **Doctor workspace** — history · encounter note · clinical context, collapses to tabs < 1280px                     |
-| `/laboratory/worklist`        | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        |
-| `/dental`                     | **Odontogram** (FDI) with per-surface charting                                                                     |
-| `/telemedicine/[id]`          | Video consult with the patient record alongside                                                                    |
-| `/queue`, `/appointments`     | Queue board · daily schedule                                                                                       |
+| Route                     | Screen                                                                                                             | Data       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `/login`                  | Sign-in: password, TOTP MFA, organization choice                                                                   | API        |
+| `/`                       | Welcome, quick actions; clinical dashboard previews (doctor · lab · front desk)                                    | API + demo |
+| `/patients`               | Patient lookup (name, patient no., mobile, birth date); minimal fields, masked mobile                              | API        |
+| `/patients/new`           | Registration with duplicate review and audited override                                                            | API        |
+| `/patients/[id]`          | Patient record: demographics, contacts, identifiers, consent, allergies and clinical summary (Patient 360)         | API        |
+| `/preview/patient-360`    | **Patient 360** design preview (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline) | Demo       |
+| `/clinic/encounters/[id]` | **Doctor workspace** — history · encounter note · clinical context, collapses to tabs < 1280px                     | Demo       |
+| `/laboratory/worklist`    | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        | Demo       |
+| `/dental`                 | **Odontogram** (FDI) with per-surface charting                                                                     | Demo       |
+| `/telemedicine/[id]`      | Video consult with the patient record alongside                                                                    | Demo       |
+| `/queue`, `/appointments` | Queue board · daily schedule                                                                                       | Demo       |
 
 Modules in the navigation that aren't built yet render a placeholder.
 
-Data flows through `apps/staff/src/lib/data.ts`; swap the fixtures for calls to the API (`/api/v1`) there.
+Patient pages (`/patients`, `/patients/[id]`, `/patients/new`) use the API through `apps/staff/src/lib/api`. Demo modules read `apps/staff/src/lib/demo-data.ts` until their backends exist.
