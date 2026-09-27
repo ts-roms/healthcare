@@ -1,59 +1,40 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
-
-# compiled output
-dist
-tmp
-out-tsc
-
 # dependencies
 node_modules
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# build output
+dist
+tmp
+out-tsc
+.next
+out
+storybook-static
+*.tsbuildinfo
+next-env.d.ts
 
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# misc
-/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
-
-# System Files
-.DS_Store
-Thumbs.db
-
+# Nx
 .nx/cache
 .nx/workspace-data
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
-
-.claude/worktrees
-.claude/settings.local.json
 .nx/polygraph
 .nx/self-healing
 .nx/migrate-runs
-# local env
+
+# tests
+coverage
+test-output
+
+# local environment (never commit secrets)
 .env
 .env.*
 !.env.example
 
-test-output
-
-# test output
-test-output
+# editors and OS
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
+.claude/worktrees
+.claude/settings.local.json
+npm-debug.log

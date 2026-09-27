@@ -1,16 +1,9 @@
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { DOCUMENT_CATEGORIES } from './document.schema';
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { DOCUMENT_CATEGORIES } from "./document.schema";
 
 /** Clinical document formats accepted for upload. */
-export const ALLOWED_CONTENT_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/heic',
-  'image/tiff',
-  'application/dicom',
-] as const;
+export const ALLOWED_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/heic", "image/tiff", "application/dicom"] as const;
 
 export const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024;
 
@@ -22,16 +15,16 @@ export const createDocumentSchema = z.object({
     .trim()
     .min(1)
     .max(200)
-    .refine((name) => !/[\\/\0]/.test(name), 'File name must not contain path separators'),
+    .refine((name) => !/[\\/\0]/.test(name), "File name must not contain path separators"),
   contentType: z.enum(ALLOWED_CONTENT_TYPES),
-  sizeBytes: z.number().int().positive().max(MAX_DOCUMENT_BYTES, 'File is larger than 50 MB'),
+  sizeBytes: z.number().int().positive().max(MAX_DOCUMENT_BYTES, "File is larger than 50 MB"),
   patientId: z.string().uuid().optional(),
 });
 export class CreateDocumentDto extends createZodDto(createDocumentSchema) {}
 
 export const listDocumentsSchema = z.object({
   patientId: z.string().uuid(),
-  includeArchived: z.enum(['true', 'false']).optional(),
+  includeArchived: z.enum(["true", "false"]).optional(),
 });
 export class ListDocumentsDto extends createZodDto(listDocumentsSchema) {}
 

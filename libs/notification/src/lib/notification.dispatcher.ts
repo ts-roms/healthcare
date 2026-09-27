@@ -1,11 +1,11 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { DATABASE, type Database } from '@healthcare/core';
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
-import { notification, notificationAttempt } from './notification.schema';
-import { CHANNEL_SENDERS, type ChannelSender } from './ports';
-import { findTemplate } from './templates';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { DATABASE, type Database } from "@healthcare/core";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { notification, notificationAttempt } from "./notification.schema";
+import { CHANNEL_SENDERS, type ChannelSender } from "./ports";
+import { findTemplate } from "./templates";
 
-export type DispatchOutcome = 'sent' | 'retry' | 'failed' | 'skipped';
+export type DispatchOutcome = "sent" | "retry" | "failed" | "skipped";
 
 const STALE_SENDING_MINUTES = 15;
 const RECONCILE_AFTER_MINUTES = 2;
@@ -27,17 +27,17 @@ export class NotificationDispatcher {
   async dispatch(notificationId: string): Promise<DispatchOutcome> {
     const [claimed] = await this.db
       .update(notification)
-      .set({ status: 'sending', attemptCount: sql`${notification.attemptCount} + 1`, updatedAt: new Date() })
+      .set({ status: "sending", attemptCount: sql`${notification.attemptCount} + 1`, updatedAt: new Date() })
       .where(
         and(
           eq(notification.id, notificationId),
-          eq(notification.status, 'queued'),
+          eq(notification.status, "queued"),
           or(isNull(notification.scheduledFor), lte(notification.scheduledFor, new Date())),
           sql`${notification.attemptCount} < ${notification.maxAttempts}`,
         ),
       )
       .returning();
-    if (!claimed) return 'skipped';
+    if (!claimed) return "skipped";
 
     const [attempt] = await this.db
       .insert(notificationAttempt)
@@ -48,17 +48,17 @@ export class NotificationDispatcher {
       const template = findTemplate(claimed.templateKey);
       if (!template || template.version !== claimed.templateVersion)
         throw new PermanentDeliveryError(`Template ${claimed.templateKey}@v${claimed.templateVersion} is not available`);
-      if (claimed.channel === 'in_app') throw new PermanentDeliveryError('In-app notifications are not dispatched');
+      if (claimed.channel === "in_app") throw new PermanentDeliveryError("In-app notifications are not dispatched");
       const sender = this.senders.find((s) => s.channel === claimed.channel);
       if (!sender) throw new PermanentDeliveryError(`No sender configured for ${claimed.channel}`);
-      if (!claimed.destination) throw new PermanentDeliveryError('No destination');
+      if (!claimed.destination) throw new PermanentDeliveryError("No destination");
 
       const result = await sender.send(claimed.destination, template.render(claimed.variables));
       await this.db.transaction(async (tx) => {
         await tx
           .update(notification)
           .set({
-            status: 'sent',
+            status: "sent",
             sentAt: new Date(),
             provider: result.provider,
             providerMessageId: result.providerMessageId ?? null,
@@ -69,10 +69,10 @@ export class NotificationDispatcher {
         if (attempt)
           await tx
             .update(notificationAttempt)
-            .set({ finishedAt: new Date(), outcome: 'sent', provider: result.provider })
+            .set({ finishedAt: new Date(), outcome: "sent", provider: result.provider })
             .where(eq(notificationAttempt.id, attempt.id));
       });
-      return 'sent';
+      return "sent";
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const permanent = error instanceof PermanentDeliveryError || claimed.attemptCount >= claimed.maxAttempts;
@@ -81,20 +81,18 @@ export class NotificationDispatcher {
           .update(notification)
           .set(
             permanent
-              ? { status: 'failed', failedAt: new Date(), lastError: message, updatedAt: new Date() }
-              : { status: 'queued', lastError: message, updatedAt: new Date() },
+              ? { status: "failed", failedAt: new Date(), lastError: message, updatedAt: new Date() }
+              : { status: "queued", lastError: message, updatedAt: new Date() },
           )
           .where(eq(notification.id, notificationId));
         if (attempt)
           await tx
             .update(notificationAttempt)
-            .set({ finishedAt: new Date(), outcome: 'failed', error: message.slice(0, 1000) })
+            .set({ finishedAt: new Date(), outcome: "failed", error: message.slice(0, 1000) })
             .where(eq(notificationAttempt.id, attempt.id));
       });
-      this.logger.warn(
-        `Notification ${notificationId} attempt ${claimed.attemptCount} failed${permanent ? ' permanently' : ''}: ${message}`,
-      );
-      return permanent ? 'failed' : 'retry';
+      this.logger.warn(`Notification ${notificationId} attempt ${claimed.attemptCount} failed${permanent ? " permanently" : ""}: ${message}`);
+      return permanent ? "failed" : "retry";
     }
   }
 
@@ -105,14 +103,14 @@ export class NotificationDispatcher {
   async findStranded(): Promise<string[]> {
     await this.db
       .update(notification)
-      .set({ status: 'queued', updatedAt: new Date(), lastError: 'Recovered from interrupted delivery' })
-      .where(and(eq(notification.status, 'sending'), lte(notification.updatedAt, minutesAgo(STALE_SENDING_MINUTES))));
+      .set({ status: "queued", updatedAt: new Date(), lastError: "Recovered from interrupted delivery" })
+      .where(and(eq(notification.status, "sending"), lte(notification.updatedAt, minutesAgo(STALE_SENDING_MINUTES))));
     const rows = await this.db
       .select({ id: notification.id })
       .from(notification)
       .where(
         and(
-          eq(notification.status, 'queued'),
+          eq(notification.status, "queued"),
           lte(notification.updatedAt, minutesAgo(RECONCILE_AFTER_MINUTES)),
           or(isNull(notification.scheduledFor), lte(notification.scheduledFor, new Date())),
         ),

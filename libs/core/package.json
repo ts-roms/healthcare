@@ -15,8 +15,8 @@
   "nx": {
     "name": "core",
     "tags": [
-      "type:lib",
-      "layer:core"
+      "scope:shared",
+      "type:data-access"
     ]
   },
   "dependencies": {}

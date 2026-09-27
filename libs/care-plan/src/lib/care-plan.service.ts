@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
@@ -12,9 +12,9 @@ import {
   PgErrorCode,
   todayInPhilippines,
   VersionConflictError,
-} from '@healthcare/core';
-import { and, asc, desc, eq, inArray, isNotNull, lte, sql, type SQL } from 'drizzle-orm';
-import type { z } from 'zod';
+} from "@healthcare/core";
+import { and, asc, desc, eq, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
+import type { z } from "zod";
 import type {
   activitySchema,
   changePlanStatusSchema,
@@ -23,8 +23,8 @@ import type {
   goalSchema,
   updateActivitySchema,
   updateGoalSchema,
-} from './care-plan.dto';
-import { canChangeActivityStatus, canChangePlanStatus, nextDueDate } from './care-plan.rules';
+} from "./care-plan.dto";
+import { canChangeActivityStatus, canChangePlanStatus, nextDueDate } from "./care-plan.rules";
 import {
   carePlan,
   carePlanActivity,
@@ -33,12 +33,12 @@ import {
   carePlanProblem,
   carePlanProgressNote,
   type CarePlanRecord,
-} from './care-plan.schema';
+} from "./care-plan.schema";
 
-const OPEN_PLAN_STATUSES = ['draft', 'active', 'on_hold'] as const;
-const OPEN_ACTIVITY_STATUSES = ['planned', 'scheduled', 'in_progress'] as const;
+const OPEN_PLAN_STATUSES = ["draft", "active", "on_hold"] as const;
+const OPEN_ACTIVITY_STATUSES = ["planned", "scheduled", "in_progress"] as const;
 
-function strip<T extends { organizationId?: string }>(row: T): Omit<T, 'organizationId'> {
+function strip<T extends { organizationId?: string }>(row: T): Omit<T, "organizationId"> {
   const { organizationId: _o, ...rest } = row;
   return rest;
 }
@@ -76,26 +76,42 @@ export class CarePlanService {
             updatedBy: actor.userId,
           })
           .returning();
-        if (!created) throw new Error('Care plan insert returned no row');
+        if (!created) throw new Error("Care plan insert returned no row");
         if (input.problems.length) {
-          await tx.insert(carePlanProblem).values(input.problems.map((p) => ({ carePlanId: created.id, patientId: created.patientId, diagnosisId: p.diagnosisId ?? null, description: p.description })));
+          await tx.insert(carePlanProblem).values(
+            input.problems.map((p) => ({
+              carePlanId: created.id,
+              patientId: created.patientId,
+              diagnosisId: p.diagnosisId ?? null,
+              description: p.description,
+            })),
+          );
         }
         const goals = input.goals.length
-          ? await tx.insert(carePlanGoal).values(input.goals.map((g) => ({ ...g, carePlanId: created.id, createdBy: actor.userId }))).returning({ id: carePlanGoal.id })
+          ? await tx
+              .insert(carePlanGoal)
+              .values(input.goals.map((g) => ({ ...g, carePlanId: created.id, createdBy: actor.userId })))
+              .returning({ id: carePlanGoal.id })
           : [];
         for (const activity of input.activities) {
           const { goalIndex, ...values } = activity;
-          if (goalIndex !== undefined && !goals[goalIndex]) throw new BusinessRuleError(`goalIndex ${goalIndex} does not refer to a goal`, 'invalid_goal_index');
+          if (goalIndex !== undefined && !goals[goalIndex])
+            throw new BusinessRuleError(`goalIndex ${goalIndex} does not refer to a goal`, "invalid_goal_index");
           await this.insertActivity(tx, actor, created, { ...values, goalId: goalIndex === undefined ? undefined : goals[goalIndex]!.id });
         }
         await this.audit.record(tx, actor, {
-          action: 'care-plan.create',
-          resourceType: 'care_plan',
+          action: "care-plan.create",
+          resourceType: "care_plan",
           resourceId: created.id,
           patientId: created.patientId,
-          metadata: { category: created.category, goals: input.goals.length, activities: input.activities.length, sourceEncounterId: created.sourceEncounterId },
+          metadata: {
+            category: created.category,
+            goals: input.goals.length,
+            activities: input.activities.length,
+            sourceEncounterId: created.sourceEncounterId,
+          },
         });
-        await this.events.record(tx, planEvent('CarePlanCreated', created));
+        await this.events.record(tx, planEvent("CarePlanCreated", created));
         return created.id;
       }),
     ).then((id) => this.detail(this.db, actor.organizationId, id));
@@ -103,15 +119,19 @@ export class CarePlanService {
 
   async get(actor: Actor, carePlanId: string) {
     const detail = await this.detail(this.db, actor.organizationId, carePlanId);
-    await this.audit.recordStandalone(actor, { action: 'care-plan.view', resourceType: 'care_plan', resourceId: carePlanId, patientId: detail.patientId });
+    await this.audit.recordStandalone(actor, { action: "care-plan.view", resourceType: "care_plan", resourceId: carePlanId, patientId: detail.patientId });
     return detail;
   }
 
   async listForPatient(actor: Actor, patientId: string, includeClosed: boolean) {
     const conditions: SQL[] = [eq(carePlan.organizationId, actor.organizationId), eq(carePlan.patientId, patientId)];
     if (!includeClosed) conditions.push(inArray(carePlan.status, [...OPEN_PLAN_STATUSES]));
-    const rows = await this.db.select().from(carePlan).where(and(...conditions)).orderBy(desc(carePlan.startDate));
-    await this.audit.recordStandalone(actor, { action: 'care-plan.list', resourceType: 'care_plan', patientId });
+    const rows = await this.db
+      .select()
+      .from(carePlan)
+      .where(and(...conditions))
+      .orderBy(desc(carePlan.startDate));
+    await this.audit.recordStandalone(actor, { action: "care-plan.list", resourceType: "care_plan", patientId });
     return rows.map(strip);
   }
 
@@ -126,23 +146,32 @@ export class CarePlanService {
     const activities = await this.db
       .select()
       .from(carePlanActivity)
-      .where(and(inArray(carePlanActivity.carePlanId, plans.map((p) => p.id)), inArray(carePlanActivity.status, [...OPEN_ACTIVITY_STATUSES])))
+      .where(
+        and(
+          inArray(
+            carePlanActivity.carePlanId,
+            plans.map((p) => p.id),
+          ),
+          inArray(carePlanActivity.status, [...OPEN_ACTIVITY_STATUSES]),
+        ),
+      )
       .orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`);
     return plans.map((plan) => ({ ...strip(plan), openActivities: activities.filter((a) => a.carePlanId === plan.id).map(strip) }));
   }
 
   async changeStatus(actor: Actor, carePlanId: string, input: z.infer<typeof changePlanStatusSchema>) {
-    if ((input.status === 'cancelled' || input.status === 'on_hold') && !input.reason) throw new BusinessRuleError('A reason is required', 'reason_required');
+    if ((input.status === "cancelled" || input.status === "on_hold") && !input.reason) throw new BusinessRuleError("A reason is required", "reason_required");
     await this.db.transaction(async (tx) => {
       const current = await this.lock(tx, actor.organizationId, carePlanId);
-      if (current.version !== input.version) throw new VersionConflictError('Care plan', input.version);
-      if (!canChangePlanStatus(current.status, input.status)) throw new BusinessRuleError(`Cannot change a ${current.status} care plan to ${input.status}`, 'invalid_care_plan_status');
+      if (current.version !== input.version) throw new VersionConflictError("Care plan", input.version);
+      if (!canChangePlanStatus(current.status, input.status))
+        throw new BusinessRuleError(`Cannot change a ${current.status} care plan to ${input.status}`, "invalid_care_plan_status");
       const [updated] = await tx
         .update(carePlan)
         .set({
           status: input.status,
           statusReason: input.reason ?? null,
-          endDate: input.status === 'completed' || input.status === 'cancelled' ? (current.endDate ?? todayInPhilippines()) : current.endDate,
+          endDate: input.status === "completed" || input.status === "cancelled" ? (current.endDate ?? todayInPhilippines()) : current.endDate,
           updatedBy: actor.userId,
           updatedAt: new Date(),
           version: sql`${carePlan.version} + 1`,
@@ -150,8 +179,8 @@ export class CarePlanService {
         .where(eq(carePlan.id, carePlanId))
         .returning();
       await this.audit.record(tx, actor, {
-        action: 'care-plan.status',
-        resourceType: 'care_plan',
+        action: "care-plan.status",
+        resourceType: "care_plan",
         resourceId: carePlanId,
         patientId: current.patientId,
         reason: input.reason,
@@ -165,9 +194,12 @@ export class CarePlanService {
   async addGoal(actor: Actor, carePlanId: string, input: z.infer<typeof goalSchema>) {
     await this.db.transaction(async (tx) => {
       const plan = await this.lockOpen(tx, actor.organizationId, carePlanId);
-      const [goal] = await tx.insert(carePlanGoal).values({ ...input, carePlanId, createdBy: actor.userId }).returning();
+      const [goal] = await tx
+        .insert(carePlanGoal)
+        .values({ ...input, carePlanId, createdBy: actor.userId })
+        .returning();
       await this.touch(tx, actor, plan);
-      await this.audit.record(tx, actor, { action: 'care-plan.goal-add', resourceType: 'care_plan_goal', resourceId: goal?.id, patientId: plan.patientId });
+      await this.audit.record(tx, actor, { action: "care-plan.goal-add", resourceType: "care_plan_goal", resourceId: goal?.id, patientId: plan.patientId });
     });
     return this.detail(this.db, actor.organizationId, carePlanId);
   }
@@ -175,13 +207,16 @@ export class CarePlanService {
   async updateGoal(actor: Actor, carePlanId: string, goalId: string, input: z.infer<typeof updateGoalSchema>) {
     await this.db.transaction(async (tx) => {
       const plan = await this.lockOpen(tx, actor.organizationId, carePlanId);
-      const [before] = await tx.select().from(carePlanGoal).where(and(eq(carePlanGoal.carePlanId, carePlanId), eq(carePlanGoal.id, goalId)));
-      if (!before) throw new NotFoundError('Goal');
+      const [before] = await tx
+        .select()
+        .from(carePlanGoal)
+        .where(and(eq(carePlanGoal.carePlanId, carePlanId), eq(carePlanGoal.id, goalId)));
+      if (!before) throw new NotFoundError("Goal");
       await tx.update(carePlanGoal).set({ status: input.status, statusChangedAt: new Date() }).where(eq(carePlanGoal.id, goalId));
       await this.touch(tx, actor, plan);
       await this.audit.record(tx, actor, {
-        action: 'care-plan.goal-status',
-        resourceType: 'care_plan_goal',
+        action: "care-plan.goal-status",
+        resourceType: "care_plan_goal",
         resourceId: goalId,
         patientId: plan.patientId,
         changes: { status: { from: before.status, to: input.status } },
@@ -195,8 +230,11 @@ export class CarePlanService {
       this.db.transaction(async (tx) => {
         const plan = await this.lockOpen(tx, actor.organizationId, carePlanId);
         if (input.goalId) {
-          const [goal] = await tx.select({ id: carePlanGoal.id }).from(carePlanGoal).where(and(eq(carePlanGoal.carePlanId, carePlanId), eq(carePlanGoal.id, input.goalId)));
-          if (!goal) throw new NotFoundError('Goal');
+          const [goal] = await tx
+            .select({ id: carePlanGoal.id })
+            .from(carePlanGoal)
+            .where(and(eq(carePlanGoal.carePlanId, carePlanId), eq(carePlanGoal.id, input.goalId)));
+          if (!goal) throw new NotFoundError("Goal");
         }
         await this.insertActivity(tx, actor, plan, input);
         await this.touch(tx, actor, plan);
@@ -218,12 +256,12 @@ export class CarePlanService {
           .select()
           .from(carePlanActivity)
           .where(and(eq(carePlanActivity.carePlanId, carePlanId), eq(carePlanActivity.id, activityId)))
-          .for('update');
-        if (!current) throw new NotFoundError('Activity');
+          .for("update");
+        if (!current) throw new NotFoundError("Activity");
         if (!canChangeActivityStatus(current.status, input.status)) {
-          throw new BusinessRuleError(`Cannot change a ${current.status} activity to ${input.status}`, 'invalid_activity_status');
+          throw new BusinessRuleError(`Cannot change a ${current.status} activity to ${input.status}`, "invalid_activity_status");
         }
-        const completing = input.status === 'completed';
+        const completing = input.status === "completed";
         await tx
           .update(carePlanActivity)
           .set({
@@ -249,8 +287,8 @@ export class CarePlanService {
         }
         await this.touch(tx, actor, plan);
         await this.audit.record(tx, actor, {
-          action: 'care-plan.activity-status',
-          resourceType: 'care_plan_activity',
+          action: "care-plan.activity-status",
+          resourceType: "care_plan_activity",
           resourceId: activityId,
           patientId: plan.patientId,
           reason: input.reason,
@@ -258,7 +296,10 @@ export class CarePlanService {
           metadata: { appointmentId: input.appointmentId, nextActivityId: next?.id },
         });
         if (completing) {
-          await this.events.record(tx, { ...planEvent('CarePlanActivityCompleted', plan), payload: { activityId, kind: current.kind, nextActivityId: next?.id ?? null } });
+          await this.events.record(tx, {
+            ...planEvent("CarePlanActivityCompleted", plan),
+            payload: { activityId, kind: current.kind, nextActivityId: next?.id ?? null },
+          });
         }
       }),
     );
@@ -269,7 +310,13 @@ export class CarePlanService {
     await this.db.transaction(async (tx) => {
       const plan = await this.lock(tx, actor.organizationId, carePlanId);
       const [created] = await tx.insert(carePlanProgressNote).values({ carePlanId, note, recordedBy: actor.userId }).returning({ id: carePlanProgressNote.id });
-      await this.audit.record(tx, actor, { action: 'care-plan.progress-note', resourceType: 'care_plan', resourceId: carePlanId, patientId: plan.patientId, metadata: { noteId: created?.id } });
+      await this.audit.record(tx, actor, {
+        action: "care-plan.progress-note",
+        resourceType: "care_plan",
+        resourceId: carePlanId,
+        patientId: plan.patientId,
+        metadata: { noteId: created?.id },
+      });
     });
     return this.detail(this.db, actor.organizationId, carePlanId);
   }
@@ -282,10 +329,10 @@ export class CarePlanService {
     const horizon = nextDueDate(todayInPhilippines(), query.withinDays);
     const conditions: SQL[] = [
       eq(carePlanActivity.organizationId, actor.organizationId),
-      inArray(carePlanActivity.status, ['planned', 'in_progress']),
+      inArray(carePlanActivity.status, ["planned", "in_progress"]),
       isNotNull(carePlanActivity.dueDate),
       lte(carePlanActivity.dueDate, horizon),
-      inArray(carePlan.status, ['active']),
+      inArray(carePlan.status, ["active"]),
     ];
     if (query.kind) conditions.push(eq(carePlanActivity.kind, query.kind));
     if (query.assigneePractitionerId) conditions.push(eq(carePlanActivity.assigneePractitionerId, query.assigneePractitionerId));
@@ -297,7 +344,11 @@ export class CarePlanService {
       .orderBy(asc(carePlanActivity.dueDate))
       .limit(500);
     const today = todayInPhilippines();
-    await this.audit.recordStandalone(actor, { action: 'care-plan.due-list', resourceType: 'care_plan_activity', metadata: { count: rows.length, withinDays: query.withinDays } });
+    await this.audit.recordStandalone(actor, {
+      action: "care-plan.due-list",
+      resourceType: "care_plan_activity",
+      metadata: { count: rows.length, withinDays: query.withinDays },
+    });
     return rows.map(({ activity, planTitle, planCategory }) => ({
       ...strip(activity),
       planTitle,
@@ -309,12 +360,19 @@ export class CarePlanService {
   // ---- internals ----------------------------------------------------------------
 
   private async detail(executor: DbExecutor, organizationId: string, carePlanId: string) {
-    const [plan] = await executor.select().from(carePlan).where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.id, carePlanId)));
-    if (!plan) throw new NotFoundError('Care plan');
+    const [plan] = await executor
+      .select()
+      .from(carePlan)
+      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.id, carePlanId)));
+    if (!plan) throw new NotFoundError("Care plan");
     const [problems, goals, activities, notes] = await Promise.all([
       executor.select().from(carePlanProblem).where(eq(carePlanProblem.carePlanId, carePlanId)).orderBy(asc(carePlanProblem.createdAt)),
       executor.select().from(carePlanGoal).where(eq(carePlanGoal.carePlanId, carePlanId)).orderBy(asc(carePlanGoal.createdAt)),
-      executor.select().from(carePlanActivity).where(eq(carePlanActivity.carePlanId, carePlanId)).orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`, asc(carePlanActivity.createdAt)),
+      executor
+        .select()
+        .from(carePlanActivity)
+        .where(eq(carePlanActivity.carePlanId, carePlanId))
+        .orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`, asc(carePlanActivity.createdAt)),
       executor.select().from(carePlanProgressNote).where(eq(carePlanProgressNote.carePlanId, carePlanId)).orderBy(desc(carePlanProgressNote.recordedAt)),
     ]);
     return { ...strip(plan), problems, goals, activities: activities.map(strip), progressNotes: notes };
@@ -337,24 +395,31 @@ export class CarePlanService {
         createdBy: actor.userId,
       })
       .returning();
-    if (!created) throw new Error('Activity insert returned no row');
+    if (!created) throw new Error("Activity insert returned no row");
     return created;
   }
 
   private async lock(tx: DbExecutor, organizationId: string, carePlanId: string): Promise<CarePlanRecord> {
-    const [plan] = await tx.select().from(carePlan).where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.id, carePlanId))).for('update');
-    if (!plan) throw new NotFoundError('Care plan');
+    const [plan] = await tx
+      .select()
+      .from(carePlan)
+      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.id, carePlanId)))
+      .for("update");
+    if (!plan) throw new NotFoundError("Care plan");
     return plan;
   }
 
   private async lockOpen(tx: DbExecutor, organizationId: string, carePlanId: string): Promise<CarePlanRecord> {
     const plan = await this.lock(tx, organizationId, carePlanId);
-    if (!(OPEN_PLAN_STATUSES as readonly string[]).includes(plan.status)) throw new BusinessRuleError(`The care plan is ${plan.status}`, 'care_plan_closed');
+    if (!(OPEN_PLAN_STATUSES as readonly string[]).includes(plan.status)) throw new BusinessRuleError(`The care plan is ${plan.status}`, "care_plan_closed");
     return plan;
   }
 
   private async touch(tx: DbExecutor, actor: Actor, plan: CarePlanRecord): Promise<void> {
-    await tx.update(carePlan).set({ updatedBy: actor.userId, updatedAt: new Date(), version: sql`${carePlan.version} + 1` }).where(eq(carePlan.id, plan.id));
+    await tx
+      .update(carePlan)
+      .set({ updatedBy: actor.userId, updatedAt: new Date(), version: sql`${carePlan.version} + 1` })
+      .where(eq(carePlan.id, plan.id));
   }
 
   /** Composite (patient_id, id) keys reject diagnoses, encounters or appointments of another patient. */
@@ -364,9 +429,13 @@ export class CarePlanService {
     } catch (error) {
       const pg = asPgError(error);
       if (pg?.code === PgErrorCode.foreignKeyViolation) {
-        throw new BusinessRuleError('A referenced patient, diagnosis, encounter, appointment or practitioner does not exist for this patient', 'invalid_reference', {
-          constraint: pg.constraint,
-        });
+        throw new BusinessRuleError(
+          "A referenced patient, diagnosis, encounter, appointment or practitioner does not exist for this patient",
+          "invalid_reference",
+          {
+            constraint: pg.constraint,
+          },
+        );
       }
       throw error;
     }
@@ -377,7 +446,7 @@ function planEvent(type: string, plan: CarePlanRecord) {
   return {
     type,
     organizationId: plan.organizationId,
-    aggregateType: 'care_plan',
+    aggregateType: "care_plan",
     aggregateId: plan.id,
     patientId: plan.patientId,
     payload: { category: plan.category, status: plan.status },
@@ -386,7 +455,7 @@ function planEvent(type: string, plan: CarePlanRecord) {
 
 function capitalize(value: string): string {
   return value
-    .split('_')
+    .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
+    .join("");
 }

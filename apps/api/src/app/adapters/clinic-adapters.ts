@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ClinicQueries, type PatientBrief, type PatientDirectory } from '@healthcare/clinic';
-import { PatientRecordService } from '@healthcare/patient';
-import type { AllergyContext, PrescribingContext } from '@healthcare/prescription';
+import { Injectable } from "@nestjs/common";
+import { ClinicQueries, type PatientBrief, type PatientDirectory } from "@healthcare/clinic";
+import { PatientRecordService } from "@healthcare/patient";
+import type { AllergyContext, PrescribingContext } from "@healthcare/prescription";
 
 /** Clinic → patient: names and numbers for queue boards. */
 @Injectable()

@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService, diffChanges } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService, diffChanges } from "@healthcare/audit";
 import {
   type Actor,
   ageInYears,
@@ -15,11 +15,11 @@ import {
   PgErrorCode,
   todayInPhilippines,
   VersionConflictError,
-} from '@healthcare/core';
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
-import type { z } from 'zod';
-import { type ContactResolution, resolvePatientContact } from './communication-policy';
-import { normalizeContact } from './contact-normalization';
+} from "@healthcare/core";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import type { z } from "zod";
+import { type ContactResolution, resolvePatientContact } from "./communication-policy";
+import { normalizeContact } from "./contact-normalization";
 import type {
   addressInput,
   changeStatusSchema,
@@ -29,8 +29,8 @@ import type {
   recordConsentSchema,
   relationshipInput,
   updateDemographicsSchema,
-} from './patient.dto';
-import { patientNameFields } from './patient-registration.service';
+} from "./patient.dto";
+import { patientNameFields } from "./patient-registration.service";
 import {
   type CommunicationCategory,
   type CommunicationChannel,
@@ -42,24 +42,24 @@ import {
   patientIdentifier,
   type PatientRecord,
   patientRelationship,
-} from './patient.schema';
-import { type ConsentView, displayName, type PatientDetail, toConsentView } from './patient.views';
+} from "./patient.schema";
+import { type ConsentView, displayName, type PatientDetail, toConsentView } from "./patient.views";
 
 const DEMOGRAPHIC_FIELDS = [
-  'familyName',
-  'givenName',
-  'middleName',
-  'suffix',
-  'sex',
-  'genderIdentity',
-  'birthDate',
-  'birthDateIsEstimated',
-  'civilStatus',
-  'nationality',
-  'occupation',
+  "familyName",
+  "givenName",
+  "middleName",
+  "suffix",
+  "sex",
+  "genderIdentity",
+  "birthDate",
+  "birthDateIsEstimated",
+  "civilStatus",
+  "nationality",
+  "occupation",
 ] as const;
 
-type SubRecord = 'contact' | 'address' | 'identifier' | 'relationship';
+type SubRecord = "contact" | "address" | "identifier" | "relationship";
 
 @Injectable()
 export class PatientRecordService {
@@ -75,23 +75,23 @@ export class PatientRecordService {
       this.db
         .select()
         .from(patientContactPoint)
-        .where(and(eq(patientContactPoint.patientId, patientId), eq(patientContactPoint.status, 'active'))),
+        .where(and(eq(patientContactPoint.patientId, patientId), eq(patientContactPoint.status, "active"))),
       this.db
         .select()
         .from(patientAddress)
-        .where(and(eq(patientAddress.patientId, patientId), eq(patientAddress.status, 'active'))),
+        .where(and(eq(patientAddress.patientId, patientId), eq(patientAddress.status, "active"))),
       this.db
         .select()
         .from(patientIdentifier)
-        .where(and(eq(patientIdentifier.patientId, patientId), eq(patientIdentifier.status, 'active'))),
+        .where(and(eq(patientIdentifier.patientId, patientId), eq(patientIdentifier.status, "active"))),
       this.db
         .select()
         .from(patientRelationship)
-        .where(and(eq(patientRelationship.patientId, patientId), eq(patientRelationship.status, 'active'))),
+        .where(and(eq(patientRelationship.patientId, patientId), eq(patientRelationship.status, "active"))),
       this.currentConsents(patientId),
       this.db.select().from(patientCommunicationPreference).where(eq(patientCommunicationPreference.patientId, patientId)),
     ]);
-    await this.audit.recordStandalone(actor, { action: 'patient.view', resourceType: 'patient', resourceId: patientId, patientId });
+    await this.audit.recordStandalone(actor, { action: "patient.view", resourceType: "patient", resourceId: patientId, patientId });
     return {
       id: record.id,
       patientNumber: record.patientNumber,
@@ -116,9 +116,7 @@ export class PatientRecordService {
       updatedAt: record.updatedAt.toISOString(),
       version: record.version,
       contacts: contacts.map(({ id, system, value, use, isPrimary }) => ({ id, system, value, use, isPrimary })),
-      addresses: addresses.map(
-        ({ organizationId: _o, patientId: _p, status: _s, createdBy: _c, retiredAt: _ra, retiredBy: _rb, ...address }) => address,
-      ),
+      addresses: addresses.map(({ organizationId: _o, patientId: _p, status: _s, createdBy: _c, retiredAt: _ra, retiredBy: _rb, ...address }) => address),
       identifiers: identifiers.map(({ id, type, value, issuer, validFrom, validUntil }) => ({
         id,
         type,
@@ -127,18 +125,16 @@ export class PatientRecordService {
         validFrom,
         validUntil,
       })),
-      relationships: relationships.map(
-        ({ id, relationship, relatedPatientId, name, contactNumber, isEmergencyContact, isLegalGuardian, notes }) => ({
-          id,
-          relationship,
-          relatedPatientId,
-          name,
-          contactNumber,
-          isEmergencyContact,
-          isLegalGuardian,
-          notes,
-        }),
-      ),
+      relationships: relationships.map(({ id, relationship, relatedPatientId, name, contactNumber, isEmergencyContact, isLegalGuardian, notes }) => ({
+        id,
+        relationship,
+        relatedPatientId,
+        name,
+        contactNumber,
+        isEmergencyContact,
+        isLegalGuardian,
+        notes,
+      })),
       consents,
       communicationPreferences: preferences.map(({ channel, category, optedIn }) => ({ channel, category, optedIn })),
     };
@@ -152,7 +148,7 @@ export class PatientRecordService {
       if (next.familyName) next.familyName = cleanText(next.familyName);
       if (next.givenName) next.givenName = cleanText(next.givenName);
       if (next.middleName) next.middleName = cleanText(next.middleName);
-      const nameChanged = 'familyName' in next || 'givenName' in next || 'middleName' in next;
+      const nameChanged = "familyName" in next || "givenName" in next || "middleName" in next;
       const nameFields = nameChanged
         ? patientNameFields({
             familyName: next.familyName ?? before.familyName,
@@ -167,10 +163,10 @@ export class PatientRecordService {
         .set({ ...next, ...nameFields, updatedAt: new Date(), updatedBy: actor.userId, version: sql`${patient.version} + 1` })
         .where(eq(patient.id, patientId))
         .returning();
-      if (!updated) throw new NotFoundError('Patient');
+      if (!updated) throw new NotFoundError("Patient");
       await this.audit.record(tx, actor, {
-        action: 'patient.update-demographics',
-        resourceType: 'patient',
+        action: "patient.update-demographics",
+        resourceType: "patient",
         resourceId: patientId,
         patientId,
         reason,
@@ -184,16 +180,16 @@ export class PatientRecordService {
     return this.db.transaction(async (tx) => {
       const before = await this.lockForChange(tx, actor.organizationId, patientId, input.version);
       // Reversing a deceased status (a correction) is allowed; the required reason is audited.
-      const deceasedAt = input.status === 'deceased' && input.deceasedAt ? new Date(input.deceasedAt) : null;
+      const deceasedAt = input.status === "deceased" && input.deceasedAt ? new Date(input.deceasedAt) : null;
       const [updated] = await tx
         .update(patient)
         .set({ status: input.status, deceasedAt, updatedAt: new Date(), updatedBy: actor.userId, version: sql`${patient.version} + 1` })
         .where(eq(patient.id, patientId))
         .returning();
-      if (!updated) throw new NotFoundError('Patient');
+      if (!updated) throw new NotFoundError("Patient");
       await this.audit.record(tx, actor, {
-        action: 'patient.change-status',
-        resourceType: 'patient',
+        action: "patient.change-status",
+        resourceType: "patient",
         resourceId: patientId,
         patientId,
         reason: input.reason,
@@ -218,7 +214,7 @@ export class PatientRecordService {
             eq(patientContactPoint.patientId, patientId),
             eq(patientContactPoint.system, input.system),
             eq(patientContactPoint.isPrimary, true),
-            eq(patientContactPoint.status, 'active'),
+            eq(patientContactPoint.status, "active"),
           ),
         );
       const isPrimary = input.isPrimary === true || !existingPrimary;
@@ -234,11 +230,11 @@ export class PatientRecordService {
           system: input.system,
           value: input.value.trim(),
           valueNormalized,
-          use: input.use ?? 'personal',
+          use: input.use ?? "personal",
           isPrimary,
         })
         .returning();
-      await this.auditSubRecord(tx, actor, patientId, 'contact', 'add', created?.id, { system: input.system, isPrimary });
+      await this.auditSubRecord(tx, actor, patientId, "contact", "add", created?.id, { system: input.system, isPrimary });
       return created;
     });
   }
@@ -249,15 +245,14 @@ export class PatientRecordService {
       const [existingPrimary] = await tx
         .select({ id: patientAddress.id })
         .from(patientAddress)
-        .where(and(eq(patientAddress.patientId, patientId), eq(patientAddress.isPrimary, true), eq(patientAddress.status, 'active')));
+        .where(and(eq(patientAddress.patientId, patientId), eq(patientAddress.isPrimary, true), eq(patientAddress.status, "active")));
       const isPrimary = input.isPrimary === true || !existingPrimary;
-      if (isPrimary && existingPrimary)
-        await tx.update(patientAddress).set({ isPrimary: false }).where(eq(patientAddress.id, existingPrimary.id));
+      if (isPrimary && existingPrimary) await tx.update(patientAddress).set({ isPrimary: false }).where(eq(patientAddress.id, existingPrimary.id));
       const [created] = await tx
         .insert(patientAddress)
-        .values({ ...input, organizationId: actor.organizationId, patientId, createdBy: actor.userId, use: input.use ?? 'home', isPrimary })
+        .values({ ...input, organizationId: actor.organizationId, patientId, createdBy: actor.userId, use: input.use ?? "home", isPrimary })
         .returning();
-      await this.auditSubRecord(tx, actor, patientId, 'address', 'add', created?.id, {
+      await this.auditSubRecord(tx, actor, patientId, "address", "add", created?.id, {
         cityMunicipality: input.cityMunicipality,
         isPrimary,
       });
@@ -279,12 +274,12 @@ export class PatientRecordService {
             createdBy: actor.userId,
           })
           .returning();
-        await this.auditSubRecord(tx, actor, patientId, 'identifier', 'add', created?.id, { type: input.type, issuer: input.issuer });
+        await this.auditSubRecord(tx, actor, patientId, "identifier", "add", created?.id, { type: input.type, issuer: input.issuer });
         return created;
       });
     } catch (error) {
       if (asPgError(error)?.code === PgErrorCode.uniqueViolation) {
-        throw new ConflictError('This identifier is already assigned to a patient', undefined, 'identifier_in_use');
+        throw new ConflictError("This identifier is already assigned to a patient", undefined, "identifier_in_use");
       }
       throw error;
     }
@@ -294,23 +289,22 @@ export class PatientRecordService {
     return this.db.transaction(async (tx) => {
       await this.assertMutable(tx, actor.organizationId, patientId);
       if (input.relatedPatientId) {
-        if (input.relatedPatientId === patientId)
-          throw new BusinessRuleError('A patient cannot be related to themselves', 'invalid_relationship');
+        if (input.relatedPatientId === patientId) throw new BusinessRuleError("A patient cannot be related to themselves", "invalid_relationship");
         await this.findPatient(tx, actor.organizationId, input.relatedPatientId);
       }
       let contactNumberNormalized: string | undefined;
       if (input.contactNumber) {
         try {
-          contactNumberNormalized = normalizeContact('mobile', input.contactNumber);
+          contactNumberNormalized = normalizeContact("mobile", input.contactNumber);
         } catch {
-          contactNumberNormalized = input.contactNumber.replace(/[^\d+]/g, '');
+          contactNumberNormalized = input.contactNumber.replace(/[^\d+]/g, "");
         }
       }
       const [created] = await tx
         .insert(patientRelationship)
         .values({ ...input, contactNumberNormalized, organizationId: actor.organizationId, patientId, createdBy: actor.userId })
         .returning();
-      await this.auditSubRecord(tx, actor, patientId, 'relationship', 'add', created?.id, {
+      await this.auditSubRecord(tx, actor, patientId, "relationship", "add", created?.id, {
         relationship: input.relationship,
         relatedPatientId: input.relatedPatientId,
         isEmergencyContact: input.isEmergencyContact,
@@ -331,11 +325,11 @@ export class PatientRecordService {
       await this.assertMutable(tx, actor.organizationId, patientId);
       const retired = await tx
         .update(table)
-        .set({ status: 'retired', retiredAt: new Date(), retiredBy: actor.userId, ...('isPrimary' in table ? { isPrimary: false } : {}) })
-        .where(and(eq(table.id, recordId), eq(table.patientId, patientId), eq(table.status, 'active')))
+        .set({ status: "retired", retiredAt: new Date(), retiredBy: actor.userId, ...("isPrimary" in table ? { isPrimary: false } : {}) })
+        .where(and(eq(table.id, recordId), eq(table.patientId, patientId), eq(table.status, "active")))
         .returning({ id: table.id });
       if (retired.length === 0) throw new NotFoundError(capitalize(kind));
-      await this.auditSubRecord(tx, actor, patientId, kind, 'retire', recordId, undefined, reason);
+      await this.auditSubRecord(tx, actor, patientId, kind, "retire", recordId, undefined, reason);
     });
   }
 
@@ -357,10 +351,10 @@ export class PatientRecordService {
           recordedBy: actor.userId,
         })
         .returning();
-      if (!created) throw new Error('Consent insert returned no row');
+      if (!created) throw new Error("Consent insert returned no row");
       await this.audit.record(tx, actor, {
-        action: 'patient.consent-record',
-        resourceType: 'patient_consent',
+        action: "patient.consent-record",
+        resourceType: "patient_consent",
         resourceId: created.id,
         patientId,
         metadata: {
@@ -376,12 +370,8 @@ export class PatientRecordService {
 
   async consentHistory(actor: Actor, patientId: string): Promise<ConsentView[]> {
     await this.findPatient(this.db, actor.organizationId, patientId);
-    const rows = await this.db
-      .select()
-      .from(patientConsent)
-      .where(eq(patientConsent.patientId, patientId))
-      .orderBy(desc(patientConsent.recordedAt));
-    await this.audit.recordStandalone(actor, { action: 'patient.consent-view', resourceType: 'patient_consent', patientId });
+    const rows = await this.db.select().from(patientConsent).where(eq(patientConsent.patientId, patientId)).orderBy(desc(patientConsent.recordedAt));
+    await this.audit.recordStandalone(actor, { action: "patient.consent-view", resourceType: "patient_consent", patientId });
     return rows.map(toConsentView);
   }
 
@@ -394,11 +384,7 @@ export class PatientRecordService {
           .insert(patientCommunicationPreference)
           .values({ organizationId: actor.organizationId, patientId, ...pref, updatedBy: actor.userId })
           .onConflictDoUpdate({
-            target: [
-              patientCommunicationPreference.patientId,
-              patientCommunicationPreference.channel,
-              patientCommunicationPreference.category,
-            ],
+            target: [patientCommunicationPreference.patientId, patientCommunicationPreference.channel, patientCommunicationPreference.category],
             set: { optedIn: pref.optedIn, updatedAt: new Date(), updatedBy: actor.userId },
           });
       }
@@ -409,8 +395,8 @@ export class PatientRecordService {
         }),
       );
       await this.audit.record(tx, actor, {
-        action: 'patient.communication-preferences',
-        resourceType: 'patient',
+        action: "patient.communication-preferences",
+        resourceType: "patient",
         resourceId: patientId,
         patientId,
         changes,
@@ -423,7 +409,10 @@ export class PatientRecordService {
   async briefs(organizationId: string, patientIds: string[]) {
     const result = new Map<string, { patientNumber: string; displayName: string; sex: string; age: number }>();
     if (patientIds.length === 0) return result;
-    const rows = await this.db.select().from(patient).where(and(eq(patient.organizationId, organizationId), inArray(patient.id, patientIds)));
+    const rows = await this.db
+      .select()
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), inArray(patient.id, patientIds)));
     const today = todayInPhilippines();
     for (const row of rows) {
       result.set(row.id, { patientNumber: row.patientNumber, displayName: displayName(row), sex: row.sex, age: ageInYears(row.birthDate, today) });
@@ -432,17 +421,12 @@ export class PatientRecordService {
   }
 
   /** Destination and permission for contacting a patient (used by notifications). */
-  async resolveContact(
-    organizationId: string,
-    patientId: string,
-    channel: CommunicationChannel,
-    category: CommunicationCategory,
-  ): Promise<ContactResolution> {
+  async resolveContact(organizationId: string, patientId: string, channel: CommunicationChannel, category: CommunicationCategory): Promise<ContactResolution> {
     const [record] = await this.db
       .select({ status: patient.status })
       .from(patient)
       .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
-    if (!record) return { allowed: false, reason: 'patient_not_found' };
+    if (!record) return { allowed: false, reason: "patient_not_found" };
     const [preference] = await this.db
       .select({ optedIn: patientCommunicationPreference.optedIn })
       .from(patientCommunicationPreference)
@@ -456,20 +440,14 @@ export class PatientRecordService {
     const primaries = await this.db
       .select({ system: patientContactPoint.system, value: patientContactPoint.valueNormalized })
       .from(patientContactPoint)
-      .where(
-        and(
-          eq(patientContactPoint.patientId, patientId),
-          eq(patientContactPoint.isPrimary, true),
-          eq(patientContactPoint.status, 'active'),
-        ),
-      );
+      .where(and(eq(patientContactPoint.patientId, patientId), eq(patientContactPoint.isPrimary, true), eq(patientContactPoint.status, "active")));
     return resolvePatientContact({
       status: record.status,
       channel,
       category,
       optedIn: preference?.optedIn,
-      primaryMobile: primaries.find((c) => c.system === 'mobile')?.value,
-      primaryEmail: primaries.find((c) => c.system === 'email')?.value,
+      primaryMobile: primaries.find((c) => c.system === "mobile")?.value,
+      primaryEmail: primaries.find((c) => c.system === "email")?.value,
     });
   }
 
@@ -488,7 +466,7 @@ export class PatientRecordService {
       .select()
       .from(patient)
       .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
-    if (!row) throw new NotFoundError('Patient');
+    if (!row) throw new NotFoundError("Patient");
     return row;
   }
 
@@ -496,18 +474,18 @@ export class PatientRecordService {
     const [row] = await tx
       .select()
       .from(patient)
-      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId), ne(patient.status, 'merged')))
-      .for('update');
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId), ne(patient.status, "merged")))
+      .for("update");
     if (!row) {
       await this.findPatient(tx, organizationId, patientId);
-      throw new BusinessRuleError('This record was merged into another patient; update the surviving record instead', 'patient_merged');
+      throw new BusinessRuleError("This record was merged into another patient; update the surviving record instead", "patient_merged");
     }
     return row;
   }
 
   private async lockForChange(tx: DbExecutor, organizationId: string, patientId: string, expectedVersion: number): Promise<PatientRecord> {
     const row = await this.assertMutable(tx, organizationId, patientId);
-    if (row.version !== expectedVersion) throw new VersionConflictError('Patient', expectedVersion);
+    if (row.version !== expectedVersion) throw new VersionConflictError("Patient", expectedVersion);
     return row;
   }
 
@@ -516,7 +494,7 @@ export class PatientRecordService {
     actor: Actor,
     patientId: string,
     kind: SubRecord,
-    verb: 'add' | 'retire',
+    verb: "add" | "retire",
     recordId: string | undefined,
     metadata?: Record<string, unknown>,
     reason?: string,

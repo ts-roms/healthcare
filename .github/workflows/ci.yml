@@ -1,3 +1,7 @@
+# CI per CLAUDE.md §32: every pull request runs the affected
+# lint → typecheck → unit tests → integration tests → E2E → build pipeline.
+# Targets a project does not define are skipped by Nx, so each stage turns on
+# automatically as projects add `lint`, `test`, `integration` or `e2e` targets.
 name: CI
 
 on:
@@ -5,17 +9,26 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: read # nx-set-shas looks up the last successful run on main
+
+env:
+  NX_NO_CLOUD: true
+  NX_DAEMON: false
+  NEXT_TELEMETRY_DISABLED: 1
+  STORYBOOK_DISABLE_TELEMETRY: 1
+
 jobs:
-  main:
+  ci:
+    name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # PostgreSQL for the API integration tests (apps/api `integration` target).
     services:
       postgres:
         image: postgres:16
@@ -23,7 +36,7 @@ jobs:
           POSTGRES_USER: healthcare
           POSTGRES_PASSWORD: healthcare
           POSTGRES_DB: healthcare_test
-        ports: ['5432:5432']
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U healthcare"
           --health-interval 5s
@@ -31,41 +44,47 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://healthcare:healthcare@localhost:5432/healthcare_test
-      NX_NO_CLOUD: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Nx affected needs history to compare against the base
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
         with:
-          node-version: 22
-          cache: pnpm
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: nrwl/nx-set-shas@v4
+      # Sets NX_BASE / NX_HEAD: the PR base, or the last green commit on main.
+      - uses: nrwl/nx-set-shas@v5
+        with:
+          main-branch-name: main
 
+      # TypeScript project references of the backend projects must be in sync.
       - name: Workspace sync
-        run: pnpm nx sync:check
+        run: pnpm exec nx sync:check
 
       - name: Format
-        run: pnpm format:check
+        run: pnpm exec prettier --check .
 
-      # CLAUDE.md §32: lint → typecheck → unit → integration → build, affected only.
       - name: Lint
-        run: pnpm nx affected -t lint
+        run: pnpm exec nx affected -t lint --outputStyle=static
 
       - name: Typecheck
-        run: pnpm nx affected -t typecheck
+        run: pnpm exec nx affected -t typecheck --outputStyle=static
 
       - name: Unit tests
-        run: pnpm nx affected -t test
+        run: pnpm exec nx affected -t test --outputStyle=static
 
       - name: Integration tests
-        run: pnpm nx affected -t test-integration
+        run: pnpm exec nx affected -t integration --outputStyle=static
+
+      - name: E2E tests
+        run: pnpm exec nx affected -t e2e --outputStyle=static
 
       - name: Build
-        run: pnpm nx affected -t build
+        run: pnpm exec nx affected -t build build-storybook --outputStyle=static

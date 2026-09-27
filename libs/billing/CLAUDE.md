@@ -3,9 +3,11 @@
 Extends the root `CLAUDE.md`. Root rules win on conflict.
 
 ## Scope
+
 Charge capture, consultation/procedure/laboratory/dental fees, packages, discounts (including statutory Senior Citizen and PWD discounts), HMO, insurance, PhilHealth, invoices, payments, refunds, deposits, receivables, financial reporting.
 
 ## Rules
+
 - **Separate from clinical logic.** Billing consumes charge events from clinical domains and never reads or writes their tables. Clinical workflows must not be blocked by billing state unless a facility policy explicitly requires it (e.g. prepaid telemedicine), and that policy is configuration.
 - **Money:** currency PHP. Store amounts as `NUMERIC(14,2)` (or integer centavos, chosen once and used everywhere). Never use floating point. Round with an explicit, documented rule.
 - **Price lists** are versioned with effective dates; invoice items snapshot the price, discount, and tax applied at the time.
@@ -17,10 +19,13 @@ Charge capture, consultation/procedure/laboratory/dental fees, packages, discoun
 - Official receipts / invoicing documents and tax requirements (BIR) must be validated against current rules; treat format and numbering as configuration and an explicit compliance dependency.
 
 ## Key events
+
 `ChargeCaptured`, `InvoiceIssued`, `InvoiceVoided`, `PaymentCompleted`, `PaymentFailed`, `RefundIssued`, `ClaimSubmitted`, `ClaimStatusChanged`.
 
 ## Permissions (initial)
+
 `billing.charge.read`, `billing.invoice.issue`, `billing.invoice.void`, `billing.payment.record`, `billing.refund.issue`, `billing.discount.apply`, `billing.pricelist.manage`, `billing.report.read`.
 
 ## Docs
+
 Keep `docs/domains/billing.md` current.

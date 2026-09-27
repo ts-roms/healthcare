@@ -1,10 +1,10 @@
-import { type DynamicModule, Module, type ModuleMetadata, type Type } from '@nestjs/common';
-import { PRESCRIBING_CONTEXT, type PrescribingContext } from './ports';
-import { PrescriptionController } from './prescription.controller';
-import { PrescriptionService } from './prescription.service';
+import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
+import { PRESCRIBING_CONTEXT, type PrescribingContext } from "./ports";
+import { PrescriptionController } from "./prescription.controller";
+import { PrescriptionService } from "./prescription.service";
 
 export interface PrescriptionModuleOptions {
-  imports?: ModuleMetadata['imports'];
+  imports?: ModuleMetadata["imports"];
   prescribingContext: Type<PrescribingContext>;
 }
 

@@ -1,7 +1,7 @@
-import { type DynamicModule, Module, type ModuleMetadata, type Type } from '@nestjs/common';
-import { OrganizationModule } from '@healthcare/organization';
-import { AppointmentReminders } from './appointments/appointment-reminders';
-import { AppointmentService } from './appointments/appointment.service';
+import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
+import { OrganizationModule } from "@healthcare/organization";
+import { AppointmentReminders } from "./appointments/appointment-reminders";
+import { AppointmentService } from "./appointments/appointment.service";
 import {
   AppointmentController,
   ClinicalRecordsController,
@@ -9,18 +9,18 @@ import {
   ClinicDashboardController,
   EncounterController,
   QueueController,
-} from './clinic.controllers';
-import { ClinicQueries } from './clinic-queries.service';
-import { ClinicConfigService } from './config/clinic-config.service';
-import { ClinicDashboardService } from './dashboard/clinic-dashboard.service';
-import { EncounterService } from './encounters/encounter.service';
-import { PATIENT_DIRECTORY, type PatientDirectory } from './ports';
-import { VisitService } from './queue/visit.service';
-import { TriageService } from './triage/triage.service';
+} from "./clinic.controllers";
+import { ClinicQueries } from "./clinic-queries.service";
+import { ClinicConfigService } from "./config/clinic-config.service";
+import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
+import { EncounterService } from "./encounters/encounter.service";
+import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
+import { VisitService } from "./queue/visit.service";
+import { TriageService } from "./triage/triage.service";
 
 export interface ClinicModuleOptions {
   /** Modules providing what the patient directory adapter depends on. */
-  imports?: ModuleMetadata['imports'];
+  imports?: ModuleMetadata["imports"];
   patientDirectory: Type<PatientDirectory>;
 }
 

@@ -1,13 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { AuthService } from '@healthcare/auth';
-import type {
-  NotificationCategory,
-  NotificationChannel,
-  Recipient,
-  RecipientDirectory,
-  RecipientResolution,
-} from '@healthcare/notification';
-import { PatientRecordService } from '@healthcare/patient';
+import { Injectable } from "@nestjs/common";
+import { AuthService } from "@healthcare/auth";
+import type { NotificationCategory, NotificationChannel, Recipient, RecipientDirectory, RecipientResolution } from "@healthcare/notification";
+import { PatientRecordService } from "@healthcare/patient";
 
 /**
  * Adapter connecting the notification platform service to the patient and
@@ -21,21 +15,16 @@ export class AppRecipientDirectory implements RecipientDirectory {
     private readonly auth: AuthService,
   ) {}
 
-  async resolve(
-    organizationId: string,
-    recipient: Recipient,
-    channel: NotificationChannel,
-    category: NotificationCategory,
-  ): Promise<RecipientResolution> {
-    if (recipient.type === 'patient') {
-      if (category === 'security') return { allowed: false, reason: 'invalid_category' };
+  async resolve(organizationId: string, recipient: Recipient, channel: NotificationChannel, category: NotificationCategory): Promise<RecipientResolution> {
+    if (recipient.type === "patient") {
+      if (category === "security") return { allowed: false, reason: "invalid_category" };
       return this.patients.resolveContact(organizationId, recipient.patientId, channel, category);
     }
-    if (!(await this.auth.hasActiveMembership(recipient.userId, organizationId))) return { allowed: false, reason: 'user_not_member' };
-    if (channel === 'in_app') return { allowed: true, destination: null };
-    if (channel === 'email') {
+    if (!(await this.auth.hasActiveMembership(recipient.userId, organizationId))) return { allowed: false, reason: "user_not_member" };
+    if (channel === "in_app") return { allowed: true, destination: null };
+    if (channel === "email") {
       const user = await this.auth.getUser(recipient.userId);
-      return user.status === 'active' ? { allowed: true, destination: user.email } : { allowed: false, reason: 'user_disabled' };
+      return user.status === "active" ? { allowed: true, destination: user.email } : { allowed: false, reason: "user_disabled" };
     }
     return { allowed: false, reason: `staff_${channel}_not_supported` };
   }

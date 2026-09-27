@@ -1,22 +1,22 @@
-import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { AuditModule } from '@healthcare/audit';
-import { AuthModule } from '@healthcare/auth';
-import { CarePlanModule } from '@healthcare/care-plan';
-import { ClinicModule } from '@healthcare/clinic';
-import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from '@healthcare/core';
-import { DocumentsModule } from '@healthcare/documents';
-import { NotificationModule } from '@healthcare/notification';
-import { OrganizationModule } from '@healthcare/organization';
-import { PatientModule } from '@healthcare/patient';
-import { PrescriptionModule } from '@healthcare/prescription';
-import { ZodValidationPipe } from 'nestjs-zod';
-import { AppPatientDirectory, AppPrescribingContext } from './adapters/clinic-adapters';
-import { HealthController } from './health.controller';
-import { PatientSummaryController } from './patient-360/patient-summary.controller';
-import { RealtimeGateway } from './realtime/realtime.gateway';
-import { AppRecipientDirectory } from './recipient-directory';
+import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider } from "@nestjs/common";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { AuditModule } from "@healthcare/audit";
+import { AuthModule } from "@healthcare/auth";
+import { CarePlanModule } from "@healthcare/care-plan";
+import { ClinicModule } from "@healthcare/clinic";
+import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
+import { DocumentsModule } from "@healthcare/documents";
+import { NotificationModule } from "@healthcare/notification";
+import { OrganizationModule } from "@healthcare/organization";
+import { PatientModule } from "@healthcare/patient";
+import { PrescriptionModule } from "@healthcare/prescription";
+import { ZodValidationPipe } from "nestjs-zod";
+import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { HealthController } from "./health.controller";
+import { PatientSummaryController } from "./patient-360/patient-summary.controller";
+import { RealtimeGateway } from "./realtime/realtime.gateway";
+import { AppRecipientDirectory } from "./recipient-directory";
 
 export interface AppModuleOverrides {
   /** Replaces S3 object storage (tests). */
@@ -40,7 +40,7 @@ export class AppModule implements NestModule {
         CoreModule.forRoot(config),
         // In-memory limits are per instance; move storage to Redis before scaling out.
         ThrottlerModule.forRoot({
-          throttlers: [{ name: 'default', ttl: 60_000, limit: 300 }],
+          throttlers: [{ name: "default", ttl: 60_000, limit: 300 }],
           skipIf: () => overrides.disableRateLimit === true,
         }),
         AuditModule,
@@ -73,6 +73,6 @@ export class AppModule implements NestModule {
   }
 
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(requestIdMiddleware).forRoutes('*path');
+    consumer.apply(requestIdMiddleware).forRoutes("*path");
   }
 }

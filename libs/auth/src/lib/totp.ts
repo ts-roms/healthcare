@@ -1,10 +1,10 @@
-import { authenticator } from 'otplib';
+import { authenticator } from "otplib";
 
 // RFC 6238 defaults (SHA-1, 6 digits, 30 s) for authenticator-app compatibility;
 // accept one step of clock drift either side.
 authenticator.options = { window: 1 };
 
-export const TOTP_ISSUER = 'Healthcare Platform';
+export const TOTP_ISSUER = "Healthcare Platform";
 
 export function generateTotpSecret(): string {
   return authenticator.generateSecret(20);

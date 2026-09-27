@@ -1,4 +1,4 @@
-import type { Actor } from '../actor';
+import type { Actor } from "../actor";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

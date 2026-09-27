@@ -3,7 +3,7 @@
  * explicitly to application services (no ambient/global request state).
  */
 export interface Actor {
-  kind: 'user' | 'system';
+  kind: "user" | "system";
   userId: string;
   displayName: string;
   sessionId?: string;

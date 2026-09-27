@@ -1,10 +1,10 @@
-import { Logger, type OnModuleDestroy } from '@nestjs/common';
-import { Queue, Worker } from 'bullmq';
-import IORedis from 'ioredis';
-import type { NotificationDispatcher } from './notification.dispatcher';
-import type { NotificationQueue } from './ports';
+import { Logger, type OnModuleDestroy } from "@nestjs/common";
+import { Queue, Worker } from "bullmq";
+import IORedis from "ioredis";
+import type { NotificationDispatcher } from "./notification.dispatcher";
+import type { NotificationQueue } from "./ports";
 
-export const NOTIFICATION_QUEUE_NAME = 'notifications';
+export const NOTIFICATION_QUEUE_NAME = "notifications";
 const RECONCILE_INTERVAL_MS = 60_000;
 
 function connect(redisUrl: string): IORedis {
@@ -23,14 +23,14 @@ export class BullMqNotificationQueue implements NotificationQueue, OnModuleDestr
 
   async enqueue(notificationId: string, delayMs = 0): Promise<void> {
     await this.queue.add(
-      'deliver',
+      "deliver",
       { notificationId },
       {
         // jobId dedupes: a notification is never queued twice at the same time.
         jobId: notificationId,
         delay: delayMs,
         attempts: 5,
-        backoff: { type: 'exponential', delay: 30_000 },
+        backoff: { type: "exponential", delay: 30_000 },
         removeOnComplete: true,
         removeOnFail: 1000,
       },
@@ -63,12 +63,12 @@ export class NotificationWorkerRunner {
       async (job) => {
         const outcome = await this.dispatcher.dispatch(String(job.data.notificationId));
         // Throwing hands the retry and backoff schedule to BullMQ.
-        if (outcome === 'retry') throw new Error('Delivery failed; will retry');
+        if (outcome === "retry") throw new Error("Delivery failed; will retry");
         return outcome;
       },
       { connection: this.connection, concurrency },
     );
-    this.worker.on('failed', (job, error) => this.logger.warn(`Job ${job?.id} failed: ${error.message}`));
+    this.worker.on("failed", (job, error) => this.logger.warn(`Job ${job?.id} failed: ${error.message}`));
     this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
     this.logger.log(`Notification worker started (concurrency ${concurrency})`);
   }

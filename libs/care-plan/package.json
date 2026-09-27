@@ -15,9 +15,8 @@
   "nx": {
     "name": "care-plan",
     "tags": [
-      "type:lib",
-      "layer:domain",
-      "scope:care-plan"
+      "scope:care-plan",
+      "type:feature"
     ]
   },
   "dependencies": {

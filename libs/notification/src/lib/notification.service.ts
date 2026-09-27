@@ -1,23 +1,23 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
-import { type Actor, actorUserId, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from '@healthcare/core';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
-import type { z } from 'zod';
-import type { sendNotificationSchema } from './notification.dto';
-import { notification, type NotificationRecord } from './notification.schema';
-import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from './ports';
-import { findTemplate } from './templates';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
+import { type Actor, actorUserId, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from "@healthcare/core";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import type { z } from "zod";
+import type { sendNotificationSchema } from "./notification.dto";
+import { notification, type NotificationRecord } from "./notification.schema";
+import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
+import { findTemplate } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
 
-export type NotificationView = Omit<NotificationRecord, 'variables' | 'destination'> & { destinationMasked: string | null };
+export type NotificationView = Omit<NotificationRecord, "variables" | "destination"> & { destinationMasked: string | null };
 
 export function toNotificationView({ variables: _v, destination, ...rest }: NotificationRecord): NotificationView {
   return { ...rest, destinationMasked: destination ? mask(destination) : null };
 }
 
 function mask(destination: string): string {
-  return destination.includes('@') ? maskEmail(destination) : maskPhone(destination);
+  return destination.includes("@") ? maskEmail(destination) : maskPhone(destination);
 }
 
 /**
@@ -38,20 +38,20 @@ export class NotificationService {
 
   async send(actor: Actor, input: SendNotificationInput): Promise<NotificationView> {
     const template = findTemplate(input.templateKey);
-    if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, 'unknown_template');
+    if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, "unknown_template");
     if (!template.channels.includes(input.channel)) {
-      throw new BusinessRuleError(`Template "${template.key}" cannot be sent via ${input.channel}`, 'channel_not_supported');
+      throw new BusinessRuleError(`Template "${template.key}" cannot be sent via ${input.channel}`, "channel_not_supported");
     }
     const parsed = template.variables.safeParse(input.variables ?? {});
     if (!parsed.success) {
       throw new BusinessRuleError(
-        'Template variables are invalid',
-        'invalid_template_variables',
-        parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        "Template variables are invalid",
+        "invalid_template_variables",
+        parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       );
     }
-    if (input.recipient.type === 'patient' && template.category === 'security') {
-      throw new BusinessRuleError('Security templates are for staff accounts', 'invalid_recipient');
+    if (input.recipient.type === "patient" && template.category === "security") {
+      throw new BusinessRuleError("Security templates are for staff accounts", "invalid_recipient");
     }
 
     if (input.idempotencyKey) {
@@ -63,8 +63,8 @@ export class NotificationService {
     }
 
     const resolution = await this.recipients.resolve(actor.organizationId, input.recipient, input.channel, template.category);
-    const inApp = input.channel === 'in_app';
-    const status = !resolution.allowed ? 'suppressed' : inApp ? 'delivered' : 'queued';
+    const inApp = input.channel === "in_app";
+    const status = !resolution.allowed ? "suppressed" : inApp ? "delivered" : "queued";
     const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
 
     const created = await this.db.transaction(async (tx) => {
@@ -73,8 +73,8 @@ export class NotificationService {
         .values({
           organizationId: actor.organizationId,
           recipientType: input.recipient.type,
-          recipientPatientId: input.recipient.type === 'patient' ? input.recipient.patientId : null,
-          recipientUserId: input.recipient.type === 'user' ? input.recipient.userId : null,
+          recipientPatientId: input.recipient.type === "patient" ? input.recipient.patientId : null,
+          recipientUserId: input.recipient.type === "user" ? input.recipient.userId : null,
           channel: input.channel,
           category: template.category,
           templateKey: template.key,
@@ -86,17 +86,17 @@ export class NotificationService {
           idempotencyKey: input.idempotencyKey ?? null,
           scheduledFor,
           createdBy: actorUserId(actor),
-          deliveredAt: status === 'delivered' ? new Date() : null,
+          deliveredAt: status === "delivered" ? new Date() : null,
         })
         .onConflictDoNothing()
         .returning();
       if (!row) return undefined;
       await this.audit.record(tx, actor, {
-        action: 'notification.create',
-        resourceType: 'notification',
+        action: "notification.create",
+        resourceType: "notification",
         resourceId: row.id,
         patientId: row.recipientPatientId ?? undefined,
-        outcome: status === 'suppressed' ? 'denied' : 'success',
+        outcome: status === "suppressed" ? "denied" : "success",
         reason: row.suppressionReason ?? undefined,
         metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category },
       });
@@ -107,17 +107,15 @@ export class NotificationService {
       const [winner] = await this.db
         .select()
         .from(notification)
-        .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.idempotencyKey, input.idempotencyKey ?? '')));
-      if (!winner) throw new Error('Notification insert conflicted but no existing row was found');
+        .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.idempotencyKey, input.idempotencyKey ?? "")));
+      if (!winner) throw new Error("Notification insert conflicted but no existing row was found");
       return toNotificationView(winner);
     }
 
-    if (created.status === 'queued') {
+    if (created.status === "queued") {
       const delay = scheduledFor ? Math.max(scheduledFor.getTime() - Date.now(), 0) : 0;
       // The row is committed; if enqueueing fails the worker's reconciler picks it up.
-      await this.queue
-        .enqueue(created.id, delay)
-        .catch((error: unknown) => this.logger.warn(`Enqueue failed for ${created.id}: ${String(error)}`));
+      await this.queue.enqueue(created.id, delay).catch((error: unknown) => this.logger.warn(`Enqueue failed for ${created.id}: ${String(error)}`));
     }
     return toNotificationView(created);
   }
@@ -131,19 +129,15 @@ export class NotificationService {
     return this.db.transaction(async (tx) => {
       const [cancelled] = await tx
         .update(notification)
-        .set({ status: 'cancelled', cancelledAt: new Date(), lastError: reason, updatedAt: new Date() })
+        .set({ status: "cancelled", cancelledAt: new Date(), lastError: reason, updatedAt: new Date() })
         .where(
-          and(
-            eq(notification.organizationId, actor.organizationId),
-            eq(notification.idempotencyKey, idempotencyKey),
-            inArray(notification.status, ['queued']),
-          ),
+          and(eq(notification.organizationId, actor.organizationId), eq(notification.idempotencyKey, idempotencyKey), inArray(notification.status, ["queued"])),
         )
         .returning();
       if (!cancelled) return false;
       await this.audit.record(tx, actor, {
-        action: 'notification.cancel',
-        resourceType: 'notification',
+        action: "notification.cancel",
+        resourceType: "notification",
         resourceId: cancelled.id,
         patientId: cancelled.recipientPatientId ?? undefined,
         reason,
@@ -159,7 +153,7 @@ export class NotificationService {
       .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.recipientPatientId, patientId)))
       .orderBy(desc(notification.createdAt))
       .limit(200);
-    await this.audit.recordStandalone(actor, { action: 'notification.list', resourceType: 'notification', patientId });
+    await this.audit.recordStandalone(actor, { action: "notification.list", resourceType: "notification", patientId });
     return rows.map(toNotificationView);
   }
 
@@ -172,8 +166,8 @@ export class NotificationService {
         and(
           eq(notification.organizationId, actor.organizationId),
           eq(notification.recipientUserId, actor.userId),
-          eq(notification.channel, 'in_app'),
-          eq(notification.status, 'delivered'),
+          eq(notification.channel, "in_app"),
+          eq(notification.status, "delivered"),
         ),
       )
       .orderBy(desc(notification.createdAt))
@@ -185,7 +179,7 @@ export class NotificationService {
         id: row.id,
         templateKey: row.templateKey,
         subject: rendered?.subject ?? null,
-        text: rendered?.text ?? '',
+        text: rendered?.text ?? "",
         createdAt: row.createdAt,
         readAt: row.readAt,
       };
@@ -200,7 +194,7 @@ export class NotificationService {
         and(
           eq(notification.id, notificationId),
           eq(notification.recipientUserId, actor.userId),
-          eq(notification.channel, 'in_app'),
+          eq(notification.channel, "in_app"),
           isNull(notification.readAt),
         ),
       )
@@ -210,7 +204,7 @@ export class NotificationService {
         .select({ id: notification.id })
         .from(notification)
         .where(and(eq(notification.id, notificationId), eq(notification.recipientUserId, actor.userId)));
-      if (!exists) throw new NotFoundError('Notification');
+      if (!exists) throw new NotFoundError("Notification");
     }
   }
 }

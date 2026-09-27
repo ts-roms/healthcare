@@ -15,9 +15,8 @@
   "nx": {
     "name": "patient",
     "tags": [
-      "type:lib",
-      "layer:domain",
-      "scope:patient"
+      "scope:patient",
+      "type:feature"
     ]
   },
   "dependencies": {

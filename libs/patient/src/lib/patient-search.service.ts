@@ -1,31 +1,19 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
-import {
-  type Actor,
-  DATABASE,
-  type Database,
-  normalizeIdentifier,
-  normalizeName,
-  normalizePhMobile,
-  type Page,
-  pageOffset,
-  toPage,
-} from '@healthcare/core';
-import { and, asc, eq, inArray, notInArray, type SQL, sql } from 'drizzle-orm';
-import type { PatientSearchInput } from './patient.dto';
-import { patient, patientContactPoint, patientIdentifier } from './patient.schema';
-import { type PatientSummary, toSummary } from './patient.views';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
+import { type Actor, DATABASE, type Database, normalizeIdentifier, normalizeName, normalizePhMobile, type Page, pageOffset, toPage } from "@healthcare/core";
+import { and, asc, eq, inArray, notInArray, type SQL, sql } from "drizzle-orm";
+import type { PatientSearchInput } from "./patient.dto";
+import { patient, patientContactPoint, patientIdentifier } from "./patient.schema";
+import { type PatientSummary, toSummary } from "./patient.views";
 
 const PATIENT_NUMBER = /^P\d{1,10}$/i;
 
 /** How a free-text query is interpreted. Exported for tests. */
-export function classifyQuery(
-  q: string,
-): { kind: 'patient_number'; value: string } | { kind: 'phone'; value: string } | { kind: 'name'; value: string } {
-  if (PATIENT_NUMBER.test(q)) return { kind: 'patient_number', value: `P${q.slice(1).padStart(8, '0')}` };
-  const digits = q.replace(/[\s().+-]/g, '');
-  if (/^\d{7,15}$/.test(digits)) return { kind: 'phone', value: normalizePhMobile(q) ?? q.replace(/[^\d+]/g, '') };
-  return { kind: 'name', value: normalizeName(q) };
+export function classifyQuery(q: string): { kind: "patient_number"; value: string } | { kind: "phone"; value: string } | { kind: "name"; value: string } {
+  if (PATIENT_NUMBER.test(q)) return { kind: "patient_number", value: `P${q.slice(1).padStart(8, "0")}` };
+  const digits = q.replace(/[\s().+-]/g, "");
+  if (/^\d{7,15}$/.test(digits)) return { kind: "phone", value: normalizePhMobile(q) ?? q.replace(/[^\d+]/g, "") };
+  return { kind: "name", value: normalizeName(q) };
 }
 
 @Injectable()
@@ -41,16 +29,16 @@ export class PatientSearchService {
    */
   async search(actor: Actor, query: PatientSearchInput): Promise<Page<PatientSummary>> {
     const filters: SQL[] = [eq(patient.organizationId, actor.organizationId)];
-    if (query.includeInactive !== 'true') filters.push(notInArray(patient.status, ['inactive', 'merged']));
+    if (query.includeInactive !== "true") filters.push(notInArray(patient.status, ["inactive", "merged"]));
     let order: SQL[] = [asc(patient.familyNameNormalized), asc(patient.givenNameNormalized)];
 
     const interpreted = query.q ? classifyQuery(query.q) : undefined;
-    if (interpreted?.kind === 'patient_number') {
+    if (interpreted?.kind === "patient_number") {
       filters.push(eq(patient.patientNumber, interpreted.value));
-    } else if (interpreted?.kind === 'phone') {
+    } else if (interpreted?.kind === "phone") {
       filters.push(sql`EXISTS (SELECT 1 FROM ${patientContactPoint} c
         WHERE c.patient_id = ${patient.id} AND c.status = 'active' AND c.value_normalized = ${interpreted.value})`);
-    } else if (interpreted?.kind === 'name') {
+    } else if (interpreted?.kind === "name") {
       const q = interpreted.value;
       filters.push(
         sql`(${patient.nameSearch} % ${q} OR ${patient.nameSearch} LIKE ${`${escapeLike(q)}%`} OR ${patient.familyNameNormalized} LIKE ${`${escapeLike(q)}%`})`,
@@ -82,17 +70,17 @@ export class PatientSearchService {
                 patientContactPoint.patientId,
                 page.items.map((p) => p.id),
               ),
-              eq(patientContactPoint.system, 'mobile'),
+              eq(patientContactPoint.system, "mobile"),
               eq(patientContactPoint.isPrimary, true),
-              eq(patientContactPoint.status, 'active'),
+              eq(patientContactPoint.status, "active"),
             ),
           )
       : [];
     const mobileByPatient = new Map(mobiles.map((m) => [m.patientId, m.value]));
 
     await this.audit.recordStandalone(actor, {
-      action: 'patient.search',
-      resourceType: 'patient',
+      action: "patient.search",
+      resourceType: "patient",
       metadata: {
         queryKind: interpreted?.kind,
         criteria: {

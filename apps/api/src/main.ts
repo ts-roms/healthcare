@@ -1,10 +1,10 @@
-import 'dotenv/config';
-import { Logger } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import type { NestExpressApplication } from '@nestjs/platform-express';
-import { loadAppConfig, OutboxRelay } from '@healthcare/core';
-import { AppModule } from './app/app.module';
-import { configureApp } from './app/configure-app';
+import "dotenv/config";
+import { Logger } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import { loadAppConfig, OutboxRelay } from "@healthcare/core";
+import { AppModule } from "./app/app.module";
+import { configureApp } from "./app/configure-app";
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
@@ -16,11 +16,11 @@ async function bootstrap(): Promise<void> {
   await app.listen(config.PORT);
   // Dispatches domain events (queue updates, reminders) written by transactions.
   app.get(OutboxRelay).start();
-  Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, 'Bootstrap');
+  Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");
 }
 
-function levelsFrom(level: string): Array<'error' | 'warn' | 'log' | 'debug' | 'verbose'> {
-  const order = ['error', 'warn', 'log', 'debug', 'verbose'] as const;
+function levelsFrom(level: string): Array<"error" | "warn" | "log" | "debug" | "verbose"> {
+  const order = ["error", "warn", "log", "debug", "verbose"] as const;
   return order.slice(0, order.indexOf(level as (typeof order)[number]) + 1);
 }
 

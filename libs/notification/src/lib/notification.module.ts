@@ -6,14 +6,14 @@ import {
   type OnApplicationShutdown,
   type Provider,
   type Type,
-} from '@nestjs/common';
-import { APP_CONFIG, type AppConfig } from '@healthcare/core';
-import { BullMqNotificationQueue, NotificationWorkerRunner } from './bullmq';
-import { defaultChannelSenders } from './channel-senders';
-import { NotificationController } from './notification.controller';
-import { NotificationDispatcher } from './notification.dispatcher';
-import { NotificationService } from './notification.service';
-import { CHANNEL_SENDERS, NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from './ports';
+} from "@nestjs/common";
+import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { BullMqNotificationQueue, NotificationWorkerRunner } from "./bullmq";
+import { defaultChannelSenders } from "./channel-senders";
+import { NotificationController } from "./notification.controller";
+import { NotificationDispatcher } from "./notification.dispatcher";
+import { NotificationService } from "./notification.service";
+import { CHANNEL_SENDERS, NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
 
 const bullMqQueue: Provider = {
   provide: NOTIFICATION_QUEUE,
@@ -23,7 +23,7 @@ const bullMqQueue: Provider = {
 
 export interface NotificationModuleOptions {
   /** Modules that provide what the recipient directory depends on. */
-  imports?: ModuleMetadata['imports'];
+  imports?: ModuleMetadata["imports"];
   recipientDirectory: Type<RecipientDirectory>;
   /** Override the queue (tests). Defaults to BullMQ on REDIS_URL. */
   queue?: Provider;
@@ -39,11 +39,7 @@ export class NotificationModule {
       global: true,
       imports: options.imports ?? [],
       controllers: [NotificationController],
-      providers: [
-        NotificationService,
-        { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory },
-        options.queue ?? bullMqQueue,
-      ],
+      providers: [NotificationService, { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory }, options.queue ?? bullMqQueue],
       exports: [NotificationService],
     };
   }

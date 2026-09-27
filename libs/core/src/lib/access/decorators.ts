@@ -1,19 +1,19 @@
-import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
-import type { Request } from 'express';
-import type { Actor } from '../actor';
-import { BadRequestError, UnauthenticatedError } from '../errors';
-import '../http/request-augmentation';
-import type { Permission } from './permissions';
+import { createParamDecorator, ExecutionContext, SetMetadata } from "@nestjs/common";
+import type { Request } from "express";
+import type { Actor } from "../actor";
+import { BadRequestError, UnauthenticatedError } from "../errors";
+import "../http/request-augmentation";
+import type { Permission } from "./permissions";
 
 /**
  * Access metadata read by the global guard registered in libs/auth.
  * Every route requires an authenticated caller unless marked @Public().
  */
 export const ACCESS_METADATA = {
-  public: 'access:public',
-  permissions: 'access:permissions',
-  platformAdmin: 'access:platform-admin',
-  facility: 'access:facility',
+  public: "access:public",
+  permissions: "access:permissions",
+  platformAdmin: "access:platform-admin",
+  facility: "access:facility",
 } as const;
 
 /** No authentication (login, health checks). Use sparingly. */
@@ -36,6 +36,6 @@ export const CurrentActor = createParamDecorator((_: unknown, context: Execution
 
 /** Facility context of a route decorated with @RequireFacility(). */
 export function requireFacilityId(actor: Actor): string {
-  if (!actor.facilityId) throw new BadRequestError('X-Facility-Id header is required', 'facility_required');
+  if (!actor.facilityId) throw new BadRequestError("X-Facility-Id header is required", "facility_required");
   return actor.facilityId;
 }

@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
@@ -12,17 +12,17 @@ import {
   normalizeName,
   NotFoundError,
   PgErrorCode,
-} from '@healthcare/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
-import type { z } from 'zod';
-import type { createAllergySchema, recordVitalsSchema, triageSchema, updateAllergyStatusSchema, VitalsInput } from '../clinic.dto';
-import { allergyIntolerance, allergyReview, triageAssessment, vitalSignSet, type VitalSignSetRecord } from '../clinic.schema';
-import { assertVersion, found, publicView } from '../clinic-support';
-import { ACTIVE_VISIT_STATUSES } from '../domain/queue-state';
-import { bodyMassIndex, implausibleVitals } from '../domain/vital-signs';
-import { toVisitView, VisitService } from '../queue/visit.service';
+} from "@healthcare/core";
+import { and, desc, eq, sql } from "drizzle-orm";
+import type { z } from "zod";
+import type { createAllergySchema, recordVitalsSchema, triageSchema, updateAllergyStatusSchema, VitalsInput } from "../clinic.dto";
+import { allergyIntolerance, allergyReview, triageAssessment, vitalSignSet, type VitalSignSetRecord } from "../clinic.schema";
+import { assertVersion, found, publicView } from "../clinic-support";
+import { ACTIVE_VISIT_STATUSES } from "../domain/queue-state";
+import { bodyMassIndex, implausibleVitals } from "../domain/vital-signs";
+import { toVisitView, VisitService } from "../queue/visit.service";
 
-export type VitalsView = Omit<VitalSignSetRecord, 'organizationId'> & { bmi: number | null };
+export type VitalsView = Omit<VitalSignSetRecord, "organizationId"> & { bmi: number | null };
 
 export function toVitalsView(row: VitalSignSetRecord): VitalsView {
   return { ...publicView(row), bmi: bodyMassIndex(row.weightKg, row.heightCm) };
@@ -42,9 +42,9 @@ export class TriageService {
     if (input.vitals) assertPlausible(input.vitals);
     return this.db.transaction(async (tx) => {
       let current = await this.visits.lock(tx, actor.organizationId, visitId);
-      if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError('Visit');
-      if (!ACTIVE_VISIT_STATUSES.includes(current.status) || current.status === 'in_consultation') {
-        throw new BusinessRuleError(`Triage is not possible while the visit is ${current.status.replace(/_/g, ' ')}`, 'invalid_queue_transition');
+      if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError("Visit");
+      if (!ACTIVE_VISIT_STATUSES.includes(current.status) || current.status === "in_consultation") {
+        throw new BusinessRuleError(`Triage is not possible while the visit is ${current.status.replace(/_/g, " ")}`, "invalid_queue_transition");
       }
       const [assessment] = await tx
         .insert(triageAssessment)
@@ -60,26 +60,28 @@ export class TriageService {
           assessedBy: actor.userId,
         })
         .returning();
-      const vitals = input.vitals ? await this.insertVitals(tx, actor, current.patientId, { visitId, facilityId: current.facilityId }, input.vitals) : undefined;
+      const vitals = input.vitals
+        ? await this.insertVitals(tx, actor, current.patientId, { visitId, facilityId: current.facilityId }, input.vitals)
+        : undefined;
 
       const details = { priority: input.priority, chiefComplaint: input.chiefComplaint };
-      if (current.status !== 'in_triage') {
-        current = await this.visits.setStatus(tx, current, 'in_triage', { ...details, triageStartedAt: current.triageStartedAt ?? new Date() });
+      if (current.status !== "in_triage") {
+        current = await this.visits.setStatus(tx, current, "in_triage", { ...details, triageStartedAt: current.triageStartedAt ?? new Date() });
       }
-      current = await this.visits.setStatus(tx, current, input.completeTriage ? 'awaiting_consultation' : 'in_triage', details);
+      current = await this.visits.setStatus(tx, current, input.completeTriage ? "awaiting_consultation" : "in_triage", details);
 
-      const triage = found(assessment, 'Triage assessment');
+      const triage = found(assessment, "Triage assessment");
       await this.audit.record(tx, actor, {
-        action: 'triage.record',
-        resourceType: 'triage_assessment',
+        action: "triage.record",
+        resourceType: "triage_assessment",
         resourceId: triage.id,
         patientId: current.patientId,
         metadata: { visitId, priority: input.priority, riskFlags: input.riskFlags, vitalsId: vitals?.id },
       });
       await this.events.record(tx, {
-        type: 'TriageCompleted',
+        type: "TriageCompleted",
         organizationId: actor.organizationId,
-        aggregateType: 'visit',
+        aggregateType: "visit",
         aggregateId: visitId,
         facilityId: current.facilityId,
         patientId: current.patientId,
@@ -93,13 +95,19 @@ export class TriageService {
     assertPlausible(input.vitals);
     try {
       return await this.db.transaction(async (tx) => {
-        const row = await this.insertVitals(tx, actor, input.patientId, { visitId: input.visitId, encounterId: input.encounterId, facilityId: actor.facilityId }, input.vitals);
-        await this.audit.record(tx, actor, { action: 'vitals.record', resourceType: 'vital_sign_set', resourceId: row.id, patientId: row.patientId });
+        const row = await this.insertVitals(
+          tx,
+          actor,
+          input.patientId,
+          { visitId: input.visitId, encounterId: input.encounterId, facilityId: actor.facilityId },
+          input.vitals,
+        );
+        await this.audit.record(tx, actor, { action: "vitals.record", resourceType: "vital_sign_set", resourceId: row.id, patientId: row.patientId });
         return toVitalsView(row);
       });
     } catch (error) {
       // Composite (patient_id, visit_id/encounter_id) keys reject records of another patient.
-      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError('Patient, visit or encounter');
+      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError("Patient, visit or encounter");
       throw error;
     }
   }
@@ -108,10 +116,10 @@ export class TriageService {
     const rows = await this.db
       .select()
       .from(vitalSignSet)
-      .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, 'final')))
+      .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
       .orderBy(desc(vitalSignSet.measuredAt))
       .limit(limit);
-    await this.audit.recordStandalone(actor, { action: 'vitals.view', resourceType: 'vital_sign_set', patientId });
+    await this.audit.recordStandalone(actor, { action: "vitals.view", resourceType: "vital_sign_set", patientId });
     return rows.map(toVitalsView);
   }
 
@@ -120,11 +128,17 @@ export class TriageService {
     return this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(vitalSignSet)
-        .set({ status: 'entered_in_error', enteredInErrorReason: reason, enteredInErrorBy: actor.userId })
-        .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.id, vitalsId), eq(vitalSignSet.status, 'final')))
+        .set({ status: "entered_in_error", enteredInErrorReason: reason, enteredInErrorBy: actor.userId })
+        .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.id, vitalsId), eq(vitalSignSet.status, "final")))
         .returning();
-      if (!updated) throw new NotFoundError('Vital signs');
-      await this.audit.record(tx, actor, { action: 'vitals.entered-in-error', resourceType: 'vital_sign_set', resourceId: vitalsId, patientId: updated.patientId, reason });
+      if (!updated) throw new NotFoundError("Vital signs");
+      await this.audit.record(tx, actor, {
+        action: "vitals.entered-in-error",
+        resourceType: "vital_sign_set",
+        resourceId: vitalsId,
+        patientId: updated.patientId,
+        reason,
+      });
       return toVitalsView(updated);
     });
   }
@@ -133,7 +147,7 @@ export class TriageService {
 
   async allergies(actor: Actor, patientId: string) {
     const summary = await this.allergySummary(actor.organizationId, patientId);
-    await this.audit.recordStandalone(actor, { action: 'allergy.view', resourceType: 'allergy_intolerance', patientId });
+    await this.audit.recordStandalone(actor, { action: "allergy.view", resourceType: "allergy_intolerance", patientId });
     return summary;
   }
 
@@ -143,7 +157,7 @@ export class TriageService {
       this.db
         .select()
         .from(allergyIntolerance)
-        .where(and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, 'active')))
+        .where(and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, "active")))
         .orderBy(desc(allergyIntolerance.recordedAt)),
       this.db
         .select()
@@ -155,7 +169,7 @@ export class TriageService {
     return {
       allergies: active.map(publicView),
       // "Unknown" (never asked) is clinically different from "no known allergies".
-      status: active.length > 0 ? 'has_allergies' : review?.noKnownAllergies ? 'no_known_allergies' : 'not_reviewed',
+      status: active.length > 0 ? "has_allergies" : review?.noKnownAllergies ? "no_known_allergies" : "not_reviewed",
       lastReviewedAt: review?.reviewedAt ?? null,
     } as const;
   }
@@ -172,18 +186,18 @@ export class TriageService {
               eq(allergyIntolerance.organizationId, actor.organizationId),
               eq(allergyIntolerance.patientId, patientId),
               eq(allergyIntolerance.substanceNormalized, substanceNormalized),
-              eq(allergyIntolerance.status, 'active'),
+              eq(allergyIntolerance.status, "active"),
             ),
           );
-        if (duplicate) throw new ConflictError('This allergy is already recorded', { allergyId: duplicate.id }, 'allergy_exists');
+        if (duplicate) throw new ConflictError("This allergy is already recorded", { allergyId: duplicate.id }, "allergy_exists");
         const [created] = await tx
           .insert(allergyIntolerance)
           .values({ ...input, substanceNormalized, organizationId: actor.organizationId, patientId, recordedBy: actor.userId, updatedBy: actor.userId })
           .returning();
-        const row = found(created, 'Allergy');
+        const row = found(created, "Allergy");
         await this.audit.record(tx, actor, {
-          action: 'allergy.add',
-          resourceType: 'allergy_intolerance',
+          action: "allergy.add",
+          resourceType: "allergy_intolerance",
           resourceId: row.id,
           patientId,
           metadata: { category: row.category, criticality: row.criticality },
@@ -191,35 +205,43 @@ export class TriageService {
         return publicView(row);
       });
     } catch (error) {
-      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError('Patient');
+      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError("Patient");
       throw error;
     }
   }
 
   async updateAllergyStatus(actor: Actor, patientId: string, allergyId: string, input: z.infer<typeof updateAllergyStatusSchema>) {
-    if (input.status !== 'active' && !input.reason) throw new BusinessRuleError('A reason is required', 'reason_required');
+    if (input.status !== "active" && !input.reason) throw new BusinessRuleError("A reason is required", "reason_required");
     return this.db.transaction(async (tx) => {
       const [before] = await tx
         .select()
         .from(allergyIntolerance)
-        .where(and(eq(allergyIntolerance.organizationId, actor.organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.id, allergyId)))
-        .for('update');
-      const current = found(before, 'Allergy');
-      assertVersion(current.version, input.version, 'Allergy');
+        .where(
+          and(eq(allergyIntolerance.organizationId, actor.organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.id, allergyId)),
+        )
+        .for("update");
+      const current = found(before, "Allergy");
+      assertVersion(current.version, input.version, "Allergy");
       const [updated] = await tx
         .update(allergyIntolerance)
-        .set({ status: input.status, statusReason: input.reason ?? null, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${allergyIntolerance.version} + 1` })
+        .set({
+          status: input.status,
+          statusReason: input.reason ?? null,
+          updatedBy: actor.userId,
+          updatedAt: new Date(),
+          version: sql`${allergyIntolerance.version} + 1`,
+        })
         .where(eq(allergyIntolerance.id, allergyId))
         .returning();
       await this.audit.record(tx, actor, {
-        action: 'allergy.status',
-        resourceType: 'allergy_intolerance',
+        action: "allergy.status",
+        resourceType: "allergy_intolerance",
         resourceId: allergyId,
         patientId,
         reason: input.reason,
         changes: { status: { from: current.status, to: input.status } },
       });
-      return publicView(found(updated, 'Allergy'));
+      return publicView(found(updated, "Allergy"));
     });
   }
 
@@ -229,17 +251,17 @@ export class TriageService {
         const [active] = await tx
           .select({ id: allergyIntolerance.id })
           .from(allergyIntolerance)
-          .where(and(eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, 'active')))
+          .where(and(eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, "active")))
           .limit(1);
-        if (active) throw new BusinessRuleError('Resolve or correct the recorded allergies before recording "no known allergies"', 'allergies_recorded');
+        if (active) throw new BusinessRuleError('Resolve or correct the recorded allergies before recording "no known allergies"', "allergies_recorded");
       }
       try {
         await tx.insert(allergyReview).values({ organizationId: actor.organizationId, patientId, noKnownAllergies, reviewedBy: actor.userId });
       } catch (error) {
-        if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError('Patient');
+        if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError("Patient");
         throw error;
       }
-      await this.audit.record(tx, actor, { action: 'allergy.review', resourceType: 'allergy_review', patientId, metadata: { noKnownAllergies } });
+      await this.audit.record(tx, actor, { action: "allergy.review", resourceType: "allergy_review", patientId, metadata: { noKnownAllergies } });
     });
     return this.allergySummary(actor.organizationId, patientId);
   }
@@ -266,11 +288,11 @@ export class TriageService {
         notes: notes ?? null,
       })
       .returning();
-    return found(row, 'Vital signs');
+    return found(row, "Vital signs");
   }
 }
 
 function assertPlausible(vitals: VitalsInput): void {
   const problems = implausibleVitals(vitals);
-  if (problems.length > 0) throw new BusinessRuleError('Some vital signs are not plausible; check the entries', 'implausible_vital_signs', problems);
+  if (problems.length > 0) throw new BusinessRuleError("Some vital signs are not plausible; check the entries", "implausible_vital_signs", problems);
 }

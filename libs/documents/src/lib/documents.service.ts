@@ -1,16 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
-import { type Actor, asPgError, BusinessRuleError, DATABASE, type Database, NotFoundError, PgErrorCode } from '@healthcare/core';
-import { and, desc, eq, ne } from 'drizzle-orm';
-import type { z } from 'zod';
-import type { createDocumentSchema } from './document.dto';
-import { document, type DocumentRecord } from './document.schema';
-import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from './object-storage';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
+import { type Actor, asPgError, BusinessRuleError, DATABASE, type Database, NotFoundError, PgErrorCode } from "@healthcare/core";
+import { and, desc, eq, ne } from "drizzle-orm";
+import type { z } from "zod";
+import type { createDocumentSchema } from "./document.dto";
+import { document, type DocumentRecord } from "./document.schema";
+import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./object-storage";
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
-export type DocumentView = Omit<DocumentRecord, 'storageKey' | 'organizationId'>;
+export type DocumentView = Omit<DocumentRecord, "storageKey" | "organizationId">;
 
 function toView({ storageKey: _key, organizationId: _org, ...rest }: DocumentRecord): DocumentView {
   return rest;
@@ -53,8 +53,8 @@ export class DocumentsService {
           })
           .returning();
         await this.audit.record(tx, actor, {
-          action: 'document.create',
-          resourceType: 'document',
+          action: "document.create",
+          resourceType: "document",
           resourceId: id,
           patientId: input.patientId,
           metadata: { category: input.category, contentType: input.contentType, sizeBytes: input.sizeBytes },
@@ -63,21 +63,21 @@ export class DocumentsService {
       });
     } catch (error) {
       // The composite FK rejects a patient from another organization as well as a missing one.
-      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation && input.patientId) throw new NotFoundError('Patient');
+      if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation && input.patientId) throw new NotFoundError("Patient");
       throw error;
     }
-    if (!created) throw new Error('Document insert returned no row');
+    if (!created) throw new Error("Document insert returned no row");
     const upload = await this.storage.presignUpload(storageKey, input.contentType, input.sizeBytes, UPLOAD_URL_TTL_SECONDS);
     return { document: toView(created), upload };
   }
 
   async completeUpload(actor: Actor, documentId: string): Promise<DocumentView> {
     const record = await this.find(actor.organizationId, documentId);
-    if (record.status !== 'pending_upload') throw new BusinessRuleError('Upload was already completed', 'upload_already_completed');
+    if (record.status !== "pending_upload") throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
     const stored = await this.storage.head(record.storageKey);
-    if (!stored) throw new BusinessRuleError('The file has not been uploaded yet', 'upload_missing');
+    if (!stored) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
     if (stored.sizeBytes !== record.sizeBytes) {
-      throw new BusinessRuleError('Uploaded file size does not match the declared size', 'upload_size_mismatch', {
+      throw new BusinessRuleError("Uploaded file size does not match the declared size", "upload_size_mismatch", {
         declared: record.sizeBytes,
         actual: stored.sizeBytes,
       });
@@ -85,13 +85,13 @@ export class DocumentsService {
     return this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(document)
-        .set({ status: 'available', uploadedAt: new Date() })
-        .where(and(eq(document.id, documentId), eq(document.status, 'pending_upload')))
+        .set({ status: "available", uploadedAt: new Date() })
+        .where(and(eq(document.id, documentId), eq(document.status, "pending_upload")))
         .returning();
-      if (!updated) throw new BusinessRuleError('Upload was already completed', 'upload_already_completed');
+      if (!updated) throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
       await this.audit.record(tx, actor, {
-        action: 'document.upload-complete',
-        resourceType: 'document',
+        action: "document.upload-complete",
+        resourceType: "document",
         resourceId: documentId,
         patientId: record.patientId ?? undefined,
       });
@@ -104,20 +104,16 @@ export class DocumentsService {
   }
 
   async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
-    const conditions = [
-      eq(document.organizationId, actor.organizationId),
-      eq(document.patientId, patientId),
-      ne(document.status, 'pending_upload'),
-    ];
-    if (!includeArchived) conditions.push(ne(document.status, 'archived'));
+    const conditions = [eq(document.organizationId, actor.organizationId), eq(document.patientId, patientId), ne(document.status, "pending_upload")];
+    if (!includeArchived) conditions.push(ne(document.status, "archived"));
     const rows = await this.db
       .select()
       .from(document)
       .where(and(...conditions))
       .orderBy(desc(document.createdAt));
     await this.audit.recordStandalone(actor, {
-      action: 'document.list',
-      resourceType: 'document',
+      action: "document.list",
+      resourceType: "document",
       patientId,
       metadata: { count: rows.length },
     });
@@ -127,11 +123,11 @@ export class DocumentsService {
   /** Issues a short-lived download URL. Every issuance is audited as an access. */
   async downloadUrl(actor: Actor, documentId: string): Promise<{ url: string; expiresAt: string }> {
     const record = await this.find(actor.organizationId, documentId);
-    if (record.status !== 'available') throw new BusinessRuleError('Document is not available for download', 'document_unavailable');
+    if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
     await this.audit.recordStandalone(actor, {
-      action: 'document.download',
-      resourceType: 'document',
+      action: "document.download",
+      resourceType: "document",
       resourceId: documentId,
       patientId: record.patientId ?? undefined,
     });
@@ -143,13 +139,13 @@ export class DocumentsService {
     return this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(document)
-        .set({ status: 'archived', archivedAt: new Date(), archivedBy: actor.userId, archiveReason: reason })
-        .where(and(eq(document.organizationId, actor.organizationId), eq(document.id, documentId), eq(document.status, 'available')))
+        .set({ status: "archived", archivedAt: new Date(), archivedBy: actor.userId, archiveReason: reason })
+        .where(and(eq(document.organizationId, actor.organizationId), eq(document.id, documentId), eq(document.status, "available")))
         .returning();
-      if (!updated) throw new NotFoundError('Available document');
+      if (!updated) throw new NotFoundError("Available document");
       await this.audit.record(tx, actor, {
-        action: 'document.archive',
-        resourceType: 'document',
+        action: "document.archive",
+        resourceType: "document",
         resourceId: documentId,
         patientId: updated.patientId ?? undefined,
         reason,
@@ -163,7 +159,7 @@ export class DocumentsService {
       .select()
       .from(document)
       .where(and(eq(document.organizationId, organizationId), eq(document.id, documentId)));
-    if (!row) throw new NotFoundError('Document');
+    if (!row) throw new NotFoundError("Document");
     return row;
   }
 }

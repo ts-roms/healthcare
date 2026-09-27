@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
@@ -17,10 +17,10 @@ import {
   pageOffset,
   PgErrorCode,
   toPage,
-} from '@healthcare/core';
-import { OrganizationService } from '@healthcare/organization';
-import { and, asc, eq, gte, isNull, lt, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import type { z } from 'zod';
+} from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import { and, asc, eq, gte, isNull, lt, lte, notInArray, or, sql, type SQL } from "drizzle-orm";
+import type { z } from "zod";
 import type {
   BookAppointmentInput,
   cancelAppointmentSchema,
@@ -28,16 +28,16 @@ import type {
   createWaitlistSchema,
   listAppointmentsSchema,
   rescheduleSchema,
-} from '../clinic.dto';
-import { appointment, type AppointmentRecord, practitionerSchedule, scheduleException, waitlistEntry } from '../clinic.schema';
-import { assertVersion, found, publicView } from '../clinic-support';
-import { ClinicConfigService } from '../config/clinic-config.service';
-import { canApply, noShowAllowed } from '../domain/appointment-state';
-import { availableSlots, type Interval, type ScheduleBlock } from '../domain/availability';
+} from "../clinic.dto";
+import { appointment, type AppointmentRecord, practitionerSchedule, scheduleException, waitlistEntry } from "../clinic.schema";
+import { assertVersion, found, publicView } from "../clinic-support";
+import { ClinicConfigService } from "../config/clinic-config.service";
+import { canApply, noShowAllowed } from "../domain/appointment-state";
+import { availableSlots, type Interval, type ScheduleBlock } from "../domain/availability";
 
-const BLOCKING_STATUSES = ['cancelled', 'no_show'] as const;
+const BLOCKING_STATUSES = ["cancelled", "no_show"] as const;
 
-export type AppointmentView = Omit<AppointmentRecord, 'organizationId'>;
+export type AppointmentView = Omit<AppointmentRecord, "organizationId">;
 
 @Injectable()
 export class AppointmentService {
@@ -60,7 +60,14 @@ export class AppointmentService {
       ...(await this.exceptions(this.db, query.facilityId, query.practitionerId, start, end)),
       ...(await this.bookedIntervals(this.db, query.practitionerId, start, end)),
     ];
-    const slots = availableSlots({ date: query.date, timeZone: facility.timezone, blocks, durationMinutes: type.defaultDurationMinutes, unavailable, now: new Date() });
+    const slots = availableSlots({
+      date: query.date,
+      timeZone: facility.timezone,
+      blocks,
+      durationMinutes: type.defaultDurationMinutes,
+      unavailable,
+      now: new Date(),
+    });
     return { date: query.date, timeZone: facility.timezone, durationMinutes: type.defaultDurationMinutes, slots };
   }
 
@@ -75,7 +82,7 @@ export class AppointmentService {
     await this.config.requireActivePractitioner(actor.organizationId, input.practitionerId);
     const duration = input.durationMinutes ?? type.defaultDurationMinutes;
     const first = new Date(input.startsAt);
-    if (first < new Date(Date.now() - 5 * 60_000)) throw new BusinessRuleError('Appointments cannot start in the past', 'start_in_past');
+    if (first < new Date(Date.now() - 5 * 60_000)) throw new BusinessRuleError("Appointments cannot start in the past", "start_in_past");
     const occurrences = input.recurrence?.occurrences ?? 1;
     const seriesId = occurrences > 1 ? crypto.randomUUID() : null;
 
@@ -105,16 +112,16 @@ export class AppointmentService {
               updatedBy: actor.userId,
             })
             .returning();
-          const booked = found(row, 'Appointment');
+          const booked = found(row, "Appointment");
           created.push(booked);
           await this.audit.record(tx, actor, {
-            action: 'appointment.book',
-            resourceType: 'appointment',
+            action: "appointment.book",
+            resourceType: "appointment",
             resourceId: booked.id,
             patientId: booked.patientId,
             metadata: { practitionerId: booked.practitionerId, startsAt: booked.startsAt, seriesId, outsideSchedule: input.outsideSchedule },
           });
-          await this.events.record(tx, appointmentEvent('AppointmentBooked', booked));
+          await this.events.record(tx, appointmentEvent("AppointmentBooked", booked));
         }
         if (input.waitlistEntryId) await this.fulfilWaitlist(tx, actor, input.waitlistEntryId, input.patientId, created[0]!.id);
         return created.map(publicView);
@@ -135,7 +142,7 @@ export class AppointmentService {
     if (query.patientId) filters.push(eq(appointment.patientId, query.patientId));
     if (query.status) filters.push(eq(appointment.status, query.status));
     if (query.date) {
-      const timeZone = query.facilityId ? (await this.organizations.getFacility(actor.organizationId, query.facilityId)).timezone : 'Asia/Manila';
+      const timeZone = query.facilityId ? (await this.organizations.getFacility(actor.organizationId, query.facilityId)).timezone : "Asia/Manila";
       const { start, end } = localDayBounds(query.date, timeZone);
       filters.push(gte(appointment.startsAt, start), lt(appointment.startsAt, end));
     }
@@ -147,14 +154,14 @@ export class AppointmentService {
       .limit(query.pageSize + 1)
       .offset(pageOffset(query));
     if (query.patientId) {
-      await this.audit.recordStandalone(actor, { action: 'appointment.list', resourceType: 'appointment', patientId: query.patientId });
+      await this.audit.recordStandalone(actor, { action: "appointment.list", resourceType: "appointment", patientId: query.patientId });
     }
     const page = toPage(rows, query);
     return { ...page, items: page.items.map(publicView) };
   }
 
   async confirm(actor: Actor, appointmentId: string, version: number): Promise<AppointmentView> {
-    return this.transition(actor, appointmentId, version, 'confirm', { status: 'confirmed', confirmedAt: new Date() }, 'AppointmentConfirmed');
+    return this.transition(actor, appointmentId, version, "confirm", { status: "confirmed", confirmedAt: new Date() }, "AppointmentConfirmed");
   }
 
   async cancel(actor: Actor, appointmentId: string, input: z.infer<typeof cancelAppointmentSchema>): Promise<AppointmentView> {
@@ -162,32 +169,33 @@ export class AppointmentService {
       actor,
       appointmentId,
       input.version,
-      'cancel',
-      { status: 'cancelled', cancelledAt: new Date(), cancelledBy: actor.userId, cancellationReason: input.reason },
-      'AppointmentCancelled',
+      "cancel",
+      { status: "cancelled", cancelledAt: new Date(), cancelledBy: actor.userId, cancellationReason: input.reason },
+      "AppointmentCancelled",
       input.reason,
     );
   }
 
   async markNoShow(actor: Actor, appointmentId: string, version: number): Promise<AppointmentView> {
     const current = await this.find(this.db, actor.organizationId, appointmentId);
-    if (!noShowAllowed(current.startsAt, new Date())) throw new BusinessRuleError('A no-show can be recorded only after the start time', 'too_early_for_no_show');
-    return this.transition(actor, appointmentId, version, 'no_show', { status: 'no_show', noShowAt: new Date() }, 'AppointmentNoShow');
+    if (!noShowAllowed(current.startsAt, new Date()))
+      throw new BusinessRuleError("A no-show can be recorded only after the start time", "too_early_for_no_show");
+    return this.transition(actor, appointmentId, version, "no_show", { status: "no_show", noShowAt: new Date() }, "AppointmentNoShow");
   }
 
   async reschedule(actor: Actor, appointmentId: string, input: z.infer<typeof rescheduleSchema>): Promise<AppointmentView> {
     try {
       return await this.db.transaction(async (tx) => {
         const current = await this.lock(tx, actor.organizationId, appointmentId);
-        assertVersion(current.version, input.version, 'Appointment');
-        if (!canApply('reschedule', current.status)) throw invalidTransition('reschedule', current.status);
+        assertVersion(current.version, input.version, "Appointment");
+        if (!canApply("reschedule", current.status)) throw invalidTransition("reschedule", current.status);
         const facility = await this.organizations.getFacility(actor.organizationId, current.facilityId);
         const practitionerId = input.practitionerId ?? current.practitionerId;
         if (input.practitionerId) await this.config.requireActivePractitioner(actor.organizationId, practitionerId);
         const duration = input.durationMinutes ?? (current.endsAt.getTime() - current.startsAt.getTime()) / 60_000;
         const startsAt = new Date(input.startsAt);
         const endsAt = new Date(startsAt.getTime() + duration * 60_000);
-        if (startsAt < new Date()) throw new BusinessRuleError('Appointments cannot start in the past', 'start_in_past');
+        if (startsAt < new Date()) throw new BusinessRuleError("Appointments cannot start in the past", "start_in_past");
         if (!input.outsideSchedule) await this.assertWithinSchedule(tx, practitionerId, current.facilityId, facility.timezone, startsAt, endsAt);
         const [updated] = await tx
           .update(appointment)
@@ -196,7 +204,7 @@ export class AppointmentService {
             endsAt,
             practitionerId,
             roomId: input.roomId === undefined ? current.roomId : input.roomId,
-            status: 'booked',
+            status: "booked",
             confirmedAt: null,
             updatedBy: actor.userId,
             updatedAt: new Date(),
@@ -204,10 +212,10 @@ export class AppointmentService {
           })
           .where(eq(appointment.id, appointmentId))
           .returning();
-        const row = found(updated, 'Appointment');
+        const row = found(updated, "Appointment");
         await this.audit.record(tx, actor, {
-          action: 'appointment.reschedule',
-          resourceType: 'appointment',
+          action: "appointment.reschedule",
+          resourceType: "appointment",
           resourceId: appointmentId,
           patientId: row.patientId,
           reason: input.reason,
@@ -216,7 +224,7 @@ export class AppointmentService {
             ...(practitionerId !== current.practitionerId ? { practitionerId: { from: current.practitionerId, to: practitionerId } } : {}),
           },
         });
-        await this.events.record(tx, appointmentEvent('AppointmentRescheduled', row, { previousStartsAt: current.startsAt.toISOString() }));
+        await this.events.record(tx, appointmentEvent("AppointmentRescheduled", row, { previousStartsAt: current.startsAt.toISOString() }));
         return publicView(row);
       });
     } catch (error) {
@@ -230,7 +238,7 @@ export class AppointmentService {
     const rows = await this.db
       .select()
       .from(waitlistEntry)
-      .where(and(eq(waitlistEntry.organizationId, actor.organizationId), eq(waitlistEntry.facilityId, facilityId), eq(waitlistEntry.status, 'waiting')))
+      .where(and(eq(waitlistEntry.organizationId, actor.organizationId), eq(waitlistEntry.facilityId, facilityId), eq(waitlistEntry.status, "waiting")))
       .orderBy(sql`${waitlistEntry.priority} = 'soon' DESC`, asc(waitlistEntry.createdAt));
     return rows.map(publicView);
   }
@@ -242,8 +250,13 @@ export class AppointmentService {
           .insert(waitlistEntry)
           .values({ ...input, organizationId: actor.organizationId, createdBy: actor.userId })
           .returning();
-        const row = found(created, 'Waitlist entry');
-        await this.audit.record(tx, actor, { action: 'waitlist.add', resourceType: 'appointment_waitlist_entry', resourceId: row.id, patientId: row.patientId });
+        const row = found(created, "Waitlist entry");
+        await this.audit.record(tx, actor, {
+          action: "waitlist.add",
+          resourceType: "appointment_waitlist_entry",
+          resourceId: row.id,
+          patientId: row.patientId,
+        });
         return publicView(row);
       });
     } catch (error) {
@@ -255,13 +268,13 @@ export class AppointmentService {
     return this.db.transaction(async (tx) => {
       const [closed] = await tx
         .update(waitlistEntry)
-        .set({ status: 'cancelled', closedAt: new Date(), closedBy: actor.userId, closeReason: input.reason })
-        .where(and(eq(waitlistEntry.organizationId, actor.organizationId), eq(waitlistEntry.id, entryId), eq(waitlistEntry.status, 'waiting')))
+        .set({ status: "cancelled", closedAt: new Date(), closedBy: actor.userId, closeReason: input.reason })
+        .where(and(eq(waitlistEntry.organizationId, actor.organizationId), eq(waitlistEntry.id, entryId), eq(waitlistEntry.status, "waiting")))
         .returning();
-      if (!closed) throw new NotFoundError('Waiting list entry');
+      if (!closed) throw new NotFoundError("Waiting list entry");
       await this.audit.record(tx, actor, {
-        action: 'waitlist.close',
-        resourceType: 'appointment_waitlist_entry',
+        action: "waitlist.close",
+        resourceType: "appointment_waitlist_entry",
         resourceId: entryId,
         patientId: closed.patientId,
         reason: input.reason,
@@ -273,8 +286,11 @@ export class AppointmentService {
   // ---- internals ------------------------------------------------------------
 
   async find(executor: DbExecutor, organizationId: string, appointmentId: string): Promise<AppointmentRecord> {
-    const [row] = await executor.select().from(appointment).where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, appointmentId)));
-    return found(row, 'Appointment');
+    const [row] = await executor
+      .select()
+      .from(appointment)
+      .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, appointmentId)));
+    return found(row, "Appointment");
   }
 
   async lock(executor: DbExecutor, organizationId: string, appointmentId: string): Promise<AppointmentRecord> {
@@ -282,32 +298,32 @@ export class AppointmentService {
       .select()
       .from(appointment)
       .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, appointmentId)))
-      .for('update');
-    return found(row, 'Appointment');
+      .for("update");
+    return found(row, "Appointment");
   }
 
   private async transition(
     actor: Actor,
     appointmentId: string,
     version: number,
-    action: 'confirm' | 'cancel' | 'no_show',
+    action: "confirm" | "cancel" | "no_show",
     changes: Partial<typeof appointment.$inferInsert>,
     eventType: string,
     reason?: string,
   ): Promise<AppointmentView> {
     return this.db.transaction(async (tx) => {
       const current = await this.lock(tx, actor.organizationId, appointmentId);
-      assertVersion(current.version, version, 'Appointment');
+      assertVersion(current.version, version, "Appointment");
       if (!canApply(action, current.status)) throw invalidTransition(action, current.status);
       const [updated] = await tx
         .update(appointment)
         .set({ ...changes, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
         .where(eq(appointment.id, appointmentId))
         .returning();
-      const row = found(updated, 'Appointment');
+      const row = found(updated, "Appointment");
       await this.audit.record(tx, actor, {
-        action: `appointment.${action.replace('_', '-')}`,
-        resourceType: 'appointment',
+        action: `appointment.${action.replace("_", "-")}`,
+        resourceType: "appointment",
         resourceId: appointmentId,
         patientId: row.patientId,
         reason,
@@ -326,7 +342,7 @@ export class AppointmentService {
         and(
           eq(practitionerSchedule.practitionerId, practitionerId),
           eq(practitionerSchedule.facilityId, facilityId),
-          eq(practitionerSchedule.status, 'active'),
+          eq(practitionerSchedule.status, "active"),
           eq(practitionerSchedule.dayOfWeek, dayOfWeek(date)),
           lte(practitionerSchedule.validFrom, date),
           or(isNull(practitionerSchedule.validUntil), gte(practitionerSchedule.validUntil, date)),
@@ -377,26 +393,26 @@ export class AppointmentService {
       now: new Date(0),
     }).some((slot) => slot.startsAt.getTime() === startsAt.getTime());
     if (!fits) {
-      throw new BusinessRuleError('The time is outside the practitioner’s schedule at this facility', 'outside_schedule', { date });
+      throw new BusinessRuleError("The time is outside the practitioner’s schedule at this facility", "outside_schedule", { date });
     }
     const closures = await this.exceptions(executor, facilityId, practitionerId, startsAt, endsAt);
-    if (closures.length > 0) throw new BusinessRuleError('The practitioner or facility is unavailable at that time', 'practitioner_unavailable');
+    if (closures.length > 0) throw new BusinessRuleError("The practitioner or facility is unavailable at that time", "practitioner_unavailable");
   }
 
   private async fulfilWaitlist(tx: DbExecutor, actor: Actor, entryId: string, patientId: string, appointmentId: string) {
     const [updated] = await tx
       .update(waitlistEntry)
-      .set({ status: 'booked', appointmentId, closedAt: new Date(), closedBy: actor.userId })
+      .set({ status: "booked", appointmentId, closedAt: new Date(), closedBy: actor.userId })
       .where(
         and(
           eq(waitlistEntry.organizationId, actor.organizationId),
           eq(waitlistEntry.id, entryId),
           eq(waitlistEntry.patientId, patientId),
-          eq(waitlistEntry.status, 'waiting'),
+          eq(waitlistEntry.status, "waiting"),
         ),
       )
       .returning({ id: waitlistEntry.id });
-    if (!updated) throw new NotFoundError('Waiting list entry for this patient');
+    if (!updated) throw new NotFoundError("Waiting list entry for this patient");
   }
 }
 
@@ -404,7 +420,7 @@ export function appointmentEvent(type: string, row: AppointmentRecord, extra: Re
   return {
     type,
     organizationId: row.organizationId,
-    aggregateType: 'appointment',
+    aggregateType: "appointment",
     aggregateId: row.id,
     facilityId: row.facilityId,
     patientId: row.patientId,
@@ -413,16 +429,15 @@ export function appointmentEvent(type: string, row: AppointmentRecord, extra: Re
 }
 
 function invalidTransition(action: string, status: string): BusinessRuleError {
-  return new BusinessRuleError(`Cannot ${action.replace('_', '-')} an appointment that is ${status.replace('_', ' ')}`, 'invalid_appointment_status');
+  return new BusinessRuleError(`Cannot ${action.replace("_", "-")} an appointment that is ${status.replace("_", " ")}`, "invalid_appointment_status");
 }
 
 function translateBookingError(error: unknown, patientId?: string): unknown {
   const pg = asPgError(error);
   if (pg?.code === PgErrorCode.exclusionViolation) {
-    const what = pg.constraint === 'appointment_room_no_overlap' ? 'room' : 'practitioner';
-    return new ConflictError(`The ${what} is already booked at that time`, { constraint: pg.constraint }, 'slot_unavailable');
+    const what = pg.constraint === "appointment_room_no_overlap" ? "room" : "practitioner";
+    return new ConflictError(`The ${what} is already booked at that time`, { constraint: pg.constraint }, "slot_unavailable");
   }
-  if (pg?.code === PgErrorCode.foreignKeyViolation && patientId && pg.constraint?.includes('patient')) return new NotFoundError('Patient');
+  if (pg?.code === PgErrorCode.foreignKeyViolation && patientId && pg.constraint?.includes("patient")) return new NotFoundError("Patient");
   return error;
 }
-

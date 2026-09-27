@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   cleanText,
@@ -10,11 +10,11 @@ import {
   normalizeIdentifier,
   normalizeName,
   requireFacilityId,
-} from '@healthcare/core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { normalizeContact } from './contact-normalization';
-import { assessDuplicate, type DuplicateAssessment, transposeDayMonth } from './duplicate-detection';
-import type { DuplicateCheckInput, RegisterPatientInput } from './patient.dto';
+} from "@healthcare/core";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { normalizeContact } from "./contact-normalization";
+import { assessDuplicate, type DuplicateAssessment, transposeDayMonth } from "./duplicate-detection";
+import type { DuplicateCheckInput, RegisterPatientInput } from "./patient.dto";
 import {
   patient,
   patientAddress,
@@ -23,8 +23,8 @@ import {
   patientNumberSequence,
   type PatientRecord,
   patientRelationship,
-} from './patient.schema';
-import { type PatientSummary, toSummary } from './patient.views';
+} from "./patient.schema";
+import { type PatientSummary, toSummary } from "./patient.views";
 
 export interface DuplicateCandidate extends DuplicateAssessment {
   patient: PatientSummary;
@@ -39,11 +39,11 @@ interface CandidateRow extends Record<string, unknown> {
 export function patientNameFields(input: { familyName: string; givenName: string; middleName?: string | null }) {
   const familyNameNormalized = normalizeName(input.familyName);
   const givenNameNormalized = normalizeName(input.givenName);
-  const middle = input.middleName ? normalizeName(input.middleName) : '';
+  const middle = input.middleName ? normalizeName(input.middleName) : "";
   return {
     familyNameNormalized,
     givenNameNormalized,
-    nameSearch: [givenNameNormalized, middle, familyNameNormalized].filter(Boolean).join(' '),
+    nameSearch: [givenNameNormalized, middle, familyNameNormalized].filter(Boolean).join(" "),
   };
 }
 
@@ -55,12 +55,7 @@ export class PatientRegistrationService {
   ) {}
 
   /** Candidates that may be the same person, strongest first. */
-  async findDuplicates(
-    executor: DbExecutor,
-    organizationId: string,
-    input: DuplicateCheckInput,
-    excludePatientId?: string,
-  ): Promise<DuplicateCandidate[]> {
+  async findDuplicates(executor: DbExecutor, organizationId: string, input: DuplicateCheckInput, excludePatientId?: string): Promise<DuplicateCandidate[]> {
     const names = patientNameFields(input);
     const shortName = `${names.givenNameNormalized} ${names.familyNameNormalized}`;
     const swapped = transposeDayMonth(input.birthDate);
@@ -82,7 +77,7 @@ export class PatientRegistrationService {
             .where(
               and(
                 eq(patientContactPoint.organizationId, organizationId),
-                eq(patientContactPoint.status, 'active'),
+                eq(patientContactPoint.status, "active"),
                 inArray(patientContactPoint.valueNormalized, contactValues),
               ),
             )
@@ -155,8 +150,8 @@ export class PatientRegistrationService {
   async checkDuplicates(actor: Actor, input: DuplicateCheckInput): Promise<DuplicateCandidate[]> {
     const candidates = await this.findDuplicates(this.db, actor.organizationId, input);
     await this.audit.recordStandalone(actor, {
-      action: 'patient.duplicate-check',
-      resourceType: 'patient',
+      action: "patient.duplicate-check",
+      resourceType: "patient",
       metadata: { candidateIds: candidates.map((c) => c.patient.id) },
     });
     return candidates;
@@ -178,19 +173,15 @@ export class PatientRegistrationService {
 
     return this.db.transaction(async (tx) => {
       const candidates = await this.findDuplicates(tx, actor.organizationId, input);
-      const certain = candidates.filter((c) => c.level === 'certain');
+      const certain = candidates.filter((c) => c.level === "certain");
       if (certain.length > 0) {
-        throw new ConflictError('An identifier is already assigned to another patient', { candidates: certain }, 'identifier_in_use');
+        throw new ConflictError("An identifier is already assigned to another patient", { candidates: certain }, "identifier_in_use");
       }
-      const blocking = candidates.filter((c) => c.level === 'high' || c.level === 'possible');
+      const blocking = candidates.filter((c) => c.level === "high" || c.level === "possible");
       const reviewed = new Set(input.duplicateOverride?.reviewedCandidateIds ?? []);
       const unreviewed = blocking.filter((c) => !reviewed.has(c.patient.id));
       if (unreviewed.length > 0) {
-        throw new ConflictError(
-          'Possible duplicate patients found. Review them before registering.',
-          { candidates: blocking },
-          'possible_duplicates',
-        );
+        throw new ConflictError("Possible duplicate patients found. Review them before registering.", { candidates: blocking }, "possible_duplicates");
       }
       await this.assertRelatedPatientsExist(tx, actor.organizationId, relationships.map((r) => r.relatedPatientId).filter(isDefined));
 
@@ -217,39 +208,35 @@ export class PatientRegistrationService {
           updatedBy: actor.userId,
         })
         .returning();
-      if (!created) throw new Error('Patient insert returned no row');
+      if (!created) throw new Error("Patient insert returned no row");
       const base = { organizationId: actor.organizationId, patientId: created.id, createdBy: actor.userId };
 
       if (contacts.length) {
         await tx
           .insert(patientContactPoint)
-          .values(withSinglePrimaryPerKey(contacts, (c) => c.system).map((c) => ({ ...base, ...c, use: c.use ?? 'personal' })));
+          .values(withSinglePrimaryPerKey(contacts, (c) => c.system).map((c) => ({ ...base, ...c, use: c.use ?? "personal" })));
       }
       if (input.addresses.length) {
-        await tx
-          .insert(patientAddress)
-          .values(withSinglePrimaryPerKey(input.addresses, () => 'address').map((a) => ({ ...base, ...a, use: a.use ?? 'home' })));
+        await tx.insert(patientAddress).values(withSinglePrimaryPerKey(input.addresses, () => "address").map((a) => ({ ...base, ...a, use: a.use ?? "home" })));
       }
       if (input.identifiers.length) {
-        await tx
-          .insert(patientIdentifier)
-          .values(input.identifiers.map((i) => ({ ...base, ...i, valueNormalized: normalizeIdentifier(i.value) })));
+        await tx.insert(patientIdentifier).values(input.identifiers.map((i) => ({ ...base, ...i, valueNormalized: normalizeIdentifier(i.value) })));
       }
       if (relationships.length) {
         await tx.insert(patientRelationship).values(relationships.map((r) => ({ ...base, ...r })));
       }
 
       await this.audit.record(tx, actor, {
-        action: 'patient.register',
-        resourceType: 'patient',
+        action: "patient.register",
+        resourceType: "patient",
         resourceId: created.id,
         patientId: created.id,
         metadata: { patientNumber, facilityId },
       });
       if (blocking.length > 0 && input.duplicateOverride) {
         await this.audit.record(tx, actor, {
-          action: 'patient.duplicate-override',
-          resourceType: 'patient',
+          action: "patient.duplicate-override",
+          resourceType: "patient",
           resourceId: created.id,
           patientId: created.id,
           reason: input.duplicateOverride.reason,
@@ -267,14 +254,14 @@ export class PatientRegistrationService {
       .values({ organizationId, nextValue: 1 })
       .onConflictDoUpdate({ target: patientNumberSequence.organizationId, set: { nextValue: sql`${patientNumberSequence.nextValue} + 1` } })
       .returning({ value: patientNumberSequence.nextValue });
-    if (!row) throw new Error('Could not allocate a patient number');
-    return `P${String(row.value).padStart(8, '0')}`;
+    if (!row) throw new Error("Could not allocate a patient number");
+    return `P${String(row.value).padStart(8, "0")}`;
   }
 
   private async identifierMatches(
     executor: DbExecutor,
     organizationId: string,
-    identifiers: NonNullable<DuplicateCheckInput['identifiers']>,
+    identifiers: NonNullable<DuplicateCheckInput["identifiers"]>,
   ): Promise<string[]> {
     if (identifiers.length === 0) return [];
     const matches = await executor
@@ -283,9 +270,9 @@ export class PatientRegistrationService {
       .where(
         and(
           eq(patientIdentifier.organizationId, organizationId),
-          eq(patientIdentifier.status, 'active'),
+          eq(patientIdentifier.status, "active"),
           sql`(${patientIdentifier.type}, coalesce(${patientIdentifier.issuer}, ''), ${patientIdentifier.valueNormalized}) IN (${sql.join(
-            identifiers.map((i) => sql`(${i.type}, ${i.issuer ?? ''}, ${normalizeIdentifier(i.value)})`),
+            identifiers.map((i) => sql`(${i.type}, ${i.issuer ?? ""}, ${normalizeIdentifier(i.value)})`),
             sql`, `,
           )})`,
         ),
@@ -301,9 +288,9 @@ export class PatientRegistrationService {
       .where(
         and(
           inArray(patientContactPoint.patientId, patientIds),
-          eq(patientContactPoint.system, 'mobile'),
+          eq(patientContactPoint.system, "mobile"),
           eq(patientContactPoint.isPrimary, true),
-          eq(patientContactPoint.status, 'active'),
+          eq(patientContactPoint.status, "active"),
         ),
       );
     return new Map(rows.map((r) => [r.patientId, r.value]));
@@ -315,8 +302,7 @@ export class PatientRegistrationService {
       .select({ id: patient.id })
       .from(patient)
       .where(and(eq(patient.organizationId, organizationId), inArray(patient.id, ids)));
-    if (found.length !== new Set(ids).size)
-      throw new ConflictError('A related patient does not exist', undefined, 'related_patient_not_found');
+    if (found.length !== new Set(ids).size) throw new ConflictError("A related patient does not exist", undefined, "related_patient_not_found");
   }
 }
 
@@ -324,10 +310,7 @@ export class PatientRegistrationService {
  * Exactly one primary per key (e.g. per contact system): the first item
  * flagged primary wins; if none is flagged, the first item of that key.
  */
-export function withSinglePrimaryPerKey<T extends { isPrimary?: boolean }>(
-  items: T[],
-  key: (item: T) => string,
-): Array<T & { isPrimary: boolean }> {
+export function withSinglePrimaryPerKey<T extends { isPrimary?: boolean }>(items: T[], key: (item: T) => string): Array<T & { isPrimary: boolean }> {
   const primaryIndex = new Map<string, number>();
   items.forEach((item, index) => {
     const k = key(item);
@@ -339,9 +322,9 @@ export function withSinglePrimaryPerKey<T extends { isPrimary?: boolean }>(
 
 function safeNormalizePhone(value: string): string | undefined {
   try {
-    return normalizeContact('mobile', value);
+    return normalizeContact("mobile", value);
   } catch {
-    return value.replace(/[^\d+]/g, '') || undefined;
+    return value.replace(/[^\d+]/g, "") || undefined;
   }
 }
 

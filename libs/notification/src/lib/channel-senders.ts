@@ -1,11 +1,11 @@
-import { Logger } from '@nestjs/common';
-import type { AppConfig } from '@healthcare/core';
-import { createTransport, type Transporter } from 'nodemailer';
-import type { NotificationChannel } from './notification.schema';
-import type { ChannelSender, SendResult } from './ports';
-import type { RenderedMessage } from './templates';
+import { Logger } from "@nestjs/common";
+import type { AppConfig } from "@healthcare/core";
+import { createTransport, type Transporter } from "nodemailer";
+import type { NotificationChannel } from "./notification.schema";
+import type { ChannelSender, SendResult } from "./ports";
+import type { RenderedMessage } from "./templates";
 
-type ExternalChannel = Exclude<NotificationChannel, 'in_app'>;
+type ExternalChannel = Exclude<NotificationChannel, "in_app">;
 
 /**
  * Development/test adapter: logs that a message would be sent, with the
@@ -20,7 +20,7 @@ export class LoggingSender implements ChannelSender {
   async send(destination: string, message: RenderedMessage): Promise<SendResult> {
     this.sent.push({ destination, message });
     this.logger.log(`Would send ${this.channel} to ***${destination.slice(-4)} (${message.text.length} chars)`);
-    return { provider: 'log', providerMessageId: `log-${this.sent.length}` };
+    return { provider: "log", providerMessageId: `log-${this.sent.length}` };
   }
 }
 
@@ -38,7 +38,7 @@ export class UnconfiguredSender implements ChannelSender {
 }
 
 export class SmtpEmailSender implements ChannelSender {
-  readonly channel = 'email' as const;
+  readonly channel = "email" as const;
   private readonly transport: Transporter;
 
   constructor(
@@ -52,20 +52,20 @@ export class SmtpEmailSender implements ChannelSender {
     const info = await this.transport.sendMail({
       from: this.from,
       to: destination,
-      subject: message.subject ?? 'Notification',
+      subject: message.subject ?? "Notification",
       text: message.text,
     });
-    return { provider: 'smtp', providerMessageId: info.messageId };
+    return { provider: "smtp", providerMessageId: info.messageId };
   }
 }
 
 export function defaultChannelSenders(config: AppConfig): ChannelSender[] {
   const fallback = (channel: ExternalChannel): ChannelSender =>
-    config.NODE_ENV === 'production' ? new UnconfiguredSender(channel) : new LoggingSender(channel);
+    config.NODE_ENV === "production" ? new UnconfiguredSender(channel) : new LoggingSender(channel);
   return [
     // SMS and push providers are integration dependencies; add adapters here once selected.
-    fallback('sms'),
-    fallback('push'),
-    config.SMTP_URL ? new SmtpEmailSender(config.SMTP_URL, config.EMAIL_FROM) : fallback('email'),
+    fallback("sms"),
+    fallback("push"),
+    config.SMTP_URL ? new SmtpEmailSender(config.SMTP_URL, config.EMAIL_FROM) : fallback("email"),
   ];
 }

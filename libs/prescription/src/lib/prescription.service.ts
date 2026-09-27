@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   BusinessRuleError,
@@ -10,19 +10,26 @@ import {
   DomainEventPublisher,
   ForbiddenError,
   NotFoundError,
-} from '@healthcare/core';
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import type { z } from 'zod';
-import { checkAllergies } from './allergy-check';
-import type { cancelPrescriptionSchema, issuePrescriptionSchema, PrescriptionItemInput, replacePrescriptionSchema } from './prescription.dto';
-import { type AllergyWarning, prescription, prescriptionItem, type PrescriptionItemRecord, prescriptionNumberSequence, type PrescriptionRecord } from './prescription.schema';
-import { PRESCRIBING_CONTEXT, type PrescribingContext } from './ports';
+} from "@healthcare/core";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import type { z } from "zod";
+import { checkAllergies } from "./allergy-check";
+import type { cancelPrescriptionSchema, issuePrescriptionSchema, PrescriptionItemInput, replacePrescriptionSchema } from "./prescription.dto";
+import {
+  type AllergyWarning,
+  prescription,
+  prescriptionItem,
+  type PrescriptionItemRecord,
+  prescriptionNumberSequence,
+  type PrescriptionRecord,
+} from "./prescription.schema";
+import { PRESCRIBING_CONTEXT, type PrescribingContext } from "./ports";
 
 /** Professions allowed to issue prescriptions on this platform. */
-const PRESCRIBING_PROFESSIONS = new Set(['physician', 'dentist']);
+const PRESCRIBING_PROFESSIONS = new Set(["physician", "dentist"]);
 
-export interface PrescriptionView extends Omit<PrescriptionRecord, 'organizationId'> {
-  items: Array<Omit<PrescriptionItemRecord, 'prescriptionId'>>;
+export interface PrescriptionView extends Omit<PrescriptionRecord, "organizationId"> {
+  items: Array<Omit<PrescriptionItemRecord, "prescriptionId">>;
 }
 
 /**
@@ -42,9 +49,9 @@ export class PrescriptionService {
   async issue(actor: Actor, input: z.infer<typeof issuePrescriptionSchema>): Promise<PrescriptionView> {
     const prescriber = await this.requirePrescriber(actor);
     const encounter = await this.context.encounter(actor.organizationId, input.encounterId);
-    if (!encounter) throw new NotFoundError('Encounter');
-    if (encounter.status !== 'in_progress') {
-      throw new BusinessRuleError('Prescriptions are issued during an open encounter; replace an existing one to correct it', 'encounter_not_in_progress');
+    if (!encounter) throw new NotFoundError("Encounter");
+    if (encounter.status !== "in_progress") {
+      throw new BusinessRuleError("Prescriptions are issued during an open encounter; replace an existing one to correct it", "encounter_not_in_progress");
     }
     const warnings = await this.allergyWarnings(actor.organizationId, encounter.patientId, input.items, input.allergyOverrideReason);
     return this.db.transaction(async (tx) => {
@@ -59,25 +66,30 @@ export class PrescriptionService {
         overrideReason: input.allergyOverrideReason,
       });
       await this.audit.record(tx, actor, {
-        action: 'prescription.issue',
-        resourceType: 'prescription',
+        action: "prescription.issue",
+        resourceType: "prescription",
         resourceId: created.id,
         patientId: created.patientId,
         reason: warnings.length ? input.allergyOverrideReason : undefined,
-        metadata: { prescriptionNumber: created.prescriptionNumber, encounterId: created.encounterId, items: input.items.length, allergyWarnings: warnings.length },
+        metadata: {
+          prescriptionNumber: created.prescriptionNumber,
+          encounterId: created.encounterId,
+          items: input.items.length,
+          allergyWarnings: warnings.length,
+        },
       });
       if (warnings.length) {
         // Overrides of decision support are logged separately so they can be reviewed.
         await this.audit.record(tx, actor, {
-          action: 'decision-support.override',
-          resourceType: 'prescription',
+          action: "decision-support.override",
+          resourceType: "prescription",
           resourceId: created.id,
           patientId: created.patientId,
           reason: input.allergyOverrideReason,
-          metadata: { rule: 'drug-allergy-name-match', warnings },
+          metadata: { rule: "drug-allergy-name-match", warnings },
         });
       }
-      await this.events.record(tx, prescriptionEvent('PrescriptionIssued', created));
+      await this.events.record(tx, prescriptionEvent("PrescriptionIssued", created));
       return this.view(tx, created);
     });
   }
@@ -85,12 +97,12 @@ export class PrescriptionService {
   async replace(actor: Actor, prescriptionId: string, input: z.infer<typeof replacePrescriptionSchema>): Promise<PrescriptionView> {
     const prescriber = await this.requirePrescriber(actor);
     const current = await this.find(this.db, actor.organizationId, prescriptionId);
-    if (current.status !== 'active') throw new BusinessRuleError(`The prescription is ${current.status}`, 'prescription_not_active');
+    if (current.status !== "active") throw new BusinessRuleError(`The prescription is ${current.status}`, "prescription_not_active");
     const encounter = await this.context.encounter(actor.organizationId, current.encounterId);
-    if (!encounter || encounter.status === 'entered_in_error') throw new BusinessRuleError('The encounter is no longer valid', 'encounter_invalid');
+    if (!encounter || encounter.status === "entered_in_error") throw new BusinessRuleError("The encounter is no longer valid", "encounter_invalid");
     const warnings = await this.allergyWarnings(actor.organizationId, current.patientId, input.items, input.allergyOverrideReason);
     return this.db.transaction(async (tx) => {
-      const superseded = await this.close(tx, actor, current, 'superseded', input.reason);
+      const superseded = await this.close(tx, actor, current, "superseded", input.reason);
       const created = await this.insert(tx, actor, {
         facilityId: current.facilityId,
         patientId: current.patientId,
@@ -103,8 +115,8 @@ export class PrescriptionService {
         replaces: current.id,
       });
       await this.audit.record(tx, actor, {
-        action: 'prescription.replace',
-        resourceType: 'prescription',
+        action: "prescription.replace",
+        resourceType: "prescription",
         resourceId: created.id,
         patientId: created.patientId,
         reason: input.reason,
@@ -112,8 +124,8 @@ export class PrescriptionService {
       });
       await this.events.record(
         tx,
-        prescriptionEvent('PrescriptionCancelled', superseded, { replacedBy: created.id }),
-        prescriptionEvent('PrescriptionIssued', created, { replaces: current.id }),
+        prescriptionEvent("PrescriptionCancelled", superseded, { replacedBy: created.id }),
+        prescriptionEvent("PrescriptionIssued", created, { replaces: current.id }),
       );
       return this.view(tx, created);
     });
@@ -122,23 +134,28 @@ export class PrescriptionService {
   async cancel(actor: Actor, prescriptionId: string, input: z.infer<typeof cancelPrescriptionSchema>): Promise<PrescriptionView> {
     return this.db.transaction(async (tx) => {
       const current = await this.find(tx, actor.organizationId, prescriptionId);
-      if (current.status !== 'active') throw new BusinessRuleError(`The prescription is ${current.status}`, 'prescription_not_active');
-      const cancelled = await this.close(tx, actor, current, 'cancelled', input.reason);
+      if (current.status !== "active") throw new BusinessRuleError(`The prescription is ${current.status}`, "prescription_not_active");
+      const cancelled = await this.close(tx, actor, current, "cancelled", input.reason);
       await this.audit.record(tx, actor, {
-        action: 'prescription.cancel',
-        resourceType: 'prescription',
+        action: "prescription.cancel",
+        resourceType: "prescription",
         resourceId: prescriptionId,
         patientId: current.patientId,
         reason: input.reason,
       });
-      await this.events.record(tx, prescriptionEvent('PrescriptionCancelled', cancelled));
+      await this.events.record(tx, prescriptionEvent("PrescriptionCancelled", cancelled));
       return this.view(tx, cancelled);
     });
   }
 
   async get(actor: Actor, prescriptionId: string): Promise<PrescriptionView> {
     const row = await this.find(this.db, actor.organizationId, prescriptionId);
-    await this.audit.recordStandalone(actor, { action: 'prescription.view', resourceType: 'prescription', resourceId: prescriptionId, patientId: row.patientId });
+    await this.audit.recordStandalone(actor, {
+      action: "prescription.view",
+      resourceType: "prescription",
+      resourceId: prescriptionId,
+      patientId: row.patientId,
+    });
     return this.view(this.db, row);
   }
 
@@ -146,11 +163,16 @@ export class PrescriptionService {
     const filters: SQL[] = [eq(prescription.organizationId, actor.organizationId)];
     if (query.patientId) filters.push(eq(prescription.patientId, query.patientId));
     if (query.encounterId) filters.push(eq(prescription.encounterId, query.encounterId));
-    if (query.activeOnly) filters.push(eq(prescription.status, 'active'));
-    const rows = await this.db.select().from(prescription).where(and(...filters)).orderBy(desc(prescription.issuedAt)).limit(200);
+    if (query.activeOnly) filters.push(eq(prescription.status, "active"));
+    const rows = await this.db
+      .select()
+      .from(prescription)
+      .where(and(...filters))
+      .orderBy(desc(prescription.issuedAt))
+      .limit(200);
     const patientIds = [...new Set(rows.map((r) => r.patientId))];
     for (const patientId of patientIds) {
-      await this.audit.recordStandalone(actor, { action: 'prescription.list', resourceType: 'prescription', patientId });
+      await this.audit.recordStandalone(actor, { action: "prescription.list", resourceType: "prescription", patientId });
     }
     return this.views(this.db, rows);
   }
@@ -160,7 +182,7 @@ export class PrescriptionService {
     const rows = await this.db
       .select()
       .from(prescription)
-      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId), eq(prescription.status, 'active')))
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId), eq(prescription.status, "active")))
       .orderBy(desc(prescription.issuedAt))
       .limit(20);
     return this.views(this.db, rows);
@@ -171,19 +193,24 @@ export class PrescriptionService {
   private async requirePrescriber(actor: Actor) {
     const prescriber = await this.context.prescriber(actor.organizationId, actor.userId);
     if (!prescriber || !PRESCRIBING_PROFESSIONS.has(prescriber.profession)) {
-      throw new ForbiddenError('Your account is not linked to a practitioner who may prescribe');
+      throw new ForbiddenError("Your account is not linked to a practitioner who may prescribe");
     }
     return prescriber;
   }
 
-  private async allergyWarnings(organizationId: string, patientId: string, items: PrescriptionItemInput[], overrideReason: string | undefined): Promise<AllergyWarning[]> {
+  private async allergyWarnings(
+    organizationId: string,
+    patientId: string,
+    items: PrescriptionItemInput[],
+    overrideReason: string | undefined,
+  ): Promise<AllergyWarning[]> {
     const allergies = await this.context.allergies(organizationId, patientId);
     const warnings = checkAllergies(items, allergies);
     if (warnings.length > 0 && !overrideReason) {
       throw new ConflictError(
-        'Decision support: a prescribed medicine matches a recorded allergy. Review, then resubmit with allergyOverrideReason to proceed.',
+        "Decision support: a prescribed medicine matches a recorded allergy. Review, then resubmit with allergyOverrideReason to proceed.",
         { warnings, allergyStatus: allergies.status, decisionSupport: true },
-        'allergy_warning',
+        "allergy_warning",
       );
     }
     return warnings;
@@ -209,7 +236,7 @@ export class PrescriptionService {
       .values({ organizationId: actor.organizationId, nextValue: 1 })
       .onConflictDoUpdate({ target: prescriptionNumberSequence.organizationId, set: { nextValue: sql`${prescriptionNumberSequence.nextValue} + 1` } })
       .returning({ value: prescriptionNumberSequence.nextValue });
-    if (!counter) throw new Error('Could not allocate a prescription number');
+    if (!counter) throw new Error("Could not allocate a prescription number");
     const [created] = await tx
       .insert(prescription)
       .values({
@@ -218,7 +245,7 @@ export class PrescriptionService {
         patientId: values.patientId,
         encounterId: values.encounterId,
         prescriberPractitionerId: values.prescriberId,
-        prescriptionNumber: `RX${String(counter.value).padStart(8, '0')}`,
+        prescriptionNumber: `RX${String(counter.value).padStart(8, "0")}`,
         issuedBy: actor.userId,
         notes: values.notes ?? null,
         replacesPrescriptionId: values.replaces ?? null,
@@ -226,7 +253,7 @@ export class PrescriptionService {
         allergyOverrideReason: values.warnings.length ? (values.overrideReason ?? null) : null,
       })
       .returning();
-    if (!created) throw new Error('Prescription insert returned no row');
+    if (!created) throw new Error("Prescription insert returned no row");
     await tx.insert(prescriptionItem).values(
       values.items.map((item, index) => ({
         ...item,
@@ -238,19 +265,28 @@ export class PrescriptionService {
     return created;
   }
 
-  private async close(tx: DbExecutor, actor: Actor, current: PrescriptionRecord, status: 'cancelled' | 'superseded', reason: string): Promise<PrescriptionRecord> {
+  private async close(
+    tx: DbExecutor,
+    actor: Actor,
+    current: PrescriptionRecord,
+    status: "cancelled" | "superseded",
+    reason: string,
+  ): Promise<PrescriptionRecord> {
     const [updated] = await tx
       .update(prescription)
       .set({ status, cancelledAt: new Date(), cancelledBy: actor.userId, cancellationReason: reason })
-      .where(and(eq(prescription.id, current.id), eq(prescription.status, 'active')))
+      .where(and(eq(prescription.id, current.id), eq(prescription.status, "active")))
       .returning();
-    if (!updated) throw new ConflictError('The prescription was changed by someone else', undefined, 'prescription_not_active');
+    if (!updated) throw new ConflictError("The prescription was changed by someone else", undefined, "prescription_not_active");
     return updated;
   }
 
   private async find(executor: DbExecutor, organizationId: string, prescriptionId: string): Promise<PrescriptionRecord> {
-    const [row] = await executor.select().from(prescription).where(and(eq(prescription.organizationId, organizationId), eq(prescription.id, prescriptionId)));
-    if (!row) throw new NotFoundError('Prescription');
+    const [row] = await executor
+      .select()
+      .from(prescription)
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.id, prescriptionId)));
+    if (!row) throw new NotFoundError("Prescription");
     return row;
   }
 
@@ -264,7 +300,12 @@ export class PrescriptionService {
     const items = await executor
       .select()
       .from(prescriptionItem)
-      .where(inArray(prescriptionItem.prescriptionId, rows.map((r) => r.id)))
+      .where(
+        inArray(
+          prescriptionItem.prescriptionId,
+          rows.map((r) => r.id),
+        ),
+      )
       .orderBy(asc(prescriptionItem.lineNumber));
     return rows.map(({ organizationId: _org, ...row }) => ({
       ...row,
@@ -277,7 +318,7 @@ function prescriptionEvent(type: string, row: PrescriptionRecord, extra: Record<
   return {
     type,
     organizationId: row.organizationId,
-    aggregateType: 'prescription',
+    aggregateType: "prescription",
     aggregateId: row.id,
     facilityId: row.facilityId,
     patientId: row.patientId,

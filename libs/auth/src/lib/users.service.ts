@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   BusinessRuleError,
@@ -10,14 +10,14 @@ import {
   NotFoundError,
   type Permission,
   PERMISSIONS,
-} from '@healthcare/core';
-import { OrganizationService } from '@healthcare/organization';
-import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
-import type { z } from 'zod';
-import { appUser, organizationMembership, role, roleAssignment, rolePermission } from './auth.schema';
-import { hashPassword } from './password';
-import { SessionService } from './session.service';
-import type { createRoleSchema, createUserSchema, grantRoleSchema, updateMembershipSchema } from './users.dto';
+} from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import type { z } from "zod";
+import { appUser, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
+import { hashPassword } from "./password";
+import { SessionService } from "./session.service";
+import type { createRoleSchema, createUserSchema, grantRoleSchema, updateMembershipSchema } from "./users.dto";
 
 export interface StaffUserView {
   id: string;
@@ -109,23 +109,20 @@ export class UsersService {
       const [existing] = await tx.select().from(appUser).where(eq(appUser.email, input.email));
       let id = existing?.id;
       if (!existing) {
-        if (!passwordHash) throw new BusinessRuleError('initialPassword is required for a new account', 'initial_password_required');
-        const [created] = await tx
-          .insert(appUser)
-          .values({ email: input.email, displayName: input.displayName, passwordHash })
-          .returning({ id: appUser.id });
+        if (!passwordHash) throw new BusinessRuleError("initialPassword is required for a new account", "initial_password_required");
+        const [created] = await tx.insert(appUser).values({ email: input.email, displayName: input.displayName, passwordHash }).returning({ id: appUser.id });
         id = created?.id;
       }
-      if (!id) throw new Error('User insert returned no row');
+      if (!id) throw new Error("User insert returned no row");
       const [membership] = await tx
         .insert(organizationMembership)
         .values({ organizationId: actor.organizationId, userId: id })
         .onConflictDoNothing()
         .returning();
-      if (!membership) throw new ConflictError('This person is already a member of the organization', undefined, 'already_member');
+      if (!membership) throw new ConflictError("This person is already a member of the organization", undefined, "already_member");
       await this.audit.record(tx, actor, {
-        action: 'user.add-member',
-        resourceType: 'app_user',
+        action: "user.add-member",
+        resourceType: "app_user",
         resourceId: id,
         metadata: { email: input.email, newAccount: !existing },
       });
@@ -136,23 +133,23 @@ export class UsersService {
 
   async get(organizationId: string, userId: string): Promise<StaffUserView> {
     const user = (await this.list(organizationId)).find((u) => u.id === userId);
-    if (!user) throw new NotFoundError('User');
+    if (!user) throw new NotFoundError("User");
     return user;
   }
 
   async updateMembership(actor: Actor, userId: string, input: z.infer<typeof updateMembershipSchema>): Promise<StaffUserView> {
-    if (userId === actor.userId) throw new BusinessRuleError('You cannot change your own membership status', 'self_modification');
+    if (userId === actor.userId) throw new BusinessRuleError("You cannot change your own membership status", "self_modification");
     await this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(organizationMembership)
         .set({ status: input.status, updatedAt: new Date() })
         .where(and(eq(organizationMembership.organizationId, actor.organizationId), eq(organizationMembership.userId, userId)))
         .returning();
-      if (!updated) throw new NotFoundError('User');
-      const revoked = input.status === 'suspended' ? await this.sessions.revokeAllForUser(tx, userId, 'membership_suspended') : 0;
+      if (!updated) throw new NotFoundError("User");
+      const revoked = input.status === "suspended" ? await this.sessions.revokeAllForUser(tx, userId, "membership_suspended") : 0;
       await this.audit.record(tx, actor, {
-        action: 'user.membership-status',
-        resourceType: 'app_user',
+        action: "user.membership-status",
+        resourceType: "app_user",
         resourceId: userId,
         reason: input.reason,
         metadata: { status: input.status, sessionsRevoked: revoked },
@@ -166,9 +163,9 @@ export class UsersService {
     await this.assertCanDelegate(actor, targetRole.permissions);
     if (input.facilityId) {
       const facility = await this.organizations.findFacility(actor.organizationId, input.facilityId);
-      if (!facility) throw new NotFoundError('Facility');
+      if (!facility) throw new NotFoundError("Facility");
       if (input.departmentId && !(await this.organizations.findDepartment(actor.organizationId, input.facilityId, input.departmentId))) {
-        throw new NotFoundError('Department');
+        throw new NotFoundError("Department");
       }
     }
     await this.db.transaction(async (tx) => {
@@ -176,7 +173,7 @@ export class UsersService {
         .select()
         .from(organizationMembership)
         .where(and(eq(organizationMembership.organizationId, actor.organizationId), eq(organizationMembership.userId, userId)));
-      if (!membership) throw new NotFoundError('User');
+      if (!membership) throw new NotFoundError("User");
       const [created] = await tx
         .insert(roleAssignment)
         .values({
@@ -189,10 +186,10 @@ export class UsersService {
         })
         .onConflictDoNothing()
         .returning();
-      if (!created) throw new ConflictError('The user already has this role in this scope', undefined, 'role_already_granted');
+      if (!created) throw new ConflictError("The user already has this role in this scope", undefined, "role_already_granted");
       await this.audit.record(tx, actor, {
-        action: 'user.role-grant',
-        resourceType: 'role_assignment',
+        action: "user.role-grant",
+        resourceType: "role_assignment",
         resourceId: created.id,
         metadata: { userId, roleKey: targetRole.key, facilityId: input.facilityId, departmentId: input.departmentId },
       });
@@ -214,10 +211,10 @@ export class UsersService {
           ),
         )
         .returning();
-      if (!revoked) throw new NotFoundError('Role assignment');
+      if (!revoked) throw new NotFoundError("Role assignment");
       await this.audit.record(tx, actor, {
-        action: 'user.role-revoke',
-        resourceType: 'role_assignment',
+        action: "user.role-revoke",
+        resourceType: "role_assignment",
         resourceId: assignmentId,
         reason,
         metadata: { userId, roleId: revoked.roleId },
@@ -265,19 +262,17 @@ export class UsersService {
         .onConflictDoNothing()
         .returning();
       if (!created) throw new ConflictError(`Role key "${input.key}" is already in use`);
-      await tx
-        .insert(rolePermission)
-        .values([...new Set(input.permissions)].map((permissionKey) => ({ roleId: created.id, permissionKey })));
+      await tx.insert(rolePermission).values([...new Set(input.permissions)].map((permissionKey) => ({ roleId: created.id, permissionKey })));
       await this.audit.record(tx, actor, {
-        action: 'role.create',
-        resourceType: 'role',
+        action: "role.create",
+        resourceType: "role",
         resourceId: created.id,
         metadata: { key: input.key, permissions: input.permissions },
       });
       return created.id;
     });
     const created = (await this.listRoles(actor.organizationId)).find((r) => r.id === id);
-    if (!created) throw new NotFoundError('Role');
+    if (!created) throw new NotFoundError("Role");
     return created;
   }
 
@@ -287,7 +282,7 @@ export class UsersService {
 
   private async findUsableRole(organizationId: string, roleId: string): Promise<RoleView> {
     const found = (await this.listRoles(organizationId)).find((r) => r.id === roleId);
-    if (!found) throw new NotFoundError('Role');
+    if (!found) throw new NotFoundError("Role");
     return found;
   }
 
@@ -296,13 +291,13 @@ export class UsersService {
     const beyond = permissions.filter((p) => !actor.permissions.has(p));
     if (beyond.length > 0 && !actor.isPlatformAdmin) {
       await this.audit.recordStandalone(actor, {
-        action: 'access.deny',
-        resourceType: 'role',
-        outcome: 'denied',
-        reason: 'privilege_escalation',
+        action: "access.deny",
+        resourceType: "role",
+        outcome: "denied",
+        reason: "privilege_escalation",
         metadata: { permissions: beyond },
       });
-      throw new ForbiddenError('You cannot grant permissions you do not hold');
+      throw new ForbiddenError("You cannot grant permissions you do not hold");
     }
   }
 }

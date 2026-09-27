@@ -8,8 +8,8 @@ cp .env.example .env              # then set SEED_ADMIN_PASSWORD
 pnpm dev:deps                     # PostgreSQL, Redis, MinIO, Mailpit
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
-pnpm nx serve api                 # http://localhost:3000/api, docs at /api/docs
-pnpm nx serve notification-worker
+pnpm dev:api                     # http://localhost:3333/api, docs at /api/docs
+pnpm dev:worker
 ```
 
 Checks (what CI runs):
@@ -18,7 +18,7 @@ Checks (what CI runs):
 pnpm nx sync:check
 pnpm format:check
 pnpm nx run-many -t lint typecheck test build
-pnpm nx run api:test-integration  # needs TEST_DATABASE_URL (a database that may be wiped)
+pnpm nx run api:integration  # needs TEST_DATABASE_URL (a database that may be wiped)
 ```
 
 The integration tests drop and recreate the `public` schema of

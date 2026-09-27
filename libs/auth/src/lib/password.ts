@@ -1,5 +1,5 @@
-import { hash, verify } from '@node-rs/argon2';
-import { z } from 'zod';
+import { hash, verify } from "@node-rs/argon2";
+import { z } from "zod";
 
 /**
  * Password policy: length over complexity (NIST SP 800-63B style).
@@ -7,9 +7,9 @@ import { z } from 'zod';
  */
 export const passwordSchema = z
   .string()
-  .min(12, 'Password must be at least 12 characters')
-  .max(128, 'Password must be at most 128 characters')
-  .refine((value) => new Set(value).size >= 5, 'Password is too repetitive');
+  .min(12, "Password must be at least 12 characters")
+  .max(128, "Password must be at most 128 characters")
+  .refine((value) => new Set(value).size >= 5, "Password is too repetitive");
 
 // OWASP-recommended argon2id parameters (19 MiB, 2 iterations).
 const ARGON2_OPTIONS = { memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
@@ -32,6 +32,6 @@ export async function verifyPassword(passwordHash: string, password: string): Pr
  */
 let dummyHash: Promise<string> | undefined;
 export async function burnPasswordVerification(password: string): Promise<void> {
-  dummyHash ??= hashPassword('dummy-password-for-timing');
+  dummyHash ??= hashPassword("dummy-password-for-timing");
   await verifyPassword(await dummyHash, password);
 }

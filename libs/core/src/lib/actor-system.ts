@@ -1,4 +1,4 @@
-import type { Actor } from './actor';
+import type { Actor } from "./actor";
 
 /**
  * Actor for work the platform does on its own (event handlers, schedulers).
@@ -6,9 +6,9 @@ import type { Actor } from './actor';
  */
 export function systemActor(organizationId: string, facilityId?: string | null, reason?: string): Actor {
   return {
-    kind: 'system',
-    userId: 'system',
-    displayName: reason ? `system:${reason}` : 'system',
+    kind: "system",
+    userId: "system",
+    displayName: reason ? `system:${reason}` : "system",
     organizationId,
     facilityId: facilityId ?? undefined,
     isPlatformAdmin: false,
@@ -19,5 +19,5 @@ export function systemActor(organizationId: string, facilityId?: string | null, 
 
 /** The user id to store in created_by-style columns, or null for system actors. */
 export function actorUserId(actor: Actor): string | null {
-  return actor.kind === 'user' ? actor.userId : null;
+  return actor.kind === "user" ? actor.userId : null;
 }

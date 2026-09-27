@@ -1,6 +1,6 @@
 # Architecture overview
 
-Status: Phase 1 (Foundation) implemented. See `CLAUDE.md` for the rules this follows.
+Status: Phase 1 (Foundation) implemented; Phase 2 (Clinic) in progress. See `CLAUDE.md` for the rules this follows.
 
 ## Shape
 
@@ -12,33 +12,39 @@ workspace.
 apps/
   api/                   NestJS HTTP API — composition root for all modules
   notification-worker/   BullMQ consumer that delivers notifications
+  staff/  portal/        Next.js frontends (prototype on demo data; see CLAUDE.md §0)
 libs/
-  core/          layer:core      config, database, errors, access decorators, PH helpers
-  audit/         layer:platform  append-only audit trail
-  organization/  layer:platform  organizations, facilities, departments
-  auth/          layer:platform  users, roles, sessions, MFA, global AccessGuard
-  documents/     layer:platform  document metadata + S3 presigned upload/download
-  notification/  layer:platform  NotificationService, templates, channel adapters, dispatcher
-  patient/       layer:domain    Patient Master, lookup, duplicates, consent, preferences
+  core/          config, database, errors, access decorators, events outbox, PH helpers, zoned time
+  audit/         append-only audit trail
+  organization/  organizations, facilities, departments
+  auth/          users, roles, sessions, MFA, global AccessGuard, ActorResolver
+  documents/     document metadata + S3 presigned upload/download
+  notification/  NotificationService, templates, channel adapters, dispatcher
+  patient/       Patient Master, lookup, duplicates, consent, preferences
+  clinic/        scheduling, appointments, queue, triage, vitals, allergies, encounters, diagnoses, dashboard
+  prescription/  immutable prescriptions, cancel/replace, drug–allergy decision support
+  care-plan/     care plans, goals, activities, recall
+  ui/ domain/    frontend design system and shared frontend types
 database/migrations/   forward-only SQL migrations (source of truth for the schema)
 tools/db/              migrate and seed scripts
 ```
 
 ## Dependency rules
 
-Enforced by `@nx/enforce-module-boundaries` in `eslint.config.mjs`:
+Enforced by `@nx/enforce-module-boundaries`; tags and the full rule table are in
+[module-boundaries.md](./module-boundaries.md). In short:
 
-| From | May depend on |
-| --- | --- |
-| `layer:core` | `layer:core` only |
-| `layer:platform` | core, platform — with explicit edges: anything → audit, auth → organization |
-| `layer:domain` | core, platform, `type:contract` libraries. **Never another domain.** |
-| `type:app` | any library |
+- Backend platform services (`core`, `audit`, `organization`, `documents`, `notification`: `type:data-access`;
+  `auth`: `type:feature`) are `scope:shared`; layer tags stop lower layers importing higher ones (audit and
+  organization cannot import auth).
+- Clinical domains (`scope:patient`, `scope:clinic`, `scope:prescription`, `scope:care-plan`, …) may use
+  `scope:shared` libraries and other domains' `type:contract` libraries only — **never another domain**.
+- The API (`scope:api`) is the composition root and may use every domain.
 
-When a platform service needs something a domain owns, it defines a **port**
-and the app wires an adapter. Example: `notification` defines
-`RecipientDirectory`; `apps/api/src/app/recipient-directory.ts` implements it
-with `PatientRecordService` and `AuthService`.
+When a library needs something another domain owns, it defines a **port** and the app wires an adapter
+(`apps/api/src/app/adapters`, `recipient-directory.ts`). Examples: notification → `RecipientDirectory`;
+clinic → `PatientDirectory`; prescription → `PrescribingContext`. Cross-domain read models such as
+Patient 360 (`GET /patients/:id/summary`) are composed in the API.
 
 ## Request pipeline
 
@@ -64,10 +70,13 @@ a Drizzle definition drifts from the migrated schema.
 
 ## Events
 
-Phase 1 has no domain event bus yet. Cross-cutting effects (audit) are written
-synchronously in the transaction. When the first asynchronous consumers appear
-(timeline, patient notifications on registration, lab results), add a
-transactional outbox rather than publishing from inside transactions.
+Domain events are written to the `domain_event` outbox in the same transaction
+as the change (`DomainEventPublisher.record(tx, …)`). The `OutboxRelay` (started
+by the API) dispatches them to in-process handlers registered with
+`DomainEventHandlers.on(…)`, oldest first, at-least-once, with retries and
+parking of failing events. Current consumers: appointment reminders
+(clinic → notification) and realtime queue updates (Socket.IO gateway).
+Audit is not event-driven: it is written synchronously in the transaction.
 
 ## Decisions
 

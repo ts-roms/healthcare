@@ -1,7 +1,7 @@
-import { NotFoundError, VersionConflictError } from '@healthcare/core';
+import { NotFoundError, VersionConflictError } from "@healthcare/core";
 
 /** Drops internal columns before returning a record to API callers. */
-export function publicView<T extends { organizationId: string }>(record: T): Omit<T, 'organizationId'> {
+export function publicView<T extends { organizationId: string }>(record: T): Omit<T, "organizationId"> {
   const { organizationId: _organizationId, ...rest } = record;
   return rest;
 }

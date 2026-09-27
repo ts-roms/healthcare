@@ -1,10 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import type { Request, Response } from 'express';
-import { ZodValidationException } from 'nestjs-zod';
-import { ZodError } from 'zod';
-import { asPgError, PgErrorCode } from '../database/database';
-import { DomainError } from '../errors';
-import './request-augmentation';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
+import type { Request, Response } from "express";
+import { ZodValidationException } from "nestjs-zod";
+import { ZodError } from "zod";
+import { asPgError, PgErrorCode } from "../database/database";
+import { DomainError } from "../errors";
+import "./request-augmentation";
 
 export interface ErrorBody {
   error: {
@@ -44,12 +44,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
     if (exception instanceof ZodValidationException) {
       const zodError = exception.getZodError();
-      return envelope(
-        400,
-        'validation_failed',
-        'Request validation failed',
-        zodError instanceof ZodError ? formatIssues(zodError) : undefined,
-      );
+      return envelope(400, "validation_failed", "Request validation failed", zodError instanceof ZodError ? formatIssues(zodError) : undefined);
     }
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -57,12 +52,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
     const pgError = asPgError(exception);
     if (pgError?.code === PgErrorCode.uniqueViolation || pgError?.code === PgErrorCode.exclusionViolation) {
-      return envelope(409, 'conflict', 'The request conflicts with an existing record', { constraint: pgError.constraint });
+      return envelope(409, "conflict", "The request conflicts with an existing record", { constraint: pgError.constraint });
     }
     if (pgError?.code === PgErrorCode.foreignKeyViolation || pgError?.code === PgErrorCode.checkViolation) {
-      return envelope(422, 'integrity_violation', 'The request violates a data integrity rule', { constraint: pgError.constraint });
+      return envelope(422, "integrity_violation", "The request violates a data integrity rule", { constraint: pgError.constraint });
     }
-    return envelope(500, 'internal_error', 'An unexpected error occurred');
+    return envelope(500, "internal_error", "An unexpected error occurred");
   }
 }
 
@@ -71,22 +66,22 @@ function envelope(status: number, code: string, message: string, details?: unkno
 }
 
 function formatIssues(error: ZodError): Array<{ path: string; message: string }> {
-  return error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
+  return error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }));
 }
 
 function httpCode(status: number): string {
   switch (status) {
     case HttpStatus.BAD_REQUEST:
-      return 'bad_request';
+      return "bad_request";
     case HttpStatus.UNAUTHORIZED:
-      return 'unauthenticated';
+      return "unauthenticated";
     case HttpStatus.FORBIDDEN:
-      return 'forbidden';
+      return "forbidden";
     case HttpStatus.NOT_FOUND:
-      return 'not_found';
+      return "not_found";
     case HttpStatus.TOO_MANY_REQUESTS:
-      return 'rate_limited';
+      return "rate_limited";
     default:
-      return status >= 500 ? 'internal_error' : 'http_error';
+      return status >= 500 ? "internal_error" : "http_error";
   }
 }

@@ -15,9 +15,8 @@
   "nx": {
     "name": "audit",
     "tags": [
-      "type:lib",
-      "layer:platform",
-      "scope:audit"
+      "scope:shared",
+      "type:data-access"
     ]
   },
   "dependencies": {

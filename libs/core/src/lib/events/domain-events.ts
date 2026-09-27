@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
-import { and, asc, inArray, isNull, sql } from 'drizzle-orm';
-import { DATABASE, type Database, type DbExecutor } from '../database/database';
-import { domainEvent, type DomainEventRecord } from './domain-event.schema';
+import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
+import { and, asc, inArray, isNull, sql } from "drizzle-orm";
+import { DATABASE, type Database, type DbExecutor } from "../database/database";
+import { domainEvent, type DomainEventRecord } from "./domain-event.schema";
 
 /**
  * A fact that happened in a domain (CLAUDE.md §26). Payloads carry
@@ -116,7 +116,7 @@ export class OutboxRelay implements OnApplicationShutdown {
         .where(and(isNull(domainEvent.publishedAt), isNull(domainEvent.failedAt)))
         .orderBy(asc(domainEvent.position))
         .limit(BATCH_SIZE)
-        .for('update', { skipLocked: true });
+        .for("update", { skipLocked: true });
       const published: string[] = [];
       for (const event of events) {
         const error = await this.dispatch(event);

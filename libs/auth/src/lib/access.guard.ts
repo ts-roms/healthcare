@@ -1,9 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuditService } from '@healthcare/audit';
-import { ACCESS_METADATA, BadRequestError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from '@healthcare/core';
-import type { Request } from 'express';
-import { ActorResolver } from './actor-resolver';
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { AuditService } from "@healthcare/audit";
+import { ACCESS_METADATA, BadRequestError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import type { Request } from "express";
+import { ActorResolver } from "./actor-resolver";
 
 /**
  * Global guard: authenticates every request (unless @Public), resolves the
@@ -22,17 +22,17 @@ export class AccessGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (context.getType() !== 'http') return true;
+    if (context.getType() !== "http") return true;
     const targets = [context.getHandler(), context.getClass()];
     if (this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.public, targets)) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
-    const header = request.header('authorization');
+    const header = request.header("authorization");
     const match = header ? /^Bearer (\S+)$/i.exec(header) : null;
     if (!match?.[1]) throw new UnauthenticatedError();
     const actor = await this.actors.resolve(
       match[1],
-      { facilityId: request.header('x-facility-id'), departmentId: request.header('x-department-id') },
+      { facilityId: request.header("x-facility-id"), departmentId: request.header("x-department-id") },
       requestMetadataFrom(request),
     );
     request.actor = actor;
@@ -42,16 +42,16 @@ export class AccessGuard implements CanActivate {
     const needsFacility = this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.facility, targets) ?? false;
 
     if (needsFacility && !actor.facilityId) {
-      throw new BadRequestError('X-Facility-Id header is required for this operation', 'facility_required');
+      throw new BadRequestError("X-Facility-Id header is required for this operation", "facility_required");
     }
     const missing = required.filter((permission) => !actor.permissions.has(permission));
     if (missing.length > 0 || (needsPlatformAdmin && !actor.isPlatformAdmin)) {
       await this.audit.recordStandalone(actor, {
-        action: 'access.deny',
-        resourceType: 'route',
+        action: "access.deny",
+        resourceType: "route",
         resourceId: `${request.method} ${request.route?.path ?? request.path}`,
-        outcome: 'denied',
-        reason: missing.length > 0 ? 'missing_permission' : 'platform_admin_required',
+        outcome: "denied",
+        reason: missing.length > 0 ? "missing_permission" : "platform_admin_required",
         metadata: { missing },
       });
       throw new ForbiddenError();

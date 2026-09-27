@@ -15,9 +15,8 @@
   "nx": {
     "name": "prescription",
     "tags": [
-      "type:lib",
-      "layer:domain",
-      "scope:prescription"
+      "scope:prescription",
+      "type:feature"
     ]
   },
   "dependencies": {

@@ -67,3 +67,34 @@ sender that fails loudly rather than pretending to deliver.
 facilities (one canonical identity, CLAUDE.md §5). Cross-organization identity
 (e.g. a network sharing records) is out of scope until there is a consent and
 data-sharing model for it.
+
+## ADR-0007 Appointments, queue and encounters in one clinic library
+
+**Decision.** Scheduling, appointments, the facility queue (visits), triage, vital
+signs, allergies, encounters and diagnoses live in `libs/clinic` rather than
+separate `appointment`, `queue` and `encounter` libraries. Prescriptions and care
+plans are separate domain libraries (`libs/prescription`, `libs/care-plan`).
+
+**Why.** Check-in marks the appointment and creates the queue entry in one
+transaction; starting and signing an encounter move the queue entry and complete
+the appointment. Splitting these would force cross-library transactions or
+eventual consistency where the clinic workflow needs immediate consistency
+(CLAUDE.md §26). `libs/clinic/CLAUDE.md` allows either layout.
+
+**Consequence.** Prescription and care-plan reach clinic data only through a port
+(`PrescribingContext`) or through composite `(patient_id, id)` foreign keys that
+guarantee references belong to the same patient.
+
+## ADR-0008 Unified workspace after merging the frontend prototype
+
+**Decision.** The backend (this branch) and the frontend prototype (main) share one
+Nx workspace. Main's conventions win for tooling that applies to everyone: the
+`type:*` + `scope:*` module-boundary tags, Prettier (160 columns, Tailwind
+plugin) and the CI pipeline shape. Backend projects keep TypeScript 6 project
+references via `tsconfig.node.json`; frontend projects keep TypeScript 5.9 with
+`tsconfig.base.json`. Backend-only Nx plugins are excluded from frontend
+projects in `nx.json`. The API listens on :3333 (the staff app uses :3000).
+
+**Follow-ups.** Align on one TypeScript major once Next.js and Storybook are
+verified on TypeScript 6; move the frontend drug–allergy demo rule to call the
+API; replace `apps/staff/src/lib/data.ts` fixtures with `/api/v1` calls.

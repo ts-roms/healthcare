@@ -1,8 +1,8 @@
-import { PERMISSIONS } from '@healthcare/core';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { emailSchema } from './auth.dto';
-import { passwordSchema } from './password';
+import { PERMISSIONS } from "@healthcare/core";
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { emailSchema } from "./auth.dto";
+import { passwordSchema } from "./password";
 
 export const createUserSchema = z.object({
   email: emailSchema,
@@ -12,7 +12,7 @@ export const createUserSchema = z.object({
 });
 export class CreateUserDto extends createZodDto(createUserSchema) {}
 
-export const updateMembershipSchema = z.object({ status: z.enum(['active', 'suspended']), reason: z.string().trim().min(3).max(500) });
+export const updateMembershipSchema = z.object({ status: z.enum(["active", "suspended"]), reason: z.string().trim().min(3).max(500) });
 export class UpdateMembershipDto extends createZodDto(updateMembershipSchema) {}
 
 export const grantRoleSchema = z
@@ -21,7 +21,7 @@ export const grantRoleSchema = z
     facilityId: z.string().uuid().optional(),
     departmentId: z.string().uuid().optional(),
   })
-  .refine((value) => !value.departmentId || value.facilityId, { message: 'departmentId requires facilityId', path: ['departmentId'] });
+  .refine((value) => !value.departmentId || value.facilityId, { message: "departmentId requires facilityId", path: ["departmentId"] });
 export class GrantRoleDto extends createZodDto(grantRoleSchema) {}
 
 export const createRoleSchema = z.object({

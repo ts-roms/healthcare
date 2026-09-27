@@ -1,7 +1,8 @@
-/dist
-/coverage
-/.nx/cache
-/.nx/workspace-data
-.nx/self-healing
 pnpm-lock.yaml
-**/dist
+.next
+storybook-static
+*.mdx
+dist
+coverage
+test-output
+.nx

@@ -15,9 +15,8 @@
   "nx": {
     "name": "documents",
     "tags": [
-      "type:lib",
-      "layer:platform",
-      "scope:documents"
+      "scope:shared",
+      "type:data-access"
     ]
   },
   "dependencies": {

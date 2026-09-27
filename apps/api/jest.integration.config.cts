@@ -1,7 +1,7 @@
 /* eslint-disable */
-const { readFileSync } = require('fs');
+const { readFileSync } = require("fs");
 
-const swcJestConfig = JSON.parse(readFileSync(`${__dirname}/.spec.swcrc`, 'utf-8'));
+const swcJestConfig = JSON.parse(readFileSync(`${__dirname}/.spec.swcrc`, "utf-8"));
 swcJestConfig.swcrc = false;
 
 /**
@@ -9,13 +9,13 @@ swcJestConfig.swcrc = false;
  * object storage and queue. Each file recreates the schema from migrations.
  */
 module.exports = {
-  displayName: 'api-integration',
-  preset: '../../jest.preset.js',
-  testEnvironment: 'node',
-  transform: { '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig] },
-  moduleFileExtensions: ['ts', 'js'],
-  roots: ['<rootDir>/test'],
-  testMatch: ['**/*.int.spec.ts'],
+  displayName: "api-integration",
+  preset: "../../jest.preset.js",
+  testEnvironment: "node",
+  transform: { "^.+\\.[tj]s$": ["@swc/jest", swcJestConfig] },
+  moduleFileExtensions: ["ts", "js"],
+  roots: ["<rootDir>/test"],
+  testMatch: ["**/*.int.spec.ts"],
   testTimeout: 30_000,
   maxWorkers: 1,
 };

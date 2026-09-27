@@ -15,9 +15,8 @@
   "nx": {
     "name": "notification",
     "tags": [
-      "type:lib",
-      "layer:platform",
-      "scope:notification"
+      "scope:shared",
+      "type:data-access"
     ]
   },
   "dependencies": {

@@ -14,4 +14,4 @@ export interface PatientBrief {
   age: number;
 }
 
-export const PATIENT_DIRECTORY = Symbol('PATIENT_DIRECTORY');
+export const PATIENT_DIRECTORY = Symbol("PATIENT_DIRECTORY");

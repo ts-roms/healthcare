@@ -1,12 +1,12 @@
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { NOTIFICATION_CHANNELS } from './notification.schema';
-import { TEMPLATE_KEYS } from './templates';
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { NOTIFICATION_CHANNELS } from "./notification.schema";
+import { TEMPLATE_KEYS } from "./templates";
 
 export const sendNotificationSchema = z.object({
-  recipient: z.discriminatedUnion('type', [
-    z.object({ type: z.literal('patient'), patientId: z.string().uuid() }),
-    z.object({ type: z.literal('user'), userId: z.string().uuid() }),
+  recipient: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("patient"), patientId: z.string().uuid() }),
+    z.object({ type: z.literal("user"), userId: z.string().uuid() }),
   ]),
   channel: z.enum(NOTIFICATION_CHANNELS),
   templateKey: z.enum(TEMPLATE_KEYS),

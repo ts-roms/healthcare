@@ -1,4 +1,4 @@
-import { intervalsOverlap, zonedToUtc } from '@healthcare/core';
+import { intervalsOverlap, zonedToUtc } from "@healthcare/core";
 
 export interface ScheduleBlock {
   startTime: string; // HH:MM[:SS], local facility time

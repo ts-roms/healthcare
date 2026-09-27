@@ -1,7 +1,7 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
-import { DomainEventHandlers, type DomainEventRecord, localTime, systemActor } from '@healthcare/core';
-import { NotificationService } from '@healthcare/notification';
-import { OrganizationService } from '@healthcare/organization';
+import { Injectable, type OnModuleInit } from "@nestjs/common";
+import { DomainEventHandlers, type DomainEventRecord, localTime, systemActor } from "@healthcare/core";
+import { NotificationService } from "@healthcare/notification";
+import { OrganizationService } from "@healthcare/organization";
 
 const REMINDER_LEAD_MS = 24 * 3_600_000;
 /** Too close to the appointment for a reminder to be useful. */
@@ -33,25 +33,25 @@ export class AppointmentReminders implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.handlers.on(['AppointmentBooked', 'AppointmentRescheduled'], 'appointment-reminders.schedule', (event) => this.schedule(event));
-    this.handlers.on(['AppointmentRescheduled', 'AppointmentCancelled', 'AppointmentNoShow'], 'appointment-reminders.withdraw', (event) =>
+    this.handlers.on(["AppointmentBooked", "AppointmentRescheduled"], "appointment-reminders.schedule", (event) => this.schedule(event));
+    this.handlers.on(["AppointmentRescheduled", "AppointmentCancelled", "AppointmentNoShow"], "appointment-reminders.withdraw", (event) =>
       this.withdraw(event),
     );
   }
 
   private async schedule(event: DomainEventRecord): Promise<void> {
-    const startsAtIso = String(event.payload['startsAt']);
+    const startsAtIso = String(event.payload["startsAt"]);
     const startsAt = new Date(startsAtIso);
     const sendAt = reminderTime(startsAt, new Date());
     if (!sendAt || !event.patientId || !event.facilityId) return;
     const facility = await this.organizations.getFacility(event.organizationId, event.facilityId);
-    await this.notifications.send(systemActor(event.organizationId, event.facilityId, 'appointment-reminder'), {
-      recipient: { type: 'patient', patientId: event.patientId },
-      channel: 'sms',
-      templateKey: 'appointment.reminder',
+    await this.notifications.send(systemActor(event.organizationId, event.facilityId, "appointment-reminder"), {
+      recipient: { type: "patient", patientId: event.patientId },
+      channel: "sms",
+      templateKey: "appointment.reminder",
       variables: {
         facilityName: facility.name.slice(0, 80),
-        date: new Intl.DateTimeFormat('en-PH', { timeZone: facility.timezone, dateStyle: 'medium' }).format(startsAt),
+        date: new Intl.DateTimeFormat("en-PH", { timeZone: facility.timezone, dateStyle: "medium" }).format(startsAt),
         time: localTime(startsAt, facility.timezone),
       },
       scheduledFor: sendAt.toISOString(),
@@ -60,12 +60,12 @@ export class AppointmentReminders implements OnModuleInit {
   }
 
   private async withdraw(event: DomainEventRecord): Promise<void> {
-    const startsAt = event.eventType === 'AppointmentRescheduled' ? event.payload['previousStartsAt'] : event.payload['startsAt'];
-    if (typeof startsAt !== 'string') return;
+    const startsAt = event.eventType === "AppointmentRescheduled" ? event.payload["previousStartsAt"] : event.payload["startsAt"];
+    if (typeof startsAt !== "string") return;
     await this.notifications.cancelByIdempotencyKey(
-      systemActor(event.organizationId, event.facilityId, 'appointment-reminder'),
+      systemActor(event.organizationId, event.facilityId, "appointment-reminder"),
       reminderKey(event.aggregateId, startsAt),
-      `Appointment ${event.eventType.replace('Appointment', '').toLowerCase()}`,
+      `Appointment ${event.eventType.replace("Appointment", "").toLowerCase()}`,
     );
   }
 }

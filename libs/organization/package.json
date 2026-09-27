@@ -15,9 +15,8 @@
   "nx": {
     "name": "organization",
     "tags": [
-      "type:lib",
-      "layer:platform",
-      "scope:organization"
+      "scope:shared",
+      "type:data-access"
     ]
   },
   "dependencies": {

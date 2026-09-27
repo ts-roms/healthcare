@@ -1,8 +1,8 @@
-import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
-import { APP_CONFIG, type AppConfig } from '../config/app-config';
-import { DATABASE, DATABASE_POOL } from './database';
+import { Global, Inject, Module, OnApplicationShutdown } from "@nestjs/common";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { APP_CONFIG, type AppConfig } from "../config/app-config";
+import { DATABASE, DATABASE_POOL } from "./database";
 
 @Global()
 @Module({

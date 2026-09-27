@@ -1,8 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { type Actor, DATABASE, type Database, localDate, localDayBounds, requireFacilityId } from '@healthcare/core';
-import { OrganizationService } from '@healthcare/organization';
-import { sql } from 'drizzle-orm';
-import { appointment, encounter, practitioner, visit } from '../clinic.schema';
+import { Inject, Injectable } from "@nestjs/common";
+import { type Actor, DATABASE, type Database, localDate, localDayBounds, requireFacilityId } from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import { sql } from "drizzle-orm";
+import { appointment, encounter, practitioner, visit } from "../clinic.schema";
 
 /** Operational snapshot of one facility for one day (CLAUDE.md §28, clinic). */
 @Injectable()
@@ -55,9 +55,9 @@ export class ClinicDashboardService {
 
     const appointmentCounts = toCounts(appointmentsByStatus.rows);
     const scheduled = Object.entries(appointmentCounts)
-      .filter(([status]) => status !== 'cancelled')
+      .filter(([status]) => status !== "cancelled")
       .reduce((sum, [, count]) => sum + count, 0);
-    const noShows = appointmentCounts['no_show'] ?? 0;
+    const noShows = appointmentCounts["no_show"] ?? 0;
     const queueCounts = toCounts(queueByStatus.rows);
     return {
       facilityId,
@@ -65,14 +65,20 @@ export class ClinicDashboardService {
       appointments: { byStatus: appointmentCounts, total: scheduled, noShowRate: scheduled ? Math.round((noShows / scheduled) * 1000) / 1000 : 0 },
       queue: {
         byStatus: queueCounts,
-        waiting: (queueCounts['waiting'] ?? 0) + (queueCounts['in_triage'] ?? 0) + (queueCounts['awaiting_consultation'] ?? 0),
-        inConsultation: queueCounts['in_consultation'] ?? 0,
-        walkedOut: queueCounts['left_without_being_seen'] ?? 0,
+        waiting: (queueCounts["waiting"] ?? 0) + (queueCounts["in_triage"] ?? 0) + (queueCounts["awaiting_consultation"] ?? 0),
+        inConsultation: queueCounts["in_consultation"] ?? 0,
+        walkedOut: queueCounts["left_without_being_seen"] ?? 0,
         averageWaitMinutes: waits.rows[0]?.average_wait_minutes ?? null,
         longestCurrentWaitMinutes: waits.rows[0]?.longest_current_wait_minutes ?? null,
       },
       encounters: { inProgress: encounters.rows[0]?.in_progress ?? 0, completedToday: encounters.rows[0]?.completed ?? 0 },
-      providerWorkload: workload.rows.map((w) => ({ practitionerId: w.practitioner_id, displayName: w.display_name, booked: w.booked, seen: w.seen, waiting: w.waiting })),
+      providerWorkload: workload.rows.map((w) => ({
+        practitionerId: w.practitioner_id,
+        displayName: w.display_name,
+        booked: w.booked,
+        seen: w.seen,
+        waiting: w.waiting,
+      })),
     };
   }
 }

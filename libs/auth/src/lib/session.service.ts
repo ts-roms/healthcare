@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   APP_CONFIG,
   type AppConfig,
@@ -9,9 +9,9 @@ import {
   type RequestMetadata,
   sha256Hex,
   UnauthenticatedError,
-} from '@healthcare/core';
-import { and, eq, gt, isNull, ne, sql } from 'drizzle-orm';
-import { authSession, type AuthSessionRecord } from './auth.schema';
+} from "@healthcare/core";
+import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { authSession, type AuthSessionRecord } from "./auth.schema";
 
 export interface IssuedSession {
   session: AuthSessionRecord;
@@ -19,9 +19,7 @@ export interface IssuedSession {
 }
 
 export type RotateResult =
-  | { kind: 'rotated'; session: AuthSessionRecord; refreshToken: string }
-  | { kind: 'reuse_detected'; session: AuthSessionRecord }
-  | { kind: 'invalid' };
+  { kind: "rotated"; session: AuthSessionRecord; refreshToken: string } | { kind: "reuse_detected"; session: AuthSessionRecord } | { kind: "invalid" };
 
 /**
  * Refresh-token sessions with rotation. Each refresh replaces the token; a
@@ -48,7 +46,7 @@ export class SessionService {
         userAgent: request.userAgent?.slice(0, 512) ?? null,
       })
       .returning();
-    if (!session) throw new Error('Session insert returned no row');
+    if (!session) throw new Error("Session insert returned no row");
     return { session, refreshToken };
   }
 
@@ -63,27 +61,24 @@ export class SessionService {
   async rotate(refreshToken: string): Promise<RotateResult> {
     const hash = sha256Hex(refreshToken);
     return this.db.transaction(async (tx) => {
-      const [current] = await tx.select().from(authSession).where(eq(authSession.refreshTokenHash, hash)).for('update');
+      const [current] = await tx.select().from(authSession).where(eq(authSession.refreshTokenHash, hash)).for("update");
       if (current) {
-        if (current.revokedAt || current.expiresAt <= new Date()) return { kind: 'invalid' };
+        if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "invalid" };
         const next = randomToken();
         const [rotated] = await tx
           .update(authSession)
           .set({ refreshTokenHash: sha256Hex(next), previousRefreshTokenHash: hash, lastUsedAt: new Date() })
           .where(eq(authSession.id, current.id))
           .returning();
-        if (!rotated) return { kind: 'invalid' };
-        return { kind: 'rotated', session: rotated, refreshToken: next };
+        if (!rotated) return { kind: "invalid" };
+        return { kind: "rotated", session: rotated, refreshToken: next };
       }
-      const [reused] = await tx.select().from(authSession).where(eq(authSession.previousRefreshTokenHash, hash)).for('update');
+      const [reused] = await tx.select().from(authSession).where(eq(authSession.previousRefreshTokenHash, hash)).for("update");
       if (reused && !reused.revokedAt) {
-        await tx
-          .update(authSession)
-          .set({ revokedAt: new Date(), revokedReason: 'refresh_token_reuse' })
-          .where(eq(authSession.id, reused.id));
-        return { kind: 'reuse_detected', session: reused };
+        await tx.update(authSession).set({ revokedAt: new Date(), revokedReason: "refresh_token_reuse" }).where(eq(authSession.id, reused.id));
+        return { kind: "reuse_detected", session: reused };
       }
-      return { kind: 'invalid' };
+      return { kind: "invalid" };
     });
   }
 
@@ -108,6 +103,6 @@ export class SessionService {
 
   /** Signals an invalid refresh token without revealing which check failed. */
   static invalid(): UnauthenticatedError {
-    return new UnauthenticatedError('Refresh token is invalid or expired', 'invalid_refresh_token');
+    return new UnauthenticatedError("Refresh token is invalid or expired", "invalid_refresh_token");
   }
 }

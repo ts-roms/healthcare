@@ -1,6 +1,6 @@
-import { pageQuerySchema, todayInPhilippines } from '@healthcare/core';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
+import { pageQuerySchema, todayInPhilippines } from "@healthcare/core";
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
 import {
   ADDRESS_USES,
   CIVIL_STATUSES,
@@ -14,16 +14,16 @@ import {
   IDENTIFIER_TYPES,
   RELATIONSHIPS,
   SEXES,
-} from './patient.schema';
+} from "./patient.schema";
 
 const personName = z.string().trim().min(1).max(100);
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
-const reason = z.string().trim().min(5, 'Give a reason of at least 5 characters').max(500);
+const reason = z.string().trim().min(5, "Give a reason of at least 5 characters").max(500);
 
 export const birthDateSchema = z.iso
-  .date('Use YYYY-MM-DD')
-  .refine((value) => value >= '1880-01-01', 'Birth date is too far in the past')
-  .refine((value) => value <= todayInPhilippines(), 'Birth date cannot be in the future');
+  .date("Use YYYY-MM-DD")
+  .refine((value) => value >= "1880-01-01", "Birth date is too far in the past")
+  .refine((value) => value <= todayInPhilippines(), "Birth date cannot be in the future");
 
 export const contactPointInput = z.object({
   system: z.enum(CONTACT_SYSTEMS),
@@ -42,7 +42,7 @@ export const addressInput = z.object({
   region: optionalText(120),
   postalCode: z
     .string()
-    .regex(/^\d{4}$/, 'Philippine postal codes have 4 digits')
+    .regex(/^\d{4}$/, "Philippine postal codes have 4 digits")
     .optional(),
   country: z
     .string()
@@ -64,13 +64,13 @@ export const identifierInput = z
     validFrom: z.iso.date().optional(),
     validUntil: z.iso.date().optional(),
   })
-  .refine((v) => !['hmo_member_id', 'external_mrn'].includes(v.type) || v.issuer, {
-    message: 'issuer is required for this identifier type',
-    path: ['issuer'],
+  .refine((v) => !["hmo_member_id", "external_mrn"].includes(v.type) || v.issuer, {
+    message: "issuer is required for this identifier type",
+    path: ["issuer"],
   })
   .refine((v) => !v.validFrom || !v.validUntil || v.validUntil >= v.validFrom, {
-    message: 'validUntil must not precede validFrom',
-    path: ['validUntil'],
+    message: "validUntil must not precede validFrom",
+    path: ["validUntil"],
   });
 
 export const relationshipInput = z
@@ -83,7 +83,7 @@ export const relationshipInput = z
     isLegalGuardian: z.boolean().optional(),
     notes: optionalText(500),
   })
-  .refine((v) => v.relatedPatientId || v.name, { message: 'Provide relatedPatientId or name', path: ['name'] });
+  .refine((v) => v.relatedPatientId || v.name, { message: "Provide relatedPatientId or name", path: ["name"] });
 
 const demographics = z.object({
   familyName: personName,
@@ -97,17 +97,15 @@ const demographics = z.object({
   civilStatus: z.enum(CIVIL_STATUSES).optional(),
   nationality: z
     .string()
-    .regex(/^[A-Z]{2}$/, 'Use an ISO 3166-1 alpha-2 code, e.g. PH')
+    .regex(/^[A-Z]{2}$/, "Use an ISO 3166-1 alpha-2 code, e.g. PH")
     .optional(),
   occupation: optionalText(120),
 });
 
-export const duplicateCheckSchema = demographics
-  .pick({ familyName: true, givenName: true, middleName: true, birthDate: true, sex: true })
-  .extend({
-    contacts: z.array(contactPointInput).max(10).optional(),
-    identifiers: z.array(identifierInput).max(10).optional(),
-  });
+export const duplicateCheckSchema = demographics.pick({ familyName: true, givenName: true, middleName: true, birthDate: true, sex: true }).extend({
+  contacts: z.array(contactPointInput).max(10).optional(),
+  identifiers: z.array(identifierInput).max(10).optional(),
+});
 export class DuplicateCheckDto extends createZodDto(duplicateCheckSchema) {}
 
 export const registerPatientSchema = demographics.extend({
@@ -141,12 +139,12 @@ export class UpdateDemographicsDto extends createZodDto(updateDemographicsSchema
 
 export const changeStatusSchema = z
   .object({
-    status: z.enum(['active', 'inactive', 'deceased']),
+    status: z.enum(["active", "inactive", "deceased"]),
     deceasedAt: z.iso.datetime({ offset: true }).optional(),
     reason,
     version: z.number().int().positive(),
   })
-  .refine((v) => v.status !== 'deceased' || v.deceasedAt, { message: 'deceasedAt is required', path: ['deceasedAt'] });
+  .refine((v) => v.status !== "deceased" || v.deceasedAt, { message: "deceasedAt is required", path: ["deceasedAt"] });
 export class ChangeStatusDto extends createZodDto(changeStatusSchema) {}
 
 export class AddContactDto extends createZodDto(contactPointInput) {}
@@ -168,8 +166,8 @@ export const recordConsentSchema = z
     notes: optionalText(1000),
   })
   .refine((v) => !v.expiresAt || !v.effectiveAt || v.expiresAt > v.effectiveAt, {
-    message: 'expiresAt must be after effectiveAt',
-    path: ['expiresAt'],
+    message: "expiresAt must be after effectiveAt",
+    path: ["expiresAt"],
   });
 export class RecordConsentDto extends createZodDto(recordConsentSchema) {}
 
@@ -188,12 +186,12 @@ export const patientSearchSchema = pageQuerySchema
     birthDate: z.iso.date().optional(),
     identifierType: z.enum(IDENTIFIER_TYPES).optional(),
     identifierValue: z.string().trim().min(1).max(64).optional(),
-    includeInactive: z.enum(['true', 'false']).optional(),
+    includeInactive: z.enum(["true", "false"]).optional(),
   })
-  .refine((v) => v.q || v.birthDate || v.identifierValue, { message: 'Provide q, birthDate or identifierValue' })
+  .refine((v) => v.q || v.birthDate || v.identifierValue, { message: "Provide q, birthDate or identifierValue" })
   .refine((v) => !v.identifierValue || v.identifierType, {
-    message: 'identifierType is required with identifierValue',
-    path: ['identifierType'],
+    message: "identifierType is required with identifierValue",
+    path: ["identifierType"],
   });
 export class PatientSearchDto extends createZodDto(patientSearchSchema) {}
 

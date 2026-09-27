@@ -1,6 +1,6 @@
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { passwordSchema } from './password';
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { passwordSchema } from "./password";
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 
@@ -14,7 +14,7 @@ export class LoginDto extends createZodDto(loginSchema) {}
 
 export const mfaVerifySchema = z.object({
   challengeToken: z.string().min(1),
-  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
 });
 export class MfaVerifyDto extends createZodDto(mfaVerifySchema) {}
 
@@ -30,15 +30,15 @@ export class MfaDisableDto extends createZodDto(mfaDisableSchema) {}
 export const changePasswordSchema = z
   .object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })
   .refine((value) => value.currentPassword !== value.newPassword, {
-    message: 'New password must differ from the current password',
-    path: ['newPassword'],
+    message: "New password must differ from the current password",
+    path: ["newPassword"],
   });
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
 
 export interface TokenResponse {
-  status: 'authenticated';
+  status: "authenticated";
   accessToken: string;
-  tokenType: 'Bearer';
+  tokenType: "Bearer";
   expiresIn: number;
   refreshToken: string;
   refreshTokenExpiresAt: string;
@@ -46,6 +46,6 @@ export interface TokenResponse {
 }
 
 export interface MfaRequiredResponse {
-  status: 'mfa_required';
+  status: "mfa_required";
   challengeToken: string;
 }

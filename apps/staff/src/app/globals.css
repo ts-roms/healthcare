@@ -1,0 +1,6 @@
+@import "@fontsource-variable/inter";
+@import "@healthcare/ui/styles.css";
+
+:root {
+  --font-inter: "Inter Variable";
+}

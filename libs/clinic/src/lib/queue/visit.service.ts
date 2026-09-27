@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { AuditService } from '@healthcare/audit';
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
@@ -13,20 +13,20 @@ import {
   NotFoundError,
   PgErrorCode,
   requireFacilityId,
-} from '@healthcare/core';
-import { OrganizationService } from '@healthcare/organization';
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import type { z } from 'zod';
-import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, walkInSchema } from '../clinic.dto';
-import { appointment, facilityQueueCounter, visit, type VisitRecord, type VisitStatus } from '../clinic.schema';
-import { assertVersion, found, publicView } from '../clinic-support';
-import { ClinicConfigService } from '../config/clinic-config.service';
-import { appointmentEvent } from '../appointments/appointment.service';
-import { canApply } from '../domain/appointment-state';
-import { ACTIVE_VISIT_STATUSES, canTransition, compareQueueOrder, queueTicket, requiresReason } from '../domain/queue-state';
-import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from '../ports';
+} from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { z } from "zod";
+import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, walkInSchema } from "../clinic.dto";
+import { appointment, facilityQueueCounter, visit, type VisitRecord, type VisitStatus } from "../clinic.schema";
+import { assertVersion, found, publicView } from "../clinic-support";
+import { ClinicConfigService } from "../config/clinic-config.service";
+import { appointmentEvent } from "../appointments/appointment.service";
+import { canApply } from "../domain/appointment-state";
+import { ACTIVE_VISIT_STATUSES, canTransition, compareQueueOrder, queueTicket, requiresReason } from "../domain/queue-state";
+import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
 
-export type VisitView = Omit<VisitRecord, 'organizationId'> & { ticket: string };
+export type VisitView = Omit<VisitRecord, "organizationId"> & { ticket: string };
 
 export interface QueueEntryView extends VisitView {
   patient: PatientBrief | null;
@@ -40,9 +40,9 @@ export function toVisitView(row: VisitRecord): VisitView {
 /** Event consumed by realtime queue boards; carries ids and status only. */
 export function queueEvent(row: VisitRecord) {
   return {
-    type: 'QueueEntryUpdated',
+    type: "QueueEntryUpdated",
     organizationId: row.organizationId,
-    aggregateType: 'visit',
+    aggregateType: "visit",
     aggregateId: row.id,
     facilityId: row.facilityId,
     patientId: row.patientId,
@@ -71,12 +71,18 @@ export class VisitService {
         const row = await this.insertVisit(tx, actor, facilityId, {
           patientId: input.patientId,
           visitTypeId: input.visitTypeId,
-          arrivalMode: 'walk_in',
+          arrivalMode: "walk_in",
           priority: input.priority,
           chiefComplaint: input.chiefComplaint ?? null,
           assignedPractitionerId: input.assignedPractitionerId ?? null,
         });
-        await this.audit.record(tx, actor, { action: 'visit.walk-in', resourceType: 'visit', resourceId: row.id, patientId: row.patientId, metadata: { queueNumber: row.queueNumber } });
+        await this.audit.record(tx, actor, {
+          action: "visit.walk-in",
+          resourceType: "visit",
+          resourceId: row.id,
+          patientId: row.patientId,
+          metadata: { queueNumber: row.queueNumber },
+        });
         await this.events.record(tx, queueEvent(row));
         return toVisitView(row);
       }),
@@ -92,30 +98,37 @@ export class VisitService {
           .select()
           .from(appointment)
           .where(and(eq(appointment.organizationId, actor.organizationId), eq(appointment.id, appointmentId)))
-          .for('update');
-        const current = found(booked, 'Appointment');
-        if (current.facilityId !== facilityId) throw new BusinessRuleError('The appointment is at another facility', 'wrong_facility');
-        if (!canApply('check_in', current.status)) throw new BusinessRuleError(`Cannot check in an appointment that is ${current.status}`, 'invalid_appointment_status');
+          .for("update");
+        const current = found(booked, "Appointment");
+        if (current.facilityId !== facilityId) throw new BusinessRuleError("The appointment is at another facility", "wrong_facility");
+        if (!canApply("check_in", current.status))
+          throw new BusinessRuleError(`Cannot check in an appointment that is ${current.status}`, "invalid_appointment_status");
         const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
         if (localDate(current.startsAt, facility.timezone) !== localDate(new Date(), facility.timezone)) {
-          throw new BusinessRuleError('Only today’s appointments can be checked in', 'not_today');
+          throw new BusinessRuleError("Only today’s appointments can be checked in", "not_today");
         }
         const [updated] = await tx
           .update(appointment)
-          .set({ status: 'checked_in', checkedInAt: new Date(), updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
+          .set({ status: "checked_in", checkedInAt: new Date(), updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
           .where(eq(appointment.id, appointmentId))
           .returning();
         const row = await this.insertVisit(tx, actor, facilityId, {
           patientId: current.patientId,
           appointmentId,
           visitTypeId: current.visitTypeId,
-          arrivalMode: 'appointment',
+          arrivalMode: "appointment",
           priority: input.priority,
           chiefComplaint: input.chiefComplaint ?? current.reason ?? null,
           assignedPractitionerId: current.practitionerId,
         });
-        await this.audit.record(tx, actor, { action: 'appointment.check-in', resourceType: 'appointment', resourceId: appointmentId, patientId: row.patientId, metadata: { visitId: row.id } });
-        await this.events.record(tx, appointmentEvent('AppointmentCheckedIn', found(updated, 'Appointment'), { visitId: row.id }), queueEvent(row));
+        await this.audit.record(tx, actor, {
+          action: "appointment.check-in",
+          resourceType: "appointment",
+          resourceId: appointmentId,
+          patientId: row.patientId,
+          metadata: { visitId: row.id },
+        });
+        await this.events.record(tx, appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: row.id }), queueEvent(row));
         return toVisitView(row);
       }),
     );
@@ -128,10 +141,13 @@ export class VisitService {
     const date = options.date ?? localDate(new Date(), facility.timezone);
     const conditions = [eq(visit.organizationId, actor.organizationId), eq(visit.facilityId, facilityId), eq(visit.queueDate, date)];
     if (!options.includeClosed) conditions.push(inArray(visit.status, [...ACTIVE_VISIT_STATUSES]));
-    const rows = await this.db.select().from(visit).where(and(...conditions));
+    const rows = await this.db
+      .select()
+      .from(visit)
+      .where(and(...conditions));
     const patients = await this.patients.summaries(actor.organizationId, [...new Set(rows.map((r) => r.patientId))]);
     const now = Date.now();
-    await this.audit.recordStandalone(actor, { action: 'queue.view', resourceType: 'visit', metadata: { facilityId, date, count: rows.length } });
+    await this.audit.recordStandalone(actor, { action: "queue.view", resourceType: "visit", metadata: { facilityId, date, count: rows.length } });
     return rows.sort(compareQueueOrder).map((row) => ({
       ...toVisitView(row),
       patient: patients.get(row.patientId) ?? null,
@@ -145,17 +161,17 @@ export class VisitService {
 
   /** Moves a visit through triage/waiting states, or closes it without care (reason required). */
   async move(actor: Actor, visitId: string, input: z.infer<typeof moveVisitSchema>): Promise<VisitView> {
-    if (requiresReason(input.status) && !input.reason) throw new BusinessRuleError('A reason is required', 'reason_required');
+    if (requiresReason(input.status) && !input.reason) throw new BusinessRuleError("A reason is required", "reason_required");
     return this.update(actor, visitId, input.version, (current) => {
       if (!canTransition(current.status, input.status)) throw invalidMove(current.status, input.status);
       const closing = requiresReason(input.status);
       return {
         changes: {
           status: input.status,
-          ...(input.status === 'in_triage' && !current.triageStartedAt ? { triageStartedAt: new Date() } : {}),
+          ...(input.status === "in_triage" && !current.triageStartedAt ? { triageStartedAt: new Date() } : {}),
           ...(closing ? { completedAt: new Date(), closedReason: input.reason ?? null } : {}),
         },
-        action: `visit.${input.status.replace(/_/g, '-')}`,
+        action: `visit.${input.status.replace(/_/g, "-")}`,
         reason: input.reason,
       };
     });
@@ -164,18 +180,18 @@ export class VisitService {
   /** "Calling" a patient to a room or counter, e.g. for a display board. */
   async call(actor: Actor, visitId: string, input: z.infer<typeof callVisitSchema>): Promise<VisitView> {
     return this.update(actor, visitId, input.version, (current) => {
-      if (!ACTIVE_VISIT_STATUSES.includes(current.status)) throw new BusinessRuleError('The visit is closed', 'visit_closed');
-      return { changes: { calledAt: new Date(), calledTo: input.calledTo }, action: 'visit.call' };
+      if (!ACTIVE_VISIT_STATUSES.includes(current.status)) throw new BusinessRuleError("The visit is closed", "visit_closed");
+      return { changes: { calledAt: new Date(), calledTo: input.calledTo }, action: "visit.call" };
     });
   }
 
   async assign(actor: Actor, visitId: string, input: z.infer<typeof assignVisitSchema>): Promise<VisitView> {
     if (input.practitionerId) await this.config.requireActivePractitioner(actor.organizationId, input.practitionerId);
     return this.update(actor, visitId, input.version, (current) => {
-      if (!ACTIVE_VISIT_STATUSES.includes(current.status)) throw new BusinessRuleError('The visit is closed', 'visit_closed');
+      if (!ACTIVE_VISIT_STATUSES.includes(current.status)) throw new BusinessRuleError("The visit is closed", "visit_closed");
       return {
         changes: { assignedPractitionerId: input.practitionerId, ...(input.priority ? { priority: input.priority } : {}) },
-        action: 'visit.assign',
+        action: "visit.assign",
       };
     });
   }
@@ -187,8 +203,8 @@ export class VisitService {
       .select()
       .from(visit)
       .where(and(eq(visit.organizationId, organizationId), eq(visit.id, visitId)))
-      .for('update');
-    return found(row, 'Visit');
+      .for("update");
+    return found(row, "Visit");
   }
 
   /** Applies a status change decided by another workflow step (triage, encounter start/sign). */
@@ -199,14 +215,17 @@ export class VisitService {
       .set({ status, ...extra, updatedAt: new Date(), version: sql`${visit.version} + 1` })
       .where(eq(visit.id, row.id))
       .returning();
-    const result = found(updated, 'Visit');
+    const result = found(updated, "Visit");
     await this.events.record(tx, queueEvent(result));
     return result;
   }
 
   private async find(executor: DbExecutor, organizationId: string, visitId: string): Promise<VisitRecord> {
-    const [row] = await executor.select().from(visit).where(and(eq(visit.organizationId, organizationId), eq(visit.id, visitId)));
-    return found(row, 'Visit');
+    const [row] = await executor
+      .select()
+      .from(visit)
+      .where(and(eq(visit.organizationId, organizationId), eq(visit.id, visitId)));
+    return found(row, "Visit");
   }
 
   private async update(
@@ -217,18 +236,18 @@ export class VisitService {
   ): Promise<VisitView> {
     return this.db.transaction(async (tx) => {
       const current = await this.lock(tx, actor.organizationId, visitId);
-      if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError('Visit');
-      assertVersion(current.version, version, 'Visit');
+      if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError("Visit");
+      assertVersion(current.version, version, "Visit");
       const { changes, action, reason } = decide(current);
       const [updated] = await tx
         .update(visit)
         .set({ ...changes, updatedAt: new Date(), version: sql`${visit.version} + 1` })
         .where(eq(visit.id, visitId))
         .returning();
-      const row = found(updated, 'Visit');
+      const row = found(updated, "Visit");
       await this.audit.record(tx, actor, {
         action,
-        resourceType: 'visit',
+        resourceType: "visit",
         resourceId: visitId,
         patientId: row.patientId,
         reason,
@@ -243,7 +262,7 @@ export class VisitService {
     tx: DbExecutor,
     actor: Actor,
     facilityId: string,
-    values: Pick<typeof visit.$inferInsert, 'patientId' | 'visitTypeId' | 'arrivalMode' | 'priority' | 'chiefComplaint' | 'assignedPractitionerId'> & {
+    values: Pick<typeof visit.$inferInsert, "patientId" | "visitTypeId" | "arrivalMode" | "priority" | "chiefComplaint" | "assignedPractitionerId"> & {
       appointmentId?: string;
     },
   ): Promise<VisitRecord> {
@@ -253,13 +272,23 @@ export class VisitService {
     const [counter] = await tx
       .insert(facilityQueueCounter)
       .values({ facilityId, queueDate, nextValue: 1 })
-      .onConflictDoUpdate({ target: [facilityQueueCounter.facilityId, facilityQueueCounter.queueDate], set: { nextValue: sql`${facilityQueueCounter.nextValue} + 1` } })
+      .onConflictDoUpdate({
+        target: [facilityQueueCounter.facilityId, facilityQueueCounter.queueDate],
+        set: { nextValue: sql`${facilityQueueCounter.nextValue} + 1` },
+      })
       .returning({ value: facilityQueueCounter.nextValue });
     const [row] = await tx
       .insert(visit)
-      .values({ ...values, organizationId: actor.organizationId, facilityId, queueDate, queueNumber: found(counter, 'Queue counter').value, checkedInBy: actor.userId })
+      .values({
+        ...values,
+        organizationId: actor.organizationId,
+        facilityId,
+        queueDate,
+        queueNumber: found(counter, "Queue counter").value,
+        checkedInBy: actor.userId,
+      })
       .returning();
-    return found(row, 'Visit');
+    return found(row, "Visit");
   }
 
   private async guardArrival<T>(patientId: string | undefined, work: () => Promise<T>): Promise<T> {
@@ -267,15 +296,15 @@ export class VisitService {
       return await work();
     } catch (error) {
       const pg = asPgError(error);
-      if (pg?.code === PgErrorCode.uniqueViolation && pg.constraint === 'visit_patient_active_uq') {
-        throw new ConflictError('The patient is already in this facility’s queue', undefined, 'already_in_queue');
+      if (pg?.code === PgErrorCode.uniqueViolation && pg.constraint === "visit_patient_active_uq") {
+        throw new ConflictError("The patient is already in this facility’s queue", undefined, "already_in_queue");
       }
-      if (pg?.code === PgErrorCode.foreignKeyViolation && patientId && pg.constraint?.includes('patient')) throw new NotFoundError('Patient');
+      if (pg?.code === PgErrorCode.foreignKeyViolation && patientId && pg.constraint?.includes("patient")) throw new NotFoundError("Patient");
       throw error;
     }
   }
 }
 
 function invalidMove(from: VisitStatus, to: VisitStatus): BusinessRuleError {
-  return new BusinessRuleError(`Cannot move a visit from ${from.replace(/_/g, ' ')} to ${to.replace(/_/g, ' ')}`, 'invalid_queue_transition');
+  return new BusinessRuleError(`Cannot move a visit from ${from.replace(/_/g, " ")} to ${to.replace(/_/g, " ")}`, "invalid_queue_transition");
 }

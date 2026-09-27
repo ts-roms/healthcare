@@ -1,7 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DATABASE, type Database } from '@healthcare/core';
-import { and, eq, isNull, or } from 'drizzle-orm';
-import { role, roleAssignment, rolePermission } from './auth.schema';
+import { Inject, Injectable } from "@nestjs/common";
+import { DATABASE, type Database } from "@healthcare/core";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { role, roleAssignment, rolePermission } from "./auth.schema";
 
 export interface ScopedGrant {
   facilityId: string | null;
@@ -19,7 +19,7 @@ export interface AccessContext {
  * organization-wide grants always apply; facility grants only in that
  * facility; department grants only in that department.
  */
-export function grantApplies(grant: Pick<ScopedGrant, 'facilityId' | 'departmentId'>, context: AccessContext): boolean {
+export function grantApplies(grant: Pick<ScopedGrant, "facilityId" | "departmentId">, context: AccessContext): boolean {
   if (grant.facilityId !== null && grant.facilityId !== context.facilityId) return false;
   if (grant.departmentId !== null && grant.departmentId !== context.departmentId) return false;
   return true;

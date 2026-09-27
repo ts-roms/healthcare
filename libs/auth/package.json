@@ -15,9 +15,8 @@
   "nx": {
     "name": "auth",
     "tags": [
-      "type:lib",
-      "layer:platform",
-      "scope:auth"
+      "scope:shared",
+      "type:feature"
     ]
   },
   "dependencies": {

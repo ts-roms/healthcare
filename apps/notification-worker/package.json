@@ -73,8 +73,8 @@
       }
     },
     "tags": [
-      "type:app",
-      "scope:notification-worker"
+      "scope:worker",
+      "type:app"
     ]
   },
   "dependencies": {

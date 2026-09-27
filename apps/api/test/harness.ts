@@ -1,19 +1,19 @@
-import { randomBytes } from 'node:crypto';
-import { join } from 'node:path';
-import type { INestApplication } from '@nestjs/common';
-import type { NestExpressApplication } from '@nestjs/platform-express';
-import { Test } from '@nestjs/testing';
-import { hashPassword } from '@healthcare/auth';
-import { type AppConfig, loadAppConfig, runMigrations } from '@healthcare/core';
-import { InMemoryObjectStorage, OBJECT_STORAGE } from '@healthcare/documents';
-import { NOTIFICATION_QUEUE, type NotificationQueue } from '@healthcare/notification';
-import { Pool } from 'pg';
-import request from 'supertest';
-import { AppModule } from '../src/app/app.module';
-import { configureApp } from '../src/app/configure-app';
+import { randomBytes } from "node:crypto";
+import { join } from "node:path";
+import type { INestApplication } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import { Test } from "@nestjs/testing";
+import { hashPassword } from "@healthcare/auth";
+import { type AppConfig, loadAppConfig, OutboxRelay, runMigrations } from "@healthcare/core";
+import { InMemoryObjectStorage, OBJECT_STORAGE } from "@healthcare/documents";
+import { NOTIFICATION_QUEUE, type NotificationQueue } from "@healthcare/notification";
+import { Pool } from "pg";
+import request from "supertest";
+import { AppModule } from "../src/app/app.module";
+import { configureApp } from "../src/app/configure-app";
 
-export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'postgres://healthcare:healthcare@localhost:5432/healthcare_test';
-export const PASSWORD = 'Correct-Horse-Battery-9';
+export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_test";
+export const PASSWORD = "Correct-Horse-Battery-9";
 
 export class RecordingQueue implements NotificationQueue {
   readonly enqueued: string[] = [];
@@ -34,18 +34,18 @@ export interface TestContext {
 
 export function testConfig(): AppConfig {
   return loadAppConfig({
-    NODE_ENV: 'test',
+    NODE_ENV: "test",
     DATABASE_URL: TEST_DATABASE_URL,
-    JWT_ACCESS_SECRET: randomBytes(32).toString('hex'),
-    MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
-    LOG_LEVEL: 'error',
+    JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
+    MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+    LOG_LEVEL: "error",
   });
 }
 
 /** Recreates the schema from migrations: every test file starts from an empty, fully migrated database. */
 export async function resetDatabase(pool: Pool): Promise<void> {
-  await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-  await runMigrations(pool, join(__dirname, '../../../database/migrations'));
+  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+  await runMigrations(pool, join(__dirname, "../../../database/migrations"));
 }
 
 export async function createTestApp(): Promise<TestContext> {
@@ -119,7 +119,7 @@ export async function createStaff(
   const userId = user.rows[0]!.id;
   await pool.query(`INSERT INTO organization_membership (organization_id, user_id) VALUES ($1, $2)`, [tenant.organizationId, userId]);
   for (const entry of roles) {
-    const { role, facilityId } = typeof entry === 'string' ? { role: entry, facilityId: null } : entry;
+    const { role, facilityId } = typeof entry === "string" ? { role: entry, facilityId: null } : entry;
     await pool.query(
       `INSERT INTO role_assignment (organization_id, user_id, role_id, facility_id)
        SELECT $1, $2, id, $4 FROM role WHERE key = $3 AND is_system`,
@@ -129,12 +129,8 @@ export async function createStaff(
   return userId;
 }
 
-export async function login(
-  ctx: TestContext,
-  email: string,
-  organizationId?: string,
-): Promise<{ accessToken: string; refreshToken: string }> {
-  const response = await ctx.http().post('/api/v1/auth/login').send({ email, password: PASSWORD, organizationId });
+export async function login(ctx: TestContext, email: string, organizationId?: string): Promise<{ accessToken: string; refreshToken: string }> {
+  const response = await ctx.http().post("/api/v1/auth/login").send({ email, password: PASSWORD, organizationId });
   if (response.status !== 200 || !response.body.accessToken) {
     throw new Error(`Login failed for ${email}: ${response.status} ${JSON.stringify(response.body)}`);
   }
@@ -143,12 +139,12 @@ export async function login(
 
 /** Authorization and facility headers for a request. */
 export function as(token: string, facilityId?: string): Record<string, string> {
-  return { authorization: `Bearer ${token}`, ...(facilityId ? { 'x-facility-id': facilityId } : {}) };
+  return { authorization: `Bearer ${token}`, ...(facilityId ? { "x-facility-id": facilityId } : {}) };
 }
 
 export async function auditRows(
   pool: Pool,
-  where = 'TRUE',
+  where = "TRUE",
   params: unknown[] = [],
 ): Promise<
   Array<{
@@ -168,25 +164,24 @@ export async function auditRows(
 }
 
 export const juan = {
-  familyName: 'Dela Cruz',
-  givenName: 'Juan',
-  middleName: 'Santos',
-  sex: 'male',
-  birthDate: '1980-03-04',
-  contacts: [{ system: 'mobile', value: '0917 123 4567' }],
-  addresses: [{ barangay: 'Poblacion', cityMunicipality: 'Makati City', province: 'Metro Manila', postalCode: '1210' }],
-  identifiers: [{ type: 'philhealth_pin', value: '12-345678901-2' }],
+  familyName: "Dela Cruz",
+  givenName: "Juan",
+  middleName: "Santos",
+  sex: "male",
+  birthDate: "1980-03-04",
+  contacts: [{ system: "mobile", value: "0917 123 4567" }],
+  addresses: [{ barangay: "Poblacion", cityMunicipality: "Makati City", province: "Metro Manila", postalCode: "1210" }],
+  identifiers: [{ type: "philhealth_pin", value: "12-345678901-2" }],
 };
 
 /** Runs the outbox relay until no events are pending (the relay is not started in tests). */
 export async function drainEvents(ctx: TestContext): Promise<number> {
-  const { OutboxRelay } = await import('@healthcare/core');
   return ctx.app.get(OutboxRelay).drain();
 }
 
 /** A local calendar date (Asia/Manila) `days` from now. */
 export function manilaDate(days: number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(Date.now() + days * 86_400_000));
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(Date.now() + days * 86_400_000));
 }
 
 /** Creates a staff user and links them to a practitioner record. Returns ids. */
@@ -195,12 +190,12 @@ export async function createClinician(
   tenant: Tenant,
   email: string,
   roles: Array<string | { role: string; facilityId: string }>,
-  profession = 'physician',
+  profession = "physician",
 ): Promise<{ userId: string; practitionerId: string }> {
   const userId = await createStaff(ctx.pool, tenant, email, roles);
   const result = await ctx.pool.query<{ id: string }>(
     `INSERT INTO practitioner (organization_id, user_id, display_name, profession, license_number) VALUES ($1, $2, $3, $4, 'PRC-0000000') RETURNING id`,
-    [tenant.organizationId, userId, `Dr. ${email.split('@')[0]}`, profession],
+    [tenant.organizationId, userId, `Dr. ${email.split("@")[0]}`, profession],
   );
   return { userId, practitionerId: result.rows[0]!.id };
 }

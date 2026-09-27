@@ -1,17 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
-import {
-  type Actor,
-  DATABASE,
-  type Database,
-  type DbExecutor,
-  type Page,
-  pageOffset,
-  type PageQuery,
-  type RequestMetadata,
-  toPage,
-} from '@healthcare/core';
-import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
-import { type AuditChanges, auditEvent, type AuditOutcome } from './audit.schema';
+import { Inject, Injectable } from "@nestjs/common";
+import { type Actor, DATABASE, type Database, type DbExecutor, type Page, pageOffset, type PageQuery, type RequestMetadata, toPage } from "@healthcare/core";
+import { and, desc, eq, gte, lte, type SQL } from "drizzle-orm";
+import { type AuditChanges, auditEvent, type AuditOutcome } from "./audit.schema";
 
 export interface AuditEntry {
   /** Dotted verb, e.g. "patient.view", "auth.login". */
@@ -27,7 +17,7 @@ export interface AuditEntry {
 
 /** For events without an authenticated actor, e.g. a failed login. */
 export interface AnonymousAuditContext {
-  kind: 'anonymous';
+  kind: "anonymous";
   /** Claimed (not yet proven) identity, e.g. the account a login attempt targeted. */
   userId?: string;
   /** Set once credentials are verified but before an Actor exists (successful login). */
@@ -58,17 +48,17 @@ export class AuditService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   async record(executor: DbExecutor, actor: Actor | AnonymousAuditContext, entry: AuditEntry): Promise<void> {
-    const isAnonymous = actor.kind === 'anonymous';
+    const isAnonymous = actor.kind === "anonymous";
     await executor.insert(auditEvent).values({
       organizationId: actor.organizationId ?? null,
       facilityId: isAnonymous ? null : (actor.facilityId ?? null),
-      actorType: isAnonymous ? (actor.authenticated ? 'user' : 'anonymous') : actor.kind,
-      actorUserId: isAnonymous ? (actor.userId ?? null) : actor.kind === 'user' ? actor.userId : null,
+      actorType: isAnonymous ? (actor.authenticated ? "user" : "anonymous") : actor.kind,
+      actorUserId: isAnonymous ? (actor.userId ?? null) : actor.kind === "user" ? actor.userId : null,
       action: entry.action,
       resourceType: entry.resourceType,
       resourceId: entry.resourceId ?? null,
       patientId: entry.patientId ?? null,
-      outcome: entry.outcome ?? 'success',
+      outcome: entry.outcome ?? "success",
       reason: entry.reason ?? null,
       changes: entry.changes ?? null,
       metadata: entry.metadata ?? null,
@@ -107,11 +97,7 @@ export class AuditService {
  * Field-level before/after for the given keys, omitting unchanged values.
  * Values are compared structurally so dates and nested objects diff correctly.
  */
-export function diffChanges<T extends object>(
-  before: T,
-  after: { [K in keyof T]?: T[K] | null },
-  keys: ReadonlyArray<keyof T & string>,
-): AuditChanges {
+export function diffChanges<T extends object>(before: T, after: { [K in keyof T]?: T[K] | null }, keys: ReadonlyArray<keyof T & string>): AuditChanges {
   const changes: AuditChanges = {};
   for (const key of keys) {
     if (!(key in after)) continue;

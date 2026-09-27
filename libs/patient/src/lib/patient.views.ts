@@ -1,4 +1,4 @@
-import { ageInYears, maskPhone, todayInPhilippines } from '@healthcare/core';
+import { ageInYears, maskPhone, todayInPhilippines } from "@healthcare/core";
 import type {
   PatientAddressRecord,
   PatientConsentRecord,
@@ -6,11 +6,11 @@ import type {
   PatientIdentifierRecord,
   PatientRecord,
   PatientRelationshipRecord,
-} from './patient.schema';
+} from "./patient.schema";
 
 /** "DELA CRUZ, Juan Santos Jr." */
-export function displayName(p: Pick<PatientRecord, 'familyName' | 'givenName' | 'middleName' | 'suffix'>): string {
-  const given = [p.givenName, p.middleName, p.suffix].filter(Boolean).join(' ');
+export function displayName(p: Pick<PatientRecord, "familyName" | "givenName" | "middleName" | "suffix">): string {
+  const given = [p.givenName, p.middleName, p.suffix].filter(Boolean).join(" ");
   return `${p.familyName.toUpperCase()}, ${given}`;
 }
 
@@ -67,14 +67,11 @@ export interface PatientDetail {
   createdAt: string;
   updatedAt: string;
   version: number;
-  contacts: Array<Pick<PatientContactPointRecord, 'id' | 'system' | 'value' | 'use' | 'isPrimary'>>;
-  addresses: Array<Omit<PatientAddressRecord, 'organizationId' | 'patientId' | 'status' | 'createdBy' | 'retiredAt' | 'retiredBy'>>;
-  identifiers: Array<Pick<PatientIdentifierRecord, 'id' | 'type' | 'value' | 'issuer' | 'validFrom' | 'validUntil'>>;
+  contacts: Array<Pick<PatientContactPointRecord, "id" | "system" | "value" | "use" | "isPrimary">>;
+  addresses: Array<Omit<PatientAddressRecord, "organizationId" | "patientId" | "status" | "createdBy" | "retiredAt" | "retiredBy">>;
+  identifiers: Array<Pick<PatientIdentifierRecord, "id" | "type" | "value" | "issuer" | "validFrom" | "validUntil">>;
   relationships: Array<
-    Pick<
-      PatientRelationshipRecord,
-      'id' | 'relationship' | 'relatedPatientId' | 'name' | 'contactNumber' | 'isEmergencyContact' | 'isLegalGuardian' | 'notes'
-    >
+    Pick<PatientRelationshipRecord, "id" | "relationship" | "relatedPatientId" | "name" | "contactNumber" | "isEmergencyContact" | "isLegalGuardian" | "notes">
   >;
   consents: ConsentView[];
   communicationPreferences: Array<{ channel: string; category: string; optedIn: boolean }>;

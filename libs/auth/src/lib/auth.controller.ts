@@ -1,65 +1,62 @@
-import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
-import { type Actor, CurrentActor, Public, requestMetadataFrom } from '@healthcare/core';
-import { OrganizationService } from '@healthcare/organization';
-import type { Request } from 'express';
-import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from './auth.dto';
-import { AuthService } from './auth.service';
+import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
+import { type Actor, CurrentActor, Public, requestMetadataFrom } from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import type { Request } from "express";
+import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from "./auth.dto";
+import { AuthService } from "./auth.service";
 
 // Credential endpoints get a much tighter rate limit than the API default.
 const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
 
-@ApiTags('auth')
-@Controller({ path: 'auth', version: '1' })
+@ApiTags("auth")
+@Controller({ path: "auth", version: "1" })
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly organizations: OrganizationService,
   ) {}
 
-  @Post('login')
+  @Post("login")
   @Public()
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
-  @ApiOperation({ summary: 'Sign in with email and password; may require an MFA step' })
+  @ApiOperation({ summary: "Sign in with email and password; may require an MFA step" })
   login(@Body() body: LoginDto, @Req() request: Request) {
     return this.auth.login(body, requestMetadataFrom(request));
   }
 
-  @Post('mfa/verify')
+  @Post("mfa/verify")
   @Public()
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
-  @ApiOperation({ summary: 'Complete sign-in with a TOTP code' })
+  @ApiOperation({ summary: "Complete sign-in with a TOTP code" })
   verifyMfa(@Body() body: MfaVerifyDto, @Req() request: Request) {
     return this.auth.verifyMfa(body.challengeToken, body.code, requestMetadataFrom(request));
   }
 
-  @Post('refresh')
+  @Post("refresh")
   @Public()
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
-  @ApiOperation({ summary: 'Exchange a refresh token for new tokens (rotates the refresh token)' })
+  @ApiOperation({ summary: "Exchange a refresh token for new tokens (rotates the refresh token)" })
   refresh(@Body() body: RefreshDto, @Req() request: Request) {
     return this.auth.refresh(body.refreshToken, requestMetadataFrom(request));
   }
 
-  @Post('logout')
+  @Post("logout")
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentActor() actor: Actor): Promise<void> {
     await this.auth.logout(actor);
   }
 
-  @Get('me')
+  @Get("me")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Current user, organization, facility context and effective permissions' })
+  @ApiOperation({ summary: "Current user, organization, facility context and effective permissions" })
   async me(@CurrentActor() actor: Actor) {
-    const [user, organization] = await Promise.all([
-      this.auth.getUser(actor.userId),
-      this.organizations.getOrganization(actor.organizationId),
-    ]);
+    const [user, organization] = await Promise.all([this.auth.getUser(actor.userId), this.organizations.getOrganization(actor.organizationId)]);
     return {
       user: {
         id: user.id,
@@ -74,23 +71,23 @@ export class AuthController {
     };
   }
 
-  @Post('password')
+  @Post("password")
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)
-  @ApiOperation({ summary: 'Change password; signs out all other sessions' })
+  @ApiOperation({ summary: "Change password; signs out all other sessions" })
   async changePassword(@CurrentActor() actor: Actor, @Body() body: ChangePasswordDto): Promise<void> {
     await this.auth.changePassword(actor, body);
   }
 
-  @Post('mfa/setup')
+  @Post("mfa/setup")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Start TOTP enrollment; returns the secret and otpauth URI for a QR code' })
+  @ApiOperation({ summary: "Start TOTP enrollment; returns the secret and otpauth URI for a QR code" })
   setupMfa(@CurrentActor() actor: Actor) {
     return this.auth.beginMfaSetup(actor);
   }
 
-  @Post('mfa/confirm')
+  @Post("mfa/confirm")
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)
@@ -98,7 +95,7 @@ export class AuthController {
     await this.auth.confirmMfaSetup(actor, body.code);
   }
 
-  @Post('mfa/disable')
+  @Post("mfa/disable")
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)

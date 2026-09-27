@@ -1,13 +1,13 @@
-import { normalizePhMobile } from '@healthcare/core';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { FACILITY_TYPES } from './organization.schema';
+import { normalizePhMobile } from "@healthcare/core";
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { FACILITY_TYPES } from "./organization.schema";
 
 const code = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(/^[a-z0-9][a-z0-9-]{1,48}$/, 'Use 2-49 lower-case letters, digits or hyphens');
+  .regex(/^[a-z0-9][a-z0-9-]{1,48}$/, "Use 2-49 lower-case letters, digits or hyphens");
 const name = z.string().trim().min(1).max(200);
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
 
@@ -24,7 +24,7 @@ const facilityFields = z.object({
   region: optionalText(120),
   postalCode: z
     .string()
-    .regex(/^\d{4}$/, 'Philippine postal codes have 4 digits')
+    .regex(/^\d{4}$/, "Philippine postal codes have 4 digits")
     .optional(),
   contactNumber: optionalText(40),
   email: z.string().trim().toLowerCase().email().optional(),
@@ -35,7 +35,7 @@ export const createFacilitySchema = facilityFields.extend({ code });
 export class CreateFacilityDto extends createZodDto(createFacilitySchema) {}
 
 export const updateFacilitySchema = facilityFields.partial().extend({
-  status: z.enum(['active', 'inactive']).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
   /** Optimistic lock: the version the client last read. */
   version: z.number().int().positive(),
 });

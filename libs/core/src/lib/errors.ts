@@ -16,7 +16,7 @@ export abstract class DomainError extends Error {
 }
 
 export class NotFoundError extends DomainError {
-  readonly code = 'not_found';
+  readonly code = "not_found";
   readonly httpStatus = 404;
   constructor(resource: string) {
     super(`${resource} not found`);
@@ -27,7 +27,7 @@ export class NotFoundError extends DomainError {
 export class BadRequestError extends DomainError {
   readonly code: string;
   readonly httpStatus = 400;
-  constructor(message: string, code = 'bad_request', details?: unknown) {
+  constructor(message: string, code = "bad_request", details?: unknown) {
     super(message, details);
     this.code = code;
   }
@@ -36,7 +36,7 @@ export class BadRequestError extends DomainError {
 export class ConflictError extends DomainError {
   readonly code: string;
   readonly httpStatus = 409;
-  constructor(message: string, details?: unknown, code = 'conflict') {
+  constructor(message: string, details?: unknown, code = "conflict") {
     super(message, details);
     this.code = code;
   }
@@ -44,7 +44,7 @@ export class ConflictError extends DomainError {
 
 /** Optimistic-locking failure: the caller edited a stale version. */
 export class VersionConflictError extends DomainError {
-  readonly code = 'version_conflict';
+  readonly code = "version_conflict";
   readonly httpStatus = 409;
   constructor(resource: string, expected: number) {
     super(`${resource} was modified by someone else (expected version ${expected}). Reload and try again.`);
@@ -54,16 +54,16 @@ export class VersionConflictError extends DomainError {
 export class BusinessRuleError extends DomainError {
   readonly code: string;
   readonly httpStatus = 422;
-  constructor(message: string, code = 'business_rule_violation', details?: unknown) {
+  constructor(message: string, code = "business_rule_violation", details?: unknown) {
     super(message, details);
     this.code = code;
   }
 }
 
 export class ForbiddenError extends DomainError {
-  readonly code = 'forbidden';
+  readonly code = "forbidden";
   readonly httpStatus = 403;
-  constructor(message = 'You do not have permission to perform this action') {
+  constructor(message = "You do not have permission to perform this action") {
     super(message);
   }
 }
@@ -71,7 +71,7 @@ export class ForbiddenError extends DomainError {
 export class UnauthenticatedError extends DomainError {
   readonly code: string;
   readonly httpStatus = 401;
-  constructor(message = 'Authentication required', code = 'unauthenticated') {
+  constructor(message = "Authentication required", code = "unauthenticated") {
     super(message);
     this.code = code;
   }

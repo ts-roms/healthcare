@@ -1,16 +1,16 @@
-import { pageQuerySchema } from '@healthcare/core';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { ALLERGY_CATEGORIES, BOOKING_CHANNELS, MODALITIES, PROFESSIONS, ROOM_TYPES, VISIT_PRIORITIES } from './clinic.schema';
+import { pageQuerySchema } from "@healthcare/core";
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { ALLERGY_CATEGORIES, BOOKING_CHANNELS, MODALITIES, PROFESSIONS, ROOM_TYPES, VISIT_PRIORITIES } from "./clinic.schema";
 
 const code = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(/^[a-z0-9][a-z0-9-]{1,48}$/, 'Use lower-case letters, digits or hyphens');
+  .regex(/^[a-z0-9][a-z0-9-]{1,48}$/, "Use lower-case letters, digits or hyphens");
 const text = (max: number) => z.string().trim().min(1).max(max);
-const reason = z.string().trim().min(3, 'Give a reason').max(500);
-const localTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM (24-hour)');
+const reason = z.string().trim().min(3, "Give a reason").max(500);
+const localTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)");
 const isoDateTime = z.iso.datetime({ offset: true });
 
 // ---- configuration --------------------------------------------------------
@@ -28,7 +28,7 @@ export class CreatePractitionerDto extends createZodDto(createPractitionerSchema
 
 export const updatePractitionerSchema = createPractitionerSchema
   .partial()
-  .extend({ status: z.enum(['active', 'inactive']).optional(), version: z.number().int().positive() });
+  .extend({ status: z.enum(["active", "inactive"]).optional(), version: z.number().int().positive() });
 export class UpdatePractitionerDto extends createZodDto(updatePractitionerSchema) {}
 
 export const createRoomSchema = z.object({ facilityId: z.string().uuid(), code, name: text(120), roomType: z.enum(ROOM_TYPES) });
@@ -38,7 +38,7 @@ export const createVisitTypeSchema = z.object({
   code,
   name: text(120),
   defaultDurationMinutes: z.number().int().min(5).max(480),
-  modality: z.enum(MODALITIES).default('in_person'),
+  modality: z.enum(MODALITIES).default("in_person"),
   requiresTriage: z.boolean().default(true),
 });
 export class CreateVisitTypeDto extends createZodDto(createVisitTypeSchema) {}
@@ -58,8 +58,8 @@ export const createScheduleSchema = z
     validFrom: z.iso.date(),
     validUntil: z.iso.date().optional(),
   })
-  .refine((v) => v.endTime > v.startTime, { message: 'endTime must be after startTime', path: ['endTime'] })
-  .refine((v) => !v.validUntil || v.validUntil >= v.validFrom, { message: 'validUntil must not precede validFrom', path: ['validUntil'] });
+  .refine((v) => v.endTime > v.startTime, { message: "endTime must be after startTime", path: ["endTime"] })
+  .refine((v) => !v.validUntil || v.validUntil >= v.validFrom, { message: "validUntil must not precede validFrom", path: ["validUntil"] });
 export class CreateScheduleDto extends createZodDto(createScheduleSchema) {}
 
 export const createExceptionSchema = z
@@ -71,7 +71,7 @@ export const createExceptionSchema = z
     endsAt: isoDateTime,
     reason: text(300),
   })
-  .refine((v) => v.endsAt > v.startsAt, { message: 'endsAt must be after startsAt', path: ['endsAt'] });
+  .refine((v) => v.endsAt > v.startsAt, { message: "endsAt must be after startsAt", path: ["endsAt"] });
 export class CreateExceptionDto extends createZodDto(createExceptionSchema) {}
 
 // ---- appointments ---------------------------------------------------------
@@ -93,7 +93,7 @@ export const bookAppointmentSchema = z.object({
   /** Defaults to the visit type's duration. */
   durationMinutes: z.number().int().min(5).max(480).optional(),
   roomId: z.string().uuid().optional(),
-  bookingChannel: z.enum(BOOKING_CHANNELS).default('front_desk'),
+  bookingChannel: z.enum(BOOKING_CHANNELS).default("front_desk"),
   reason: text(500).optional(),
   notes: text(2000).optional(),
   /** Recurring series: repeat every N days, M times in total (including this one). */
@@ -127,7 +127,7 @@ export const listAppointmentsSchema = pageQuerySchema.extend({
   patientId: z.string().uuid().optional(),
   /** Local date in the facility's time zone. */
   date: z.iso.date().optional(),
-  status: z.enum(['booked', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
+  status: z.enum(["booked", "confirmed", "checked_in", "completed", "cancelled", "no_show"]).optional(),
 });
 export class ListAppointmentsDto extends createZodDto(listAppointmentsSchema) {}
 
@@ -139,10 +139,10 @@ export const createWaitlistSchema = z
     visitTypeId: z.string().uuid().optional(),
     earliestDate: z.iso.date(),
     latestDate: z.iso.date(),
-    priority: z.enum(['routine', 'soon']).default('routine'),
+    priority: z.enum(["routine", "soon"]).default("routine"),
     notes: text(1000).optional(),
   })
-  .refine((v) => v.latestDate >= v.earliestDate, { message: 'latestDate must not precede earliestDate', path: ['latestDate'] });
+  .refine((v) => v.latestDate >= v.earliestDate, { message: "latestDate must not precede earliestDate", path: ["latestDate"] });
 export class CreateWaitlistDto extends createZodDto(createWaitlistSchema) {}
 
 export const closeWaitlistSchema = z.object({ reason });
@@ -153,23 +153,23 @@ export class CloseWaitlistDto extends createZodDto(closeWaitlistSchema) {}
 export const walkInSchema = z.object({
   patientId: z.string().uuid(),
   visitTypeId: z.string().uuid(),
-  priority: z.enum(VISIT_PRIORITIES).default('routine'),
+  priority: z.enum(VISIT_PRIORITIES).default("routine"),
   chiefComplaint: text(500).optional(),
   assignedPractitionerId: z.string().uuid().optional(),
 });
 export class WalkInDto extends createZodDto(walkInSchema) {}
 
-export const checkInSchema = z.object({ chiefComplaint: text(500).optional(), priority: z.enum(VISIT_PRIORITIES).default('routine') });
+export const checkInSchema = z.object({ chiefComplaint: text(500).optional(), priority: z.enum(VISIT_PRIORITIES).default("routine") });
 export class CheckInDto extends createZodDto(checkInSchema) {}
 
 export const queueQuerySchema = z.object({
   date: z.iso.date().optional(),
-  includeClosed: z.enum(['true', 'false']).optional(),
+  includeClosed: z.enum(["true", "false"]).optional(),
 });
 export class QueueQueryDto extends createZodDto(queueQuerySchema) {}
 
 export const moveVisitSchema = z.object({
-  status: z.enum(['in_triage', 'awaiting_consultation', 'cancelled', 'left_without_being_seen']),
+  status: z.enum(["in_triage", "awaiting_consultation", "cancelled", "left_without_being_seen"]),
   reason: reason.optional(),
   version: z.number().int().positive(),
 });
@@ -206,7 +206,7 @@ export const vitalsSchema = z
       [v.systolicMmhg, v.heartRateBpm, v.respiratoryRateBpm, v.temperatureC, v.spo2Percent, v.weightKg, v.heightCm, v.bloodGlucoseMgDl].some(
         (x) => x !== undefined,
       ),
-    { message: 'Record at least one measurement' },
+    { message: "Record at least one measurement" },
   );
 export class VitalsDto extends createZodDto(vitalsSchema) {}
 
@@ -237,14 +237,14 @@ export const createAllergySchema = z.object({
   category: z.enum(ALLERGY_CATEGORIES),
   substance: text(200),
   reaction: text(500).optional(),
-  severity: z.enum(['mild', 'moderate', 'severe']).optional(),
-  criticality: z.enum(['low', 'high', 'unable_to_assess']).default('unable_to_assess'),
-  verification: z.enum(['unconfirmed', 'confirmed']).default('unconfirmed'),
+  severity: z.enum(["mild", "moderate", "severe"]).optional(),
+  criticality: z.enum(["low", "high", "unable_to_assess"]).default("unable_to_assess"),
+  verification: z.enum(["unconfirmed", "confirmed"]).default("unconfirmed"),
 });
 export class CreateAllergyDto extends createZodDto(createAllergySchema) {}
 
 export const updateAllergyStatusSchema = z.object({
-  status: z.enum(['active', 'inactive', 'resolved', 'entered_in_error']),
+  status: z.enum(["active", "inactive", "resolved", "entered_in_error"]),
   reason: reason.optional(),
   version: z.number().int().positive(),
 });
@@ -257,17 +257,17 @@ export const startEncounterSchema = z
     visitId: z.string().uuid().optional(),
     /** For encounters without a queue visit (e.g. telemedicine or retrospective documentation). */
     patientId: z.string().uuid().optional(),
-    modality: z.enum(MODALITIES).default('in_person'),
+    modality: z.enum(MODALITIES).default("in_person"),
     chiefComplaint: text(500).optional(),
   })
-  .refine((v) => Boolean(v.visitId) !== Boolean(v.patientId), { message: 'Provide exactly one of visitId or patientId' });
+  .refine((v) => Boolean(v.visitId) !== Boolean(v.patientId), { message: "Provide exactly one of visitId or patientId" });
 export class StartEncounterDto extends createZodDto(startEncounterSchema) {}
 
 const noteFields = {
   templateKey: z
     .string()
     .regex(/^[a-z0-9][a-z0-9_-]{1,48}$/)
-    .default('soap'),
+    .default("soap"),
   subjective: z.string().max(20_000).optional(),
   objective: z.string().max(20_000).optional(),
   assessment: z.string().max(20_000).optional(),
@@ -290,19 +290,19 @@ export const addDiagnosisSchema = z
     codeSystemKey: code.optional(),
     code: z.string().trim().min(1).max(20).optional(),
     display: text(300),
-    rank: z.enum(['primary', 'secondary']).default('secondary'),
-    certainty: z.enum(['provisional', 'confirmed']).default('provisional'),
+    rank: z.enum(["primary", "secondary"]).default("secondary"),
+    certainty: z.enum(["provisional", "confirmed"]).default("provisional"),
     isChronic: z.boolean().default(false),
     notes: text(1000).optional(),
     /** Required when the encounter is already signed (becomes an amendment). */
     amendmentReason: reason.optional(),
   })
-  .refine((v) => Boolean(v.code) === Boolean(v.codeSystemKey), { message: 'code and codeSystemKey go together', path: ['code'] });
+  .refine((v) => Boolean(v.code) === Boolean(v.codeSystemKey), { message: "code and codeSystemKey go together", path: ["code"] });
 export class AddDiagnosisDto extends createZodDto(addDiagnosisSchema) {}
 
 export const updateDiagnosisStatusSchema = z.object({
-  status: z.enum(['resolved', 'entered_in_error']),
-  certainty: z.enum(['provisional', 'confirmed', 'refuted']).optional(),
+  status: z.enum(["resolved", "entered_in_error"]),
+  certainty: z.enum(["provisional", "confirmed", "refuted"]).optional(),
   reason,
 });
 export class UpdateDiagnosisStatusDto extends createZodDto(updateDiagnosisStatusSchema) {}

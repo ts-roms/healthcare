@@ -1,18 +1,18 @@
-import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
-import type { Request, Response } from 'express';
-import { catchError, from, Observable, of, switchMap, throwError } from 'rxjs';
-import '../http/request-augmentation';
-import { DATABASE, type Database } from '../database/database';
-import { BusinessRuleError, ConflictError } from '../errors';
-import { sha256Hex } from '../security/crypto';
+import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from "@nestjs/common";
+import { sql } from "drizzle-orm";
+import type { Request, Response } from "express";
+import { catchError, from, Observable, of, switchMap, throwError } from "rxjs";
+import "../http/request-augmentation";
+import { DATABASE, type Database } from "../database/database";
+import { BusinessRuleError, ConflictError } from "../errors";
+import { sha256Hex } from "../security/crypto";
 
-const HEADER = 'idempotency-key';
+const HEADER = "idempotency-key";
 const VALID_KEY = /^[A-Za-z0-9._:-]{8,128}$/;
-const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const RETENTION_HOURS = 24;
 
-type Begin = { kind: 'proceed' } | { kind: 'replay'; status: number; body: unknown };
+type Begin = { kind: "proceed" } | { kind: "replay"; status: number; body: unknown };
 
 /**
  * Makes unsafe requests carrying an `Idempotency-Key` header safe to retry
@@ -36,18 +36,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
     if (!VALID_KEY.test(key)) {
-      return throwError(
-        () => new BusinessRuleError('Idempotency-Key must be 8-128 characters of [A-Za-z0-9._:-]', 'invalid_idempotency_key'),
-      );
+      return throwError(() => new BusinessRuleError("Idempotency-Key must be 8-128 characters of [A-Za-z0-9._:-]", "invalid_idempotency_key"));
     }
     const userId = request.actor.userId;
-    const path = request.originalUrl.split('?')[0] ?? request.originalUrl;
+    const path = request.originalUrl.split("?")[0] ?? request.originalUrl;
     const requestHash = sha256Hex(`${request.method} ${path}\n${stableStringify(request.body ?? null)}`);
 
     return from(this.begin(userId, key, request.method, path, requestHash)).pipe(
       switchMap((begin) => {
-        if (begin.kind === 'replay') {
-          response.status(begin.status).setHeader('Idempotent-Replayed', 'true');
+        if (begin.kind === "replay") {
+          response.status(begin.status).setHeader("Idempotent-Replayed", "true");
           return of(begin.body);
         }
         return next.handle().pipe(
@@ -67,7 +65,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       VALUES (${userId}, ${key}, ${method}, ${path}, ${requestHash}, now() + make_interval(hours => ${RETENTION_HOURS}))
       ON CONFLICT DO NOTHING
       RETURNING user_id`);
-    if (inserted.rows.length > 0) return { kind: 'proceed' };
+    if (inserted.rows.length > 0) return { kind: "proceed" };
 
     const existing = await this.db.execute<{
       request_hash: string;
@@ -80,12 +78,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const record = existing.rows[0];
     if (!record) return this.begin(userId, key, method, path, requestHash);
     if (record.request_hash !== requestHash) {
-      throw new BusinessRuleError('Idempotency-Key was already used for a different request', 'idempotency_key_reused');
+      throw new BusinessRuleError("Idempotency-Key was already used for a different request", "idempotency_key_reused");
     }
-    if (record.state !== 'completed' || record.response_status === null) {
-      throw new ConflictError('A request with this Idempotency-Key is still being processed', undefined, 'idempotency_in_progress');
+    if (record.state !== "completed" || record.response_status === null) {
+      throw new ConflictError("A request with this Idempotency-Key is still being processed", undefined, "idempotency_in_progress");
     }
-    return { kind: 'replay', status: record.response_status, body: record.response_body };
+    return { kind: "replay", status: record.response_status, body: record.response_body };
   }
 
   private async complete(userId: string, key: string, status: number, body: unknown): Promise<void> {
@@ -104,12 +102,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
 }
 
 function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  if (value && typeof value === 'object') {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, v]) => v !== undefined)
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
   }
   return JSON.stringify(value);
 }

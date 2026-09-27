@@ -1,10 +1,10 @@
-import { GetObjectCommand, HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { AppConfig } from '@healthcare/core';
+import { GetObjectCommand, HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { AppConfig } from "@healthcare/core";
 
 export interface PresignedUpload {
   url: string;
-  method: 'PUT';
+  method: "PUT";
   /** Headers the client must send with the upload, exactly as given. */
   headers: Record<string, string>;
   expiresAt: string;
@@ -25,7 +25,7 @@ export interface ObjectStorage {
   head(key: string): Promise<StoredObjectInfo | undefined>;
 }
 
-export const OBJECT_STORAGE = Symbol('OBJECT_STORAGE');
+export const OBJECT_STORAGE = Symbol("OBJECT_STORAGE");
 
 export class S3ObjectStorage implements ObjectStorage {
   private readonly client: S3Client;
@@ -50,16 +50,16 @@ export class S3ObjectStorage implements ObjectStorage {
       Key: key,
       ContentType: contentType,
       ContentLength: sizeBytes,
-      ServerSideEncryption: 'AES256',
+      ServerSideEncryption: "AES256",
     });
     const url = await getSignedUrl(this.client, command, {
       expiresIn: expiresInSeconds,
-      signableHeaders: new Set(['content-type', 'content-length']),
+      signableHeaders: new Set(["content-type", "content-length"]),
     });
     return {
       url,
-      method: 'PUT',
-      headers: { 'Content-Type': contentType, 'Content-Length': String(sizeBytes), 'x-amz-server-side-encryption': 'AES256' },
+      method: "PUT",
+      headers: { "Content-Type": contentType, "Content-Length": String(sizeBytes), "x-amz-server-side-encryption": "AES256" },
       expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     };
   }
@@ -79,8 +79,7 @@ export class S3ObjectStorage implements ObjectStorage {
       const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
       return { sizeBytes: result.ContentLength ?? 0, contentType: result.ContentType };
     } catch (error) {
-      if (error instanceof NotFound || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404)
-        return undefined;
+      if (error instanceof NotFound || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return undefined;
       throw error;
     }
   }
@@ -93,8 +92,8 @@ export class InMemoryObjectStorage implements ObjectStorage {
   async presignUpload(key: string, contentType: string, sizeBytes: number, expiresInSeconds: number): Promise<PresignedUpload> {
     return {
       url: `memory://upload/${encodeURIComponent(key)}`,
-      method: 'PUT',
-      headers: { 'Content-Type': contentType, 'Content-Length': String(sizeBytes) },
+      method: "PUT",
+      headers: { "Content-Type": contentType, "Content-Length": String(sizeBytes) },
       expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     };
   }
@@ -115,6 +114,6 @@ export class InMemoryObjectStorage implements ObjectStorage {
 
 /** RFC 6266 attachment disposition with a UTF-8 file name. */
 export function contentDisposition(fileName: string): string {
-  const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

@@ -1,0 +1,32 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" />
+
+# Healthcare Design System
+
+**shadcn/ui is the foundation; the healthcare components are the product.**
+
+| Layer | Path | What lives here |
+| --- | --- | --- |
+| Tokens | `src/styles/theme.css` | Colour, type scale, radius — shadcn-compatible names + clinical status tokens |
+| Primitives | `src/primitives` | shadcn/Radix components, tuned for density (32px controls, 13–14px text) |
+| Healthcare | `src/healthcare` | `PatientHeader`, `LabWorklist`, `Odontogram`, `PrescriptionEditor`, … |
+| Layouts | `src/layouts` | `StaffLayout`, `DoctorLayout`, `LaboratoryLayout`, `TelemedicineLayout`, `PatientLayout` |
+
+## Principles
+
+1. **Information density over whitespace.** Staff screens are workstations, not landing pages.
+   Type scale: 12 meta · 13 table · 14 body · 16–18 section · 20–24 page.
+2. **Never colour alone.** Every clinical status is colour **+ icon + text** (`⚠ Critical`, not 🔴).
+   See `labFlagSpec`, `labOrderStatusSpec`, `severitySpec` in `healthcare/status.tsx`.
+3. **Patient identity is always on screen** in any patient context — name, age/sex, MRN, allergies.
+   An empty allergy list renders "No known allergies", never nothing.
+4. **Minimum clicks.** One workspace per job (encounter, lab bench, video consult) instead of ten screens.
+5. **Keyboard first for staff.** `/` focuses patient search; worklists move with ↑/↓ or j/k; lab entry advances with Enter.
+6. **Role-aware.** Navigation is filtered by role (`navigationForRole`) — a lab technician does not see 30 modules.
+7. **Staff and patients get different products.** The portal is mobile-first, roomier (16px base), and plain-language.
+
+## Colour roles
+
+Primary **Healthcare Blue** · Secondary **Teal** · Success **Green** · Warning **Amber** · Danger **Red** · Critical **Deep Red** · Neutral **Slate**.
+Use `critical` only for results/alerts that require immediate clinical action.

@@ -1,5 +1,5 @@
-import { BusinessRuleError, normalizePhMobile } from '@healthcare/core';
-import type { ContactSystem } from './patient.schema';
+import { BusinessRuleError, normalizePhMobile } from "@healthcare/core";
+import type { ContactSystem } from "./patient.schema";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,21 +13,21 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function normalizeContact(system: ContactSystem, value: string): string {
   const trimmed = value.trim();
   switch (system) {
-    case 'mobile': {
+    case "mobile": {
       const ph = normalizePhMobile(trimmed);
       if (ph) return ph;
-      const compact = trimmed.replace(/[\s().-]/g, '');
+      const compact = trimmed.replace(/[\s().-]/g, "");
       if (E164.test(compact)) return compact;
-      throw new BusinessRuleError(`"${value}" is not a valid mobile number`, 'invalid_contact');
+      throw new BusinessRuleError(`"${value}" is not a valid mobile number`, "invalid_contact");
     }
-    case 'phone': {
-      const compact = trimmed.replace(/[^\d+]/g, '');
-      if (compact.replace('+', '').length < 7) throw new BusinessRuleError(`"${value}" is not a valid phone number`, 'invalid_contact');
+    case "phone": {
+      const compact = trimmed.replace(/[^\d+]/g, "");
+      if (compact.replace("+", "").length < 7) throw new BusinessRuleError(`"${value}" is not a valid phone number`, "invalid_contact");
       return compact;
     }
-    case 'email': {
+    case "email": {
       const lower = trimmed.toLowerCase();
-      if (!EMAIL.test(lower)) throw new BusinessRuleError(`"${value}" is not a valid email address`, 'invalid_contact');
+      if (!EMAIL.test(lower)) throw new BusinessRuleError(`"${value}" is not a valid email address`, "invalid_contact");
       return lower;
     }
   }

@@ -76,7 +76,7 @@
           "passWithNoTests": true
         }
       },
-      "test-integration": {
+      "integration": {
         "executor": "nx:run-commands",
         "options": {
           "command": "jest --config apps/api/jest.integration.config.cts --runInBand",
@@ -86,8 +86,8 @@
       }
     },
     "tags": [
-      "type:app",
-      "scope:api"
+      "scope:api",
+      "type:app"
     ]
   },
   "dependencies": {

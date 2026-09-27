@@ -1,14 +1,14 @@
-import type { AppointmentStatus } from '../clinic.schema';
+import type { AppointmentStatus } from "../clinic.schema";
 
-export type AppointmentAction = 'confirm' | 'reschedule' | 'cancel' | 'no_show' | 'check_in' | 'complete';
+export type AppointmentAction = "confirm" | "reschedule" | "cancel" | "no_show" | "check_in" | "complete";
 
 const ALLOWED: Record<AppointmentAction, readonly AppointmentStatus[]> = {
-  confirm: ['booked'],
-  reschedule: ['booked', 'confirmed'],
-  cancel: ['booked', 'confirmed'],
-  no_show: ['booked', 'confirmed'],
-  check_in: ['booked', 'confirmed'],
-  complete: ['checked_in'],
+  confirm: ["booked"],
+  reschedule: ["booked", "confirmed"],
+  cancel: ["booked", "confirmed"],
+  no_show: ["booked", "confirmed"],
+  check_in: ["booked", "confirmed"],
+  complete: ["checked_in"],
 };
 
 export function canApply(action: AppointmentAction, status: AppointmentStatus): boolean {

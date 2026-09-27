@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import type { NotificationCategory, NotificationChannel } from './notification.schema';
+import { z } from "zod";
+import type { NotificationCategory, NotificationChannel } from "./notification.schema";
 
 /**
  * Message templates are code-reviewed, versioned and variable-validated.
@@ -29,10 +29,10 @@ const shortText = z.string().trim().min(1).max(80);
 
 export const TEMPLATES = [
   defineTemplate({
-    key: 'patient.registered',
+    key: "patient.registered",
     version: 1,
-    category: 'administrative',
-    channels: ['sms', 'email'],
+    category: "administrative",
+    channels: ["sms", "email"],
     variables: z.object({ givenName: shortText, organizationName: shortText, patientNumber: z.string().regex(/^P\d{8}$/) }),
     render: (v) => ({
       subject: `Welcome to ${v.organizationName}`,
@@ -40,10 +40,10 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
-    key: 'appointment.reminder',
+    key: "appointment.reminder",
     version: 1,
-    category: 'administrative',
-    channels: ['sms', 'email'],
+    category: "administrative",
+    channels: ["sms", "email"],
     // No patient name, practitioner specialty or reason: only where and when.
     variables: z.object({ facilityName: shortText, date: z.string().max(40), time: z.string().max(20) }),
     render: (v) => ({
@@ -52,28 +52,28 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
-    key: 'security.mfa-enabled',
+    key: "security.mfa-enabled",
     version: 1,
-    category: 'security',
-    channels: ['email', 'in_app'],
+    category: "security",
+    channels: ["email", "in_app"],
     variables: z.object({ displayName: shortText }),
     render: (v) => ({
-      subject: 'Two-step verification was turned on',
+      subject: "Two-step verification was turned on",
       text: `Hi ${v.displayName}, two-step verification was turned on for your account. If this was not you, contact your administrator immediately.`,
     }),
   }),
   defineTemplate({
-    key: 'staff.message',
+    key: "staff.message",
     version: 1,
-    category: 'administrative',
+    category: "administrative",
     // In-app only: free text written by staff stays inside the platform.
-    channels: ['in_app'],
+    channels: ["in_app"],
     variables: z.object({ title: shortText, body: z.string().trim().min(1).max(2000) }),
     render: (v) => ({ subject: v.title, text: v.body }),
   }),
 ] as const;
 
-export type TemplateKey = (typeof TEMPLATES)[number]['key'];
+export type TemplateKey = (typeof TEMPLATES)[number]["key"];
 export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key) as [TemplateKey, ...TemplateKey[]];
 
 export function findTemplate(key: string): NotificationTemplate | undefined {

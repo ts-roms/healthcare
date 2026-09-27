@@ -3,9 +3,11 @@
 Extends the root `CLAUDE.md`. Root rules win on conflict.
 
 ## Scope
+
 Dental history, examination, odontogram / tooth chart, tooth surfaces, dental diagnosis, periodontal charting where appropriate, treatment plans, procedures, notes, prescriptions, imaging, appointments, follow-up, and charges.
 
 ## Rules
+
 - **Same Patient Master.** Dental records reference the canonical patient id. Never create a second patient table.
 - **Tooth identification:** store a canonical internal tooth identifier (default: FDI / ISO 3950 two-digit notation, including primary dentition) and render in the facility's configured notation (FDI, Universal, Palmer). Assumption — confirm preferred display notation with target clinics.
 - Surfaces use a fixed, validated set (e.g. M, O/I, D, B/F, L/P); validate tooth–surface combinations server-side.
@@ -17,10 +19,13 @@ Dental history, examination, odontogram / tooth chart, tooth surfaces, dental di
 - Lab orders from dental go through the laboratory order contract.
 
 ## Key events
+
 `DentalExaminationRecorded`, `DentalChartUpdated`, `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`.
 
 ## Permissions (initial)
+
 `dental.record.read`, `dental.record.write`, `dental.chart.write`, `dental.treatment-plan.manage`, `dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`.
 
 ## Docs
+
 Keep `docs/domains/dental.md` current.

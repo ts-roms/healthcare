@@ -8,14 +8,16 @@ export interface PrescribingContext {
   encounter(
     organizationId: string,
     encounterId: string,
-  ): Promise<{ id: string; patientId: string; facilityId: string; status: 'in_progress' | 'completed' | 'entered_in_error'; practitionerId: string } | undefined>;
+  ): Promise<
+    { id: string; patientId: string; facilityId: string; status: "in_progress" | "completed" | "entered_in_error"; practitionerId: string } | undefined
+  >;
   /** Active allergies and whether the allergy history has been reviewed. */
   allergies(organizationId: string, patientId: string): Promise<AllergyContext>;
 }
 
 export interface AllergyContext {
-  status: 'has_allergies' | 'no_known_allergies' | 'not_reviewed';
+  status: "has_allergies" | "no_known_allergies" | "not_reviewed";
   allergies: Array<{ id: string; substance: string; category: string; criticality: string; reaction: string | null }>;
 }
 
-export const PRESCRIBING_CONTEXT = Symbol('PRESCRIBING_CONTEXT');
+export const PRESCRIBING_CONTEXT = Symbol("PRESCRIBING_CONTEXT");

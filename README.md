@@ -1,26 +1,119 @@
-# Healthcare Platform (Philippines)
+# Healthcare Platform
 
-Integrated healthcare management platform: Clinic/EMR, Laboratory Information System, Dental, Telemedicine, Patient CRM, Patient Portal, Billing, and Philippine healthcare integrations.
+Nx + pnpm monorepo for an integrated healthcare platform for the Philippines (clinic/EMR, laboratory, dental,
+telemedicine, patient CRM and portal, billing) — a NestJS modular-monolith API on PostgreSQL, Next.js staff and patient
+apps, and a custom **Healthcare Design System** built on shadcn/ui.
 
-**One patient. One longitudinal health record. One connected care journey.**
+**One patient. One longitudinal health record. One connected care journey.** Engineering rules: [`CLAUDE.md`](./CLAUDE.md).
 
-- Stack: Nx + pnpm monorepo, Next.js, NestJS (modular monolith), PostgreSQL, Redis/BullMQ, S3-compatible storage, React Native/Expo.
-- Engineering rules: [`CLAUDE.md`](./CLAUDE.md)
-- Domain rules: `libs/<domain>/CLAUDE.md`
-- Documentation: [`docs/`](./docs/README.md)
+```text
+Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Design System
+                                                          ├── Staff app   (desktop-first, dense, role-aware)
+                                                          └── Patient portal (mobile-first, plain language)
+```
 
-## Status
-
-Phase 1 (Foundation) is implemented: authentication with MFA, organizations and facilities, RBAC, Patient Master with lookup and duplicate detection, consent, documents, notifications, and an append-only audit trail. See [docs/architecture/overview.md](docs/architecture/overview.md).
-
-## Quick start
+## Getting started
 
 ```bash
 pnpm install
-cp .env.example .env        # set SEED_ADMIN_PASSWORD
-pnpm dev:deps               # PostgreSQL, Redis, MinIO, Mailpit via Docker
+
+# Backend (API on http://localhost:3333/api, OpenAPI at /api/docs)
+cp .env.example .env  # set SEED_ADMIN_PASSWORD
+pnpm dev:deps         # PostgreSQL, Redis, MinIO, Mailpit (Docker)
 pnpm db:migrate && pnpm db:seed
-pnpm nx serve api           # http://localhost:3000/api/docs
+pnpm dev:api          # NestJS API
+pnpm dev:worker       # notification worker
+
+# Frontend
+pnpm dev:staff        # http://localhost:3000  — staff workstation
+pnpm dev:portal       # http://localhost:3001  — patient portal
+pnpm storybook        # http://localhost:6006  — design system
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm test:integration # API integration tests (wipes TEST_DATABASE_URL)
+pnpm format
 ```
 
-More: [docs/deployment/local-development.md](docs/deployment/local-development.md).
+In the staff app, switch the **role** in the top bar (Doctor, Lab Technician, Reception…) to see the role-aware
+navigation and dashboards. (Demo only: the role is a cookie; production must derive it from the authenticated session.)
+
+## Layout
+
+```text
+apps/
+├── api/                  NestJS modular-monolith API (REST /api/v1, OpenAPI, Socket.IO realtime)
+├── notification-worker/  BullMQ worker delivering SMS / email / push
+├── staff/                Next.js staff application
+└── portal/               Next.js patient portal
+database/migrations/      Forward-only SQL migrations (source of truth for the schema)
+libs/
+├── core/ audit/ organization/ auth/ documents/ notification/   Backend platform services
+├── patient/ clinic/ prescription/ care-plan/                    Backend clinical domains
+├── domain/     Shared clinical types (FHIR-inspired), staff roles, demo fixtures (frontend)
+└── ui/         Healthcare Design System (+ Storybook)
+    └── src/
+        ├── styles/       theme.css (tokens) · globals.css (entry)
+        ├── primitives/   shadcn/Radix components tuned for density
+        ├── healthcare/   PatientHeader, LabWorklist, Odontogram, PrescriptionEditor, …
+        └── layouts/      StaffLayout, DoctorLayout, LaboratoryLayout, TelemedicineLayout, PatientLayout
+```
+
+Import paths: `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@healthcare/ui/layouts`,
+`@healthcare/ui/styles.css`, `@healthcare/domain`, `@healthcare/domain/fixtures`.
+
+## Backend
+
+Architecture, database, API conventions and security are documented in [`docs/`](./docs/README.md)
+([overview](docs/architecture/overview.md)). Highlights: PostgreSQL-enforced invariants (tenant-safe composite keys,
+no double-booking, append-only audit and clinical history, immutable prescriptions), RBAC scoped to organization /
+facility / department, TOTP MFA, a transactional event outbox, and API integration tests against a real database.
+
+## Frontend stack
+
+| Concern            | Choice                                                    |
+| ------------------ | --------------------------------------------------------- |
+| Framework          | Next.js (App Router), React 19                            |
+| Styling / tokens   | Tailwind CSS v4 (`@theme`), shadcn/ui token names         |
+| Primitives         | shadcn/ui on Radix UI                                     |
+| Icons              | Lucide                                                    |
+| Clinical tables    | TanStack Table (`LabWorklist`)                            |
+| Forms              | React Hook Form + Zod (`PrescriptionEditor`)              |
+| Charts             | Recharts (`LabTrendChart`)                                |
+| Dates              | date-fns + facility-timezone formatting (`lib/format.ts`) |
+| Toasts             | Sonner                                                    |
+| Design system docs | Storybook (with a11y addon)                               |
+
+## Design principles
+
+1. **Information density, not a generic SaaS dashboard.** Type scale: 12 meta · 13 table · 14 body · 16–18 section ·
+   20–24 page. 32px controls.
+2. **Never colour alone.** Every clinical status is colour + icon + text (`⚠ Critical`). See `healthcare/status.tsx`.
+3. **Patient identity always visible** in any patient context. An empty allergy list explicitly says
+   "No known allergies".
+4. **One workspace per job.** Patient 360, the three-column doctor encounter workspace, the lab workbench and the
+   telemedicine workspace replace multi-screen flows.
+5. **Clinical decision support, never silent blocking.** Drug–allergy checks (`findAllergyConflict` in `libs/domain`)
+   show their evidence and allow an override with a documented reason, returned to the caller for the audit trail.
+6. **Keyboard first for staff.** `/` patient search · `↑/↓` or `j/k` worklist · `Enter` next result · `F2` barcode ·
+   `Alt+P` prescription · `Alt+L` lab order.
+7. **Role-aware navigation.** `navigationForRole()` filters `STAFF_NAVIGATION`.
+8. **Action-first dashboards.** "What do I need to do next?" (`AttentionList`, `ActionMetric`) rather than charts.
+9. **Facility time, always.** Clinical times render in the facility timezone (`setClinicTimeZone`, default
+   `Asia/Manila`), never the server's.
+10. **Staff and patients get different products.** The portal is mobile-first with a bottom tab bar, 16px base text and
+    plain-language results.
+
+## Screens (staff app)
+
+| Route                         | Screen                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `/`                           | Role-specific dashboard (doctor · lab · front desk)                                                                |
+| `/patients`, `/patients/[id]` | Patient list · **Patient 360** (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline) |
+| `/clinic/encounters/[id]`     | **Doctor workspace** — history · encounter note · clinical context, collapses to tabs < 1280px                     |
+| `/laboratory/worklist`        | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        |
+| `/dental`                     | **Odontogram** (FDI) with per-surface charting                                                                     |
+| `/telemedicine/[id]`          | Video consult with the patient record alongside                                                                    |
+| `/queue`, `/appointments`     | Queue board · daily schedule                                                                                       |
+
+Modules in the navigation that aren't built yet render a placeholder.
+
+Data flows through `apps/staff/src/lib/data.ts`; swap the fixtures for calls to the API (`/api/v1`) there.

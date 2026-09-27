@@ -1,10 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DATABASE, type Database } from '@healthcare/core';
-import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm';
-import { appointment, diagnosis, encounter, vitalSignSet } from './clinic.schema';
-import { publicView } from './clinic-support';
-import { ClinicConfigService } from './config/clinic-config.service';
-import { TriageService, toVitalsView } from './triage/triage.service';
+import { Inject, Injectable } from "@nestjs/common";
+import { DATABASE, type Database } from "@healthcare/core";
+import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { appointment, diagnosis, encounter, vitalSignSet } from "./clinic.schema";
+import { publicView } from "./clinic-support";
+import { ClinicConfigService } from "./config/clinic-config.service";
+import { TriageService, toVitalsView } from "./triage/triage.service";
 
 /**
  * Read-only queries other domains may use through app-level adapters
@@ -24,7 +24,10 @@ export class ClinicQueries {
   }
 
   async encounter(organizationId: string, encounterId: string) {
-    const [row] = await this.db.select().from(encounter).where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
+    const [row] = await this.db
+      .select()
+      .from(encounter)
+      .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
     return row;
   }
 
@@ -43,7 +46,7 @@ export class ClinicQueries {
           and(
             eq(diagnosis.organizationId, organizationId),
             eq(diagnosis.patientId, patientId),
-            eq(diagnosis.status, 'active'),
+            eq(diagnosis.status, "active"),
             or(eq(diagnosis.isChronic, true), gte(diagnosis.recordedAt, new Date(Date.now() - 90 * 86_400_000))),
           ),
         )
@@ -52,13 +55,13 @@ export class ClinicQueries {
       this.db
         .select()
         .from(encounter)
-        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId), inArray(encounter.status, ['in_progress', 'completed'])))
+        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId), inArray(encounter.status, ["in_progress", "completed"])))
         .orderBy(desc(encounter.startedAt))
         .limit(5),
       this.db
         .select()
         .from(vitalSignSet)
-        .where(and(eq(vitalSignSet.organizationId, organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, 'final')))
+        .where(and(eq(vitalSignSet.organizationId, organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
         .orderBy(desc(vitalSignSet.measuredAt))
         .limit(3),
       this.db
@@ -68,7 +71,7 @@ export class ClinicQueries {
           and(
             eq(appointment.organizationId, organizationId),
             eq(appointment.patientId, patientId),
-            inArray(appointment.status, ['booked', 'confirmed']),
+            inArray(appointment.status, ["booked", "confirmed"]),
             gte(appointment.startsAt, new Date()),
           ),
         )

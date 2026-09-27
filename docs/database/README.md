@@ -12,28 +12,28 @@ PostgreSQL 16. Schema source of truth: `database/migrations/*.sql`.
 
 ## Conventions
 
-| Convention | Why |
-| --- | --- |
-| `uuid` primary keys (`gen_random_uuid()`) | No enumerable ids in URLs |
+| Convention                                                                       | Why                                                                                |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `uuid` primary keys (`gen_random_uuid()`)                                        | No enumerable ids in URLs                                                          |
 | `organization_id` on every tenant table; composite FKs `(organization_id, x_id)` | The database itself guarantees records never reference another organization's data |
-| `timestamptz` everywhere; dates of birth as `date` | Unambiguous instants; displayed in Asia/Manila |
-| `version integer` on editable aggregates | Optimistic locking (`version_conflict`) |
-| `status` + `retired_at/_by` instead of `DELETE` | Clinical history is never silently lost |
-| Append-only tables guarded by `prevent_mutation()` trigger | `audit_event`, `patient_consent` |
-| Check constraints for enumerations and cross-column rules | Invariants hold regardless of the caller |
-| No large binaries | Files live in object storage; `document` holds metadata |
+| `timestamptz` everywhere; dates of birth as `date`                               | Unambiguous instants; displayed in Asia/Manila                                     |
+| `version integer` on editable aggregates                                         | Optimistic locking (`version_conflict`)                                            |
+| `status` + `retired_at/_by` instead of `DELETE`                                  | Clinical history is never silently lost                                            |
+| Append-only tables guarded by `prevent_mutation()` trigger                       | `audit_event`, `patient_consent`                                                   |
+| Check constraints for enumerations and cross-column rules                        | Invariants hold regardless of the caller                                           |
+| No large binaries                                                                | Files live in object storage; `document` holds metadata                            |
 
 ## Phase 1 tables
 
-| Area | Tables |
-| --- | --- |
-| Shared | `schema_migration`, `idempotency_record` |
-| Audit | `audit_event` (append-only, no FKs by design) |
-| Organization | `organization`, `facility`, `department` |
-| Identity & access | `app_user`, `permission`, `role`, `role_permission`, `organization_membership`, `role_assignment`, `auth_session` |
-| Patient | `patient`, `patient_number_sequence`, `patient_identifier`, `patient_contact_point`, `patient_address`, `patient_relationship`, `patient_consent` (append-only), `patient_communication_preference` |
-| Documents | `document` |
-| Notifications | `notification`, `notification_attempt` |
+| Area              | Tables                                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared            | `schema_migration`, `idempotency_record`                                                                                                                                                            |
+| Audit             | `audit_event` (append-only, no FKs by design)                                                                                                                                                       |
+| Organization      | `organization`, `facility`, `department`                                                                                                                                                            |
+| Identity & access | `app_user`, `permission`, `role`, `role_permission`, `organization_membership`, `role_assignment`, `auth_session`                                                                                   |
+| Patient           | `patient`, `patient_number_sequence`, `patient_identifier`, `patient_contact_point`, `patient_address`, `patient_relationship`, `patient_consent` (append-only), `patient_communication_preference` |
+| Documents         | `document`                                                                                                                                                                                          |
+| Notifications     | `notification`, `notification_attempt`                                                                                                                                                              |
 
 ## Production hardening (not yet done)
 

@@ -1,6 +1,6 @@
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
-import { FREQUENCIES, ROUTES } from './prescription.schema';
+import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
+import { FREQUENCIES, ROUTES } from "./prescription.schema";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -17,19 +17,22 @@ export const prescriptionItemSchema = z
     frequencyText: text(200).optional(),
     asNeededReason: text(200).optional(),
     durationValue: z.number().int().positive().max(365).optional(),
-    durationUnit: z.enum(['days', 'weeks', 'months']).optional(),
+    durationUnit: z.enum(["days", "weeks", "months"]).optional(),
     quantity: z.number().positive().max(100_000),
     quantityUnit: text(30),
     refills: z.number().int().min(0).max(11).default(0),
     instructions: text(1000),
   })
-  .refine((v) => (v.doseAmount === undefined) === (v.doseUnit === undefined), { message: 'doseAmount and doseUnit go together', path: ['doseUnit'] })
-  .refine((v) => (v.durationValue === undefined) === (v.durationUnit === undefined), { message: 'durationValue and durationUnit go together', path: ['durationUnit'] })
-  .refine((v) => v.frequency !== 'custom' || v.frequencyText, { message: 'Describe the custom frequency', path: ['frequencyText'] })
-  .refine((v) => v.frequency !== 'as_needed' || v.asNeededReason, { message: 'Give the as-needed indication', path: ['asNeededReason'] });
+  .refine((v) => (v.doseAmount === undefined) === (v.doseUnit === undefined), { message: "doseAmount and doseUnit go together", path: ["doseUnit"] })
+  .refine((v) => (v.durationValue === undefined) === (v.durationUnit === undefined), {
+    message: "durationValue and durationUnit go together",
+    path: ["durationUnit"],
+  })
+  .refine((v) => v.frequency !== "custom" || v.frequencyText, { message: "Describe the custom frequency", path: ["frequencyText"] })
+  .refine((v) => v.frequency !== "as_needed" || v.asNeededReason, { message: "Give the as-needed indication", path: ["asNeededReason"] });
 
 const items = z.array(prescriptionItemSchema).min(1).max(20);
-const override = z.string().trim().min(10, 'Document why the warning is overridden').max(1000);
+const override = z.string().trim().min(10, "Document why the warning is overridden").max(1000);
 
 export const issuePrescriptionSchema = z.object({
   encounterId: z.string().uuid(),
@@ -52,8 +55,8 @@ export const cancelPrescriptionSchema = z.object({ reason: z.string().trim().min
 export class CancelPrescriptionDto extends createZodDto(cancelPrescriptionSchema) {}
 
 export const listPrescriptionsSchema = z
-  .object({ patientId: z.string().uuid().optional(), encounterId: z.string().uuid().optional(), activeOnly: z.enum(['true', 'false']).optional() })
-  .refine((v) => v.patientId || v.encounterId, { message: 'Provide patientId or encounterId' });
+  .object({ patientId: z.string().uuid().optional(), encounterId: z.string().uuid().optional(), activeOnly: z.enum(["true", "false"]).optional() })
+  .refine((v) => v.patientId || v.encounterId, { message: "Provide patientId or encounterId" });
 export class ListPrescriptionsDto extends createZodDto(listPrescriptionsSchema) {}
 
 export type PrescriptionItemInput = z.infer<typeof prescriptionItemSchema>;

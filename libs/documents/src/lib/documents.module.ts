@@ -1,8 +1,8 @@
-import { type DynamicModule, Module, type Provider } from '@nestjs/common';
-import { APP_CONFIG, type AppConfig } from '@healthcare/core';
-import { DocumentsController } from './documents.controller';
-import { DocumentsService } from './documents.service';
-import { OBJECT_STORAGE, S3ObjectStorage } from './object-storage';
+import { type DynamicModule, Module, type Provider } from "@nestjs/common";
+import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { DocumentsController } from "./documents.controller";
+import { DocumentsService } from "./documents.service";
+import { OBJECT_STORAGE, S3ObjectStorage } from "./object-storage";
 
 export interface DocumentsModuleOptions {
   /** Override the object storage adapter (tests, alternative providers). */

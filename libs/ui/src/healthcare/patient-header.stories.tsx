@@ -1,0 +1,18 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { anaReyes, juanCruz, mariaSantos } from "@healthcare/domain/fixtures";
+import { Badge } from "../primitives/badge";
+import { PatientHeader } from "./patient-header";
+
+const meta: Meta<typeof PatientHeader> = {
+  title: "Healthcare/PatientHeader",
+  component: PatientHeader,
+  parameters: { layout: "fullscreen" },
+  args: { patient: mariaSantos },
+};
+export default meta;
+type Story = StoryObj<typeof PatientHeader>;
+
+export const Full: Story = {};
+export const Compact: Story = { args: { variant: "compact", aside: <Badge variant="info">Consultation · 27 Sep 2026</Badge> } };
+export const NoKnownAllergies: Story = { args: { patient: juanCruz } };
+export const ModerateAllergy: Story = { args: { patient: anaReyes, variant: "compact" } };

@@ -1,6 +1,6 @@
-import type { INestApplicationContext } from '@nestjs/common';
-import { IoAdapter } from '@nestjs/platform-socket.io';
-import type { ServerOptions } from 'socket.io';
+import type { INestApplicationContext } from "@nestjs/common";
+import { IoAdapter } from "@nestjs/platform-socket.io";
+import type { ServerOptions } from "socket.io";
 
 /** Socket.IO with the same CORS origins as the REST API. */
 export class ConfiguredIoAdapter extends IoAdapter {

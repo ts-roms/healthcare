@@ -1,0 +1,6 @@
+@import "@fontsource-variable/inter";
+@import "../src/styles/globals.css";
+
+:root {
+  --font-inter: "Inter Variable";
+}
