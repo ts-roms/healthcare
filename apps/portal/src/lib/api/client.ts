@@ -10,7 +10,7 @@ import { API_BASE_URL, COOKIES } from "./config";
  * portal access withdrawn): the patient is sent to sign in again. Other
  * errors throw `ApiError`.
  */
-export async function portalApi<T>(path: string, { method = "GET", body }: { method?: "GET" | "POST"; body?: unknown } = {}): Promise<T> {
+export async function portalApi<T>(path: string, { method = "GET", body }: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
   const accessToken = (await cookies()).get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");
   const headers: Record<string, string> = {

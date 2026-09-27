@@ -101,6 +101,13 @@ Migration `0016_telemedicine.sql`. `visit.checked_in_by` is required unless `che
   `LIVEKIT_API_SECRET`). A LiveKit dev server is in `infrastructure/docker/docker-compose.yml`. Replace the adapter to
   change provider.
 
+## Screens
+
+Staff: `/telemedicine`, `/telemedicine/[appointmentId]` and the telemedicine panel in the encounter workspace
+([staff-app.md](../architecture/staff-app.md#online-consultations)). Patient: `/consultations/[appointmentId]` in
+MyHealth ([portal-app.md](../architecture/portal-app.md)). Verified end to end against a local LiveKit server (two
+browsers exchanging audio and video).
+
 ## Open questions / assumptions
 
 - Facility-specific telemedicine requirements (DOH, PRC, NPC) — consent wording, identity verification, record

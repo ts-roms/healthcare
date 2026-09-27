@@ -24,5 +24,6 @@ export * from "./queue-board";
 export * from "./selectors";
 export * from "./specimen-status";
 export * from "./status";
+export * from "./video-call";
 export * from "./vital-signs";
 export * from "../lib/format";

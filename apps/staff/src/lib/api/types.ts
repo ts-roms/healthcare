@@ -877,3 +877,76 @@ export interface LabTrend {
     corrected: boolean;
   }>;
 }
+
+// ---- Telemedicine (Phase 5) -------------------------------------------------------------------------
+
+export type TelemedicineStatus = "scheduled" | "waiting" | "in_consultation" | "ended" | "escalated";
+
+export interface TelemedicineSessionSummary {
+  status: TelemedicineStatus;
+  questionnaireSubmittedAt: string | null;
+  redFlags: string[];
+  consentAcknowledgedAt: string | null;
+  patientJoinedAt: string | null;
+  clinicianJoinedAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  encounterId: string | null;
+  patientInstructions: string | null;
+}
+
+export interface TelemedicineAppointment {
+  id: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerName: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  reason: string | null;
+  visitType: string;
+}
+
+/** `GET /telemedicine/consultations` */
+export interface TelemedicineDay {
+  date: string;
+  timeZone: string;
+  videoConfigured: boolean;
+  consultations: Array<{
+    appointment: TelemedicineAppointment;
+    patient: PatientBrief | null;
+    visitStatus: string | null;
+    encounterId: string | null;
+    session: TelemedicineSessionSummary;
+  }>;
+}
+
+export interface TelemedicineQuestionnaire {
+  reasonForVisit: string;
+  symptoms?: string;
+  symptomDurationDays?: number;
+  currentMedications?: string;
+  newAllergies?: string;
+  redFlags: string[];
+  locationCity: string;
+  callbackNumber: string;
+}
+
+/** `GET /telemedicine/consultations/:appointmentId` and the actions' responses. */
+export interface TelemedicineConsultation {
+  appointment: TelemedicineAppointment;
+  session: TelemedicineSessionSummary & {
+    questionnaire: TelemedicineQuestionnaire | null;
+    redFlagLabels: string[];
+    escalationReason: string | null;
+  };
+  videoConfigured: boolean;
+  video?: VideoJoin | null;
+}
+
+export interface VideoJoin {
+  url: string;
+  token: string;
+  room: string;
+  expiresInSeconds: number;
+}

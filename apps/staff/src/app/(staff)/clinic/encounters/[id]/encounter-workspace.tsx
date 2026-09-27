@@ -35,6 +35,7 @@ import type {
   PatientLabResult,
   PatientSummaryResponse,
   Prescription,
+  TelemedicineConsultation,
 } from "@/lib/api/types";
 import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
@@ -54,6 +55,7 @@ import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { LabOrdersPanel } from "./lab-orders-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
+import { TelemedicinePanel } from "./telemedicine-panel";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 
 type HistoryItem = Encounter & { practitionerName: string | null };
@@ -73,6 +75,7 @@ export function EncounterWorkspace({
   canManageCarePlans,
   canBookFollowUp,
   canManageAllergies,
+  telemedicine,
   lab,
 }: {
   encounter: EncounterDetail;
@@ -92,6 +95,8 @@ export function EncounterWorkspace({
   /** appointment.manage: may book a follow-up. */
   canBookFollowUp: boolean;
   canManageAllergies: boolean;
+  /** Online consultations: the video and escalation panel. */
+  telemedicine: { consultation: TelemedicineConsultation; canConduct: boolean; bookInPersonHref: string | null } | null;
   lab: {
     /** null: the user may not read laboratory orders. */
     orders: LabOrder[] | null;
@@ -279,6 +284,13 @@ export function EncounterWorkspace({
           ) : null,
           content: (
             <div className="flex flex-col gap-5">
+              {telemedicine ? (
+                <TelemedicinePanel
+                  consultation={telemedicine.consultation}
+                  canConduct={telemedicine.canConduct}
+                  bookInPersonHref={telemedicine.bookInPersonHref}
+                />
+              ) : null}
               {encounter.chiefComplaint ? (
                 <p className="text-body">
                   <span className="text-meta font-semibold tracking-wide text-muted-foreground uppercase">Chief complaint </span>
