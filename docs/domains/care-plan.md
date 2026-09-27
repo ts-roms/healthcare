@@ -33,3 +33,9 @@ Laboratory-monitoring activities will link to laboratory orders in Phase 3.
 ## Permissions
 
 `care-plan.read`, `care-plan.manage`.
+
+## Staff app
+
+Care plans are created from the encounter workspace and managed on `/clinic/care-plans/[id]`
+(`docs/architecture/staff-app.md`). Booking a follow-up for a planned `follow_up_appointment` activity links the
+appointment (`status: scheduled`, `appointmentId`).

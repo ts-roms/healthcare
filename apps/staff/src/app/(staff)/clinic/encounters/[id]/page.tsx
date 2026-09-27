@@ -1,8 +1,20 @@
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
-import { can, getSession } from "@/lib/api/session";
-import type { CodingSystem, Encounter, EncounterDetail, Page, PatientDetail, PatientSummaryResponse, Practitioner, Prescription } from "@/lib/api/types";
+import { can, getSelectedFacility, getSession } from "@/lib/api/session";
+import { todayIn } from "@/lib/clinic-mapping";
+import type {
+  CarePlan,
+  CarePlanDetail,
+  CodingSystem,
+  Encounter,
+  EncounterDetail,
+  Page,
+  PatientDetail,
+  PatientSummaryResponse,
+  Practitioner,
+  Prescription,
+} from "@/lib/api/types";
 import { encounterControls } from "@/lib/encounter-mapping";
 import { toBannerPatient } from "@/lib/patient-mapping";
 import { EncounterWorkspace } from "./encounter-workspace";
@@ -31,18 +43,27 @@ async function optional<T>(path: string, query?: Record<string, string | number>
   }
 }
 
+/** Open care plans with goals and activities (each detail view is audited by the API). */
+async function openCarePlans(patientId: string): Promise<CarePlanDetail[] | null> {
+  const plans = await optional<CarePlan[]>("/care-plans", { patientId });
+  if (!plans) return null;
+  return Promise.all(plans.slice(0, 5).map((p) => api<CarePlanDetail>(`/care-plans/${p.id}`)));
+}
+
 export default async function EncounterPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session] = await Promise.all([params, getSession()]);
   if (!can(session, "encounter.read")) redirect("/");
   if (!UUID.test(id)) notFound();
   const encounter = await load<EncounterDetail>(`/encounters/${id}`);
-  const [patient, summary, history, practitioners, codingSystems, prescriptions] = await Promise.all([
+  const [patient, summary, history, practitioners, codingSystems, prescriptions, carePlans, facility] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
     load<Page<Encounter>>("/encounters", { patientId: encounter.patientId, pageSize: 20 }),
     can(session, "appointment.read") ? optional<Practitioner[]>("/clinic/practitioners") : Promise.resolve(null),
     optional<CodingSystem[]>("/clinic/coding-systems"),
     can(session, "prescription.read") ? optional<Prescription[]>("/prescriptions", { encounterId: encounter.id }) : Promise.resolve(null),
+    can(session, "care-plan.read") ? openCarePlans(encounter.patientId) : Promise.resolve(null),
+    getSelectedFacility(),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -65,6 +86,15 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       controls={controls}
       prescriptions={prescriptions}
       prescriptionPermissions={session.permissions.filter((p) => p.startsWith("prescription."))}
+      carePlans={carePlans}
+      followUp={{
+        patientId: encounter.patientId,
+        practitionerId: encounter.practitionerId,
+        returnTo: `/clinic/encounters/${encounter.id}`,
+        today: todayIn(facility?.timezone ?? "Asia/Manila"),
+      }}
+      canManageCarePlans={can(session, "care-plan.manage")}
+      canBookFollowUp={can(session, "appointment.manage")}
     />
   );
 }

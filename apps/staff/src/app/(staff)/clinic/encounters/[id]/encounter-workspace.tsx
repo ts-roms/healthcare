@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangleIcon, FileClockIcon, FileSignatureIcon, PencilLineIcon, SaveIcon, XCircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CalendarPlusIcon, FileClockIcon, FileSignatureIcon, PencilLineIcon, SaveIcon, XCircleIcon } from "lucide-react";
 import type { Patient } from "@healthcare/domain";
 import { DoctorLayout } from "@healthcare/ui/layouts";
 import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
@@ -21,8 +21,10 @@ import {
   Textarea,
   toast,
 } from "@healthcare/ui/primitives";
-import type { CodingSystem, Encounter, EncounterDetail, NoteRevision, PatientSummaryResponse, Prescription } from "@/lib/api/types";
+import type { CarePlanDetail, CodingSystem, Encounter, EncounterDetail, NoteRevision, PatientSummaryResponse, Prescription } from "@/lib/api/types";
+import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
+  diagnosisLabel,
   ENCOUNTER_STATUS_LABEL,
   type EncounterControls,
   isNoteDirty,
@@ -34,6 +36,7 @@ import {
 } from "@/lib/encounter-mapping";
 import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
+import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
 import { PrescriptionsPanel } from "./prescriptions-panel";
@@ -50,6 +53,10 @@ export function EncounterWorkspace({
   controls,
   prescriptions,
   prescriptionPermissions,
+  carePlans,
+  followUp,
+  canManageCarePlans,
+  canBookFollowUp,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -61,6 +68,12 @@ export function EncounterWorkspace({
   /** null: the user may not read prescriptions. */
   prescriptions: Prescription[] | null;
   prescriptionPermissions: string[];
+  /** Open care plans with details; null: the user may not read care plans. */
+  carePlans: CarePlanDetail[] | null;
+  followUp: FollowUpContext;
+  canManageCarePlans: boolean;
+  /** appointment.manage: may book a follow-up. */
+  canBookFollowUp: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -300,6 +313,14 @@ export function EncounterWorkspace({
                 allergies={banner.allergies}
                 allergyStatus={summary ? summary.allergies.status : "unknown"}
               />
+              <CarePlansPanel
+                plans={carePlans}
+                followUp={followUp}
+                encounterId={encounter.id}
+                diagnoses={encounter.diagnoses.filter((d) => d.status === "active").map((d) => ({ id: d.id, label: diagnosisLabel(d) }))}
+                canManage={canManageCarePlans && encounter.status !== "entered_in_error"}
+                canBook={canBookFollowUp && encounter.status !== "entered_in_error"}
+              />
               <section className="flex flex-col gap-2">
                 <h3 className="text-meta font-semibold tracking-wide text-muted-foreground uppercase">This visit</h3>
                 {triage ? (
@@ -373,7 +394,7 @@ export function EncounterWorkspace({
                   )}
                 </SummarySection>
               ) : null}
-              {summary.openCarePlans?.length ? (
+              {carePlans === null && summary.openCarePlans?.length ? (
                 <SummarySection title="Care plans">
                   <ul className="flex flex-col gap-0.5 text-table">
                     {summary.openCarePlans.map((c) => (
@@ -402,6 +423,16 @@ export function EncounterWorkspace({
               <Button size="sm" variant="ghost" disabled={pending} onClick={() => setErrorOpen(true)}>
                 <XCircleIcon /> Opened in error…
               </Button>
+            ) : null}
+            {canBookFollowUp && encounter.status !== "entered_in_error" ? (
+              <span className="flex flex-wrap items-center gap-1 text-meta text-muted-foreground">
+                <CalendarPlusIcon className="size-4" aria-hidden /> Follow-up in
+                {FOLLOW_UP_PRESETS.map((p) => (
+                  <Button key={p.days} asChild size="xs" variant="outline">
+                    <Link href={followUpHref(followUp, { date: addDays(followUp.today, p.days), reason: "Follow-up" })}>{p.label}</Link>
+                  </Button>
+                ))}
+              </span>
             ) : null}
             <span className="ml-auto text-meta text-muted-foreground" role="status">
               {editable ? (dirty ? "Unsaved changes" : encounter.note ? `Saved · revision ${latestRevision}` : "Not saved yet") : null}

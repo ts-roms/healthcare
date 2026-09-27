@@ -174,7 +174,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
             <CardTitle>Clinical summary</CardTitle>
           </CardHeader>
-          <CardContent>{summary ? <ClinicalPanel summary={summary} canOpenEncounters={can(session, "encounter.read")} /> : <NoClinicalAccess />}</CardContent>
+          <CardContent>
+            {summary ? (
+              <ClinicalPanel summary={summary} canOpenEncounters={can(session, "encounter.read")} canOpenCarePlans={can(session, "care-plan.read")} />
+            ) : (
+              <NoClinicalAccess />
+            )}
+          </CardContent>
         </Card>
 
         <Card>
@@ -286,7 +292,15 @@ function NoClinicalAccess() {
   );
 }
 
-function ClinicalPanel({ summary, canOpenEncounters }: { summary: PatientSummaryResponse; canOpenEncounters: boolean }) {
+function ClinicalPanel({
+  summary,
+  canOpenEncounters,
+  canOpenCarePlans,
+}: {
+  summary: PatientSummaryResponse;
+  canOpenEncounters: boolean;
+  canOpenCarePlans: boolean;
+}) {
   const { allergies } = summary;
   const vitals = summary.latestVitals[0];
   return (
@@ -401,7 +415,14 @@ function ClinicalPanel({ summary, canOpenEncounters }: { summary: PatientSummary
           <ul className="flex flex-col gap-1 text-body">
             {summary.openCarePlans.map((c) => (
               <li key={c.id}>
-                {c.title} <span className="text-muted-foreground">· {c.openActivities.length} open activities</span>
+                {canOpenCarePlans ? (
+                  <Link href={`/clinic/care-plans/${c.id}`} className="text-primary hover:underline">
+                    {c.title}
+                  </Link>
+                ) : (
+                  c.title
+                )}{" "}
+                <span className="text-muted-foreground">· {c.openActivities.length} open activities</span>
               </li>
             ))}
           </ul>
