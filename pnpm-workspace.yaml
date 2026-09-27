@@ -3,8 +3,12 @@ packages:
   - "libs/*"
 
 onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@scarf/scarf'
+  - "@swc/core"
+  - "@tailwindcss/oxide"
   - esbuild
+  - msgpackr-extract
   - nx
   - sharp
-  - "@tailwindcss/oxide"
-  - "@swc/core"
+  - unrs-resolver
