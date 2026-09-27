@@ -7,6 +7,7 @@ import { AlertTriangleIcon, CalendarPlusIcon } from "lucide-react";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { cn } from "@healthcare/ui/lib/utils";
+import { updateCareActivity } from "../../clinic/care-plans/actions";
 import { bookAppointment } from "../actions";
 
 type Option = { id: string; name: string };
@@ -21,6 +22,7 @@ export function BookingForm({
   selection,
   slots,
   availabilityError,
+  context,
 }: {
   facilityId: string;
   today: string;
@@ -30,11 +32,13 @@ export function BookingForm({
   selection: Selection;
   slots: Array<{ startsAt: string; endsAt: string }> | null;
   availabilityError: string | null;
+  /** Booking started elsewhere: return there afterwards, and link a care-plan follow-up activity. */
+  context: { returnTo: string; activity: { carePlanId: string; activityId: string } | null; reason: string };
 }) {
   const router = useRouter();
   const [startsAt, setStartsAt] = React.useState<string | null>(null);
   const [bookingChannel, setBookingChannel] = React.useState<"front_desk" | "phone">("front_desk");
-  const [reason, setReason] = React.useState("");
+  const [reason, setReason] = React.useState(context.reason);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   const [attemptKey, setAttemptKey] = React.useState(() => crypto.randomUUID());
@@ -43,7 +47,13 @@ export function BookingForm({
   const select = (change: Partial<Selection>) => {
     const next = { ...selection, ...change };
     setStartsAt(null);
-    const query = new URLSearchParams({ patientId: patient.id, ...Object.fromEntries(Object.entries(next).filter(([, v]) => v)) });
+    const carried = {
+      returnTo: context.returnTo,
+      carePlanId: context.activity?.carePlanId ?? "",
+      activityId: context.activity?.activityId ?? "",
+      reason: context.reason,
+    };
+    const query = new URLSearchParams({ patientId: patient.id, ...Object.fromEntries(Object.entries({ ...next, ...carried }).filter(([, v]) => v)) });
     router.replace(`/appointments/new?${query}`, { scroll: false });
   };
 
@@ -66,7 +76,13 @@ export function BookingForm({
       );
       if (result.ok) {
         toast.success(`Booked ${patient.displayName}`, { description: `${selection.date} at ${clinicalTime(startsAt)}` });
-        router.push(`/appointments?date=${selection.date}&practitionerId=${selection.practitionerId}`);
+        const appointment = result.data[0];
+        if (context.activity && appointment) {
+          // The care-plan follow-up now has its appointment; it becomes "scheduled".
+          const linked = await updateCareActivity({ ...context.activity, status: "scheduled", appointmentId: appointment.id });
+          if (!linked.ok) toast.warning("Booked, but the care-plan follow-up could not be linked", { description: linked.message });
+        }
+        router.push(context.returnTo || `/appointments?date=${selection.date}&practitionerId=${selection.practitionerId}`);
         return;
       }
       setAttemptKey(crypto.randomUUID());
@@ -93,6 +109,11 @@ export function BookingForm({
         ) : null}
       </Card>
 
+      {context.activity ? (
+        <p className="rounded-md border border-info/40 bg-info-subtle px-3 py-2 text-table">
+          This booking completes a care-plan follow-up: the appointment is linked to it and the activity becomes scheduled.
+        </p>
+      ) : null}
       <fieldset disabled={pending} className="grid gap-3 sm:grid-cols-3">
         <div className="grid gap-1">
           <Label htmlFor="practitioner">Practitioner *</Label>
@@ -184,7 +205,7 @@ export function BookingForm({
           <CalendarPlusIcon /> {pending ? "Booking…" : startsAt ? `Book ${clinicalTime(startsAt)}` : "Book"}
         </Button>
         <Button asChild variant="ghost">
-          <Link href={`/patients/${patient.id}`}>Cancel</Link>
+          <Link href={context.returnTo || `/patients/${patient.id}`}>Cancel</Link>
         </Button>
       </div>
     </form>
