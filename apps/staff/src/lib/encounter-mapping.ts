@@ -1,4 +1,4 @@
-import type { DiagnosisView, EncounterStatus, NoteRevision } from "./api/types";
+import type { DiagnosisView, EncounterStatus, NoteRevision, Prescription } from "./api/types";
 
 /**
  * Encounter workspace helpers. The API (`libs/clinic` encounter service) is
@@ -84,4 +84,24 @@ export function sortDiagnoses<T extends Pick<DiagnosisView, "status" | "rank" | 
     (a, b) =>
       statusOrder[a.status] - statusOrder[b.status] || (a.rank === b.rank ? 0 : a.rank === "primary" ? -1 : 1) || a.recordedAt.localeCompare(b.recordedAt),
   );
+}
+
+export interface PrescriptionControls {
+  /** New prescriptions are issued only while the encounter is open. */
+  issue: boolean;
+  /** Correcting an active prescription (it becomes superseded), also after signing. */
+  replace: (p: Pick<Prescription, "status">) => boolean;
+  cancel: (p: Pick<Prescription, "status">) => boolean;
+}
+
+/** Mirrors `libs/prescription`: issue in an open encounter; replace or cancel active prescriptions of a valid encounter. */
+export function prescriptionControls(status: EncounterStatus, permissions: readonly string[]): PrescriptionControls {
+  const valid = status !== "entered_in_error";
+  const mayIssue = permissions.includes("prescription.issue");
+  const mayCancel = permissions.includes("prescription.cancel");
+  return {
+    issue: status === "in_progress" && mayIssue,
+    replace: (p) => valid && mayIssue && p.status === "active",
+    cancel: (p) => mayCancel && p.status === "active",
+  };
 }

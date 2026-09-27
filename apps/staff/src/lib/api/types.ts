@@ -440,3 +440,88 @@ export interface CodingSystem {
   version: string | null;
   status: "active" | "inactive";
 }
+
+// ---- Prescriptions (Phase 2) ------------------------------------------------------------------------
+
+export type PrescriptionRoute =
+  | "oral"
+  | "sublingual"
+  | "buccal"
+  | "topical"
+  | "transdermal"
+  | "inhalation"
+  | "nasal"
+  | "ophthalmic"
+  | "otic"
+  | "rectal"
+  | "vaginal"
+  | "subcutaneous"
+  | "intramuscular"
+  | "intravenous"
+  | "other";
+
+export type PrescriptionFrequency =
+  | "once"
+  | "once_daily"
+  | "twice_daily"
+  | "three_times_daily"
+  | "four_times_daily"
+  | "every_4_hours"
+  | "every_6_hours"
+  | "every_8_hours"
+  | "every_12_hours"
+  | "at_bedtime"
+  | "weekly"
+  | "as_needed"
+  | "custom";
+
+export interface PrescriptionLine {
+  id: string;
+  lineNumber: number;
+  genericName: string;
+  brandName: string | null;
+  strength: string | null;
+  dosageForm: string | null;
+  doseAmount: number | null;
+  doseUnit: string | null;
+  route: PrescriptionRoute;
+  frequency: PrescriptionFrequency;
+  frequencyText: string | null;
+  asNeededReason: string | null;
+  durationValue: number | null;
+  durationUnit: "days" | "weeks" | "months" | null;
+  quantity: number;
+  quantityUnit: string;
+  refills: number;
+  instructions: string;
+}
+
+/** Drug–allergy decision support finding (a name match only; no drug-class knowledge). */
+export interface AllergyWarning {
+  allergyId: string;
+  substance: string;
+  medication: string;
+  criticality: string;
+  reaction: string | null;
+  basis: "name_match";
+}
+
+/** GET /prescriptions, POST /prescriptions */
+export interface Prescription {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  prescriberPractitionerId: string;
+  prescriptionNumber: string;
+  status: "active" | "cancelled" | "superseded";
+  issuedAt: string;
+  issuedBy: string;
+  notes: string | null;
+  replacesPrescriptionId: string | null;
+  allergyOverrideReason: string | null;
+  allergyWarnings: AllergyWarning[];
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  items: PrescriptionLine[];
+}

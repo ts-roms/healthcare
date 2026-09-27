@@ -68,7 +68,10 @@ Doctor flow: queue board or **Consultations** (`/clinic/encounters`) → **Start
 - **After signing** the note is read-only; **Amend note** (`encounter.amend`) adds an amendment with a reason, and adding or correcting a diagnosis also needs a reason. The **revision history** shows every draft, the signed version and amendments (viewing it is audited).
 - **Opened in error** (wrong patient, duplicate) marks the encounter entered in error with a reason; it stays for audit and the patient returns to _ready for provider_.
 - `lib/encounter-mapping.ts` decides which controls to offer by mirroring `libs/clinic`; the API enforces every rule. Queue rows carry `encounterId`, so the board and the consultations list open the right encounter.
-- Prescribing, lab orders, referrals and follow-up booking are not in the workspace yet.
+- **Prescribing** (`prescription.issue`, the user linked to a physician or dentist): **New prescription** (Alt+P) opens a form of structured lines (generic name, strength, form, dose, route, frequency, duration, quantity, refills, patient instructions) with the patient's recorded allergies at the top. `lib/prescription-form.ts` mirrors the API's validation so errors show per field. Issuing sends an `Idempotency-Key` per attempt.
+- **Drug–allergy decision support** is the API's (`libs/prescription/src/lib/allergy-check.ts`): a `409 allergy_warning` lists each medicine that matches a recorded allergy by name. The form shows the warnings, states that the check is a name match without drug-class knowledge (no warning is not evidence of safety), and lets the prescriber change the medicine or override with a documented reason (≥ 10 characters). The override is stored with the prescription and audited. The staff app does not run its own allergy rule.
+- Prescriptions are immutable: **Replace** (with a reason) supersedes an active prescription with a new one, also after signing; **Cancel** needs a reason. New prescriptions are issued only while the encounter is open.
+- Lab orders, referrals, follow-up booking and printing prescriptions are not in the workspace yet.
 
 ## Configuration
 

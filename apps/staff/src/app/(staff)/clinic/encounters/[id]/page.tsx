@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
-import type { CodingSystem, Encounter, EncounterDetail, Page, PatientDetail, PatientSummaryResponse, Practitioner } from "@/lib/api/types";
+import type { CodingSystem, Encounter, EncounterDetail, Page, PatientDetail, PatientSummaryResponse, Practitioner, Prescription } from "@/lib/api/types";
 import { encounterControls } from "@/lib/encounter-mapping";
 import { toBannerPatient } from "@/lib/patient-mapping";
 import { EncounterWorkspace } from "./encounter-workspace";
@@ -36,12 +36,13 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
   if (!can(session, "encounter.read")) redirect("/");
   if (!UUID.test(id)) notFound();
   const encounter = await load<EncounterDetail>(`/encounters/${id}`);
-  const [patient, summary, history, practitioners, codingSystems] = await Promise.all([
+  const [patient, summary, history, practitioners, codingSystems, prescriptions] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
     load<Page<Encounter>>("/encounters", { patientId: encounter.patientId, pageSize: 20 }),
     can(session, "appointment.read") ? optional<Practitioner[]>("/clinic/practitioners") : Promise.resolve(null),
     optional<CodingSystem[]>("/clinic/coding-systems"),
+    can(session, "prescription.read") ? optional<Prescription[]>("/prescriptions", { encounterId: encounter.id }) : Promise.resolve(null),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -62,6 +63,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       history={history.items.map((e) => ({ ...e, practitionerName: names.get(e.practitionerId) ?? null }))}
       codingSystems={(codingSystems ?? []).filter((c) => c.status === "active")}
       controls={controls}
+      prescriptions={prescriptions}
+      prescriptionPermissions={session.permissions.filter((p) => p.startsWith("prescription."))}
     />
   );
 }
