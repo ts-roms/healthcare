@@ -3,18 +3,37 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, MegaphoneIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, MegaphoneIcon, RefreshCwIcon, StethoscopeIcon, XIcon } from "lucide-react";
 import { clinicalTime, QueueBoard, sexLabel } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { QueueVisit } from "@/lib/api/types";
-import { moveNeedsReason, QUEUE_BOARD_STATUSES, QUEUE_MOVE_LABEL, type QueueMove, queueMoves, toQueueEntry, visitStatusLabel } from "@/lib/clinic-mapping";
+import {
+  canTriage,
+  moveNeedsReason,
+  QUEUE_BOARD_STATUSES,
+  QUEUE_MOVE_LABEL,
+  type QueueMove,
+  queueMoves,
+  toQueueEntry,
+  visitStatusLabel,
+} from "@/lib/clinic-mapping";
 import { callVisit, moveVisit } from "./actions";
 
 /** Until realtime reaches the browser (the socket needs a token the BFF keeps server-side), the board polls. */
 const REFRESH_MS = 15_000;
 
-export function QueueWorkspace({ visits, canManage, canOpenRecord }: { visits: QueueVisit[]; canManage: boolean; canOpenRecord: boolean }) {
+export function QueueWorkspace({
+  visits,
+  canManage,
+  canTriage: mayTriage,
+  canOpenRecord,
+}: {
+  visits: QueueVisit[];
+  canManage: boolean;
+  canTriage: boolean;
+  canOpenRecord: boolean;
+}) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -75,6 +94,7 @@ export function QueueWorkspace({ visits, canManage, canOpenRecord }: { visits: Q
           key={`${selected.id}:${selected.version}`}
           visit={selected}
           canManage={canManage}
+          canTriage={mayTriage}
           canOpenRecord={canOpenRecord}
           pending={pending}
           onClose={() => setSelectedId(null)}
@@ -95,6 +115,7 @@ export function QueueWorkspace({ visits, canManage, canOpenRecord }: { visits: Q
 function VisitPanel({
   visit,
   canManage,
+  canTriage: mayTriage,
   canOpenRecord,
   pending,
   onClose,
@@ -103,6 +124,7 @@ function VisitPanel({
 }: {
   visit: QueueVisit;
   canManage: boolean;
+  canTriage: boolean;
   canOpenRecord: boolean;
   pending: boolean;
   onClose: () => void;
@@ -166,6 +188,13 @@ function VisitPanel({
           ) : null}
         </dl>
 
+        {mayTriage && canTriage(visit.status) ? (
+          <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>
+            <Link href={`/queue/visits/${visit.id}/triage`}>
+              <StethoscopeIcon /> {visit.status === "awaiting_consultation" ? "Update triage" : "Triage & vitals"}
+            </Link>
+          </Button>
+        ) : null}
         {canManage && open ? (
           <>
             <form

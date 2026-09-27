@@ -268,6 +268,7 @@ export type VisitPriority = "routine" | "urgent" | "emergency";
 /** GET /queue row. */
 export interface QueueVisit {
   id: string;
+  facilityId: string;
   patientId: string;
   appointmentId: string | null;
   arrivalMode: "walk_in" | "appointment";

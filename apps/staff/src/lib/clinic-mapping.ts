@@ -65,6 +65,11 @@ export function queueMoves(status: VisitStatus): QueueMove[] {
   return QUEUE_MOVES[status];
 }
 
+/** Triage can be recorded (or repeated) until the consultation starts (`libs/clinic` triage service). */
+export function canTriage(status: VisitStatus): boolean {
+  return status === "waiting" || status === "in_triage" || status === "awaiting_consultation";
+}
+
 export function moveNeedsReason(move: QueueMove): boolean {
   return move === "cancelled" || move === "left_without_being_seen";
 }

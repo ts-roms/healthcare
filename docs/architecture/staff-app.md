@@ -30,10 +30,10 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 ## Data
 
-| Area                                                                                                   | Source                                                     |
-| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, registration, queue, appointments       | API                                                        |
-| Clinic/encounters, laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360` | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                            | Source                                                     |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, registration, queue, triage/vitals, appointments | API                                                        |
+| Clinic/encounters, laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`          | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -42,12 +42,14 @@ Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects ma
 ## Queue and appointments
 
 Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule.
+Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/visits/[id]/triage`) → "Complete triage" moves the patient to _Ready for provider_ ("Save, keep in triage" leaves them in triage).
 
 - **Facility-scoped.** `/queue`, `/queue/walk-in`, `/appointments` and `/appointments/new` need a facility selected in the top bar (the queue, check-in and schedule belong to a facility; the day and its time zone come from the facility).
 - **Server actions** (`app/(staff)/queue/actions.ts`, `app/(staff)/appointments/actions.ts`) call the API and return `{ ok, data } | { ok: false, message, code }` (`lib/api/action-result.ts`), so forms show API errors instead of crashing. Walk-ins and bookings send an `Idempotency-Key` per attempt.
 - **Optimistic locking.** Every move, call, confirm, cancel and no-show sends the row's `version`. A `409 version_conflict` (someone else acted first) shows a message and refreshes the screen.
 - **Rules stay in the API.** `lib/clinic-mapping.ts` maps API rows to the design system's `QueueBoard` and `AppointmentCard` and decides which buttons to offer by mirroring `libs/clinic` (queue transitions; check-in only on the appointment's day; no-show only after the start time). The API enforces the rules either way.
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
+- **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
 - **Refresh.** The queue page re-renders from the server every 15 s while visible (`router.refresh()`). The API's Socket.IO `/realtime` gateway needs an access token, which the staff app keeps server-side; connecting browsers to it needs a short-lived socket ticket endpoint (follow-up).
 
 ## Configuration

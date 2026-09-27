@@ -3,7 +3,7 @@ import { unstable_rethrow } from "next/navigation";
 import { ApiError, userMessage } from "./errors";
 
 /** What a server action returns to a client form: never throws for API errors, so the form can show them. */
-export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; message: string; code?: string };
+export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; message: string; code?: string; details?: unknown };
 
 const MESSAGES: Record<string, string> = {
   version_conflict: "Someone else updated this just now. The screen has been refreshed — check it and try again.",
@@ -18,7 +18,7 @@ export async function actionResult<T>(call: () => Promise<T>): Promise<ActionRes
   } catch (error) {
     // The session ended (redirect to sign-in) or another Next control-flow signal.
     unstable_rethrow(error);
-    if (error instanceof ApiError) return { ok: false, code: error.code, message: MESSAGES[error.code] ?? userMessage(error) };
+    if (error instanceof ApiError) return { ok: false, code: error.code, details: error.details, message: MESSAGES[error.code] ?? userMessage(error) };
     return { ok: false, message: userMessage(error) };
   }
 }

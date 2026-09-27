@@ -15,7 +15,7 @@ Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Desig
 ## Status
 
 - **Backend — Phase 1 (Foundation) and Phase 2 (Clinic) implemented:** authentication with MFA, RBAC, Patient Master, audit, documents, notifications; scheduling, queue, triage, encounters, diagnoses, prescriptions, care plans. See [docs/architecture/overview.md](docs/architecture/overview.md).
-- **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review, the queue (walk-in check-in, call, move) and appointments (day schedule, booking from open slots, confirm, check in, cancel, no-show) run against the API ([how](docs/architecture/staff-app.md)). Other clinical modules (encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
+- **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review, the queue (walk-in check-in, call, move), triage and vital signs, and appointments (day schedule, booking from open slots, confirm, check in, cancel, no-show) run against the API ([how](docs/architecture/staff-app.md)). Other clinical modules (encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
 - **Patient portal — prototype** on demo fixtures. The Healthcare Design System (`libs/ui`) is documented in Storybook.
 
 ## Getting started
@@ -109,22 +109,23 @@ facility / department, TOTP MFA, a transactional event outbox, and API integrati
 
 ## Screens (staff app)
 
-| Route                     | Screen                                                                                                             | Data       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `/login`                  | Sign-in: password, TOTP MFA, organization choice                                                                   | API        |
-| `/`                       | Welcome, quick actions; clinical dashboard previews (doctor · lab · front desk)                                    | API + demo |
-| `/patients`               | Patient lookup (name, patient no., mobile, birth date); minimal fields, masked mobile                              | API        |
-| `/patients/new`           | Registration with duplicate review and audited override                                                            | API        |
-| `/patients/[id]`          | Patient record: demographics, contacts, identifiers, consent, allergies and clinical summary (Patient 360)         | API        |
-| `/preview/patient-360`    | **Patient 360** design preview (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline) | Demo       |
-| `/clinic/encounters/[id]` | **Doctor workspace** — history · encounter note · clinical context, collapses to tabs < 1280px                     | Demo       |
-| `/laboratory/worklist`    | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        | Demo       |
-| `/dental`                 | **Odontogram** (FDI) with per-surface charting                                                                     | Demo       |
-| `/telemedicine/[id]`      | Video consult with the patient record alongside                                                                    | Demo       |
-| `/queue`                  | Live queue board: call, send to triage / ready for provider, cancel or left-without-being-seen (with reason)       | API        |
-| `/queue/walk-in`          | Walk-in check-in from the patient record (visit type, priority, chief complaint)                                   | API        |
-| `/appointments`           | Day schedule per practitioner: confirm, check in, cancel (with reason), no-show                                    | API        |
-| `/appointments/new`       | Booking from the practitioner's open slots                                                                         | API        |
+| Route                       | Screen                                                                                                             | Data       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `/login`                    | Sign-in: password, TOTP MFA, organization choice                                                                   | API        |
+| `/`                         | Welcome, quick actions; clinical dashboard previews (doctor · lab · front desk)                                    | API + demo |
+| `/patients`                 | Patient lookup (name, patient no., mobile, birth date); minimal fields, masked mobile                              | API        |
+| `/patients/new`             | Registration with duplicate review and audited override                                                            | API        |
+| `/patients/[id]`            | Patient record: demographics, contacts, identifiers, consent, allergies and clinical summary (Patient 360)         | API        |
+| `/preview/patient-360`      | **Patient 360** design preview (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline) | Demo       |
+| `/clinic/encounters/[id]`   | **Doctor workspace** — history · encounter note · clinical context, collapses to tabs < 1280px                     | Demo       |
+| `/laboratory/worklist`      | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        | Demo       |
+| `/dental`                   | **Odontogram** (FDI) with per-surface charting                                                                     | Demo       |
+| `/telemedicine/[id]`        | Video consult with the patient record alongside                                                                    | Demo       |
+| `/queue`                    | Live queue board: call, send to triage / ready for provider, cancel or left-without-being-seen (with reason)       | API        |
+| `/queue/walk-in`            | Walk-in check-in from the patient record (visit type, priority, chief complaint)                                   | API        |
+| `/queue/visits/[id]/triage` | Triage: chief complaint, priority, pain score, risk flags, vital signs (with allergies and previous vitals shown)  | API        |
+| `/appointments`             | Day schedule per practitioner: confirm, check in, cancel (with reason), no-show                                    | API        |
+| `/appointments/new`         | Booking from the practitioner's open slots                                                                         | API        |
 
 Modules in the navigation that aren't built yet render a placeholder.
 

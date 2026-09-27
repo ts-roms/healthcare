@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api/types";
-import { appointmentActions, groupByPractitioner, moveNeedsReason, queueMoves, shiftDate, toAppointment, todayIn, toQueueEntry } from "./clinic-mapping";
+import {
+  appointmentActions,
+  canTriage,
+  groupByPractitioner,
+  moveNeedsReason,
+  queueMoves,
+  shiftDate,
+  toAppointment,
+  todayIn,
+  toQueueEntry,
+} from "./clinic-mapping";
 
 const visit: QueueVisit = {
   id: "v1",
+  facilityId: "f1",
   patientId: "p1",
   appointmentId: null,
   arrivalMode: "walk_in",
@@ -121,12 +132,22 @@ describe("helpers", () => {
     ];
     const groups = groupByPractitioner(rows, practitioners);
     expect(groups.map((g) => g.practitioner?.displayName)).toEqual(["Dr. Reyes", "Dr. Santos"]);
-    expect(groups[0]!.items.map((r) => r.startsAt)).toEqual(["2026-09-27T01:00:00Z", "2026-09-27T03:00:00Z"]);
+    expect(groups[0]?.items.map((r) => r.startsAt)).toEqual(["2026-09-27T01:00:00Z", "2026-09-27T03:00:00Z"]);
   });
 
   it("does calendar and time-zone date arithmetic", () => {
     expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
     expect(shiftDate("2026-03-01", -1)).toBe("2026-02-28");
     expect(todayIn("Asia/Manila", new Date("2026-09-26T17:00:00Z"))).toBe("2026-09-27");
+  });
+});
+
+describe("canTriage", () => {
+  it("allows triage before the consultation starts, as the API does", () => {
+    expect(canTriage("waiting")).toBe(true);
+    expect(canTriage("in_triage")).toBe(true);
+    expect(canTriage("awaiting_consultation")).toBe(true);
+    expect(canTriage("in_consultation")).toBe(false);
+    expect(canTriage("completed")).toBe(false);
   });
 });
