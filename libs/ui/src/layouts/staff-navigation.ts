@@ -1,5 +1,6 @@
 import {
   BuildingIcon,
+  ClipboardListIcon,
   CalendarDaysIcon,
   FlaskConicalIcon,
   LayoutDashboardIcon,
@@ -65,6 +66,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Telemedicine", href: "/telemedicine", icon: MonitorIcon, roles: ["doctor", "admin"] },
   { label: "Billing", href: "/billing", icon: ReceiptIcon, roles: ["billing", "reception", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
+  { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
   { label: "Administration", href: "/admin", icon: BuildingIcon, roles: ["admin"] },
 ];
 

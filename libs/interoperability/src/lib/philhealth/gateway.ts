@@ -1,22 +1,6 @@
 import type { Provider } from "@nestjs/common";
-import type { ExchangeOutcome, ExchangeReason } from "../exchange/exchange-types";
+import type { ExchangeOutcome, ExchangeReason, IntegrationSpecification } from "../exchange/exchange-types";
 import type { PhilHealthClaimPackage } from "./claim-package";
-
-/**
- * Where an external specification stands (docs/interoperability/dependencies.md):
- * "dependency" — not obtained, nothing is transmitted; "stubbed" — an adapter exists against a documented but
- * uncertified specification; "implemented"; "certified" — accepted by the external party.
- */
-export type SpecificationStatus = "dependency" | "stubbed" | "implemented" | "certified";
-
-export interface IntegrationSpecification {
-  system: string;
-  name: string;
-  status: SpecificationStatus;
-  /** The external specification's own version, once obtained. */
-  specificationVersion: string | null;
-  note: string;
-}
 
 export type GatewayReason = ExchangeReason;
 export type ClaimSubmissionOutcome = ExchangeOutcome;

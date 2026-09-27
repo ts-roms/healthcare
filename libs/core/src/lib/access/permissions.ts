@@ -73,6 +73,9 @@ export const PERMISSIONS = [
   // Phase 8 — PhilHealth eClaims adapter stubs (migration 0021)
   "philhealth.claim.submit",
   "philhealth.settings.manage",
+  // Phase 8 — DOH reporting adapter stubs (migration 0023)
+  "doh.report.manage",
+  "doh.settings.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -481,6 +481,31 @@ export class PatientRecordService {
     };
   }
 
+  /** The primary (else first) active address and phone number (case reporting). Not audited here. */
+  async primaryAddressAndPhone(organizationId: string, patientId: string) {
+    const [addresses, phones] = await Promise.all([
+      this.db
+        .select()
+        .from(patientAddress)
+        .where(and(eq(patientAddress.organizationId, organizationId), eq(patientAddress.patientId, patientId), eq(patientAddress.status, "active")))
+        .orderBy(desc(patientAddress.isPrimary), desc(patientAddress.createdAt))
+        .limit(1),
+      this.db
+        .select({ value: patientContactPoint.value })
+        .from(patientContactPoint)
+        .where(
+          and(eq(patientContactPoint.patientId, patientId), eq(patientContactPoint.status, "active"), inArray(patientContactPoint.system, ["mobile", "phone"])),
+        )
+        .orderBy(desc(patientContactPoint.isPrimary))
+        .limit(1),
+    ]);
+    const a = addresses[0];
+    return {
+      address: a ? { line1: a.line1, barangay: a.barangay, cityMunicipality: a.cityMunicipality, province: a.province, region: a.region } : null,
+      contactNumber: phones[0]?.value ?? null,
+    };
+  }
+
   /** Destination and permission for contacting a patient (used by notifications). */
   async resolveContact(
     organizationId: string,

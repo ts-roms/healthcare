@@ -1179,3 +1179,65 @@ export interface PhilHealthAccreditation {
   validUntil: string | null;
   version: number;
 }
+
+// ---- DOH case reporting (libs/interoperability/src/lib/doh) ----------------------------------------
+
+export type CaseReportStatus = "pending_review" | "queued" | "reported" | "rejected" | "failed" | "dismissed";
+
+export interface CaseReportSummary {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  diagnosisId: string;
+  category: string;
+  diagnosisCode: string;
+  diagnosisDisplay: string;
+  status: CaseReportStatus;
+  reportedVia: "external_channel" | "adapter" | null;
+  externalReference: string | null;
+  statusReason: string | null;
+  detectedAt: string;
+  reviewedAt: string | null;
+  version: number;
+  patient: { patientNumber: string; displayName: string } | null;
+}
+
+export interface CaseReportDetail extends Omit<CaseReportSummary, "patient"> {
+  integration: IntegrationSpecification;
+  ready: boolean;
+  checks: ClaimReadinessCheck[];
+  report: {
+    category: string;
+    facility: { name: string; facilityCode: string | null };
+    patient: {
+      patientNumber: string;
+      familyName: string;
+      givenName: string;
+      middleName: string | null;
+      sex: string;
+      birthDate: string;
+      address: { line1: string | null; barangay: string | null; cityMunicipality: string; province: string | null; region: string | null } | null;
+      contactNumber: string | null;
+    };
+    diagnosis: { code: string; display: string; certainty: string; recordedAt: string };
+    consultation: { date: string; modality: string; clinician: string | null };
+  };
+  submissions: ClaimExchange[];
+}
+
+export interface ReportableRule {
+  id: string;
+  codeSystemKey: "icd-10";
+  codePrefix: string;
+  category: string;
+  sourceNote: string | null;
+  status: "active" | "inactive";
+  createdAt: string;
+}
+
+export interface DohFacilityCode {
+  facilityId: string;
+  facilityCode: string;
+  version: number;
+}

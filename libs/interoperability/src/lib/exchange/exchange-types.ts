@@ -1,3 +1,19 @@
+/**
+ * Where an external specification stands (docs/interoperability/dependencies.md):
+ * "dependency" — not obtained, nothing is transmitted; "stubbed" — an adapter exists against a documented but
+ * uncertified specification; "implemented"; "certified" — accepted by the external party.
+ */
+export type SpecificationStatus = "dependency" | "stubbed" | "implemented" | "certified";
+
+export interface IntegrationSpecification {
+  system: string;
+  name: string;
+  status: SpecificationStatus;
+  /** The external specification's own version, once obtained. */
+  specificationVersion: string | null;
+  note: string;
+}
+
 /** Reasons or codes returned by an external system; no clinical free text. */
 export interface ExchangeReason {
   code: string;
