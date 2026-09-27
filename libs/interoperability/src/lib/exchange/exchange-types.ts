@@ -22,7 +22,12 @@ export interface ExchangeReason {
 
 /** What an adapter reports for one outbound operation. */
 export type ExchangeOutcome =
-  | { outcome: "accepted"; externalReference: string }
+  | {
+      outcome: "accepted";
+      externalReference: string;
+      /** Result codes the external system returned (e.g. an eligibility answer); codes only, no clinical text. */
+      detail?: Record<string, string>;
+    }
   | { outcome: "rejected"; reasons: ExchangeReason[] }
   | { outcome: "failed"; retryable: boolean; error: string }
   | { outcome: "not_configured" };
@@ -56,5 +61,7 @@ export interface ExchangeCompletedPayload {
   resourceType: string;
   resourceId: string;
   externalReference: string | null;
+  /** The result codes of an accepted exchange (see ExchangeOutcome.detail). */
+  detail: Record<string, string>;
   requestedBy: string;
 }

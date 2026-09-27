@@ -43,6 +43,8 @@ export interface AppModuleOverrides {
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
   philhealthGateway?: Provider;
+  /** Replaces the PhilHealth eligibility adapter (tests; the default transmits nothing). */
+  philhealthEligibilityGateway?: Provider;
   /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
   dohGateway?: Provider;
   /** Replaces the BullMQ integration queue (tests). */
@@ -99,6 +101,7 @@ export class AppModule implements NestModule {
           sources: AppPhilHealthClaimSources,
           billing: AppPhilHealthBillingSink,
           gateway: overrides.philhealthGateway,
+          eligibilityGateway: overrides.philhealthEligibilityGateway,
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),

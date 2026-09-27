@@ -1,4 +1,4 @@
-import type { ClaimSources } from "./claim-package";
+import type { ClaimSourcePatient, ClaimSources } from "./claim-package";
 
 /**
  * What the PhilHealth claims module needs from other domains, implemented by the
@@ -8,6 +8,8 @@ import type { ClaimSources } from "./claim-package";
 export interface PhilHealthClaimSources {
   /** The invoice, the patient and the billed encounters' diagnoses; undefined when the invoice does not exist. */
   forInvoice(organizationId: string, invoiceId: string): Promise<ClaimSources | undefined>;
+  /** The patient's identity and PhilHealth PIN (eligibility checks); undefined when the patient does not exist. */
+  patient(organizationId: string, patientId: string): Promise<ClaimSourcePatient | undefined>;
 }
 export const PHILHEALTH_CLAIM_SOURCES = Symbol("PHILHEALTH_CLAIM_SOURCES");
 

@@ -22,6 +22,8 @@ export * from "./lib/doh/doh.schema";
 export * from "./lib/doh/gateway";
 export * from "./lib/doh/ports";
 export * from "./lib/philhealth/claim-package";
+export * from "./lib/philhealth/eligibility";
+export * from "./lib/philhealth/eligibility.service";
 export * from "./lib/philhealth/gateway";
 export * from "./lib/philhealth/philhealth-claim-handler";
 export * from "./lib/philhealth/philhealth-claims.service";

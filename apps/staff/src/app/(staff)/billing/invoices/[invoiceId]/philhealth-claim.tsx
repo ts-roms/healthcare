@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2Icon, CircleAlertIcon, PlugZapIcon, SendIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, toast } from "@healthcare/ui/primitives";
+import { EligibilityBadge } from "@/components/eligibility-badge";
 import type { ClaimExchange, PhilHealthClaimPreview } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { requestPhilHealthSubmission } from "../../actions";
@@ -84,6 +85,14 @@ export function PhilHealthClaim({ preview, canSubmit }: { preview: PhilHealthCla
         <p className="text-meta text-muted-foreground">
           These check the clinic&apos;s own records only. PhilHealth&apos;s eligibility and benefit rules are applied by PhilHealth.
         </p>
+        {preview.eligibility ? (
+          <p className="flex flex-wrap items-center gap-2 text-meta">
+            Eligibility for {clinicalDate(preview.eligibility.serviceDate)}: <EligibilityBadge status={preview.eligibility.status} />
+            {preview.eligibility.externalReference ? <span className="text-muted-foreground">Ref. {preview.eligibility.externalReference}</span> : null}
+          </p>
+        ) : (
+          <p className="text-meta text-muted-foreground">No PhilHealth eligibility answer recorded for these dates (see the patient record).</p>
+        )}
         {claim ? (
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-meta">
             <dt className="text-muted-foreground">Member PIN</dt>

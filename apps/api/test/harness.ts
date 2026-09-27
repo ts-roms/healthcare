@@ -62,7 +62,9 @@ export async function resetDatabase(pool: Pool): Promise<void> {
   await runMigrations(pool, join(__dirname, "../../../database/migrations"));
 }
 
-export async function createTestApp(overrides: Pick<AppModuleOverrides, "philhealthGateway" | "dohGateway"> = {}): Promise<TestContext> {
+export async function createTestApp(
+  overrides: Pick<AppModuleOverrides, "philhealthGateway" | "philhealthEligibilityGateway" | "dohGateway"> = {},
+): Promise<TestContext> {
   const integrations = new RecordingIntegrationQueue();
   const config = testConfig();
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
