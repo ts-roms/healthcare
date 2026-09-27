@@ -15,7 +15,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/billing": ["billing.charge.read"],
   "/communications": ["notification.read", "notification.send"],
   "/reporting": ["doh.report.manage"],
-  "/admin": ["user.read", "user.manage", "role.manage", "organization.manage"],
+  "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
 };
 
 /** Navigation for the signed-in user, from the permissions the API grants (not a client-side role). */

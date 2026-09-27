@@ -65,3 +65,9 @@ export interface ExchangeCompletedPayload {
   detail: Record<string, string>;
   requestedBy: string;
 }
+
+/** Patient number and name for exchange lists (implemented by the API; this library never reads patient tables). */
+export interface ExchangePatientDirectory {
+  briefs(organizationId: string, patientIds: string[]): Promise<Map<string, { patientNumber: string; displayName: string }>>;
+}
+export const EXCHANGE_PATIENTS = Symbol("EXCHANGE_PATIENTS");

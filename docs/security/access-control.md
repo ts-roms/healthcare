@@ -59,6 +59,9 @@ and `philhealth.settings.manage` (org_admin); audited `philhealth.claim.preview`
 PhilHealth eligibility (migration 0024): `philhealth.eligibility.manage`
 (org_admin, receptionist, cashier); audited `philhealth.eligibility.*`
 (answers from an adapter as the system); recorded answers are immutable.
+Integration exchange review (migration 0025): `integration.exchange.manage`
+(org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
+the note as the reason). Payloads are never shown.
 DOH case reporting (migration 0023): `doh.report.manage` (org_admin, physician,
 records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),

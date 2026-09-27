@@ -19,8 +19,8 @@ import { EXCHANGE_HANDLERS, type ExchangeCompletedPayload, type ExchangeHandler,
 export class RetryableExchangeError extends Error {}
 
 /** A job that has not started this long after the request, or stalled this long, is re-enqueued. */
-const STRANDED_AFTER_MINUTES = 10;
-const STALLED_AFTER_MINUTES = 30;
+export const STRANDED_AFTER_MINUTES = 10;
+export const STALLED_AFTER_MINUTES = 30;
 
 type FinalStatus = ExchangeCompletedPayload["status"];
 

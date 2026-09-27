@@ -1262,3 +1262,33 @@ export interface EligibilityOverview {
   checks: EligibilityCheck[];
   readiness: ClaimReadinessCheck[] | null;
 }
+
+// ---- Integration exchange review (libs/interoperability/src/lib/exchange) ---------------------------
+
+export interface ExchangeReviewItem {
+  id: string;
+  system: string;
+  operation: string;
+  status: "queued" | "accepted" | "rejected" | "failed" | "not_configured";
+  resourceType: string;
+  resourceId: string;
+  patientId: string | null;
+  patient: { patientNumber: string; displayName: string } | null;
+  attempts: number;
+  externalReference: string | null;
+  outcomeDetail: { reasons?: Array<{ code: string; message: string }>; detail?: Record<string, string> };
+  lastError: string | null;
+  payloadDigest: string;
+  payloadSealed: boolean;
+  stalled: boolean;
+  requestedAt: string;
+  lastAttemptAt: string | null;
+  completedAt: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+}
+
+export interface ExchangeReviewList {
+  summary: { needsReview: number; stalled: number; queued: number };
+  exchanges: ExchangeReviewItem[];
+}

@@ -1,9 +1,15 @@
-import { type DynamicModule, Module, type Provider } from "@nestjs/common";
+import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { bullMqIntegrationQueue } from "./bullmq";
 import { ExchangeDispatch } from "./exchange-dispatch";
+import { ExchangeReviewController } from "./exchange-review.controller";
+import { ExchangeReviewService } from "./exchange-review.service";
+import { EXCHANGE_PATIENTS, type ExchangePatientDirectory } from "./exchange-types";
 import { IntegrationExchanges } from "./integration-exchanges.service";
 
 export interface IntegrationModuleOptions {
+  imports?: ModuleMetadata["imports"];
+  /** Patient numbers and names for the review screen. */
+  patients: Type<ExchangePatientDirectory>;
   /** The integration queue (tests). Defaults to BullMQ on REDIS_URL. */
   queue?: Provider;
 }
@@ -14,11 +20,19 @@ export interface IntegrationModuleOptions {
  */
 @Module({})
 export class IntegrationModule {
-  static forRoot(options: IntegrationModuleOptions = {}): DynamicModule {
+  static forRoot(options: IntegrationModuleOptions): DynamicModule {
     return {
       module: IntegrationModule,
       global: true,
-      providers: [IntegrationExchanges, ExchangeDispatch, options.queue ?? bullMqIntegrationQueue],
+      imports: options.imports ?? [],
+      controllers: [ExchangeReviewController],
+      providers: [
+        IntegrationExchanges,
+        ExchangeDispatch,
+        ExchangeReviewService,
+        options.queue ?? bullMqIntegrationQueue,
+        { provide: EXCHANGE_PATIENTS, useClass: options.patients },
+      ],
       exports: [IntegrationExchanges],
     };
   }

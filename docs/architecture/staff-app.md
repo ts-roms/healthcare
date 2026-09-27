@@ -145,3 +145,10 @@ On the patient record, a **PhilHealth eligibility** card (users with `philhealth
 checks and a form to record PhilHealth's answer from its own channel (date of service, answer, reference, note; a
 selected facility is required). The PhilHealth claim panel on an invoice shows the latest answer for its dates of
 service (information, not a condition). See `docs/interoperability/philhealth-eligibility.md`.
+
+## Integrations (administration)
+
+`/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and
+unresolved, or stalled — with a link to the source to prepare the request again, re-queue for stalled exchanges, and
+resolve with a note. Labels for systems/operations and source links live in
+`app/(staff)/admin/integrations/exchange-labels.ts`. See `docs/architecture/integration-worker.md`.
