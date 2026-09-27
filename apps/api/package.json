@@ -111,9 +111,11 @@
     "@healthcare/telemedicine": "workspace:*",
     "@healthcare/billing": "workspace:*",
     "@healthcare/pdf": "workspace:*",
+    "@healthcare/interoperability": "workspace:*",
     "pdfkit": "^0.20.2"
   },
   "devDependencies": {
+    "@asymmetrik/fhir-json-schema-validator": "^0.9.8",
     "@nestjs/testing": "^11.0.0"
   }
 }

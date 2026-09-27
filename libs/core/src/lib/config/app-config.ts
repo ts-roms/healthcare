@@ -2,6 +2,19 @@ import { z } from "zod";
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 
+/** A JSON object of name → absolute URI, given as one environment variable. */
+const jsonUriMap = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "must be a JSON object" });
+      return z.NEVER;
+    }
+  })
+  .pipe(z.record(z.string(), z.string().url()));
+
 const appConfigSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3333),
@@ -36,6 +49,22 @@ const appConfigSchema = z.object({
   LIVEKIT_URL: z.string().url().optional(),
   LIVEKIT_API_KEY: z.string().min(1).optional(),
   LIVEKIT_API_SECRET: z.string().min(1).optional(),
+  // FHIR R4 read interface (docs/interoperability/fhir.md). FHIR_BASE_URL is the public base used in Bundle links,
+  // e.g. https://api.example.ph/api/v1/fhir/r4 (defaults to the request's own URL). FHIR_IDENTIFIER_BASE namespaces the
+  // platform's own identifier systems (the organization code is appended). FHIR_IDENTIFIER_SYSTEMS / FHIR_CODE_SYSTEMS are
+  // JSON maps from internal identifier types / coding keys to official URIs, once those are confirmed.
+  FHIR_BASE_URL: z
+    .string()
+    .url()
+    .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
+  FHIR_IDENTIFIER_BASE: z
+    .string()
+    .url()
+    .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
+  FHIR_IDENTIFIER_SYSTEMS: jsonUriMap.optional(),
+  FHIR_CODE_SYSTEMS: jsonUriMap.optional(),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

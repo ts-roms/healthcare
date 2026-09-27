@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, localDate } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
-import { appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
+import { allergyIntolerance, allergyReview, appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
 import { canApply } from "./domain/appointment-state";
 import { patientMayChange } from "./domain/patient-booking";
@@ -183,5 +183,66 @@ export class ClinicQueries {
       latestVitals: vitals.map(toVitalsView),
       upcomingAppointments: upcoming.map(publicView),
     };
+  }
+
+  /**
+   * The patient's whole clinic record for a record export (FHIR): encounters with their visit type, diagnoses,
+   * allergies and the latest allergy review, vital signs and appointments. Not audited here: the caller audits.
+   */
+  async patientRecord(organizationId: string, patientId: string) {
+    const [encounters, diagnoses, allergies, [review], vitals, appointments] = await Promise.all([
+      this.db
+        .select({ encounter, visitTypeName: visitType.name })
+        .from(encounter)
+        .leftJoin(visit, eq(visit.id, encounter.visitId))
+        .leftJoin(visitType, eq(visitType.id, visit.visitTypeId))
+        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId)))
+        .orderBy(asc(encounter.startedAt)),
+      this.db
+        .select()
+        .from(diagnosis)
+        .where(and(eq(diagnosis.organizationId, organizationId), eq(diagnosis.patientId, patientId)))
+        .orderBy(asc(diagnosis.recordedAt)),
+      this.db
+        .select()
+        .from(allergyIntolerance)
+        .where(and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId)))
+        .orderBy(asc(allergyIntolerance.recordedAt)),
+      this.db
+        .select()
+        .from(allergyReview)
+        .where(and(eq(allergyReview.organizationId, organizationId), eq(allergyReview.patientId, patientId)))
+        .orderBy(desc(allergyReview.reviewedAt))
+        .limit(1),
+      this.db
+        .select()
+        .from(vitalSignSet)
+        .where(and(eq(vitalSignSet.organizationId, organizationId), eq(vitalSignSet.patientId, patientId)))
+        .orderBy(asc(vitalSignSet.measuredAt)),
+      this.db
+        .select({ appointment, visitTypeName: visitType.name, modality: visitType.modality, practitionerName: practitioner.displayName })
+        .from(appointment)
+        .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+        .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
+        .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId)))
+        .orderBy(asc(appointment.startsAt)),
+    ]);
+    return {
+      encounters: encounters.map((r) => ({ ...r.encounter, visitTypeName: r.visitTypeName })),
+      diagnoses,
+      allergies,
+      allergyReview: review ?? null,
+      vitals,
+      appointments: appointments.map((r) => ({ ...r.appointment, visitTypeName: r.visitTypeName, modality: r.modality, practitionerName: r.practitionerName })),
+    };
+  }
+
+  /** Practitioner records by id (record exports). */
+  practitioners(organizationId: string, practitionerIds: string[]) {
+    if (practitionerIds.length === 0) return Promise.resolve([]);
+    return this.db
+      .select()
+      .from(practitioner)
+      .where(and(eq(practitioner.organizationId, organizationId), inArray(practitioner.id, practitionerIds)));
   }
 }

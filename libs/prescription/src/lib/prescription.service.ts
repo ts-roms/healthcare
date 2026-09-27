@@ -188,6 +188,16 @@ export class PrescriptionService {
     return this.views(this.db, rows);
   }
 
+  /** Every prescription of the patient, for a record export (FHIR). Not audited here; the caller audits. */
+  async allForPatient(organizationId: string, patientId: string): Promise<PrescriptionView[]> {
+    const rows = await this.db
+      .select()
+      .from(prescription)
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId)))
+      .orderBy(asc(prescription.issuedAt));
+    return this.views(this.db, rows);
+  }
+
   // ---- internals -----------------------------------------------------------------
 
   private async requirePrescriber(actor: Actor) {

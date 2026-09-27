@@ -8,6 +8,7 @@ import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
 import { LabPatientAccess } from "./results/lab-patient-access";
+import { LabRecordQueries } from "./results/lab-record-queries";
 import { LabResultService } from "./results/lab-result.service";
 
 export interface LaboratoryModuleOptions {
@@ -29,13 +30,14 @@ export class LaboratoryModule {
         LabCatalogService,
         LabOrderService,
         LabPatientAccess,
+        LabRecordQueries,
         LabReadModel,
         LabReportService,
         LabResultService,
         LabWorklistService,
         { provide: LABORATORY_CONTEXT, useClass: options.context },
       ],
-      exports: [LabOrderService, LabPatientAccess, LabReportService, LabResultService],
+      exports: [LabOrderService, LabPatientAccess, LabRecordQueries, LabReportService, LabResultService],
     };
   }
 }

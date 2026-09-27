@@ -49,6 +49,10 @@ their corrections, allergy changes and reviews, encounter start/view/note
 saves/sign/amend, diagnoses, prescriptions (issue/view/replace/cancel),
 **decision-support overrides**, care plans, Patient 360 views.
 
+Audited for interoperability: every FHIR read (`fhir.patient-read`,
+`fhir.patient-everything`, `fhir.search`) with the patient, resource types and
+count; the FHIR interface requires `interop.fhir.read` (migration 0020).
+
 Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /
 facility / department changes, user membership and role changes, patient

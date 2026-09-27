@@ -28,6 +28,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/interoperability/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/pdf/tsconfig.lib.json"
     },
     {
