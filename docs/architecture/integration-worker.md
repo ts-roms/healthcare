@@ -50,13 +50,34 @@ API ◄── IntegrationExchangeCompleted (outbox) ◄────────�
 
 Finished and failed jobs are removed from Redis (`removeOnComplete`, `removeOnFail`); the database is the record.
 
+## Operator review
+
+Administrators (`integration.exchange.manage`, org_admin) review exchanges at **Administration → Integrations**
+(`/admin/integrations`; API `GET /api/v1/integrations/exchanges`):
+
+- **Needs attention** — exchanges that ended `failed`, `rejected` or `not_configured` and are not yet resolved, and
+  queued exchanges that look **stalled** (never picked up 10 min after the request, or no attempt for 30 min).
+- **Re-queue** (`POST …/{id}/requeue`) — a stalled exchange whose sealed payload is still held goes back on the queue
+  (deduplicated by exchange id; audited).
+- **Resolve** (`POST …/{id}/resolve`, a note is required) — records that someone reviewed an unsuccessful exchange and
+  what was done (e.g. "checked through PhilHealth's own channel instead"). The exchange's outcome never changes
+  (migration `0025`; audited with the note as the reason).
+- **Retrying a final failure** happens at the source, not here: the payload is deleted once an exchange is final, so
+  the request is prepared again (with a new idempotency key) from the invoice, case report or patient record — each row
+  links to it. This keeps what is sent consistent with the current record and its checks.
+
+The screen shows status, attempts, reference, reason codes and errors, the patient's number and name — never the
+payload.
+
 ## Adding an integration
 
 1. Implement an `ExchangeHandler` (`system`, `operation`, `send(payload, idempotencyKey)`) in `libs/interoperability`,
    register it in `EXCHANGE_HANDLERS` (`IntegrationWorkerModule`).
 2. On the API side, prepare the payload and call `IntegrationExchanges.request(tx, actor, …)` inside the domain
    transaction; react to `IntegrationExchangeCompleted` for your `system`/`operation`.
-3. Document the external specification in `docs/interoperability/` — never implement from an assumed one.
+3. Give the operation a human name and a source link on the review screen
+   (`apps/staff/src/app/(staff)/admin/integrations/exchange-labels.ts`).
+4. Document the external specification in `docs/interoperability/` — never implement from an assumed one.
 
 ## Configuration and running
 

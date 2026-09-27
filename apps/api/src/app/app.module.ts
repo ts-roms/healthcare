@@ -19,6 +19,7 @@ import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
+import { AppExchangePatients } from "./adapters/integration-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
@@ -106,7 +107,7 @@ export class AppModule implements NestModule {
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
         // Outbound exchanges are sealed here and sent by apps/integration-worker.
-        IntegrationModule.forRoot({ queue: overrides.integrationQueue }),
+        IntegrationModule.forRoot({ imports: [PatientModule], patients: AppExchangePatients, queue: overrides.integrationQueue }),
       ],
       controllers: [
         FhirController,

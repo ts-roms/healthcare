@@ -67,7 +67,13 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Billing", href: "/billing", icon: ReceiptIcon, roles: ["billing", "reception", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
-  { label: "Administration", href: "/admin", icon: BuildingIcon, roles: ["admin"] },
+  {
+    label: "Administration",
+    href: "/admin",
+    icon: BuildingIcon,
+    roles: ["admin"],
+    children: [{ label: "Integrations", href: "/admin/integrations" }],
+  },
 ];
 
 export function navigationForRole(role: StaffRole, items: NavItem[] = STAFF_NAVIGATION): NavItem[] {

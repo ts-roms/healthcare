@@ -26,6 +26,9 @@ export const integrationExchange = pgTable("integration_exchange", {
   requestedAt: ts("requested_at").notNull().defaultNow(),
   completedAt: ts("completed_at"),
   lastAttemptAt: ts("last_attempt_at"),
+  resolvedAt: ts("resolved_at"),
+  resolvedBy: uuid("resolved_by"),
+  resolutionNote: text("resolution_note"),
 });
 
 /** The encrypted payload handed from the API to the integration worker; deleted once the exchange is final. */

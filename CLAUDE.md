@@ -63,6 +63,8 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **PhilHealth eligibility (adapter stubs):** the platform records PhilHealth's answer, never decides eligibility. Staff record the answer from PhilHealth's own channel (with its reference) on the patient record; answers are immutable history. With an adapter (`PhilHealthEligibilityGateway`, unconfigured by default), inquiries go through the integration worker. The claim panel shows the latest answer for the dates of service as information only. See `docs/interoperability/philhealth-eligibility.md`.
 
+**Integration review:** administrators see unsuccessful and stalled outbound exchanges at `/admin/integrations` (`integration.exchange.manage`): re-queue stalled ones, resolve others with a note; final failures are retried from their source (invoice, case report, patient record). See `docs/architecture/integration-worker.md`.
+
 **DOH reporting (adapter stubs):** no notifiable-disease list, case definitions, deadlines or formats are encoded. The organization configures reportable conditions (ICD-10 prefixes → its own categories); a matching recorded diagnosis opens a case report for review (staff `/reporting`): record as reported through DOH's own channel with its reference, dismiss with a reason, or — once an adapter exists — submit through the integration worker (`DohReportingGateway`, unconfigured by default). See `docs/interoperability/doh-reporting.md`.
 
 **Frontend prototype limitations — do not mistake these for implemented features**

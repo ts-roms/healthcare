@@ -11,6 +11,7 @@ export * from "./lib/exchange/canonical-json";
 export * from "./lib/exchange/exchange-processor";
 export * from "./lib/exchange/exchange-types";
 export * from "./lib/exchange/exchange.schema";
+export * from "./lib/exchange/exchange-review.service";
 export * from "./lib/exchange/integration-exchanges.service";
 export * from "./lib/exchange/integration-worker.module";
 export * from "./lib/exchange/integration.module";

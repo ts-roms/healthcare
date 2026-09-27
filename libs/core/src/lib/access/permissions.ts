@@ -78,6 +78,8 @@ export const PERMISSIONS = [
   // Phase 8 — DOH reporting adapter stubs (migration 0023)
   "doh.report.manage",
   "doh.settings.manage",
+  // Integration exchange review (migration 0025)
+  "integration.exchange.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
