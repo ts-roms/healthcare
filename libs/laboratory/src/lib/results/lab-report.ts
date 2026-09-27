@@ -3,8 +3,10 @@ import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import { type Actor, DATABASE, type Database, NotFoundError } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
-import { and, asc, eq } from "drizzle-orm";
-import { labOrder, labOrderItem } from "../laboratory.schema";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { LabReadModel } from "../lab-read-model";
+import { labOrder, labOrderItem, labResult, labSpecimen } from "../laboratory.schema";
+import { found } from "../laboratory-support";
 import { LabOrderService } from "../orders/lab-order.service";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
 import { LabPatientAccess } from "./lab-patient-access";
@@ -36,7 +38,9 @@ export interface LabReportData {
   /** The patient's copy leaves out some tests of the order (not named). */
   withheld?: boolean;
   signatories: Array<{ name: string; role: string }>;
-  copy: "staff" | "patient";
+  copy: "staff" | "patient" | "archive";
+  /** Archived copies: which archived version of the order's report this is. */
+  archiveVersion?: number;
 }
 
 const FLAG_LABEL: Record<Exclude<Flag, null>, string> = {
@@ -74,6 +78,7 @@ export class LabReportService {
     private readonly orders: LabOrderService,
     private readonly patientAccess: LabPatientAccess,
     private readonly organizations: OrganizationService,
+    private readonly readModel: LabReadModel,
     private readonly audit: AuditService,
     @Inject(LABORATORY_CONTEXT) private readonly context: LaboratoryContext,
   ) {}
@@ -171,6 +176,60 @@ export class LabReportService {
     return { filename: `${order.orderNumber}.pdf`, pdf };
   }
 
+  /**
+   * The report exactly as it stood when these result versions were released (for the archive; not audited here —
+   * the archive records its own events). Results are immutable once released, so the same set always renders the
+   * same report.
+   */
+  async archivedReport(organizationId: string, orderId: string, resultIds: string[], archiveVersion: number): Promise<{ filename: string; pdf: Buffer }> {
+    const [row] = await this.db
+      .select()
+      .from(labOrder)
+      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.id, orderId)));
+    const order = found(row, "Laboratory order");
+    const results = await this.db
+      .select()
+      .from(labResult)
+      .where(and(eq(labResult.organizationId, organizationId), eq(labResult.orderId, orderId), inArray(labResult.id, resultIds)));
+    if (results.length !== resultIds.length || results.some((r) => !r.releasedAt)) throw new NotFoundError("Released laboratory result");
+    const [items, specimens, views, names] = await Promise.all([
+      this.db.select().from(labOrderItem).where(eq(labOrderItem.orderId, orderId)).orderBy(asc(labOrderItem.testName)),
+      this.db.select({ id: labSpecimen.id, collectedAt: labSpecimen.collectedAt }).from(labSpecimen).where(eq(labSpecimen.orderId, orderId)),
+      this.readModel.results(organizationId, results),
+      order.orderingPractitionerId
+        ? this.context.practitionerNames(organizationId, [order.orderingPractitionerId])
+        : Promise.resolve(new Map<string, string>()),
+    ]);
+    const byItem = new Map(views.map((r) => [r.orderItemId, r]));
+    const shown = items.filter((i) => byItem.has(i.id));
+    const data: LabReportData = {
+      ...(await this.frame(organizationId, order.facilityId, order.patientId)),
+      orderNumber: order.orderNumber,
+      orderedAt: order.orderedAt,
+      orderedBy: (order.orderingPractitionerId ? names.get(order.orderingPractitionerId) : order.externalOrderer) ?? null,
+      rows: shown.map((i) => {
+        const r = byItem.get(i.id)!;
+        return {
+          test: i.testName,
+          result: resultText(r),
+          unit: r.unit,
+          reference: referenceText(r),
+          flag: r.flag,
+          collectedAt: specimens.find((s) => s.id === i.specimenId)?.collectedAt ?? null,
+          releasedAt: r.releasedAt,
+          corrected: r.versionNumber > 1,
+          comment: [r.comment, r.versionNumber > 1 && r.correctionReason ? `Corrected: ${r.correctionReason}` : null].filter(Boolean).join(" · ") || null,
+        };
+      }),
+      // Tests of the order without a released result in this version (cancelled tests are not listed).
+      pending: items.filter((i) => i.status !== "cancelled" && !byItem.has(i.id)).map((i) => i.testName),
+      signatories: signatories(views),
+      copy: "archive",
+      archiveVersion,
+    };
+    return { filename: `${order.orderNumber}-v${archiveVersion}.pdf`, pdf: await renderLabReport(data) };
+  }
+
   private async frame(organizationId: string, facilityId: string, patientId: string) {
     const [organization, facility, briefs, demographics] = await Promise.all([
       this.organizations.getOrganization(organizationId),
@@ -207,11 +266,16 @@ function signatories(results: Array<{ verifiedByName: string | null; approvedByN
 /** Lays out a laboratory report. */
 export function renderLabReport(data: LabReportData): Promise<Buffer> {
   const tz = data.timeZone;
-  const printed = `Printed ${pdfDateTime(new Date(), tz)}`;
+  const printed = `${data.copy === "archive" ? "Archived" : "Printed"} ${pdfDateTime(new Date(), tz)}`;
   return renderPdf(
     {
       title: "Laboratory Result Report",
-      subtitle: data.copy === "patient" ? "Patient's copy from MyHealth" : undefined,
+      subtitle:
+        data.copy === "patient"
+          ? "Patient's copy from MyHealth"
+          : data.copy === "archive"
+            ? `Archived copy, version ${data.archiveVersion ?? 1} of this order's report`
+            : undefined,
       letterhead: data.letterhead,
       printedAt: printed,
       footerNote:

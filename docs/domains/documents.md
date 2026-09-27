@@ -14,10 +14,19 @@ Metadata and controlled access for files kept in S3-compatible storage
 4. `GET /documents/:id/download-url` issues a 5-minute URL; each issuance is audited.
 5. `POST /documents/:id/archive` (reason required). Documents are never deleted by the API.
 
+## Generated documents
+
+Documents the platform produces itself (today: archived laboratory reports) go through
+`DocumentsService.storeGenerated`: the caller chooses the id (idempotency), the object is written server side with a
+conditional put that never replaces an existing object, and the document is recorded `available` with source
+`generated` and no uploading user (`created_by` null; migration 0030), in the same transaction as the caller's own
+bookkeeping. `DocumentsService.content` returns the bytes of an available document to a library that has already
+authorized the access (audited as `document.download`).
+
 ## Entity
 
 `document` — category, title, file name, content type, size, opaque storage
-key (`org/<orgId>/documents/<id>`), status, patient/facility links.
+key (`org/<orgId>/documents/<id>`), status, source (`upload | generated`), patient/facility links.
 
 ## Consent forms
 
@@ -40,8 +49,8 @@ and serves the content through `DocumentsService.downloadUrl` (audited). See `do
 
 ## Ports
 
-`ObjectStorage` with `S3ObjectStorage` (AWS SDK v3, SSE-AES256) and
-`InMemoryObjectStorage` (tests).
+`ObjectStorage` (presigned upload/download, head, `putIfAbsent`, `get`) with `S3ObjectStorage` (AWS SDK v3,
+SSE-AES256, `If-None-Match: *` for server-side writes) and `InMemoryObjectStorage` (tests).
 
 ## Not yet
 

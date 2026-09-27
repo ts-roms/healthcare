@@ -129,6 +129,7 @@ export class LabResultService {
       const current = await this.lockResult(tx, actor.organizationId, resultId);
       this.assertFacility(current, facilityId);
       const released = await this.releaseLocked(tx, actor, current);
+      await this.recordReportReleased(tx, released.orderId);
       return this.view(tx, actor, released);
     });
   }
@@ -149,6 +150,7 @@ export class LabResultService {
         this.assertFacility(row, facilityId);
         released.push(await this.releaseLocked(tx, actor, row));
       }
+      await this.recordReportReleased(tx, orderId);
       return this.readModel.results(actor.organizationId, released);
     });
   }
@@ -469,8 +471,33 @@ export class LabResultService {
         });
         await this.events.record(tx, alertEvent("CriticalResultRaised", alert!, { orderId: updated.orderId }));
       }
-      if (kind === "approve" && policy.releaseOnApproval) updated = await this.releaseLocked(tx, actor, updated);
+      if (kind === "approve" && policy.releaseOnApproval) {
+        updated = await this.releaseLocked(tx, actor, updated);
+        await this.recordReportReleased(tx, updated.orderId);
+      }
       return this.view(tx, actor, updated);
+    });
+  }
+
+  /**
+   * The order's report as it stands after this transaction's releases: every released result version, sorted. One
+   * event per transaction (releasing a whole order is one report), used to archive the report (LabReportArchive).
+   */
+  private async recordReportReleased(tx: DbExecutor, orderId: string): Promise<void> {
+    const [order] = await tx.select().from(labOrder).where(eq(labOrder.id, orderId));
+    const current = found(order, "Laboratory order");
+    const released = await tx
+      .select({ id: labResult.id })
+      .from(labResult)
+      .where(and(eq(labResult.orderId, orderId), eq(labResult.status, "released")));
+    await this.events.record(tx, {
+      type: "LaboratoryReportReleased",
+      organizationId: current.organizationId,
+      aggregateType: "lab_order",
+      aggregateId: current.id,
+      facilityId: current.facilityId,
+      patientId: current.patientId,
+      payload: { orderId: current.id, resultIds: released.map((r) => r.id).sort() },
     });
   }
 

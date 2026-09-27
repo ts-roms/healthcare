@@ -24,6 +24,9 @@
       "path": "../organization/tsconfig.lib.json"
     },
     {
+      "path": "../documents/tsconfig.lib.json"
+    },
+    {
       "path": "../audit/tsconfig.lib.json"
     },
     {
