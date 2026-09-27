@@ -40,7 +40,7 @@ app → feature → ui → data-access → contract → domain → util
 | `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root)    |
 | `scope:worker`                         | its own scope, `scope:shared`, `scope:interoperability` (integration adapters) |
 
-Clinical domains are `patient`, `clinic`, `laboratory`, `dental`, `telemedicine`, `care-plan`, `prescription`, `billing`, `interoperability`, `notification`, `audit` and `documents` (`DOMAIN_SCOPES` in `eslint.config.mjs`).
+Clinical domains are `patient`, `clinic`, `laboratory`, `dental`, `telemedicine`, `care-plan`, `prescription`, `billing`, `inventory`, `interoperability`, `notification`, `audit` and `documents` (`DOMAIN_SCOPES` in `eslint.config.mjs`).
 
 So a domain reaches another domain **only through that domain's contract library**:
 
@@ -75,6 +75,7 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | `libs/telemedicine`                                                                   | `scope:telemedicine`, `type:feature`     |
 | `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`        |
 | `libs/billing`                                                                        | `scope:billing`, `type:feature`          |
+| `libs/inventory`                                                                      | `scope:inventory`, `type:feature`        |
 | `libs/pdf`                                                                            | `scope:shared`, `type:util`              |
 | `libs/interoperability`                                                               | `scope:interoperability`, `type:feature` |
 

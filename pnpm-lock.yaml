@@ -240,6 +240,9 @@ importers:
       '@healthcare/interoperability':
         specifier: workspace:*
         version: link:../../libs/interoperability
+      '@healthcare/inventory':
+        specifier: workspace:*
+        version: link:../../libs/inventory
       '@healthcare/laboratory':
         specifier: workspace:*
         version: link:../../libs/laboratory
@@ -578,6 +581,18 @@ importers:
       '@asymmetrik/fhir-json-schema-validator':
         specifier: ^0.9.8
         version: 0.9.8
+
+  libs/inventory:
+    dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
 
   libs/laboratory:
     dependencies:

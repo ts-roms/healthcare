@@ -84,6 +84,11 @@ export const PERMISSIONS = [
   // Refunds of deposit or credit balance use billing.refund.issue.
   "billing.deposit.record",
   "billing.credit-note.issue",
+  // Phase 9 — inventory (migration 0026)
+  "inventory.read",
+  "inventory.move",
+  "inventory.adjust",
+  "inventory.catalog.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

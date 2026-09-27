@@ -6,6 +6,7 @@ import * as clinic from "@healthcare/clinic";
 import * as core from "@healthcare/core";
 import * as documents from "@healthcare/documents";
 import * as interoperability from "@healthcare/interoperability";
+import * as inventory from "@healthcare/inventory";
 import * as laboratory from "@healthcare/laboratory";
 import * as notification from "@healthcare/notification";
 import * as organization from "@healthcare/organization";
@@ -31,6 +32,7 @@ describe("Drizzle schema matches migrations", () => {
     core,
     documents,
     interoperability,
+    inventory,
     laboratory,
     notification,
     organization,

@@ -42,6 +42,7 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`       | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.                   |
 | `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature`     | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.                    |
 | `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`          | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds.                 |
+| `@healthcare/inventory`                              | `libs/inventory`           | `scope:inventory`, `type:feature`        | Items, suppliers, locations, lots/expiry, append-only stock ledger, FEFO issues, counts, write-offs, reorder levels.          |
 | `@healthcare/interoperability`                       | `libs/interoperability`    | `scope:interoperability`, `type:feature` | FHIR R4 mapping; PhilHealth claims and DOH case reporting (ports, unconfigured adapters); outbound exchanges for the worker.  |
 | `@healthcare/pdf`                                    | `libs/pdf`                 | `scope:shared`, `type:util`              | PDF toolkit (pdfkit, standard fonts): letterhead, fields, paged tables, totals, watermark, footer; text extraction for tests. |
 
@@ -62,6 +63,8 @@ Inspect the repository before every change — do not assume any file, library, 
 **PhilHealth eClaims (adapter stubs):** no official specification is on record, so nothing is transmitted. An issued invoice with PhilHealth coverage can be prepared as a format-neutral claim package with readiness checks of the platform's own data (member PIN, facility accreditation number, ICD-10 diagnosis); `PhilHealthClaimsGateway` is the port and `UnconfiguredPhilHealthGateway` (status `dependency`) the default, so submissions are refused with `integration_not_configured`. With an adapter, the API seals the prepared claim (AES-256-GCM, `INTEGRATION_PAYLOAD_KEY`) and `apps/integration-worker` sends it (BullMQ retries, reconciliation), logged in `integration_exchange` (digest only, no PHI); the outcome returns through the outbox. Staff: PhilHealth claim panel on the invoice, accreditation in billing settings. See `docs/interoperability/philhealth-eclaims.md`.
 
 **PhilHealth eligibility (adapter stubs):** the platform records PhilHealth's answer, never decides eligibility. Staff record the answer from PhilHealth's own channel (with its reference) on the patient record; answers are immutable history. With an adapter (`PhilHealthEligibilityGateway`, unconfigured by default), inquiries go through the integration worker. The claim panel shows the latest answer for the dates of service as information only. See `docs/interoperability/philhealth-eligibility.md`.
+
+**Inventory (Phase 9):** `libs/inventory` — stock per facility location by lot and expiry, moved only through an append-only ledger (receive, issue, transfer, count, write-off; balances never negative; issues first-expiry-first-out and never from expired lots; controlled items need a reason and reference), reorder levels with an `InventoryStockLow` event. Staff `/inventory` (stock, movements, catalog). Not wired to dispensing or lab reagent use yet. See `docs/domains/inventory.md`.
 
 **Integration review:** administrators see unsuccessful and stalled outbound exchanges at `/admin/integrations` (`integration.exchange.manage`): re-queue stalled ones, resolve others with a note; final failures are retried from their source (invoice, case report, patient record). See `docs/architecture/integration-worker.md`.
 
@@ -167,7 +170,8 @@ libs/
   ui/ domain/                                                                    [exist, frontend shared]
   core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
   patient/ clinic/ prescription/ care-plan/ laboratory/ telemedicine/ billing/    [exist, backend domains]
-  dental/ inventory/ crm/ reporting/
+  inventory/                                                                     [exists]
+  dental/ crm/ reporting/
   interoperability/ (FHIR mapping) pdf/                                          [exist]
   philhealth/                                                                    [planned]
 

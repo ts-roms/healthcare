@@ -13,6 +13,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/dental": ["patient.read"],
   "/telemedicine": ["telemedicine.read"],
   "/billing": ["billing.charge.read"],
+  "/inventory": ["inventory.read"],
   "/communications": ["notification.read", "notification.send"],
   "/reporting": ["doh.report.manage"],
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],

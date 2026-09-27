@@ -7,6 +7,7 @@ import {
   ListOrderedIcon,
   MessageSquareIcon,
   MonitorIcon,
+  PackageIcon,
   ReceiptIcon,
   SmileIcon,
   StethoscopeIcon,
@@ -65,6 +66,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Dental", href: "/dental", icon: SmileIcon, roles: ["dentist", "admin"] },
   { label: "Telemedicine", href: "/telemedicine", icon: MonitorIcon, roles: ["doctor", "admin"] },
   { label: "Billing", href: "/billing", icon: ReceiptIcon, roles: ["billing", "reception", "admin"] },
+  { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
   {

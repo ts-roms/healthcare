@@ -1414,3 +1414,68 @@ export interface DohRescan {
   startedAt: string | null;
   completedAt: string | null;
 }
+
+// ---- Inventory (libs/inventory) ---------------------------------------------------------------------
+
+export type InventoryCategory = "medicine" | "medical_supply" | "reagent" | "laboratory_consumable" | "dental_supply" | "ppe" | "other";
+
+export interface InventoryItem {
+  id: string;
+  code: string;
+  name: string;
+  category: InventoryCategory;
+  stockUnit: string;
+  tracksLots: boolean;
+  controlled: boolean;
+  status: "active" | "inactive";
+  version: number;
+}
+
+export interface InventorySupplier {
+  id: string;
+  code: string;
+  name: string;
+  contact: string | null;
+  status: "active" | "inactive";
+}
+
+export interface InventoryLocation {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+export interface StockRow {
+  location: { id: string; name: string };
+  item: { id: string; code: string; name: string; category: InventoryCategory; stockUnit: string; controlled: boolean };
+  onHand: number;
+  usable: number;
+  reorderLevel: number | null;
+  status: "out" | "low" | "ok";
+  lots: Array<{ lotId: string; lotNumber: string | null; expiryDate: string | null; quantity: number; expiry: "expired" | "expiring" | "ok" | "no_expiry" }>;
+}
+
+export interface InventoryMovement {
+  id: string;
+  movementGroupId: string;
+  kind: "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off";
+  locationId: string;
+  itemId: string;
+  lotId: string;
+  quantity: number;
+  balanceAfter: number;
+  supplierId: string | null;
+  unitCost: number | null;
+  reference: string | null;
+  issuedTo: string | null;
+  reason: string | null;
+  recordedBy: string;
+  recordedAt: string;
+  itemName: string;
+  stockUnit: string;
+  locationName: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+}
