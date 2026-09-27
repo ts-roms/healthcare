@@ -52,6 +52,29 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "appointment.self-service",
+    version: 1,
+    category: "administrative",
+    channels: ["sms", "email"],
+    // Confirms what the patient did in MyHealth. Like the reminder: where and when only, no reason or practitioner specialty.
+    variables: z.object({
+      kind: z.enum(["booked", "rescheduled", "cancelled"]),
+      facilityName: shortText,
+      date: z.string().max(40),
+      time: z.string().max(20),
+    }),
+    render: (v) =>
+      v.kind === "cancelled"
+        ? {
+            subject: `Appointment cancelled: ${v.date}`,
+            text: `Your appointment at ${v.facilityName} on ${v.date} at ${v.time} was cancelled in MyHealth. If you did not do this, contact the clinic.`,
+          }
+        : {
+            subject: `Appointment ${v.kind}: ${v.date}`,
+            text: `Your appointment at ${v.facilityName} is ${v.kind === "booked" ? "booked" : "moved"} for ${v.date} at ${v.time}. You can view or change it in MyHealth until 2 hours before.`,
+          },
+  }),
+  defineTemplate({
     key: "security.mfa-enabled",
     version: 1,
     category: "security",

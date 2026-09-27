@@ -10,7 +10,7 @@ import { greeting } from "@/lib/greeting";
 import { latestPerTest, resultDate, resultValue } from "@/lib/records";
 
 const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
-  { label: "Book appointment", href: "/appointments", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
+  { label: "Book appointment", href: "/appointments/book", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
   { label: "Care plan", href: "/care-plan", icon: ClipboardListIcon, tone: "bg-secondary text-secondary-foreground" },
   { label: "Lab results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
@@ -60,7 +60,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           appointments.upcoming.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         ) : (
           <EmptyState icon={CalendarIcon} title="No upcoming visits">
-            To book or change a visit, contact the clinic.
+            Book a visit online, or contact the clinic.
           </EmptyState>
         )}
       </section>

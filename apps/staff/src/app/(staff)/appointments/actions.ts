@@ -1,9 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { AppointmentItem, Visit } from "@/lib/api/types";
+import type { AppointmentItem, Visit, VisitType } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const idVersion = { appointmentId: z.uuid(), version: z.number().int().positive() };
@@ -62,4 +63,15 @@ export async function bookAppointment(input: z.input<typeof bookSchema>, idempot
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
   const body = { ...parsed.data, reason: parsed.data.reason || undefined };
   return actionResult(() => api<AppointmentItem[]>("/appointments", { method: "POST", body, idempotencyKey }));
+}
+
+const onlineBookingSchema = z.object({ visitTypeId: z.uuid(), onlineBooking: z.boolean(), version: z.number().int().positive() });
+/** Opens or closes a visit type for patients to book in MyHealth (needs clinic.configure; audited). */
+export async function setOnlineBooking(input: z.input<typeof onlineBookingSchema>): Promise<ActionResult<VisitType>> {
+  const parsed = onlineBookingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitTypeId, ...body } = parsed.data;
+  const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
 }

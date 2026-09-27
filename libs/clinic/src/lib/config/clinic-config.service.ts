@@ -11,11 +11,13 @@ import type {
   createRoomSchema,
   createScheduleSchema,
   createVisitTypeSchema,
+  updateVisitTypeSchema,
   updatePractitionerSchema,
 } from "../clinic.dto";
 import { codingSystem, practitioner, practitionerSchedule, room, scheduleException, visitType } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 
+const VISIT_TYPE_FIELDS = ["name", "defaultDurationMinutes", "onlineBooking", "status"] as const;
 const PRACTITIONER_FIELDS = ["displayName", "profession", "specialty", "licenseNumber", "licenseValidUntil", "userId", "status"] as const;
 
 /** Clinic master data: practitioners, rooms, visit types, coding systems, schedules and closures. */
@@ -119,6 +121,31 @@ export class ClinicConfigService {
       if (!created) throw new ConflictError(`Visit type "${input.code}" already exists`);
       await this.audit.record(tx, actor, { action: "visit-type.create", resourceType: "visit_type", resourceId: created.id });
       return publicView(created);
+    });
+  }
+
+  async updateVisitType(actor: Actor, visitTypeId: string, input: z.infer<typeof updateVisitTypeSchema>) {
+    const { version, ...changes } = input;
+    return this.db.transaction(async (tx) => {
+      const [before] = await tx
+        .select()
+        .from(visitType)
+        .where(and(eq(visitType.organizationId, actor.organizationId), eq(visitType.id, visitTypeId)))
+        .for("update");
+      const current = found(before, "Visit type");
+      assertVersion(current.version, version, "Visit type");
+      const [updated] = await tx
+        .update(visitType)
+        .set({ ...changes, version: sql`${visitType.version} + 1` })
+        .where(eq(visitType.id, visitTypeId))
+        .returning();
+      await this.audit.record(tx, actor, {
+        action: "visit-type.update",
+        resourceType: "visit_type",
+        resourceId: visitTypeId,
+        changes: diffChanges(current, changes, VISIT_TYPE_FIELDS),
+      });
+      return publicView(found(updated, "Visit type"));
     });
   }
 

@@ -32,6 +32,14 @@ export interface PortalAppointment {
   practitionerName: string;
   facilityName: string;
   timeZone: string;
+  version: number;
+  facilityId: string;
+  practitionerId: string;
+  visitTypeId: string;
+  bookedByPatient: boolean;
+  /** What the patient may still do in MyHealth (the API enforces the same rules). */
+  canCancel: boolean;
+  canReschedule: boolean;
 }
 
 export interface PortalAppointments {
@@ -128,4 +136,38 @@ export interface VideoJoin {
   token: string;
   room: string;
   expiresInSeconds: number;
+}
+
+/** `GET /portal/booking/options`: what the clinic lets patients book online. */
+export interface BookingOptions {
+  visitTypes: Array<{ id: string; name: string; modality: "in_person" | "telemedicine"; durationMinutes: number }>;
+  facilities: Array<{
+    id: string;
+    name: string;
+    cityMunicipality: string | null;
+    timeZone: string;
+    practitioners: Array<{ id: string; displayName: string; specialty: string | null }>;
+  }>;
+  rules: { minLeadMinutes: number; maxAdvanceDays: number; maxUpcoming: number; changeCutoffMinutes: number };
+}
+
+/** `GET /portal/booking/slots` */
+export interface BookingSlots {
+  date: string;
+  timeZone: string;
+  durationMinutes: number;
+  slots: Array<{ startsAt: string; endsAt: string; practitionerId: string; practitionerName: string }>;
+}
+
+/** The appointment as returned after a booking change. */
+export interface BookedAppointment {
+  id: string;
+  facilityId: string;
+  practitionerId: string;
+  visitTypeId: string;
+  startsAt: string;
+  endsAt: string;
+  status: PortalAppointment["status"];
+  reason: string | null;
+  version: number;
 }

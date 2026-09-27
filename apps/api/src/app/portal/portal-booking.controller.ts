@@ -1,0 +1,53 @@
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { PatientBookDto, type PatientBookingContext, PatientBookingService, PatientCancelDto, PatientRescheduleDto, PatientSlotsDto } from "@healthcare/clinic";
+import { Public } from "@healthcare/core";
+import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+
+const context = (p: PortalPrincipal): PatientBookingContext => ({ organizationId: p.organizationId, patientId: p.patientId, audit: patientAuditContext(p) });
+
+/**
+ * Patients booking, moving and cancelling their own appointments (MyHealth).
+ * The clinic decides which visit types are bookable online; the rules (notice,
+ * horizon, open-booking limit, change cut-off) are enforced by the clinic domain.
+ */
+@ApiTags("portal")
+@ApiBearerAuth()
+@Public()
+@UseGuards(PatientAccessGuard)
+@Controller({ path: "portal", version: "1" })
+export class PortalBookingController {
+  constructor(private readonly booking: PatientBookingService) {}
+
+  @Get("booking/options")
+  @ApiOperation({ summary: "Facilities, practitioners and visit types open for online booking, with the booking rules" })
+  options(@CurrentPatient() patient: PortalPrincipal) {
+    return this.booking.options(patient.organizationId);
+  }
+
+  @Get("booking/slots")
+  @ApiOperation({ summary: "Open times on one day (one practitioner, or everyone on duty at the facility)" })
+  slots(@CurrentPatient() patient: PortalPrincipal, @Query() query: PatientSlotsDto) {
+    return this.booking.slots(patient.organizationId, query);
+  }
+
+  @Post("appointments")
+  @ApiOperation({ summary: "Book an appointment" })
+  book(@CurrentPatient() patient: PortalPrincipal, @Body() body: PatientBookDto) {
+    return this.booking.book(context(patient), body);
+  }
+
+  @Post("appointments/:appointmentId/reschedule")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Move an appointment to another open time with the same practitioner (until 2 hours before)" })
+  reschedule(@CurrentPatient() patient: PortalPrincipal, @Param("appointmentId", ParseUUIDPipe) appointmentId: string, @Body() body: PatientRescheduleDto) {
+    return this.booking.reschedule(context(patient), appointmentId, body);
+  }
+
+  @Post("appointments/:appointmentId/cancel")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Cancel an appointment (until 2 hours before)" })
+  cancel(@CurrentPatient() patient: PortalPrincipal, @Param("appointmentId", ParseUUIDPipe) appointmentId: string, @Body() body: PatientCancelDto) {
+    return this.booking.cancel(context(patient), appointmentId, body);
+  }
+}

@@ -108,7 +108,7 @@ export function toAppointment(a: AppointmentItem, practitioners: Map<string, Pra
     type: online ? "telemedicine" : "consultation",
     mode: online ? "online" : "in-person",
     status: APPOINTMENT_STATUS[a.status],
-    reason: [visitType?.name, a.reason].filter(Boolean).join(" · ") || undefined,
+    reason: [visitType?.name, a.bookedByPatient ? "Booked online by the patient" : null, a.reason].filter(Boolean).join(" · ") || undefined,
   };
 }
 

@@ -71,8 +71,34 @@ const practitioners = new Map<string, Practitioner>([
   ["dr-a", { id: "dr-a", userId: null, displayName: "Dr. Reyes", profession: "physician", specialty: null, status: "active" }],
 ]);
 const visitTypes = new Map<string, VisitType>([
-  ["vt", { id: "vt", code: "consult", name: "Consultation", defaultDurationMinutes: 15, modality: "in_person", status: "active" }],
-  ["tele", { id: "tele", code: "tele", name: "Online consult", defaultDurationMinutes: 20, modality: "telemedicine", status: "active" }],
+  [
+    "vt",
+    {
+      id: "vt",
+      code: "consult",
+      name: "Consultation",
+      defaultDurationMinutes: 15,
+      modality: "in_person",
+      status: "active",
+      requiresTriage: true,
+      onlineBooking: true,
+      version: 1,
+    },
+  ],
+  [
+    "tele",
+    {
+      id: "tele",
+      code: "tele",
+      name: "Online consult",
+      defaultDurationMinutes: 20,
+      modality: "telemedicine",
+      status: "active",
+      requiresTriage: false,
+      onlineBooking: false,
+      version: 1,
+    },
+  ],
 ]);
 const appointment: AppointmentItem = {
   id: "a1",
@@ -107,6 +133,9 @@ describe("toAppointment", () => {
       mode: "online",
       status: "no-show",
     });
+    expect(toAppointment({ ...appointment, bookedByPatient: true }, practitioners, visitTypes).reason).toBe(
+      "Consultation · Booked online by the patient · BP follow-up",
+    );
   });
 });
 

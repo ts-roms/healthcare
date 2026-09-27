@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarIcon, ChevronRightIcon, MapPinIcon, VideoIcon } from "lucide-react";
+import { CalendarIcon, ChevronRightIcon, MapPinIcon, PencilIcon, VideoIcon } from "lucide-react";
 import type { PortalAppointment } from "@/lib/api/types";
 import { APPOINTMENT_STATUS, visitTime } from "@/lib/records";
 
@@ -9,14 +9,22 @@ export function VisitCard({ visit, upcoming = false }: { visit: PortalAppointmen
   // Open online consultations link to their page: questions, waiting room and video.
   const joinable = visit.modality === "telemedicine" && upcoming && ["booked", "confirmed", "checked_in"].includes(visit.status);
   const card = <Card visit={visit} icon={Icon} inactive={inactive} online={joinable} />;
-  if (joinable) {
-    return (
-      <Link href={`/consultations/${visit.id}`} className="rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        {card}
+  const body = joinable ? (
+    <Link href={`/consultations/${visit.id}`} className="rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50">
+      {card}
+    </Link>
+  ) : (
+    card
+  );
+  if (!upcoming || !(visit.canCancel || visit.canReschedule)) return body;
+  return (
+    <div className="flex flex-col gap-1">
+      {body}
+      <Link href={`/appointments/${visit.id}`} className="inline-flex items-center gap-1 self-end px-1 text-meta font-medium text-primary hover:underline">
+        <PencilIcon className="size-3.5" aria-hidden /> {visit.canReschedule ? "Change or cancel" : "Cancel"}
       </Link>
-    );
-  }
-  return card;
+    </div>
+  );
 }
 
 function Card({ visit, icon: Icon, inactive, online }: { visit: PortalAppointment; icon: typeof VideoIcon; inactive: boolean; online: boolean }) {

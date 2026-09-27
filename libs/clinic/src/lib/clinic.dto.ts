@@ -40,8 +40,19 @@ export const createVisitTypeSchema = z.object({
   defaultDurationMinutes: z.number().int().min(5).max(480),
   modality: z.enum(MODALITIES).default("in_person"),
   requiresTriage: z.boolean().default(true),
+  /** Patients may book this visit type themselves in MyHealth. */
+  onlineBooking: z.boolean().default(false),
 });
 export class CreateVisitTypeDto extends createZodDto(createVisitTypeSchema) {}
+
+export const updateVisitTypeSchema = z.object({
+  name: text(120).optional(),
+  defaultDurationMinutes: z.number().int().min(5).max(480).optional(),
+  onlineBooking: z.boolean().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  version: z.number().int().positive(),
+});
+export class UpdateVisitTypeDto extends createZodDto(updateVisitTypeSchema) {}
 
 export const createCodingSystemSchema = z.object({ key: code, name: text(120), version: text(40).optional() });
 export class CreateCodingSystemDto extends createZodDto(createCodingSystemSchema) {}
@@ -315,3 +326,29 @@ export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
 
 export type BookAppointmentInput = z.infer<typeof bookAppointmentSchema>;
 export type VitalsInput = z.infer<typeof vitalsSchema>;
+
+// ---- patient self-booking (MyHealth) --------------------------------------
+
+export const patientSlotsSchema = z.object({
+  facilityId: z.string().uuid(),
+  visitTypeId: z.string().uuid(),
+  date: z.iso.date(),
+  practitionerId: z.string().uuid().optional(),
+});
+export class PatientSlotsDto extends createZodDto(patientSlotsSchema) {}
+
+export const patientBookSchema = z.object({
+  facilityId: z.string().uuid(),
+  visitTypeId: z.string().uuid(),
+  practitionerId: z.string().uuid(),
+  startsAt: isoDateTime,
+  /** The patient's own words; optional. */
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+export class PatientBookDto extends createZodDto(patientBookSchema) {}
+
+export const patientRescheduleSchema = z.object({ startsAt: isoDateTime, version: z.number().int().positive() });
+export class PatientRescheduleDto extends createZodDto(patientRescheduleSchema) {}
+
+export const patientCancelSchema = z.object({ reason: z.string().trim().min(3).max(500).optional(), version: z.number().int().positive() });
+export class PatientCancelDto extends createZodDto(patientCancelSchema) {}
