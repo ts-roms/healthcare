@@ -55,6 +55,19 @@ export class UsersService {
     private readonly sessions: SessionService,
   ) {}
 
+  /** Display names of this organization's staff (for "entered by" / "verified by" labels). Not audited. */
+  async displayNames(organizationId: string, userIds: string[]): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    if (userIds.length === 0) return names;
+    const rows = await this.db
+      .select({ id: appUser.id, displayName: appUser.displayName })
+      .from(organizationMembership)
+      .innerJoin(appUser, eq(appUser.id, organizationMembership.userId))
+      .where(and(eq(organizationMembership.organizationId, organizationId), inArray(appUser.id, userIds)));
+    for (const row of rows) names.set(row.id, row.displayName);
+    return names;
+  }
+
   async list(organizationId: string): Promise<StaffUserView[]> {
     const members = await this.db
       .select({

@@ -1,6 +1,6 @@
 # Architecture overview
 
-Status: Phase 1 (Foundation) and Phase 2 (Clinic) implemented in the API; the staff app and patient portal sign in against the API; most clinical screens are still demo previews. See `CLAUDE.md` for the rules this follows.
+Status: Phase 1 (Foundation), Phase 2 (Clinic) and the Phase 3 laboratory backend implemented in the API; the staff app and patient portal sign in against the API; most clinical screens are still demo previews. See `CLAUDE.md` for the rules this follows.
 
 ## Shape
 
@@ -25,6 +25,7 @@ libs/
   clinic/        scheduling, appointments, queue, triage, vitals, allergies, encounters, diagnoses, dashboard
   prescription/  immutable prescriptions, cancel/replace, drug–allergy decision support
   care-plan/     care plans, goals, activities, recall
+  laboratory/    LIS: catalog, reference ranges, orders, specimens, versioned results, critical values, worklists, trends
   ui/ domain/    frontend design system and shared frontend types
   web-session/   session code shared by the Next.js apps (cookies, refresh, errors, forwarding)
 database/migrations/   forward-only SQL migrations (source of truth for the schema)
@@ -45,7 +46,7 @@ Enforced by `@nx/enforce-module-boundaries`; tags and the full rule table are in
 
 When a library needs something another domain owns, it defines a **port** and the app wires an adapter
 (`apps/api/src/app/adapters`, `recipient-directory.ts`). Examples: notification → `RecipientDirectory`;
-clinic → `PatientDirectory`; prescription → `PrescribingContext`. Cross-domain read models such as
+clinic → `PatientDirectory`; prescription → `PrescribingContext`; laboratory → `LaboratoryContext`. Cross-domain read models such as
 Patient 360 (`GET /patients/:id/summary`) are composed in the API.
 
 ## Request pipeline

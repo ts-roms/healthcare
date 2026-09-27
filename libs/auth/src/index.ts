@@ -5,3 +5,4 @@ export * from "./lib/auth.schema";
 export * from "./lib/auth.service";
 export * from "./lib/password";
 export * from "./lib/totp";
+export * from "./lib/users.service";

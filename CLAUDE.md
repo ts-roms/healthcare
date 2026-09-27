@@ -26,7 +26,7 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic)**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory API)**
 
 | Project                                              | Path                       | Nx tags                              | What it is                                                                                                   |
 | ---------------------------------------------------- | -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -39,6 +39,7 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.    |
 | `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                      |
 | `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                  |
+| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.  |
 
 **Frontend — partly connected to the API**
 
@@ -50,12 +51,12 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/web-session` | `libs/web-session` | `scope:shared`, `type:util`   | Server-side session code shared by the Next.js apps: token cookies, single-flight refresh, API errors, client forwarding, safe redirects.                                              |
 | `@healthcare/domain`      | `libs/domain`      | `scope:shared`, `type:domain` | Shared frontend clinical types, staff roles, a demo drug–allergy rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                              |
 
-`libs/laboratory`, `libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
+`libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
 - **Connected to the API:** sign-in/sign-out (password, TOTP MFA, organization choice), session refresh, navigation (from the user's permissions), facility selection, patient search, the patient record (`/patients/[id]`, including allergy recording and review (also at triage and in the encounter workspace), the Patient 360 clinical summary and consent recording with history), registration with duplicate review, the **queue** (`/queue`: board, call, move, walk-in check-in; live updates over the realtime socket with a short-lived ticket, polling every 15 s as a fallback), **triage and vitals** (`/queue/visits/[id]/triage`, with allergies and previous vitals alongside), the **encounter workspace** (`/clinic/encounters`: today's consultations; `/clinic/encounters/[id]`: SOAP note drafts, diagnoses, signing, amendments, revision history, entered-in-error, prescribing with drug–allergy decision support, replace and cancel, follow-up booking and care plans), **care plans** (`/clinic/care-plans`: the patient recall list; `/clinic/care-plans/[id]`: goals, activities incl. recurring ones, booking a follow-up that links the appointment, progress notes, status) the **clinic dashboard** (`/`: today's figures, what needs attention, next patients, provider workload, live queue for the selected facility) and **appointments** (`/appointments`: day schedule, confirm, check in, cancel, no-show; `/appointments/new`: booking from open slots). See `docs/architecture/staff-app.md`.
-- **Still demo fixtures** (badged "Demo" with a demo-data banner): laboratory, dental, telemedicine, the dashboard's laboratory panel and `/preview/patient-360` — the API for most of these exists (Phase 2) but the screens are not wired yet. They read `apps/staff/src/lib/demo-data.ts`.
+- **Still demo fixtures** (badged "Demo" with a demo-data banner): laboratory, dental, telemedicine, the dashboard's laboratory panel and `/preview/patient-360` — the laboratory API exists (Phase 3, `docs/domains/laboratory.md`) but its screens are not wired yet. They read `apps/staff/src/lib/demo-data.ts`.
 - **Patient portal:** activation with a staff-issued one-time code, sign-in/sign-out, session refresh and the patient's profile run against `/api/v1/portal/*`; staff invite and disable portal access from the patient record (`patient.portal.manage`, requires `portal_access` consent). No fixture data is shown to signed-in patients. See `docs/architecture/portal-app.md`.
 - **Never mix fixture clinical data with a real patient.** Real patient pages show only API data. "No known allergies" appears only after a recorded review; never-reviewed shows "Allergies not recorded — ask the patient"; users without clinical access see "Allergies: no access".
 - UI audit events in demo modules (e.g. allergy overrides) are toasts only; the API audits the real workflows.
@@ -90,7 +91,7 @@ Inspect the repository before every change — do not assume any file, library, 
 - Business rules live in domain libraries, not in React components.
 - Every new project needs `nx.tags` in its `package.json` and its own `eslint.config.mjs`.
 
-**Next steps:** Phase 3 (Laboratory), then connect the remaining demo screens (laboratory, dental, telemedicine) to their APIs, replacing the demo fixtures.
+**Next steps:** finish Phase 3 in the staff app — the laboratory workbench (worklists, collection, result entry, verification, approval, release, critical results), ordering from the encounter workspace, and results and trends on the patient record — replacing the laboratory demo fixtures.
 
 ## 1. Technology stack
 
@@ -142,8 +143,8 @@ apps/
 libs/
   ui/ domain/                                                                    [exist, frontend shared]
   core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
-  patient/ clinic/ prescription/ care-plan/                                      [exist, backend domains]
-  telemedicine/ dental/ laboratory/ billing/ inventory/ crm/ reporting/
+  patient/ clinic/ prescription/ care-plan/ laboratory/                          [exist, backend domains]
+  telemedicine/ dental/ billing/ inventory/ crm/ reporting/
   interoperability/ philhealth/                                                  [planned]
 
 database/migrations/  tools/  docs/  infrastructure/
