@@ -14,8 +14,16 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { recordPaymentSchema, refundSchema } from "../billing.dto";
-import { documentNumber, paidNet, refundable } from "../billing.rules";
-import { billingInvoice, billingInvoiceDiscount, billingInvoicePayer, billingPayment, type BillingPaymentRecord } from "../billing.schema";
+import { documentNumber, invoiceBalance, refundable } from "../billing.rules";
+import {
+  billingAccountEntry,
+  billingCreditNote,
+  billingInvoice,
+  billingInvoiceDiscount,
+  billingInvoicePayer,
+  billingPayment,
+  type BillingPaymentRecord,
+} from "../billing.schema";
 import { found, publicView } from "../billing-support";
 import { BillingCatalogService } from "../catalog/billing-catalog.service";
 import { InvoiceService } from "../invoices/invoice.service";
@@ -24,7 +32,7 @@ import { InvoiceService } from "../invoices/invoice.service";
  * The payment ledger: patient payments against issued invoices and refunds of
  * them. Append-only (database trigger); each real-world transaction carries an
  * idempotency key, so a retried request is recorded once. Overpayment is
- * refused (change is given at the counter, not recorded as credit).
+ * refused (change is given at the counter; money paid ahead is a deposit, DepositService).
  * Receipt numbers are a configurable series; whether they may serve as BIR
  * official receipts is a compliance dependency.
  */
@@ -45,11 +53,7 @@ export class PaymentService {
     const payment = await this.db.transaction(async (tx) => {
       const invoice = await this.invoices.lock(tx, actor, invoiceId);
       if (invoice.status !== "issued") throw new BusinessRuleError("Payments are recorded on issued invoices", "invoice_not_issued");
-      const ledger = await tx
-        .select({ kind: billingPayment.kind, amount: billingPayment.amount })
-        .from(billingPayment)
-        .where(eq(billingPayment.invoiceId, invoiceId));
-      const balance = invoice.patientTotal - paidNet(ledger);
+      const balance = invoiceBalance(invoice.patientTotal, await this.invoices.settlement(tx, invoiceId));
       if (input.amount > balance) {
         throw new BusinessRuleError("The payment is more than the patient's balance", "payment_exceeds_balance", { balance });
       }
@@ -135,8 +139,9 @@ export class PaymentService {
 
   /**
    * One facility's day: invoices issued (still valid) and voided, discounts given (statutory
-   * ones separately, for reporting), collections by method, refunds, and what
-   * patients and payers still owe on invoices issued that day.
+   * ones separately, for reporting), collections by method, refunds, deposits
+   * received, applied and refunded, credit notes issued, and what patients and
+   * payers still owe (and deposits held) across all dates.
    */
   async dailyReport(actor: Actor, date: string) {
     const facilityId = requireFacilityId(actor);
@@ -191,10 +196,54 @@ export class PaymentService {
       .from(billingInvoicePayer)
       .innerJoin(billingInvoice, eq(billingInvoice.id, billingInvoicePayer.invoiceId))
       .where(and(scope, eq(billingInvoice.status, "issued"), sql`${billingInvoicePayer.status} IN ('pending', 'submitted')`));
+    const account = await this.db
+      .select({
+        kind: billingAccountEntry.kind,
+        method: billingAccountEntry.method,
+        count: sql<number>`count(*)::int`,
+        amount: sql<number>`sum(${billingAccountEntry.amount})::bigint`,
+      })
+      .from(billingAccountEntry)
+      .where(
+        and(
+          eq(billingAccountEntry.organizationId, actor.organizationId),
+          eq(billingAccountEntry.facilityId, facilityId),
+          gte(billingAccountEntry.recordedAt, start),
+          lt(billingAccountEntry.recordedAt, end),
+        ),
+      )
+      .groupBy(billingAccountEntry.kind, billingAccountEntry.method);
+    const [held] = await this.db
+      .select({
+        amount: sql<number>`coalesce(sum(CASE WHEN ${billingAccountEntry.kind} IN ('deposit', 'credit', 'release') THEN ${billingAccountEntry.amount} ELSE -${billingAccountEntry.amount} END), 0)::bigint`,
+      })
+      .from(billingAccountEntry)
+      .where(and(eq(billingAccountEntry.organizationId, actor.organizationId), eq(billingAccountEntry.facilityId, facilityId)));
+    const [credits] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+        amount: sql<number>`coalesce(sum(${billingCreditNote.amount}), 0)::bigint`,
+        applied: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint`,
+        accountCredit: sql<number>`coalesce(sum(${billingCreditNote.accountCredit}), 0)::bigint`,
+      })
+      .from(billingCreditNote)
+      .where(
+        and(
+          eq(billingCreditNote.organizationId, actor.organizationId),
+          eq(billingCreditNote.facilityId, facilityId),
+          gte(billingCreditNote.issuedAt, start),
+          lt(billingCreditNote.issuedAt, end),
+        ),
+      );
     const receivable = await this.invoices.list(actor, { unpaid: true });
     const num = (v: unknown) => Number(v ?? 0);
     const collections = ledger.filter((l) => l.kind === "payment").map((l) => ({ method: l.method, count: l.count, amount: num(l.amount) }));
     const refunds = ledger.filter((l) => l.kind === "refund").map((l) => ({ method: l.method, count: l.count, amount: num(l.amount) }));
+    const byMethod = (kind: string) =>
+      account.filter((a) => a.kind === kind && a.method !== null).map((a) => ({ method: a.method as string, count: a.count, amount: num(a.amount) }));
+    const kindTotal = (kind: string) => account.filter((a) => a.kind === kind).reduce((a, c) => a + num(c.amount), 0);
+    const depositsReceived = byMethod("deposit");
+    const depositRefunds = byMethod("refund");
     await this.audit.recordStandalone(actor, { action: "billing.report.daily", resourceType: "billing_invoice", metadata: { facilityId, date } });
     return {
       date,
@@ -213,6 +262,23 @@ export class PaymentService {
       collectedTotal: collections.reduce((a, c) => a + c.amount, 0),
       refunds,
       refundedTotal: refunds.reduce((a, c) => a + c.amount, 0),
+      deposits: {
+        /** Deposits received that day (money in, besides invoice payments). */
+        received: depositsReceived,
+        receivedTotal: depositsReceived.reduce((a, c) => a + c.amount, 0),
+        /** Deposit or credit applied to invoices that day, less what voids released. */
+        appliedTotal: kindTotal("application") - kindTotal("release"),
+        refunds: depositRefunds,
+        refundedTotal: depositRefunds.reduce((a, c) => a + c.amount, 0),
+        /** Unapplied deposit and credit the facility holds for patients (all dates). */
+        held: num(held?.amount),
+      },
+      creditNotes: {
+        count: credits?.count ?? 0,
+        amount: num(credits?.amount),
+        appliedAmount: num(credits?.applied),
+        accountCredit: num(credits?.accountCredit),
+      },
       receivables: {
         /** What patients still owe on issued invoices at this facility (all dates). */
         patientBalance: receivable.reduce((a, r) => a + r.balance, 0),

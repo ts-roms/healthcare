@@ -21,10 +21,10 @@ import type {
   updateServiceSchema,
   updateSettingsSchema,
 } from "../billing.dto";
-import { billingDiscountRule, billingPayer, billingSequence, billingService, billingServicePrice } from "../billing.schema";
+import { billingDiscountRule, billingPayer, billingSequence, billingService, billingServicePrice, type SequenceKind } from "../billing.schema";
 import { assertVersion, found, previousDay, publicView } from "../billing-support";
 
-export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR" } as const;
+export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN" } as const;
 
 const SERVICE_FIELDS = ["name", "status"] as const;
 
@@ -266,16 +266,19 @@ export class BillingCatalogService {
 
   async settings(organizationId: string) {
     const rows = await this.db.select().from(billingSequence).where(eq(billingSequence.organizationId, organizationId));
-    const prefix = (kind: "invoice" | "receipt") => rows.find((r) => r.kind === kind)?.prefix ?? DEFAULT_PREFIXES[kind];
-    return { invoicePrefix: prefix("invoice"), receiptPrefix: prefix("receipt") };
+    const prefix = (kind: SequenceKind) => rows.find((r) => r.kind === kind)?.prefix ?? DEFAULT_PREFIXES[kind];
+    return { invoicePrefix: prefix("invoice"), receiptPrefix: prefix("receipt"), creditNotePrefix: prefix("credit_note") };
   }
 
   async updateSettings(actor: Actor, input: z.infer<typeof updateSettingsSchema>) {
     await this.db.transaction(async (tx) => {
-      for (const [kind, prefix] of [
+      const series: Array<[SequenceKind, string | undefined]> = [
         ["invoice", input.invoicePrefix],
         ["receipt", input.receiptPrefix],
-      ] as const) {
+        ["credit_note", input.creditNotePrefix],
+      ];
+      for (const [kind, prefix] of series) {
+        if (prefix === undefined) continue;
         await tx
           .insert(billingSequence)
           .values({ organizationId: actor.organizationId, kind, prefix })
@@ -287,7 +290,7 @@ export class BillingCatalogService {
   }
 
   /** Takes the next number of a series (row-locked, so numbers are unique and gap-free within committed transactions). */
-  async nextNumber(tx: DbExecutor, organizationId: string, kind: "invoice" | "receipt"): Promise<{ prefix: string; value: number }> {
+  async nextNumber(tx: DbExecutor, organizationId: string, kind: SequenceKind): Promise<{ prefix: string; value: number }> {
     await tx.insert(billingSequence).values({ organizationId, kind, prefix: DEFAULT_PREFIXES[kind] }).onConflictDoNothing();
     const [row] = await tx
       .update(billingSequence)

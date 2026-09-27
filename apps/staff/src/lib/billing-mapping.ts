@@ -1,4 +1,4 @@
-import type { BillingCategory, InvoiceCoverage, InvoiceSummary, PaymentMethod } from "./api/types";
+import type { AccountEntryKind, BillingCategory, CreditNote, InvoiceCoverage, InvoiceSummary, PaymentMethod } from "./api/types";
 
 /**
  * Display helpers for billing. Amounts are integer centavos from the API;
@@ -64,7 +64,8 @@ export function invoiceState(invoice: Pick<InvoiceSummary, "status" | "patientTo
   if (invoice.status === "draft") return "draft";
   if (invoice.status === "void") return "void";
   if (invoice.balance <= 0) return "paid";
-  return invoice.paidTotal > 0 ? "partly_paid" : "unpaid";
+  // Paid in part by payments, deposit applied or a credit note.
+  return invoice.paidTotal > 0 || invoice.balance < invoice.patientTotal ? "partly_paid" : "unpaid";
 }
 
 export const INVOICE_STATE_LABEL: Record<InvoiceState, string> = {
@@ -82,4 +83,23 @@ export function refundableAmount(
   ledger: ReadonlyArray<{ kind: "payment" | "refund"; refundOfId: string | null; amount: number }>,
 ): number {
   return amount - ledger.filter((e) => e.kind === "refund" && e.refundOfId === paymentId).reduce((a, e) => a + e.amount, 0);
+}
+
+export const ACCOUNT_ENTRY_LABEL: Record<AccountEntryKind, string> = {
+  deposit: "Deposit",
+  credit: "Credit note",
+  application: "Applied to invoice",
+  release: "Returned from voided invoice",
+  refund: "Refunded",
+};
+
+/** Whether an account entry adds to the patient's deposit and credit balance. */
+export function addsToAccount(kind: AccountEntryKind): boolean {
+  return kind === "deposit" || kind === "credit" || kind === "release";
+}
+
+/** How much of an invoice line can still be credited, given the credit notes already issued. */
+export function creditableLeft(line: { id: string; netAmount: number }, creditNotes: ReadonlyArray<Pick<CreditNote, "lines">>): number {
+  const credited = creditNotes.flatMap((c) => c.lines).filter((l) => l.invoiceItemId === line.id);
+  return line.netAmount - credited.reduce((a, l) => a + l.amount, 0);
 }

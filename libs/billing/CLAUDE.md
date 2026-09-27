@@ -20,11 +20,11 @@ Charge capture, consultation/procedure/laboratory/dental fees, packages, discoun
 
 ## Key events
 
-`ChargeCaptured`, `InvoiceIssued`, `InvoiceVoided`, `PaymentCompleted`, `PaymentFailed`, `RefundIssued`, `ClaimSubmitted`, `ClaimStatusChanged`.
+`ChargeCaptured`, `InvoiceIssued`, `InvoiceVoided`, `PaymentCompleted`, `PaymentFailed`, `RefundIssued`, `ClaimSubmitted`, `ClaimStatusChanged`, `DepositReceived`, `DepositApplied`, `DepositRefunded`, `CreditNoteIssued`.
 
 ## Permissions (initial)
 
-`billing.charge.read`, `billing.invoice.issue`, `billing.invoice.void`, `billing.payment.record`, `billing.refund.issue`, `billing.discount.apply`, `billing.pricelist.manage`, `billing.report.read`.
+`billing.charge.read`, `billing.invoice.issue`, `billing.invoice.void`, `billing.payment.record`, `billing.refund.issue`, `billing.discount.apply`, `billing.pricelist.manage`, `billing.report.read`, `billing.deposit.record`, `billing.credit-note.issue`.
 
 ## Docs
 

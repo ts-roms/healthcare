@@ -44,7 +44,7 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | Medicines                     | `GET /portal/prescriptions` (active)                                                                                        |
 | Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                          |
 | Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                  |
-| Bills                         | `GET /portal/billing` (issued and void invoices: lines, discounts, coverage, payments, balance; no drafts or staff details) |
+| Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts) |
 | Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                               |
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.

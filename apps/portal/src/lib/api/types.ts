@@ -201,3 +201,34 @@ export interface PortalInvoice {
   payers: Array<{ name: string; amount: number; status: "pending" | "submitted" | "settled" | "denied" }>;
   payments: Array<{ kind: "payment" | "refund"; amount: number; method: string; receiptNumber: string | null; recordedAt: string }>;
 }
+
+/** Deposits and credit notes on an invoice (migration 0035). */
+export interface PortalInvoiceCredits {
+  depositAppliedTotal: number;
+  creditedTotal: number;
+  depositApplications: Array<{ kind: "application" | "release"; amount: number; recordedAt: string }>;
+  creditNotes: Array<{
+    id: string;
+    creditNoteNumber: string;
+    issuedAt: string;
+    reason: string;
+    amount: number;
+    appliedAmount: number;
+    accountCredit: number;
+  }>;
+}
+
+/** The patient's deposit and credit balance at one facility. */
+export interface PortalAccount {
+  facilityName: string;
+  balance: number;
+  entries: Array<{
+    kind: "deposit" | "credit" | "application" | "release" | "refund";
+    amount: number;
+    method: string | null;
+    receiptNumber: string | null;
+    invoiceNumber: string | null;
+    creditNoteNumber: string | null;
+    recordedAt: string;
+  }>;
+}

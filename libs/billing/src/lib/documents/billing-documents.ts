@@ -4,8 +4,9 @@ import { type Actor, BusinessRuleError, DATABASE, type Database, NotFoundError }
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, pdfMoney, pesoWords, renderPdf } from "@healthcare/pdf";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { paidNet } from "../billing.rules";
-import { billingPayment } from "../billing.schema";
+import { accountBalance, depositApplied, invoiceBalance, paidNet } from "../billing.rules";
+import { billingAccountEntry, billingCreditNote, billingPayment } from "../billing.schema";
+import { CreditNoteService } from "../credit-notes/credit-note.service";
 import { InvoiceService } from "../invoices/invoice.service";
 import { BILLING_PATIENTS, type BillingPatientDirectory } from "../ports";
 
@@ -13,9 +14,10 @@ const METHOD: Record<string, string> = { cash: "Cash", card: "Card", e_wallet: "
 const COVERAGE: Record<string, string> = { pending: "Pending", submitted: "Submitted", settled: "Settled", denied: "Denied" };
 
 /**
- * Printable invoices and payment receipts (PDF), rendered on request from the
- * invoice and ledger (issued invoices and payments are immutable, so the same
- * document can be printed again). Drafts print with a DRAFT watermark and
+ * Printable invoices, payment and deposit receipts, and credit notes (PDF),
+ * rendered on request from the invoice and ledgers (issued invoices, credit
+ * notes and ledger entries are immutable, so the same document can be printed
+ * again). Drafts print with a DRAFT watermark and
  * void invoices with VOID. Whether these documents meet BIR requirements for
  * invoices or official receipts is a compliance dependency; they say what
  * they are not.
@@ -25,6 +27,7 @@ export class BillingDocuments {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly invoices: InvoiceService,
+    private readonly creditNotes: CreditNoteService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     @Inject(BILLING_PATIENTS) private readonly patients: BillingPatientDirectory,
@@ -71,6 +74,22 @@ export class BillingDocuments {
         ),
       )
       .orderBy(asc(billingPayment.recordedAt));
+    const asOf = sql`(SELECT p.recorded_at FROM billing_payment p WHERE p.id = ${payment.id})`;
+    const [applied, credited] = await Promise.all([
+      this.db
+        .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
+        .from(billingAccountEntry)
+        .where(and(eq(billingAccountEntry.invoiceId, payment.invoiceId), sql`${billingAccountEntry.recordedAt} <= ${asOf}`)),
+      this.db
+        .select({ appliedAmount: billingCreditNote.appliedAmount })
+        .from(billingCreditNote)
+        .where(and(eq(billingCreditNote.invoiceId, payment.invoiceId), sql`${billingCreditNote.issuedAt} <= ${asOf}`)),
+    ]);
+    const balanceAfter = invoiceBalance(invoice.patientTotal, {
+      paid: paidNet(before),
+      depositApplied: depositApplied(applied),
+      credited: credited.reduce((a, c) => a + c.appliedAmount, 0),
+    });
     const { letterhead, timeZone, patient } = await this.frame(actor.organizationId, invoice.facilityId, invoice.patientId);
     const pdf = await renderPdf(
       {
@@ -94,7 +113,7 @@ export class BillingDocuments {
         w.space();
         w.totals([
           ["Patient's share on the invoice", pdfMoney(invoice.patientTotal)],
-          ["Balance after this payment", pdfMoney(Math.max(invoice.patientTotal - paidNet(before), 0)), true],
+          ["Balance after this payment", pdfMoney(Math.max(balanceAfter, 0)), true],
         ]);
         w.signatures([{ name: " ", role: "Cashier" }]);
       },
@@ -106,6 +125,130 @@ export class BillingDocuments {
       patientId: payment.patientId,
     });
     return { filename: `${payment.receiptNumber ?? payment.id.slice(0, 8)}.pdf`, pdf };
+  }
+
+  /** Acknowledgement receipt of a deposit (advance payment) on the patient's account. */
+  async depositReceiptPdf(actor: Actor, entryId: string) {
+    const [entry] = await this.db
+      .select()
+      .from(billingAccountEntry)
+      .where(and(eq(billingAccountEntry.organizationId, actor.organizationId), eq(billingAccountEntry.id, entryId)));
+    if (!entry || (actor.facilityId && entry.facilityId !== actor.facilityId)) throw new NotFoundError("Deposit");
+    if (entry.kind !== "deposit") throw new BusinessRuleError("Receipts are printed for deposits", "not_a_deposit");
+    // The account balance right after this deposit.
+    const before = await this.db
+      .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
+      .from(billingAccountEntry)
+      .where(
+        and(
+          eq(billingAccountEntry.organizationId, entry.organizationId),
+          eq(billingAccountEntry.patientId, entry.patientId),
+          eq(billingAccountEntry.facilityId, entry.facilityId),
+          sql`${billingAccountEntry.recordedAt} <= (SELECT e.recorded_at FROM billing_account_entry e WHERE e.id = ${entry.id})`,
+        ),
+      );
+    const { letterhead, timeZone, patient } = await this.frame(actor.organizationId, entry.facilityId, entry.patientId);
+    const pdf = await renderPdf(
+      {
+        title: "Acknowledgement Receipt",
+        subtitle: "Deposit (advance payment)",
+        letterhead,
+        printedAt: `Printed ${pdfDateTime(new Date(), timeZone)}`,
+        footerNote: "This acknowledgement receipt is not an official receipt.",
+      },
+      (w) => {
+        w.fields([
+          ["Receipt number", entry.receiptNumber],
+          ["Date", pdfDateTime(entry.recordedAt, timeZone)],
+          ["Received from", patient.name],
+          ["Patient number", patient.number],
+          ["For", "Deposit on the patient's account"],
+          ["Payment method", [METHOD[entry.method ?? ""] ?? entry.method, entry.reference].filter(Boolean).join(" · ")],
+        ]);
+        w.space();
+        w.totals([["Amount received", pdfMoney(entry.amount), true]]);
+        w.paragraph(pesoWords(entry.amount), { bold: true });
+        w.space();
+        w.totals([["Deposit and credit balance after this deposit", pdfMoney(accountBalance(before)), true]]);
+        w.paragraph("The deposit is applied to the patient's invoices at this facility, or refunded, as the patient and the cashier agree.", { muted: true });
+        w.signatures([{ name: " ", role: "Cashier" }]);
+      },
+    );
+    await this.audit.recordStandalone(actor, {
+      action: "billing.deposit-receipt.print",
+      resourceType: "billing_account_entry",
+      resourceId: entryId,
+      patientId: entry.patientId,
+    });
+    return { filename: `${entry.receiptNumber ?? entry.id.slice(0, 8)}.pdf`, pdf };
+  }
+
+  async creditNotePdf(actor: Actor, creditNoteId: string) {
+    const note = await this.creditNotes.detail(actor.organizationId, creditNoteId);
+    if (actor.facilityId && note.facilityId !== actor.facilityId) throw new NotFoundError("Credit note");
+    const pdf = await this.renderCreditNote(actor.organizationId, note, "staff");
+    await this.audit.recordStandalone(actor, {
+      action: "billing.credit-note.print",
+      resourceType: "billing_credit_note",
+      resourceId: creditNoteId,
+      patientId: note.patientId,
+    });
+    return { filename: `${note.creditNoteNumber}.pdf`, pdf };
+  }
+
+  /** The patient's copy of a credit note from MyHealth. */
+  async patientCreditNotePdf(organizationId: string, patientId: string, creditNoteId: string, auditContext: PatientAuditContext) {
+    const note = await this.creditNotes.detail(organizationId, creditNoteId).catch(() => undefined);
+    if (!note || note.patientId !== patientId) throw new NotFoundError("Credit note");
+    const pdf = await this.renderCreditNote(organizationId, note, "patient");
+    await this.audit.recordStandalone(auditContext, {
+      action: "portal.credit-note-download",
+      resourceType: "billing_credit_note",
+      resourceId: creditNoteId,
+      patientId,
+    });
+    return { filename: `${note.creditNoteNumber}.pdf`, pdf };
+  }
+
+  private async renderCreditNote(organizationId: string, note: Awaited<ReturnType<CreditNoteService["detail"]>>, copy: "staff" | "patient") {
+    const { letterhead, timeZone, patient } = await this.frame(organizationId, note.facilityId, note.patientId);
+    return renderPdf(
+      {
+        title: "Credit Note",
+        subtitle: copy === "patient" ? "Patient's copy from MyHealth" : undefined,
+        letterhead,
+        printedAt: `Printed ${pdfDateTime(new Date(), timeZone)}`,
+        footerNote: "Amounts in Philippine pesos (PHP). Whether this credit note meets BIR requirements is subject to confirmation.",
+      },
+      (w) => {
+        w.fields([
+          ["Credit note number", note.creditNoteNumber],
+          ["Date", pdfDateTime(note.issuedAt, timeZone)],
+          ["Patient", patient.name],
+          ["Patient number", patient.number],
+          ["For invoice", note.invoiceNumber],
+          ["Reason", note.reason],
+        ]);
+        w.space();
+        w.table(
+          [
+            { header: "Credited", width: 6 },
+            { header: "Amount", width: 1.5, align: "right" },
+          ],
+          note.lines.map((l) => [l.description, pdfMoney(l.amount)]),
+        );
+        w.space();
+        const totals: Array<[string, string, boolean?]> = [["Total credited", pdfMoney(note.amount), true]];
+        if (note.appliedAmount) totals.push(["Taken off the invoice balance", pdfMoney(note.appliedAmount)]);
+        if (note.accountCredit) totals.push(["Credited to the patient's account (already paid)", pdfMoney(note.accountCredit)]);
+        w.totals(totals);
+        w.paragraph(pesoWords(note.amount), { bold: true });
+        if (note.accountCredit) {
+          w.paragraph("Credit on the patient's account can be applied to another invoice at this facility or refunded.", { muted: true });
+        }
+        w.signatures([{ name: " ", role: "Authorized signature" }]);
+      },
+    );
   }
 
   private async renderInvoice(organizationId: string, invoice: Awaited<ReturnType<InvoiceService["detail"]>>, copy: "staff" | "patient") {
@@ -179,7 +322,12 @@ export class BillingDocuments {
           ["Covered by payers", `-${pdfMoney(invoice.payerTotal)}`],
           ["Patient's share", pdfMoney(invoice.patientTotal), true],
         ];
-        if (issued) totals.push(["Paid", `-${pdfMoney(invoice.paidTotal)}`], ["Balance", pdfMoney(invoice.balance), true]);
+        if (issued) {
+          totals.push(["Paid", `-${pdfMoney(invoice.paidTotal)}`]);
+          if (invoice.depositAppliedTotal) totals.push(["Deposit applied", `-${pdfMoney(invoice.depositAppliedTotal)}`]);
+          if (invoice.creditedTotal) totals.push(["Credit notes", `-${pdfMoney(invoice.creditedTotal)}`]);
+          totals.push(["Balance", pdfMoney(invoice.balance), true]);
+        }
         w.totals(totals);
         if (invoice.payments.length) {
           w.heading("Payments");
@@ -196,6 +344,18 @@ export class BillingDocuments {
               [METHOD[p.method] ?? p.method, p.reference].filter(Boolean).join(" · "),
               p.kind === "refund" ? `+${pdfMoney(p.amount)}` : `-${pdfMoney(p.amount)}`,
             ]),
+          );
+        }
+        if (invoice.creditNotes.length) {
+          w.heading("Credit notes");
+          w.table(
+            [
+              { header: "Date", width: 2 },
+              { header: "Credit note", width: 2 },
+              { header: "Reason", width: 2.5 },
+              { header: "Amount", width: 1.5, align: "right" },
+            ],
+            invoice.creditNotes.map((c) => [pdfDateTime(c.issuedAt, timeZone), c.creditNoteNumber, c.reason, `-${pdfMoney(c.amount)}`]),
           );
         }
       },

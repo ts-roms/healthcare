@@ -80,6 +80,10 @@ export const PERMISSIONS = [
   "doh.settings.manage",
   // Integration exchange review (migration 0025)
   "integration.exchange.manage",
+  // Billing follow-ups — patient deposits and credit notes (migration 0035).
+  // Refunds of deposit or credit balance use billing.refund.issue.
+  "billing.deposit.record",
+  "billing.credit-note.issue",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
