@@ -525,3 +525,62 @@ export interface Prescription {
   cancellationReason: string | null;
   items: PrescriptionLine[];
 }
+
+// ---- Care plans (Phase 2) ---------------------------------------------------------------------------
+
+export type CarePlanCategory = "chronic_disease" | "preventive" | "post_procedure" | "maternal" | "other";
+export type CarePlanStatus = "draft" | "active" | "on_hold" | "completed" | "cancelled";
+export type CareActivityKind =
+  "follow_up_appointment" | "laboratory_monitoring" | "medication" | "lifestyle" | "education" | "referral" | "patient_task" | "provider_task";
+export type CareActivityStatus = "planned" | "scheduled" | "in_progress" | "completed" | "cancelled";
+export type CareGoalStatus = "proposed" | "active" | "achieved" | "not_achieved" | "cancelled";
+
+/** GET /care-plans?patientId row. */
+export interface CarePlan {
+  id: string;
+  patientId: string;
+  title: string;
+  category: CarePlanCategory;
+  description: string | null;
+  status: CarePlanStatus;
+  startDate: string;
+  endDate: string | null;
+  authorPractitionerId: string | null;
+  sourceEncounterId: string | null;
+  statusReason: string | null;
+  updatedAt: string;
+  version: number;
+}
+
+export interface CareGoal {
+  id: string;
+  description: string;
+  targetMeasure: string | null;
+  targetValue: string | null;
+  targetDate: string | null;
+  status: CareGoalStatus;
+}
+
+export interface CareActivity {
+  id: string;
+  carePlanId: string;
+  goalId: string | null;
+  kind: CareActivityKind;
+  description: string;
+  assignee: "patient" | "care_team";
+  assigneePractitionerId: string | null;
+  dueDate: string | null;
+  recurrenceIntervalDays: number | null;
+  status: CareActivityStatus;
+  linkedAppointmentId: string | null;
+  completedAt: string | null;
+  statusReason: string | null;
+}
+
+/** GET /care-plans/:id */
+export interface CarePlanDetail extends CarePlan {
+  problems: Array<{ id: string; diagnosisId: string | null; description: string }>;
+  goals: CareGoal[];
+  activities: CareActivity[];
+  progressNotes: Array<{ id: string; note: string; recordedBy: string; recordedAt: string }>;
+}

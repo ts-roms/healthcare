@@ -7,13 +7,27 @@ import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { Availability } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
+import { safeNextPath } from "@healthcare/web-session";
 import { BookingForm } from "./booking-form";
 
 export const metadata = { title: "Book appointment" };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-type Search = { patientId?: string; practitionerId?: string; visitTypeId?: string; date?: string };
+type Search = {
+  patientId?: string;
+  practitionerId?: string;
+  visitTypeId?: string;
+  date?: string;
+  /** Where to go after booking (same-origin path only), e.g. back to the encounter. */
+  returnTo?: string;
+  /** A care-plan follow-up activity to link to the booked appointment. */
+  carePlanId?: string;
+  activityId?: string;
+  reason?: string;
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function BookAppointmentPage({ searchParams }: { searchParams: Promise<Search> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
@@ -57,6 +71,14 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
           name: `${v.name} · ${v.defaultDurationMinutes} min${v.modality === "telemedicine" ? " · online" : ""}`,
         }))}
         selection={{ practitionerId, visitTypeId, date }}
+        context={{
+          returnTo: safeNextPath(params.returnTo, ""),
+          activity:
+            params.carePlanId && params.activityId && UUID.test(params.carePlanId) && UUID.test(params.activityId)
+              ? { carePlanId: params.carePlanId, activityId: params.activityId }
+              : null,
+          reason: (params.reason ?? "").slice(0, 500),
+        }}
         slots={availability?.slots ?? null}
         availabilityError={availabilityError}
       />
