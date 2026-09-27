@@ -1,0 +1,44 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./libs/core"
+    },
+    {
+      "path": "./libs/audit"
+    },
+    {
+      "path": "./libs/auth"
+    },
+    {
+      "path": "./libs/organization"
+    },
+    {
+      "path": "./libs/documents"
+    },
+    {
+      "path": "./libs/notification"
+    },
+    {
+      "path": "./libs/patient"
+    },
+    {
+      "path": "./apps/notification-worker"
+    },
+    {
+      "path": "./libs/clinic"
+    },
+    {
+      "path": "./libs/prescription"
+    },
+    {
+      "path": "./libs/care-plan"
+    }
+  ],
+  "compilerOptions": {}
+}

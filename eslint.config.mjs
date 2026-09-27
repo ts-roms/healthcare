@@ -16,8 +16,15 @@ import prettier from "eslint-config-prettier";
  *                          that domain's `type:contract` library.
  *                          (e.g. Clinic → Laboratory Order contract → Laboratory)
  *
+ *     api / worker         backend deployables (apps/api, apps/notification-worker)
+ *
  * Adding a domain library: tag it `scope:<domain>` + a `type:*`, and add the
  * scope to DOMAIN_SCOPES below.
+ *
+ * Backend platform services (core, audit, organization, auth, documents,
+ * notification) are `scope:shared` so every domain may use them; their layer
+ * tags keep them from depending on each other upwards (e.g. audit cannot
+ * import auth). See docs/architecture/module-boundaries.md.
  */
 const DOMAIN_SCOPES = [
   "patient",
@@ -26,6 +33,7 @@ const DOMAIN_SCOPES = [
   "dental",
   "telemedicine",
   "care-plan",
+  "prescription",
   "billing",
   "interoperability",
   "notification",
@@ -48,12 +56,15 @@ export const depConstraints = [
   { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
   { sourceTag: "scope:staff", onlyDependOnLibsWithTags: ["scope:staff", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   { sourceTag: "scope:portal", onlyDependOnLibsWithTags: ["scope:portal", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
+  // The API is the composition root: it wires domains together through adapters.
+  { sourceTag: "scope:api", onlyDependOnLibsWithTags: ["scope:api", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
+  { sourceTag: "scope:worker", onlyDependOnLibsWithTags: ["scope:worker", "scope:shared"] },
   ...DOMAIN_SCOPES.map((s) => ({ sourceTag: `scope:${s}`, onlyDependOnLibsWithTags: [`scope:${s}`, "scope:shared", "type:contract"] })),
 ];
 
 export default [
   {
-    ignores: ["**/dist", "**/.next", "**/out", "**/storybook-static", "**/.nx", "**/node_modules", "**/next-env.d.ts"],
+    ignores: ["**/dist", "**/.next", "**/out", "**/out-tsc", "**/storybook-static", "**/.nx", "**/node_modules", "**/next-env.d.ts"],
   },
   ...nx.configs["flat/base"],
   ...nx.configs["flat/typescript"],

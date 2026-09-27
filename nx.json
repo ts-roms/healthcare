@@ -8,10 +8,14 @@
       "!{projectRoot}/**/*.stories.tsx",
       "!{projectRoot}/.storybook/**/*",
       "!{projectRoot}/eslint.config.mjs",
-      "!{projectRoot}/**/*.test.ts",
-      "!{projectRoot}/**/*.test.tsx"
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/jest.config.[jt]s",
+      "!{projectRoot}/jest.config.cts",
+      "!{projectRoot}/jest.integration.config.cts",
+      "!{projectRoot}/test/**/*"
     ],
-    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
+    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json", "{workspaceRoot}/tsconfig.node.json"]
   },
   "targetDefaults": {
     "build": {
@@ -41,6 +45,41 @@
       "options": {
         "targetName": "lint"
       }
+    },
+    {
+      "plugin": "@nx/js/typescript",
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "options": {
+        "typecheck": {
+          "targetName": "typecheck"
+        },
+        "build": {
+          "targetName": "build",
+          "configName": "tsconfig.lib.json",
+          "buildDepsName": "build-deps",
+          "watchDepsName": "watch-deps"
+        }
+      }
+    },
+    {
+      "plugin": "@nx/webpack/plugin",
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "options": {
+        "buildTargetName": "build",
+        "serveTargetName": "serve",
+        "previewTargetName": "preview",
+        "buildDepsTargetName": "build-deps",
+        "watchDepsTargetName": "watch-deps",
+        "serveStaticTargetName": "serve-static"
+      }
+    },
+    {
+      "plugin": "@nx/jest/plugin",
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "options": {
+        "targetName": "test"
+      }
     }
-  ]
+  ],
+  "analytics": false
 }

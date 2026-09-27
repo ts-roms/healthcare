@@ -24,63 +24,85 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 ## 0. Current repository state
 
-The Nx monorepo and a **frontend prototype** exist. There is **no backend yet**: no NestJS API, database, authentication, or persistence. Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
+Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Projects**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic)**
+
+| Project                                              | Path                       | Nx tags                              | What it is                                                                                                 |
+| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root. |
+| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                  |
+| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.   |
+| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                     |
+| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                            |
+| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences.                                    |
+| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.  |
+| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                    |
+| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                |
+
+**Frontend — prototype (not yet connected to the API)**
 
 | Project              | Path          | Nx tags                       | What it is                                                                                                                                                                             |
 | -------------------- | ------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `staff`              | `apps/staff`  | `scope:staff`, `type:app`     | Next.js staff app: role-aware dashboards, Patient 360, doctor encounter workspace, lab workbench, odontogram, telemedicine, queue, appointments. Unbuilt modules render a placeholder. |
 | `portal`             | `apps/portal` | `scope:portal`, `type:app`    | Next.js patient portal (mobile-first): home, visits, results.                                                                                                                          |
 | `@healthcare/ui`     | `libs/ui`     | `scope:shared`, `type:ui`     | Healthcare Design System on shadcn/ui + Tailwind v4: tokens (`src/styles/theme.css`), `primitives/`, `healthcare/` components, `layouts/`. Storybook.                                  |
-| `@healthcare/domain` | `libs/domain` | `scope:shared`, `type:domain` | Shared clinical types, staff roles, drug–allergy decision-support rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                             |
+| `@healthcare/domain` | `libs/domain` | `scope:shared`, `type:domain` | Shared frontend clinical types, staff roles, a demo drug–allergy rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                              |
 
-`libs/clinic`, `libs/laboratory`, `libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
+`libs/laboratory`, `libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
 
-**Prototype limitations — do not mistake these for implemented features**
+**Frontend prototype limitations — do not mistake these for implemented features**
 
-- All data is demo fixtures. The staff app reads them through `apps/staff/src/lib/data.ts` (the seam to replace with API calls); portal pages import `@healthcare/domain/fixtures` directly. Nothing is persisted: "Sign", "Verify", "Save" change in-memory state and show toasts only.
-- The staff **role is a demo cookie** (`hc-role`) set from a top-bar switcher. There is no authentication or server-side authorization.
-- Audit events (e.g. allergy overrides) are surfaced as toasts only; there is no audit store.
-- The drug–allergy class map is a labelled demo list, not a clinical knowledge source.
+- The frontend still uses demo fixtures: the staff app reads them through `apps/staff/src/lib/data.ts` (the seam to replace with calls to `/api/v1`); portal pages import `@healthcare/domain/fixtures` directly. "Sign", "Verify", "Save" in the UI change in-memory state only.
+- The staff **role is a demo cookie** (`hc-role`). Real authentication and authorization exist in the API (`/api/v1/auth/*`, `AccessGuard`); the UI does not use them yet.
+- The frontend drug–allergy class map is a labelled demo list. The authoritative server-side check is `libs/prescription/src/lib/allergy-check.ts` (decision support with an audited override).
 
 **Tooling**
 
-- Nx 23 + pnpm 10, Node 22 (`.nvmrc`), TypeScript 5.9 strict, Next.js 16, React 19, Tailwind CSS 4, Storybook 10.
-- ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Pinned to v9 until `eslint-plugin-react` / `jsx-a11y` support v10.
-- Vitest 4 unit tests in `libs/domain` and `libs/ui` (`*.test.ts`). Prettier with the Tailwind plugin.
-- CI: `.github/workflows/ci.yml` runs `prettier --check` then `nx affected` for lint → typecheck → test → integration → e2e → build (+ `build-storybook`). Targets a project doesn't define are skipped.
-- Commands: `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm format`.
+- Nx 23 + pnpm 10, Node 22 (`.nvmrc`). TypeScript strict everywhere: backend projects use TypeScript 6 with project references (`tsconfig.node.json`, synced by `nx sync`); frontend projects use TypeScript 5.9 with `tsconfig.base.json` (bundler resolution). The `@nx/js/typescript`, webpack and Jest plugins apply to backend projects only (see `exclude` in `nx.json`).
+- Frontend: Next.js 16, React 19, Tailwind CSS 4, Storybook 10, Vitest 4 (`*.test.ts`). Backend: NestJS 11, Drizzle, Jest 30 (`*.spec.ts`), API integration tests (`apps/api/test/*.int.spec.ts`, target `integration`) against real PostgreSQL.
+- ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
+- CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e → build (+ `build-storybook`).
+- Commands: `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
 
-**Conventions already established**
+**Backend conventions** (details in `docs/architecture/`)
+
+- **Schema:** hand-written, forward-only SQL in `database/migrations/` is the source of truth (constraints, composite same-organization and same-patient FKs, exclusion constraints, append-only triggers). Each library mirrors **only its own tables** as Drizzle definitions; `apps/api/test/schema.int.spec.ts` catches drift. Never edit an applied migration.
+- **Validation:** Zod via `nestjs-zod` (`createZodDto`). No class-validator.
+- **Access:** decorators (`@Public`, `@RequirePermissions`, `@RequireFacility`, `@RequirePlatformAdmin`, `@CurrentActor`) and the permission catalog live in `libs/core`; the global `AccessGuard` in `libs/auth` enforces them. Every route is authenticated by default. New permissions need a migration row **and** a `PERMISSIONS` entry.
+- **Actor:** pass `Actor` explicitly into services; scope every query by `actor.organizationId`. Background work uses `systemActor()`.
+- **Audit:** write audit events with `AuditService.record(tx, actor, …)` inside the same transaction as the change; `recordStandalone` for reads/denials.
+- **Events:** record domain events with `DomainEventPublisher.record(tx, …)` in the same transaction; handlers subscribe via `DomainEventHandlers.on(…)` and must be idempotent (outbox, at-least-once). Payloads carry ids, never clinical text.
+- **Errors:** throw `DomainError` subclasses from `libs/core`; the filter produces `{ error: { code, message, details?, requestId } }`.
+- **Cross-domain:** a library never imports another domain. It defines a port; the API (`apps/api/src/app/adapters`) wires the adapter. Cross-domain read models (e.g. Patient 360) are composed in the API.
+
+**Frontend conventions**
 
 - Import the design system via `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@healthcare/ui/layouts`; shared types via `@healthcare/domain`.
 - Clinical status is never colour alone (colour + icon + text; see `libs/ui/src/healthcare/status.tsx`).
 - Clinical times render in the facility timezone via `libs/ui/src/lib/format.ts` (default `Asia/Manila`).
-- Business rules live in `libs/domain` (or future domain libs), not in React components.
+- Business rules live in domain libraries, not in React components.
 - Every new project needs `nx.tags` in its `package.json` and its own `eslint.config.mjs`.
 
-**Next steps (§38 Phase 1, Foundation)** — still to do: NestJS API, PostgreSQL, authentication, organizations/facilities, users/roles, Patient Master, patient lookup, audit, documents, notifications.
-
----
+**Next steps:** connect the staff app to the API (authentication, patient lookup, queue, encounter workspace, Patient 360), replacing the demo fixtures; then Phase 3 (Laboratory).
 
 ## 1. Technology stack
 
 Use this stack unless there is a strong, documented technical reason to change it.
 
-| Area           | Choice                                                                                                                        |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                                   |
-| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate                   |
-| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Pick **one** validation approach (Zod or class-validator) and use it consistently. |
-| Database       | PostgreSQL — primary transactional store, strong relational modeling                                                          |
-| Cache / jobs   | Redis + BullMQ                                                                                                                |
-| Object storage | S3-compatible                                                                                                                 |
-| Mobile         | React Native + Expo (primarily for patients)                                                                                  |
-| Realtime       | WebSockets / Socket.IO                                                                                                        |
-| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component.              |
-| Infrastructure | Docker, Terraform, GitHub Actions, CDN/WAF where appropriate                                                                  |
-| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                                            |
+| Area           | Choice                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                      |
+| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate      |
+| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere.                    |
+| Database       | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder     |
+| Cache / jobs   | Redis + BullMQ                                                                                                   |
+| Object storage | S3-compatible                                                                                                    |
+| Mobile         | React Native + Expo (primarily for patients)                                                                     |
+| Realtime       | WebSockets / Socket.IO                                                                                           |
+| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component. |
+| Infrastructure | Docker, Terraform, GitHub Actions, CDN/WAF where appropriate                                                     |
+| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                               |
 
 **PostgreSQL:** do not store the healthcare system as arbitrary JSON. Use JSONB only where genuinely appropriate (configurable forms, structured extension fields, specialty-specific data).
 
@@ -107,21 +129,22 @@ apps/
   staff/                Next.js — clinic, lab, dental, billing, admin staff      [exists]
   portal/               Next.js — patients                                       [exists]
   mobile/               Expo — patients                                          [planned]
-  api/                  NestJS modular monolith                                  [planned]
-  notification-worker/  BullMQ worker                                            [planned]
+  api/                  NestJS modular monolith                                  [exists]
+  notification-worker/  BullMQ worker                                            [exists]
   integration-worker/   BullMQ worker for external systems                       [planned]
 
 libs/
-  ui/ domain/                                                                    [exist, shared]
-  core/ auth/ patient/ appointment/ queue/ clinic/ encounter/ care-plan/
-  prescription/ telemedicine/ dental/ laboratory/ billing/ inventory/
-  crm/ notification/ documents/ audit/ reporting/ interoperability/ philhealth/  [planned]
+  ui/ domain/                                                                    [exist, frontend shared]
+  core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
+  patient/ clinic/ prescription/ care-plan/                                      [exist, backend domains]
+  telemedicine/ dental/ laboratory/ billing/ inventory/ crm/ reporting/
+  interoperability/ philhealth/                                                  [planned]
 
-tools/  docs/  infrastructure/
-nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json
+database/migrations/  tools/  docs/  infrastructure/
+nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json (frontend)  tsconfig.node.json (backend)
 ```
 
-`libs/ui` is the shared Healthcare Design System; `libs/domain` holds shared clinical types and cross-cutting rules. Domain-specific logic belongs in the planned domain libraries as they are created.
+`libs/ui` is the shared Healthcare Design System; `libs/domain` holds shared frontend clinical types. Appointments, queue and encounters live together in `libs/clinic` (their lifecycle is transactionally coupled — see `docs/architecture/decisions.md` ADR-0007); prescriptions and care plans are separate domain libraries.
 
 Prefer domain-oriented libraries. Do not create hundreds of tiny libraries.
 

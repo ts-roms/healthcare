@@ -1,11 +1,40 @@
+# dependencies
 node_modules
+
+# build output
+dist
+tmp
+out-tsc
 .next
 out
-dist
 storybook-static
-.nx/cache
-.nx/workspace-data
 *.tsbuildinfo
 next-env.d.ts
-.env*.local
+
+# Nx
+.nx/cache
+.nx/workspace-data
+.nx/polygraph
+.nx/self-healing
+.nx/migrate-runs
+
+# tests
+coverage
+test-output
+
+# local environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# editors and OS
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
 .DS_Store
+Thumbs.db
+.claude/worktrees
+.claude/settings.local.json
+npm-debug.log

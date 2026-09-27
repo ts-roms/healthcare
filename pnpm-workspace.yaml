@@ -7,3 +7,4 @@ onlyBuiltDependencies:
   - nx
   - sharp
   - "@tailwindcss/oxide"
+  - "@swc/core"

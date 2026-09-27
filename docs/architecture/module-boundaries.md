@@ -32,13 +32,15 @@ app → feature → ui → data-access → contract → domain → util
 
 ### `scope:*` — ownership
 
-| Tag                                    | May depend on                                                  |
-| -------------------------------------- | -------------------------------------------------------------- |
-| `scope:shared`                         | `scope:shared`                                                 |
-| `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope       |
-| `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib** |
+| Tag                                    | May depend on                                                               |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `scope:shared`                         | `scope:shared`                                                              |
+| `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope                    |
+| `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib**              |
+| `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root) |
+| `scope:worker`                         | its own scope, `scope:shared`                                               |
 
-Clinical domains are `patient`, `clinic`, `laboratory`, `dental`, `telemedicine`, `care-plan`, `billing`, `interoperability`, `notification`, `audit` and `documents` (`DOMAIN_SCOPES` in `eslint.config.mjs`).
+Clinical domains are `patient`, `clinic`, `laboratory`, `dental`, `telemedicine`, `care-plan`, `prescription`, `billing`, `interoperability`, `notification`, `audit` and `documents` (`DOMAIN_SCOPES` in `eslint.config.mjs`).
 
 So a domain reaches another domain **only through that domain's contract library**:
 
@@ -50,14 +52,26 @@ BAD   libs/clinic-domain      (scope:clinic, type:domain)      → libs/laborato
 
 Cross-domain calls belong in a domain's `data-access` or `feature` layer, not in its entities.
 
+Backend platform services (`core`, `audit`, `organization`, `auth`, `documents`, `notification`) are `scope:shared` so
+every domain can use them. Where a platform service needs domain data (e.g. notification needs a patient's mobile
+number), it defines a **port** implemented by an adapter in `apps/api` rather than importing the domain.
+
 ## Current projects
 
-| Project       | Tags                          |
-| ------------- | ----------------------------- |
-| `apps/staff`  | `scope:staff`, `type:app`     |
-| `apps/portal` | `scope:portal`, `type:app`    |
-| `libs/ui`     | `scope:shared`, `type:ui`     |
-| `libs/domain` | `scope:shared`, `type:domain` |
+| Project                                                                               | Tags                                 |
+| ------------------------------------------------------------------------------------- | ------------------------------------ |
+| `apps/staff`                                                                          | `scope:staff`, `type:app`            |
+| `apps/portal`                                                                         | `scope:portal`, `type:app`           |
+| `apps/api`                                                                            | `scope:api`, `type:app`              |
+| `apps/notification-worker`                                                            | `scope:worker`, `type:app`           |
+| `libs/ui`                                                                             | `scope:shared`, `type:ui`            |
+| `libs/domain`                                                                         | `scope:shared`, `type:domain`        |
+| `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification` | `scope:shared`, `type:data-access`   |
+| `libs/auth`                                                                           | `scope:shared`, `type:feature`       |
+| `libs/patient`                                                                        | `scope:patient`, `type:feature`      |
+| `libs/clinic`                                                                         | `scope:clinic`, `type:feature`       |
+| `libs/prescription`                                                                   | `scope:prescription`, `type:feature` |
+| `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`    |
 
 ## Adding a clinical domain library
 

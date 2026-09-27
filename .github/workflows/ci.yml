@@ -28,6 +28,22 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # PostgreSQL for the API integration tests (apps/api `integration` target).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: healthcare
+          POSTGRES_PASSWORD: healthcare
+          POSTGRES_DB: healthcare_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U healthcare"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://healthcare:healthcare@localhost:5432/healthcare_test
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,6 +63,10 @@ jobs:
       - uses: nrwl/nx-set-shas@v5
         with:
           main-branch-name: main
+
+      # TypeScript project references of the backend projects must be in sync.
+      - name: Workspace sync
+        run: pnpm exec nx sync:check
 
       - name: Format
         run: pnpm exec prettier --check .

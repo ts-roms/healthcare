@@ -1,7 +1,10 @@
 # Healthcare Platform
 
-Nx + pnpm monorepo for a multi-service healthcare platform (clinic, laboratory, dental, telemedicine, billing) with a
-custom **Healthcare Design System** built on shadcn/ui.
+Nx + pnpm monorepo for an integrated healthcare platform for the Philippines (clinic/EMR, laboratory, dental,
+telemedicine, patient CRM and portal, billing) — a NestJS modular-monolith API on PostgreSQL, Next.js staff and patient
+apps, and a custom **Healthcare Design System** built on shadcn/ui.
+
+**One patient. One longitudinal health record. One connected care journey.** Engineering rules: [`CLAUDE.md`](./CLAUDE.md).
 
 ```text
 Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Design System
@@ -13,10 +16,20 @@ Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Desig
 
 ```bash
 pnpm install
+
+# Backend (API on http://localhost:3333/api, OpenAPI at /api/docs)
+cp .env.example .env  # set SEED_ADMIN_PASSWORD
+pnpm dev:deps         # PostgreSQL, Redis, MinIO, Mailpit (Docker)
+pnpm db:migrate && pnpm db:seed
+pnpm dev:api          # NestJS API
+pnpm dev:worker       # notification worker
+
+# Frontend
 pnpm dev:staff        # http://localhost:3000  — staff workstation
 pnpm dev:portal       # http://localhost:3001  — patient portal
 pnpm storybook        # http://localhost:6006  — design system
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm test:integration # API integration tests (wipes TEST_DATABASE_URL)
 pnpm format
 ```
 
@@ -27,10 +40,15 @@ navigation and dashboards. (Demo only: the role is a cookie; production must der
 
 ```text
 apps/
-├── staff/      Next.js staff application
-└── portal/     Next.js patient portal
+├── api/                  NestJS modular-monolith API (REST /api/v1, OpenAPI, Socket.IO realtime)
+├── notification-worker/  BullMQ worker delivering SMS / email / push
+├── staff/                Next.js staff application
+└── portal/               Next.js patient portal
+database/migrations/      Forward-only SQL migrations (source of truth for the schema)
 libs/
-├── domain/     Clinical types (FHIR-inspired), staff roles, demo fixtures
+├── core/ audit/ organization/ auth/ documents/ notification/   Backend platform services
+├── patient/ clinic/ prescription/ care-plan/                    Backend clinical domains
+├── domain/     Shared clinical types (FHIR-inspired), staff roles, demo fixtures (frontend)
 └── ui/         Healthcare Design System (+ Storybook)
     └── src/
         ├── styles/       theme.css (tokens) · globals.css (entry)
@@ -42,7 +60,14 @@ libs/
 Import paths: `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@healthcare/ui/layouts`,
 `@healthcare/ui/styles.css`, `@healthcare/domain`, `@healthcare/domain/fixtures`.
 
-## Stack
+## Backend
+
+Architecture, database, API conventions and security are documented in [`docs/`](./docs/README.md)
+([overview](docs/architecture/overview.md)). Highlights: PostgreSQL-enforced invariants (tenant-safe composite keys,
+no double-booking, append-only audit and clinical history, immutable prescriptions), RBAC scoped to organization /
+facility / department, TOTP MFA, a transactional event outbox, and API integration tests against a real database.
+
+## Frontend stack
 
 | Concern            | Choice                                                    |
 | ------------------ | --------------------------------------------------------- |
@@ -91,4 +116,4 @@ Import paths: `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@health
 
 Modules in the navigation that aren't built yet render a placeholder.
 
-Data flows through `apps/staff/src/lib/data.ts`; swap the fixtures for FHIR/REST calls there.
+Data flows through `apps/staff/src/lib/data.ts`; swap the fixtures for calls to the API (`/api/v1`) there.
