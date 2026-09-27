@@ -65,7 +65,10 @@ export class IntegrationExchangeProcessor {
     }
     switch (result.outcome) {
       case "accepted":
-        return this.finish(exchange, "accepted", { externalReference: result.externalReference });
+        return this.finish(exchange, "accepted", {
+          externalReference: result.externalReference,
+          outcomeDetail: result.detail ? { detail: result.detail } : undefined,
+        });
       case "rejected":
         return this.finish(exchange, "rejected", { outcomeDetail: { reasons: result.reasons } });
       case "not_configured":
@@ -151,6 +154,7 @@ export class IntegrationExchangeProcessor {
         resourceType: exchange.resourceType,
         resourceId: exchange.resourceId,
         externalReference: fields.externalReference ?? null,
+        detail: (fields.outcomeDetail?.detail as Record<string, string> | undefined) ?? {},
         requestedBy: exchange.requestedBy,
       };
       await this.events.record(tx, {

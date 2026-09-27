@@ -138,3 +138,10 @@ report, what is missing, and the decision (reference from DOH's own channel, dis
 an adapter is connected). `/reporting/settings` (`doh.settings.manage`): reportable conditions and the selected
 facility's DOH health facility code. Server actions in `app/(staff)/reporting/actions.ts`. See
 `docs/interoperability/doh-reporting.md`.
+
+## PhilHealth eligibility
+
+On the patient record, a **PhilHealth eligibility** card (users with `philhealth.eligibility.manage`): the history of
+checks and a form to record PhilHealth's answer from its own channel (date of service, answer, reference, note; a
+selected facility is required). The PhilHealth claim panel on an invoice shows the latest answer for its dates of
+service (information, not a condition). See `docs/interoperability/philhealth-eligibility.md`.

@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type OnApplicationBootstrap, type OnApplica
 import { AuditModule } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
+import { PhilHealthEligibilityHandler, philhealthEligibilityGatewayProvider } from "../philhealth/eligibility";
 import { PhilHealthClaimHandler } from "../philhealth/philhealth-claim-handler";
 import { philhealthGatewayProvider } from "../philhealth/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
@@ -11,6 +12,8 @@ import { EXCHANGE_HANDLERS, INTEGRATION_QUEUE, type IntegrationQueue } from "./e
 export interface IntegrationWorkerModuleOptions {
   /** The PhilHealth eClaims adapter (defaults to the unconfigured one). */
   philhealthGateway?: Provider;
+  /** The PhilHealth eligibility adapter (defaults to the unconfigured one). */
+  philhealthEligibilityGateway?: Provider;
   /** The DOH reporting adapter (defaults to the unconfigured one). */
   dohGateway?: Provider;
   queue?: Provider;
@@ -44,13 +47,15 @@ export class IntegrationWorkerModule {
         IntegrationExchangeProcessor,
         options.philhealthGateway ?? philhealthGatewayProvider,
         PhilHealthClaimHandler,
+        options.philhealthEligibilityGateway ?? philhealthEligibilityGatewayProvider,
+        PhilHealthEligibilityHandler,
         options.dohGateway ?? dohGatewayProvider,
         DohCaseReportHandler,
         // One handler per system + operation.
         {
           provide: EXCHANGE_HANDLERS,
-          inject: [PhilHealthClaimHandler, DohCaseReportHandler],
-          useFactory: (philhealth: PhilHealthClaimHandler, doh: DohCaseReportHandler) => [philhealth, doh],
+          inject: [PhilHealthClaimHandler, PhilHealthEligibilityHandler, DohCaseReportHandler],
+          useFactory: (claims: PhilHealthClaimHandler, eligibility: PhilHealthEligibilityHandler, doh: DohCaseReportHandler) => [claims, eligibility, doh],
         },
         options.queue ?? bullMqIntegrationQueue,
         {

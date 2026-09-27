@@ -73,6 +73,8 @@ export const PERMISSIONS = [
   // Phase 8 — PhilHealth eClaims adapter stubs (migration 0021)
   "philhealth.claim.submit",
   "philhealth.settings.manage",
+  // PhilHealth eligibility adapter stubs (migration 0024)
+  "philhealth.eligibility.manage",
   // Phase 8 — DOH reporting adapter stubs (migration 0023)
   "doh.report.manage",
   "doh.settings.manage",

@@ -56,6 +56,9 @@ PhilHealth claims (migration 0021): `philhealth.claim.submit` (org_admin, cashie
 and `philhealth.settings.manage` (org_admin); audited `philhealth.claim.preview`,
 `philhealth.claim.submit-request`, `philhealth.claim.exchange` (system) and
 `philhealth.accreditation.record`.
+PhilHealth eligibility (migration 0024): `philhealth.eligibility.manage`
+(org_admin, receptionist, cashier); audited `philhealth.eligibility.*`
+(answers from an adapter as the system); recorded answers are immutable.
 DOH case reporting (migration 0023): `doh.report.manage` (org_admin, physician,
 records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),

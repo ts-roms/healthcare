@@ -172,6 +172,20 @@ describe("PhilHealth claims — unconfigured (default)", () => {
     expect(invoice.body.payers[0]).toMatchObject({ status: "pending" });
     const audit = await auditRows(ctx.pool, "action = 'philhealth.claim.preview'");
     expect(audit.length).toBeGreaterThanOrEqual(2);
+
+    // Informational: the latest eligibility answer for the dates of service is shown with the claim (not a condition).
+    expect(res.body.eligibility).toBeNull();
+    await s
+      .req(s.cashier)
+      .post("/philhealth/eligibility/records", {
+        patientId: s.patientId,
+        serviceDate: res.body.claim.servicePeriod.from,
+        answer: "eligible",
+        reference: "PBEF-1",
+      })
+      .expect(201);
+    const withEligibility = await s.req(s.cashier).get(`/philhealth/claims/invoices/${s.invoiceId}`).expect(200);
+    expect(withEligibility.body.eligibility).toMatchObject({ status: "eligible", externalReference: "PBEF-1" });
   });
 });
 

@@ -1,7 +1,7 @@
 # Integration worker
 
-`apps/integration-worker` sends outbound exchanges to external systems (today: PhilHealth eClaims, through an
-unconfigured adapter; later DOH reporting, external laboratories and others). It is a BullMQ consumer like the
+`apps/integration-worker` sends outbound exchanges to external systems (today, all through unconfigured adapters:
+PhilHealth eClaims and eligibility, DOH case reporting; later external laboratories and others). It is a BullMQ consumer like the
 notification worker: no HTTP server, one Nest application context, scaled and restarted independently of the API.
 
 ## Why a separate process
@@ -39,14 +39,14 @@ API ◄── IntegrationExchangeCompleted (outbox) ◄────────�
 
 ## Retries, failures, recovery
 
-| Situation                                         | What happens                                                                                                       |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Adapter reports `failed`, retryable               | attempts + 1, last error kept; BullMQ retries with exponential backoff (60 s base, 5 attempts)                     |
-| Last attempt fails, or not retryable              | exchange `failed` (final)                                                                                          |
-| Adapter throws                                    | treated as retryable                                                                                               |
-| `accepted` / `rejected` / `not_configured`        | final; `IntegrationExchangeCompleted` published for the API                                                        |
-| Job lost (Redis restart, enqueue failed)          | the worker's reconciler (every 5 min) re-enqueues exchanges queued > 10 min and never started, or stalled > 30 min |
-| Payload missing / undecryptable / digest mismatch | exchange `failed`; nothing sent                                                                                    |
+| Situation                                         | What happens                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Adapter reports `failed`, retryable               | attempts + 1, last error kept; BullMQ retries with exponential backoff (60 s base, 5 attempts)                                        |
+| Last attempt fails, or not retryable              | exchange `failed` (final)                                                                                                             |
+| Adapter throws                                    | treated as retryable                                                                                                                  |
+| `accepted` / `rejected` / `not_configured`        | final; `IntegrationExchangeCompleted` published for the API (an accepted exchange may carry result codes, e.g. an eligibility answer) |
+| Job lost (Redis restart, enqueue failed)          | the worker's reconciler (every 5 min) re-enqueues exchanges queued > 10 min and never started, or stalled > 30 min                    |
+| Payload missing / undecryptable / digest mismatch | exchange `failed`; nothing sent                                                                                                       |
 
 Finished and failed jobs are removed from Redis (`removeOnComplete`, `removeOnFail`); the database is the record.
 

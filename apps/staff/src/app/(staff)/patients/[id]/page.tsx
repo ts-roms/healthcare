@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  BadgeCheckIcon,
   CalendarIcon,
   CalendarPlusIcon,
   FlaskConicalIcon,
@@ -21,10 +22,12 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@health
 import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
-import { can, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import { can, getSelectedFacility, getSession } from "@/lib/api/session";
+import type { EligibilityOverview, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import { todayIn } from "@/lib/clinic-mapping";
 import { ConsentHistory } from "./consent-history";
 import { PatientLabResults } from "./lab-results";
+import { PhilHealthEligibility } from "./philhealth-eligibility";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
 import { SendPortalMessage } from "./send-portal-message";
@@ -80,13 +83,27 @@ async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null
   }
 }
 
+/** PhilHealth eligibility checks (audited by the API); null without the permission. */
+async function loadEligibility(id: string): Promise<EligibilityOverview | null> {
+  const session = await getSession();
+  if (!can(session, "philhealth.eligibility.manage")) return null;
+  try {
+    return await api<EligibilityOverview>("/philhealth/eligibility", { query: { patientId: id } });
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+    throw e;
+  }
+}
+
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, session] = await Promise.all([
+  const [p, summary, portal, labResults, eligibility, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
     loadLabResults(id),
+    loadEligibility(id),
+    getSelectedFacility(),
     getSession(),
   ]);
   const canCheckIn = can(session, "clinic.queue.manage");
@@ -239,6 +256,23 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             )}
           </CardContent>
         </Card>
+
+        {eligibility ? (
+          <Card>
+            <CardHeader>
+              <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>PhilHealth eligibility</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PhilHealthEligibility
+                patientId={p.id}
+                overview={eligibility}
+                today={todayIn(facility?.timezone ?? "Asia/Manila")}
+                facilitySelected={facility !== null}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>

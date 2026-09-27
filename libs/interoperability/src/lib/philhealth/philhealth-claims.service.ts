@@ -7,6 +7,7 @@ import { IntegrationExchanges } from "../exchange/integration-exchanges.service"
 import { type AccreditationSource, buildClaimPackage, claimReadiness, type ClaimSources, isReady, maskPin } from "./claim-package";
 import { PHILHEALTH_CLAIMS_GATEWAY, PHILHEALTH_ECLAIMS_SYSTEM, type PhilHealthClaimsGateway } from "./gateway";
 import { SUBMIT_CLAIM } from "./philhealth-claim-handler";
+import { PhilHealthEligibilityService } from "./eligibility.service";
 import { PhilHealthSettingsService } from "./philhealth-settings.service";
 import { PHILHEALTH_CLAIM_SOURCES, type PhilHealthClaimSources } from "./ports";
 
@@ -25,6 +26,7 @@ export class PhilHealthClaimsService {
     @Inject(PHILHEALTH_CLAIM_SOURCES) private readonly sources: PhilHealthClaimSources,
     private readonly settings: PhilHealthSettingsService,
     private readonly exchanges: IntegrationExchanges,
+    private readonly eligibility: PhilHealthEligibilityService,
     private readonly audit: AuditService,
   ) {}
 
@@ -38,6 +40,11 @@ export class PhilHealthClaimsService {
     const checks = claimReadiness(src, accreditation);
     const ready = isReady(checks);
     const claim = ready ? buildClaimPackage(src, accreditation) : null;
+    // Informational: the latest answered eligibility check for the dates of service (not a condition the platform imposes).
+    const dates = src.invoice.items.map((i) => i.serviceDate).sort();
+    const eligibility = dates.length
+      ? await this.eligibility.latestAnswered(actor.organizationId, src.invoice.patientId, dates[0]!, dates[dates.length - 1]!)
+      : null;
     await this.audit.recordStandalone(actor, {
       action: "philhealth.claim.preview",
       resourceType: "billing_invoice",
@@ -50,6 +57,7 @@ export class PhilHealthClaimsService {
       invoiceId,
       ready,
       checks,
+      eligibility,
       claim: claim ? { ...claim, patient: { ...claim.patient, philhealthPin: maskPin(claim.patient.philhealthPin) } } : null,
       submissions: await this.submissions(actor.organizationId, invoiceId),
     };

@@ -1170,6 +1170,8 @@ export interface PhilHealthClaimPreview {
     diagnoses: Array<{ codeSystem: string; code: string; display: string; primary: boolean }>;
   } | null;
   submissions: ClaimExchange[];
+  /** Informational: the latest answered eligibility check for the dates of service. */
+  eligibility: EligibilityCheck | null;
 }
 
 export interface PhilHealthAccreditation {
@@ -1240,4 +1242,23 @@ export interface DohFacilityCode {
   facilityId: string;
   facilityCode: string;
   version: number;
+}
+
+export interface EligibilityCheck {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  serviceDate: string;
+  status: "queued" | "eligible" | "not_eligible" | "undetermined" | "failed";
+  source: "external_channel" | "adapter";
+  externalReference: string | null;
+  note: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface EligibilityOverview {
+  integration: IntegrationSpecification;
+  checks: EligibilityCheck[];
+  readiness: ClaimReadinessCheck[] | null;
 }
