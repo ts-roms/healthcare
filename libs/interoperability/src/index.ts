@@ -6,8 +6,16 @@ export * from "./lib/fhir/sources";
 export * from "./lib/fhir/terminology";
 /** FHIR R4 resource types (from @types/fhir), re-exported so callers need not depend on the typings package. */
 export type { Bundle, CapabilityStatement, FhirResource, OperationOutcome, Patient as FhirPatient } from "fhir/r4";
+export * from "./lib/exchange/bullmq";
+export * from "./lib/exchange/canonical-json";
+export * from "./lib/exchange/exchange-processor";
+export * from "./lib/exchange/exchange-types";
+export * from "./lib/exchange/exchange.schema";
+export * from "./lib/exchange/integration-exchanges.service";
+export * from "./lib/exchange/integration-worker.module";
 export * from "./lib/philhealth/claim-package";
 export * from "./lib/philhealth/gateway";
+export * from "./lib/philhealth/philhealth-claim-handler";
 export * from "./lib/philhealth/philhealth-claims.service";
 export * from "./lib/philhealth/philhealth-settings.service";
 export * from "./lib/philhealth/philhealth.module";

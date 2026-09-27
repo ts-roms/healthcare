@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { payloadDigest } from "../exchange/integration-exchanges.service";
 
 /**
  * The platform's own, format-neutral view of a PhilHealth claim: what it can
@@ -179,7 +179,7 @@ export function buildClaimPackage(src: ClaimSources, accreditation: Accreditatio
 
 /** SHA-256 of the package in a canonical form (sorted keys): what was prepared, without storing it. */
 export function packageDigest(claim: PhilHealthClaimPackage): string {
-  return createHash("sha256").update(canonicalJson(claim)).digest("hex");
+  return payloadDigest(claim);
 }
 
 /** "•••• 9012": enough to recognise the number on screen without exposing it. */
@@ -194,15 +194,4 @@ function philhealthCoverage(src: ClaimSources) {
 
 function codedDiagnoses(src: ClaimSources) {
   return src.diagnoses.filter((d) => d.status !== "entered_in_error" && d.code && d.codeSystemKey && ICD10_KEYS.has(d.codeSystemKey.toLowerCase()));
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value ?? null);
 }

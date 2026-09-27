@@ -32,13 +32,13 @@ app → feature → ui → data-access → contract → domain → util
 
 ### `scope:*` — ownership
 
-| Tag                                    | May depend on                                                               |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| `scope:shared`                         | `scope:shared`                                                              |
-| `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope                    |
-| `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib**              |
-| `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root) |
-| `scope:worker`                         | its own scope, `scope:shared`                                               |
+| Tag                                    | May depend on                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `scope:shared`                         | `scope:shared`                                                                 |
+| `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope                       |
+| `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib**                 |
+| `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root)    |
+| `scope:worker`                         | its own scope, `scope:shared`, `scope:interoperability` (integration adapters) |
 
 Clinical domains are `patient`, `clinic`, `laboratory`, `dental`, `telemedicine`, `care-plan`, `prescription`, `billing`, `interoperability`, `notification`, `audit` and `documents` (`DOMAIN_SCOPES` in `eslint.config.mjs`).
 
@@ -63,7 +63,7 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | `apps/staff`                                                                          | `scope:staff`, `type:app`                |
 | `apps/portal`                                                                         | `scope:portal`, `type:app`               |
 | `apps/api`                                                                            | `scope:api`, `type:app`                  |
-| `apps/notification-worker`                                                            | `scope:worker`, `type:app`               |
+| X                                                                                     |
 | `libs/ui`                                                                             | `scope:shared`, `type:ui`                |
 | `libs/domain`                                                                         | `scope:shared`, `type:domain`            |
 | `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification` | `scope:shared`, `type:data-access`       |

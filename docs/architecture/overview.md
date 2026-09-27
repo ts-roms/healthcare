@@ -5,13 +5,14 @@ Status: Phase 1 (Foundation), Phase 2 (Clinic) and the Phase 3 laboratory backen
 ## Shape
 
 A **modular monolith** (CLAUDE.md §2): one NestJS API deployable plus a
-separately scalable notification worker, built from domain libraries in an Nx
+separately scalable notification and integration workers, built from domain libraries in an Nx
 workspace.
 
 ```
 apps/
   api/                   NestJS HTTP API — composition root for all modules
   notification-worker/   BullMQ consumer that delivers notifications
+  integration-worker/    BullMQ consumer that sends outbound exchanges to external systems (PhilHealth, …)
   staff/                 Next.js staff app — backend-for-frontend to the API (see staff-app.md); clinical modules still demo
   portal/                Next.js patient portal — backend-for-frontend (see portal-app.md): sign-in, activation, profile
 libs/

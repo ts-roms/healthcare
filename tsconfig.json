@@ -53,6 +53,9 @@
     },
     {
       "path": "./libs/interoperability"
+    },
+    {
+      "path": "./apps/integration-worker"
     }
   ],
   "compilerOptions": {}

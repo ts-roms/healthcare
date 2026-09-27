@@ -59,7 +59,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **FHIR R4 interface:** read-only `/api/v1/fhir/r4` (`metadata`, `Patient/{id}`, `Patient/{id}/$everything`, `{Type}?patient=`) requires `interop.fhir.read`, audits every access and answers errors with `OperationOutcome`. Resources are composed in `apps/api/src/app/fhir` from each domain's read query and mapped by `libs/interoperability`; only released laboratory results are exported; national identifier URIs are configurable local namespaces until official ones are obtained. See `docs/interoperability/fhir.md`.
 
-**PhilHealth eClaims (adapter stubs):** no official specification is on record, so nothing is transmitted. An issued invoice with PhilHealth coverage can be prepared as a format-neutral claim package with readiness checks of the platform's own data (member PIN, facility accreditation number, ICD-10 diagnosis); `PhilHealthClaimsGateway` is the port and `UnconfiguredPhilHealthGateway` (status `dependency`) the default, so submissions are refused with `integration_not_configured`. With an adapter, submissions queue through the outbox with idempotency keys and are logged in `integration_exchange` (digest only, no PHI). Staff: PhilHealth claim panel on the invoice, accreditation in billing settings. See `docs/interoperability/philhealth-eclaims.md`.
+**PhilHealth eClaims (adapter stubs):** no official specification is on record, so nothing is transmitted. An issued invoice with PhilHealth coverage can be prepared as a format-neutral claim package with readiness checks of the platform's own data (member PIN, facility accreditation number, ICD-10 diagnosis); `PhilHealthClaimsGateway` is the port and `UnconfiguredPhilHealthGateway` (status `dependency`) the default, so submissions are refused with `integration_not_configured`. With an adapter, the API seals the prepared claim (AES-256-GCM, `INTEGRATION_PAYLOAD_KEY`) and `apps/integration-worker` sends it (BullMQ retries, reconciliation), logged in `integration_exchange` (digest only, no PHI); the outcome returns through the outbox. Staff: PhilHealth claim panel on the invoice, accreditation in billing settings. See `docs/interoperability/philhealth-eclaims.md`.
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
@@ -77,7 +77,7 @@ Inspect the repository before every change — do not assume any file, library, 
 - Frontend: Next.js 16, React 19, Tailwind CSS 4, Storybook 10, Vitest 4 (`*.test.ts`). Backend: NestJS 11, Drizzle, Jest 30 (`*.spec.ts`), API integration tests (`apps/api/test/*.int.spec.ts`, target `integration`) against real PostgreSQL.
 - ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
 - CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e → build (+ `build-storybook`).
-- Commands: `pnpm dev` (API, worker, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
+- Commands: `pnpm dev` (API, workers, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:integration-worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
 
 **Backend conventions** (details in `docs/architecture/`)
 
@@ -149,7 +149,7 @@ apps/
   mobile/               Expo — patients                                          [planned]
   api/                  NestJS modular monolith                                  [exists]
   notification-worker/  BullMQ worker                                            [exists]
-  integration-worker/   BullMQ worker for external systems                       [planned]
+  integration-worker/   BullMQ worker for external systems                       [exists]
 
 libs/
   ui/ domain/                                                                    [exist, frontend shared]

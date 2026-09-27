@@ -58,7 +58,8 @@ export const depConstraints = [
   { sourceTag: "scope:portal", onlyDependOnLibsWithTags: ["scope:portal", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   // The API is the composition root: it wires domains together through adapters.
   { sourceTag: "scope:api", onlyDependOnLibsWithTags: ["scope:api", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
-  { sourceTag: "scope:worker", onlyDependOnLibsWithTags: ["scope:worker", "scope:shared"] },
+  // Workers use platform services; the integration worker also the interoperability layer (adapters). Never clinical domains.
+  { sourceTag: "scope:worker", onlyDependOnLibsWithTags: ["scope:worker", "scope:shared", "scope:interoperability"] },
   ...DOMAIN_SCOPES.map((s) => ({ sourceTag: `scope:${s}`, onlyDependOnLibsWithTags: [`scope:${s}`, "scope:shared", "type:contract"] })),
 ];
 

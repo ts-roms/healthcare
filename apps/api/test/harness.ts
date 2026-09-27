@@ -6,6 +6,7 @@ import { Test } from "@nestjs/testing";
 import { hashPassword } from "@healthcare/auth";
 import { type AppConfig, loadAppConfig, OutboxRelay, runMigrations } from "@healthcare/core";
 import { InMemoryObjectStorage, OBJECT_STORAGE } from "@healthcare/documents";
+import { INTEGRATION_QUEUE, type IntegrationQueue } from "@healthcare/interoperability";
 import { NOTIFICATION_QUEUE, type NotificationQueue } from "@healthcare/notification";
 import { Pool } from "pg";
 import request from "supertest";
@@ -22,12 +23,21 @@ export class RecordingQueue implements NotificationQueue {
   }
 }
 
+/** Records exchanges handed to the integration worker (tests drive the worker's processor directly). */
+export class RecordingIntegrationQueue implements IntegrationQueue {
+  readonly enqueued: string[] = [];
+  async enqueue(exchangeId: string): Promise<void> {
+    this.enqueued.push(exchangeId);
+  }
+}
+
 export interface TestContext {
   app: INestApplication;
   pool: Pool;
   config: AppConfig;
   storage: InMemoryObjectStorage;
   queue: RecordingQueue;
+  integrations: RecordingIntegrationQueue;
   http: () => ReturnType<typeof request>;
   close: () => Promise<void>;
 }
@@ -53,6 +63,7 @@ export async function resetDatabase(pool: Pool): Promise<void> {
 }
 
 export async function createTestApp(overrides: Pick<AppModuleOverrides, "philhealthGateway"> = {}): Promise<TestContext> {
+  const integrations = new RecordingIntegrationQueue();
   const config = testConfig();
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
   await resetDatabase(pool);
@@ -64,6 +75,7 @@ export async function createTestApp(overrides: Pick<AppModuleOverrides, "philhea
         objectStorage: { provide: OBJECT_STORAGE, useValue: storage },
         notificationQueue: { provide: NOTIFICATION_QUEUE, useValue: queue },
         disableRateLimit: true,
+        integrationQueue: { provide: INTEGRATION_QUEUE, useValue: integrations },
         ...overrides,
       }),
     ],
@@ -77,6 +89,7 @@ export async function createTestApp(overrides: Pick<AppModuleOverrides, "philhea
     config,
     storage,
     queue,
+    integrations,
     http: () => request(app.getHttpServer()),
     close: async () => {
       await app.close();

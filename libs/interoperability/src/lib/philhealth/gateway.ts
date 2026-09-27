@@ -1,3 +1,5 @@
+import type { Provider } from "@nestjs/common";
+import type { ExchangeOutcome, ExchangeReason } from "../exchange/exchange-types";
 import type { PhilHealthClaimPackage } from "./claim-package";
 
 /**
@@ -16,23 +18,15 @@ export interface IntegrationSpecification {
   note: string;
 }
 
-/** Reasons or codes returned by the external system; no clinical free text. */
-export interface GatewayReason {
-  code: string;
-  message: string;
-}
-
-export type ClaimSubmissionOutcome =
-  | { outcome: "accepted"; externalReference: string }
-  | { outcome: "rejected"; reasons: GatewayReason[] }
-  | { outcome: "failed"; retryable: boolean; error: string }
-  | { outcome: "not_configured" };
+export type GatewayReason = ExchangeReason;
+export type ClaimSubmissionOutcome = ExchangeOutcome;
 
 /**
  * Port for submitting a prepared claim to PhilHealth. An adapter translates the
  * platform's format-neutral claim package into the official eClaims format and
  * transport — which are an integration dependency (no specification on record).
- * Adapters must be idempotent per `idempotencyKey`.
+ * Adapters must be idempotent per `idempotencyKey`. The API reads `specification`;
+ * the integration worker calls `submitClaim`.
  */
 export interface PhilHealthClaimsGateway {
   readonly specification: IntegrationSpecification;
@@ -59,3 +53,6 @@ export class UnconfiguredPhilHealthGateway implements PhilHealthClaimsGateway {
     return Promise.resolve({ outcome: "not_configured" });
   }
 }
+
+/** The configured adapter: the unconfigured one until an adapter exists (used by both the API and the worker). */
+export const philhealthGatewayProvider: Provider = { provide: PHILHEALTH_CLAIMS_GATEWAY, useClass: UnconfiguredPhilHealthGateway };
