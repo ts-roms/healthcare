@@ -7,9 +7,10 @@ import { Button } from "@healthcare/ui/primitives";
 import type { PatientConsent } from "@/lib/api/types";
 import { CONSENT_CAPTURE, CONSENT_DECISIONS, consentTypeLabel } from "@/lib/consent-form";
 import { loadConsentHistory } from "./consent-actions";
+import { SignedFormLink } from "./signed-form-link";
 
 /** Every consent decision ever recorded (append-only), fetched when asked for. */
-export function ConsentHistory({ patientId }: { patientId: string }) {
+export function ConsentHistory({ patientId, canViewDocuments }: { patientId: string; canViewDocuments: boolean }) {
   const [history, setHistory] = React.useState<PatientConsent[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -55,6 +56,12 @@ export function ConsentHistory({ patientId }: { patientId: string }) {
               · {CONSENT_CAPTURE[c.capturedVia as keyof typeof CONSENT_CAPTURE] ?? c.capturedVia}
               {c.expiresAt ? ` · until ${clinicalDate(c.expiresAt)}` : ""}
             </span>
+            {c.documentId && canViewDocuments ? (
+              <>
+                {" "}
+                <SignedFormLink documentId={c.documentId} />
+              </>
+            ) : null}
             {c.notes ? <p className="text-muted-foreground">{c.notes}</p> : null}
           </li>
         ))}

@@ -69,6 +69,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBook = can(session, "appointment.manage");
   const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
+  const canViewDocuments = can(session, "document.read");
   const emergency = p.relationships.filter((r) => r.isEmergencyContact || r.isLegalGuardian);
 
   return (
@@ -226,10 +227,10 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-3">
-              <ConsentList consents={p.consents} />
-              {canRecordConsent ? <RecordConsent patientId={p.id} /> : null}
+              <ConsentList consents={p.consents} canViewDocuments={canViewDocuments} />
+              {canRecordConsent ? <RecordConsent patientId={p.id} canUpload={can(session, "document.upload")} /> : null}
               {/* Reset (hide) a stale history when a new decision is recorded. */}
-              {p.consents.length ? <ConsentHistory key={p.consents.map((c) => c.id).join()} patientId={p.id} /> : null}
+              {p.consents.length ? <ConsentHistory key={p.consents.map((c) => c.id).join()} patientId={p.id} canViewDocuments={canViewDocuments} /> : null}
             </div>
             {p.communicationPreferences.length ? (
               <ul className="flex flex-col gap-1 text-body">
