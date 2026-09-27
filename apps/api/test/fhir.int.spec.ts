@@ -27,6 +27,7 @@ interface Resource {
 }
 interface Bundle extends Resource {
   total: number;
+  link: Array<{ relation: string; url: string }>;
   entry: Array<{ fullUrl: string; resource: Resource; search: { mode: string } }>;
 }
 
@@ -46,6 +47,9 @@ describe("FHIR R4 interface", () => {
   let doctorUserId: string;
   let patientId: string;
   let encounterId: string;
+  let integration: string;
+  let documentId: string;
+  let archivedDocumentId: string;
 
   const get = (url: string, token = admin) => ctx.http().get(`/api/v1/fhir/r4${url}`).set(as(token, tenant.facilityId));
   const staff = (token: string) => ({ post: (url: string) => ctx.http().post(url).set(as(token, tenant.facilityId)) });
@@ -145,6 +149,34 @@ describe("FHIR R4 interface", () => {
     await staff(admin).post(`/api/v1/laboratory/results/${released.result}/approve`).expect(200);
     await staff(admin).post(`/api/v1/laboratory/orders/${released.orderId}/release`).expect(200);
     await resulted(k, 4.2); // entered, not released
+
+    // Documents: one available, one archived, one never uploaded.
+    const upload = async (title: string, complete: boolean) => {
+      const created = await staff(admin)
+        .post("/api/v1/documents")
+        .send({ category: "referral_letter", title, fileName: `${title}.pdf`, contentType: "application/pdf", sizeBytes: 4096, patientId })
+        .expect(201);
+      const id = created.body.document.id as string;
+      if (complete) {
+        const { rows } = await q(`SELECT storage_key FROM document WHERE id = $1`, [id]);
+        ctx.storage.put(rows[0].storage_key, { sizeBytes: 4096, contentType: "application/pdf" });
+        await staff(admin).post(`/api/v1/documents/${id}/complete`).expect(200);
+      }
+      return id;
+    };
+    documentId = await upload("Referral to cardiology", true);
+    archivedDocumentId = await upload("Old referral", true);
+    await staff(admin).post(`/api/v1/documents/${archivedDocumentId}/archive`).send({ reason: "Uploaded to the wrong patient" }).expect(200);
+    await upload("Never uploaded", false);
+
+    // An integration account that may read FHIR but not documents.
+    const integrationUser = await createStaff(ctx.pool, tenant, "integration@fhir.ph", []);
+    const role = await q(`INSERT INTO role (organization_id, key, name) VALUES ($1, 'fhir_integration', 'FHIR integration') RETURNING id`, [
+      tenant.organizationId,
+    ]);
+    await q(`INSERT INTO role_permission (role_id, permission_key) VALUES ($1, 'interop.fhir.read')`, [role.rows[0].id]);
+    await q(`INSERT INTO role_assignment (organization_id, user_id, role_id) VALUES ($1, $2, $3)`, [tenant.organizationId, integrationUser, role.rows[0].id]);
+    integration = (await login(ctx, "integration@fhir.ph")).accessToken;
   });
 
   afterAll(() => ctx.close());
@@ -190,10 +222,17 @@ describe("FHIR R4 interface", () => {
     const count = (type: string) => bundle.entry.filter((e) => e.resource.resourceType === type).length;
     expect(
       Object.fromEntries(
-        ["Patient", "Encounter", "Condition", "AllergyIntolerance", "MedicationRequest", "CarePlan", "ServiceRequest", "DiagnosticReport"].map((t) => [
-          t,
-          count(t),
-        ]),
+        [
+          "Patient",
+          "Encounter",
+          "Condition",
+          "AllergyIntolerance",
+          "MedicationRequest",
+          "CarePlan",
+          "ServiceRequest",
+          "DiagnosticReport",
+          "DocumentReference",
+        ].map((t) => [t, count(t)]),
       ),
     ).toEqual({
       Patient: 1,
@@ -204,6 +243,7 @@ describe("FHIR R4 interface", () => {
       CarePlan: 1,
       ServiceRequest: 2,
       DiagnosticReport: 1,
+      DocumentReference: 1, // the available document only: not the archived one, not the pending upload
     });
     const lab = bundle.entry.map((e) => e.resource).filter((r) => r.resourceType === "Observation" && JSON.stringify(r.category).includes("laboratory"));
     // Only the released FBS; the potassium result is still in the laboratory's hands.
@@ -230,7 +270,86 @@ describe("FHIR R4 interface", () => {
 
     const audit = await auditRows(ctx.pool, "action = 'fhir.patient-everything' AND patient_id = $1", [patientId]);
     expect(audit).toHaveLength(1);
-    expect(audit[0]!.metadata).toMatchObject({ resources: bundle.total });
+    expect(audit[0]!.metadata).toMatchObject({ resources: bundle.total, total: bundle.total, offset: 0 });
+  });
+
+  it("exports stored documents as DocumentReference whose content is an authenticated download on this endpoint", async () => {
+    const res = await get(`/DocumentReference?patient=${patientId}`).expect(200);
+    const bundle = res.body as Bundle;
+    expect(schemaErrors(bundle)).toEqual([]);
+    expect(bundle.entry.map((e) => e.resource.id)).toEqual([documentId]);
+    const document = bundle.entry[0]!.resource;
+    expect(schemaErrors(document)).toEqual([]);
+    const attachment = (document.content as Array<{ attachment: { url: string; contentType: string; size: number; title: string } }>)[0]!.attachment;
+    expect(attachment).toMatchObject({ contentType: "application/pdf", size: 4096, title: "Referral to cardiology.pdf" });
+    expect(attachment.url).toMatch(new RegExp(`/api/v1/fhir/r4/Binary/${documentId}$`));
+    expect(JSON.stringify(bundle)).not.toMatch(/memory:|org\/[0-9a-f-]+\/documents/); // no object-store URL or key
+
+    // The content: a redirect to a short-lived signed download, audited like any document download.
+    const path = new URL(attachment.url).pathname.replace("/api/v1/fhir/r4", "");
+    const content = await get(path).expect(302);
+    expect(content.headers["location"]).toContain(encodeURIComponent("Referral to cardiology.pdf"));
+    expect(await auditRows(ctx.pool, "action = 'document.download' AND resource_id = $1", [documentId])).toHaveLength(1);
+    await ctx.http().get(`/api/v1/fhir/r4${path}`).expect(401);
+    expect((await get(`/Binary/${archivedDocumentId}`).expect(404)).body.resourceType).toBe("OperationOutcome");
+  });
+
+  it("withholds documents from an account without document.read", async () => {
+    const everything = (await get(`/Patient/${patientId}/$everything`, integration).expect(200)).body as Bundle;
+    expect(schemaErrors(everything)).toEqual([]);
+    expect(everything.entry.some((e) => e.resource.resourceType === "DocumentReference")).toBe(false);
+    expect(everything.entry.filter((e) => e.search.mode === "outcome").map((e) => e.resource.issue)).toEqual([
+      [expect.objectContaining({ severity: "information", code: "suppressed" })],
+    ]);
+    const outcome = (body: { issue: Array<{ code: string }> }) => body.issue[0]!.code;
+    expect(outcome((await get(`/DocumentReference?patient=${patientId}`, integration).expect(403)).body)).toBe("forbidden");
+    expect(outcome((await get(`/Binary/${documentId}`, integration).expect(403)).body)).toBe("forbidden");
+  });
+
+  it("pages $everything and searches with _count/_offset, following next links, total always the full count", async () => {
+    const all = (await get(`/Patient/${patientId}/$everything`).expect(200)).body as Bundle;
+    // Paths only: the test server listens on a new port per request.
+    const matchUrls = (b: Bundle) => b.entry.filter((e) => e.search.mode === "match").map((e) => new URL(e.fullUrl).pathname);
+    const seen: string[] = [];
+    let url: string | undefined = `/Patient/${patientId}/$everything?_count=4`;
+    let pages = 0;
+    while (url) {
+      const page = (await get(url).expect(200)).body as Bundle;
+      expect(schemaErrors(page)).toEqual([]);
+      expect(page.total).toBe(all.total);
+      expect(matchUrls(page).length).toBeLessThanOrEqual(4);
+      seen.push(...matchUrls(page));
+      const next = page.link.find((l) => l.relation === "next")?.url;
+      if (pages > 0) expect(page.link.some((l) => l.relation === "previous")).toBe(true);
+      url = next ? new URL(next).pathname.replace("/api/v1/fhir/r4", "") + new URL(next).search : undefined;
+      pages++;
+    }
+    expect(pages).toBe(Math.ceil(all.total / 4));
+    expect(seen).toEqual(matchUrls(all));
+    const audits = await auditRows(ctx.pool, "action = 'fhir.patient-everything' AND patient_id = $1 AND (metadata->>'count')::int = 4", [patientId]);
+    expect(audits).toHaveLength(pages);
+    expect(audits.map((a) => (a.metadata as { resources: number }).resources).reduce((x, y) => x + y, 0)).toBe(all.total);
+
+    const counted = (await get(`/Observation?patient=${patientId}&_count=0`).expect(200)).body as Bundle;
+    expect(counted.total).toBe(6);
+    expect(counted).not.toHaveProperty("entry");
+    const outcome = (body: { issue: Array<{ code: string }> }) => body.issue[0]!.code;
+    expect(outcome((await get(`/Observation?patient=${patientId}&_count=many`).expect(400)).body)).toBe("invalid");
+    expect(outcome((await get(`/Patient/${patientId}/$everything?_since=2026-01-01`).expect(400)).body)).toBe("not-supported");
+  });
+
+  it("filters by _lastUpdated where records have a reliable last-updated time, and refuses it elsewhere", async () => {
+    const total = async (url: string) => ((await get(url).expect(200)).body as Bundle).total;
+    const yesterday = manilaDate(-1);
+    expect(await total(`/MedicationRequest?patient=${patientId}&_lastUpdated=ge${yesterday}`)).toBe(1);
+    expect(await total(`/MedicationRequest?patient=${patientId}&_lastUpdated=le2000-01-01`)).toBe(0);
+    expect(await total(`/DocumentReference?patient=${patientId}&_lastUpdated=ge${yesterday}&_lastUpdated=le${manilaDate(1)}`)).toBe(1);
+    expect(await total(`/DocumentReference?patient=${patientId}&_lastUpdated=ge${encodeURIComponent(new Date(Date.now() + 3600_000).toISOString())}`)).toBe(0);
+    const refused = await get(`/Encounter?patient=${patientId}&_lastUpdated=ge${yesterday}`).expect(400);
+    expect(refused.body.issue[0]).toMatchObject({ code: "not-supported" });
+    expect(schemaErrors(refused.body)).toEqual([]);
+    const audit = await auditRows(ctx.pool, "action = 'fhir.search' AND patient_id = $1 AND metadata ? 'lastUpdated'", [patientId]);
+    expect(audit.length).toBeGreaterThanOrEqual(4);
   });
 
   it("searches one resource type by patient", async () => {

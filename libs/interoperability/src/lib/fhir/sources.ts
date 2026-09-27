@@ -202,6 +202,8 @@ export interface PrescriptionSource {
   encounterId: string | null;
   prescriberPractitionerId: string;
   issuedAt: string;
+  /** When the prescription was cancelled or replaced (its only change after issue); null while active. */
+  cancelledAt: string | null;
   items: Array<{
     lineNumber: number;
     genericName: string;
@@ -243,6 +245,21 @@ export interface CarePlanSource {
   }>;
 }
 
+/**
+ * A stored document of the patient (metadata only; the file stays in private object storage). Only documents that are
+ * available for download are exported: pending uploads and archived documents are not.
+ */
+export interface DocumentSource {
+  id: string;
+  category: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** When the upload was verified; nothing about an exported document changes after it. */
+  uploadedAt: string;
+}
+
 /** Everything about one patient that the platform exports. */
 export interface PatientRecordSource {
   patient: PatientSource;
@@ -257,4 +274,6 @@ export interface PatientRecordSource {
   labOrders: LabOrderSource[];
   prescriptions: PrescriptionSource[];
   carePlans: CarePlanSource[];
+  /** The patient's documents, or null when the caller may not see documents (they are then withheld, with a notice). */
+  documents: DocumentSource[] | null;
 }

@@ -1,7 +1,10 @@
-import type { Bundle, BundleEntry, CapabilityStatement, FhirResource, OperationOutcome } from "fhir/r4";
+import type { Bundle, BundleEntry, BundleLink, CapabilityStatement, FhirResource, OperationOutcome } from "fhir/r4";
 import { toLocation, toOrganization, toPatient, toPractitioner } from "./administrative";
 import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnownAllergies, toVitalSignObservations } from "./clinical";
+import { toDocumentReference } from "./documents";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
+import { compact } from "./support";
+import { DEFAULT_PAGING, matchesLastUpdated, PAGE_SIZE, type Paging, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
 import { FHIR_VERSION } from "./terminology";
 
@@ -16,8 +19,17 @@ export const PATIENT_COMPARTMENT_TYPES = [
   "DiagnosticReport",
   "MedicationRequest",
   "CarePlan",
+  "DocumentReference",
 ] as const;
 export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
+
+/**
+ * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
+ * immutable once issued (cancel/replace records its time) and exported documents never change after upload. The
+ * other records are updated in place without a trustworthy change time for everything their resource shows (see
+ * docs/interoperability/fhir.md), so `_lastUpdated` is refused for them rather than answered approximately.
+ */
+export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "DocumentReference"];
 
 /** Every resource of one patient's record, the patient first; shared resources (organization, facilities, practitioners) after. */
 export function patientResources(ctx: FhirContext, src: PatientRecordSource): { patient: FhirResource; clinical: FhirResource[]; supporting: FhirResource[] } {
@@ -39,52 +51,112 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   }
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
+  for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
 
   const supporting: FhirResource[] = [
     toOrganization(ctx),
     ...src.facilities.map((f) => toLocation(ctx, f)),
     ...src.practitioners.map((p) => toPractitioner(ctx, p)),
   ];
-  return { patient: toPatient(ctx, src.patient), clinical, supporting };
+  return { patient: toPatient(ctx, src.patient), clinical: stableOrder(clinical), supporting };
+}
+
+const TYPE_RANK = new Map<string, number>(PATIENT_COMPARTMENT_TYPES.map((type, i) => [type, i]));
+
+/** A deterministic order (type, then id) so that pages do not overlap or skip while the record is unchanged. */
+function stableOrder(resources: FhirResource[]): FhirResource[] {
+  const key = (r: FhirResource) => TYPE_RANK.get(r.resourceType) ?? TYPE_RANK.size;
+  return [...resources].sort((a, b) => key(a) - key(b) || ((a.id ?? "") < (b.id ?? "") ? -1 : (a.id ?? "") > (b.id ?? "") ? 1 : 0));
+}
+
+/** Every local reference ("Type/id") made anywhere inside the resources. */
+function referencesIn(resources: FhirResource[]): Set<string> {
+  const found = new Set<string>();
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") {
+      for (const [k, v] of Object.entries(value)) {
+        if (k === "reference" && typeof v === "string") found.add(v);
+        else walk(v);
+      }
+    }
+  };
+  walk(resources);
+  return found;
 }
 
 function entry(ctx: FhirContext, resource: FhirResource, mode: "match" | "include"): BundleEntry {
   return { fullUrl: `${ctx.baseUrl}/${resource.resourceType}/${resource.id}`, resource, search: { mode } };
 }
 
-function bundle(entries: BundleEntry[], total: number, self: string, now: Date): Bundle {
-  return {
-    resourceType: "Bundle",
-    type: "searchset",
-    timestamp: now.toISOString(),
-    total,
-    link: [{ relation: "self", url: self }],
-    entry: entries,
-  };
+/** An informational notice inside a searchset (e.g. that documents were withheld). */
+function notice(diagnostics: string): BundleEntry {
+  const outcome: OperationOutcome = { resourceType: "OperationOutcome", issue: [{ severity: "information", code: "suppressed", diagnostics }] };
+  return { resource: outcome, search: { mode: "outcome" } };
 }
 
-/** Patient/$everything: the patient's whole record as a searchset Bundle. */
-export function patientEverything(ctx: FhirContext, src: PatientRecordSource, now = new Date()): Bundle {
+/** The page's link URL: the request's own parameters plus `_count` and `_offset`. */
+function pageUrl(path: string, params: Array<[string, string]>, paging: Paging): string {
+  const query = new URLSearchParams([...params, ["_count", String(paging.count)], ["_offset", String(paging.offset)]]);
+  return `${path}?${query.toString()}`;
+}
+
+function links(path: string, params: Array<[string, string]>, paging: Paging, total: number): BundleLink[] {
+  const out: BundleLink[] = [{ relation: "self", url: pageUrl(path, params, paging) }];
+  if (paging.count > 0 && paging.offset + paging.count < total) {
+    out.push({ relation: "next", url: pageUrl(path, params, { count: paging.count, offset: paging.offset + paging.count }) });
+  }
+  if (paging.count > 0 && paging.offset > 0) {
+    out.push({ relation: "previous", url: pageUrl(path, params, { count: paging.count, offset: Math.max(0, Math.min(paging.offset, total) - paging.count) }) });
+  }
+  return out;
+}
+
+/**
+ * One page of matches, with the shared resources (organization, facilities, practitioners) that the page references
+ * as includes. `total` is always the number of matches in the whole result, not in the page.
+ */
+function searchset(
+  ctx: FhirContext,
+  matches: FhirResource[],
+  supporting: FhirResource[],
+  paging: Paging,
+  link: BundleLink[],
+  now: Date,
+  notices: BundleEntry[],
+): Bundle {
+  const page = matches.slice(paging.offset, paging.offset + paging.count);
+  const referenced = referencesIn(page);
+  const includes = supporting.filter((r) => referenced.has(`${r.resourceType}/${r.id}`));
+  const entries = [...page.map((r) => entry(ctx, r, "match")), ...includes.map((r) => entry(ctx, r, "include")), ...notices];
+  // FHIR JSON has no empty arrays: an empty page has no entry element.
+  return compact<Bundle>({ resourceType: "Bundle", type: "searchset", timestamp: now.toISOString(), total: matches.length, link, entry: entries });
+}
+
+const DOCUMENTS_WITHHELD = "DocumentReference resources are not included: this account may not read documents (document.read).";
+
+/** Patient/$everything: the patient's whole record as a searchset Bundle, paged (the Patient comes first). */
+export function patientEverything(ctx: FhirContext, src: PatientRecordSource, paging: Paging = DEFAULT_PAGING, now = new Date()): Bundle {
   const { patient, clinical, supporting } = patientResources(ctx, src);
   const matches = [patient, ...clinical];
-  return bundle(
-    [...matches.map((r) => entry(ctx, r, "match")), ...supporting.map((r) => entry(ctx, r, "include"))],
-    matches.length,
-    `${ctx.baseUrl}/Patient/${src.patient.id}/$everything`,
-    now,
-  );
+  const path = `${ctx.baseUrl}/Patient/${src.patient.id}/$everything`;
+  return searchset(ctx, matches, supporting, paging, links(path, [], paging, matches.length), now, src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []);
 }
 
-/** A search by patient for one resource type (e.g. Observation?patient=…). */
-export function searchByPatient(ctx: FhirContext, src: PatientRecordSource, type: CompartmentType, now = new Date()): Bundle {
+/** A search by patient for one resource type (e.g. Observation?patient=…), paged and optionally filtered by `_lastUpdated`. */
+export function searchByPatient(
+  ctx: FhirContext,
+  src: PatientRecordSource,
+  type: CompartmentType,
+  params: SearchParameters = { paging: DEFAULT_PAGING, lastUpdated: {} },
+  now = new Date(),
+): Bundle {
   const { clinical } = patientResources(ctx, src);
-  const matches = clinical.filter((r) => r.resourceType === type);
-  return bundle(
-    matches.map((r) => entry(ctx, r, "match")),
-    matches.length,
-    `${ctx.baseUrl}/${type}?patient=${src.patient.id}`,
-    now,
-  );
+  const matches = clinical.filter((r) => r.resourceType === type && matchesLastUpdated(params.lastUpdated, r.meta?.lastUpdated));
+  const query: Array<[string, string]> = [["patient", src.patient.id]];
+  if (params.lastUpdated.ge !== undefined) query.push(["_lastUpdated", `ge${params.lastUpdated.ge}`]);
+  if (params.lastUpdated.le !== undefined) query.push(["_lastUpdated", `le${params.lastUpdated.le}`]);
+  return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, []);
 }
 
 /** What this read-only endpoint supports (GET /metadata). */
@@ -106,6 +178,9 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
           cors: false,
           description: "Bearer token of a staff account holding interop.fhir.read, with the organization selected. Every access is audited.",
         },
+        documentation:
+          `Searches and Patient/$everything are paged: _count (default ${PAGE_SIZE.default}, at most ${PAGE_SIZE.max}; 0 returns only the total) ` +
+          "and _offset, with self/next/previous links; total is the number of matches in the whole result. Matches are ordered by type, then id.",
         resource: [
           {
             type: "Patient",
@@ -115,8 +190,27 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
           ...PATIENT_COMPARTMENT_TYPES.map((type) => ({
             type,
             interaction: [{ code: "search-type" as const }],
-            searchParam: [{ name: "patient", type: "reference" as const, documentation: "Required: the patient's id" }],
+            ...(type === "DocumentReference" ? { documentation: "Available documents only (not archived ones); requires document.read." } : {}),
+            searchParam: [
+              { name: "patient", type: "reference" as const, documentation: "Required: the patient's id" },
+              ...(LAST_UPDATED_TYPES.includes(type)
+                ? [
+                    {
+                      name: "_lastUpdated",
+                      definition: "http://hl7.org/fhir/SearchParameter/Resource-lastUpdated",
+                      type: "date" as const,
+                      documentation: "ge and/or le only; a date is a whole day in Asia/Manila time",
+                    },
+                  ]
+                : []),
+            ],
           })),
+          {
+            type: "Binary",
+            interaction: [{ code: "read" }],
+            documentation:
+              "The content of a DocumentReference: answers with a redirect to a short-lived signed download of the file (native content only). Requires document.read; audited.",
+          },
         ],
       },
     ],
