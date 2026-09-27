@@ -331,3 +331,25 @@ export interface Availability {
   durationMinutes: number;
   slots: Array<{ startsAt: string; endsAt: string; roomId: string | null }>;
 }
+
+/** `GET /patients/:id/portal-account` */
+export interface PortalAccountStatus {
+  status: "none" | "invited" | "active" | "disabled";
+  email: string | null;
+  invitedAt: string | null;
+  activationExpiresAt: string | null;
+  /** The invitation code can no longer be used (expired or too many wrong attempts). */
+  invitationExpired: boolean;
+  activatedAt: string | null;
+  lastLoginAt: string | null;
+  disabledAt: string | null;
+  disabledReason: string | null;
+  /** The patient's latest portal access consent is granted and in effect. */
+  portalConsent: boolean;
+}
+
+/** `POST /patients/:id/portal-account/invitations`: the code is returned once and never stored in plain text. */
+export interface PortalInvitation {
+  activationCode: string;
+  expiresAt: string;
+}

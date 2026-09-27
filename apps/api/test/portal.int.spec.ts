@@ -86,7 +86,15 @@ describe("patient portal sign-in", () => {
     for (let i = 0; i < 3; i++) await activate({ ...activation(), activationCode: "BBBBB-BBBBB" }).expect(401);
     await activate(activation()).expect(401);
     expect((await auditRows(ctx.pool, `action = 'portal.activate' AND reason = 'attempts_exhausted'`)).length).toBe(1);
+    expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
+      status: "invited",
+      invitationExpired: true,
+    });
     code = (await invite(patientId).expect(201)).body.activationCode;
+    expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
+      status: "invited",
+      invitationExpired: false,
+    });
   });
 
   let refreshToken: string;

@@ -41,6 +41,8 @@ export interface PortalAccountStatusView {
   email: string | null;
   invitedAt: string | null;
   activationExpiresAt: string | null;
+  /** An invitation whose code can no longer be used (expired or attempts exhausted); a new code is needed. */
+  invitationExpired: boolean;
   activatedAt: string | null;
   lastLoginAt: string | null;
   disabledAt: string | null;
@@ -80,6 +82,7 @@ export class PortalAccountService {
       email: account?.email ?? null,
       invitedAt: iso(account?.invitedAt),
       activationExpiresAt: account?.status === "invited" ? iso(account.activationExpiresAt) : null,
+      invitationExpired: account?.status === "invited" && (!account.activationExpiresAt || account.activationExpiresAt <= new Date()),
       activatedAt: iso(account?.activatedAt),
       lastLoginAt: iso(account?.lastLoginAt),
       disabledAt: iso(account?.disabledAt),
