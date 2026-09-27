@@ -19,6 +19,7 @@ export * from "./patient-header";
 export * from "./patient-identifier";
 export * from "./patient-timeline";
 export * from "./prescription-editor";
+export * from "./prescription-schema";
 export * from "./queue-board";
 export * from "./selectors";
 export * from "./specimen-status";

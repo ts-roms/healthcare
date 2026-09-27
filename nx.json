@@ -3,7 +3,14 @@
   "defaultBase": "main",
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
-    "production": ["default", "!{projectRoot}/**/*.stories.tsx", "!{projectRoot}/.storybook/**/*", "!{projectRoot}/eslint.config.mjs"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.stories.tsx",
+      "!{projectRoot}/.storybook/**/*",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.test.tsx"
+    ],
     "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
   },
   "targetDefaults": {
@@ -22,6 +29,10 @@
     },
     "build-storybook": {
       "cache": true
+    },
+    "test": {
+      "cache": true,
+      "inputs": ["default", "^production"]
     }
   },
   "plugins": [

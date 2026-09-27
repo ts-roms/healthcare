@@ -1,74 +1,57 @@
 "use client";
 
 import * as React from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { AlertOctagonIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import type { Allergy, PrescriptionItem } from "@healthcare/domain";
+import { AlertOctagonIcon, CheckCircle2Icon, PlusIcon, ShieldAlertIcon, Trash2Icon } from "lucide-react";
+import {
+  ALLERGY_OVERRIDE_REASONS,
+  findAllergyConflict,
+  isValidOverrideReason,
+  type Allergy,
+  type AllergyConflict,
+  type PrescriptionItem,
+  type PrescriptionSubmission,
+} from "@healthcare/domain";
+import { Badge } from "../primitives/badge";
 import { Button } from "../primitives/button";
 import { Input } from "../primitives/input";
 import { cn } from "../lib/utils";
+import { createPrescriptionSchema, toPrescriptionSubmission, type PrescriptionFormValues } from "./prescription-schema";
+import { severitySpec } from "./status";
 
-export const prescriptionSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        id: z.string(),
-        drug: z.string().min(1, "Required"),
-        strength: z.string().min(1, "Required"),
-        form: z.string().min(1, "Required"),
-        sig: z.string().min(3, "Enter directions"),
-        quantity: z.coerce.number<number>().int().positive("Must be > 0"),
-        refills: z.coerce.number<number>().int().min(0).max(11),
-      }),
-    )
-    .min(1, "Add at least one medication"),
+const blank = (): PrescriptionFormValues["items"][number] => ({
+  id: crypto.randomUUID(),
+  drug: "",
+  strength: "",
+  form: "tablet",
+  sig: "",
+  quantity: 30,
+  refills: 0,
 });
-
-export type PrescriptionFormValues = z.infer<typeof prescriptionSchema>;
-
-/**
- * Minimal cross-reactivity map for the demo. Production should call a
- * drug-interaction / allergy service rather than string matching.
- */
-const ALLERGY_CLASSES: Record<string, string[]> = {
-  penicillin: ["penicillin", "amoxicillin", "ampicillin", "co-amoxiclav", "piperacillin", "cloxacillin"],
-  sulfonamides: ["sulfamethoxazole", "cotrimoxazole", "co-trimoxazole", "sulfasalazine"],
-};
-
-export function allergyConflict(drug: string, allergies: Allergy[]): Allergy | undefined {
-  const d = drug.trim().toLowerCase();
-  if (!d) return undefined;
-  return allergies.find((a) => {
-    const key = a.substance.toLowerCase();
-    const members = ALLERGY_CLASSES[key] ?? [key];
-    return members.some((m) => d.includes(m));
-  });
-}
-
-const blank = (): PrescriptionItem => ({ id: crypto.randomUUID(), drug: "", strength: "", form: "tablet", sig: "", quantity: 30, refills: 0 });
 
 export interface PrescriptionEditorProps {
   defaultItems?: PrescriptionItem[];
   allergies?: Allergy[];
-  onSubmit: (values: PrescriptionFormValues) => void;
+  /** Receives the items and every documented allergy override (record the overrides in the audit trail). */
+  onSubmit: (submission: PrescriptionSubmission) => void;
   className?: string;
 }
 
 export function PrescriptionEditor({ defaultItems, allergies = [], onSubmit, className }: PrescriptionEditorProps) {
+  const schema = React.useMemo(() => createPrescriptionSchema(allergies), [allergies]);
   const form = useForm<PrescriptionFormValues>({
-    resolver: zodResolver(prescriptionSchema),
+    resolver: zodResolver(schema),
     defaultValues: { items: defaultItems?.length ? defaultItems : [blank()] },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
   const items = form.watch("items");
   const errors = form.formState.errors.items;
-  const conflicts = items.map((i) => allergyConflict(i.drug, allergies));
-  const hasConflict = conflicts.some(Boolean);
+  const conflicts = items.map((i) => findAllergyConflict(i.drug, allergies));
+  const unresolved = conflicts.filter((c, i) => c && !isValidOverrideReason(items[i]?.overrideReason)).length;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className={cn("flex flex-col gap-2", className)} noValidate>
+    <form onSubmit={form.handleSubmit((v) => onSubmit(toPrescriptionSubmission(v, allergies)))} className={cn("flex flex-col gap-2", className)} noValidate>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-table">
           <thead className="bg-muted text-meta font-semibold tracking-wide text-muted-foreground uppercase">
@@ -130,12 +113,14 @@ export function PrescriptionEditor({ defaultItems, allergies = [], onSubmit, cla
                   </tr>
                   {conflict ? (
                     <tr className="bg-critical-subtle">
-                      <td colSpan={7} className="px-2 pb-1.5">
-                        <p role="alert" className="flex items-center gap-1.5 text-table font-semibold text-critical dark:text-danger-foreground">
-                          <AlertOctagonIcon className="size-4" aria-hidden />
-                          Allergy conflict: patient is allergic to {conflict.substance}
-                          {conflict.reaction ? ` (${conflict.reaction})` : ""}.
-                        </p>
+                      <td colSpan={7} className="px-2 pb-2">
+                        <AllergyConflictPanel
+                          form={form}
+                          index={index}
+                          conflict={conflict}
+                          drug={items[index]?.drug ?? ""}
+                          error={e?.overrideReason?.message}
+                        />
                       </td>
                     </tr>
                   ) : null}
@@ -151,12 +136,118 @@ export function PrescriptionEditor({ defaultItems, allergies = [], onSubmit, cla
           <PlusIcon /> Add medication
         </Button>
         <div className="ml-auto flex items-center gap-2">
-          {hasConflict ? <span className="text-meta text-muted-foreground">Resolve allergy conflicts to sign</span> : null}
-          <Button type="submit" size="sm" disabled={hasConflict}>
+          {unresolved ? (
+            <span className="text-meta font-medium text-critical dark:text-danger-foreground">
+              {unresolved} allergy conflict{unresolved > 1 ? "s" : ""} need{unresolved > 1 ? "" : "s"} a different drug or an override reason
+            </span>
+          ) : null}
+          <Button type="submit" size="sm">
             Sign prescription
           </Button>
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * Decision-support panel for one conflicting line: shows the evidence and
+ * lets the prescriber change the drug or document an override.
+ */
+function AllergyConflictPanel({
+  form,
+  index,
+  conflict,
+  drug,
+  error,
+}: {
+  form: UseFormReturn<PrescriptionFormValues>;
+  index: number;
+  conflict: AllergyConflict;
+  drug: string;
+  error?: string;
+}) {
+  const reasonField = `items.${index}.overrideReason` as const;
+  const reason = form.watch(reasonField);
+  const [overriding, setOverriding] = React.useState(reason !== undefined && reason !== "");
+  const documented = isValidOverrideReason(reason);
+  const reasonId = React.useId();
+  const { allergy } = conflict;
+  const severity = severitySpec[allergy.severity];
+
+  return (
+    <div role="alert" className="flex flex-col gap-1.5 rounded-md border border-critical/40 bg-card p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="gap-1 uppercase">
+          <ShieldAlertIcon aria-hidden /> Decision support
+        </Badge>
+        <span className="flex items-center gap-1.5 font-semibold text-critical dark:text-danger-foreground">
+          <AlertOctagonIcon className="size-4" aria-hidden />
+          Possible allergy conflict
+        </span>
+        {documented ? (
+          <Badge variant="warning">
+            <CheckCircle2Icon aria-hidden /> Override documented
+          </Badge>
+        ) : null}
+      </div>
+      <dl className="grid grid-cols-[7rem_1fr] gap-x-2 gap-y-0.5 text-table">
+        <dt className="text-muted-foreground">Recorded allergy</dt>
+        <dd>
+          <span className="font-semibold">{allergy.substance}</span> — {severity.label}
+          {allergy.reaction ? `, ${allergy.reaction}` : ""}
+        </dd>
+        <dt className="text-muted-foreground">Why flagged</dt>
+        <dd>
+          “{drug.trim()}” matches <span className="font-medium">{conflict.matchedTerm}</span>
+          {conflict.drugClass ? ` (${conflict.drugClass})` : ""}
+        </dd>
+        <dt className="text-muted-foreground">Rule source</dt>
+        <dd className="text-muted-foreground">{conflict.source}</dd>
+      </dl>
+      {overriding ? (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={reasonId} className="text-meta font-semibold">
+            Reason for prescribing despite this allergy (required, recorded in the audit trail)
+          </label>
+          <Input id={reasonId} aria-invalid={!!error} placeholder="e.g. Tolerated amoxicillin in 2024 without reaction" {...form.register(reasonField)} />
+          <div className="flex flex-wrap gap-1">
+            {ALLERGY_OVERRIDE_REASONS.map((r) => (
+              <Button
+                key={r}
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => form.setValue(reasonField, r, { shouldValidate: form.formState.isSubmitted })}
+              >
+                {r}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="ml-auto"
+              onClick={() => {
+                form.setValue(reasonField, undefined, { shouldValidate: form.formState.isSubmitted });
+                setOverriding(false);
+              }}
+            >
+              Cancel override
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          <Button type="button" variant="outline" size="xs" onClick={() => form.setFocus(`items.${index}.drug`)}>
+            Change drug
+          </Button>
+          <Button type="button" variant="outline" size="xs" onClick={() => setOverriding(true)}>
+            Override with reason…
+          </Button>
+        </div>
+      )}
+      {error && !documented ? <p className="text-meta font-medium text-critical dark:text-danger-foreground">{error}</p> : null}
+    </div>
   );
 }

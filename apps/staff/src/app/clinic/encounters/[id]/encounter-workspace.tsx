@@ -154,14 +154,22 @@ export function EncounterWorkspace({
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Prescription</DialogTitle>
-            <DialogDescription>Checked against recorded allergies: {chart.patient.allergies.map((a) => a.substance).join(", ") || "none"}.</DialogDescription>
+            <DialogDescription>
+              Decision support checks each line against recorded allergies: {chart.patient.allergies.map((a) => a.substance).join(", ") || "none"}.
+            </DialogDescription>
           </DialogHeader>
           <PrescriptionEditor
             defaultItems={prescriptionDraft}
             allergies={chart.patient.allergies}
-            onSubmit={(v) => {
+            onSubmit={({ items, allergyOverrides }) => {
               setRxOpen(false);
-              toast.success("Prescription signed", { description: `${v.items.length} item(s)` });
+              toast.success("Prescription signed", { description: `${items.length} item(s)` });
+              // Demo: production records an AuditEvent (who, patient, drug, allergy, reason) via the audit API.
+              for (const o of allergyOverrides) {
+                toast.warning("Allergy override recorded in audit trail", {
+                  description: `${o.drug} despite ${o.substance} allergy — “${o.reason}”`,
+                });
+              }
             }}
           />
         </DialogContent>

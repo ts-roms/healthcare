@@ -61,6 +61,23 @@ export const Prescription: StoryObj = {
   ),
 };
 
+/** A conflicting line: change the drug, or override with a documented reason (returned in `allergyOverrides` for audit). */
+export const PrescriptionAllergyOverride: StoryObj = {
+  name: "Prescription — allergy override",
+  render: () => (
+    <div className="flex max-w-4xl flex-col gap-2">
+      <PrescriptionEditor
+        defaultItems={[
+          ...prescriptionDraft,
+          { id: "rx3", drug: "Amoxicillin", strength: "500 mg", form: "capsule", sig: "1 cap PO TID for 7 days", quantity: 21, refills: 0 },
+        ]}
+        allergies={mariaSantos.allergies}
+        onSubmit={(v) => alert(JSON.stringify(v, null, 2))}
+      />
+    </div>
+  ),
+};
+
 export const Timelines: StoryObj = {
   render: () => (
     <div className="grid max-w-4xl gap-6 md:grid-cols-2">
