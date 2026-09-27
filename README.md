@@ -16,7 +16,7 @@ Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Desig
 
 - **Backend — Phase 1 (Foundation) and Phase 2 (Clinic) implemented:** authentication with MFA, RBAC, Patient Master, audit, documents, notifications; scheduling, queue, triage, encounters, diagnoses, prescriptions, care plans. See [docs/architecture/overview.md](docs/architecture/overview.md).
 - **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review, the queue (walk-in check-in, call, move), triage and vital signs, and appointments (day schedule, booking from open slots, confirm, check in, cancel, no-show) run against the API ([how](docs/architecture/staff-app.md)). Other clinical modules (encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
-- **Patient portal — prototype** on demo fixtures. The Healthcare Design System (`libs/ui`) is documented in Storybook.
+- **Patient portal — connected for sign-in:** staff invite a patient from their record (one-time activation code, requires portal-access consent); the patient activates and signs in to MyHealth and sees their profile ([how](docs/architecture/portal-app.md)). Visits and results are not available to patients yet. The Healthcare Design System (`libs/ui`) is documented in Storybook.
 
 ## Getting started
 
@@ -30,9 +30,9 @@ pnpm db:migrate && pnpm db:seed
 pnpm dev:api          # NestJS API
 pnpm dev:worker       # notification worker
 
-# Frontend (the staff app needs the API; sign in with SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
+# Frontend (both need the API; staff sign-in: SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
 pnpm dev:staff        # http://localhost:3000  — staff workstation
-pnpm dev:portal       # http://localhost:3001  — patient portal (demo data)
+pnpm dev:portal       # http://localhost:3001  — patient portal (MyHealth)
 pnpm storybook        # http://localhost:6006  — design system
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm test:integration # API integration tests (wipes TEST_DATABASE_URL)

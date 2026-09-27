@@ -3,9 +3,9 @@
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL, COOKIES, SECURE_COOKIES } from "@/lib/api/config";
-import { toApiError, userMessage } from "@/lib/api/errors";
-import { forwardedHeaders } from "@/lib/api/forwarding";
-import { safeNextPath } from "@/lib/api/safe-path";
+import { toApiError, userMessage } from "@healthcare/web-session";
+import { forwardedHeaders } from "@healthcare/web-session";
+import { safeNextPath } from "@healthcare/web-session";
 import { writeTokenCookies } from "@/lib/api/tokens";
 import type { Facility, LoginResponse, OrganizationChoice, TokenResponse } from "@/lib/api/types";
 

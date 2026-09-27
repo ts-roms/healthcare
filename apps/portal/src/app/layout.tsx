@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "@healthcare/ui/primitives";
-import { PortalShell } from "@/components/portal-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <PortalShell>{children}</PortalShell>
+        {children}
         <Toaster position="top-center" />
       </body>
     </html>

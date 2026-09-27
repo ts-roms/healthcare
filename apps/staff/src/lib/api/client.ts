@@ -2,8 +2,8 @@ import "server-only";
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL, COOKIES } from "./config";
-import { toApiError } from "./errors";
-import { forwardedHeaders } from "./forwarding";
+import { toApiError } from "@healthcare/web-session";
+import { forwardedHeaders } from "@healthcare/web-session";
 
 export interface ApiRequest {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

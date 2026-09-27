@@ -11,14 +11,16 @@ import {
   PillIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  SmartphoneIcon,
   UsersIcon,
 } from "lucide-react";
 import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { api } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientSummaryResponse } from "@/lib/api/types";
+import type { PatientDetail, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import { PortalAccess } from "./portal-access";
 import { bannerSeverity, currentConsents, formatAddress, label, sortByDanger, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -48,9 +50,19 @@ async function loadSummary(id: string): Promise<PatientSummaryResponse | null> {
   }
 }
 
+/** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
+async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
+  try {
+    return await api<PortalAccountStatus>(`/patients/${id}/portal-account`);
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, session] = await Promise.all([loadPatient(id), loadSummary(id), getSession()]);
+  const [p, summary, portal, session] = await Promise.all([loadPatient(id), loadSummary(id), loadPortalAccount(id), getSession()]);
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBook = can(session, "appointment.manage");
   const consents = currentConsents(p.consents);
@@ -234,6 +246,26 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
               </ul>
             ) : (
               <p className="text-body text-muted-foreground">No communication preferences recorded.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <SmartphoneIcon className="size-4 text-muted-foreground" aria-hidden />
+            <CardTitle>Patient portal (MyHealth)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {portal ? (
+              <PortalAccess
+                patientId={p.id}
+                patientNumber={p.patientNumber}
+                account={portal}
+                canManage={can(session, "patient.portal.manage")}
+                patientActive={p.status === "active"}
+              />
+            ) : (
+              <p className="text-body text-muted-foreground">Portal status is unavailable right now.</p>
             )}
           </CardContent>
         </Card>

@@ -3,7 +3,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/clinic";
-import { ApiError, userMessage } from "@/lib/api/errors";
+import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { Availability } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";

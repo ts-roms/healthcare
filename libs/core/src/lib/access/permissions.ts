@@ -13,6 +13,7 @@ export const PERMISSIONS = [
   "patient.register",
   "patient.update",
   "patient.consent.manage",
+  "patient.portal.manage",
   "document.read",
   "document.upload",
   "document.archive",

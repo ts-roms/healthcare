@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIES } from "@/lib/api/config";
-import { forwardedHeaders } from "@/lib/api/forwarding";
+import { forwardedHeaders } from "@healthcare/web-session";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
 
 /**
@@ -20,6 +20,13 @@ export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get(COOKIES.access)?.value;
 
   if (isLogin) {
+    // The API ended the session (a call returned 401): drop the stale cookies and show the form,
+    // instead of bouncing back to "/" with them and looping.
+    if (request.nextUrl.searchParams.get("reason") === "session") {
+      const response = NextResponse.next();
+      clearSessionCookies(response.cookies);
+      return response;
+    }
     // Already signed in: skip the form.
     if (refreshToken && accessToken) return NextResponse.redirect(new URL("/", request.url));
     return NextResponse.next();

@@ -48,7 +48,7 @@
     },
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*", "libs/web-session/**/*"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"

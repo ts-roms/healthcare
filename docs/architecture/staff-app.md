@@ -1,6 +1,6 @@
 # Staff app ↔ API
 
-`apps/staff` is a Next.js **backend-for-frontend**: the browser talks only to the staff app's server, which calls the API (`apps/api`). Access and refresh tokens never reach browser JavaScript.
+`apps/staff` is a Next.js **backend-for-frontend**: the browser talks only to the staff app's server, which calls the API (`apps/api`). Access and refresh tokens never reach browser JavaScript. The session code shared with the patient portal (cookies, refresh, error mapping, forwarding, safe redirects) lives in `libs/web-session`.
 
 ```
 browser ──cookies──▶ staff app server (proxy.ts, server components, server actions)
@@ -20,22 +20,24 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 
 - **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). With exactly one active facility it is selected automatically.
 - **Gate and refresh** (`src/proxy.ts`): no refresh token → `/login?next=…` (same-origin paths only). No access token (its cookie expired) → `POST /auth/refresh`, and the new tokens go to both the current render and the browser.
-- **Single-flight refresh** (`lib/api/tokens.ts`): the API rotates refresh tokens and **revokes the session when a rotated token is reused**. Parallel requests from one browser can all carry the same expired token, so concurrent refreshes of one token share a single API call, and the result is reused for 30 s. This is per process: running several staff-app instances needs sticky sessions or a shared store (e.g. Redis) for the same guarantee.
+- **Single-flight refresh** (`createRefresher` in `libs/web-session`, wired in `lib/api/tokens.ts`): the API rotates refresh tokens and **revokes the session when a rotated token is reused**. Parallel requests from one browser can all carry the same expired token, so concurrent refreshes of one token share a single API call, and the result is reused for 30 s. This is per process: running several staff-app instances needs sticky sessions or a shared store (e.g. Redis) for the same guarantee.
 - **Refresh failures:** only a definitive rejection (invalid, expired or revoked token) signs the user out. A rate limit (429), server error or network failure returns a 503 "service is busy" page that retries itself, and the session cookies are kept.
-- **Client identity** (`lib/api/forwarding.ts`): every call to the API forwards the browser's IP (`X-Forwarded-For`, right-most entry as seen by the staff app) and user agent, so the API's per-client rate limits and the audit trail see the real client rather than the staff server. The API must run with `TRUST_PROXY=true` and **must not be reachable directly** (only through the staff app or a trusted proxy), otherwise clients could spoof the header.
-- **API calls** (`lib/api/client.ts`, server-only): send the bearer token and `X-Facility-Id`; a `401` sends the user to sign in again; other errors become `ApiError` with the API's `code`, `message`, `details` and `requestId`.
+- **Client identity** (`forwardedHeaders` in `libs/web-session`): every call to the API forwards the browser's IP (`X-Forwarded-For`, right-most entry as seen by the staff app) and user agent, so the API's per-client rate limits and the audit trail see the real client rather than the staff server. The API must run with `TRUST_PROXY=true` and **must not be reachable directly** (only through the staff app or a trusted proxy), otherwise clients could spoof the header.
+- **API calls** (`lib/api/client.ts`, server-only): send the bearer token and `X-Facility-Id`; a `401` (session revoked or expired) redirects to `/login?reason=session`, where the proxy clears the stale cookies; other errors become `ApiError` with the API's `code`, `message`, `details` and `requestId`.
 - **Sign-out**: `POST /auth/logout` (revokes the session), then cookies are cleared.
 
 Authorization is always the API's: the staff app hides what the user can't do (navigation from `GET /auth/me` permissions, buttons via `can()`), but every request is checked server-side by the API.
 
 ## Data
 
-| Area                                                                                                            | Source                                                     |
-| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, registration, queue, triage/vitals, appointments | API                                                        |
-| Clinic/encounters, laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`          | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                             | Source                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments | API                                                        |
+| Clinic/encounters, laboratory, dental, telemedicine, dashboard clinical panels, `/preview/patient-360`                                           | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
+
+The record also has a **Patient portal (MyHealth)** card (`GET /patients/:id/portal-account`): status for anyone who can read the patient, and for `patient.portal.manage` an invite button that shows the one-time activation code once, and "Disable access" with a reason. See [portal-app.md](portal-app.md).
 
 Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects may not import backend libraries. Move them into `type:contract` libraries, or generate them from the OpenAPI document, as domains grow.
 

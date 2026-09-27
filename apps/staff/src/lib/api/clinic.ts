@@ -2,7 +2,7 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { api } from "./client";
-import { ApiError } from "./errors";
+import { ApiError } from "@healthcare/web-session";
 import type { PatientDetail, Practitioner, VisitType } from "./types";
 
 /** Active practitioners of the organization (for schedules, booking and assignment). */

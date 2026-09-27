@@ -1,4 +1,7 @@
-import type { ApiErrorBody } from "./types";
+/** The API's error envelope: `{ error: { code, message, details?, requestId? } }`. */
+export interface ApiErrorBody {
+  error: { code: string; message: string; details?: unknown; requestId?: string };
+}
 
 /** An error response from the healthcare API, carrying its envelope fields. */
 export class ApiError extends Error {

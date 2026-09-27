@@ -1,5 +1,5 @@
 import { ActivityIcon } from "lucide-react";
-import { safeNextPath } from "@/lib/api/safe-path";
+import { safeNextPath } from "@healthcare/web-session";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
