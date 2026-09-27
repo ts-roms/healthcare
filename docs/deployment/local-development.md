@@ -12,6 +12,16 @@ pnpm dev:api                     # http://localhost:3333/api, docs at /api/docs
 pnpm dev:worker
 ```
 
+Frontend (the staff app needs the API running; sign in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
+
+```bash
+pnpm dev:staff                    # http://localhost:3000 — staff app
+pnpm dev:portal                   # http://localhost:3001 — patient portal
+pnpm storybook                    # http://localhost:6006 — design system
+```
+
+`CORS_ORIGINS` in `.env.example` already allows both web apps.
+
 Checks (what CI runs):
 
 ```bash

@@ -53,8 +53,10 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
-- The frontend still uses demo fixtures: the staff app reads them through `apps/staff/src/lib/data.ts` (the seam to replace with calls to `/api/v1`); portal pages import `@healthcare/domain/fixtures` directly. "Sign", "Verify", "Save" in the UI change in-memory state only.
-- The staff **role is a demo cookie** (`hc-role`). Real authentication and authorization exist in the API (`/api/v1/auth/*`, `AccessGuard`); the UI does not use them yet.
+- **Connected to the API:** sign-in/sign-out (password, TOTP MFA, organization choice), session refresh, navigation (from the user's permissions), facility selection, patient search, the patient record (`/patients/[id]`, including allergies and the Patient 360 clinical summary) and registration with duplicate review. See `docs/architecture/staff-app.md`.
+- **Still demo fixtures** (badged "Demo" with a demo-data banner): appointments, queue, clinic/encounters, laboratory, dental, telemedicine, the dashboard's clinical panels and `/preview/patient-360` — the API for most of these exists (Phase 2) but the screens are not wired yet. They read `apps/staff/src/lib/demo-data.ts`. The portal imports `@healthcare/domain/fixtures` directly and has no sign-in yet.
+- **Never mix fixture clinical data with a real patient.** Real patient pages show only API data. "No known allergies" appears only after a recorded review; never-reviewed shows "Allergies not recorded — ask the patient"; users without clinical access see "Allergies: no access".
+- UI audit events in demo modules (e.g. allergy overrides) are toasts only; the API audits the real workflows.
 - The frontend drug–allergy class map is a labelled demo list. The authoritative server-side check is `libs/prescription/src/lib/allergy-check.ts` (decision support with an audited override).
 
 **Tooling**
@@ -78,6 +80,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Frontend conventions**
 
+- The staff app calls the API only from its server (server components, server actions, `proxy.ts`) via `apps/staff/src/lib/api`. Tokens live in httpOnly cookies and never reach browser JavaScript. API response types are mirrored in `apps/staff/src/lib/api/types.ts` until contract libraries exist.
 - Import the design system via `@healthcare/ui/primitives`, `@healthcare/ui/healthcare`, `@healthcare/ui/layouts`; shared types via `@healthcare/domain`.
 - Clinical status is never colour alone (colour + icon + text; see `libs/ui/src/healthcare/status.tsx`).
 - Clinical times render in the facility timezone via `libs/ui/src/lib/format.ts` (default `Asia/Manila`).
