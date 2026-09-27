@@ -1,6 +1,6 @@
 import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0021_philhealth_claims.sql and 0022_integration_worker.sql.
+// Mirrors database/migrations/0021_philhealth_claims.sql, 0022_integration_worker.sql and 0046_integration_payload_keys.sql.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -35,6 +35,8 @@ export const integrationExchange = pgTable("integration_exchange", {
 export const integrationExchangePayload = pgTable("integration_exchange_payload", {
   exchangeId: uuid("exchange_id").primaryKey(),
   organizationId: uuid("organization_id").notNull(),
+  /** The key the payload is sealed with (INTEGRATION_PAYLOAD_KEYS); null for payloads sealed before key ids existed. */
+  keyId: text("key_id"),
   ciphertext: text("ciphertext").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
 });

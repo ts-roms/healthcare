@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ENCRYPTION_KEY_ID_PATTERN, type Keyring } from "../security/crypto";
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 
@@ -14,6 +15,26 @@ const jsonUriMap = z
     }
   })
   .pipe(z.record(z.string(), z.string().url()));
+
+const isAes256Key = (value: string) => Buffer.from(value, "base64").length === 32;
+
+/** A JSON object of key id → 32-byte base64 key, given as one environment variable. */
+const jsonKeyMap = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "must be a JSON object of key id → key" });
+      return z.NEVER;
+    }
+  })
+  .pipe(
+    z
+      .record(z.string(), z.string().refine(isAes256Key, "each key must be 32 bytes, base64-encoded"))
+      .refine((keys) => Object.keys(keys).length > 0, "list at least one key")
+      .refine((keys) => Object.keys(keys).every((id) => ENCRYPTION_KEY_ID_PATTERN.test(id)), "key ids are 1–40 letters, digits, '_' or '-'"),
+  );
 
 const appConfigSchema = z
   .object({
@@ -66,30 +87,89 @@ const appConfigSchema = z
       .optional(),
     FHIR_IDENTIFIER_SYSTEMS: jsonUriMap.optional(),
     FHIR_CODE_SYSTEMS: jsonUriMap.optional(),
-    // Encrypts prepared integration payloads (e.g. a PhilHealth claim) between the API and the integration worker.
-    // 32 bytes, base64. Required in production; elsewhere MFA_ENCRYPTION_KEY is used when it is unset.
-    INTEGRATION_PAYLOAD_KEY: z
-      .string()
-      .refine((value) => Buffer.from(value, "base64").length === 32, "INTEGRATION_PAYLOAD_KEY must be 32 bytes, base64-encoded")
-      .optional(),
+    // Encrypts prepared integration payloads (e.g. a PhilHealth claim) between the API and the integration worker
+    // (docs/architecture/integration-worker.md). Keys are 32 bytes, base64. Either one key (INTEGRATION_PAYLOAD_KEY, key id
+    // "default") or, to rotate without draining the queue, a key ring: INTEGRATION_PAYLOAD_KEYS as a JSON object of
+    // key id → key, and INTEGRATION_PAYLOAD_KEY_ID naming the key new payloads are sealed with (both may be combined with
+    // INTEGRATION_PAYLOAD_KEY). Required in production; elsewhere MFA_ENCRYPTION_KEY (key id "development") is used when
+    // none is set.
+    INTEGRATION_PAYLOAD_KEY: z.string().refine(isAes256Key, "INTEGRATION_PAYLOAD_KEY must be 32 bytes, base64-encoded").optional(),
+    INTEGRATION_PAYLOAD_KEYS: jsonKeyMap.optional(),
+    INTEGRATION_PAYLOAD_KEY_ID: z.string().regex(ENCRYPTION_KEY_ID_PATTERN, "a key id from INTEGRATION_PAYLOAD_KEYS").optional(),
   })
   .superRefine((config, ctx) => {
-    if (config.NODE_ENV === "production" && !config.INTEGRATION_PAYLOAD_KEY) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["INTEGRATION_PAYLOAD_KEY"],
-        message: "INTEGRATION_PAYLOAD_KEY is required in production (a key separate from MFA_ENCRYPTION_KEY)",
-      });
-    }
+    const problem = integrationKeyringProblem(config);
+    if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
   });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
 
-/** The key for integration payloads: its own in production, MFA_ENCRYPTION_KEY as a development fallback. */
-export function integrationPayloadKey(config: Pick<AppConfig, "INTEGRATION_PAYLOAD_KEY" | "MFA_ENCRYPTION_KEY">): string {
-  return config.INTEGRATION_PAYLOAD_KEY ?? config.MFA_ENCRYPTION_KEY;
+type IntegrationKeyConfig = Pick<
+  AppConfig,
+  "NODE_ENV" | "MFA_ENCRYPTION_KEY" | "INTEGRATION_PAYLOAD_KEY" | "INTEGRATION_PAYLOAD_KEYS" | "INTEGRATION_PAYLOAD_KEY_ID"
+>;
+
+/** Key id of INTEGRATION_PAYLOAD_KEY (the single-key configuration). */
+export const DEFAULT_INTEGRATION_KEY_ID = "default";
+/** Key id of the MFA_ENCRYPTION_KEY fallback (development and tests only). */
+export const DEVELOPMENT_INTEGRATION_KEY_ID = "development";
+
+function integrationKeys(config: IntegrationKeyConfig): Map<string, string> {
+  const keys = new Map(Object.entries(config.INTEGRATION_PAYLOAD_KEYS ?? {}));
+  if (config.INTEGRATION_PAYLOAD_KEY && !keys.has(DEFAULT_INTEGRATION_KEY_ID)) keys.set(DEFAULT_INTEGRATION_KEY_ID, config.INTEGRATION_PAYLOAD_KEY);
+  return keys;
+}
+
+function currentIntegrationKeyId(config: IntegrationKeyConfig, keys: Map<string, string>): string | undefined {
+  if (config.INTEGRATION_PAYLOAD_KEY_ID) return config.INTEGRATION_PAYLOAD_KEY_ID;
+  return keys.size === 1 ? [...keys.keys()][0] : undefined;
+}
+
+function integrationKeyringProblem(config: IntegrationKeyConfig): { path: string; message: string } | undefined {
+  const keys = integrationKeys(config);
+  const listed = config.INTEGRATION_PAYLOAD_KEYS?.[DEFAULT_INTEGRATION_KEY_ID];
+  if (listed && config.INTEGRATION_PAYLOAD_KEY && listed !== config.INTEGRATION_PAYLOAD_KEY) {
+    return {
+      path: "INTEGRATION_PAYLOAD_KEYS",
+      message: `key id "${DEFAULT_INTEGRATION_KEY_ID}" is INTEGRATION_PAYLOAD_KEY's; list it with the same key or use another id`,
+    };
+  }
+  if (keys.size === 0) {
+    if (config.INTEGRATION_PAYLOAD_KEY_ID) return { path: "INTEGRATION_PAYLOAD_KEY_ID", message: "names a key, but no integration payload key is configured" };
+    if (config.NODE_ENV === "production") {
+      return {
+        path: "INTEGRATION_PAYLOAD_KEY",
+        message: "INTEGRATION_PAYLOAD_KEY (or INTEGRATION_PAYLOAD_KEYS) is required in production (a key separate from MFA_ENCRYPTION_KEY)",
+      };
+    }
+    return undefined;
+  }
+  const current = currentIntegrationKeyId(config, keys);
+  if (!current) return { path: "INTEGRATION_PAYLOAD_KEY_ID", message: "is required when several integration payload keys are configured" };
+  if (!keys.has(current)) return { path: "INTEGRATION_PAYLOAD_KEY_ID", message: `"${current}" is not a configured integration payload key id` };
+  if (config.NODE_ENV === "production") {
+    const mfa = Buffer.from(config.MFA_ENCRYPTION_KEY, "base64");
+    const reused = [...keys].find(([, key]) => Buffer.from(key, "base64").equals(mfa));
+    if (reused) return { path: "INTEGRATION_PAYLOAD_KEYS", message: `key "${reused[0]}" is MFA_ENCRYPTION_KEY; use a separate key in production` };
+  }
+  return undefined;
+}
+
+/**
+ * The integration payload key ring (configuration already validated): payloads are sealed with the current key and
+ * opened with whichever listed key they name. Outside production, with no key configured, MFA_ENCRYPTION_KEY stands in.
+ */
+export function integrationPayloadKeyring(config: IntegrationKeyConfig): Keyring {
+  const keys = integrationKeys(config);
+  if (keys.size === 0) {
+    if (config.NODE_ENV === "production") throw new Error("INTEGRATION_PAYLOAD_KEY is required in production");
+    return { currentKeyId: DEVELOPMENT_INTEGRATION_KEY_ID, keys: new Map([[DEVELOPMENT_INTEGRATION_KEY_ID, config.MFA_ENCRYPTION_KEY]]) };
+  }
+  const currentKeyId = currentIntegrationKeyId(config, keys);
+  if (!currentKeyId || !keys.has(currentKeyId)) throw new Error("INTEGRATION_PAYLOAD_KEY_ID does not name a configured key");
+  return { currentKeyId, keys };
 }
 
 /** Parses and validates configuration. Fails fast with every problem listed. */

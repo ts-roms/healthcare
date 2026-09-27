@@ -5,8 +5,9 @@ import {
   type AppConfig,
   type DbExecutor,
   DomainEventPublisher,
-  encryptSecret,
-  integrationPayloadKey,
+  integrationPayloadKeyring,
+  type Keyring,
+  sealWithKeyring,
   sha256Hex,
 } from "@healthcare/core";
 import { canonicalJson } from "./canonical-json";
@@ -36,10 +37,14 @@ export function payloadDigest(payload: unknown): string {
  */
 @Injectable()
 export class IntegrationExchanges {
+  private readonly keyring: Keyring;
+
   constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(APP_CONFIG) config: AppConfig,
     private readonly events: DomainEventPublisher,
-  ) {}
+  ) {
+    this.keyring = integrationPayloadKeyring(config);
+  }
 
   async request(tx: DbExecutor, actor: Actor, input: ExchangeRequest): Promise<IntegrationExchangeRecord> {
     const plaintext = canonicalJson(input.payload);
@@ -57,11 +62,9 @@ export class IntegrationExchanges {
         requestedBy: actor.userId,
       })
       .returning()) as [IntegrationExchangeRecord];
-    await tx.insert(integrationExchangePayload).values({
-      exchangeId: row.id,
-      organizationId: actor.organizationId,
-      ciphertext: encryptSecret(plaintext, integrationPayloadKey(this.config)),
-    });
+    // Sealed with the current key and tagged with its id, so the worker can open it after a key rotation.
+    const { keyId, sealed } = sealWithKeyring(plaintext, this.keyring);
+    await tx.insert(integrationExchangePayload).values({ exchangeId: row.id, organizationId: actor.organizationId, keyId, ciphertext: sealed });
     await this.events.record(tx, {
       type: INTEGRATION_EXCHANGE_REQUESTED,
       organizationId: actor.organizationId,

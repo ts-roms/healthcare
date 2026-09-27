@@ -5,13 +5,15 @@ import {
   type AppConfig,
   DATABASE,
   type Database,
-  decryptSecret,
   DomainEventPublisher,
-  integrationPayloadKey,
+  EncryptionKeyUnavailableError,
+  integrationPayloadKeyring,
+  type Keyring,
+  openWithKeyring,
   sha256Hex,
   systemActor,
 } from "@healthcare/core";
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { integrationExchange, integrationExchangePayload, type IntegrationExchangeRecord } from "./exchange.schema";
 import { EXCHANGE_HANDLERS, type ExchangeCompletedPayload, type ExchangeHandler, type ExchangeOutcome, INTEGRATION_EXCHANGE_COMPLETED } from "./exchange-types";
 
@@ -32,14 +34,17 @@ type FinalStatus = ExchangeCompletedPayload["status"];
 @Injectable()
 export class IntegrationExchangeProcessor {
   private readonly logger = new Logger(IntegrationExchangeProcessor.name);
+  private readonly keyring: Keyring;
 
   constructor(
     @Inject(DATABASE) private readonly db: Database,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(APP_CONFIG) config: AppConfig,
     @Inject(EXCHANGE_HANDLERS) private readonly handlers: ExchangeHandler[],
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
-  ) {}
+  ) {
+    this.keyring = integrationPayloadKeyring(config);
+  }
 
   async process(exchangeId: string, options: { finalAttempt: boolean } = { finalAttempt: true }): Promise<FinalStatus | "skipped" | "retry"> {
     const [exchange] = await this.db.select().from(integrationExchange).where(eq(integrationExchange.id, exchangeId));
@@ -53,7 +58,9 @@ export class IntegrationExchangeProcessor {
     try {
       payload = await this.open(exchange);
     } catch (error) {
-      return this.finish(exchange, "failed", { lastError: `Payload unusable: ${(error as Error).message}` });
+      // Nothing is sent. A missing key (removed from INTEGRATION_PAYLOAD_KEYS too early) is final: retrying cannot help.
+      const reason = error instanceof EncryptionKeyUnavailableError ? `${error.message} on the integration worker` : (error as Error).message;
+      return this.finish(exchange, "failed", { lastError: `Payload unusable: ${reason}` });
     }
 
     let result: ExchangeOutcome;
@@ -103,10 +110,22 @@ export class IntegrationExchangeProcessor {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * Key ids of queued payloads this worker cannot open (checked at start-up): a key was removed from the key ring while
+   * payloads sealed with it were still waiting. Those exchanges will fail without being sent.
+   */
+  async unavailableKeyIds(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ keyId: integrationExchangePayload.keyId })
+      .from(integrationExchangePayload)
+      .where(and(isNotNull(integrationExchangePayload.keyId), notInArray(integrationExchangePayload.keyId, [...this.keyring.keys.keys()])));
+    return rows.flatMap((r) => (r.keyId ? [r.keyId] : []));
+  }
+
   private async open(exchange: IntegrationExchangeRecord): Promise<unknown> {
     const [sealed] = await this.db.select().from(integrationExchangePayload).where(eq(integrationExchangePayload.exchangeId, exchange.id));
     if (!sealed) throw new Error("payload missing");
-    const plaintext = decryptSecret(sealed.ciphertext, integrationPayloadKey(this.config));
+    const plaintext = openWithKeyring(sealed.ciphertext, this.keyring);
     if (sha256Hex(plaintext) !== exchange.payloadDigest) throw new Error("payload does not match the digest recorded at request");
     return JSON.parse(plaintext) as unknown;
   }
