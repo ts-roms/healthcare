@@ -2,6 +2,8 @@ import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nes
 import { OrganizationModule } from "@healthcare/organization";
 import { AppointmentReminders } from "./appointments/appointment-reminders";
 import { AppointmentService } from "./appointments/appointment.service";
+import { PatientBookingNotices } from "./appointments/patient-booking-notices";
+import { PatientBookingService } from "./appointments/patient-booking.service";
 import {
   AppointmentController,
   ClinicalRecordsController,
@@ -42,11 +44,13 @@ export class ClinicModule {
         ClinicQueries,
         EncounterService,
         OnlineVisitService,
+        PatientBookingNotices,
+        PatientBookingService,
         TriageService,
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries, OnlineVisitService],
+      exports: [ClinicQueries, OnlineVisitService, PatientBookingService],
     };
   }
 }

@@ -43,6 +43,13 @@ patient's — rows.
   **responsible** practitioner can sign. Note saves carry `basedOnRevision` so concurrent edits are not lost.
 - After signing: notes change only by amendment (reason required); adding or retracting diagnoses needs
   `encounter.amend` and a reason.
+- **Patient self-booking** (MyHealth, `PatientBookingService`): only visit types with `online_booking` (set by
+  `clinic.configure` via `PATCH /clinic/visit-types/:id`, audited, optimistic locking), only open slots of an active
+  schedule (the schedule's slot grid, minus leave, closures and bookings), at least 2 hours ahead and at most 60 days
+  out, at most 3 open self-bookings per patient (serialized per patient with an advisory lock); the patient may
+  reschedule (same practitioner, online-bookable types) or cancel until 2 hours before (`domain/patient-booking.ts`).
+  Rows record `booked_by_patient` / `updated_by_patient` instead of a staff user; checks enforce that exactly one is
+  known. Another patient's appointment is "not found".
 - Availability and check-in use the facility's time zone (`Asia/Manila` by default); only today's appointments can be
   checked in.
 
@@ -51,7 +58,8 @@ patient's — rows.
 `AppointmentBooked`, `AppointmentConfirmed`, `AppointmentRescheduled`, `AppointmentCancelled`, `AppointmentNoShow`,
 `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
 `EncounterAmended`, `DiagnosisRecorded`. Consumers: appointment reminders (SMS 24 h before, withdrawn on
-cancel/reschedule/no-show) and the realtime queue gateway.
+cancel/reschedule/no-show), the patient self-service confirmation (SMS `appointment.self-service` when the patient
+booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `changedByPatient`) and the realtime queue gateway.
 
 ## Permissions
 
@@ -68,6 +76,10 @@ cancel/reschedule/no-show) and the realtime queue gateway.
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
+
+**Patient booking.** `PatientBookingService` (exported) serves `apps/api/src/app/portal/portal-booking.controller.ts`:
+`GET /portal/booking/options`, `GET /portal/booking/slots`, `POST /portal/appointments`,
+`POST /portal/appointments/:id/{reschedule,cancel}`. Migration `0017_online_booking.sql`.
 
 **Online visits.** `OnlineVisitService` (exported for the telemedicine adapter) lists online appointments (visit type
 modality `telemedicine`), checks a patient in from the MyHealth waiting room — no staff user (`visit.checked_in_via =

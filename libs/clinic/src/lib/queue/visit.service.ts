@@ -112,7 +112,14 @@ export class VisitService {
         }
         const [updated] = await tx
           .update(appointment)
-          .set({ status: "checked_in", checkedInAt: new Date(), updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
+          .set({
+            status: "checked_in",
+            checkedInAt: new Date(),
+            updatedBy: actor.userId,
+            updatedByPatient: false,
+            updatedAt: new Date(),
+            version: sql`${appointment.version} + 1`,
+          })
           .where(eq(appointment.id, appointmentId))
           .returning();
         const row = await this.insertVisit(tx, actor, facilityId, {

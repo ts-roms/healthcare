@@ -62,6 +62,9 @@ export const visitType = pgTable("visit_type", {
   requiresTriage: boolean("requires_triage").notNull().default(true),
   status: text("status").$type<"active" | "inactive">().notNull().default("active"),
   createdAt: ts("created_at").notNull().defaultNow(),
+  /** Patients may book this visit type themselves in MyHealth. */
+  onlineBooking: boolean("online_booking").notNull().default(false),
+  version: integer("version").notNull().default(1),
 });
 
 export const codingSystem = pgTable("coding_system", {
@@ -126,9 +129,11 @@ export const appointment = pgTable("appointment", {
   cancelledAt: ts("cancelled_at"),
   cancelledBy: uuid("cancelled_by"),
   cancellationReason: text("cancellation_reason"),
-  createdBy: uuid("created_by").notNull(),
+  createdBy: uuid("created_by"),
   createdAt: ts("created_at").notNull().defaultNow(),
-  updatedBy: uuid("updated_by").notNull(),
+  updatedBy: uuid("updated_by"),
+  bookedByPatient: boolean("booked_by_patient").notNull().default(false),
+  updatedByPatient: boolean("updated_by_patient").notNull().default(false),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
 });

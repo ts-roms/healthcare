@@ -34,16 +34,17 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 
 ## Data
 
-| Area                          | Source                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------ |
-| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                       |
-| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email) |
-| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone)                  |
-| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                 |
-| Medicines                     | `GET /portal/prescriptions` (active)                                                       |
-| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)         |
-| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                 |
-| Messages                      | Not available yet ("coming soon")                                                          |
+| Area                          | Source                                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                    |
+| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                              |
+| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                  |
+| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}` |
+| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                              |
+| Medicines                     | `GET /portal/prescriptions` (active)                                                                                    |
+| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                      |
+| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                              |
+| Messages                      | Not available yet ("coming soon")                                                                                       |
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
@@ -52,6 +53,18 @@ The records endpoints are composed in the API (`apps/api/src/app/portal/portal-r
 **Results-ready notice.** When results of an order become visible to a patient who can use the portal (active account and `portal_access` consent), the API (`apps/api/src/app/portal/patient-result-notices.ts`) sends one SMS per order per day — or an email if SMS is not possible (no mobile, opted out) — using `lab.results-available`, which names no test or value. A correction of a visible result sends an "updated" notice. Communication preferences apply (category `clinical`). Production SMS still needs a provider (see `docs/domains/notification.md`).
 
 **Online consultations.** Upcoming online visits in Visits and Home open `/consultations/[appointmentId]`, which walks the patient through: the pre-consult questions (reason, symptoms, medicines, new allergies, red flags, where they are, a callback number, and the acknowledgement of an online consultation's limits) — ticking a red flag shows "This may be an emergency: call 911 or go to the nearest emergency room" at once; the waiting room (from 30 minutes before; the page refreshes every 5 s until the doctor starts); **Join the video call** (`VideoCall`; camera and microphone permission; the call is not recorded) — or "your doctor will call you" without video; then the doctor's instructions, or the recommendation to be seen in person. Stage logic: `lib/teleconsult.ts`.
+
+**Online booking.** `/appointments/book` walks the patient through the kind of visit (only visit types the clinic opened
+for online booking), the clinic (when there is more than one), the doctor ("any available doctor" or one by name), a day
+and an open time (morning/afternoon), an optional reason, then confirm. `/appointments/[id]` moves a visit to another
+open time with the same doctor, or cancels it (optional reason) — offered only while the API says `canReschedule` /
+`canCancel`. The rules live in the clinic domain (`libs/clinic/src/lib/domain/patient-booking.ts`) and are re-checked on
+every call: book at least 2 hours ahead and at most 60 days out, only on the schedule's slot grid, at most 3 open
+self-bookings, changes until 2 hours before; rescheduling only for online-bookable visit types. Patient changes are
+audited with actor type `patient`, carry no staff user (`appointment.booked_by_patient`, `updated_by_patient`), and are
+confirmed by SMS (`appointment.self-service`: facility, date and time only); the usual reminder follows. Refusals are
+shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
+waiting room above.
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
 
@@ -64,4 +77,4 @@ Patients cannot edit their record; Profile tells them to ask the clinic.
 
 ## Not yet
 
-Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, online booking (Phase 4b), messages and reminders (Phase 4c).
+Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, messages and outreach (Phase 4c).

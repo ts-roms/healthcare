@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, GlobeIcon, SearchIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
@@ -56,6 +56,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 </Link>
               </Button>
             </nav>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/appointments/visit-types">
+                <GlobeIcon /> Online booking
+              </Link>
+            </Button>
             {can(session, "appointment.manage") && can(session, "patient.search") ? (
               <Button asChild size="sm">
                 <Link href="/patients">

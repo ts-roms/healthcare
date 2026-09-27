@@ -221,6 +221,7 @@ export class AppointmentService {
             status: "booked",
             confirmedAt: null,
             updatedBy: actor.userId,
+            updatedByPatient: false,
             updatedAt: new Date(),
             version: sql`${appointment.version} + 1`,
           })
@@ -331,7 +332,7 @@ export class AppointmentService {
       if (!canApply(action, current.status)) throw invalidTransition(action, current.status);
       const [updated] = await tx
         .update(appointment)
-        .set({ ...changes, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
+        .set({ ...changes, updatedBy: actor.userId, updatedByPatient: false, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
         .where(eq(appointment.id, appointmentId))
         .returning();
       const row = found(updated, "Appointment");
@@ -348,7 +349,7 @@ export class AppointmentService {
     });
   }
 
-  private async scheduleBlocks(executor: DbExecutor, practitionerId: string, facilityId: string, date: string): Promise<ScheduleBlock[]> {
+  async scheduleBlocks(executor: DbExecutor, practitionerId: string, facilityId: string, date: string): Promise<ScheduleBlock[]> {
     const rows = await executor
       .select()
       .from(practitionerSchedule)
@@ -365,7 +366,7 @@ export class AppointmentService {
     return rows.map((r) => ({ startTime: r.startTime, endTime: r.endTime, slotMinutes: r.slotMinutes, roomId: r.roomId }));
   }
 
-  private async exceptions(executor: DbExecutor, facilityId: string, practitionerId: string, from: Date, to: Date): Promise<Interval[]> {
+  async exceptions(executor: DbExecutor, facilityId: string, practitionerId: string, from: Date, to: Date): Promise<Interval[]> {
     const rows = await executor
       .select({ start: scheduleException.startsAt, end: scheduleException.endsAt })
       .from(scheduleException)
@@ -380,7 +381,7 @@ export class AppointmentService {
     return rows;
   }
 
-  private async bookedIntervals(executor: DbExecutor, practitionerId: string, from: Date, to: Date): Promise<Interval[]> {
+  async bookedIntervals(executor: DbExecutor, practitionerId: string, from: Date, to: Date): Promise<Interval[]> {
     return executor
       .select({ start: appointment.startsAt, end: appointment.endsAt })
       .from(appointment)
@@ -395,7 +396,7 @@ export class AppointmentService {
   }
 
   /** The appointment must fall inside a published schedule block and not in a closure or leave. */
-  private async assertWithinSchedule(executor: DbExecutor, practitionerId: string, facilityId: string, timeZone: string, startsAt: Date, endsAt: Date) {
+  async assertWithinSchedule(executor: DbExecutor, practitionerId: string, facilityId: string, timeZone: string, startsAt: Date, endsAt: Date) {
     const date = localDate(startsAt, timeZone);
     const blocks = await this.scheduleBlocks(executor, practitionerId, facilityId, date);
     const fits = availableSlots({
@@ -442,11 +443,11 @@ export function appointmentEvent(type: string, row: AppointmentRecord, extra: Re
   };
 }
 
-function invalidTransition(action: string, status: string): BusinessRuleError {
+export function invalidTransition(action: string, status: string): BusinessRuleError {
   return new BusinessRuleError(`Cannot ${action.replace("_", "-")} an appointment that is ${status.replace("_", " ")}`, "invalid_appointment_status");
 }
 
-function translateBookingError(error: unknown, patientId?: string): unknown {
+export function translateBookingError(error: unknown, patientId?: string): unknown {
   const pg = asPgError(error);
   if (pg?.code === PgErrorCode.exclusionViolation) {
     const what = pg.constraint === "appointment_room_no_overlap" ? "room" : "practitioner";

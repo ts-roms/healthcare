@@ -20,6 +20,7 @@ import {
   CreateRoomDto,
   CreateScheduleDto,
   CreateVisitTypeDto,
+  UpdateVisitTypeDto,
   CreateWaitlistDto,
   DashboardQueryDto,
   EnteredInErrorDto,
@@ -103,6 +104,13 @@ export class ClinicConfigController {
   @RequirePermissions("clinic.configure")
   createVisitType(@CurrentActor() actor: Actor, @Body() body: CreateVisitTypeDto) {
     return this.config.createVisitType(actor, body);
+  }
+
+  @Patch("visit-types/:visitTypeId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Rename, change duration, open or close for online booking, or deactivate a visit type" })
+  updateVisitType(@CurrentActor() actor: Actor, @Param("visitTypeId", ParseUUIDPipe) id: string, @Body() body: UpdateVisitTypeDto) {
+    return this.config.updateVisitType(actor, id, body);
   }
 
   @Get("coding-systems")

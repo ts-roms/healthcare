@@ -311,6 +311,8 @@ export interface AppointmentItem {
   endsAt: string;
   status: AppointmentStatusApi;
   bookingChannel: string;
+  /** Booked by the patient in MyHealth (no staff user). */
+  bookedByPatient?: boolean;
   reason: string | null;
   version: number;
   patient: PatientBrief | null;
@@ -332,6 +334,10 @@ export interface VisitType {
   defaultDurationMinutes: number;
   modality: "in_person" | "telemedicine";
   status: "active" | "inactive";
+  requiresTriage: boolean;
+  /** Patients may book this visit type themselves in MyHealth. */
+  onlineBooking: boolean;
+  version: number;
 }
 
 export interface Availability {

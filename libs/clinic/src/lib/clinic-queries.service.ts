@@ -4,6 +4,8 @@ import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import { appointment, diagnosis, encounter, practitioner, visitType, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
+import { canApply } from "./domain/appointment-state";
+import { patientMayChange } from "./domain/patient-booking";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { TriageService, toVitalsView } from "./triage/triage.service";
 
@@ -38,8 +40,14 @@ export class ClinicQueries {
         endsAt: appointment.endsAt,
         status: appointment.status,
         reason: appointment.reason,
+        version: appointment.version,
+        facilityId: appointment.facilityId,
+        practitionerId: appointment.practitionerId,
+        visitTypeId: appointment.visitTypeId,
+        bookedByPatient: appointment.bookedByPatient,
         visitType: visitType.name,
         modality: visitType.modality,
+        onlineBooking: visitType.onlineBooking,
         practitionerName: practitioner.displayName,
         facilityName: facility.name,
         timeZone: facility.timezone,
@@ -51,9 +59,16 @@ export class ClinicQueries {
       .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId), gte(appointment.startsAt, since)))
       .orderBy(asc(appointment.startsAt))
       .limit(200);
+    const changeable = (r: { status: (typeof rows)[number]["status"]; startsAt: Date }) => canApply("cancel", r.status) && patientMayChange(r.startsAt, now);
     return {
-      upcoming: rows.filter((r) => r.endsAt >= now),
-      past: rows.filter((r) => r.endsAt < now).reverse(),
+      // What the patient may still do themselves in MyHealth (the API enforces the same rules).
+      upcoming: rows
+        .filter((r) => r.endsAt >= now)
+        .map(({ onlineBooking, ...r }) => ({ ...r, canCancel: changeable(r), canReschedule: changeable(r) && onlineBooking })),
+      past: rows
+        .filter((r) => r.endsAt < now)
+        .reverse()
+        .map(({ onlineBooking: _onlineBooking, ...r }) => ({ ...r, canCancel: false, canReschedule: false })),
     };
   }
 

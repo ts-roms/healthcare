@@ -246,7 +246,14 @@ export class EncounterService {
       if (row.appointmentId) {
         await tx
           .update(appointment)
-          .set({ status: "completed", completedAt: new Date(), updatedBy: actor.userId, updatedAt: new Date(), version: sql`${appointment.version} + 1` })
+          .set({
+            status: "completed",
+            completedAt: new Date(),
+            updatedBy: actor.userId,
+            updatedByPatient: false,
+            updatedAt: new Date(),
+            version: sql`${appointment.version} + 1`,
+          })
           .where(and(eq(appointment.id, row.appointmentId), eq(appointment.status, "checked_in")));
       }
       const diagnoses = await tx

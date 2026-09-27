@@ -14,8 +14,10 @@ The clinical record is the clinic's **ordinary encounter** with `modality = 'tel
 amendments, prescriptions, laboratory orders, care plans and follow-up booking work exactly as in person.
 Telemedicine owns what is specific to being online: the session, questionnaire, waiting room, video and escalation.
 
-Not in scope yet: online payment (Phase 7 billing; a payment gateway is an integration dependency), patients booking
-online themselves (Phase 4b — today staff book an appointment with a telemedicine visit type), medical certificates
+Patients book online consultations themselves in MyHealth when the clinic opens the telemedicine visit type for online
+booking (see [portal-app.md](../architecture/portal-app.md)); staff can also book them.
+
+Not in scope yet: online payment (Phase 7 billing; a payment gateway is an integration dependency), medical certificates
 as generated documents, and in-app chat.
 
 ## Entities
