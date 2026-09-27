@@ -37,6 +37,8 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
+**Consent & communication** shows the latest decision per consent type (granted, expired, refused, withdrawn; from the patient detail). Users with `patient.consent.manage` can **Record consent**: type, decision, how it was given (paper, electronic, verbal), an optional end date (end of that day in Manila) and notes, posted to `POST /patients/:id/consents` (append-only, audited; takes effect when recorded). The full history (`GET /patients/:id/consents`) is loaded only when staff choose "Show consent history", because every read of it is audited. Form rules live in `lib/consent-form.ts`.
+
 The record also has a **Patient portal (MyHealth)** card (`GET /patients/:id/portal-account`): status for anyone who can read the patient, and for `patient.portal.manage` an invite button that shows the one-time activation code once, and "Disable access" with a reason. See [portal-app.md](portal-app.md).
 
 Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects may not import backend libraries. Move them into `type:contract` libraries, or generate them from the OpenAPI document, as domains grow.

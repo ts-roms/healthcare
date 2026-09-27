@@ -60,7 +60,7 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           {account.status === "active"
             ? "Portal access consent is not in effect, so the patient cannot sign in."
-            : "Record the patient's portal access consent before inviting them."}
+            : "Record the patient's portal access consent (under Consent & communication) before inviting them."}
         </p>
       ) : null}
 
