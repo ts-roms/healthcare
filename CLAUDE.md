@@ -26,21 +26,22 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine)**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine, Phase 7 Billing API)**
 
-| Project                                              | Path                       | Nx tags                              | What it is                                                                                                   |
-| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.   |
-| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                    |
-| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.     |
-| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                       |
-| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                              |
-| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in. |
-| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.    |
-| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                      |
-| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                  |
-| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.  |
-| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.   |
+| Project                                              | Path                       | Nx tags                              | What it is                                                                                                    |
+| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.    |
+| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                     |
+| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.      |
+| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                        |
+| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                               |
+| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in.  |
+| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.     |
+| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                       |
+| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                   |
+| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.   |
+| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.    |
+| `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`      | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds. |
 
 **Frontend — partly connected to the API**
 
@@ -52,7 +53,7 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/web-session` | `libs/web-session` | `scope:shared`, `type:util`   | Server-side session code shared by the Next.js apps: token cookies, single-flight refresh, API errors, client forwarding, safe redirects.                                              |
 | `@healthcare/domain`      | `libs/domain`      | `scope:shared`, `type:domain` | Shared frontend clinical types, staff roles, a demo drug–allergy rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                              |
 
-`libs/dental`, `libs/billing`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
+`libs/dental`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
@@ -147,8 +148,8 @@ apps/
 libs/
   ui/ domain/                                                                    [exist, frontend shared]
   core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
-  patient/ clinic/ prescription/ care-plan/ laboratory/ telemedicine/            [exist, backend domains]
-  dental/ billing/ inventory/ crm/ reporting/
+  patient/ clinic/ prescription/ care-plan/ laboratory/ telemedicine/ billing/    [exist, backend domains]
+  dental/ inventory/ crm/ reporting/
   interoperability/ philhealth/                                                  [planned]
 
 database/migrations/  tools/  docs/  infrastructure/

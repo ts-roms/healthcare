@@ -1,5 +1,6 @@
 import * as audit from "@healthcare/audit";
 import * as auth from "@healthcare/auth";
+import * as billing from "@healthcare/billing";
 import * as carePlan from "@healthcare/care-plan";
 import * as clinic from "@healthcare/clinic";
 import * as core from "@healthcare/core";
@@ -20,7 +21,7 @@ import { resetDatabase, TEST_DATABASE_URL } from "./harness";
  */
 describe("Drizzle schema matches migrations", () => {
   let pool: Pool;
-  const tables = [audit, auth, carePlan, clinic, core, documents, laboratory, notification, organization, patient, prescription, telemedicine]
+  const tables = [audit, auth, billing, carePlan, clinic, core, documents, laboratory, notification, organization, patient, prescription, telemedicine]
     .flatMap((module) => Object.values(module))
     .filter((value): value is PgTable => value instanceof PgTable);
 

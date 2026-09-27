@@ -58,6 +58,16 @@ export const PERMISSIONS = [
   // Phase 5 — telemedicine (migration 0016)
   "telemedicine.read",
   "telemedicine.conduct",
+  // Phase 7 — billing (migration 0019)
+  "billing.charge.read",
+  "billing.charge.capture",
+  "billing.invoice.issue",
+  "billing.invoice.void",
+  "billing.payment.record",
+  "billing.refund.issue",
+  "billing.discount.apply",
+  "billing.pricelist.manage",
+  "billing.report.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

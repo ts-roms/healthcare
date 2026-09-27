@@ -56,6 +56,21 @@ export class LabOrderService {
     private readonly events: DomainEventPublisher,
   ) {}
 
+  /** What billing needs from an order: its items' test codes and names, and the local order date. */
+  async billableOrder(organizationId: string, orderId: string) {
+    const [order] = await this.db
+      .select({ id: labOrder.id, patientId: labOrder.patientId, facilityId: labOrder.facilityId, orderedAt: labOrder.orderedAt })
+      .from(labOrder)
+      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.id, orderId)));
+    if (!order) return undefined;
+    const facility = await this.organizations.getFacility(organizationId, order.facilityId);
+    const items = await this.db
+      .select({ id: labOrderItem.id, testCode: labOrderItem.testCode, testName: labOrderItem.testName })
+      .from(labOrderItem)
+      .where(and(eq(labOrderItem.orderId, orderId), notInArray(labOrderItem.status, ["cancelled"])));
+    return { id: order.id, patientId: order.patientId, facilityId: order.facilityId, serviceDate: localDate(order.orderedAt, facility.timezone), items };
+  }
+
   async create(actor: Actor, input: z.infer<typeof createOrderSchema>): Promise<OrderView> {
     const facilityId = requireFacilityId(actor);
     const practitioner = await this.context.practitionerForUser(actor.organizationId, actor.userId);

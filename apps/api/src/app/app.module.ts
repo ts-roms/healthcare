@@ -8,6 +8,7 @@ import { ClinicModule } from "@healthcare/clinic";
 import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
 import { DocumentsModule } from "@healthcare/documents";
 import { LaboratoryModule } from "@healthcare/laboratory";
+import { BillingModule } from "@healthcare/billing";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
@@ -15,12 +16,14 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { PatientResultNotices } from "./portal/patient-result-notices";
+import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
@@ -44,6 +47,8 @@ export interface AppModuleOverrides {
 @Module({})
 export class AppModule implements NestModule {
   static forRoot(config: AppConfig, overrides: AppModuleOverrides = {}): DynamicModule {
+    // One instance, imported by the app and by billing (which reads laboratory orders through an adapter).
+    const laboratory = LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext });
     return {
       module: AppModule,
       imports: [
@@ -70,13 +75,16 @@ export class AppModule implements NestModule {
         PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext }),
         CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
         // Phase 3 — laboratory.
-        LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext }),
+        laboratory,
         // Phase 5 — telemedicine.
         TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
+        // Phase 7 — billing: charges from clinical events, invoices, payments.
+        BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory }),
       ],
       controllers: [
         HealthController,
         PatientSummaryController,
+        PortalBillingController,
         PortalBookingController,
         PortalMessagesController,
         PortalRecordsController,

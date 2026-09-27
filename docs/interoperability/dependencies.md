@@ -9,6 +9,7 @@ External integrations that require official specifications or agreements before 
 | PhilHealth YAKAP workflows        | Primary care, claims                       | Not yet obtained      | —       | Dependency                                        |
 | DOH reporting                     | Government reporting                       | Not yet obtained      | —       | Dependency                                        |
 | SMS provider                      | Notifications (`ChannelSender` for `sms`)  | Provider not selected | —       | Dependency — production uses `UnconfiguredSender` |
-| Payment provider                  | Billing                                    | Provider not selected | —       | Dependency                                        |
+| Payment provider                  | Billing (online payment in MyHealth)       | Provider not selected | —       | Dependency — patients pay at the clinic           |
+| BIR invoicing / official receipts | Billing (document format, numbering, VAT)  | Not yet obtained      | —       | Dependency — prefixes and series configurable     |
 | Telemedicine video (e.g. LiveKit) | Telemedicine                               | Provider not selected | —       | Dependency                                        |
 | Push provider (e.g. Expo push)    | Notifications (`ChannelSender` for `push`) | Provider not selected | —       | Dependency — production uses `UnconfiguredSender` |
