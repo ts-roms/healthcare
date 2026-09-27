@@ -30,3 +30,15 @@ export async function portalApi<T>(path: string, { method = "GET", body }: { met
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+/** Fetches a file (a PDF) from the API as the signed-in patient, for route handlers that pass it on. */
+export async function portalFile(path: string): Promise<Response> {
+  const accessToken = (await cookies()).get(COOKIES.access)?.value;
+  if (!accessToken) redirect("/login");
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { ...forwardedHeaders(await requestHeaders()), accept: "application/pdf", authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (response.status === 401) redirect("/login?reason=session");
+  return response;
+}

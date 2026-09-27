@@ -120,6 +120,11 @@ void with reason and optional reissue; `/billing/reports` — the daily report; 
 compliance warning), payers, document prefixes. MyHealth: `/billing` ("Bills" on the home screen) — issued and void
 invoices with lines, discounts, coverage, payments and balance; paying online is not available.
 
+## Printable documents
+
+Invoices (drafts watermarked, voids marked) and acknowledgement receipts as PDFs (`BillingDocuments`), for staff and —
+issued invoices only — the patient in MyHealth. See [printable-documents.md](../architecture/printable-documents.md).
+
 ## Compliance dependencies / assumptions
 
 - **BIR:** invoice and receipt format, numbering, and whether the acknowledgement receipt may serve as an official

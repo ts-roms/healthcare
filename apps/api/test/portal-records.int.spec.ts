@@ -11,7 +11,9 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  binary,
 } from "./harness";
+import { extractPdfText } from "@healthcare/pdf";
 
 const PATIENT_PASSWORD = "Maaraw-na-umaga-2026";
 
@@ -285,6 +287,29 @@ describe("patient portal records", () => {
     const trend = await portal(`/results/trend?testId=${tests.fbs}`).expect(200);
     expect(trend.body).toMatchObject({ analyte: "loinc:1558-6", points: [expect.objectContaining({ valueNumeric: 6.2 })] });
     expect((await portal(`/results/trend?testId=${tests.hiv}`).expect(200)).body.points).toEqual([]);
+  });
+
+  it("gives the patient a printable report of the order with only what they may see", async () => {
+    const res = await ctx
+      .http()
+      .get(`/api/v1/portal/results/orders/${orderId}/report.pdf`)
+      .set({ authorization: `Bearer ${patientToken}` })
+      .buffer(true)
+      .parse(binary)
+      .expect(200)
+      .expect("content-type", /application\/pdf/);
+    const text = extractPdfText(res.body as Buffer);
+    expect(text).toContain("Laboratory Result Report");
+    expect(text).toContain("Patient's copy from MyHealth");
+    expect(text).toContain("FBS (corrected)");
+    expect(text).toContain("6.2");
+    expect(text).toContain("POTASSIUM");
+    expect(text).toContain("Some tests of this order are not shown here");
+    // Never names a test the laboratory does not release to patients, nor staff.
+    expect(text).not.toMatch(/HIV/i);
+    expect(text).not.toMatch(/Verified by|Approved by/);
+    const audit = await auditRows(ctx.pool, "action = 'portal.lab-report-download'");
+    expect(audit[0]).toMatchObject({ actor_type: "patient", patient_id: patientId });
   });
 
   it("never shows another patient's records", async () => {

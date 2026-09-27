@@ -8,3 +8,4 @@ export * from "./lib/orders/lab-worklist.service";
 export * from "./lib/ports";
 export * from "./lib/results/lab-patient-access";
 export * from "./lib/results/lab-result.service";
+export * from "./lib/results/lab-report";

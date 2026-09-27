@@ -50,3 +50,19 @@ export async function api<T>(path: string, { method = "GET", query, body, idempo
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+/**
+ * Fetches a file (a PDF) from the API as the signed-in user, for route
+ * handlers that pass it on to the browser. The token stays on the server.
+ */
+export async function apiFile(path: string): Promise<Response> {
+  const jar = await cookies();
+  const accessToken = jar.get(COOKIES.access)?.value;
+  if (!accessToken) redirect("/login");
+  const headers: Record<string, string> = { ...forwardedHeaders(await requestHeaders()), accept: "application/pdf", authorization: `Bearer ${accessToken}` };
+  const facilityId = jar.get(COOKIES.facility)?.value;
+  if (facilityId) headers["x-facility-id"] = facilityId;
+  const response = await fetch(buildUrl(path), { headers, cache: "no-store" });
+  if (response.status === 401) redirect("/login?reason=session");
+  return response;
+}

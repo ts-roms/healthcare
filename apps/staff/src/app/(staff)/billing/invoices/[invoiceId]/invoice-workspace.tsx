@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BanIcon, BadgePercentIcon, BuildingIcon, CheckIcon, FileCheck2Icon, RotateCcwIcon, Trash2Icon, WalletIcon, XIcon } from "lucide-react";
+import { BanIcon, BadgePercentIcon, BuildingIcon, CheckIcon, FileCheck2Icon, RotateCcwIcon, Trash2Icon, WalletIcon, XIcon, PrinterIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import {
   Badge,
@@ -25,6 +25,7 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import { InvoiceBadge } from "@/components/invoice-badge";
+import { fileHref } from "@/lib/files";
 import type { BillingPayer, DiscountRule, InvoiceCoverage, InvoiceDetail, LedgerEntry, PaymentMethod } from "@/lib/api/types";
 import { CATEGORY_LABEL, COVERAGE_STATUS_LABEL, METHOD_LABEL, parsePesos, percent, peso, pesoInput, refundableAmount } from "@/lib/billing-mapping";
 import {
@@ -162,6 +163,11 @@ function Summary({ invoice, can }: { invoice: InvoiceDetail; can: Permissions })
             ) : null}
           </p>
         ) : null}
+        <Button asChild variant="outline" size="sm" className="self-start">
+          <a href={fileHref.invoice(invoice.id)} target="_blank" rel="noreferrer">
+            <PrinterIcon /> {invoice.status === "draft" ? "Print draft" : "Print invoice"}
+          </a>
+        </Button>
         {invoice.status === "draft" && can.issue ? (
           <div className="flex flex-wrap gap-2">
             <Button
@@ -590,7 +596,14 @@ function Payments({ invoice, can }: { invoice: InvoiceDetail; can: Permissions }
                         <RotateCcwIcon aria-hidden /> Refund
                       </Badge>
                     ) : (
-                      <span className="font-mono text-table">{p.receiptNumber}</span>
+                      <a
+                        href={fileHref.receipt(p.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 font-mono text-table text-primary hover:underline"
+                      >
+                        <PrinterIcon className="size-3.5" aria-hidden /> {p.receiptNumber}
+                      </a>
                     )}
                     {p.reason ? <span className="block text-meta text-muted-foreground">{p.reason}</span> : null}
                   </TableCell>

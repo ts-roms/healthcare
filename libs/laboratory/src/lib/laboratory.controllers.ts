@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, RequireFacility, requireFacilityId, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, RequireFacility, requireFacilityId, RequirePermissions } from "@healthcare/core";
 import { LabCatalogService } from "./catalog/lab-catalog.service";
 import {
   AddReferenceRangeDto,
@@ -26,6 +26,7 @@ import {
 } from "./laboratory.dto";
 import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
+import { LabReportService } from "./results/lab-report";
 import { LabResultService } from "./results/lab-result.service";
 
 const uuid = new ParseUUIDPipe();
@@ -242,7 +243,10 @@ export class LabOrderController {
 @ApiBearerAuth()
 @Controller({ path: "laboratory", version: "1" })
 export class LabResultController {
-  constructor(private readonly results: LabResultService) {}
+  constructor(
+    private readonly results: LabResultService,
+    private readonly reports: LabReportService,
+  ) {}
 
   @Post("order-items/:itemId/results")
   @RequireFacility()
@@ -307,6 +311,14 @@ export class LabResultController {
   @RequirePermissions("lab.result.enter")
   cancel(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: CancelDto) {
     return this.results.cancel(actor, id, body.reason);
+  }
+
+  @Get("orders/:id/report.pdf")
+  @RequirePermissions("lab.order.read", "lab.result.read")
+  @ApiOperation({ summary: "Printable result report of an order (released results only; audited)" })
+  async report(@CurrentActor() actor: Actor, @Param("id", uuid) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.reports.staffReport(actor, id);
+    return pdfFile(pdf, filename);
   }
 
   @Get("patients/:patientId/results")

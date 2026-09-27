@@ -1,7 +1,8 @@
-import { BanIcon, CheckCircle2Icon, CircleDollarSignIcon, ReceiptIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, CircleDollarSignIcon, FileDownIcon, ReceiptIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
 import type { PortalInvoice } from "@/lib/api/types";
+import { fileHref } from "@/lib/files";
 import { invoiceStatus, PAYER_STATUS, peso, totalDue } from "@/lib/billing";
 import { resultDate } from "@/lib/records";
 
@@ -53,6 +54,14 @@ export default async function BillsPage() {
                     </span>
                     <span className="text-meta text-primary">Show details</span>
                   </summary>
+                  <a
+                    href={fileHref.invoice(inv.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-meta font-medium text-primary hover:underline"
+                  >
+                    <FileDownIcon className="size-3.5" aria-hidden /> Download PDF
+                  </a>
                   <div className="mt-3 flex flex-col gap-3 border-t pt-3 text-body">
                     <ul className="flex flex-col gap-1">
                       {inv.items.map((item, i) => (

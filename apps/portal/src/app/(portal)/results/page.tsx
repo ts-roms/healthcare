@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ChevronRightIcon, FlaskConicalIcon } from "lucide-react";
+import { ChevronRightIcon, FlaskConicalIcon, FileDownIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ResultMeaning } from "@/components/result-meaning";
 import { portalApi } from "@/lib/api/client";
 import type { PortalResult } from "@/lib/api/types";
+import { fileHref } from "@/lib/files";
 import { latestPerTest, resultDate, resultValue, usualRange } from "@/lib/records";
 
 export const metadata = { title: "Results" };
@@ -53,6 +54,27 @@ export default async function ResultsPage() {
           ))}
         </ul>
       )}
+      {results.length ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-section-lg font-semibold">Printable reports</h2>
+          <ul className="flex flex-col gap-2">
+            {[...new Map(results.map((r) => [r.orderId, r])).values()].map((r) => (
+              <li key={r.orderId}>
+                <a
+                  href={fileHref.labReport(r.orderId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-xl border bg-card p-3 text-body hover:bg-accent"
+                >
+                  <FileDownIcon className="size-4 text-primary" aria-hidden />
+                  <span className="flex-1">Report {r.orderNumber}</span>
+                  <span className="text-meta text-muted-foreground">{resultDate(r.collectedAt ?? r.releasedAt)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

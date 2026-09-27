@@ -1,5 +1,6 @@
 const { NxAppWebpackPlugin } = require("@nx/webpack/app-plugin");
 const { join } = require("path");
+const { ExternalsPlugin } = require("webpack");
 
 module.exports = {
   output: {
@@ -10,6 +11,9 @@ module.exports = {
     }),
   },
   plugins: [
+    // pdfkit loads its standard fonts through a wildcard package import ("#standard-fonts/*") that webpack cannot
+    // resolve; it is loaded from node_modules at runtime instead of being bundled (it is an API dependency).
+    new ExternalsPlugin("commonjs", ["pdfkit"]),
     new NxAppWebpackPlugin({
       target: "node",
       compiler: "tsc",

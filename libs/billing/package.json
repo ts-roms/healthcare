@@ -22,6 +22,7 @@
   "dependencies": {
     "@healthcare/audit": "workspace:*",
     "@healthcare/core": "workspace:*",
-    "@healthcare/organization": "workspace:*"
+    "@healthcare/organization": "workspace:*",
+    "@healthcare/pdf": "workspace:*"
   }
 }

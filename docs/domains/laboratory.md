@@ -174,3 +174,8 @@ record: see [staff-app.md](../architecture/staff-app.md#laboratory).
   barcode printers), make the format configurable.
 - One accession per specimen container; aliquots and add-on tests to an existing specimen are not modelled yet.
 - The order's facility is the collecting/performing laboratory; referral to another branch's laboratory is future work.
+
+## Printable reports
+
+Per order, released results only (`LabReportService`); staff and patient copies — see
+[printable-documents.md](../architecture/printable-documents.md).

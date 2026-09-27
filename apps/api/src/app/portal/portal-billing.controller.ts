@@ -1,8 +1,8 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, StreamableFile, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
-import { InvoiceService } from "@healthcare/billing";
-import { Public } from "@healthcare/core";
+import { BillingDocuments, InvoiceService } from "@healthcare/billing";
+import { pdfFile, Public } from "@healthcare/core";
 import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 /**
@@ -18,8 +18,16 @@ import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPri
 export class PortalBillingController {
   constructor(
     private readonly invoices: InvoiceService,
+    private readonly documents: BillingDocuments,
     private readonly audit: AuditService,
   ) {}
+
+  @Get(":invoiceId/pdf")
+  @ApiOperation({ summary: "The patient's copy of an issued invoice (PDF)" })
+  async pdf(@CurrentPatient() patient: PortalPrincipal, @Param("invoiceId", ParseUUIDPipe) invoiceId: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.patientInvoicePdf(patient.organizationId, patient.patientId, invoiceId, patientAuditContext(patient));
+    return pdfFile(pdf, filename);
+  }
 
   @Get()
   @ApiOperation({ summary: "The patient's invoices and balances" })

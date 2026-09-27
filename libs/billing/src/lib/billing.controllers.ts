@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
   ApplyDiscountDto,
@@ -25,6 +25,7 @@ import {
 } from "./billing.dto";
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeService } from "./charges/charge.service";
+import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
 import { PaymentService } from "./payments/payment.service";
 
@@ -117,6 +118,7 @@ export class BillingController {
     private readonly charges: ChargeService,
     private readonly invoices: InvoiceService,
     private readonly payments: PaymentService,
+    private readonly documents: BillingDocuments,
   ) {}
 
   @Get("worklist")
@@ -245,6 +247,22 @@ export class BillingController {
   @ApiOperation({ summary: "Void an issued invoice (reason required; nothing may be paid); by default its charges go to a new draft" })
   void(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: VoidInvoiceDto) {
     return this.invoices.void(actor, id, body);
+  }
+
+  @Get("invoices/:invoiceId/pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable invoice (drafts watermarked DRAFT, voided ones VOID; audited)" })
+  async invoicePdf(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.invoicePdf(actor, id);
+    return pdfFile(pdf, filename);
+  }
+
+  @Get("payments/:paymentId/receipt.pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable acknowledgement receipt of a payment (audited)" })
+  async receiptPdf(@CurrentActor() actor: Actor, @Param("paymentId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.receiptPdf(actor, id);
+    return pdfFile(pdf, filename);
   }
 
   @Post("invoices/:invoiceId/payments")

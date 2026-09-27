@@ -1,4 +1,18 @@
-import { as, auditRows, createClinician, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import { extractPdfText } from "@healthcare/pdf";
+import {
+  as,
+  auditRows,
+  binary,
+  createClinician,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  juan,
+  login,
+  type Tenant,
+  type TestContext,
+} from "./harness";
 
 /**
  * CLAUDE.md §31 critical journey (laboratory part):
@@ -352,6 +366,25 @@ describe("laboratory journey", () => {
     const notices = inbox.body.filter((n: { templateKey: string }) => n.templateKey === "lab.result-notice");
     expect(notices.map((n: { subject: string }) => n.subject).sort()).toEqual([expect.stringMatching(/^Corrected/), expect.stringMatching(/^Critical/)]);
     expect(JSON.stringify(notices)).not.toMatch(/6\.8|6\.2|7\.2|Potassium/);
+  });
+
+  it("prints the order's report: released results, corrections and who signed them off", async () => {
+    const res = await ctx.http().get(`/api/v1/laboratory/orders/${orderId}/report.pdf`).set(as(doctor)).buffer(true).parse(binary).expect(200);
+    expect(res.headers["content-disposition"]).toBe('inline; filename="LO00000001.pdf"');
+    const text = extractPdfText(res.body as Buffer);
+    expect(text).toContain("Laboratory Result Report");
+    expect(text).toContain("LO00000001");
+    expect(text).toMatch(/Fasting blood sugar\s*\(corrected\)/);
+    expect(text).toContain("6.2");
+    expect(text).toContain("Corrected: Transcription error");
+    expect(text).toContain("Approved by (pathologist)");
+    const audit = await auditRows(ctx.pool, "action = 'lab.report.print'");
+    expect(audit).toHaveLength(1);
+    await ctx
+      .http()
+      .get(`/api/v1/laboratory/orders/${orderId}/report.pdf`)
+      .set(as(nurse))
+      .expect((r) => expect([200, 403]).toContain(r.status));
   });
 
   it("lists a patient's released results and trends one analyte", async () => {

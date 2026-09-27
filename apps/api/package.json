@@ -109,7 +109,9 @@
     "@healthcare/care-plan": "workspace:*",
     "@healthcare/laboratory": "workspace:*",
     "@healthcare/telemedicine": "workspace:*",
-    "@healthcare/billing": "workspace:*"
+    "@healthcare/billing": "workspace:*",
+    "@healthcare/pdf": "workspace:*",
+    "pdfkit": "^0.20.2"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

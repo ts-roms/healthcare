@@ -5,6 +5,7 @@ import { LabReadModel } from "./lab-read-model";
 import { LabCatalogController, LabOrderController, LabResultController } from "./laboratory.controllers";
 import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
+import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabResultService } from "./results/lab-result.service";
@@ -29,11 +30,12 @@ export class LaboratoryModule {
         LabOrderService,
         LabPatientAccess,
         LabReadModel,
+        LabReportService,
         LabResultService,
         LabWorklistService,
         { provide: LABORATORY_CONTEXT, useClass: options.context },
       ],
-      exports: [LabOrderService, LabPatientAccess, LabResultService],
+      exports: [LabOrderService, LabPatientAccess, LabReportService, LabResultService],
     };
   }
 }
