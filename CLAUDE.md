@@ -26,7 +26,7 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Backend — implemented (Phase 1 Foundation; Phase 2 Clinic in progress)**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic)**
 
 | Project                                              | Path                       | Nx tags                              | What it is                                                                                                 |
 | ---------------------------------------------------- | -------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -84,7 +84,7 @@ Inspect the repository before every change — do not assume any file, library, 
 - Business rules live in domain libraries, not in React components.
 - Every new project needs `nx.tags` in its `package.json` and its own `eslint.config.mjs`.
 
-**Next steps:** finish Phase 2 (clinic) and connect the staff app to the API (authentication, patient lookup, queue, encounter workspace), replacing the demo fixtures.
+**Next steps:** connect the staff app to the API (authentication, patient lookup, queue, encounter workspace, Patient 360), replacing the demo fixtures; then Phase 3 (Laboratory).
 
 ## 1. Technology stack
 

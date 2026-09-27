@@ -1,6 +1,6 @@
 # Architecture overview
 
-Status: Phase 1 (Foundation) implemented; Phase 2 (Clinic) in progress. See `CLAUDE.md` for the rules this follows.
+Status: Phase 1 (Foundation) and Phase 2 (Clinic) implemented in the API; the Next.js apps are a prototype on demo data. See `CLAUDE.md` for the rules this follows.
 
 ## Shape
 

@@ -24,6 +24,13 @@ User ──membership──▶ Organization
   with that `X-Department-Id`.
 - System roles (`org_admin`, `physician`, `nurse`, `receptionist`,
   `records_officer`, `auditor`) are templates; organizations can define custom roles.
+  Clinic permissions (migration 0012): physicians document, sign, amend and
+  prescribe; nurses triage, record allergies and manage care plans;
+  receptionists manage appointments and the queue; records officers read.
+- Clinical identity: starting or signing an encounter and prescribing also
+  require the account to be linked to an active practitioner of an allowed
+  profession — a permission alone is not enough. Only the responsible
+  practitioner may sign an encounter.
 - Nobody can grant a role or create a role containing permissions they do not
   hold themselves (privilege-escalation guard, audited).
 - Platform administrators (`is_platform_admin`) can create organizations.
@@ -35,6 +42,12 @@ User ──membership──▶ Organization
 Recorded in `audit_event`, append-only (trigger + recommended DB grants):
 who, what (`action`), when, organization, facility, patient, resource,
 outcome, reason, before/after changes, request id, IP and user agent.
+
+Audited in Phase 2 in addition: clinic configuration, appointment booking and
+every status change, check-in, queue moves and views, triage, vital signs and
+their corrections, allergy changes and reviews, encounter start/view/note
+saves/sign/amend, diagnoses, prescriptions (issue/view/replace/cancel),
+**decision-support overrides**, care plans, Patient 360 views.
 
 Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /
@@ -50,6 +63,9 @@ sub-records / consent / preferences, document create / upload / list / download
 - Outbound messages use reviewed templates; SMS/email/push must not contain
   clinical detail. Free text is limited to in-app messages.
 - Logs never contain message bodies; destinations are masked.
+- Domain events and realtime messages carry identifiers and statuses only —
+  never names or clinical text. Realtime clients authenticate with the same
+  access token and facility rules as the REST API.
 
 ## Known gaps (tracked for later phases)
 

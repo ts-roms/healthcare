@@ -33,10 +33,10 @@ Walk-in / Appointment → Check-in → Queue → Triage (vitals, chief complaint
 
 `AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`.
 
-## Permissions (initial)
+## Permissions
 
-`clinic.queue.manage`, `clinic.triage.write`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `prescription.issue`, `prescription.cancel`. Access is scoped by organization → facility → department.
+`clinic.configure`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`, `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `clinic.dashboard.read`; prescriptions: `prescription.read`, `prescription.issue`, `prescription.cancel` (`libs/prescription`). Access is scoped by organization → facility → department.
 
 ## Docs
 
-Keep `docs/domains/clinic.md` current (use `docs/domains/_template.md`).
+Keep `docs/domains/clinic.md` current (use `docs/domains/_template.md`). Implementation layout: `libs/clinic` holds scheduling, queue, triage, allergies and encounters (ADR-0007); `libs/prescription` and `libs/care-plan` are separate domains reached through ports.
