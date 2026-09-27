@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertOctagonIcon, LineChartIcon } from "lucide-react";
+import { AlertOctagonIcon, LineChartIcon, PrinterIcon } from "lucide-react";
 import { clinicalDate, LabFlagBadge, LabTrendChart } from "@healthcare/ui/healthcare";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabTrend, PatientLabResult } from "@/lib/api/types";
+import { fileHref } from "@/lib/files";
 import { groupResultsByTest, latestRange, mixedUnits, referenceText, resultValue, trendPoints, uiFlag } from "@/lib/lab-mapping";
 import { loadLabTrend } from "../../laboratory/actions";
 
@@ -70,6 +71,16 @@ export function PatientLabResults({ patientId, results }: { patientId: string; r
           })}
         </TableBody>
       </Table>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-table">
+        <span className="flex items-center gap-1 text-muted-foreground">
+          <PrinterIcon className="size-3.5" aria-hidden /> Printable reports:
+        </span>
+        {[...new Map(results.map((r) => [r.orderId, r.orderNumber])).entries()].map(([orderId, orderNumber]) => (
+          <a key={orderId} href={fileHref.labReport(orderId)} target="_blank" rel="noreferrer" className="font-mono text-primary hover:underline">
+            {orderNumber}
+          </a>
+        ))}
+      </p>
       {trend ? <TrendView trend={trend.data} /> : null}
     </div>
   );

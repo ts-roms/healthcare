@@ -9,6 +9,7 @@ export interface PatientResultView {
   id: string;
   testId: string;
   testName: string;
+  orderId: string;
   orderNumber: string;
   resultType: "numeric" | "text" | "coded";
   valueNumeric: number | null;
@@ -68,6 +69,11 @@ export class LabPatientAccess {
     return { analyte: analyteKey(anchor), testName: anchor.name, unit: anchor.unit, points };
   }
 
+  /** The visible results of one of the patient's orders (for the patient's printed report). */
+  async orderResults(organizationId: string, patientId: string, orderId: string): Promise<PatientResultView[]> {
+    return this.query(and(eq(labResult.organizationId, organizationId), eq(labResult.patientId, patientId), eq(labResult.orderId, orderId)), 200, "oldest");
+  }
+
   /** Whether any result of this order is now visible to the patient (for "results ready" notices). */
   async orderHasVisibleResults(organizationId: string, orderId: string): Promise<boolean> {
     const rows = await this.query(and(eq(labResult.organizationId, organizationId), eq(labResult.orderId, orderId)), 1);
@@ -102,6 +108,7 @@ export class LabPatientAccess {
       id: r.id,
       testId: r.testId,
       testName,
+      orderId: r.orderId,
       orderNumber,
       resultType: r.resultType,
       valueNumeric: r.valueNumeric,

@@ -28,6 +28,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/pdf/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/billing/tsconfig.lib.json"
     },
     {

@@ -3,6 +3,7 @@ export * from "./lib/billing.module";
 export * from "./lib/billing.rules";
 export * from "./lib/billing.schema";
 export * from "./lib/charges/charge.service";
+export * from "./lib/documents/billing-documents";
 export * from "./lib/invoices/invoice.service";
 export * from "./lib/money";
 export * from "./lib/payments/payment.service";

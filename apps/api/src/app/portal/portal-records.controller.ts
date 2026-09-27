@@ -1,10 +1,10 @@
-import { Controller, Get, ParseUUIDPipe, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Query, StreamableFile, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { CarePlanService } from "@healthcare/care-plan";
 import { ClinicQueries } from "@healthcare/clinic";
-import { Public } from "@healthcare/core";
-import { LabPatientAccess } from "@healthcare/laboratory";
+import { pdfFile, Public } from "@healthcare/core";
+import { LabPatientAccess, LabReportService } from "@healthcare/laboratory";
 import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 import { PrescriptionService } from "@healthcare/prescription";
 
@@ -25,6 +25,7 @@ export class PortalRecordsController {
   constructor(
     private readonly clinic: ClinicQueries,
     private readonly lab: LabPatientAccess,
+    private readonly labReports: LabReportService,
     private readonly prescriptions: PrescriptionService,
     private readonly carePlans: CarePlanService,
     private readonly audit: AuditService,
@@ -53,6 +54,13 @@ export class PortalRecordsController {
       metadata: { results: results.length },
     });
     return results;
+  }
+
+  @Get("results/orders/:orderId/report.pdf")
+  @ApiOperation({ summary: "The patient's printable report of one laboratory order (only results the patient may see)" })
+  async labReport(@CurrentPatient() patient: PortalPrincipal, @Param("orderId", ParseUUIDPipe) orderId: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.labReports.patientReport(patient.organizationId, patient.patientId, orderId, patientAuditContext(patient));
+    return pdfFile(pdf, filename);
   }
 
   @Get("results/trend")

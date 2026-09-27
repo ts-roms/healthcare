@@ -4,6 +4,7 @@ import { BillingCatalogController, BillingController } from "./billing.controlle
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeCapture } from "./charges/charge-capture";
 import { ChargeService } from "./charges/charge.service";
+import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
 import { PaymentService } from "./payments/payment.service";
 import { BILLING_PATIENTS, BILLING_SOURCES, type BillingPatientDirectory, type BillingSources } from "./ports";
@@ -24,6 +25,7 @@ export class BillingModule {
       controllers: [BillingCatalogController, BillingController],
       providers: [
         BillingCatalogService,
+        BillingDocuments,
         ChargeCapture,
         ChargeService,
         InvoiceService,
@@ -31,7 +33,7 @@ export class BillingModule {
         { provide: BILLING_SOURCES, useClass: options.sources },
         { provide: BILLING_PATIENTS, useClass: options.patients },
       ],
-      exports: [ChargeService, InvoiceService],
+      exports: [BillingDocuments, ChargeService, InvoiceService],
     };
   }
 }

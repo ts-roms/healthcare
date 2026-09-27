@@ -54,6 +54,7 @@ export interface PortalResult {
   id: string;
   testId: string;
   testName: string;
+  orderId: string;
   orderNumber: string;
   resultType: "numeric" | "text" | "coded";
   valueNumeric: number | null;

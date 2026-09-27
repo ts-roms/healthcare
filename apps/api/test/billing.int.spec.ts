@@ -10,7 +10,9 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  binary,
 } from "./harness";
+import { extractPdfText } from "@healthcare/pdf";
 
 /**
  * Phase 7 billing journey: charges captured from a signed consultation and a
@@ -300,6 +302,27 @@ describe("billing", () => {
     await expect(ctx.pool.query(`UPDATE billing_payment SET amount = 1 WHERE id = $1`, [ids.payment])).rejects.toThrow();
   });
 
+  it("prints the invoice and a receipt, with the evidence ID masked", async () => {
+    const pdf = async (url: string, token = cashier) =>
+      extractPdfText((await ctx.http().get(`/api/v1${url}`).set(as(token, tenant.facilityId)).buffer(true).parse(binary).expect(200)).body as Buffer);
+    const invoice = await pdf(`/billing/invoices/${ids.invoice}/pdf`);
+    expect(invoice).toContain(`INV-${year}-000001`);
+    expect(invoice).toContain("MENDOZA, Lourdes");
+    expect(invoice).toContain("Senior citizen");
+    expect(invoice).toContain("PHP 450.00");
+    expect(invoice).toContain("Maxicare");
+    expect(invoice).toContain("This invoice is not an official receipt");
+    expect(invoice).not.toContain("OSCA-2019");
+    expect(invoice).not.toContain("DRAFT");
+    const receipt = await pdf(`/billing/payments/${ids.payment}/receipt.pdf`);
+    expect(receipt).toContain("Acknowledgement Receipt");
+    expect(receipt).toContain(`AR-${year}-000001`);
+    expect(receipt).toContain("Two hundred pesos only");
+    expect(receipt).toContain("PHP 250.00"); // balance right after this payment (45,000 - 20,000 centavos)
+    const audit = await auditRows(ctx.pool, "action IN ('billing.invoice.print', 'billing.receipt.print')");
+    expect(audit.map((a) => a.action).sort()).toEqual(["billing.invoice.print", "billing.receipt.print"]);
+  });
+
   it("refunds only with permission and a reason, and not more than was paid", async () => {
     await req(cashier)
       .post(`/billing/payments/${ids.payment}/refund`, { amount: 5_000, method: "cash", reason: "Overcharged", idempotencyKey: "ref-0001" })
@@ -426,6 +449,32 @@ describe("billing", () => {
       [`INV-${year}-000002`, "void", 0],
       [`INV-${year}-000001`, "issued", 5_000],
     ]);
+    const copy = await ctx
+      .http()
+      .get(`/api/v1/portal/billing/${ids.invoice}/pdf`)
+      .set({ authorization: `Bearer ${token}` })
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
+    expect(extractPdfText(copy.body as Buffer)).toContain("Patient's copy from MyHealth");
+    // Drafts are not the patient's to see; staff print them watermarked.
+    const extra = await req(cashier).post("/billing/charges", { patientId, serviceId: ids.cert }).expect(201);
+    const draftInvoice = await req(cashier)
+      .post("/billing/invoices", { patientId, chargeIds: [extra.body.id] })
+      .expect(201);
+    await ctx
+      .http()
+      .get(`/api/v1/portal/billing/${draftInvoice.body.id}/pdf`)
+      .set({ authorization: `Bearer ${token}` })
+      .expect(404);
+    const staffDraft = await ctx
+      .http()
+      .get(`/api/v1/billing/invoices/${draftInvoice.body.id}/pdf`)
+      .set(as(cashier, tenant.facilityId))
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
+    expect(extractPdfText(staffDraft.body as Buffer)).toContain("DRAFT");
     const first = bills.body[1];
     expect(first.discounts).toEqual([{ name: "Senior citizen", amount: 15_000 }]);
     expect(JSON.stringify(bills.body)).not.toMatch(/OSCA|recordedBy|createdBy|notes/);

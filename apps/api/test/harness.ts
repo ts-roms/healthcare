@@ -203,3 +203,12 @@ export async function createClinician(
   );
   return { userId, practitionerId: result.rows[0]!.id };
 }
+
+/** Supertest parser that keeps a binary body (PDFs) as a Buffer. */
+export const binary: Parameters<import("supertest").Test["parse"]>[0] = (res: unknown, done: (error: Error | null, body: Buffer) => void) => {
+  const stream = res as NodeJS.ReadableStream;
+  const chunks: Buffer[] = [];
+  stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+  stream.on("end", () => done(null, Buffer.concat(chunks)));
+  stream.on("error", (error: Error) => done(error, Buffer.alloc(0)));
+};

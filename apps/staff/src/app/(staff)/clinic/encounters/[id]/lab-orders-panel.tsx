@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertOctagonIcon, FlaskConicalIcon, PlusIcon, XIcon, ZapIcon } from "lucide-react";
+import { AlertOctagonIcon, FlaskConicalIcon, PlusIcon, XIcon, ZapIcon, PrinterIcon } from "lucide-react";
 import { clinicalDateTime, LabFlagBadge } from "@healthcare/ui/healthcare";
 import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { fileHref } from "@/lib/files";
 import type { LabOrder, LabPanel, LabPriority, LabTest } from "@/lib/api/types";
 import { ITEM_STATUS_LABEL, PRIORITY_LABEL, referenceText, resultValue, uiFlag } from "@/lib/lab-mapping";
 import { cancelLabOrder, createLabOrder } from "../../../laboratory/actions";
@@ -86,6 +87,11 @@ function OrderCard({ order, canCancel }: { order: LabOrder; canCancel: boolean }
           <span className="text-meta text-muted-foreground">{PRIORITY_LABEL[order.priority]}</span>
         )}
         {order.fastingRequired ? <Badge variant="info">Fasting</Badge> : null}
+        {order.items.some((i) => i.result?.status === "released") ? (
+          <a href={fileHref.labReport(order.id)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-meta text-primary hover:underline">
+            <PrinterIcon className="size-3.5" aria-hidden /> Report
+          </a>
+        ) : null}
         <span className="ml-auto text-meta text-muted-foreground">
           {order.status === "cancelled"
             ? `Cancelled: ${order.cancellationReason}`

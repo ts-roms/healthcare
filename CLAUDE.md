@@ -28,20 +28,21 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine, Phase 7 Billing)**
 
-| Project                                              | Path                       | Nx tags                              | What it is                                                                                                    |
-| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.    |
-| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                     |
-| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.      |
-| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                        |
-| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                               |
-| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in.  |
-| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.     |
-| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                       |
-| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                   |
-| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.   |
-| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.    |
-| `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`      | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds. |
+| Project                                              | Path                       | Nx tags                              | What it is                                                                                                                    |
+| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.                    |
+| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                                     |
+| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.                      |
+| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                                        |
+| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                                               |
+| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in.                  |
+| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.                     |
+| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                                       |
+| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                                   |
+| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.                   |
+| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.                    |
+| `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`      | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds.                 |
+| `@healthcare/pdf`                                    | `libs/pdf`                 | `scope:shared`, `type:util`          | PDF toolkit (pdfkit, standard fonts): letterhead, fields, paged tables, totals, watermark, footer; text extraction for tests. |
 
 **Frontend — partly connected to the API**
 
@@ -96,7 +97,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Outreach (Phase 4c):** care-plan recall reminders (`CarePlanRecallReminders`, hourly in daytime, once per activity/due date/kind), no-show follow-up, in-app copies of patient notices, staff "Message in MyHealth" on the patient record; all through `NotificationService` (consent and preferences).
 
-**Next steps:** Phase 6 (Dental), then Phase 8 (Philippine integrations: PhilHealth eClaims, DOH reporting, FHIR — each an integration dependency until official specifications are obtained). Billing follow-ups: printable invoices/receipts (PDF), deposits, packages, credit notes, online payment (provider dependency). Phase 3 follow-ups: printable result reports (PDF), result attachments, label printing, realtime lab status.
+**Next steps:** Phase 6 (Dental), then Phase 8 (Philippine integrations: PhilHealth eClaims, DOH reporting, FHIR — each an integration dependency until official specifications are obtained). Printable PDFs exist for laboratory reports, invoices and receipts (`docs/architecture/printable-documents.md`); follow-ups: archiving released lab reports to object storage via BullMQ. Billing follow-ups: deposits, packages, credit notes, online payment (provider dependency). Phase 3 follow-ups: result attachments, label printing, realtime lab status.
 
 ## 1. Technology stack
 

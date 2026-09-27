@@ -47,6 +47,9 @@
     },
     {
       "path": "./libs/billing"
+    },
+    {
+      "path": "./libs/pdf"
     }
   ],
   "compilerOptions": {}
