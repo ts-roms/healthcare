@@ -55,10 +55,9 @@ export const STAFF_NAVIGATION: NavItem[] = [
     icon: FlaskConicalIcon,
     roles: ["lab-tech", "doctor", "nurse", "admin"],
     children: [
-      { label: "Worklists", href: "/laboratory/worklist", roles: ["lab-tech", "admin"] },
-      { label: "Orders", href: "/laboratory/orders" },
-      { label: "Specimens", href: "/laboratory/specimens", roles: ["lab-tech", "nurse", "admin"] },
-      { label: "Results", href: "/laboratory/results" },
+      { label: "Workbench", href: "/laboratory/worklist", roles: ["lab-tech", "admin"] },
+      { label: "Critical results", href: "/laboratory/critical" },
+      { label: "Catalog", href: "/laboratory/catalog", roles: ["lab-tech", "admin"] },
       { label: "Quality Control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
     ],
   },

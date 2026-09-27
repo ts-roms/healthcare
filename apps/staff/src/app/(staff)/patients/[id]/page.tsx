@@ -5,6 +5,7 @@ import {
   AlertTriangleIcon,
   CalendarIcon,
   CalendarPlusIcon,
+  FlaskConicalIcon,
   LogInIcon,
   EyeOffIcon,
   PhoneIcon,
@@ -20,8 +21,9 @@ import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import type { PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
 import { ConsentHistory } from "./consent-history";
+import { PatientLabResults } from "./lab-results";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
 import { RecordConsent } from "./record-consent";
@@ -54,6 +56,18 @@ async function loadSummary(id: string): Promise<PatientSummaryResponse | null> {
   }
 }
 
+/** Released laboratory results (audited by the API); null without laboratory result access. */
+async function loadLabResults(id: string): Promise<PatientLabResult[] | null> {
+  const session = await getSession();
+  if (!can(session, "lab.result.read")) return null;
+  try {
+    return await api<PatientLabResult[]>(`/laboratory/patients/${id}/results`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -66,7 +80,13 @@ async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, session] = await Promise.all([loadPatient(id), loadSummary(id), loadPortalAccount(id), getSession()]);
+  const [p, summary, portal, labResults, session] = await Promise.all([
+    loadPatient(id),
+    loadSummary(id),
+    loadPortalAccount(id),
+    loadLabResults(id),
+    getSession(),
+  ]);
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBook = can(session, "appointment.manage");
   const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
@@ -259,6 +279,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             )}
           </CardContent>
         </Card>
+
+        {labResults ? (
+          <Card className="lg:col-span-2" id="laboratory">
+            <CardHeader>
+              <FlaskConicalIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Laboratory results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PatientLabResults patientId={p.id} results={labResults} />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="lg:col-span-2">
           <CardHeader>

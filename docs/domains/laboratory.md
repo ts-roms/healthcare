@@ -159,6 +159,11 @@ Results reference instrument and method as text today; QC runs and reagent lots 
 state) implemented in `apps/api/src/app/adapters/laboratory-adapters.ts` over `PatientRecordService`, `ClinicQueries`
 and `UsersService`. Other domains order tests only through the API above; they never read laboratory tables.
 
+## Staff app
+
+Workbench, critical results, catalog, ordering from the encounter workspace, and results and trends on the patient
+record: see [staff-app.md](../architecture/staff-app.md#laboratory).
+
 ## Open questions / assumptions
 
 - Accession numbers are per facility per day; if a site needs a different format (prefixes, check digits for its

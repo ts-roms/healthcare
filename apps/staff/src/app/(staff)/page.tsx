@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { ActionMetric, AppointmentCard, AttentionList, isCriticalFlag, QueueBoard } from "@healthcare/ui/healthcare";
+import { ActionMetric, AppointmentCard, AttentionList, QueueBoard } from "@healthcare/ui/healthcare";
 import {
   Button,
   Card,
@@ -20,10 +20,9 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { AppointmentItem, ClinicDashboard, DueCareActivity, Me, Page, QueueVisit } from "@/lib/api/types";
+import type { AppointmentItem, ClinicDashboard, DueCareActivity, LabCriticalAlert, LabDashboard, Me, Page, QueueVisit } from "@/lib/api/types";
 import { QUEUE_BOARD_STATUSES, toAppointment, todayIn, toQueueEntry, upcomingAppointments } from "@/lib/clinic-mapping";
 import { attentionItems, minutesLabel } from "@/lib/dashboard-mapping";
-import { getLabWorklist } from "@/lib/demo-data";
 
 export const metadata = { title: "Dashboard" };
 
@@ -59,7 +58,7 @@ export default async function DashboardPage() {
         </p>
       ) : null}
       {facility && can(session, "clinic.dashboard.read") ? <ClinicToday session={session} facility={facility} /> : null}
-      {can(session, "patient.read") ? <LaboratoryPreview /> : null}
+      {facility ? <LaboratoryToday session={session} /> : null}
     </>
   );
 }
@@ -179,36 +178,72 @@ async function NextPatients({ session, facility }: { session: Me; facility: { id
   );
 }
 
-/** Laboratory is Phase 3: this panel stays on demo fixtures, labelled as such, and never shows real patients. */
-async function LaboratoryPreview() {
-  const labs = await getLabWorklist();
-  const critical = labs.filter((o) => o.observations.some((x) => isCriticalFlag(x.flag)));
+/** The facility laboratory today (GET /laboratory/dashboard) and critical results waiting for acknowledgement. */
+async function LaboratoryToday({ session }: { session: Me }) {
+  const [dashboard, criticals] = await Promise.all([
+    can(session, "lab.dashboard.read") ? api<LabDashboard>("/laboratory/dashboard") : Promise.resolve(null),
+    can(session, "lab.result.read") ? api<LabCriticalAlert[]>("/laboratory/critical-results") : Promise.resolve([]),
+  ]);
+  if (!dashboard && criticals.length === 0) return null;
+  const workbench = can(session, "lab.order.read") ? "/laboratory/worklist" : undefined;
   return (
     <section className="p-4 pt-0" aria-labelledby="lab-heading">
-      <div className="mb-2 flex items-baseline gap-2">
-        <h2 id="lab-heading" className="text-section font-semibold">
-          Laboratory
-        </h2>
-        <span className="rounded-sm border border-warning/40 bg-warning-subtle px-1.5 text-meta font-medium text-warning-foreground">Demo data</span>
-        <span className="text-meta text-muted-foreground">Preview until the laboratory module is built (Phase 3).</span>
-      </div>
+      <h2 id="lab-heading" className="mb-2 text-section font-semibold">
+        Laboratory
+      </h2>
       <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <Card className="p-1">
-          <ActionMetric value={128} label="Orders" href="/laboratory/worklist" />
-          <ActionMetric value={22} label="Awaiting verification" tone="warning" href="/laboratory/worklist" />
-          <ActionMetric value={critical.length} label="Critical" tone="critical" href="/laboratory/worklist" />
-        </Card>
+        {dashboard ? (
+          <Card className="p-1">
+            <ActionMetric value={dashboard.pendingCollection} label="To collect" href={workbench && `${workbench}?stage=collect`} />
+            <ActionMetric value={dashboard.awaitingEntry} label="Awaiting results" href={workbench && `${workbench}?stage=enter`} />
+            <ActionMetric
+              value={dashboard.awaitingVerification + dashboard.awaitingApproval}
+              label="Awaiting sign-off"
+              tone={dashboard.awaitingVerification + dashboard.awaitingApproval ? "warning" : "default"}
+              href={workbench && `${workbench}?stage=verify`}
+            />
+            <ActionMetric value={dashboard.statOpen} label="STAT open" tone={dashboard.statOpen ? "warning" : "default"} href={workbench} />
+            <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 border-t px-2 py-2 text-table">
+              <dt className="text-muted-foreground">Released today</dt>
+              <dd className="tabular text-right font-medium">{dashboard.releasedToday}</dd>
+              <dt className="text-muted-foreground">Avg. turnaround</dt>
+              <dd className="tabular text-right font-medium">{minutesLabel(dashboard.averageTurnaroundMinutes)}</dd>
+              <dt className="text-muted-foreground">Rejected today</dt>
+              <dd className="tabular text-right font-medium">{dashboard.rejectedToday}</dd>
+            </dl>
+          </Card>
+        ) : (
+          <div />
+        )}
         <AttentionList
-          title="Laboratory (demo)"
+          title="Laboratory"
           items={[
-            {
-              id: "crit",
-              severity: "critical",
-              count: critical.length,
-              title: "Critical results to call",
-              detail: critical.map((o) => `${o.accession} ${o.test} — ${o.patientName}`).join(", "),
-              href: "/laboratory/worklist",
-            },
+            ...(criticals.length
+              ? [
+                  {
+                    id: "lab-critical",
+                    severity: "critical" as const,
+                    count: criticals.length,
+                    title: "Critical results not yet acknowledged",
+                    detail: criticals
+                      .slice(0, 3)
+                      .map((c) => `${c.testName} — ${c.patient?.patientNumber ?? "patient"}`)
+                      .join(", "),
+                    href: "/laboratory/critical",
+                  },
+                ]
+              : []),
+            ...(dashboard?.overdue
+              ? [
+                  {
+                    id: "lab-overdue",
+                    severity: "warning" as const,
+                    count: dashboard.overdue,
+                    title: "Tests past their turnaround time",
+                    href: workbench,
+                  },
+                ]
+              : []),
           ]}
         />
       </div>

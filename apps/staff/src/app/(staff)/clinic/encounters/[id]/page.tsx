@@ -9,8 +9,12 @@ import type {
   CodingSystem,
   Encounter,
   EncounterDetail,
+  LabOrder,
+  LabPanel,
+  LabTest,
   Page,
   PatientDetail,
+  PatientLabResult,
   PatientSummaryResponse,
   Practitioner,
   Prescription,
@@ -55,16 +59,22 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
   if (!can(session, "encounter.read")) redirect("/");
   if (!UUID.test(id)) notFound();
   const encounter = await load<EncounterDetail>(`/encounters/${id}`);
-  const [patient, summary, history, practitioners, codingSystems, prescriptions, carePlans, facility] = await Promise.all([
-    load<PatientDetail>(`/patients/${encounter.patientId}`),
-    can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
-    load<Page<Encounter>>("/encounters", { patientId: encounter.patientId, pageSize: 20 }),
-    can(session, "appointment.read") ? optional<Practitioner[]>("/clinic/practitioners") : Promise.resolve(null),
-    optional<CodingSystem[]>("/clinic/coding-systems"),
-    can(session, "prescription.read") ? optional<Prescription[]>("/prescriptions", { encounterId: encounter.id }) : Promise.resolve(null),
-    can(session, "care-plan.read") ? openCarePlans(encounter.patientId) : Promise.resolve(null),
-    getSelectedFacility(),
-  ]);
+  const canOrderLab = can(session, "lab.order.create") && encounter.status === "in_progress";
+  const [patient, summary, history, practitioners, codingSystems, prescriptions, carePlans, facility, labOrders, labTests, labPanels, labResults] =
+    await Promise.all([
+      load<PatientDetail>(`/patients/${encounter.patientId}`),
+      can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
+      load<Page<Encounter>>("/encounters", { patientId: encounter.patientId, pageSize: 20 }),
+      can(session, "appointment.read") ? optional<Practitioner[]>("/clinic/practitioners") : Promise.resolve(null),
+      optional<CodingSystem[]>("/clinic/coding-systems"),
+      can(session, "prescription.read") ? optional<Prescription[]>("/prescriptions", { encounterId: encounter.id }) : Promise.resolve(null),
+      can(session, "care-plan.read") ? openCarePlans(encounter.patientId) : Promise.resolve(null),
+      getSelectedFacility(),
+      can(session, "lab.order.read") ? optional<LabOrder[]>("/laboratory/orders", { encounterId: encounter.id }) : Promise.resolve(null),
+      canOrderLab ? optional<LabTest[]>("/laboratory/tests") : Promise.resolve(null),
+      canOrderLab ? optional<LabPanel[]>("/laboratory/panels") : Promise.resolve(null),
+      can(session, "lab.result.read") ? optional<PatientLabResult[]>(`/laboratory/patients/${encounter.patientId}/results`) : Promise.resolve(null),
+    ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
   const controls = encounterControls(encounter.status, {
@@ -96,6 +106,14 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       canManageCarePlans={can(session, "care-plan.manage")}
       canBookFollowUp={can(session, "appointment.manage")}
       canManageAllergies={can(session, "allergy.manage")}
+      lab={{
+        orders: labOrders,
+        tests: labTests ?? [],
+        panels: labPanels ?? [],
+        results: labResults,
+        canOrder: canOrderLab && !!labTests,
+        canCancel: can(session, "lab.order.cancel"),
+      }}
     />
   );
 }
