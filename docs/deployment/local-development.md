@@ -11,11 +11,12 @@ pnpm db:seed                      # first organization, facility and platform ad
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
-`pnpm dev` starts the API, the notification worker, the staff app and the portal together with prefixed, interleaved logs (`nx run-many -t serve dev`); stop them all with Ctrl+C. The Next.js `dev` targets are marked `continuous` in each app's `package.json` so Nx runs them alongside the API. To run one app on its own (sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
+`pnpm dev` starts the API, the notification and integration workers, the staff app and the portal together with prefixed, interleaved logs (`nx run-many -t serve dev`); stop them all with Ctrl+C. The Next.js `dev` targets are marked `continuous` in each app's `package.json` so Nx runs them alongside the API. To run one app on its own (sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
 
 ```bash
 pnpm dev:api                      # http://localhost:3333/api, docs at /api/docs
 pnpm dev:worker                   # notification worker
+pnpm dev:integration-worker       # integration worker (outbound exchanges: PhilHealth, …)
 pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
 pnpm storybook                    # http://localhost:6006 — design system

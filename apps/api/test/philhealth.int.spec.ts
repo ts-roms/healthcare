@@ -1,5 +1,13 @@
+import { Test, type TestingModule } from "@nestjs/testing";
+import { CoreModule } from "@healthcare/core";
 import type { ClaimSubmissionOutcome, PhilHealthClaimPackage, PhilHealthClaimsGateway } from "@healthcare/interoperability";
-import { PHILHEALTH_CLAIMS_GATEWAY } from "@healthcare/interoperability";
+import {
+  INTEGRATION_QUEUE,
+  IntegrationExchangeProcessor,
+  IntegrationWorkerModule,
+  PHILHEALTH_CLAIMS_GATEWAY,
+  RetryableExchangeError,
+} from "@healthcare/interoperability";
 import {
   as,
   auditRows,
@@ -167,20 +175,49 @@ describe("PhilHealth claims — unconfigured (default)", () => {
   });
 });
 
-describe("PhilHealth claims — through an adapter (test double)", () => {
+describe("PhilHealth claims — through an adapter (test double) and the integration worker", () => {
   let ctx: TestContext;
   let s: Setup;
+  let worker: TestingModule;
+  let processor: IntegrationExchangeProcessor;
   const gateway = new FakeGateway();
   const submit = (key: string) => s.req(s.cashier).post(`/philhealth/claims/invoices/${s.invoiceId}/submissions`, { idempotencyKey: key });
+  const exchange = async (key: string) =>
+    (await ctx.pool.query("SELECT * FROM integration_exchange WHERE idempotency_key = $1", [key])).rows[0] as {
+      id: string;
+      status: string;
+      attempts: number;
+      last_error: string | null;
+      external_reference: string | null;
+      outcome_detail: unknown;
+      payload_digest: string;
+    };
+  const sealed = async (id: string) => (await ctx.pool.query("SELECT ciphertext FROM integration_exchange_payload WHERE exchange_id = $1", [id])).rows[0];
 
   beforeAll(async () => {
-    ctx = await createTestApp({ philhealthGateway: { provide: PHILHEALTH_CLAIMS_GATEWAY, useValue: gateway } });
+    const gatewayProvider = { provide: PHILHEALTH_CLAIMS_GATEWAY, useValue: gateway };
+    ctx = await createTestApp({ philhealthGateway: gatewayProvider });
+    // The worker process: same database, no domain modules; the queue is driven by hand here.
+    worker = await Test.createTestingModule({
+      imports: [
+        CoreModule.forRoot(ctx.config),
+        IntegrationWorkerModule.forRoot({
+          autoStart: false,
+          philhealthGateway: gatewayProvider,
+          queue: { provide: INTEGRATION_QUEUE, useValue: ctx.integrations },
+        }),
+      ],
+    }).compile();
+    processor = worker.get(IntegrationExchangeProcessor);
     s = await issuedInvoiceWithPhilHealth(ctx, "ph-adapter");
     await s.req(s.admin).put(`/philhealth/facilities/${s.tenant.facilityId}/accreditation`, { accreditationNumber: "H91000200" }).expect(200);
   });
-  afterAll(() => ctx.close());
+  afterAll(async () => {
+    await worker.close();
+    await ctx.close();
+  });
 
-  it("queues a submission once per idempotency key, retries transient failures, and records the acknowledgement on the invoice", async () => {
+  it("hands the sealed claim to the worker, retries transient failures, and records the acknowledgement on the invoice", async () => {
     gateway.next = [{ outcome: "failed", retryable: true, error: "timeout" }];
     const queued = await submit("claim-attempt-1").expect(202);
     expect(queued.body).toMatchObject({ status: "queued", attempts: 0 });
@@ -188,17 +225,27 @@ describe("PhilHealth claims — through an adapter (test double)", () => {
     expect((await submit("claim-attempt-1").expect(202)).body.id).toBe(queued.body.id);
     expect((await submit("claim-attempt-2").expect(409)).body.error.code).toBe("claim_already_submitted");
 
-    await drainEvents(ctx); // first attempt fails transiently; the outbox keeps the event
-    let [row] = (await ctx.pool.query("SELECT status, attempts, last_error, payload_digest FROM integration_exchange")).rows;
-    expect(row).toMatchObject({ status: "queued", attempts: 1, last_error: "timeout" });
-    await drainEvents(ctx); // retried: accepted
-    [row] = (await ctx.pool.query("SELECT status, attempts, external_reference, payload_digest FROM integration_exchange")).rows;
-    expect(row).toMatchObject({ status: "accepted", external_reference: "TX-2" });
-    expect(row.payload_digest).toMatch(/^[0-9a-f]{64}$/);
+    // The prepared claim is sealed (encrypted) for the worker; the queue job carries only the exchange id.
+    const payload = await sealed(queued.body.id);
+    expect(payload.ciphertext).toMatch(/^v1\./);
+    expect(payload.ciphertext).not.toMatch(/345678901|Dela|E11/);
+    await drainEvents(ctx);
+    expect(ctx.integrations.enqueued).toEqual([queued.body.id]);
+    expect(gateway.received).toHaveLength(0); // the API never calls the adapter
+
+    // Worker: a transient failure is left queued for the queue's retry...
+    await expect(processor.process(queued.body.id, { finalAttempt: false })).rejects.toBeInstanceOf(RetryableExchangeError);
+    expect(await exchange("claim-attempt-1")).toMatchObject({ status: "queued", attempts: 1, last_error: "timeout" });
+    // ...and the retry is accepted.
+    await expect(processor.process(queued.body.id, { finalAttempt: false })).resolves.toBe("accepted");
+    await expect(processor.process(queued.body.id)).resolves.toBe("skipped"); // idempotent
+    expect(await exchange("claim-attempt-1")).toMatchObject({ status: "accepted", attempts: 2, external_reference: "TX-2" });
+    expect(await sealed(queued.body.id)).toBeUndefined(); // the PHI payload is gone once final
     // The adapter got the full package (unmasked) and the same idempotency key both times.
     expect(gateway.received.map((r) => r.key)).toEqual(["claim-attempt-1", "claim-attempt-1"]);
     expect(gateway.received[1]!.claim.patient.philhealthPin).toBe("12-345678901-2");
 
+    // The API acts on the worker's outcome (outbox): billing records the reference.
     await drainEvents(ctx);
     const invoice = await s.req(s.cashier).get(`/billing/invoices/${s.invoiceId}`).expect(200);
     expect(invoice.body.payers[0]).toMatchObject({ status: "submitted", reference: "TX-2" });
@@ -206,10 +253,10 @@ describe("PhilHealth claims — through an adapter (test double)", () => {
 
     const preview = await s.req(s.cashier).get(`/philhealth/claims/invoices/${s.invoiceId}`).expect(200);
     expect(preview.body.submissions).toEqual([expect.objectContaining({ status: "accepted", externalReference: "TX-2", attempts: 2 })]);
-    const audit = await auditRows(ctx.pool, "action IN ('philhealth.claim.submit-request', 'philhealth.claim.exchange', 'billing.claim.status')");
+    const audit = await auditRows(ctx.pool, "action IN ('philhealth.claim.submit-request', 'integration.exchange.completed', 'billing.claim.status')");
     expect(audit.map((a) => [a.action, a.actor_type])).toEqual([
       ["philhealth.claim.submit-request", "user"],
-      ["philhealth.claim.exchange", "system"],
+      ["integration.exchange.completed", "system"],
       ["billing.claim.status", "system"],
     ]);
     // No PHI in the exchange log.
@@ -217,26 +264,40 @@ describe("PhilHealth claims — through an adapter (test double)", () => {
     expect(log.rows[0].json).not.toMatch(/345678901|Dela Cruz|E11\.9/);
   });
 
-  it("refuses a claim whose data changed after the request, and records rejections", async () => {
-    // A second invoice for the same patient: a new consultation.
+  it("records rejections and final failures, refuses a payload that does not match its digest, and finds stranded exchanges", async () => {
     const other = await issuedInvoiceWithPhilHealth(ctx, "ph-adapter-2");
     await other.req(other.admin).put(`/philhealth/facilities/${other.tenant.facilityId}/accreditation`, { accreditationNumber: "H91000300" }).expect(200);
     const post = (key: string) => other.req(other.cashier).post(`/philhealth/claims/invoices/${other.invoiceId}/submissions`, { idempotencyKey: key });
 
-    await post("changed-claim-1").expect(202);
-    await ctx.pool.query("UPDATE patient SET family_name = 'Dela Cruz-Santos' WHERE id = $1", [other.patientId]);
-    const before = gateway.received.length;
-    await drainEvents(ctx);
-    expect(gateway.received.length).toBe(before); // nothing sent
-    const changed = await ctx.pool.query("SELECT status, last_error FROM integration_exchange WHERE idempotency_key = 'changed-claim-1'");
-    expect(changed.rows[0]).toMatchObject({ status: "failed", last_error: expect.stringMatching(/changed/) });
-
+    // Rejected by PhilHealth: reason codes kept, billing untouched, a new submission is possible.
     gateway.next = [{ outcome: "rejected", reasons: [{ code: "R-TEST", message: "Rejected by the test double" }] }];
-    await post("changed-claim-2").expect(202);
+    const rejected = (await post("other-claim-1").expect(202)).body.id;
+    await expect(processor.process(rejected)).resolves.toBe("rejected");
+    expect(await exchange("other-claim-1")).toMatchObject({
+      status: "rejected",
+      outcome_detail: { reasons: [{ code: "R-TEST", message: "Rejected by the test double" }] },
+    });
     await drainEvents(ctx);
-    const rejected = await ctx.pool.query("SELECT status, outcome_detail FROM integration_exchange WHERE idempotency_key = 'changed-claim-2'");
-    expect(rejected.rows[0]).toMatchObject({ status: "rejected", outcome_detail: { reasons: [{ code: "R-TEST", message: "Rejected by the test double" }] } });
-    const invoice = await other.req(other.cashier).get(`/billing/invoices/${other.invoiceId}`).expect(200);
-    expect(invoice.body.payers[0].status).toBe("pending");
+    expect((await other.req(other.cashier).get(`/billing/invoices/${other.invoiceId}`).expect(200)).body.payers[0].status).toBe("pending");
+
+    // Transient failures on the last attempt: failed.
+    gateway.next = [{ outcome: "failed", retryable: true, error: "gateway unavailable" }];
+    const exhausted = (await post("other-claim-2").expect(202)).body.id;
+    await expect(processor.process(exhausted, { finalAttempt: true })).resolves.toBe("failed");
+    expect(await exchange("other-claim-2")).toMatchObject({ status: "failed", last_error: "gateway unavailable" });
+
+    // A payload that does not match what was recorded at request time is never sent.
+    const tampered = (await post("other-claim-3").expect(202)).body.id;
+    await ctx.pool.query("UPDATE integration_exchange SET payload_digest = repeat('0', 64) WHERE id = $1", [tampered]);
+    const sent = gateway.received.length;
+    await expect(processor.process(tampered)).resolves.toBe("failed");
+    expect(gateway.received).toHaveLength(sent);
+    expect((await exchange("other-claim-3")).last_error).toMatch(/digest/);
+
+    // An exchange whose job was lost is found by the reconciler.
+    const stranded = (await post("other-claim-4").expect(202)).body.id;
+    expect(await processor.findStranded()).not.toContain(stranded);
+    await ctx.pool.query("UPDATE integration_exchange SET requested_at = now() - interval '15 minutes' WHERE id = $1", [stranded]);
+    expect(await processor.findStranded()).toContain(stranded);
   });
 });

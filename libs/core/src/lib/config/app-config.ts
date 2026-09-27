@@ -15,61 +15,82 @@ const jsonUriMap = z
   })
   .pipe(z.record(z.string(), z.string().url()));
 
-const appConfigSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3333),
-  LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
-  DATABASE_URL: z.string().url(),
-  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
-  REDIS_URL: z.string().url().default("redis://localhost:6379"),
-  JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
-  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
-  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
-  MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
-  CORS_ORIGINS: z
-    .string()
-    .default("")
-    .transform((value) =>
-      value
-        .split(",")
-        .map((origin) => origin.trim())
-        .filter(Boolean),
-    ),
-  TRUST_PROXY: booleanString.default(false),
-  S3_ENDPOINT: z.string().url().optional(),
-  S3_REGION: z.string().default("ap-southeast-1"),
-  S3_BUCKET: z.string().default("healthcare-documents"),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_FORCE_PATH_STYLE: booleanString.default(false),
-  SMTP_URL: z.string().optional(),
-  EMAIL_FROM: z.string().default("Healthcare Platform <no-reply@localhost>"),
-  // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
-  // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
-  LIVEKIT_URL: z.string().url().optional(),
-  LIVEKIT_API_KEY: z.string().min(1).optional(),
-  LIVEKIT_API_SECRET: z.string().min(1).optional(),
-  // FHIR R4 read interface (docs/interoperability/fhir.md). FHIR_BASE_URL is the public base used in Bundle links,
-  // e.g. https://api.example.ph/api/v1/fhir/r4 (defaults to the request's own URL). FHIR_IDENTIFIER_BASE namespaces the
-  // platform's own identifier systems (the organization code is appended). FHIR_IDENTIFIER_SYSTEMS / FHIR_CODE_SYSTEMS are
-  // JSON maps from internal identifier types / coding keys to official URIs, once those are confirmed.
-  FHIR_BASE_URL: z
-    .string()
-    .url()
-    .transform((value) => value.replace(/\/+$/, ""))
-    .optional(),
-  FHIR_IDENTIFIER_BASE: z
-    .string()
-    .url()
-    .transform((value) => value.replace(/\/+$/, ""))
-    .optional(),
-  FHIR_IDENTIFIER_SYSTEMS: jsonUriMap.optional(),
-  FHIR_CODE_SYSTEMS: jsonUriMap.optional(),
-});
+const appConfigSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    PORT: z.coerce.number().int().positive().default(3333),
+    LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
+    DATABASE_URL: z.string().url(),
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+    REDIS_URL: z.string().url().default("redis://localhost:6379"),
+    JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
+    MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
+    CORS_ORIGINS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      ),
+    TRUST_PROXY: booleanString.default(false),
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_REGION: z.string().default("ap-southeast-1"),
+    S3_BUCKET: z.string().default("healthcare-documents"),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_FORCE_PATH_STYLE: booleanString.default(false),
+    SMTP_URL: z.string().optional(),
+    EMAIL_FROM: z.string().default("Healthcare Platform <no-reply@localhost>"),
+    // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
+    // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
+    LIVEKIT_URL: z.string().url().optional(),
+    LIVEKIT_API_KEY: z.string().min(1).optional(),
+    LIVEKIT_API_SECRET: z.string().min(1).optional(),
+    // FHIR R4 read interface (docs/interoperability/fhir.md). FHIR_BASE_URL is the public base used in Bundle links,
+    // e.g. https://api.example.ph/api/v1/fhir/r4 (defaults to the request's own URL). FHIR_IDENTIFIER_BASE namespaces the
+    // platform's own identifier systems (the organization code is appended). FHIR_IDENTIFIER_SYSTEMS / FHIR_CODE_SYSTEMS are
+    // JSON maps from internal identifier types / coding keys to official URIs, once those are confirmed.
+    FHIR_BASE_URL: z
+      .string()
+      .url()
+      .transform((value) => value.replace(/\/+$/, ""))
+      .optional(),
+    FHIR_IDENTIFIER_BASE: z
+      .string()
+      .url()
+      .transform((value) => value.replace(/\/+$/, ""))
+      .optional(),
+    FHIR_IDENTIFIER_SYSTEMS: jsonUriMap.optional(),
+    FHIR_CODE_SYSTEMS: jsonUriMap.optional(),
+    // Encrypts prepared integration payloads (e.g. a PhilHealth claim) between the API and the integration worker.
+    // 32 bytes, base64. Required in production; elsewhere MFA_ENCRYPTION_KEY is used when it is unset.
+    INTEGRATION_PAYLOAD_KEY: z
+      .string()
+      .refine((value) => Buffer.from(value, "base64").length === 32, "INTEGRATION_PAYLOAD_KEY must be 32 bytes, base64-encoded")
+      .optional(),
+  })
+  .superRefine((config, ctx) => {
+    if (config.NODE_ENV === "production" && !config.INTEGRATION_PAYLOAD_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["INTEGRATION_PAYLOAD_KEY"],
+        message: "INTEGRATION_PAYLOAD_KEY is required in production (a key separate from MFA_ENCRYPTION_KEY)",
+      });
+    }
+  });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
+
+/** The key for integration payloads: its own in production, MFA_ENCRYPTION_KEY as a development fallback. */
+export function integrationPayloadKey(config: Pick<AppConfig, "INTEGRATION_PAYLOAD_KEY" | "MFA_ENCRYPTION_KEY">): string {
+  return config.INTEGRATION_PAYLOAD_KEY ?? config.MFA_ENCRYPTION_KEY;
+}
 
 /** Parses and validates configuration. Fails fast with every problem listed. */
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {

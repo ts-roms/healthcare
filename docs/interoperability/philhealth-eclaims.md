@@ -43,15 +43,19 @@ Staff (philhealth.claim.submit) ── GET  /api/v1/philhealth/claims/invoices/{
                                         │ refused (422 claim_not_ready) with the failing checks
                                         │ refused (409 claim_already_submitted) while one is queued or accepted
                                         ▼
-                  integration_exchange (queued, digest) + audit + PhilHealthClaimSubmissionRequested  — one transaction
-                                        ▼ outbox (at-least-once)
-                  PhilHealthSubmissions → PhilHealthClaimsService.process
-                     rebuild the package; if its digest differs from the request's → failed (data changed; prepare again)
-                     gateway.submitClaim(package, idempotencyKey)
-                       accepted  → exchange accepted + external reference → billing coverage line "submitted" with the reference
+       API, one transaction: integration_exchange (queued, digest) + the claim package sealed (encrypted) + audit
+                             + IntegrationExchangeRequested
+                                        ▼ outbox → BullMQ job { exchangeId }
+       apps/integration-worker: decrypt, check the digest, PhilHealthClaimHandler → gateway.submitClaim(package, idempotencyKey)
+                       accepted  → exchange accepted + external reference
                        rejected  → exchange rejected with the reason codes
-                       failed    → retried by the outbox (up to 5 attempts) unless not retryable → failed
+                       failed    → retried with backoff (5 attempts) unless not retryable → failed
+                                        ▼ IntegrationExchangeCompleted (outbox)
+       API: PhilHealthOutcomes → billing coverage line "submitted" with the reference
 ```
+
+The claim is sent as it was prepared and checked when staff requested it. See
+[../architecture/integration-worker.md](../architecture/integration-worker.md) for the hand-over, retries and recovery.
 
 Billing never learns about PhilHealth formats: the API adapter records the acknowledgement through
 `InvoiceService.recordIntegrationClaimSubmitted` (attributed to the requesting user, audited as the system). While
@@ -79,7 +83,7 @@ connected adapter is configured. Billing settings: **PhilHealth accreditation** 
 1. Record the specification source, version and contact in [dependencies.md](dependencies.md).
 2. Implement `PhilHealthClaimsGateway` in an adapter (mapping `PhilHealthClaimPackage` to the official format,
    transport, credentials from secrets management), idempotent per key; set `specification.status`.
-3. Move processing to `apps/integration-worker` (BullMQ, backoff, dead-letter) so external calls never run in the API's
-   outbox relay; keep `integration_exchange` as the log. Store full payloads only in protected storage if required.
+3. Provide the adapter to both the API (`PhilHealthModule` `gateway`, for its specification status) and
+   `apps/integration-worker` (`IntegrationWorkerModule` `philhealthGateway`, which sends).
 4. Add the specification's own validation, eligibility and claim-status operations as further ports.
 5. Validate against PhilHealth's test environment before any production use; do not claim accreditation until granted.

@@ -8,11 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "nx run-many -t serve dev -p api notification-worker staff portal --parallel=8 --output-style=stream",
+    "dev": "nx run-many -t serve dev -p api notification-worker integration-worker staff portal --parallel=8 --output-style=stream",
     "dev:staff": "nx run staff:dev",
     "dev:portal": "nx run portal:dev",
     "dev:api": "nx serve api",
     "dev:worker": "nx serve notification-worker",
+    "dev:integration-worker": "nx serve integration-worker",
     "dev:deps": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
     "db:migrate": "node -r @swc-node/register tools/db/migrate.ts",
     "db:seed": "node -r @swc-node/register tools/db/seed.ts",

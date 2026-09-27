@@ -1,36 +1,30 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, DomainEventPublisher, NotFoundError, systemActor } from "@healthcare/core";
+import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { type AccreditationSource, buildClaimPackage, claimReadiness, type ClaimSources, isReady, maskPin, packageDigest } from "./claim-package";
+import { integrationExchange, type IntegrationExchangeRecord } from "../exchange/exchange.schema";
+import { IntegrationExchanges } from "../exchange/integration-exchanges.service";
+import { type AccreditationSource, buildClaimPackage, claimReadiness, type ClaimSources, isReady, maskPin } from "./claim-package";
 import { PHILHEALTH_CLAIMS_GATEWAY, PHILHEALTH_ECLAIMS_SYSTEM, type PhilHealthClaimsGateway } from "./gateway";
-import { integrationExchange, type IntegrationExchangeRecord } from "./philhealth.schema";
+import { SUBMIT_CLAIM } from "./philhealth-claim-handler";
 import { PhilHealthSettingsService } from "./philhealth-settings.service";
-import { PHILHEALTH_BILLING_SINK, PHILHEALTH_CLAIM_SOURCES, type PhilHealthBillingSink, type PhilHealthClaimSources } from "./ports";
-
-export const CLAIM_SUBMISSION_REQUESTED = "PhilHealthClaimSubmissionRequested";
-const OPERATION = "submit_claim";
-/** Transient adapter failures are retried by the outbox this many times before the exchange is marked failed. */
-export const MAX_SUBMISSION_ATTEMPTS = 5;
+import { PHILHEALTH_CLAIM_SOURCES, type PhilHealthClaimSources } from "./ports";
 
 /**
- * Prepares PhilHealth claims from issued invoices and hands them to the
- * configured gateway. The default gateway is unconfigured (no official eClaims
- * specification on record): claims can be prepared and checked, but a
- * submission is refused rather than faked. Every exchange is logged with an
- * idempotency key and a digest of what was prepared — never the PHI payload.
+ * Prepares PhilHealth claims from issued invoices (API side). The default
+ * gateway is unconfigured (no official eClaims specification on record): claims
+ * can be prepared and checked, but a submission is refused rather than faked.
+ * With an adapter, a submission is prepared here and sent by the integration
+ * worker (docs/architecture/integration-worker.md).
  */
 @Injectable()
 export class PhilHealthClaimsService {
-  private readonly logger = new Logger(PhilHealthClaimsService.name);
-
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(PHILHEALTH_CLAIMS_GATEWAY) private readonly gateway: PhilHealthClaimsGateway,
     @Inject(PHILHEALTH_CLAIM_SOURCES) private readonly sources: PhilHealthClaimSources,
-    @Inject(PHILHEALTH_BILLING_SINK) private readonly billing: PhilHealthBillingSink,
     private readonly settings: PhilHealthSettingsService,
-    private readonly events: DomainEventPublisher,
+    private readonly exchanges: IntegrationExchanges,
     private readonly audit: AuditService,
   ) {}
 
@@ -62,7 +56,7 @@ export class PhilHealthClaimsService {
   }
 
   /**
-   * Queues a submission (processed from the outbox, at-least-once). Refused while the eClaims specification is an
+   * Queues a submission for the integration worker (the prepared claim is sealed for it). Refused while the eClaims specification is an
    * integration dependency, while the platform data is incomplete, and while an earlier submission is pending or
    * was accepted. The same idempotency key returns the same exchange.
    */
@@ -112,20 +106,16 @@ export class PhilHealthClaimsService {
           "claim_already_submitted",
         );
       }
-      const [row] = (await tx
-        .insert(integrationExchange)
-        .values({
-          organizationId: actor.organizationId,
-          system: PHILHEALTH_ECLAIMS_SYSTEM,
-          operation: OPERATION,
-          idempotencyKey,
-          patientId: src.invoice.patientId,
-          resourceType: "billing_invoice",
-          resourceId: invoiceId,
-          payloadDigest: packageDigest(claim),
-          requestedBy: actor.userId,
-        })
-        .returning()) as [IntegrationExchangeRecord];
+      const row = await this.exchanges.request(tx, actor, {
+        system: PHILHEALTH_ECLAIMS_SYSTEM,
+        operation: SUBMIT_CLAIM,
+        idempotencyKey,
+        patientId: src.invoice.patientId,
+        resourceType: "billing_invoice",
+        resourceId: invoiceId,
+        facilityId: src.invoice.facilityId,
+        payload: claim,
+      });
       await this.audit.record(tx, actor, {
         action: "philhealth.claim.submit-request",
         resourceType: "billing_invoice",
@@ -133,73 +123,9 @@ export class PhilHealthClaimsService {
         patientId: src.invoice.patientId,
         metadata: { exchangeId: row.id, amountClaimed: claim.coverage.amountClaimed },
       });
-      await this.events.record(tx, {
-        type: CLAIM_SUBMISSION_REQUESTED,
-        organizationId: actor.organizationId,
-        aggregateType: "integration_exchange",
-        aggregateId: row.id,
-        facilityId: src.invoice.facilityId,
-        patientId: src.invoice.patientId,
-        payload: { invoiceId },
-      });
       return row;
     });
     return exchangeView(created);
-  }
-
-  /**
-   * Outbox handler: sends a queued claim through the gateway and records the outcome. Idempotent — an exchange that
-   * is no longer queued is left alone; the gateway receives the exchange's idempotency key.
-   */
-  async process(organizationId: string, exchangeId: string): Promise<void> {
-    const [exchange] = await this.db
-      .select()
-      .from(integrationExchange)
-      .where(and(eq(integrationExchange.organizationId, organizationId), eq(integrationExchange.id, exchangeId)));
-    if (!exchange || exchange.status !== "queued") return;
-
-    // Rebuild from current data: an issued invoice cannot change, but the patient's details can.
-    const { src, accreditation } = await this.load(organizationId, exchange.resourceId);
-    const checks = claimReadiness(src, accreditation);
-    if (!isReady(checks))
-      return this.finish(exchange, "failed", {
-        lastError: `Not ready: ${checks
-          .filter((c) => !c.ok)
-          .map((c) => c.code)
-          .join(", ")}`,
-      });
-    const claim = buildClaimPackage(src, accreditation);
-    if (packageDigest(claim) !== exchange.payloadDigest) {
-      return this.finish(exchange, "failed", { lastError: "The claim data changed after the submission was requested; prepare and submit it again" });
-    }
-
-    const result = await this.gateway.submitClaim(claim, exchange.idempotencyKey);
-    switch (result.outcome) {
-      case "accepted":
-        await this.finish(exchange, "accepted", { externalReference: result.externalReference });
-        await this.billing.claimSubmitted({
-          organizationId,
-          invoiceId: exchange.resourceId,
-          invoicePayerId: claim.coverage.invoicePayerId,
-          reference: result.externalReference,
-          requestedBy: exchange.requestedBy,
-        });
-        return;
-      case "rejected":
-        return this.finish(exchange, "rejected", { outcomeDetail: { reasons: result.reasons } });
-      case "not_configured":
-        return this.finish(exchange, "not_configured", {});
-      case "failed": {
-        const attempts = exchange.attempts + 1;
-        if (!result.retryable || attempts >= MAX_SUBMISSION_ATTEMPTS) return this.finish(exchange, "failed", { lastError: result.error, attempts });
-        await this.db
-          .update(integrationExchange)
-          .set({ attempts, lastError: result.error.slice(0, 2000) })
-          .where(eq(integrationExchange.id, exchange.id));
-        // Throwing leaves the outbox event pending, so it is retried.
-        throw new Error(`PhilHealth claim submission failed (attempt ${attempts}): ${result.error}`);
-      }
-    }
   }
 
   async submissions(organizationId: string, invoiceId: string) {
@@ -239,37 +165,6 @@ export class PhilHealthClaimsService {
         ),
       )
       .then((rows) => rows[0]);
-  }
-
-  private async finish(
-    exchange: IntegrationExchangeRecord,
-    status: "accepted" | "rejected" | "failed" | "not_configured",
-    fields: { externalReference?: string; outcomeDetail?: Record<string, unknown>; lastError?: string; attempts?: number },
-  ): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      const updated = await tx
-        .update(integrationExchange)
-        .set({
-          status,
-          attempts: fields.attempts ?? exchange.attempts + 1,
-          externalReference: fields.externalReference ?? null,
-          outcomeDetail: fields.outcomeDetail ?? {},
-          lastError: fields.lastError?.slice(0, 2000) ?? null,
-          completedAt: new Date(),
-        })
-        .where(and(eq(integrationExchange.id, exchange.id), eq(integrationExchange.status, "queued")))
-        .returning({ id: integrationExchange.id });
-      if (updated.length === 0) return;
-      await this.audit.record(tx, systemActor(exchange.organizationId, null, "philhealth-eclaims"), {
-        action: "philhealth.claim.exchange",
-        resourceType: "billing_invoice",
-        resourceId: exchange.resourceId,
-        patientId: exchange.patientId ?? undefined,
-        outcome: status === "accepted" ? "success" : "failure",
-        metadata: { exchangeId: exchange.id, status, externalReference: fields.externalReference ?? null },
-      });
-    });
-    if (status !== "accepted") this.logger.warn(`PhilHealth claim exchange ${exchange.id} ${status}${fields.lastError ? `: ${fields.lastError}` : ""}`);
   }
 }
 

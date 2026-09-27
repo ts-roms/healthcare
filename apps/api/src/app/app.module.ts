@@ -42,6 +42,8 @@ export interface AppModuleOverrides {
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
   philhealthGateway?: Provider;
+  /** Replaces the BullMQ integration queue (tests). */
+  integrationQueue?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
   disableRateLimit?: boolean;
 }
@@ -94,6 +96,7 @@ export class AppModule implements NestModule {
           sources: AppPhilHealthClaimSources,
           billing: AppPhilHealthBillingSink,
           gateway: overrides.philhealthGateway,
+          queue: overrides.integrationQueue,
         }),
       ],
       controllers: [

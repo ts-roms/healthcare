@@ -29,6 +29,7 @@ pnpm dev:deps         # PostgreSQL, Redis, S3 storage (RustFS), Mailpit (Docker)
 pnpm db:migrate && pnpm db:seed
 pnpm dev:api          # NestJS API
 pnpm dev:worker       # notification worker
+pnpm dev:integration-worker  # integration worker
 
 # Frontend (both need the API; staff sign-in: SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
 pnpm dev:staff        # http://localhost:3000  — staff workstation
@@ -47,6 +48,7 @@ The staff app's navigation follows the signed-in user's permissions from the API
 apps/
 ├── api/                  NestJS modular-monolith API (REST /api/v1, OpenAPI, Socket.IO realtime)
 ├── notification-worker/  BullMQ worker delivering SMS / email / push
+│   ├── integration-worker/   BullMQ worker sending exchanges to external systems
 ├── staff/                Next.js staff application
 └── portal/               Next.js patient portal
 database/migrations/      Forward-only SQL migrations (source of truth for the schema)
