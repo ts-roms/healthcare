@@ -247,6 +247,18 @@ export class ClinicQueries {
       .orderBy(asc(diagnosis.recordedAt));
   }
 
+  /** One diagnosis with its encounter, facility and clinician (case reporting). Not audited here. */
+  async diagnosisWithEncounter(organizationId: string, diagnosisId: string) {
+    const [row] = await this.db
+      .select({ diagnosis, encounter, facilityName: facility.name, practitionerName: practitioner.displayName })
+      .from(diagnosis)
+      .innerJoin(encounter, eq(encounter.id, diagnosis.encounterId))
+      .innerJoin(facility, eq(facility.id, encounter.facilityId))
+      .leftJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+      .where(and(eq(diagnosis.organizationId, organizationId), eq(diagnosis.id, diagnosisId)));
+    return row;
+  }
+
   /** Practitioner records by id (record exports). */
   practitioners(organizationId: string, practitionerIds: string[]) {
     if (practitionerIds.length === 0) return Promise.resolve([]);

@@ -129,3 +129,12 @@ invoice each action returns, so quick successive changes use the latest version 
 Each payment and refund form carries its own idempotency key (a retried submit is recorded once; a new key after
 success). The patient record links to the patient's billing page. The API recomputes and enforces every amount and
 rule; see [billing.md](../domains/billing.md#screens).
+
+## Disease reporting
+
+`/reporting` (navigation shows it to users with `doh.report.manage`): case reports opened when a recorded diagnosis
+matches the organization's reportable conditions, to review first; `/reporting/[caseReportId]` shows the prepared
+report, what is missing, and the decision (reference from DOH's own channel, dismiss with a reason; submit only when
+an adapter is connected). `/reporting/settings` (`doh.settings.manage`): reportable conditions and the selected
+facility's DOH health facility code. Server actions in `app/(staff)/reporting/actions.ts`. See
+`docs/interoperability/doh-reporting.md`.

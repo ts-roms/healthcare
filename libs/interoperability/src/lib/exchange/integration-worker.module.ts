@@ -1,6 +1,7 @@
 import { type DynamicModule, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from "@nestjs/common";
 import { AuditModule } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
 import { PhilHealthClaimHandler } from "../philhealth/philhealth-claim-handler";
 import { philhealthGatewayProvider } from "../philhealth/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
@@ -10,6 +11,8 @@ import { EXCHANGE_HANDLERS, INTEGRATION_QUEUE, type IntegrationQueue } from "./e
 export interface IntegrationWorkerModuleOptions {
   /** The PhilHealth eClaims adapter (defaults to the unconfigured one). */
   philhealthGateway?: Provider;
+  /** The DOH reporting adapter (defaults to the unconfigured one). */
+  dohGateway?: Provider;
   queue?: Provider;
   /** Start consuming the queue on bootstrap (false in tests). */
   autoStart?: boolean;
@@ -41,8 +44,14 @@ export class IntegrationWorkerModule {
         IntegrationExchangeProcessor,
         options.philhealthGateway ?? philhealthGatewayProvider,
         PhilHealthClaimHandler,
+        options.dohGateway ?? dohGatewayProvider,
+        DohCaseReportHandler,
         // One handler per system + operation.
-        { provide: EXCHANGE_HANDLERS, inject: [PhilHealthClaimHandler], useFactory: (philhealth: PhilHealthClaimHandler) => [philhealth] },
+        {
+          provide: EXCHANGE_HANDLERS,
+          inject: [PhilHealthClaimHandler, DohCaseReportHandler],
+          useFactory: (philhealth: PhilHealthClaimHandler, doh: DohCaseReportHandler) => [philhealth, doh],
+        },
         options.queue ?? bullMqIntegrationQueue,
         {
           provide: IntegrationWorkerRunner,

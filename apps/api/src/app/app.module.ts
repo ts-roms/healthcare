@@ -9,7 +9,7 @@ import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor
 import { DocumentsModule } from "@healthcare/documents";
 import { LaboratoryModule } from "@healthcare/laboratory";
 import { BillingModule } from "@healthcare/billing";
-import { PhilHealthModule } from "@healthcare/interoperability";
+import { DohReportingModule, IntegrationModule, PhilHealthModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
@@ -18,6 +18,7 @@ import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
+import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
@@ -42,6 +43,8 @@ export interface AppModuleOverrides {
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
   philhealthGateway?: Provider;
+  /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
+  dohGateway?: Provider;
   /** Replaces the BullMQ integration queue (tests). */
   integrationQueue?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
@@ -96,8 +99,11 @@ export class AppModule implements NestModule {
           sources: AppPhilHealthClaimSources,
           billing: AppPhilHealthBillingSink,
           gateway: overrides.philhealthGateway,
-          queue: overrides.integrationQueue,
         }),
+        // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
+        DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
+        // Outbound exchanges are sealed here and sent by apps/integration-worker.
+        IntegrationModule.forRoot({ queue: overrides.integrationQueue }),
       ],
       controllers: [
         FhirController,

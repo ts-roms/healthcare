@@ -56,6 +56,10 @@ PhilHealth claims (migration 0021): `philhealth.claim.submit` (org_admin, cashie
 and `philhealth.settings.manage` (org_admin); audited `philhealth.claim.preview`,
 `philhealth.claim.submit-request`, `philhealth.claim.exchange` (system) and
 `philhealth.accreditation.record`.
+DOH case reporting (migration 0023): `doh.report.manage` (org_admin, physician,
+records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
+(detection and outcomes as the system; dismissals with the reason),
+`doh.rule.*` and `doh.facility-code.record`.
 
 Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /
