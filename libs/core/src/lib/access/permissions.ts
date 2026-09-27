@@ -68,6 +68,8 @@ export const PERMISSIONS = [
   "billing.discount.apply",
   "billing.pricelist.manage",
   "billing.report.read",
+  // Phase 8 — interoperability (migration 0020)
+  "interop.fhir.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

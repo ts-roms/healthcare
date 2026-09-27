@@ -138,6 +138,30 @@ export class CarePlanService {
     return rows.map(strip);
   }
 
+  /** Every care plan of the patient with its activities, for a record export (FHIR). Not audited here; the caller audits. */
+  async allForPatient(organizationId: string, patientId: string) {
+    const plans = await this.db
+      .select()
+      .from(carePlan)
+      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId)))
+      .orderBy(asc(carePlan.startDate));
+    if (plans.length === 0) return [];
+    const activities = await this.db
+      .select()
+      .from(carePlanActivity)
+      .where(
+        and(
+          eq(carePlanActivity.organizationId, organizationId),
+          inArray(
+            carePlanActivity.carePlanId,
+            plans.map((p) => p.id),
+          ),
+        ),
+      )
+      .orderBy(asc(carePlanActivity.createdAt));
+    return plans.map((plan) => ({ ...strip(plan), activities: activities.filter((a) => a.carePlanId === plan.id).map(strip) }));
+  }
+
   /** Open care plans with their next due activities, for Patient 360 (caller audits). */
   async openPlansSummary(organizationId: string, patientId: string) {
     const plans = await this.db

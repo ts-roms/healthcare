@@ -19,6 +19,8 @@ import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-ad
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
+import { FhirController } from "./fhir/fhir.controller";
+import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
@@ -82,6 +84,7 @@ export class AppModule implements NestModule {
         BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory }),
       ],
       controllers: [
+        FhirController,
         HealthController,
         PatientSummaryController,
         PortalBillingController,
@@ -91,6 +94,7 @@ export class AppModule implements NestModule {
         PortalTeleconsultController,
       ],
       providers: [
+        FhirRecordComposer,
         RealtimeGateway,
         LaboratoryNotifications,
         PatientResultNotices,

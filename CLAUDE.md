@@ -26,23 +26,24 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 Inspect the repository before every change — do not assume any file, library, table, or API exists beyond what is listed here.
 
-**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine, Phase 7 Billing)**
+**Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine, Phase 7 Billing, Phase 8 FHIR R4 read)**
 
-| Project                                              | Path                       | Nx tags                              | What it is                                                                                                                    |
-| ---------------------------------------------------- | -------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `api`                                                | `apps/api`                 | `scope:api`, `type:app`              | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.                    |
-| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`           | BullMQ consumer delivering notifications.                                                                                     |
-| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`   | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.                      |
-| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`   | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                                        |
-| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`       | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                                               |
-| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`      | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in.                  |
-| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`       | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.                     |
-| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature` | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                                       |
-| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`    | Care plans, goals, activities, recall list.                                                                                   |
-| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`   | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.                   |
-| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature` | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.                    |
-| `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`      | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds.                 |
-| `@healthcare/pdf`                                    | `libs/pdf`                 | `scope:shared`, `type:util`          | PDF toolkit (pdfkit, standard fonts): letterhead, fields, paged tables, totals, watermark, footer; text extraction for tests. |
+| Project                                              | Path                       | Nx tags                                 | What it is                                                                                                                    |
+| ---------------------------------------------------- | -------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `api`                                                | `apps/api`                 | `scope:api`, `type:app`                 | NestJS modular monolith (REST `/api/v1`, OpenAPI at `/api/docs`, Socket.IO `/realtime`). Composition root.                    |
+| `notification-worker`                                | `apps/notification-worker` | `scope:worker`, `type:app`              | BullMQ consumer delivering notifications.                                                                                     |
+| `@healthcare/core`                                   | `libs/core`                | `scope:shared`, `type:data-access`      | Config, database, errors, access decorators + permission catalog, outbox events, PH helpers, zoned time.                      |
+| `audit`, `organization`, `documents`, `notification` | `libs/*`                   | `scope:shared`, `type:data-access`      | Platform services: audit trail, organizations/facilities, S3 documents, notifications.                                        |
+| `@healthcare/auth`                                   | `libs/auth`                | `scope:shared`, `type:feature`          | Login, MFA, sessions, RBAC, global `AccessGuard`, `ActorResolver`, users/roles.                                               |
+| `@healthcare/patient`                                | `libs/patient`             | `scope:patient`, `type:feature`         | Patient Master, lookup, duplicates, consent, communication preferences, patient portal accounts and sign-in.                  |
+| `@healthcare/clinic`                                 | `libs/clinic`              | `scope:clinic`, `type:feature`          | Practitioners, schedules, appointments, waitlist, queue, triage/vitals, allergies, encounters, diagnoses.                     |
+| `@healthcare/prescription`                           | `libs/prescription`        | `scope:prescription`, `type:feature`    | Immutable prescriptions, cancel/replace, drug–allergy decision support.                                                       |
+| `@healthcare/care-plan`                              | `libs/care-plan`           | `scope:care-plan`, `type:feature`       | Care plans, goals, activities, recall list.                                                                                   |
+| `@healthcare/laboratory`                             | `libs/laboratory`          | `scope:laboratory`, `type:feature`      | LIS: catalog, versioned reference ranges, orders, specimens, versioned results, critical values, worklists.                   |
+| `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature`    | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.                    |
+| `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`         | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds.                 |
+| `@healthcare/interoperability`                       | `libs/interoperability`    | `scope:interoperability`, `type:domain` | FHIR R4 (4.0.1) mapping: pure functions from source models to resources and Bundles; no domain imports.                       |
+| `@healthcare/pdf`                                    | `libs/pdf`                 | `scope:shared`, `type:util`             | PDF toolkit (pdfkit, standard fonts): letterhead, fields, paged tables, totals, watermark, footer; text extraction for tests. |
 
 **Frontend — partly connected to the API**
 
@@ -54,7 +55,9 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/web-session` | `libs/web-session` | `scope:shared`, `type:util`   | Server-side session code shared by the Next.js apps: token cookies, single-flight refresh, API errors, client forwarding, safe redirects.                                              |
 | `@healthcare/domain`      | `libs/domain`      | `scope:shared`, `type:domain` | Shared frontend clinical types, staff roles, a demo drug–allergy rule (`allergy-check.ts`), and **demo fixtures** (`fixtures.ts`, not real patient data).                              |
 
-`libs/dental`, `libs/interoperability` contain **only** their domain `CLAUDE.md` — they are not Nx projects yet.
+`libs/dental` contains **only** its domain `CLAUDE.md` — it is not an Nx project yet.
+
+**FHIR R4 interface:** read-only `/api/v1/fhir/r4` (`metadata`, `Patient/{id}`, `Patient/{id}/$everything`, `{Type}?patient=`) requires `interop.fhir.read`, audits every access and answers errors with `OperationOutcome`. Resources are composed in `apps/api/src/app/fhir` from each domain's read query and mapped by `libs/interoperability`; only released laboratory results are exported; national identifier URIs are configurable local namespaces until official ones are obtained. See `docs/interoperability/fhir.md`.
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
@@ -97,7 +100,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Outreach (Phase 4c):** care-plan recall reminders (`CarePlanRecallReminders`, hourly in daytime, once per activity/due date/kind), no-show follow-up, in-app copies of patient notices, staff "Message in MyHealth" on the patient record; all through `NotificationService` (consent and preferences).
 
-**Next steps:** Phase 6 (Dental), then Phase 8 (Philippine integrations: PhilHealth eClaims, DOH reporting, FHIR — each an integration dependency until official specifications are obtained). Printable PDFs exist for laboratory reports, invoices and receipts (`docs/architecture/printable-documents.md`); follow-ups: archiving released lab reports to object storage via BullMQ. Billing follow-ups: deposits, packages, credit notes, online payment (provider dependency). Phase 3 follow-ups: result attachments, label printing, realtime lab status.
+**Next steps:** Phase 6 (Dental), then Phase 8 (Philippine integrations: PhilHealth eClaims, DOH reporting — each an integration dependency until official specifications are obtained; FHIR R4 read exists, follow-ups in `docs/interoperability/fhir.md`). Printable PDFs exist for laboratory reports, invoices and receipts (`docs/architecture/printable-documents.md`); follow-ups: archiving released lab reports to object storage via BullMQ. Billing follow-ups: deposits, packages, credit notes, online payment (provider dependency). Phase 3 follow-ups: result attachments, label printing, realtime lab status.
 
 ## 1. Technology stack
 
@@ -151,7 +154,8 @@ libs/
   core/ audit/ organization/ auth/ documents/ notification/                      [exist, backend platform]
   patient/ clinic/ prescription/ care-plan/ laboratory/ telemedicine/ billing/    [exist, backend domains]
   dental/ inventory/ crm/ reporting/
-  interoperability/ philhealth/                                                  [planned]
+  interoperability/ (FHIR mapping) pdf/                                          [exist]
+  philhealth/                                                                    [planned]
 
 database/migrations/  tools/  docs/  infrastructure/
 nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json (frontend)  tsconfig.node.json (backend)
