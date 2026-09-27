@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
+import type { CarePlanPatientDirectory } from "@healthcare/care-plan";
 import { ClinicQueries, type PatientBrief, type PatientDirectory } from "@healthcare/clinic";
 import { PatientRecordService } from "@healthcare/patient";
 import type { AllergyContext, PrescribingContext } from "@healthcare/prescription";
 
-/** Clinic → patient: names and numbers for queue boards. */
+/** Clinic and care plans → patient: names and numbers for queue boards, schedules and the recall list. */
 @Injectable()
-export class AppPatientDirectory implements PatientDirectory {
+export class AppPatientDirectory implements PatientDirectory, CarePlanPatientDirectory {
   constructor(private readonly patients: PatientRecordService) {}
 
   summaries(organizationId: string, patientIds: string[]): Promise<Map<string, PatientBrief>> {

@@ -447,6 +447,14 @@ describe("clinic journey", () => {
 
     const due = await ctx.http().get("/api/v1/care-plans/activities/due?withinDays=0").set(as(nurse)).expect(200);
     expect(due.body.map((a: { description: string }) => a.description)).toEqual(["HbA1c"]);
+    // The recall list identifies the patient minimally: number, name, sex and age — no contacts.
+    expect(due.body[0].patient).toEqual({
+      patientNumber: expect.stringMatching(/^P\d{8}$/),
+      displayName: expect.any(String),
+      sex: expect.any(String),
+      age: expect.any(Number),
+    });
+    expect(JSON.stringify(due.body[0])).not.toMatch(/0917/);
 
     const hba1c = plan.body.activities.find((a: { kind: string }) => a.kind === "laboratory_monitoring");
     const completed = await ctx

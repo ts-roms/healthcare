@@ -34,6 +34,7 @@ import {
   carePlanProgressNote,
   type CarePlanRecord,
 } from "./care-plan.schema";
+import { CARE_PLAN_PATIENTS, type CarePlanPatientDirectory } from "./ports";
 
 const OPEN_PLAN_STATUSES = ["draft", "active", "on_hold"] as const;
 const OPEN_ACTIVITY_STATUSES = ["planned", "scheduled", "in_progress"] as const;
@@ -54,6 +55,7 @@ export class CarePlanService {
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
+    @Inject(CARE_PLAN_PATIENTS) private readonly patients: CarePlanPatientDirectory,
   ) {}
 
   async create(actor: Actor, input: z.infer<typeof createCarePlanSchema>) {
@@ -349,11 +351,14 @@ export class CarePlanService {
       resourceType: "care_plan_activity",
       metadata: { count: rows.length, withinDays: query.withinDays },
     });
+    // Minimal identification only (number, name, sex, age): a recall list is a work list, not a record.
+    const patients = await this.patients.summaries(actor.organizationId, [...new Set(rows.map((r) => r.activity.patientId))]);
     return rows.map(({ activity, planTitle, planCategory }) => ({
       ...strip(activity),
       planTitle,
       planCategory,
       overdue: activity.dueDate !== null && activity.dueDate < today,
+      patient: patients.get(activity.patientId) ?? null,
     }));
   }
 

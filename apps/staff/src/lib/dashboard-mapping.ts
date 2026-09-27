@@ -61,10 +61,12 @@ export function attentionItems(
         count: overdue.length,
         title: "Overdue care-plan activities",
         detail: summarize(overdue),
+        // Whoever can read the due list can open the recall list.
+        href: "/clinic/care-plans",
       });
     }
     const dueSoon = options.due.length - overdue.length;
-    if (dueSoon > 0) items.push({ id: "due", severity: "info", count: dueSoon, title: "Care-plan activities due this week" });
+    if (dueSoon > 0) items.push({ id: "due", severity: "info", count: dueSoon, title: "Care-plan activities due this week", href: "/clinic/care-plans" });
   }
   return items;
 }

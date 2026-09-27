@@ -58,7 +58,7 @@ export class AppModule implements NestModule {
         // Phase 2 — clinic. Cross-domain needs are satisfied by adapters defined here.
         ClinicModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
         PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext }),
-        CarePlanModule,
+        CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
       ],
       controllers: [HealthController, PatientSummaryController],
       providers: [

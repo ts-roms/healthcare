@@ -48,8 +48,8 @@ describe("attentionItems", () => {
   it("summarises overdue and upcoming care-plan activities", () => {
     const items = attentionItems(quiet, { ...open, due: [due(true), due(true), due(true, "Hypertension"), due(false)] });
     expect(items).toEqual([
-      { id: "overdue", severity: "warning", count: 3, title: "Overdue care-plan activities", detail: "Diabetes ×2, Hypertension" },
-      { id: "due", severity: "info", count: 1, title: "Care-plan activities due this week" },
+      { id: "overdue", severity: "warning", count: 3, title: "Overdue care-plan activities", detail: "Diabetes ×2, Hypertension", href: "/clinic/care-plans" },
+      { id: "due", severity: "info", count: 1, title: "Care-plan activities due this week", href: "/clinic/care-plans" },
     ]);
   });
 });
