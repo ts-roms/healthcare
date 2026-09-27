@@ -55,6 +55,9 @@ export const PERMISSIONS = [
   "lab.result.amend",
   "lab.critical.manage",
   "lab.dashboard.read",
+  // Phase 5 — telemedicine (migration 0016)
+  "telemedicine.read",
+  "telemedicine.conduct",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -12,14 +12,17 @@ import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
 import { PrescriptionModule } from "@healthcare/prescription";
+import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
+import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalRecordsController } from "./portal/portal-records.controller";
+import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
 import { RealtimeGateway } from "./realtime/realtime.gateway";
 import { AppRecipientDirectory } from "./recipient-directory";
 
@@ -66,8 +69,10 @@ export class AppModule implements NestModule {
         CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
         // Phase 3 — laboratory.
         LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext }),
+        // Phase 5 — telemedicine.
+        TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
       ],
-      controllers: [HealthController, PatientSummaryController, PortalRecordsController],
+      controllers: [HealthController, PatientSummaryController, PortalRecordsController, PortalTeleconsultController],
       providers: [
         RealtimeGateway,
         LaboratoryNotifications,

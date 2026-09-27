@@ -14,6 +14,7 @@ import { ClinicQueries } from "./clinic-queries.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
+import { OnlineVisitService } from "./online/online-visit.service";
 import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
@@ -40,11 +41,12 @@ export class ClinicModule {
         ClinicDashboardService,
         ClinicQueries,
         EncounterService,
+        OnlineVisitService,
         TriageService,
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries],
+      exports: [ClinicQueries, OnlineVisitService],
     };
   }
 }

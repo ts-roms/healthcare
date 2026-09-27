@@ -31,6 +31,11 @@ const appConfigSchema = z.object({
   S3_FORCE_PATH_STYLE: booleanString.default(false),
   SMTP_URL: z.string().optional(),
   EMAIL_FROM: z.string().default("Healthcare Platform <no-reply@localhost>"),
+  // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
+  // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().min(1).optional(),
+  LIVEKIT_API_SECRET: z.string().min(1).optional(),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

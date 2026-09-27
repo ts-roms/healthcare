@@ -5,6 +5,7 @@ export * from "./lib/clinic-queries.service";
 export * from "./lib/domain/availability";
 export * from "./lib/domain/queue-state";
 export * from "./lib/domain/vital-signs";
+export * from "./lib/online/online-visit.service";
 export * from "./lib/ports";
 export type { VitalsView } from "./lib/triage/triage.service";
 export type { VisitView, QueueEntryView } from "./lib/queue/visit.service";

@@ -107,7 +107,8 @@
     "@healthcare/clinic": "workspace:*",
     "@healthcare/prescription": "workspace:*",
     "@healthcare/care-plan": "workspace:*",
-    "@healthcare/laboratory": "workspace:*"
+    "@healthcare/laboratory": "workspace:*",
+    "@healthcare/telemedicine": "workspace:*"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

@@ -49,6 +49,14 @@ services:
     image: axllent/mailpit
     ports: ["1025:1025", "8025:8025"]
 
+  # Video for online consultations (LiveKit in dev mode: API key "devkey", secret "secret").
+  # Set LIVEKIT_URL=ws://localhost:7880, LIVEKIT_API_KEY=devkey, LIVEKIT_API_SECRET=secret in .env to use it.
+  # Dev mode only; production uses a secured LiveKit deployment or LiveKit Cloud (pin the image there).
+  livekit:
+    image: livekit/livekit-server
+    command: --dev --bind 0.0.0.0
+    ports: ["7880:7880", "7881:7881", "7882:7882/udp"]
+
 volumes:
   postgres-data:
   object-storage-data:
