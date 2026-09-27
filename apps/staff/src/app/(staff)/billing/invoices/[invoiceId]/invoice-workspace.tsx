@@ -241,7 +241,10 @@ function Summary({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permis
         {invoice.status === "draft" ? (
           <p className="text-meta text-muted-foreground">Issuing numbers the invoice. After that it cannot be changed, only voided or credited.</p>
         ) : null}
-        {invoice.status === "issued" && can.void ? (
+        {invoice.status === "issued" && can.void && invoice.creditNotes.length > 0 ? (
+          <p className="text-meta text-muted-foreground">A credit note was issued for this invoice; correct it with another credit note, not a void.</p>
+        ) : null}
+        {invoice.status === "issued" && can.void && invoice.creditNotes.length === 0 ? (
           voiding ? (
             <form
               className="flex flex-col gap-2 rounded-lg border p-3"
