@@ -1,0 +1,66 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { COOKIES } from "@/lib/api/config";
+import { forwardedHeaders } from "@/lib/api/forwarding";
+import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
+
+/**
+ * Session gate for every staff page.
+ *
+ * - No refresh token → sign in.
+ * - Access token expired (its cookie is gone) → refresh once, then pass the new
+ *   tokens both to this request (so the page renders signed in) and to the browser.
+ *
+ * Proxy is not the only check: every API call is authorized by the API itself,
+ * and `api()` sends the user to sign in on a 401.
+ */
+export async function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const isLogin = pathname === "/login" || pathname.startsWith("/login/");
+  const refreshToken = request.cookies.get(COOKIES.refresh)?.value;
+  const accessToken = request.cookies.get(COOKIES.access)?.value;
+
+  if (isLogin) {
+    // Already signed in: skip the form.
+    if (refreshToken && accessToken) return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.next();
+  }
+
+  const toLogin = () => {
+    const url = new URL("/login", request.url);
+    if (pathname !== "/") url.searchParams.set("next", `${pathname}${search}`);
+    const response = NextResponse.redirect(url);
+    clearSessionCookies(response.cookies);
+    return response;
+  };
+
+  if (!refreshToken) return toLogin();
+  if (accessToken) return NextResponse.next();
+
+  const refreshed = await refreshTokens(refreshToken, fetch, Date.now(), forwardedHeaders(request.headers));
+  if (refreshed.status === "rejected") return toLogin();
+  if (refreshed.status === "unavailable") return unavailable();
+  const { tokens } = refreshed;
+
+  // Forward the new tokens to this render (request cookies carry values only)…
+  request.cookies.set(COOKIES.access, tokens.accessToken);
+  request.cookies.set(COOKIES.refresh, tokens.refreshToken);
+  const response = NextResponse.next({ request: { headers: request.headers } });
+  // …and persist them in the browser.
+  writeTokenCookies(response.cookies, tokens);
+  return response;
+}
+
+/** The API is rate-limiting or down: keep the session cookies and ask the user to retry, rather than signing them out. */
+function unavailable() {
+  return new NextResponse(
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>Temporarily unavailable</title>
+<body style="font:14px system-ui;margin:3rem;max-width:32rem"><h1 style="font-size:18px">The patient record service is busy</h1>
+<p>Your session is still active. This page will retry in a few seconds.</p><p><a href="">Retry now</a></p></body>`,
+    { status: 503, headers: { "content-type": "text/html; charset=utf-8", "retry-after": "10", "cache-control": "no-store" } },
+  );
+}
+
+export const config = {
+  // Everything except static assets and Next internals.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)"],
+};

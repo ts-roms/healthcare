@@ -20,6 +20,8 @@ export interface NavItem {
   icon?: LucideIcon;
   /** Roles that can see this item. Omit = everyone. */
   roles?: StaffRole[];
+  /** Short tag shown next to the label, e.g. "Demo" for modules without a backend yet. */
+  badge?: string;
   children?: NavItem[];
 }
 

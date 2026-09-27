@@ -8,10 +8,11 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "../primitives/she
 import { TooltipProvider } from "../primitives/tooltip";
 import { cn } from "../lib/utils";
 import { DefaultLink, isActive, type LinkComponent } from "./link";
-import { navigationForRole, type NavItem } from "./staff-navigation";
+import { navigationForRole, STAFF_NAVIGATION, type NavItem } from "./staff-navigation";
 
 export interface StaffLayoutProps {
-  role: StaffRole;
+  /** Filters `navigation` by role. Omit when `navigation` is already filtered (e.g. by permissions). */
+  role?: StaffRole;
   pathname: string;
   children: React.ReactNode;
   /** Top-bar right side: facility selector, role switcher, user menu. */
@@ -37,7 +38,7 @@ export function StaffLayout({
   navigation,
   productName = "Healthcare Platform",
 }: StaffLayoutProps) {
-  const items = navigationForRole(role, navigation);
+  const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
@@ -133,6 +134,11 @@ function SidebarNav({ items, pathname, Link, onNavigate }: { items: NavItem[]; p
               >
                 {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
                 {item.label}
+                {item.badge ? (
+                  <span className="ml-auto rounded-sm border border-sidebar-border px-1 text-[10px] font-medium tracking-wide text-sidebar-muted uppercase">
+                    {item.badge}
+                  </span>
+                ) : null}
               </Link>
               {item.children && active ? (
                 <ul className="mt-0.5 ml-[18px] flex flex-col gap-0.5 border-l border-sidebar-border pl-2.5">
