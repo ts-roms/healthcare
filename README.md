@@ -25,7 +25,7 @@ pnpm install
 
 # Backend (API on http://localhost:3333/api, OpenAPI at /api/docs)
 cp .env.example .env  # set SEED_ADMIN_PASSWORD
-pnpm dev:deps         # PostgreSQL, Redis, MinIO, Mailpit (Docker)
+pnpm dev:deps         # PostgreSQL, Redis, S3 storage (RustFS), Mailpit (Docker)
 pnpm db:migrate && pnpm db:seed
 pnpm dev:api          # NestJS API
 pnpm dev:worker       # notification worker

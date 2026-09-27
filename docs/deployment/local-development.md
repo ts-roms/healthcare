@@ -5,7 +5,7 @@ Requirements: Node 22+, pnpm 10, Docker (or local PostgreSQL 16 + Redis).
 ```bash
 pnpm install
 cp .env.example .env              # then set SEED_ADMIN_PASSWORD
-pnpm dev:deps                     # PostgreSQL, Redis, MinIO, Mailpit
+pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
 pnpm dev                          # everything below, in parallel (one terminal)
@@ -41,4 +41,4 @@ pnpm nx run api:integration  # needs TEST_DATABASE_URL (a database that may be w
 The integration tests drop and recreate the `public` schema of
 `TEST_DATABASE_URL`. Never point it at a database you care about.
 
-Mailpit (captured email): http://localhost:8025. MinIO console: http://localhost:9001.
+Mailpit (captured email): http://localhost:8025. Object storage console (RustFS): http://localhost:9001 (user `healthcare`, password `healthcare-dev-secret`).
