@@ -90,5 +90,17 @@ export const carePlanProgressNote = pgTable("care_plan_progress_note", {
   recordedAt: ts("recorded_at").notNull().defaultNow(),
 });
 
+/** One recall reminder sent for an activity's due date (append-only). */
+export const carePlanActivityReminder = pgTable("care_plan_activity_reminder", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  activityId: uuid("activity_id").notNull(),
+  dueDate: date("due_date", { mode: "string" }).notNull(),
+  kind: text("kind").$type<"due" | "overdue">().notNull(),
+  notificationId: uuid("notification_id"),
+  sentAt: ts("sent_at").notNull().defaultNow(),
+});
+
 export type CarePlanRecord = typeof carePlan.$inferSelect;
 export type CarePlanActivityRecord = typeof carePlanActivity.$inferSelect;

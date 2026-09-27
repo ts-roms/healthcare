@@ -58,7 +58,8 @@ patient's — rows.
 `AppointmentBooked`, `AppointmentConfirmed`, `AppointmentRescheduled`, `AppointmentCancelled`, `AppointmentNoShow`,
 `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
 `EncounterAmended`, `DiagnosisRecorded`. Consumers: appointment reminders (SMS 24 h before, withdrawn on
-cancel/reschedule/no-show), the patient self-service confirmation (SMS `appointment.self-service` when the patient
+cancel/reschedule/no-show), the no-show follow-up (`AppointmentNoShow` → SMS + MyHealth "we missed you, book again" — skipped when the patient
+already has another visit booked; one per appointment), the patient self-service confirmation (SMS `appointment.self-service` when the patient
 booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `changedByPatient`) and the realtime queue gateway.
 
 ## Permissions

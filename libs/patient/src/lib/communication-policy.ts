@@ -10,6 +10,8 @@ export interface CommunicationFacts {
   optedIn: boolean | undefined;
   primaryMobile: string | undefined;
   primaryEmail: string | undefined;
+  /** An active MyHealth account with portal-access consent (in-app messages are read there). */
+  portalActive?: boolean;
 }
 
 /**
@@ -18,6 +20,7 @@ export interface CommunicationFacts {
  * - Without one, care-related messages (clinical, administrative) are allowed;
  *   outreach/marketing-style messages require an explicit opt-in.
  * - Deceased or merged records are never contacted; inactive patients get no outreach.
+ * - In-app messages go to the MyHealth inbox, so they need an active portal account.
  */
 export function resolvePatientContact(facts: CommunicationFacts): ContactResolution {
   if (facts.status === "deceased") return { allowed: false, reason: "patient_deceased" };
@@ -35,6 +38,6 @@ export function resolvePatientContact(facts: CommunicationFacts): ContactResolut
     case "push":
       return { allowed: false, reason: "no_push_device" };
     case "in_app":
-      return { allowed: false, reason: "no_portal_account" };
+      return facts.portalActive ? { allowed: true, destination: null } : { allowed: false, reason: "no_portal_account" };
   }
 }

@@ -48,7 +48,7 @@ describe("patient portal records", () => {
   const notices = async (id = patientId) =>
     (
       await ctx.pool.query<{ channel: string; status: string; template_key: string }>(
-        `SELECT channel, status, template_key FROM notification WHERE recipient_patient_id = $1 AND template_key = 'lab.results-available' ORDER BY created_at`,
+        `SELECT channel, status, template_key FROM notification WHERE recipient_patient_id = $1 AND template_key = 'lab.results-available' AND channel <> 'in_app' ORDER BY created_at`,
         [id],
       )
     ).rows;
@@ -241,6 +241,9 @@ describe("patient portal records", () => {
 
     // One SMS (the patient has a mobile number) pointing to the portal; no test name or value.
     expect(await notices()).toEqual([{ channel: "sms", status: "queued", template_key: "lab.results-available" }]);
+    // …and a copy in the MyHealth inbox.
+    const inbox = await ctx.pool.query(`SELECT status FROM notification WHERE recipient_patient_id = $1 AND channel = 'in_app'`, [patientId]);
+    expect(inbox.rows).toEqual([{ status: "delivered" }]);
     const sent = await ctx.pool.query<{ variables: Record<string, unknown> }>(
       `SELECT variables FROM notification WHERE recipient_patient_id = $1 AND template_key = 'lab.results-available'`,
       [patientId],

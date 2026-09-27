@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, actorUserId, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from "@healthcare/core";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { sendNotificationSchema } from "./notification.dto";
 import { notification, type NotificationRecord } from "./notification.schema";
@@ -184,6 +184,67 @@ export class NotificationService {
         readAt: row.readAt,
       };
     });
+  }
+
+  /**
+   * A patient's MyHealth inbox: in-app messages addressed to them, rendered.
+   * The caller (the portal) authenticates the patient and audits the read.
+   */
+  async patientInbox(organizationId: string, patientId: string) {
+    const rows = await this.db
+      .select()
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, organizationId),
+          eq(notification.recipientPatientId, patientId),
+          eq(notification.channel, "in_app"),
+          eq(notification.status, "delivered"),
+        ),
+      )
+      .orderBy(desc(notification.createdAt))
+      .limit(100);
+    return rows.map((row) => {
+      const rendered = findTemplate(row.templateKey)?.render(row.variables);
+      return {
+        id: row.id,
+        templateKey: row.templateKey,
+        subject: rendered?.subject ?? null,
+        text: rendered?.text ?? "",
+        createdAt: row.createdAt,
+        readAt: row.readAt,
+      };
+    });
+  }
+
+  async patientUnreadCount(organizationId: string, patientId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, organizationId),
+          eq(notification.recipientPatientId, patientId),
+          eq(notification.channel, "in_app"),
+          eq(notification.status, "delivered"),
+          isNull(notification.readAt),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  /** Marks one of the patient's own in-app messages read (idempotent); another patient's message is "not found". */
+  async markReadForPatient(organizationId: string, patientId: string, notificationId: string): Promise<void> {
+    const own = and(
+      eq(notification.id, notificationId),
+      eq(notification.organizationId, organizationId),
+      eq(notification.recipientPatientId, patientId),
+      eq(notification.channel, "in_app"),
+      eq(notification.status, "delivered"),
+    );
+    const [exists] = await this.db.select({ id: notification.id, readAt: notification.readAt }).from(notification).where(own);
+    if (!exists) throw new NotFoundError("Message");
+    if (!exists.readAt) await this.db.update(notification).set({ readAt: new Date(), updatedAt: new Date() }).where(own);
   }
 
   async markRead(actor: Actor, notificationId: string): Promise<void> {

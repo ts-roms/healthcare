@@ -32,6 +32,12 @@ describe("resolvePatientContact", () => {
     expect(resolvePatientContact({ ...base, status: "merged" })).toEqual({ allowed: false, reason: "patient_merged" });
   });
 
+  it("sends in-app messages only to patients with an active MyHealth account", () => {
+    expect(resolvePatientContact({ ...base, channel: "in_app" })).toEqual({ allowed: false, reason: "no_portal_account" });
+    expect(resolvePatientContact({ ...base, channel: "in_app", portalActive: true })).toEqual({ allowed: true, destination: null });
+    expect(resolvePatientContact({ ...base, channel: "in_app", portalActive: true, optedIn: false }).allowed).toBe(false);
+  });
+
   it("requires a destination on file", () => {
     expect(resolvePatientContact({ ...base, primaryMobile: undefined })).toEqual({ allowed: false, reason: "no_mobile_number" });
   });

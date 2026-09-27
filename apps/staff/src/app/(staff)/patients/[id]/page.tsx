@@ -26,6 +26,7 @@ import { ConsentHistory } from "./consent-history";
 import { PatientLabResults } from "./lab-results";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
+import { SendPortalMessage } from "./send-portal-message";
 import { RecordConsent } from "./record-consent";
 import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 
@@ -298,6 +299,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <CardTitle>Patient portal (MyHealth)</CardTitle>
           </CardHeader>
           <CardContent>
+            {portal?.status === "active" && can(session, "notification.send") ? (
+              <div className="mb-3">
+                <SendPortalMessage patientId={p.id} />
+              </div>
+            ) : null}
             {portal ? (
               <PortalAccess
                 patientId={p.id}

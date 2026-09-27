@@ -20,14 +20,26 @@ Code-defined, versioned, with Zod-validated variables (`templates.ts`).
 External channels must not carry clinical detail. Templates:
 `patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
 `staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
-`lab.results-available` (SMS, or email when SMS is not possible, to patients who use MyHealth: "new results" or "a
-result was updated", naming no test and no value).
+`lab.results-available` (SMS, or email when SMS is not possible, plus a MyHealth inbox copy, to patients who use
+MyHealth: "new results" or "a result was updated", naming no test and no value), `appointment.self-service`
+(SMS + in-app: the patient booked, moved or cancelled in MyHealth), `appointment.no-show` (SMS + in-app: "we missed
+you", facility and date only), `care-plan.follow-up-due` (SMS + in-app, category `clinical`: a care-plan follow-up is
+due or overdue, naming no condition, test or plan), `clinic.message` (in-app only: subject and text written by staff).
+
+## Patients' in-app messages (MyHealth inbox)
+
+In-app messages to a patient are delivered only when the patient has an active MyHealth account with `portal_access`
+consent (otherwise `suppressed: no_portal_account`); recorded preferences apply as for other channels. The patient reads
+them at `GET /portal/messages` (audited `portal.messages-view`), sees an unread count, and marks them read
+(`POST /portal/messages/:id/read`, own messages only). Messages are one-way: patients cannot reply yet (a monitored,
+triaged two-way channel is a clinical-safety decision still to be made). Free text written by staff exists only as
+`clinic.message`, which cannot leave the platform.
 
 ## Ports
 
 | Port                 | Implementations                                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `RecipientDirectory` | `AppRecipientDirectory` in `apps/api` (patients via patient policy; staff email/in-app)                                               |
+| `RecipientDirectory` | `AppRecipientDirectory` in `apps/api` (patients via patient policy, in-app only with an active MyHealth account; staff email/in-app)  |
 | `NotificationQueue`  | BullMQ (`REDIS_URL`); recording queue in tests                                                                                        |
 | `ChannelSender`      | SMTP email (`SMTP_URL`); logging sender in dev/test; `UnconfiguredSender` in production for SMS and push until providers are selected |
 

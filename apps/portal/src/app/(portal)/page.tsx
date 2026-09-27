@@ -24,6 +24,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     portalApi<PortalResult[]>("/portal/results"),
   ]);
   const recent = latestPerTest(results).slice(0, 3);
+  // Home shows what is still going to happen; cancelled visits stay listed under Visits.
+  const next = appointments.upcoming.filter((v) => v.status !== "cancelled" && v.status !== "no_show");
   return (
     <div className="flex flex-col gap-7">
       {welcome ? (
@@ -56,8 +58,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Upcoming" href="/appointments" />
-        {appointments.upcoming.length ? (
-          appointments.upcoming.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} upcoming />)
+        {next.length ? (
+          next.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         ) : (
           <EmptyState icon={CalendarIcon} title="No upcoming visits">
             Book a visit online, or contact the clinic.
