@@ -9,7 +9,7 @@ import { InMemoryObjectStorage, OBJECT_STORAGE } from "@healthcare/documents";
 import { NOTIFICATION_QUEUE, type NotificationQueue } from "@healthcare/notification";
 import { Pool } from "pg";
 import request from "supertest";
-import { AppModule } from "../src/app/app.module";
+import { AppModule, type AppModuleOverrides } from "../src/app/app.module";
 import { configureApp } from "../src/app/configure-app";
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_test";
@@ -52,7 +52,7 @@ export async function resetDatabase(pool: Pool): Promise<void> {
   await runMigrations(pool, join(__dirname, "../../../database/migrations"));
 }
 
-export async function createTestApp(): Promise<TestContext> {
+export async function createTestApp(overrides: Pick<AppModuleOverrides, "philhealthGateway"> = {}): Promise<TestContext> {
   const config = testConfig();
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
   await resetDatabase(pool);
@@ -64,6 +64,7 @@ export async function createTestApp(): Promise<TestContext> {
         objectStorage: { provide: OBJECT_STORAGE, useValue: storage },
         notificationQueue: { provide: NOTIFICATION_QUEUE, useValue: queue },
         disableRateLimit: true,
+        ...overrides,
       }),
     ],
   }).compile();

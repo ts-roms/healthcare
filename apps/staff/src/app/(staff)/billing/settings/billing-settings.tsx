@@ -23,10 +23,19 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { BillingCategory, BillingPayer, BillingService, DiscountRule } from "@/lib/api/types";
+import type { BillingCategory, BillingPayer, BillingService, DiscountRule, PhilHealthAccreditation } from "@/lib/api/types";
 import { CATEGORY_LABEL, parsePesos, percent, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
-import { addPrice, createDiscountRule, createPayer, createService, deactivateDiscountRule, setServiceStatus, updatePrefixes } from "../actions";
+import {
+  addPrice,
+  createDiscountRule,
+  createPayer,
+  createService,
+  deactivateDiscountRule,
+  recordAccreditation,
+  setServiceStatus,
+  updatePrefixes,
+} from "../actions";
 
 type Source = { code: string; name: string };
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as BillingCategory[];
@@ -68,6 +77,7 @@ export function BillingSettings({
   visitTypes,
   labTests,
   canManage,
+  philhealth,
 }: {
   services: BillingService[];
   payers: BillingPayer[];
@@ -76,6 +86,8 @@ export function BillingSettings({
   visitTypes: Source[];
   labTests: Source[];
   canManage: boolean;
+  /** The selected facility's PhilHealth accreditation (only for staff who may record it). */
+  philhealth: { facilityId: string; facilityName: string; accreditation: PhilHealthAccreditation | null } | null;
 }) {
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
@@ -86,6 +98,7 @@ export function BillingSettings({
       <div className="flex flex-col gap-4">
         <Payers payers={payers} canManage={canManage} />
         <Prefixes prefixes={prefixes} canManage={canManage} />
+        {philhealth ? <Accreditation {...philhealth} /> : null}
       </div>
     </div>
   );
@@ -547,6 +560,71 @@ function Prefixes({ prefixes, canManage }: { prefixes: { invoicePrefix: string; 
             </Button>
           </form>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The facility's PhilHealth accreditation number, as issued (not verified with PhilHealth), used when claims are prepared. */
+function Accreditation({
+  facilityId,
+  facilityName,
+  accreditation,
+}: {
+  facilityId: string;
+  facilityName: string;
+  accreditation: PhilHealthAccreditation | null;
+}) {
+  const { pending, submit } = useSubmit();
+  const [f, setF] = React.useState({
+    accreditationNumber: accreditation?.accreditationNumber ?? "",
+    validFrom: accreditation?.validFrom ?? "",
+    validUntil: accreditation?.validUntil ?? "",
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>PhilHealth accreditation</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 text-body">
+        <p className="text-meta text-muted-foreground">
+          {facilityName}. Used when PhilHealth claims are prepared. Sending claims electronically (eClaims) is not connected yet.
+        </p>
+        <form
+          className="grid grid-cols-2 gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(
+              () =>
+                recordAccreditation({
+                  facilityId,
+                  accreditationNumber: f.accreditationNumber,
+                  validFrom: f.validFrom || undefined,
+                  validUntil: f.validUntil || undefined,
+                  version: accreditation?.version,
+                }),
+              "Accreditation saved",
+            );
+          }}
+        >
+          <Label htmlFor="ph-accreditation" className="col-span-2">
+            Accreditation number
+          </Label>
+          <Input
+            id="ph-accreditation"
+            className="col-span-2"
+            value={f.accreditationNumber}
+            maxLength={40}
+            onChange={(e) => setF({ ...f, accreditationNumber: e.target.value })}
+          />
+          <Label htmlFor="ph-valid-from">Valid from</Label>
+          <Label htmlFor="ph-valid-until">Valid until</Label>
+          <Input id="ph-valid-from" type="date" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
+          <Input id="ph-valid-until" type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
+          <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
+            Save
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );

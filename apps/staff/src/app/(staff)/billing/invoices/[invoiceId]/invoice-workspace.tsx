@@ -87,11 +87,14 @@ export function InvoiceWorkspace({
   rules,
   payers,
   can,
+  aside,
 }: {
   invoice: InvoiceDetail;
   rules: DiscountRule[];
   payers: BillingPayer[];
   can: Permissions;
+  /** Extra panels for the side column (e.g. the PhilHealth claim). */
+  aside?: React.ReactNode;
 }) {
   // The newest of what the page loaded and what the last action returned.
   const [latest, setLatest] = React.useState<InvoiceDetail | null>(null);
@@ -108,6 +111,7 @@ export function InvoiceWorkspace({
           <Summary invoice={invoice} can={can} />
           <Discounts invoice={invoice} rules={rules} canEdit={draft && can.discount} />
           <Coverage invoice={invoice} payers={payers} canEdit={draft && can.issue} canFollowUp={invoice.status === "issued" && can.issue} />
+          {aside}
         </div>
       </div>
     </InvoiceUpdate.Provider>

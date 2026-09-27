@@ -70,6 +70,9 @@ export const PERMISSIONS = [
   "billing.report.read",
   // Phase 8 — interoperability (migration 0020)
   "interop.fhir.read",
+  // Phase 8 — PhilHealth eClaims adapter stubs (migration 0021)
+  "philhealth.claim.submit",
+  "philhealth.settings.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -237,6 +237,16 @@ export class ClinicQueries {
     };
   }
 
+  /** Diagnoses recorded in the given encounters (claim preparation). Not audited here. */
+  diagnosesForEncounters(organizationId: string, encounterIds: string[]) {
+    if (encounterIds.length === 0) return Promise.resolve([]);
+    return this.db
+      .select()
+      .from(diagnosis)
+      .where(and(eq(diagnosis.organizationId, organizationId), inArray(diagnosis.encounterId, encounterIds)))
+      .orderBy(asc(diagnosis.recordedAt));
+  }
+
   /** Practitioner records by id (record exports). */
   practitioners(organizationId: string, practitionerIds: string[]) {
     if (practitionerIds.length === 0) return Promise.resolve([]);

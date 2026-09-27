@@ -58,25 +58,25 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 
 ## Current projects
 
-| Project                                                                               | Tags                                    |
-| ------------------------------------------------------------------------------------- | --------------------------------------- |
-| `apps/staff`                                                                          | `scope:staff`, `type:app`               |
-| `apps/portal`                                                                         | `scope:portal`, `type:app`              |
-| `apps/api`                                                                            | `scope:api`, `type:app`                 |
-| `apps/notification-worker`                                                            | `scope:worker`, `type:app`              |
-| `libs/ui`                                                                             | `scope:shared`, `type:ui`               |
-| `libs/domain`                                                                         | `scope:shared`, `type:domain`           |
-| `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification` | `scope:shared`, `type:data-access`      |
-| `libs/auth`                                                                           | `scope:shared`, `type:feature`          |
-| `libs/patient`                                                                        | `scope:patient`, `type:feature`         |
-| `libs/clinic`                                                                         | `scope:clinic`, `type:feature`          |
-| `libs/prescription`                                                                   | `scope:prescription`, `type:feature`    |
-| `libs/laboratory`                                                                     | `scope:laboratory`, `type:feature`      |
-| `libs/telemedicine`                                                                   | `scope:telemedicine`, `type:feature`    |
-| `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`       |
-| `libs/billing`                                                                        | `scope:billing`, `type:feature`         |
-| `libs/pdf`                                                                            | `scope:shared`, `type:util`             |
-| `libs/interoperability`                                                               | `scope:interoperability`, `type:domain` |
+| Project                                                                               | Tags                                     |
+| ------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `apps/staff`                                                                          | `scope:staff`, `type:app`                |
+| `apps/portal`                                                                         | `scope:portal`, `type:app`               |
+| `apps/api`                                                                            | `scope:api`, `type:app`                  |
+| `apps/notification-worker`                                                            | `scope:worker`, `type:app`               |
+| `libs/ui`                                                                             | `scope:shared`, `type:ui`                |
+| `libs/domain`                                                                         | `scope:shared`, `type:domain`            |
+| `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification` | `scope:shared`, `type:data-access`       |
+| `libs/auth`                                                                           | `scope:shared`, `type:feature`           |
+| `libs/patient`                                                                        | `scope:patient`, `type:feature`          |
+| `libs/clinic`                                                                         | `scope:clinic`, `type:feature`           |
+| `libs/prescription`                                                                   | `scope:prescription`, `type:feature`     |
+| `libs/laboratory`                                                                     | `scope:laboratory`, `type:feature`       |
+| `libs/telemedicine`                                                                   | `scope:telemedicine`, `type:feature`     |
+| `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`        |
+| `libs/billing`                                                                        | `scope:billing`, `type:feature`          |
+| `libs/pdf`                                                                            | `scope:shared`, `type:util`              |
+| `libs/interoperability`                                                               | `scope:interoperability`, `type:feature` |
 
 ## Adding a clinical domain library
 

@@ -4,7 +4,16 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { BillingCharge, BillingPayer, BillingService, DiscountRule, InvoiceDetail, LedgerEntry } from "@/lib/api/types";
+import type {
+  BillingCharge,
+  BillingPayer,
+  BillingService,
+  ClaimExchange,
+  DiscountRule,
+  InvoiceDetail,
+  LedgerEntry,
+  PhilHealthAccreditation,
+} from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call
 // (permissions, facility, invoice state, amounts). Amounts are integer centavos.
@@ -128,6 +137,35 @@ const claimSchema = z.object({
 export async function updateClaim(input: z.input<typeof claimSchema>) {
   const { invoiceId, coverageId, ...body } = input;
   return run(claimSchema, input, () => api<InvoiceDetail>(`/billing/invoices/${invoiceId}/payers/${coverageId}/status`, { method: "POST", body }));
+}
+
+// ---- PhilHealth claims ---------------------------------------------------------------------------
+
+const philhealthSubmitSchema = z.object({ invoiceId: id, idempotencyKey: z.string().min(8).max(100) });
+/** Refused by the API while PhilHealth eClaims is an integration dependency (no official specification). */
+export async function requestPhilHealthSubmission(input: z.input<typeof philhealthSubmitSchema>) {
+  const { invoiceId, idempotencyKey } = input;
+  return run(
+    philhealthSubmitSchema,
+    input,
+    () => api<ClaimExchange>(`/philhealth/claims/invoices/${invoiceId}/submissions`, { method: "POST", body: { idempotencyKey } }),
+    [`/billing/invoices/${invoiceId}`],
+  );
+}
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date.");
+const accreditationSchema = z.object({
+  facilityId: id,
+  accreditationNumber: z.string().trim().min(1, "Enter the accreditation number.").max(40),
+  validFrom: isoDate.optional(),
+  validUntil: isoDate.optional(),
+  version: version.optional(),
+});
+export async function recordAccreditation(input: z.input<typeof accreditationSchema>) {
+  const { facilityId, ...body } = input;
+  return run(accreditationSchema, input, () => api<PhilHealthAccreditation>(`/philhealth/facilities/${facilityId}/accreditation`, { method: "PUT", body }), [
+    "/billing/settings",
+  ]);
 }
 
 // ---- payments ------------------------------------------------------------------------------------

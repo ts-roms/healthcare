@@ -9,6 +9,7 @@ import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor
 import { DocumentsModule } from "@healthcare/documents";
 import { LaboratoryModule } from "@healthcare/laboratory";
 import { BillingModule } from "@healthcare/billing";
+import { PhilHealthModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
@@ -18,6 +19,7 @@ import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
+import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
@@ -38,6 +40,8 @@ export interface AppModuleOverrides {
   objectStorage?: Provider;
   /** Replaces the BullMQ notification queue (tests). */
   notificationQueue?: Provider;
+  /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
+  philhealthGateway?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
   disableRateLimit?: boolean;
 }
@@ -51,6 +55,8 @@ export class AppModule implements NestModule {
   static forRoot(config: AppConfig, overrides: AppModuleOverrides = {}): DynamicModule {
     // One instance, imported by the app and by billing (which reads laboratory orders through an adapter).
     const laboratory = LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext });
+    // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
+    const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory });
     return {
       module: AppModule,
       imports: [
@@ -81,7 +87,14 @@ export class AppModule implements NestModule {
         // Phase 5 — telemedicine.
         TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
         // Phase 7 — billing: charges from clinical events, invoices, payments.
-        BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory }),
+        billing,
+        // Phase 8 — PhilHealth eClaims: claim preparation and the adapter port (unconfigured until the specification is obtained).
+        PhilHealthModule.forRoot({
+          imports: [PatientModule, billing],
+          sources: AppPhilHealthClaimSources,
+          billing: AppPhilHealthBillingSink,
+          gateway: overrides.philhealthGateway,
+        }),
       ],
       controllers: [
         FhirController,
