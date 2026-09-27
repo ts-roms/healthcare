@@ -1,13 +1,13 @@
 import { STAFF_NAVIGATION, type NavItem } from "@healthcare/ui/layouts";
 
-/** Modules that run on demo fixtures until their backend exists (Phase 2+). */
-export const DEMO_MODULES = ["/appointments", "/queue", "/clinic", "/laboratory", "/dental", "/telemedicine"];
+/** Modules whose screens still run on demo fixtures (their API may exist but is not wired yet). */
+export const DEMO_MODULES = ["/clinic", "/laboratory", "/dental", "/telemedicine"];
 
 /** Which permissions reveal each top-level module (any one is enough). Unlisted modules are visible to everyone. */
 const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/patients": ["patient.search"],
-  "/appointments": ["patient.read"],
-  "/queue": ["patient.read"],
+  "/appointments": ["appointment.read"],
+  "/queue": ["clinic.queue.read"],
   "/clinic": ["patient.read"],
   "/laboratory": ["patient.read"],
   "/dental": ["patient.read"],

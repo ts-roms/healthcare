@@ -7,6 +7,7 @@ import { cn } from "../lib/utils";
 
 const statusMeta: Record<AppointmentStatus, { label: string; variant: NonNullable<BadgeProps["variant"]> }> = {
   booked: { label: "Booked", variant: "neutral" },
+  confirmed: { label: "Confirmed", variant: "info" },
   arrived: { label: "Arrived", variant: "info" },
   "in-progress": { label: "In progress", variant: "teal" },
   completed: { label: "Completed", variant: "success" },

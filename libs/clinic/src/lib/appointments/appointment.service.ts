@@ -32,12 +32,16 @@ import type {
 import { appointment, type AppointmentRecord, practitionerSchedule, scheduleException, waitlistEntry } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
+import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
 import { canApply, noShowAllowed } from "../domain/appointment-state";
 import { availableSlots, type Interval, type ScheduleBlock } from "../domain/availability";
 
 const BLOCKING_STATUSES = ["cancelled", "no_show"] as const;
 
 export type AppointmentView = Omit<AppointmentRecord, "organizationId">;
+
+/** List rows carry minimal patient identification for schedules (no contact or clinical details). */
+export type AppointmentListItem = AppointmentView & { patient: PatientBrief | null };
 
 @Injectable()
 export class AppointmentService {
@@ -47,6 +51,7 @@ export class AppointmentService {
     private readonly events: DomainEventPublisher,
     private readonly organizations: OrganizationService,
     private readonly config: ClinicConfigService,
+    @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
   ) {}
 
   /** Free slots for a practitioner at a facility on a local date. */
@@ -135,7 +140,7 @@ export class AppointmentService {
     return publicView(await this.find(this.db, actor.organizationId, appointmentId));
   }
 
-  async list(actor: Actor, query: z.infer<typeof listAppointmentsSchema>): Promise<Page<AppointmentView>> {
+  async list(actor: Actor, query: z.infer<typeof listAppointmentsSchema>): Promise<Page<AppointmentListItem>> {
     const filters: SQL[] = [eq(appointment.organizationId, actor.organizationId)];
     if (query.facilityId) filters.push(eq(appointment.facilityId, query.facilityId));
     if (query.practitionerId) filters.push(eq(appointment.practitionerId, query.practitionerId));
@@ -157,7 +162,16 @@ export class AppointmentService {
       await this.audit.recordStandalone(actor, { action: "appointment.list", resourceType: "appointment", patientId: query.patientId });
     }
     const page = toPage(rows, query);
-    return { ...page, items: page.items.map(publicView) };
+    const patients = await this.patients.summaries(actor.organizationId, [...new Set(page.items.map((a) => a.patientId))]);
+    if (!query.patientId && page.items.length > 0) {
+      // A schedule shows who is booked: record that patients were listed.
+      await this.audit.recordStandalone(actor, {
+        action: "appointment.list",
+        resourceType: "appointment",
+        metadata: { facilityId: query.facilityId, practitionerId: query.practitionerId, date: query.date, count: page.items.length },
+      });
+    }
+    return { ...page, items: page.items.map((a) => ({ ...publicView(a), patient: patients.get(a.patientId) ?? null })) };
   }
 
   async confirm(actor: Actor, appointmentId: string, version: number): Promise<AppointmentView> {

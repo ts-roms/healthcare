@@ -1,8 +1,20 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ActivityIcon, AlertTriangleIcon, CalendarIcon, EyeOffIcon, PhoneIcon, PillIcon, ShieldAlertIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
+import {
+  ActivityIcon,
+  AlertTriangleIcon,
+  CalendarIcon,
+  CalendarPlusIcon,
+  LogInIcon,
+  EyeOffIcon,
+  PhoneIcon,
+  PillIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+} from "lucide-react";
 import { AllergyBadge, clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
-import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { can, getSession } from "@/lib/api/session";
@@ -38,7 +50,9 @@ async function loadSummary(id: string): Promise<PatientSummaryResponse | null> {
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary] = await Promise.all([loadPatient(id), loadSummary(id)]);
+  const [p, summary, session] = await Promise.all([loadPatient(id), loadSummary(id), getSession()]);
+  const canCheckIn = can(session, "clinic.queue.manage");
+  const canBook = can(session, "appointment.manage");
   const consents = currentConsents(p.consents);
   const emergency = p.relationships.filter((r) => r.isEmergencyContact || r.isLegalGuardian);
 
@@ -63,6 +77,25 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </Link>
           ) : null}
         </p>
+      ) : null}
+
+      {p.status === "active" && (canCheckIn || canBook) ? (
+        <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
+          {canCheckIn ? (
+            <Button asChild size="sm">
+              <Link href={`/queue/walk-in?patientId=${p.id}`}>
+                <LogInIcon /> Check in (walk-in)
+              </Link>
+            </Button>
+          ) : null}
+          {canBook ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/appointments/new?patientId=${p.id}`}>
+                <CalendarPlusIcon /> Book appointment
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_20rem]">

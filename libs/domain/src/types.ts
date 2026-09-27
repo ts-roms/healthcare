@@ -172,7 +172,7 @@ export interface CarePlan {
   goals: CarePlanGoal[];
 }
 
-export type AppointmentStatus = "booked" | "arrived" | "in-progress" | "completed" | "no-show" | "cancelled";
+export type AppointmentStatus = "booked" | "confirmed" | "arrived" | "in-progress" | "completed" | "no-show" | "cancelled";
 
 export interface Appointment {
   id: string;
@@ -187,7 +187,8 @@ export interface Appointment {
   reason?: string;
 }
 
-export type QueueStatus = "waiting" | "vitals" | "with-provider" | "for-billing" | "done";
+/** "ready": triaged and waiting for the provider. */
+export type QueueStatus = "waiting" | "vitals" | "ready" | "with-provider" | "for-billing" | "done";
 
 export interface QueueEntry {
   id: string;
@@ -196,7 +197,7 @@ export interface QueueEntry {
   station: string;
   status: QueueStatus;
   arrivedAt: string;
-  priority?: "senior" | "pwd" | "pregnant" | "urgent";
+  priority?: "senior" | "pwd" | "pregnant" | "urgent" | "emergency";
 }
 
 export interface PrescriptionItem {

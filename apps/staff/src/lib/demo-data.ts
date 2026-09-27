@@ -1,6 +1,6 @@
 /**
- * Demo fixtures for modules that have no backend yet (appointments, queue,
- * clinic, laboratory, dental, telemedicine — Phase 2+). Pages using this module
+ * Demo fixtures for screens not yet wired to the API (clinic/encounters,
+ * laboratory, dental, telemedicine, the dashboard's clinical panels). Pages using this module
  * are badged "Demo" and show a demo-data banner. Real patient data comes from
  * the API via `@/lib/api`; never mix the two on one screen.
  */

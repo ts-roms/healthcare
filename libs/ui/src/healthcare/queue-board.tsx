@@ -9,27 +9,33 @@ import { cn } from "../lib/utils";
 const COLUMNS: { status: QueueStatus; label: string }[] = [
   { status: "waiting", label: "Waiting" },
   { status: "vitals", label: "Triage / Vitals" },
+  { status: "ready", label: "Ready for provider" },
   { status: "with-provider", label: "With provider" },
   { status: "for-billing", label: "For billing" },
   { status: "done", label: "Done" },
 ];
 
-const PRIORITY_LABEL = { senior: "Senior", pwd: "PWD", pregnant: "Pregnant", urgent: "Urgent" } as const;
+const PRIORITY_LABEL = { senior: "Senior", pwd: "PWD", pregnant: "Pregnant", urgent: "Urgent", emergency: "Emergency" } as const;
+const PRIORITY_VARIANT = { senior: "info", pwd: "info", pregnant: "info", urgent: "danger", emergency: "critical" } as const;
 
 export function QueueBoard({
   entries,
   now = new Date(),
   onSelect,
   hideDone = false,
+  statuses,
   className,
 }: {
   entries: QueueEntry[];
   now?: Date;
   onSelect?: (entry: QueueEntry) => void;
   hideDone?: boolean;
+  /** Columns to show, in board order. Defaults to all. */
+  statuses?: QueueStatus[];
   className?: string;
 }) {
-  const cols = hideDone ? COLUMNS.filter((c) => c.status !== "done") : COLUMNS;
+  const shown = statuses ? COLUMNS.filter((c) => statuses.includes(c.status)) : COLUMNS;
+  const cols = hideDone ? shown.filter((c) => c.status !== "done") : shown;
   return (
     <div className={cn("grid gap-2", className)} style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(12rem, 1fr))` }}>
       {cols.map((col) => {
@@ -52,7 +58,7 @@ export function QueueBoard({
                     >
                       <span className="flex items-center gap-1.5">
                         <span className="font-mono text-table font-bold">{e.ticket}</span>
-                        {e.priority ? <Badge variant={e.priority === "urgent" ? "danger" : "info"}>{PRIORITY_LABEL[e.priority]}</Badge> : null}
+                        {e.priority ? <Badge variant={PRIORITY_VARIANT[e.priority]}>{PRIORITY_LABEL[e.priority]}</Badge> : null}
                         {col.status !== "done" ? (
                           <span className={cn("tabular ml-auto text-meta", wait > 45 ? "font-semibold text-warning-foreground" : "text-muted-foreground")}>
                             {wait > 45 ? "⚠ " : ""}
