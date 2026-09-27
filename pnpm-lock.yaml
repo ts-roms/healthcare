@@ -222,6 +222,9 @@ importers:
       '@healthcare/auth':
         specifier: workspace:*
         version: link:../../libs/auth
+      '@healthcare/billing':
+        specifier: workspace:*
+        version: link:../../libs/billing
       '@healthcare/care-plan':
         specifier: workspace:*
         version: link:../../libs/care-plan
@@ -438,6 +441,18 @@ importers:
         version: link:../core
 
   libs/auth:
+    dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
+
+  libs/billing:
     dependencies:
       '@healthcare/audit':
         specifier: workspace:*

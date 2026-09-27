@@ -958,3 +958,173 @@ export interface VideoJoin {
   room: string;
   expiresInSeconds: number;
 }
+
+// ---- Billing (Phase 7) ------------------------------------------------------------------------------
+// Money is integer centavos (PHP) in the API: 50000 = ₱500.00.
+
+export type BillingCategory = "consultation" | "procedure" | "laboratory" | "dental" | "telemedicine" | "supply" | "other";
+export type PaymentMethod = "cash" | "card" | "e_wallet" | "bank_transfer" | "check" | "other";
+
+export interface BillingServicePrice {
+  id: string;
+  serviceId: string;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+}
+
+export interface BillingService {
+  id: string;
+  code: string;
+  name: string;
+  category: BillingCategory;
+  sourceKind: "visit_type" | "lab_test" | null;
+  sourceCode: string | null;
+  status: "active" | "inactive";
+  version: number;
+  currentPrice: number | null;
+  prices: BillingServicePrice[];
+}
+
+export interface BillingPayer {
+  id: string;
+  code: string;
+  name: string;
+  payerType: "hmo" | "philhealth" | "insurance" | "company" | "other";
+  status: "active" | "inactive";
+}
+
+export interface DiscountRule {
+  id: string;
+  code: string;
+  name: string;
+  kind: "senior_citizen" | "pwd" | "employee" | "promotional" | "other";
+  statutory: boolean;
+  rateBp: number;
+  categories: BillingCategory[];
+  requiresEvidence: boolean;
+  stackable: boolean;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  status: "active" | "inactive";
+}
+
+export interface BillingCharge {
+  id: string;
+  patientId: string;
+  serviceId: string;
+  serviceCode: string;
+  category: BillingCategory;
+  sourceType: "encounter" | "lab_order_item" | "manual";
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  serviceDate: string;
+  status: "pending" | "invoiced" | "cancelled";
+  invoiceId: string | null;
+  cancelReason: string | null;
+  capturedAt: string;
+  version: number;
+  patient: PatientBrief | null;
+}
+
+export interface BillingWorklistRow {
+  patientId: string;
+  count: number;
+  amount: number;
+  oldest: string;
+  patient: PatientBrief | null;
+}
+
+export type InvoiceStatus = "draft" | "issued" | "void";
+
+export interface InvoiceSummary {
+  id: string;
+  patientId: string;
+  invoiceNumber: string | null;
+  status: InvoiceStatus;
+  grossTotal: number;
+  discountTotal: number;
+  netTotal: number;
+  payerTotal: number;
+  patientTotal: number;
+  paidTotal: number;
+  balance: number;
+  createdAt: string;
+  issuedAt: string | null;
+  voidedAt: string | null;
+  version: number;
+  patient: PatientBrief | null;
+}
+
+export interface InvoiceLine {
+  id: string;
+  chargeId: string;
+  category: BillingCategory;
+  description: string;
+  serviceDate: string;
+  quantity: number;
+  unitPrice: number;
+  grossAmount: number;
+  discountAmount: number;
+  netAmount: number;
+}
+
+export interface InvoiceDiscount {
+  id: string;
+  ruleId: string;
+  ruleCode: string;
+  ruleName: string;
+  rateBp: number;
+  amount: number;
+  evidenceIdMasked: string | null;
+  evidenceNote: string | null;
+}
+
+export interface InvoiceCoverage {
+  id: string;
+  payerId: string;
+  payerName: string;
+  payerType: BillingPayer["payerType"];
+  amount: number;
+  reference: string | null;
+  status: "pending" | "submitted" | "settled" | "denied";
+  settledAmount: number | null;
+  statusNote: string | null;
+}
+
+export interface LedgerEntry {
+  id: string;
+  kind: "payment" | "refund";
+  amount: number;
+  method: PaymentMethod;
+  reference: string | null;
+  receiptNumber: string | null;
+  refundOfId: string | null;
+  reason: string | null;
+  recordedAt: string;
+}
+
+export interface InvoiceDetail extends Omit<InvoiceSummary, "patient"> {
+  facilityId: string;
+  notes: string | null;
+  voidReason: string | null;
+  replacedById: string | null;
+  items: InvoiceLine[];
+  discounts: InvoiceDiscount[];
+  payers: InvoiceCoverage[];
+  payments: LedgerEntry[];
+  patient: PatientBrief | null;
+}
+
+export interface DailyBillingReport {
+  date: string;
+  invoices: { issued: number; voided: number; grossTotal: number; discountTotal: number; netTotal: number; payerTotal: number; patientTotal: number };
+  discounts: Array<{ code: string; name: string; count: number; amount: number }>;
+  collections: Array<{ method: PaymentMethod; count: number; amount: number }>;
+  collectedTotal: number;
+  refunds: Array<{ method: PaymentMethod; count: number; amount: number }>;
+  refundedTotal: number;
+  receivables: { patientBalance: number; invoices: number; payerPending: number };
+}

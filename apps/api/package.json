@@ -108,7 +108,8 @@
     "@healthcare/prescription": "workspace:*",
     "@healthcare/care-plan": "workspace:*",
     "@healthcare/laboratory": "workspace:*",
-    "@healthcare/telemedicine": "workspace:*"
+    "@healthcare/telemedicine": "workspace:*",
+    "@healthcare/billing": "workspace:*"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

@@ -14,6 +14,7 @@ import {
   ShieldCheckIcon,
   SmartphoneIcon,
   UsersIcon,
+  ReceiptIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -89,6 +90,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getSession(),
   ]);
   const canCheckIn = can(session, "clinic.queue.manage");
+  const canBill = can(session, "billing.charge.read");
   const canBook = can(session, "appointment.manage");
   const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
   const canViewDocuments = can(session, "document.read");
@@ -117,7 +119,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         </p>
       ) : null}
 
-      {p.status === "active" && (canCheckIn || canBook) ? (
+      {(p.status === "active" && (canCheckIn || canBook)) || canBill ? (
         <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
           {canCheckIn ? (
             <Button asChild size="sm">
@@ -130,6 +132,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <Button asChild size="sm" variant="outline">
               <Link href={`/appointments/new?patientId=${p.id}`}>
                 <CalendarPlusIcon /> Book appointment
+              </Link>
+            </Button>
+          ) : null}
+          {canBill ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/billing/patients/${p.id}`}>
+                <ReceiptIcon /> Billing
               </Link>
             </Button>
           ) : null}

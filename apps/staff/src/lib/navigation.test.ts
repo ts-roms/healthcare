@@ -60,4 +60,9 @@ describe("isDemoPath", () => {
     expect(isDemoPath("/clinic/encounters/abc")).toBe(false);
     expect(isDemoPath("/appointments/new")).toBe(false);
   });
+
+  it("shows billing to users with billing permission", () => {
+    expect(hrefs(["patient.read"])).not.toContain("/billing");
+    expect(navigationForPermissions(["billing.charge.read"]).find((i) => i.href === "/billing")?.badge).toBeUndefined();
+  });
 });

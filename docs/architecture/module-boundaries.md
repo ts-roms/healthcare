@@ -74,6 +74,7 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | `libs/laboratory`                                                                     | `scope:laboratory`, `type:feature`   |
 | `libs/telemedicine`                                                                   | `scope:telemedicine`, `type:feature` |
 | `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`    |
+| `libs/billing`                                                                        | `scope:billing`, `type:feature`      |
 
 ## Adding a clinical domain library
 

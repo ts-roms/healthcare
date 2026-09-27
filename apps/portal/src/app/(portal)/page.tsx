@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, ClipboardListIcon, FlaskConicalIcon, PillIcon, type LucideIcon } from "lucide-react";
+import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, ClipboardListIcon, FlaskConicalIcon, PillIcon, ReceiptIcon, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ResultMeaning } from "@/components/result-meaning";
 import { VisitCard } from "@/components/visit-card";
@@ -14,6 +14,7 @@ const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[]
   { label: "Care plan", href: "/care-plan", icon: ClipboardListIcon, tone: "bg-secondary text-secondary-foreground" },
   { label: "Lab results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
+  { label: "Bills", href: "/billing", icon: ReceiptIcon, tone: "bg-warning-subtle text-warning-foreground" },
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
@@ -42,11 +43,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </section>
 
       <nav aria-label="Quick actions" className="grid grid-cols-2 gap-3">
-        {ACTIONS.map(({ label, href, icon: Icon, tone }) => (
+        {ACTIONS.map(({ label, href, icon: Icon, tone }, i) => (
           <Link
             key={href}
             href={href}
-            className="flex min-h-28 flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className={`${ACTIONS.length % 2 && i === ACTIONS.length - 1 ? "col-span-2" : ""}flex min-h-28 flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50`}
           >
             <span className={`flex size-11 items-center justify-center rounded-xl ${tone}`}>
               <Icon className="size-5" aria-hidden />

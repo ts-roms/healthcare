@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
-import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { DATABASE, type Database, localDate } from "@healthcare/core";
+import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
-import { appointment, diagnosis, encounter, practitioner, visitType, vitalSignSet } from "./clinic.schema";
+import { appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
 import { canApply } from "./domain/appointment-state";
 import { patientMayChange } from "./domain/patient-booking";
@@ -99,6 +99,34 @@ export class ClinicQueries {
       .from(encounter)
       .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
     return row;
+  }
+
+  /** What billing needs from a signed encounter: the visit type's code and the local service date. */
+  async billableEncounter(organizationId: string, encounterId: string) {
+    const [row] = await this.db
+      .select({
+        id: encounter.id,
+        patientId: encounter.patientId,
+        facilityId: encounter.facilityId,
+        status: encounter.status,
+        at: sql<Date>`coalesce(${encounter.completedAt}, ${encounter.startedAt})`,
+        visitTypeCode: visitType.code,
+        timeZone: facility.timezone,
+      })
+      .from(encounter)
+      .innerJoin(facility, eq(facility.id, encounter.facilityId))
+      .leftJoin(visit, eq(visit.id, encounter.visitId))
+      .leftJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      patientId: row.patientId,
+      facilityId: row.facilityId,
+      status: row.status,
+      visitTypeCode: row.visitTypeCode,
+      serviceDate: localDate(new Date(row.at), row.timeZone),
+    };
   }
 
   allergySummary(organizationId: string, patientId: string) {

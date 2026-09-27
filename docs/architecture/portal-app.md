@@ -34,17 +34,18 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 
 ## Data
 
-| Area                          | Source                                                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                    |
-| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                              |
-| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                  |
-| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}` |
-| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                              |
-| Medicines                     | `GET /portal/prescriptions` (active)                                                                                    |
-| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                      |
-| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                              |
-| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                           |
+| Area                          | Source                                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                        |
+| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                                  |
+| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                      |
+| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}`     |
+| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                                  |
+| Medicines                     | `GET /portal/prescriptions` (active)                                                                                        |
+| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                          |
+| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                  |
+| Bills                         | `GET /portal/billing` (issued and void invoices: lines, discounts, coverage, payments, balance; no drafts or staff details) |
+| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                               |
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 

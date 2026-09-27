@@ -28,6 +28,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/billing/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/telemedicine/tsconfig.lib.json"
     },
     {
