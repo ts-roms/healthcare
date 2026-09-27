@@ -409,7 +409,7 @@ export class LabResultService {
         patientId: updated.patientId,
         metadata: { alertId },
       });
-      await this.events.record(tx, alertEvent("CriticalResultAcknowledged", updated));
+      await this.events.record(tx, alertEvent("CriticalResultAcknowledged", updated, { orderId: (await this.orderIdOf(tx, updated.resultId)) ?? undefined }));
       const names = await this.context.staffNames(
         actor.organizationId,
         [updated.communicatedBy, updated.acknowledgedBy].filter((id): id is string => !!id),
@@ -608,6 +608,11 @@ export class LabResultService {
     void executor;
     const [view] = await this.readModel.results(actor.organizationId, [row]);
     return view!;
+  }
+
+  private async orderIdOf(executor: DbExecutor, resultId: string): Promise<string | null> {
+    const [row] = await executor.select({ orderId: labResult.orderId }).from(labResult).where(eq(labResult.id, resultId));
+    return row?.orderId ?? null;
   }
 
   private alertView(alert: LabCriticalAlertRecord, staff: Map<string, string>) {

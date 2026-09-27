@@ -38,9 +38,19 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | Sign-in, activation, sign-out | API `/portal/auth/*`                                                                       |
 | Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email) |
-| Visits, results, messages     | Not available to patients yet — honest empty states; no fixture data                       |
+| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone)                  |
+| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                 |
+| Medicines                     | `GET /portal/prescriptions` (active)                                                       |
+| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)         |
+| Messages                      | Not available yet ("coming soon")                                                          |
 
-Results will only ever list what has been **released for patient access** (CLAUDE.md §17). Patients cannot edit their record; Profile tells them to ask the clinic.
+The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
+
+**Results (CLAUDE.md §17).** A result is shown only when it is the current version, **released**, of a test the laboratory marks as releasable to patients (`lab_test.patient_releasable`), and — if critical — after the ordering side has **acknowledged** it, so the patient never learns of a critical value before their care team. While a released result is being corrected it is hidden until the corrected version is released. The portal words each value against the snapshotted range in plain language ("Within the usual range", "Higher than the usual range", "Much higher than the usual range — your care team has been told"; icon, words and colour), shows "Usual range: …", and the result page draws a trend with the range shaded plus the history with each value's range at the time. It does not interpret results; it tells the patient to talk to their doctor (`lib/records.ts`).
+
+**Results-ready notice.** When results of an order become visible to a patient who can use the portal (active account and `portal_access` consent), the API (`apps/api/src/app/portal/patient-result-notices.ts`) sends one SMS per order per day — or an email if SMS is not possible (no mobile, opted out) — using `lab.results-available`, which names no test or value. A correction of a visible result sends an "updated" notice. Communication preferences apply (category `clinical`). Production SMS still needs a provider (see `docs/domains/notification.md`).
+
+Patients cannot edit their record; Profile tells them to ask the clinic.
 
 ## Configuration
 
@@ -51,4 +61,4 @@ Results will only ever list what has been **released for patient access** (CLAUD
 
 ## Not yet
 
-Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, and patient-facing appointments, results and messages.
+Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, online booking (Phase 4b), messages and reminders (Phase 4c).

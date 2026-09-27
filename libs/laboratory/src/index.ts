@@ -6,4 +6,5 @@ export * from "./lib/laboratory.schema";
 export * from "./lib/orders/lab-order.service";
 export * from "./lib/orders/lab-worklist.service";
 export * from "./lib/ports";
+export * from "./lib/results/lab-patient-access";
 export * from "./lib/results/lab-result.service";

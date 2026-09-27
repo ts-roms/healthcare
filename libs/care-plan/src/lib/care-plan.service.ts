@@ -161,6 +161,48 @@ export class CarePlanService {
     return plans.map((plan) => ({ ...strip(plan), openActivities: activities.filter((a) => a.carePlanId === plan.id).map(strip) }));
   }
 
+  /**
+   * The patient's active plans as the patient sees them in the portal: title,
+   * goals and open activities, without staff names, reasons or progress notes.
+   * Not audited here: the portal endpoint audits the patient's access.
+   */
+  async patientView(organizationId: string, patientId: string) {
+    const plans = await this.db
+      .select()
+      .from(carePlan)
+      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId), eq(carePlan.status, "active")))
+      .orderBy(desc(carePlan.startDate));
+    if (plans.length === 0) return [];
+    const planIds = plans.map((p) => p.id);
+    const [goals, activities] = await Promise.all([
+      this.db.select().from(carePlanGoal).where(inArray(carePlanGoal.carePlanId, planIds)),
+      this.db
+        .select()
+        .from(carePlanActivity)
+        .where(and(inArray(carePlanActivity.carePlanId, planIds), inArray(carePlanActivity.status, [...OPEN_ACTIVITY_STATUSES])))
+        .orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`),
+    ]);
+    return plans.map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      category: plan.category,
+      startDate: plan.startDate,
+      goals: goals
+        .filter((g) => g.carePlanId === plan.id && ["proposed", "active", "achieved"].includes(g.status))
+        .map((g) => ({
+          id: g.id,
+          description: g.description,
+          targetMeasure: g.targetMeasure,
+          targetValue: g.targetValue,
+          targetDate: g.targetDate,
+          status: g.status,
+        })),
+      activities: activities
+        .filter((a) => a.carePlanId === plan.id)
+        .map((a) => ({ id: a.id, kind: a.kind, description: a.description, assignee: a.assignee, dueDate: a.dueDate, status: a.status })),
+    }));
+  }
+
   async changeStatus(actor: Actor, carePlanId: string, input: z.infer<typeof changePlanStatusSchema>) {
     if ((input.status === "cancelled" || input.status === "on_hold") && !input.reason) throw new BusinessRuleError("A reason is required", "reason_required");
     await this.db.transaction(async (tx) => {

@@ -18,6 +18,8 @@ import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
+import { PatientResultNotices } from "./portal/patient-result-notices";
+import { PortalRecordsController } from "./portal/portal-records.controller";
 import { RealtimeGateway } from "./realtime/realtime.gateway";
 import { AppRecipientDirectory } from "./recipient-directory";
 
@@ -65,10 +67,11 @@ export class AppModule implements NestModule {
         // Phase 3 — laboratory.
         LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext }),
       ],
-      controllers: [HealthController, PatientSummaryController],
+      controllers: [HealthController, PatientSummaryController, PortalRecordsController],
       providers: [
         RealtimeGateway,
         LaboratoryNotifications,
+        PatientResultNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

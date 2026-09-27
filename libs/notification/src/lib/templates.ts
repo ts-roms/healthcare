@@ -72,6 +72,24 @@ export const TEMPLATES = [
     render: (v) => ({ subject: v.title, text: v.body }),
   }),
   defineTemplate({
+    key: "lab.results-available",
+    version: 1,
+    category: "clinical",
+    // Leaves the platform (SMS/email): no test names, values or flags — only a pointer to MyHealth.
+    channels: ["sms", "email"],
+    variables: z.object({ kind: z.enum(["ready", "updated"]), organizationName: shortText }),
+    render: (v) =>
+      v.kind === "ready"
+        ? {
+            subject: `New results from ${v.organizationName}`,
+            text: `${v.organizationName}: you have new laboratory results in MyHealth. Sign in to view them. For questions about your results, talk to your doctor.`,
+          }
+        : {
+            subject: `An updated result from ${v.organizationName}`,
+            text: `${v.organizationName}: one of your laboratory results in MyHealth was updated. Sign in to see the latest version, and talk to your doctor if you have questions.`,
+          },
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",

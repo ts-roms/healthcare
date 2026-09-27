@@ -1,18 +1,29 @@
 import Link from "next/link";
-import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, FlaskConicalIcon, PillIcon, VideoIcon, type LucideIcon } from "lucide-react";
+import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, ClipboardListIcon, FlaskConicalIcon, PillIcon, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { ResultMeaning } from "@/components/result-meaning";
+import { VisitCard } from "@/components/visit-card";
+import { portalApi } from "@/lib/api/client";
 import { getMe } from "@/lib/api/session";
+import type { PortalAppointments, PortalResult } from "@/lib/api/types";
 import { greeting } from "@/lib/greeting";
+import { latestPerTest, resultDate, resultValue } from "@/lib/records";
 
 const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
   { label: "Book appointment", href: "/appointments", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
-  { label: "Online check-up", href: "/appointments?mode=online", icon: VideoIcon, tone: "bg-secondary text-secondary-foreground" },
+  { label: "Care plan", href: "/care-plan", icon: ClipboardListIcon, tone: "bg-secondary text-secondary-foreground" },
   { label: "Lab results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
-  const [me, { welcome }] = await Promise.all([getMe(), searchParams]);
+  const [me, { welcome }, appointments, results] = await Promise.all([
+    getMe(),
+    searchParams,
+    portalApi<PortalAppointments>("/portal/appointments"),
+    portalApi<PortalResult[]>("/portal/results"),
+  ]);
+  const recent = latestPerTest(results).slice(0, 3);
   return (
     <div className="flex flex-col gap-7">
       {welcome ? (
@@ -45,16 +56,39 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Upcoming" href="/appointments" />
-        <EmptyState icon={CalendarIcon} title="No visits to show yet">
-          Your clinic visits will appear here once MyHealth is connected to scheduling. To book or change a visit, contact the clinic.
-        </EmptyState>
+        {appointments.upcoming.length ? (
+          appointments.upcoming.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} />)
+        ) : (
+          <EmptyState icon={CalendarIcon} title="No upcoming visits">
+            To book or change a visit, contact the clinic.
+          </EmptyState>
+        )}
       </section>
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Recent results" href="/results" />
-        <EmptyState icon={FlaskConicalIcon} title="No results to show yet">
-          Results appear here only after the laboratory and your doctor release them to you.
-        </EmptyState>
+        {recent.length ? (
+          <ul className="flex flex-col gap-2">
+            {recent.map(({ latest }) => (
+              <li key={latest.testId}>
+                <Link href={`/results/${latest.testId}`} className="flex flex-col gap-1 rounded-xl border bg-card p-3">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="font-semibold">{latest.testName}</span>
+                    <span className="text-meta text-muted-foreground">{resultDate(latest.collectedAt ?? latest.releasedAt)}</span>
+                  </span>
+                  <span className="tabular">
+                    {resultValue(latest)} {latest.unit ?? ""}
+                  </span>
+                  <ResultMeaning result={latest} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon={FlaskConicalIcon} title="No results to show yet">
+            Results appear here after the laboratory releases them to you.
+          </EmptyState>
+        )}
       </section>
     </div>
   );
