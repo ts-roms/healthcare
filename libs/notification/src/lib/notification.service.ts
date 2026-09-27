@@ -1,0 +1,186 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AuditService } from '@healthcare/audit';
+import { type Actor, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from '@healthcare/core';
+import { and, desc, eq, isNull } from 'drizzle-orm';
+import type { z } from 'zod';
+import type { sendNotificationSchema } from './notification.dto';
+import { notification, type NotificationRecord } from './notification.schema';
+import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from './ports';
+import { findTemplate } from './templates';
+
+export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
+
+export type NotificationView = Omit<NotificationRecord, 'variables' | 'destination'> & { destinationMasked: string | null };
+
+export function toNotificationView({ variables: _v, destination, ...rest }: NotificationRecord): NotificationView {
+  return { ...rest, destinationMasked: destination ? mask(destination) : null };
+}
+
+function mask(destination: string): string {
+  return destination.includes('@') ? maskEmail(destination) : maskPhone(destination);
+}
+
+/**
+ * The single entry point for outbound communication (CLAUDE.md §27).
+ * Every request is stored — including ones suppressed by preferences — so the
+ * communication history is complete; delivery happens in the worker.
+ */
+@Injectable()
+export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(RECIPIENT_DIRECTORY) private readonly recipients: RecipientDirectory,
+    @Inject(NOTIFICATION_QUEUE) private readonly queue: NotificationQueue,
+    private readonly audit: AuditService,
+  ) {}
+
+  async send(actor: Actor, input: SendNotificationInput): Promise<NotificationView> {
+    const template = findTemplate(input.templateKey);
+    if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, 'unknown_template');
+    if (!template.channels.includes(input.channel)) {
+      throw new BusinessRuleError(`Template "${template.key}" cannot be sent via ${input.channel}`, 'channel_not_supported');
+    }
+    const parsed = template.variables.safeParse(input.variables ?? {});
+    if (!parsed.success) {
+      throw new BusinessRuleError(
+        'Template variables are invalid',
+        'invalid_template_variables',
+        parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      );
+    }
+    if (input.recipient.type === 'patient' && template.category === 'security') {
+      throw new BusinessRuleError('Security templates are for staff accounts', 'invalid_recipient');
+    }
+
+    if (input.idempotencyKey) {
+      const [existing] = await this.db
+        .select()
+        .from(notification)
+        .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.idempotencyKey, input.idempotencyKey)));
+      if (existing) return toNotificationView(existing);
+    }
+
+    const resolution = await this.recipients.resolve(actor.organizationId, input.recipient, input.channel, template.category);
+    const inApp = input.channel === 'in_app';
+    const status = !resolution.allowed ? 'suppressed' : inApp ? 'delivered' : 'queued';
+    const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
+
+    const created = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(notification)
+        .values({
+          organizationId: actor.organizationId,
+          recipientType: input.recipient.type,
+          recipientPatientId: input.recipient.type === 'patient' ? input.recipient.patientId : null,
+          recipientUserId: input.recipient.type === 'user' ? input.recipient.userId : null,
+          channel: input.channel,
+          category: template.category,
+          templateKey: template.key,
+          templateVersion: template.version,
+          destination: resolution.allowed ? resolution.destination : null,
+          variables: parsed.data as Record<string, unknown>,
+          status,
+          suppressionReason: resolution.allowed ? null : resolution.reason,
+          idempotencyKey: input.idempotencyKey ?? null,
+          scheduledFor,
+          createdBy: actor.userId,
+          deliveredAt: status === 'delivered' ? new Date() : null,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (!row) return undefined;
+      await this.audit.record(tx, actor, {
+        action: 'notification.create',
+        resourceType: 'notification',
+        resourceId: row.id,
+        patientId: row.recipientPatientId ?? undefined,
+        outcome: status === 'suppressed' ? 'denied' : 'success',
+        reason: row.suppressionReason ?? undefined,
+        metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category },
+      });
+      return row;
+    });
+    if (!created) {
+      // Lost an idempotency race: return the winner.
+      const [winner] = await this.db
+        .select()
+        .from(notification)
+        .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.idempotencyKey, input.idempotencyKey ?? '')));
+      if (!winner) throw new Error('Notification insert conflicted but no existing row was found');
+      return toNotificationView(winner);
+    }
+
+    if (created.status === 'queued') {
+      const delay = scheduledFor ? Math.max(scheduledFor.getTime() - Date.now(), 0) : 0;
+      // The row is committed; if enqueueing fails the worker's reconciler picks it up.
+      await this.queue
+        .enqueue(created.id, delay)
+        .catch((error: unknown) => this.logger.warn(`Enqueue failed for ${created.id}: ${String(error)}`));
+    }
+    return toNotificationView(created);
+  }
+
+  async historyForPatient(actor: Actor, patientId: string): Promise<NotificationView[]> {
+    const rows = await this.db
+      .select()
+      .from(notification)
+      .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.recipientPatientId, patientId)))
+      .orderBy(desc(notification.createdAt))
+      .limit(200);
+    await this.audit.recordStandalone(actor, { action: 'notification.list', resourceType: 'notification', patientId });
+    return rows.map(toNotificationView);
+  }
+
+  /** In-app inbox of the signed-in staff member. */
+  async inbox(actor: Actor) {
+    const rows = await this.db
+      .select()
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, actor.organizationId),
+          eq(notification.recipientUserId, actor.userId),
+          eq(notification.channel, 'in_app'),
+          eq(notification.status, 'delivered'),
+        ),
+      )
+      .orderBy(desc(notification.createdAt))
+      .limit(100);
+    return rows.map((row) => {
+      const template = findTemplate(row.templateKey);
+      const rendered = template?.render(row.variables);
+      return {
+        id: row.id,
+        templateKey: row.templateKey,
+        subject: rendered?.subject ?? null,
+        text: rendered?.text ?? '',
+        createdAt: row.createdAt,
+        readAt: row.readAt,
+      };
+    });
+  }
+
+  async markRead(actor: Actor, notificationId: string): Promise<void> {
+    const updated = await this.db
+      .update(notification)
+      .set({ readAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(notification.id, notificationId),
+          eq(notification.recipientUserId, actor.userId),
+          eq(notification.channel, 'in_app'),
+          isNull(notification.readAt),
+        ),
+      )
+      .returning({ id: notification.id });
+    if (updated.length === 0) {
+      const [exists] = await this.db
+        .select({ id: notification.id })
+        .from(notification)
+        .where(and(eq(notification.id, notificationId), eq(notification.recipientUserId, actor.userId)));
+      if (!exists) throw new NotFoundError('Notification');
+    }
+  }
+}

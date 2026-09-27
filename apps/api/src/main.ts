@@ -1,0 +1,28 @@
+import 'dotenv/config';
+import { Logger } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { loadAppConfig } from '@healthcare/core';
+import { AppModule } from './app/app.module';
+import { configureApp } from './app/configure-app';
+
+async function bootstrap(): Promise<void> {
+  const config = loadAppConfig();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
+    logger: levelsFrom(config.LOG_LEVEL),
+    bufferLogs: true,
+  });
+  configureApp(app, config);
+  await app.listen(config.PORT);
+  Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, 'Bootstrap');
+}
+
+function levelsFrom(level: string): Array<'error' | 'warn' | 'log' | 'debug' | 'verbose'> {
+  const order = ['error', 'warn', 'log', 'debug', 'verbose'] as const;
+  return order.slice(0, order.indexOf(level as (typeof order)[number]) + 1);
+}
+
+bootstrap().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

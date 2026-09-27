@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: healthcare
+          POSTGRES_PASSWORD: healthcare
+          POSTGRES_DB: healthcare_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U healthcare"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://healthcare:healthcare@localhost:5432/healthcare_test
+      NX_NO_CLOUD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - name: Workspace sync
+        run: pnpm nx sync:check
+
+      - name: Format
+        run: pnpm format:check
+
+      # CLAUDE.md §32: lint → typecheck → unit → integration → build, affected only.
+      - name: Lint
+        run: pnpm nx affected -t lint
+
+      - name: Typecheck
+        run: pnpm nx affected -t typecheck
+
+      - name: Unit tests
+        run: pnpm nx affected -t test
+
+      - name: Integration tests
+        run: pnpm nx affected -t test-integration
+
+      - name: Build
+        run: pnpm nx affected -t build

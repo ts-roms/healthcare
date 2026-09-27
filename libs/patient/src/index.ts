@@ -1,0 +1,7 @@
+export * from './lib/duplicate-detection';
+export * from './lib/patient.dto';
+export * from './lib/patient.module';
+export * from './lib/patient.schema';
+export * from './lib/patient.views';
+export * from './lib/communication-policy';
+export * from './lib/patient-record.service';

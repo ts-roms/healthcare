@@ -8,6 +8,7 @@ External integrations that require official specifications or agreements before 
 | PhilHealth eClaims | Billing / claims | Not yet obtained | — | Dependency |
 | PhilHealth YAKAP workflows | Primary care, claims | Not yet obtained | — | Dependency |
 | DOH reporting | Government reporting | Not yet obtained | — | Dependency |
-| SMS provider | Notifications | Provider not selected | — | Dependency |
+| SMS provider | Notifications (`ChannelSender` for `sms`) | Provider not selected | — | Dependency — production uses `UnconfiguredSender` |
 | Payment provider | Billing | Provider not selected | — | Dependency |
 | Telemedicine video (e.g. LiveKit) | Telemedicine | Provider not selected | — | Dependency |
+| Push provider (e.g. Expo push) | Notifications (`ChannelSender` for `push`) | Provider not selected | — | Dependency — production uses `UnconfiguredSender` |

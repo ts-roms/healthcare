@@ -2,8 +2,8 @@
 
 | Folder | Contents |
 | --- | --- |
-| `architecture/` | System architecture, module boundaries, ADRs (`architecture/adr/NNNN-title.md`) |
-| `domains/` | One document per domain, from `domains/_template.md` |
+| `architecture/` | [Overview](architecture/overview.md), module boundaries, [decisions](architecture/decisions.md) |
+| `domains/` | One document per domain, from `domains/_template.md` (patient, identity-access, organization, audit, documents, notification) |
 | `database/` | Schema overview, migrations policy, retention/archival rules |
 | `api/` | API conventions, error format, versioning, generated OpenAPI |
 | `security/` | RBAC model, access scopes, audit, secrets, data privacy |

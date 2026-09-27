@@ -24,9 +24,19 @@ Domain-specific instructions live next to the code they govern and extend (never
 
 ## 0. Current repository state
 
-The repository has not been scaffolded yet. Phase 1 (Foundation, §38) is the next step. Inspect the repository before every change — do not assume any file, library, table, or API exists.
+**Phase 1 (Foundation) is implemented**: Nx workspace, NestJS API, notification worker, and libraries `core`, `audit`, `organization`, `auth`, `patient`, `documents`, `notification`. Next is Phase 2 (Clinic) and the `staff-web` app. Always inspect the repository before changing it.
 
----
+Established conventions (details in `docs/architecture/`):
+
+- **Commands:** `pnpm nx run-many -t lint typecheck test build`, `pnpm nx run api:test-integration` (wipes `TEST_DATABASE_URL`), `pnpm format:check`, `pnpm nx sync:check`, `pnpm db:migrate`, `pnpm db:seed`. See `docs/deployment/local-development.md`.
+- **Schema:** hand-written, forward-only SQL in `database/migrations/` is the source of truth (constraints, composite same-organization FKs, append-only triggers). Each library mirrors **only its own tables** as Drizzle definitions; `apps/api/test/schema.int.spec.ts` catches drift. Never edit an applied migration.
+- **Validation:** Zod via `nestjs-zod` (`createZodDto`). No class-validator.
+- **Access:** decorators (`@Public`, `@RequirePermissions`, `@RequireFacility`, `@RequirePlatformAdmin`, `@CurrentActor`) and the permission catalog live in `libs/core`; the global `AccessGuard` in `libs/auth` enforces them. Every route is authenticated by default. New permissions need a migration row **and** a `PERMISSIONS` entry.
+- **Actor:** pass `Actor` explicitly into services; scope every query by `actor.organizationId`.
+- **Audit:** write audit events with `AuditService.record(tx, actor, …)` inside the same transaction as the change; `recordStandalone` for reads/denials.
+- **Errors:** throw `DomainError` subclasses from `libs/core`; the filter produces `{ error: { code, message, details?, requestId } }`.
+- **Boundaries:** tags `layer:core` / `layer:platform` / `layer:domain`. A platform library that needs domain data defines a port; the app (`apps/api/src/app`) wires the adapter.
+- **Tests:** unit tests next to the code (`*.spec.ts`); API integration tests in `apps/api/test/*.int.spec.ts` against real PostgreSQL.
 
 ## 1. Technology stack
 
@@ -36,8 +46,8 @@ Use this stack unless there is a strong, documented technical reason to change i
 | --- | --- |
 | Monorepo | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo. |
 | Frontend | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate |
-| Backend | NestJS, TypeScript, REST, OpenAPI/Swagger. Pick **one** validation approach (Zod or class-validator) and use it consistently. |
-| Database | PostgreSQL — primary transactional store, strong relational modeling |
+| Backend | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere. |
+| Database | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder |
 | Cache / jobs | Redis + BullMQ |
 | Object storage | S3-compatible |
 | Mobile | React Native + Expo (primarily for patients) |
@@ -80,7 +90,7 @@ libs/
   prescription/ telemedicine/ dental/ laboratory/ billing/ inventory/
   crm/ notification/ documents/ audit/ reporting/ interoperability/ philhealth/
 
-tools/  docs/  infrastructure/
+database/migrations/  tools/  docs/  infrastructure/
 nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json
 ```
 

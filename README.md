@@ -9,4 +9,18 @@ Integrated healthcare management platform: Clinic/EMR, Laboratory Information Sy
 - Domain rules: `libs/<domain>/CLAUDE.md`
 - Documentation: [`docs/`](./docs/README.md)
 
-Status: pre-scaffold. Phase 1 (Foundation) is next.
+## Status
+
+Phase 1 (Foundation) is implemented: authentication with MFA, organizations and facilities, RBAC, Patient Master with lookup and duplicate detection, consent, documents, notifications, and an append-only audit trail. See [docs/architecture/overview.md](docs/architecture/overview.md).
+
+## Quick start
+
+```bash
+pnpm install
+cp .env.example .env        # set SEED_ADMIN_PASSWORD
+pnpm dev:deps               # PostgreSQL, Redis, MinIO, Mailpit via Docker
+pnpm db:migrate && pnpm db:seed
+pnpm nx serve api           # http://localhost:3000/api/docs
+```
+
+More: [docs/deployment/local-development.md](docs/deployment/local-development.md).
