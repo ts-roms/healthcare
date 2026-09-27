@@ -492,9 +492,15 @@ importers:
       '@healthcare/audit':
         specifier: workspace:*
         version: link:../audit
+      '@healthcare/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@healthcare/core':
         specifier: workspace:*
         version: link:../core
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
 
   libs/prescription:
     dependencies:

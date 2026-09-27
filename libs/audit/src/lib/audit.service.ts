@@ -26,6 +26,18 @@ export interface AnonymousAuditContext {
   request: RequestMetadata;
 }
 
+/** A patient acting through the patient portal (not a staff user). */
+export interface PatientAuditContext {
+  kind: "patient";
+  /** The patient portal account (recorded as the actor). */
+  accountId: string;
+  patientId: string;
+  organizationId: string;
+  request: RequestMetadata;
+}
+
+export type AuditActor = Actor | AnonymousAuditContext | PatientAuditContext;
+
 export interface AuditQuery extends PageQuery {
   patientId?: string;
   actorUserId?: string;
@@ -47,17 +59,18 @@ export type AuditEventRecord = typeof auditEvent.$inferSelect;
 export class AuditService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async record(executor: DbExecutor, actor: Actor | AnonymousAuditContext, entry: AuditEntry): Promise<void> {
+  async record(executor: DbExecutor, actor: AuditActor, entry: AuditEntry): Promise<void> {
     const isAnonymous = actor.kind === "anonymous";
+    const isPatient = actor.kind === "patient";
     await executor.insert(auditEvent).values({
       organizationId: actor.organizationId ?? null,
-      facilityId: isAnonymous ? null : (actor.facilityId ?? null),
+      facilityId: isAnonymous || isPatient ? null : (actor.facilityId ?? null),
       actorType: isAnonymous ? (actor.authenticated ? "user" : "anonymous") : actor.kind,
-      actorUserId: isAnonymous ? (actor.userId ?? null) : actor.kind === "user" ? actor.userId : null,
+      actorUserId: isAnonymous ? (actor.userId ?? null) : isPatient ? actor.accountId : actor.kind === "user" ? actor.userId : null,
       action: entry.action,
       resourceType: entry.resourceType,
       resourceId: entry.resourceId ?? null,
-      patientId: entry.patientId ?? null,
+      patientId: entry.patientId ?? (isPatient ? actor.patientId : null),
       outcome: entry.outcome ?? "success",
       reason: entry.reason ?? null,
       changes: entry.changes ?? null,
@@ -69,7 +82,7 @@ export class AuditService {
   }
 
   /** Convenience for audits outside a business transaction (reads, denials). */
-  recordStandalone(actor: Actor | AnonymousAuditContext, entry: AuditEntry): Promise<void> {
+  recordStandalone(actor: AuditActor, entry: AuditEntry): Promise<void> {
     return this.record(this.db, actor, entry);
   }
 

@@ -18,6 +18,12 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../organization/tsconfig.lib.json"
+    },
+    {
+      "path": "../auth/tsconfig.lib.json"
+    },
+    {
       "path": "../audit/tsconfig.lib.json"
     },
     {
