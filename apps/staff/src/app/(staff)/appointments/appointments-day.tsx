@@ -1,0 +1,189 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { CalendarXIcon, CheckIcon, LogInIcon, UserXIcon } from "lucide-react";
+import { AppointmentCard } from "@healthcare/ui/healthcare";
+import { Button, Card, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import type { ActionResult } from "@/lib/api/action-result";
+import type { AppointmentItem, Practitioner, VisitType } from "@/lib/api/types";
+import { type AppointmentAction, appointmentActions, groupByPractitioner, toAppointment } from "@/lib/clinic-mapping";
+import { cancelAppointment, checkInAppointment, confirmAppointment, markNoShow } from "./actions";
+
+export function AppointmentsDay({
+  items,
+  truncated,
+  date,
+  isToday,
+  practitionerId,
+  practitioners,
+  visitTypes,
+  canManage,
+  canCheckIn,
+  canOpenRecord,
+}: {
+  items: AppointmentItem[];
+  truncated: boolean;
+  date: string;
+  isToday: boolean;
+  practitionerId: string;
+  practitioners: Practitioner[];
+  visitTypes: VisitType[];
+  canManage: boolean;
+  canCheckIn: boolean;
+  canOpenRecord: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+  const [cancelling, setCancelling] = React.useState<string | null>(null);
+  const [reason, setReason] = React.useState("");
+  const [now, setNow] = React.useState(() => new Date());
+  // Re-evaluates time-based actions (a no-show is offered once the appointment has started).
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const practitionerMap = React.useMemo(() => new Map(practitioners.map((p) => [p.id, p])), [practitioners]);
+  const visitTypeMap = React.useMemo(() => new Map(visitTypes.map((v) => [v.id, v])), [visitTypes]);
+  const groups = groupByPractitioner(items, practitionerMap);
+
+  const run = (call: () => Promise<ActionResult<unknown>>, success: string | ((data: unknown) => string)) =>
+    startTransition(async () => {
+      const result = await call();
+      if (result.ok) {
+        toast.success(typeof success === "string" ? success : success(result.data));
+        setCancelling(null);
+        setReason("");
+      } else {
+        toast.error(result.message);
+      }
+      router.refresh();
+    });
+
+  const act = (a: AppointmentItem, action: AppointmentAction) => {
+    const who = a.patient?.displayName ?? "Patient";
+    if (action === "confirm") run(() => confirmAppointment({ appointmentId: a.id, version: a.version }), `Confirmed ${who}`);
+    if (action === "no_show") run(() => markNoShow({ appointmentId: a.id, version: a.version }), `Marked ${who} as no-show`);
+    if (action === "check_in")
+      run(
+        () => checkInAppointment({ appointmentId: a.id }),
+        (visit) => `Checked in ${who} — ticket ${(visit as { ticket: string }).ticket}`,
+      );
+    if (action === "cancel") {
+      setCancelling(a.id);
+      setReason("");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex items-end gap-2">
+        <div className="grid gap-1">
+          <Label htmlFor="practitioner-filter">Practitioner</Label>
+          <NativeSelect
+            id="practitioner-filter"
+            value={practitionerId}
+            onChange={(e) => router.push(`/appointments?date=${date}${e.target.value ? `&practitionerId=${e.target.value}` : ""}`)}
+          >
+            <option value="">All practitioners</option>
+            {practitioners.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.displayName}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
+
+      {groups.length === 0 ? <p className="text-body text-muted-foreground">No appointments on this day.</p> : null}
+      {truncated ? (
+        <p role="status" className="text-table text-warning-foreground">
+          Showing the first 100 appointments. Filter by practitioner to see the rest.
+        </p>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {groups.map((g) => (
+          <Card key={g.practitionerId}>
+            <CardHeader>
+              <CardTitle>{g.practitioner?.displayName ?? "Practitioner"}</CardTitle>
+              <span className="ml-auto text-meta text-muted-foreground">{g.items.filter((a) => a.status !== "cancelled").length} scheduled</span>
+            </CardHeader>
+            <ul className="divide-y px-3">
+              {g.items.map((a) => {
+                const actions = appointmentActions(a, { now, isToday, canManage, canCheckIn });
+                return (
+                  <li key={a.id} className="py-0.5">
+                    <AppointmentCard
+                      appointment={toAppointment(a, practitionerMap, visitTypeMap)}
+                      action={
+                        <span className="flex shrink-0 items-center gap-1">
+                          {canOpenRecord ? (
+                            <Button asChild variant="ghost" size="xs">
+                              <Link href={`/patients/${a.patientId}`}>Record</Link>
+                            </Button>
+                          ) : null}
+                          {actions.map((action) => (
+                            <ActionButton key={action} action={action} disabled={pending} onClick={() => act(a, action)} />
+                          ))}
+                        </span>
+                      }
+                    />
+                    {cancelling === a.id ? (
+                      <form
+                        className="mb-2 flex flex-wrap items-end gap-2 rounded-md border border-warning/40 p-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          run(
+                            () => cancelAppointment({ appointmentId: a.id, version: a.version, reason: reason.trim() }),
+                            `Cancelled ${a.patient?.displayName ?? "appointment"}`,
+                          );
+                        }}
+                      >
+                        <div className="grid min-w-60 flex-1 gap-1">
+                          <Label htmlFor={`cancel-${a.id}`}>Reason for cancelling *</Label>
+                          <Input
+                            id={`cancel-${a.id}`}
+                            autoFocus
+                            value={reason}
+                            maxLength={500}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="e.g. Patient called to cancel"
+                          />
+                        </div>
+                        <Button type="submit" variant="destructive" size="sm" disabled={pending || reason.trim().length < 3}>
+                          Cancel appointment
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setCancelling(null)}>
+                          Keep
+                        </Button>
+                      </form>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const ACTION_META: Record<AppointmentAction, { label: string; icon: React.ComponentType; variant: "default" | "outline" | "ghost" }> = {
+  check_in: { label: "Check in", icon: LogInIcon, variant: "default" },
+  confirm: { label: "Confirm", icon: CheckIcon, variant: "outline" },
+  no_show: { label: "No-show", icon: UserXIcon, variant: "ghost" },
+  cancel: { label: "Cancel", icon: CalendarXIcon, variant: "ghost" },
+};
+
+function ActionButton({ action, disabled, onClick }: { action: AppointmentAction; disabled: boolean; onClick: () => void }) {
+  const { label, icon: Icon, variant } = ACTION_META[action];
+  return (
+    <Button variant={variant} size="xs" disabled={disabled} onClick={onClick}>
+      <Icon /> {label}
+    </Button>
+  );
+}

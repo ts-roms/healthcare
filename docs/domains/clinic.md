@@ -66,10 +66,12 @@ cancel/reschedule/no-show) and the realtime queue gateway.
 `/queue` (+ `walk-ins`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only).
+Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
+no contact or clinical details; listing a schedule is audited as `appointment.list`.
 
 ## Integration points
 
-- Patient names for queue boards via the `PatientDirectory` port (adapter in `apps/api`).
+- Patient names for queue boards and schedules via the `PatientDirectory` port (adapter in `apps/api`).
 - `ClinicQueries` (exported) serves the prescribing context and Patient 360.
 - Reminders through `NotificationService`; templates carry no clinical detail.
 

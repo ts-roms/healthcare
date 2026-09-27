@@ -252,3 +252,81 @@ export interface PatientSummaryResponse {
   /** null when the viewer lacks care-plan.read. */
   openCarePlans: CarePlanSummaryView[] | null;
 }
+
+// ---- Clinic: queue and appointments (Phase 2) -----------------------------------------------------
+
+export interface PatientBrief {
+  patientNumber: string;
+  displayName: string;
+  sex: PatientSex;
+  age: number;
+}
+
+export type VisitStatus = "waiting" | "in_triage" | "awaiting_consultation" | "in_consultation" | "completed" | "cancelled" | "left_without_being_seen";
+export type VisitPriority = "routine" | "urgent" | "emergency";
+
+/** GET /queue row. */
+export interface QueueVisit {
+  id: string;
+  patientId: string;
+  appointmentId: string | null;
+  arrivalMode: "walk_in" | "appointment";
+  ticket: string;
+  queueNumber: number;
+  queueDate: string;
+  priority: VisitPriority;
+  status: VisitStatus;
+  chiefComplaint: string | null;
+  checkedInAt: string;
+  calledAt: string | null;
+  calledTo: string | null;
+  assignedPractitionerId: string | null;
+  version: number;
+  waitingMinutes: number;
+  patient: PatientBrief | null;
+}
+
+/** A visit as returned by the queue commands (walk-in, check-in, move, call). */
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes">;
+
+export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
+
+/** GET /appointments row. */
+export interface AppointmentItem {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  practitionerId: string;
+  visitTypeId: string;
+  startsAt: string;
+  endsAt: string;
+  status: AppointmentStatusApi;
+  bookingChannel: string;
+  reason: string | null;
+  version: number;
+  patient: PatientBrief | null;
+}
+
+export interface Practitioner {
+  id: string;
+  displayName: string;
+  profession: string;
+  specialty: string | null;
+  status: "active" | "inactive";
+}
+
+export interface VisitType {
+  id: string;
+  code: string;
+  name: string;
+  defaultDurationMinutes: number;
+  modality: "in_person" | "telemedicine";
+  status: "active" | "inactive";
+}
+
+export interface Availability {
+  date: string;
+  timeZone: string;
+  durationMinutes: number;
+  slots: Array<{ startsAt: string; endsAt: string; roomId: string | null }>;
+}

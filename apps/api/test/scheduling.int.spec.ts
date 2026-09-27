@@ -209,6 +209,14 @@ describe("scheduling and appointments", () => {
     expect(after.rows[0].n).toBe(before.rows[0].n);
   });
 
+  it("lists the day's schedule with minimal patient identification", async () => {
+    const response = await ctx.http().get(`/api/v1/appointments?facilityId=${tenant.facilityId}&date=${date}&pageSize=100`).set(as(desk)).expect(200);
+    expect(response.body.items.length).toBeGreaterThan(0);
+    expect(response.body.items[0].patient).toEqual({ patientNumber: "P00000001", displayName: "DELA CRUZ, Juan Santos", sex: "male", age: expect.any(Number) });
+    // No contact or clinical details on a schedule row.
+    expect(JSON.stringify(response.body.items[0])).not.toMatch(/0917|Makati/);
+  });
+
   it("manages a waiting list and fulfils it by booking", async () => {
     const entry = await ctx
       .http()

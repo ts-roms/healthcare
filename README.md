@@ -15,7 +15,7 @@ Next.js ─ React ─ Tailwind CSS v4 ─ shadcn/ui (Radix) ─ Healthcare Desig
 ## Status
 
 - **Backend — Phase 1 (Foundation) and Phase 2 (Clinic) implemented:** authentication with MFA, RBAC, Patient Master, audit, documents, notifications; scheduling, queue, triage, encounters, diagnoses, prescriptions, care plans. See [docs/architecture/overview.md](docs/architecture/overview.md).
-- **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review run against the API ([how](docs/architecture/staff-app.md)). Clinical modules (appointments, queue, encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
+- **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review, the queue (walk-in check-in, call, move) and appointments (day schedule, booking from open slots, confirm, check in, cancel, no-show) run against the API ([how](docs/architecture/staff-app.md)). Other clinical modules (encounters, laboratory, dental, telemedicine) are still **demo previews** on sample data, clearly badged.
 - **Patient portal — prototype** on demo fixtures. The Healthcare Design System (`libs/ui`) is documented in Storybook.
 
 ## Getting started
@@ -121,8 +121,11 @@ facility / department, TOTP MFA, a transactional event outbox, and API integrati
 | `/laboratory/worklist`    | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                        | Demo       |
 | `/dental`                 | **Odontogram** (FDI) with per-surface charting                                                                     | Demo       |
 | `/telemedicine/[id]`      | Video consult with the patient record alongside                                                                    | Demo       |
-| `/queue`, `/appointments` | Queue board · daily schedule                                                                                       | Demo       |
+| `/queue`                  | Live queue board: call, send to triage / ready for provider, cancel or left-without-being-seen (with reason)       | API        |
+| `/queue/walk-in`          | Walk-in check-in from the patient record (visit type, priority, chief complaint)                                   | API        |
+| `/appointments`           | Day schedule per practitioner: confirm, check in, cancel (with reason), no-show                                    | API        |
+| `/appointments/new`       | Booking from the practitioner's open slots                                                                         | API        |
 
 Modules in the navigation that aren't built yet render a placeholder.
 
-Patient pages (`/patients`, `/patients/[id]`, `/patients/new`) use the API through `apps/staff/src/lib/api`. Demo modules read `apps/staff/src/lib/demo-data.ts` until their backends exist.
+Patient, queue and appointment pages use the API through `apps/staff/src/lib/api`. Demo modules read `apps/staff/src/lib/demo-data.ts` until their backends exist.

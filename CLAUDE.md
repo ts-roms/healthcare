@@ -53,8 +53,8 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Frontend prototype limitations — do not mistake these for implemented features**
 
-- **Connected to the API:** sign-in/sign-out (password, TOTP MFA, organization choice), session refresh, navigation (from the user's permissions), facility selection, patient search, the patient record (`/patients/[id]`, including allergies and the Patient 360 clinical summary) and registration with duplicate review. See `docs/architecture/staff-app.md`.
-- **Still demo fixtures** (badged "Demo" with a demo-data banner): appointments, queue, clinic/encounters, laboratory, dental, telemedicine, the dashboard's clinical panels and `/preview/patient-360` — the API for most of these exists (Phase 2) but the screens are not wired yet. They read `apps/staff/src/lib/demo-data.ts`. The portal imports `@healthcare/domain/fixtures` directly and has no sign-in yet.
+- **Connected to the API:** sign-in/sign-out (password, TOTP MFA, organization choice), session refresh, navigation (from the user's permissions), facility selection, patient search, the patient record (`/patients/[id]`, including allergies and the Patient 360 clinical summary), registration with duplicate review, the **queue** (`/queue`: board, call, move, walk-in check-in; polls every 15 s) and **appointments** (`/appointments`: day schedule, confirm, check in, cancel, no-show; `/appointments/new`: booking from open slots). See `docs/architecture/staff-app.md`.
+- **Still demo fixtures** (badged "Demo" with a demo-data banner): clinic/encounters, laboratory, dental, telemedicine, the dashboard's clinical panels and `/preview/patient-360` — the API for most of these exists (Phase 2) but the screens are not wired yet. They read `apps/staff/src/lib/demo-data.ts`. The portal imports `@healthcare/domain/fixtures` directly and has no sign-in yet.
 - **Never mix fixture clinical data with a real patient.** Real patient pages show only API data. "No known allergies" appears only after a recorded review; never-reviewed shows "Allergies not recorded — ask the patient"; users without clinical access see "Allergies: no access".
 - UI audit events in demo modules (e.g. allergy overrides) are toasts only; the API audits the real workflows.
 - The frontend drug–allergy class map is a labelled demo list. The authoritative server-side check is `libs/prescription/src/lib/allergy-check.ts` (decision support with an audited override).
@@ -87,7 +87,7 @@ Inspect the repository before every change — do not assume any file, library, 
 - Business rules live in domain libraries, not in React components.
 - Every new project needs `nx.tags` in its `package.json` and its own `eslint.config.mjs`.
 
-**Next steps:** connect the staff app to the API (authentication, patient lookup, queue, encounter workspace, Patient 360), replacing the demo fixtures; then Phase 3 (Laboratory).
+**Next steps:** connect the rest of the staff app to the API (triage/vitals, encounter workspace, dashboard panels; realtime queue via a short-lived socket ticket), replacing the demo fixtures; then Phase 3 (Laboratory).
 
 ## 1. Technology stack
 

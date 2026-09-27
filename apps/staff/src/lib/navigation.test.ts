@@ -20,6 +20,13 @@ describe("navigationForPermissions", () => {
     expect(nav.find((i) => i.href === "/patients")?.badge).toBeUndefined();
   });
 
+  it("shows the API-backed appointments and queue by their clinic permissions, without a demo badge", () => {
+    expect(hrefs(["patient.read"])).not.toContain("/queue");
+    const nav = navigationForPermissions(["appointment.read", "clinic.queue.read"]);
+    expect(nav.find((i) => i.href === "/appointments")?.badge).toBeUndefined();
+    expect(nav.find((i) => i.href === "/queue")?.badge).toBeUndefined();
+  });
+
   it("shows administration only to user or organization managers", () => {
     expect(hrefs(["patient.read"])).not.toContain("/admin");
     expect(hrefs(["user.manage"])).toContain("/admin");
@@ -39,6 +46,7 @@ describe("isDemoPath", () => {
     expect(isDemoPath("/preview/patient-360")).toBe(true);
     expect(isDemoPath("/patients/abc")).toBe(false);
     expect(isDemoPath("/")).toBe(false);
-    expect(isDemoPath("/queueing")).toBe(false);
+    expect(isDemoPath("/queue")).toBe(false);
+    expect(isDemoPath("/appointments/new")).toBe(false);
   });
 });
