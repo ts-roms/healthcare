@@ -119,3 +119,13 @@ Doctor flow: **Telemedicine** (`/telemedicine`, `telemedicine.read`) lists the f
 - In the workspace, a **telemedicine panel** sits above the note: **Join video** (a room token from the API; `VideoCall` in `@healthcare/ui/healthcare`, the browser side of the LiveKit adapter), the callback number, the pre-consult answers (open when there are red flags), **End consultation…** and **Escalate to in-person care…** (reason for the record; instructions for the patient). After ending, instructions can still be edited, and an escalated consultation offers **Book the in-person visit**. Everything else — note, diagnoses, prescriptions, lab orders, care plans, signing — is the ordinary workspace.
 - Without video configured the panel says so and shows the callback number.
 - The list uses the live queue refresh (the waiting-room check-in is a queue update).
+
+## Billing
+
+`/billing` and its sub-pages (navigation shows Billing to users with `billing.charge.read`; a selected facility is
+required). Server actions in `app/(staff)/billing/actions.ts`; amounts travel as integer centavos and are typed and
+shown in pesos with `lib/billing-mapping.ts` (`parsePesos`, `peso`, invoice state). The invoice workspace keeps the
+invoice each action returns, so quick successive changes use the latest version without waiting for the page refresh.
+Each payment and refund form carries its own idempotency key (a retried submit is recorded once; a new key after
+success). The patient record links to the patient's billing page. The API recomputes and enforces every amount and
+rule; see [billing.md](../domains/billing.md#screens).

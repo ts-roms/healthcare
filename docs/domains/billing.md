@@ -107,6 +107,19 @@ lines of issued invoices immutable, payments append-only.
   `LabOrderService.billableOrder`; `BillingPatientDirectory` for minimal patient identification in lists.
 - `InvoiceService` (exported) serves MyHealth billing.
 
+## Screens
+
+Staff (`billing.charge.read`, facility selected): `/billing` — the cashier's desk (patients with charges to invoice,
+drafts, balances owed); `/billing/patients/[id]` — pending charges (tick what to invoice, add a charge at the listed or
+another price with a reason, cancel with a reason) and the patient's invoices (also linked from the patient record);
+`/billing/invoices` — by day, drafts, balance owed, issued, void; `/billing/invoices/[id]` — the invoice workspace:
+lines, discounts (evidence ID entered, shown masked), HMO/PhilHealth coverage with LOA reference, totals, issue or
+discard; once issued: payments (idempotency key per payment), refunds, claim follow-up (submitted / settled / denied),
+void with reason and optional reissue; `/billing/reports` — the daily report; `/billing/settings` — services and prices
+(charged automatically for a visit type or laboratory test, or only by staff), discount rules (with the statutory
+compliance warning), payers, document prefixes. MyHealth: `/billing` ("Bills" on the home screen) — issued and void
+invoices with lines, discounts, coverage, payments and balance; paying online is not available.
+
 ## Compliance dependencies / assumptions
 
 - **BIR:** invoice and receipt format, numbering, and whether the acknowledgement receipt may serve as an official

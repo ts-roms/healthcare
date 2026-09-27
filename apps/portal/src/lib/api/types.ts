@@ -181,3 +181,22 @@ export interface PortalMessage {
   createdAt: string;
   readAt: string | null;
 }
+
+/** `GET /portal/billing` row: an issued (or voided) invoice. Amounts are integer centavos (PHP). */
+export interface PortalInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: "issued" | "void";
+  issuedAt: string;
+  grossTotal: number;
+  discountTotal: number;
+  netTotal: number;
+  payerTotal: number;
+  patientTotal: number;
+  paidTotal: number;
+  balance: number;
+  items: Array<{ description: string; serviceDate: string; quantity: number; grossAmount: number; discountAmount: number; netAmount: number }>;
+  discounts: Array<{ name: string; amount: number }>;
+  payers: Array<{ name: string; amount: number; status: "pending" | "submitted" | "settled" | "denied" }>;
+  payments: Array<{ kind: "payment" | "refund"; amount: number; method: string; receiptNumber: string | null; recordedAt: string }>;
+}

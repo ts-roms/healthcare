@@ -1,0 +1,85 @@
+import type { BillingCategory, InvoiceCoverage, InvoiceSummary, PaymentMethod } from "./api/types";
+
+/**
+ * Display helpers for billing. Amounts are integer centavos from the API;
+ * the API computes every total and enforces every rule.
+ */
+
+/** "₱1,234.50" */
+export function peso(centavos: number): string {
+  const sign = centavos < 0 ? "-" : "";
+  const abs = Math.abs(centavos);
+  return `${sign}₱${Math.floor(abs / 100).toLocaleString("en-PH")}.${String(abs % 100).padStart(2, "0")}`;
+}
+
+/** Parses what a cashier types ("1,234.5", "₱500") into centavos; null when it is not an amount. */
+export function parsePesos(input: string): number | null {
+  const cleaned = input.replace(/[₱,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const [whole = "0", fraction = ""] = cleaned.split(".");
+  const centavos = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(centavos) ? centavos : null;
+}
+
+/** "500.00", for prefilling an amount field. */
+export function pesoInput(centavos: number): string {
+  return `${Math.floor(centavos / 100)}.${String(centavos % 100).padStart(2, "0")}`;
+}
+
+/** "20%" from basis points. */
+export function percent(rateBp: number): string {
+  return `${(rateBp / 100).toLocaleString("en-PH", { maximumFractionDigits: 2 })}%`;
+}
+
+export const CATEGORY_LABEL: Record<BillingCategory, string> = {
+  consultation: "Consultation",
+  procedure: "Procedure",
+  laboratory: "Laboratory",
+  dental: "Dental",
+  telemedicine: "Telemedicine",
+  supply: "Supply",
+  other: "Other",
+};
+
+export const METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  e_wallet: "E-wallet",
+  bank_transfer: "Bank transfer",
+  check: "Check",
+  other: "Other",
+};
+
+export const COVERAGE_STATUS_LABEL: Record<InvoiceCoverage["status"], string> = {
+  pending: "Pending",
+  submitted: "Submitted",
+  settled: "Settled",
+  denied: "Denied",
+};
+
+export type InvoiceState = "draft" | "unpaid" | "partly_paid" | "paid" | "void";
+
+/** Where an invoice stands, for its badge (with text and icon, never colour alone). */
+export function invoiceState(invoice: Pick<InvoiceSummary, "status" | "patientTotal" | "paidTotal" | "balance">): InvoiceState {
+  if (invoice.status === "draft") return "draft";
+  if (invoice.status === "void") return "void";
+  if (invoice.balance <= 0) return "paid";
+  return invoice.paidTotal > 0 ? "partly_paid" : "unpaid";
+}
+
+export const INVOICE_STATE_LABEL: Record<InvoiceState, string> = {
+  draft: "Draft",
+  unpaid: "Unpaid",
+  partly_paid: "Partly paid",
+  paid: "Paid",
+  void: "Void",
+};
+
+/** How much of a payment can still be refunded, given the ledger. */
+export function refundableAmount(
+  paymentId: string,
+  amount: number,
+  ledger: ReadonlyArray<{ kind: "payment" | "refund"; refundOfId: string | null; amount: number }>,
+): number {
+  return amount - ledger.filter((e) => e.kind === "refund" && e.refundOfId === paymentId).reduce((a, e) => a + e.amount, 0);
+}
