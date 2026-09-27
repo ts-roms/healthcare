@@ -1,7 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
-import { appointment, diagnosis, encounter, practitioner, vitalSignSet } from "./clinic.schema";
+import { facility } from "@healthcare/organization";
+import { appointment, diagnosis, encounter, practitioner, visitType, vitalSignSet } from "./clinic.schema";
 import { publicView } from "./clinic-support";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { TriageService, toVitalsView } from "./triage/triage.service";
@@ -21,6 +22,39 @@ export class ClinicQueries {
 
   practitionerForUser(organizationId: string, userId: string) {
     return this.config.practitionerForUser(organizationId, userId);
+  }
+
+  /**
+   * A patient's own appointments for the patient portal: upcoming ones and the
+   * last year's, with where, when, with whom and the status. No staff notes or
+   * reasons for cancellation. Not audited here: the portal endpoint audits.
+   */
+  async patientAppointments(organizationId: string, patientId: string, now = new Date()) {
+    const since = new Date(now.getTime() - 365 * 86_400_000);
+    const rows = await this.db
+      .select({
+        id: appointment.id,
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
+        status: appointment.status,
+        reason: appointment.reason,
+        visitType: visitType.name,
+        modality: visitType.modality,
+        practitionerName: practitioner.displayName,
+        facilityName: facility.name,
+        timeZone: facility.timezone,
+      })
+      .from(appointment)
+      .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+      .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
+      .innerJoin(facility, eq(facility.id, appointment.facilityId))
+      .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId), gte(appointment.startsAt, since)))
+      .orderBy(asc(appointment.startsAt))
+      .limit(200);
+    return {
+      upcoming: rows.filter((r) => r.endsAt >= now),
+      past: rows.filter((r) => r.endsAt < now).reverse(),
+    };
   }
 
   /** Practitioner display names by id (ordering provider labels). */

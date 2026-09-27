@@ -420,7 +420,17 @@ export class PortalAccountService {
     return { accountId: row.account.id, patientId: row.account.patientId, organizationId: row.account.organizationId, sessionId: row.session.id, request };
   }
 
-  /** The signed-in patient's own profile (identity only; clinical data comes later, per consent and release rules). */
+  /** Whether the patient can sign in to the portal now (active account and portal consent). For notifications; not audited. */
+  async canUsePortal(organizationId: string, patientId: string): Promise<boolean> {
+    const [account] = await this.db
+      .select({ status: patientPortalAccount.status })
+      .from(patientPortalAccount)
+      .where(and(eq(patientPortalAccount.organizationId, organizationId), eq(patientPortalAccount.patientId, patientId)));
+    if (account?.status !== "active") return false;
+    return this.hasPortalConsent(this.db, organizationId, patientId);
+  }
+
+  /** The signed-in patient's own profile (identity only; clinical records come from the portal records endpoints). */
   async me(principal: PortalPrincipal) {
     const [row] = await this.db
       .select({ patient, organizationName: organization.name, email: patientPortalAccount.email })
@@ -550,6 +560,11 @@ export class PortalAccountService {
   }
 
   private principalContext(p: PortalPrincipal): PatientAuditContext {
-    return { kind: "patient", accountId: p.accountId, patientId: p.patientId, organizationId: p.organizationId, request: p.request };
+    return patientAuditContext(p);
   }
+}
+
+/** Audit context for something a signed-in patient does (actor type "patient"). */
+export function patientAuditContext(p: PortalPrincipal): PatientAuditContext {
+  return { kind: "patient", accountId: p.accountId, patientId: p.patientId, organizationId: p.organizationId, request: p.request };
 }

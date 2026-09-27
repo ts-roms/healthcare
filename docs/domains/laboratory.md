@@ -8,7 +8,7 @@ laboratory dashboard. Rules for this domain are in `libs/laboratory/CLAUDE.md`.
 
 Not in scope yet: billing charges (Phase 7: the LIS emits events and never computes invoices), result attachments and
 printed reports (PDF), instrument and outsourced-lab interfaces (`libs/interoperability`), QC, reagent lots and
-inventory (Phase 9), and releasing results to the patient portal (Phase 4).
+inventory (Phase 9).
 
 ## Entities
 
@@ -101,7 +101,11 @@ statuses and the `critical` flag — never values, test names or clinical text.
 
 The API (`apps/api/src/app/laboratory-notifications.ts`) sends the ordering practitioner an in-app notice
 (`lab.result-notice`: order and patient numbers only) on `CriticalResultRaised` and `LaboratoryResultAmended`.
-Telling the patient about corrections follows once the portal shows results (Phase 4).
+The API (`apps/api/src/app/portal/patient-result-notices.ts`) also tells patients who use MyHealth when results become
+visible to them, and when a visible result is corrected (`lab.results-available`, no test or value).
+
+**Patient visibility** (`LabPatientAccess`): current version, released, test `patient_releasable`, and — if critical —
+alert acknowledged. See [portal-app.md](../architecture/portal-app.md).
 
 ## Permissions
 

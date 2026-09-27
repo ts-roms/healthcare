@@ -17,9 +17,11 @@ Statuses: `queued → sending → sent` (or back to `queued` for retry, then
 ## Templates
 
 Code-defined, versioned, with Zod-validated variables (`templates.ts`).
-External channels must not carry clinical detail. Phase 1 templates:
-`patient.registered` (SMS/email), `security.mfa-enabled` (email/in-app),
-`staff.message` (in-app only).
+External channels must not carry clinical detail. Templates:
+`patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
+`staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
+`lab.results-available` (SMS, or email when SMS is not possible, to patients who use MyHealth: "new results" or "a
+result was updated", naming no test and no value).
 
 ## Ports
 

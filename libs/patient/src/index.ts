@@ -7,3 +7,4 @@ export * from "./lib/communication-policy";
 export * from "./lib/patient-record.service";
 export * from "./lib/portal/portal.schema";
 export * from "./lib/portal/portal-account.service";
+export * from "./lib/portal/patient-access.guard";
