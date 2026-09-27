@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
 
 /**
  * A patient's laboratory record for a record export (FHIR): every order with its
@@ -40,5 +40,25 @@ export class LabRecordQueries {
       ...order,
       items: items.filter((i) => i.item.orderId === order.id).map(({ item, loincCode }) => ({ ...item, loincCode, result: resultByItem.get(item.id) ?? null })),
     }));
+  }
+
+  /** The patient's stored report archives (versions of each order's report and the documents holding them), oldest first. */
+  async reportArchives(
+    organizationId: string,
+    patientId: string,
+  ): Promise<Array<{ orderId: string; documentId: string; archiveVersion: number; storedAt: Date }>> {
+    const rows = await this.db
+      .select({
+        orderId: labReportArchive.orderId,
+        documentId: labReportArchive.documentId,
+        archiveVersion: labReportArchive.archiveVersion,
+        storedAt: labReportArchive.storedAt,
+      })
+      .from(labReportArchive)
+      .where(and(eq(labReportArchive.organizationId, organizationId), eq(labReportArchive.patientId, patientId), eq(labReportArchive.status, "stored")))
+      .orderBy(asc(labReportArchive.orderId), asc(labReportArchive.archiveVersion));
+    return rows.flatMap((r) =>
+      r.documentId && r.storedAt ? [{ orderId: r.orderId, documentId: r.documentId, archiveVersion: r.archiveVersion, storedAt: r.storedAt }] : [],
+    );
   }
 }

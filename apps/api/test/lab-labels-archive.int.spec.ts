@@ -3,6 +3,20 @@ import { LabReportArchive } from "@healthcare/laboratory";
 import { extractPdfText } from "@healthcare/pdf";
 import { as, auditRows, binary, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
 
+// The official FHIR R4 JSON schema (bundled by this dev dependency); each resource is checked against its own type.
+type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
+  ajv: { compile(schema: object): Validate };
+  schema: { $schema: string; definitions: object };
+};
+const fhir = new Validator();
+const validateDocumentReference = fhir.ajv.compile({
+  $schema: fhir.schema.$schema,
+  definitions: fhir.schema.definitions,
+  $ref: "#/definitions/DocumentReference",
+});
+
 /**
  * Laboratory follow-ups: specimen tube labels (Code 128 accession barcode,
  * minimal identification) and the archive of released reports in object
@@ -265,6 +279,35 @@ describe("laboratory labels and report archive", () => {
       expect(actions).toContain("lab.report.archive.list");
       expect(actions).toContain("lab.report.archive.download");
       expect(actions).toContain("document.download");
+    });
+
+    it("exports the archived versions as DocumentReferences of the order's report, the latest current", async () => {
+      const versions = (await archiveRows()).map((a) => a.id as string);
+      const res = await ctx.http().get(`/api/v1/fhir/r4/DocumentReference?patient=${patientId}`).set(as(admin, tenant.facilityId)).expect(200);
+      const byId = new Map((res.body.entry as Array<{ resource: { id: string } & Record<string, unknown> }>).map((e) => [e.resource.id, e.resource]));
+      const [v1, v2, v3] = versions.map((id) => byId.get(id)!);
+      for (const doc of [v1, v2, v3]) {
+        expect(validateDocumentReference(doc) ? [] : validateDocumentReference.errors).toEqual([]);
+        expect(doc).toMatchObject({
+          type: { coding: expect.arrayContaining([expect.objectContaining({ system: "http://loinc.org", code: "11502-2" })]) },
+          context: { related: [{ reference: `DiagnosticReport/${orderId}` }] },
+        });
+      }
+      const stored = await ctx.pool.query(`SELECT id, stored_at FROM lab_report_archive WHERE order_id = $1 ORDER BY archive_version`, [orderId]);
+      expect([v1!["status"], v2!["status"], v3!["status"]]).toEqual(["superseded", "superseded", "current"]);
+      // Superseded when the next version was stored (stored archives never change: a reliable last-updated time).
+      expect((v1!["meta"] as { lastUpdated: string }).lastUpdated).toBe(stored.rows[1].stored_at.toISOString());
+      expect(v1).not.toHaveProperty("relatesTo");
+      expect(v2).toMatchObject({ relatesTo: [{ code: "replaces", target: { reference: `DocumentReference/${versions[0]}` } }] });
+      expect(v3).toMatchObject({ relatesTo: [{ code: "replaces", target: { reference: `DocumentReference/${versions[1]}` } }] });
+      const current = await ctx
+        .http()
+        .get(
+          `/api/v1/fhir/r4/DocumentReference?patient=${patientId}&_lastUpdated=ge${encodeURIComponent((v3!["meta"] as { lastUpdated: string }).lastUpdated)}`,
+        )
+        .set(as(admin, tenant.facilityId))
+        .expect(200);
+      expect(current.body.entry.map((e: { resource: { id: string } }) => e.resource.id).sort()).toEqual([versions[1], versions[2]].sort());
     });
   });
 });

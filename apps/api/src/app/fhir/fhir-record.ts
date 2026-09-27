@@ -49,14 +49,17 @@ export class FhirRecordComposer {
   async record(actor: Actor, patientId: string): Promise<PatientRecordSource> {
     const organizationId = actor.organizationId;
     const patient = await this.patients.getDetail(actor, patientId);
-    const [clinic, labOrders, prescriptions, carePlans, facilities, documents] = await Promise.all([
+    const withDocuments = canReadDocuments(actor);
+    const [clinic, labOrders, prescriptions, carePlans, facilities, documents, reportArchives] = await Promise.all([
       this.clinic.patientRecord(organizationId, patientId),
       this.lab.patientRecord(organizationId, patientId),
       this.prescriptions.allForPatient(organizationId, patientId),
       this.carePlans.allForPatient(organizationId, patientId),
       this.organizations.listFacilities(organizationId),
-      canReadDocuments(actor) ? this.documents.patientRecord(organizationId, patientId) : null,
+      withDocuments ? this.documents.patientRecord(organizationId, patientId) : null,
+      withDocuments ? this.lab.reportArchives(organizationId, patientId) : [],
     ]);
+    const reports = reportVersions(reportArchives, new Set(documents?.map((d) => d.id)));
 
     const practitionerIds = new Set<string>();
     const facilityIds = new Set<string>();
@@ -191,7 +194,32 @@ export class FhirRecordComposer {
           contentType: d.contentType,
           sizeBytes: d.sizeBytes,
           uploadedAt: d.uploadedAt.toISOString(),
+          supersededAt: iso(reports.get(d.id)?.supersededAt),
+          replaces: reports.get(d.id)?.replaces ?? [],
+          related: reports.has(d.id) ? [{ type: "DiagnosticReport", id: reports.get(d.id)!.orderId }] : [],
         })) ?? null,
     };
   }
+}
+
+/**
+ * Archived laboratory reports as document versions: each belongs to its order's DiagnosticReport; every version but
+ * the latest is superseded when the next one was stored (stored archives never change, so this time is reliable), and
+ * a version replaces the previous one when that one is exported too.
+ */
+function reportVersions(
+  archives: Array<{ orderId: string; documentId: string; archiveVersion: number; storedAt: Date }>,
+  exported: Set<string>,
+): Map<string, { orderId: string; supersededAt: Date | null; replaces: string[] }> {
+  const out = new Map<string, { orderId: string; supersededAt: Date | null; replaces: string[] }>();
+  archives.forEach((a, i) => {
+    const next = archives[i + 1]?.orderId === a.orderId ? archives[i + 1] : undefined;
+    const previous = archives[i - 1]?.orderId === a.orderId ? archives[i - 1] : undefined;
+    out.set(a.documentId, {
+      orderId: a.orderId,
+      supersededAt: next?.storedAt ?? null,
+      replaces: previous && exported.has(previous.documentId) ? [previous.documentId] : [],
+    });
+  });
+  return out;
 }

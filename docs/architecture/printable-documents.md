@@ -69,6 +69,10 @@ refuses changes to a stored archive and deletions). Staff list and open archived
 patient's MyHealth copy is still rendered on request (it applies the patient's visibility rules); archived copies are
 the staff copy and are not offered to patients.
 
+The FHIR interface exports each stored version as a `DocumentReference` of the order's `DiagnosticReport` (LOINC
+`11502-2`); earlier versions are `superseded` and each later one `replaces` the previous
+(docs/interoperability/fhir.md). Its content is served through `Binary/{id}` (`document.read`, audited).
+
 ## Compliance dependencies
 
 Whether the invoice, the acknowledgement receipt (of a payment or a deposit) or the credit note satisfies BIR requirements (and what an official receipt must
