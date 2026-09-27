@@ -7,6 +7,7 @@ import { hashPassword } from "@healthcare/auth";
 import { type AppConfig, loadAppConfig, OutboxRelay, runMigrations } from "@healthcare/core";
 import { InMemoryObjectStorage, OBJECT_STORAGE } from "@healthcare/documents";
 import { INTEGRATION_QUEUE, type IntegrationQueue } from "@healthcare/interoperability";
+import { LAB_REPORT_ARCHIVE_QUEUE, type LabReportArchiveQueue } from "@healthcare/laboratory";
 import { NOTIFICATION_QUEUE, type NotificationQueue } from "@healthcare/notification";
 import { Pool } from "pg";
 import request from "supertest";
@@ -31,6 +32,14 @@ export class RecordingIntegrationQueue implements IntegrationQueue {
   }
 }
 
+/** Records laboratory report archives handed to the queue (tests run the consumer, LabReportArchive.process, directly). */
+export class RecordingArchiveQueue implements LabReportArchiveQueue {
+  readonly enqueued: string[] = [];
+  async enqueue(archiveId: string): Promise<void> {
+    this.enqueued.push(archiveId);
+  }
+}
+
 export interface TestContext {
   app: INestApplication;
   pool: Pool;
@@ -38,6 +47,7 @@ export interface TestContext {
   storage: InMemoryObjectStorage;
   queue: RecordingQueue;
   integrations: RecordingIntegrationQueue;
+  archives: RecordingArchiveQueue;
   http: () => ReturnType<typeof request>;
   close: () => Promise<void>;
 }
@@ -69,6 +79,7 @@ export async function createTestApp(
   env: Record<string, string> = {},
 ): Promise<TestContext> {
   const integrations = new RecordingIntegrationQueue();
+  const archives = new RecordingArchiveQueue();
   const config = testConfig(env);
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
   await resetDatabase(pool);
@@ -81,6 +92,7 @@ export async function createTestApp(
         notificationQueue: { provide: NOTIFICATION_QUEUE, useValue: queue },
         disableRateLimit: true,
         integrationQueue: { provide: INTEGRATION_QUEUE, useValue: integrations },
+        labReportArchiveQueue: { provide: LAB_REPORT_ARCHIVE_QUEUE, useValue: archives },
         ...overrides,
       }),
     ],
@@ -95,6 +107,7 @@ export async function createTestApp(
     storage,
     queue,
     integrations,
+    archives,
     http: () => request(app.getHttpServer()),
     close: async () => {
       await app.close();

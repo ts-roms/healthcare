@@ -587,6 +587,9 @@ importers:
       '@healthcare/core':
         specifier: workspace:*
         version: link:../core
+      '@healthcare/documents':
+        specifier: workspace:*
+        version: link:../documents
       '@healthcare/organization':
         specifier: workspace:*
         version: link:../organization

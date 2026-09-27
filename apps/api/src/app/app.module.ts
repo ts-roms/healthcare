@@ -48,6 +48,8 @@ export interface AppModuleOverrides {
   philhealthEligibilityGateway?: Provider;
   /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
   dohGateway?: Provider;
+  /** Replaces the BullMQ laboratory report archive queue (tests). */
+  labReportArchiveQueue?: Provider;
   /** Replaces the BullMQ integration queue (tests). */
   integrationQueue?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
@@ -62,7 +64,11 @@ export interface AppModuleOverrides {
 export class AppModule implements NestModule {
   static forRoot(config: AppConfig, overrides: AppModuleOverrides = {}): DynamicModule {
     // One instance, imported by the app and by billing (which reads laboratory orders through an adapter).
-    const laboratory = LaboratoryModule.forRoot({ imports: [PatientModule, AuthModule], context: AppLaboratoryContext });
+    const laboratory = LaboratoryModule.forRoot({
+      imports: [PatientModule, AuthModule],
+      context: AppLaboratoryContext,
+      archiveQueue: overrides.labReportArchiveQueue,
+    });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
     const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory });
     return {

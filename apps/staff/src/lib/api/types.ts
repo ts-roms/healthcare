@@ -1293,6 +1293,20 @@ export interface ExchangeReviewList {
   exchanges: ExchangeReviewItem[];
 }
 
+/** An archived copy of a released laboratory report (GET /laboratory/patients/:id/report-archive). */
+export interface LabReportArchiveEntry {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  /** 1, 2, … per order: each release (or correction) of the order's results is a new version. */
+  archiveVersion: number;
+  resultCount: number;
+  corrected: boolean;
+  status: "pending" | "stored" | "failed";
+  createdAt: string;
+  storedAt: string | null;
+}
+
 // ---- DOH: checks of earlier diagnoses against the rules (libs/interoperability/src/lib/doh/doh-rescans.service.ts) ----
 
 export type DohRescanStatus = "queued" | "running" | "completed" | "failed";
