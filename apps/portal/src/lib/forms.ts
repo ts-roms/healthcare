@@ -34,7 +34,11 @@ export const activateFormSchema = z
 export type FieldErrors = Partial<Record<string, string>>;
 
 /** Parses form values; returns the first message per field on failure. */
-export function parseForm<S extends z.ZodType>(schema: S, form: FormData, fields: readonly string[]): { ok: true; data: z.output<S> } | { ok: false; errors: FieldErrors } {
+export function parseForm<S extends z.ZodType>(
+  schema: S,
+  form: FormData,
+  fields: readonly string[],
+): { ok: true; data: z.output<S> } | { ok: false; errors: FieldErrors } {
   const raw = Object.fromEntries(fields.map((f) => [f, String(form.get(f) ?? "")]));
   const result = schema.safeParse(raw);
   if (result.success) return { ok: true, data: result.data };

@@ -30,7 +30,11 @@ describe("activateFormSchema", () => {
   });
 
   it("reports one message per field", () => {
-    const result = parseForm(activateFormSchema, form({ ...valid, birthDate: "", activationCode: "ABC", password: "short", confirmPassword: "other" }), ACTIVATE_FIELDS);
+    const result = parseForm(
+      activateFormSchema,
+      form({ ...valid, birthDate: "", activationCode: "ABC", password: "short", confirmPassword: "other" }),
+      ACTIVATE_FIELDS,
+    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors.birthDate).toBe("Enter your date of birth.");
