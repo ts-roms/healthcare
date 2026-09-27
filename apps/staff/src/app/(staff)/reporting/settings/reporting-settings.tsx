@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon } from "lucide-react";
+import { CheckCircle2Icon, ClockIcon, LoaderIcon, PlusIcon, RefreshCwIcon, SearchCheckIcon, TriangleAlertIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import {
   Badge,
@@ -21,8 +21,8 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { DohFacilityCode, ReportableRule } from "@/lib/api/types";
-import { createRule, deactivateRule, recordFacilityCode } from "../actions";
+import type { DohFacilityCode, DohRescan, DohRescanStatus, ReportableRule } from "@/lib/api/types";
+import { createRule, deactivateRule, recordFacilityCode, requestRescan } from "../actions";
 
 function useSubmit() {
   const router = useRouter();
@@ -41,15 +41,23 @@ function useSubmit() {
 
 export function ReportingSettings({
   rules,
+  rescans,
+  today,
   facility,
 }: {
   rules: ReportableRule[];
+  rescans: DohRescan[];
+  /** Today's date in Asia/Manila (YYYY-MM-DD). */
+  today: string;
   facility: { id: string; name: string; code: DohFacilityCode | null } | null;
 }) {
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
       <Rules rules={rules} />
-      {facility ? <FacilityCode facility={facility} /> : null}
+      <div className="flex flex-col gap-4">
+        {facility ? <FacilityCode facility={facility} /> : null}
+        <EarlierDiagnoses rescans={rescans} today={today} hasActiveRules={rules.some((r) => r.status === "active")} />
+      </div>
     </div>
   );
 }
@@ -166,6 +174,98 @@ function FacilityCode({ facility }: { facility: { id: string; name: string; code
             Save
           </Button>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Longest range the API accepts for one check (calendar days, both ends included). */
+const MAX_RESCAN_DAYS = 90;
+
+function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+const RESCAN_STATUS: Record<DohRescanStatus, { label: string; variant: "info" | "success" | "danger"; icon: typeof ClockIcon }> = {
+  queued: { label: "Waiting", variant: "info", icon: ClockIcon },
+  running: { label: "Checking", variant: "info", icon: LoaderIcon },
+  completed: { label: "Done", variant: "success", icon: CheckCircle2Icon },
+  failed: { label: "Failed", variant: "danger", icon: TriangleAlertIcon },
+};
+
+/** Rules added later do not reach diagnoses recorded before them: staff can ask for a range to be checked. */
+function EarlierDiagnoses({ rescans, today, hasActiveRules }: { rescans: DohRescan[]; today: string; hasActiveRules: boolean }) {
+  const router = useRouter();
+  const { pending, submit } = useSubmit();
+  const [range, setRange] = React.useState({ from: addDays(today, -29), to: today });
+  const inProgress = rescans.some((r) => r.status === "queued" || r.status === "running");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Check earlier diagnoses</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 text-body">
+        <p className="text-meta text-muted-foreground">
+          Rules apply to diagnoses as they are recorded. After adding a rule, check diagnoses recorded before it (up to {MAX_RESCAN_DAYS} days at a time)
+          against the active rules. Matches open case reports for review; a diagnosis never gets a second one.
+        </p>
+        <form
+          className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+          aria-label="Check earlier diagnoses"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(() => requestRescan(range), "Check started — it runs in the background");
+          }}
+        >
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="rescan-from">Recorded from</Label>
+            <Input
+              id="rescan-from"
+              type="date"
+              value={range.from}
+              min={addDays(range.to, -(MAX_RESCAN_DAYS - 1))}
+              max={range.to}
+              onChange={(e) => setRange({ ...range, from: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="rescan-to">to</Label>
+            <Input id="rescan-to" type="date" value={range.to} min={range.from} max={today} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+          </div>
+          <Button type="submit" size="sm" disabled={pending || inProgress || !hasActiveRules}>
+            <SearchCheckIcon /> Check
+          </Button>
+        </form>
+        {!hasActiveRules ? <p className="text-meta text-muted-foreground">Add a rule first.</p> : null}
+        {rescans.length ? (
+          <ul className="flex flex-col divide-y" aria-label="Recent checks">
+            {rescans.map((r) => {
+              const { label, variant, icon: Icon } = RESCAN_STATUS[r.status];
+              return (
+                <li key={r.id} className="flex flex-col gap-1 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>
+                      {clinicalDate(r.fromDate)} – {clinicalDate(r.toDate)}
+                    </span>
+                    <Badge variant={variant}>
+                      <Icon aria-hidden /> {label}
+                    </Badge>
+                  </div>
+                  <span className="text-meta text-muted-foreground">
+                    {r.scanned} coded diagnoses checked · {r.matched} matched a rule · {r.opened} case {r.opened === 1 ? "report" : "reports"} opened
+                  </span>
+                  {r.status === "failed" && r.lastError ? <span className="text-meta text-danger-foreground">{r.lastError}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        {inProgress ? (
+          <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => router.refresh()}>
+            <RefreshCwIcon /> Refresh
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

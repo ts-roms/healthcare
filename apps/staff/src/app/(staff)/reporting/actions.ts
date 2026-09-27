@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { CaseReportDetail, DohFacilityCode, ReportableRule } from "@/lib/api/types";
+import type { CaseReportDetail, DohFacilityCode, DohRescan, ReportableRule } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
@@ -67,4 +67,11 @@ export async function recordFacilityCode(input: z.input<typeof facilityCodeSchem
   return run(facilityCodeSchema, input, () => api<DohFacilityCode>(`/doh/facilities/${facilityId}/facility-code`, { method: "PUT", body }), [
     "/reporting/settings",
   ]);
+}
+
+const calendarDate = z.iso.date("Choose a date.");
+const rescanSchema = z.object({ from: calendarDate, to: calendarDate });
+/** Checks diagnoses recorded in the range (at most 90 days) against the active rules; the API runs it in the background. */
+export async function requestRescan(input: z.input<typeof rescanSchema>) {
+  return run(rescanSchema, input, () => api<DohRescan>("/doh/rescans", { method: "POST", body: input }), ["/reporting/settings", "/reporting"]);
 }

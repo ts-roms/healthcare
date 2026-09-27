@@ -6,7 +6,7 @@
 | Specification   | **Not obtained.** No reporting system, message format, transport, code lists or deadlines are modelled  |
 | Status          | **Dependency** — detection, review, a format-neutral case package, the port and an unconfigured adapter |
 | Code            | `libs/interoperability/src/lib/doh`, `apps/api/src/app/adapters/doh-adapters.ts`, staff `/reporting`    |
-| Migration       | `0023_doh_reporting.sql`                                                                                |
+| Migration       | `0023_doh_reporting.sql`, `0045_doh_rescan.sql`                                                         |
 
 Root `CLAUDE.md` §36: never invent government APIs, regulatory requirements or rules. Which diseases are notifiable,
 their case definitions, reporting timelines and the official forms or systems come from DOH issuances; none of them are
@@ -21,7 +21,18 @@ exists.
   rule they matched). Coding-system keys `icd-10` and `icd10` are both treated as ICD-10.
 - **Detection** — on `DiagnosisRecorded` (outbox, idempotent), a coded diagnosis matching an active rule (longest prefix
   wins) opens a **case report** (`doh_case_report`, one per diagnosis) in `pending_review`. Diagnoses recorded before a
-  rule was added are not scanned.
+  rule was added are not reached by detection; staff check them on request (below).
+- **Checking earlier diagnoses** (`doh_rescan`, staff with `doh.settings.manage`) — an explicit, audited request to
+  check the organization's coded diagnoses recorded within a date range (calendar dates in Asia/Manila, both included,
+  at most **90 days**, not in the future) against the rules active when the check runs. The API runs it in the
+  background (`DohRescans`, polled every 15 s and started at once in the requesting instance): diagnoses are read in
+  pages of 500 through the `DohCaseSources` port (`ClinicQueries.codedDiagnosesRecorded`, in `(recorded_at, id)` order,
+  entered-in-error excluded), and each match goes through the same detection, so a diagnosis never gets a second case
+  report — re-running a range, or overlapping ranges, only opens what is missing. One check at a time per organization;
+  progress (counts and the cursor) is saved per page, so a check interrupted by a restart resumes where it stopped
+  (after 5 minutes without a heartbeat; failed after 3 runs). The check records how many coded diagnoses it read
+  (`scanned`), how many matched a rule (`matched`) and how many case reports it opened (`opened`, counted from the case
+  reports carrying its `rescan_id`; matches that already had one are not counted). Requires at least one active rule.
 - **Review** (staff with `doh.report.manage`):
   - **Record as reported** — reported through DOH's own channel; the reference it gave is recorded.
   - **Dismiss** — not reportable after review; a reason is required.
@@ -49,20 +60,26 @@ exists.
 | `GET /api/v1/doh/rules`                                  | `doh.report.manage`   |
 | `POST /api/v1/doh/rules`, `POST …/rules/{id}/deactivate` | `doh.settings.manage` |
 | `GET, PUT /api/v1/doh/facilities/{id}/facility-code`     | `doh.settings.manage` |
+| `POST /api/v1/doh/rescans` (`{ from, to }`, 202)         | `doh.settings.manage` |
+| `GET /api/v1/doh/rescans`, `GET …/rescans/{id}`          | `doh.settings.manage` |
 | `GET /api/v1/doh/case-reports[?status=]`, `GET …/{id}`   | `doh.report.manage`   |
 | `POST …/{id}/reported`, `…/dismiss`, `…/submissions`     | `doh.report.manage`   |
 
 Roles: `org_admin` (both), `physician` and `records_officer` (`doh.report.manage`). Audit: `doh.case.detected`
 (system), `doh.case.list`, `doh.case.view`, `doh.case.reported`, `doh.case.dismissed` (with the reason),
 `doh.case.submit-request`, `doh.case.outcome` (system), `doh.rule.create`, `doh.rule.deactivate`,
-`doh.facility-code.record`.
+`doh.facility-code.record`, `doh.rescan.request` (range, number of active rules), `doh.rescan.completed` and
+`doh.rescan.failed` (system, with the counts). Case reports opened by a check audit `doh.case.detected` with its
+`rescanId`. Errors: `rescan_range` (reversed, future or longer than 90 days), `no_active_rules`, `rescan_in_progress`
+(409).
 
 ## Screens
 
 Staff **Disease reporting** (`/reporting`): case reports, those to review first, filterable by status; one case
 (`/reporting/{id}`) with the prepared report, the checklist, and the decision (reference from DOH's channel, dismiss with
 a reason; submit only when an adapter is connected). **Reportable conditions** (`/reporting/settings`): rules and the
-selected facility's DOH health facility code.
+selected facility's DOH health facility code, and **Check earlier diagnoses** (a date range, the recent checks with their
+status and counts; refresh while one runs).
 
 ## Not modelled (integration dependencies)
 

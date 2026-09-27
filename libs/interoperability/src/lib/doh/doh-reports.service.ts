@@ -18,7 +18,7 @@ import type { ExchangeCompletedPayload } from "../exchange/exchange-types";
 import { IntegrationExchanges } from "../exchange/integration-exchanges.service";
 import type { dismissSchema, recordExternalSchema } from "./doh.dto";
 import { buildCasePackage, canApply, caseReadiness, type DohCaseSource, isIcd10, matchRule, normalizeCode } from "./doh.rules";
-import { type CaseReportRecord, type CaseReportStatus, dohCaseReport } from "./doh.schema";
+import { type CaseReportRecord, type CaseReportStatus, dohCaseReport, type ReportableRuleRecord } from "./doh.schema";
 import { DOH_REPORTING_GATEWAY, DOH_REPORTING_SYSTEM, type DohReportingGateway, SUBMIT_CASE_REPORT } from "./gateway";
 import { DohSettingsService, strip } from "./doh-settings.service";
 import { DOH_CASE_SOURCES, type DohCaseSources } from "./ports";
@@ -46,13 +46,20 @@ export class DohReportsService {
     return this.gateway.specification;
   }
 
-  /** Event handler (DiagnosisRecorded): opens a case report when the coded diagnosis matches an active rule. Idempotent. */
-  async detect(organizationId: string, diagnosisId: string): Promise<void> {
+  /**
+   * Opens a case report when the coded diagnosis matches an active rule. Idempotent (one case report per diagnosis).
+   * Called for DiagnosisRecorded, and by a check of earlier diagnoses (`rescanId`, with the rules it loaded).
+   */
+  async detect(
+    organizationId: string,
+    diagnosisId: string,
+    options: { rules?: ReportableRuleRecord[]; rescanId?: string } = {},
+  ): Promise<"opened" | "exists" | "not_reportable"> {
     const src = await this.sources.forDiagnosis(organizationId, diagnosisId);
-    if (!src?.diagnosis.code || !isIcd10(src.diagnosis.codeSystemKey) || src.diagnosis.status === "entered_in_error") return;
-    const rule = matchRule(await this.settings.rules(organizationId, true), src.diagnosis.code);
-    if (!rule) return;
-    await this.db.transaction(async (tx) => {
+    if (!src?.diagnosis.code || !isIcd10(src.diagnosis.codeSystemKey) || src.diagnosis.status === "entered_in_error") return "not_reportable";
+    const rule = matchRule(options.rules ?? (await this.settings.rules(organizationId, true)), src.diagnosis.code);
+    if (!rule) return "not_reportable";
+    return this.db.transaction(async (tx) => {
       const inserted = (await tx
         .insert(dohCaseReport)
         .values({
@@ -65,18 +72,20 @@ export class DohReportsService {
           category: rule.category,
           diagnosisCode: normalizeCode(src.diagnosis.code!),
           diagnosisDisplay: src.diagnosis.display,
+          rescanId: options.rescanId ?? null,
         })
         .onConflictDoNothing({ target: dohCaseReport.diagnosisId })
         .returning()) as CaseReportRecord[];
       const row = inserted[0];
-      if (!row) return;
+      if (!row) return "exists";
       await this.audit.record(tx, systemActor(organizationId, src.encounter.facilityId, "doh-reporting"), {
         action: "doh.case.detected",
         resourceType: "doh_case_report",
         resourceId: row.id,
         patientId: row.patientId,
-        metadata: { ruleId: rule.id, code: row.diagnosisCode },
+        metadata: { ruleId: rule.id, code: row.diagnosisCode, rescanId: options.rescanId ?? null },
       });
+      return "opened";
     });
   }
 
