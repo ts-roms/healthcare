@@ -126,8 +126,9 @@ Doctor flow: **Telemedicine** (`/telemedicine`, `telemedicine.read`) lists the f
 required). Server actions in `app/(staff)/billing/actions.ts`; amounts travel as integer centavos and are typed and
 shown in pesos with `lib/billing-mapping.ts` (`parsePesos`, `peso`, invoice state). The invoice workspace keeps the
 invoice each action returns, so quick successive changes use the latest version without waiting for the page refresh.
-Each payment and refund form carries its own idempotency key (a retried submit is recorded once; a new key after
-success). The patient record links to the patient's billing page. The API recomputes and enforces every amount and
+Each payment, refund, deposit, deposit application and credit note form carries its own idempotency key (a retried
+submit is recorded once; a new key after success). The patient's billing page shows the deposit and credit balance
+(`patient-account.tsx`); the invoice workspace applies it and issues credit notes. The patient record links to the patient's billing page. The API recomputes and enforces every amount and
 rule; see [billing.md](../domains/billing.md#screens).
 
 ## Disease reporting

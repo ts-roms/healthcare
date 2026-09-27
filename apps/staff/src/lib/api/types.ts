@@ -1292,3 +1292,90 @@ export interface ExchangeReviewList {
   summary: { needsReview: number; stalled: number; queued: number };
   exchanges: ExchangeReviewItem[];
 }
+
+// ---- Billing: patient deposits and credit notes (migration 0035) -----------------------------------
+
+/** deposit (+), credit from a credit note (+), application to an invoice (−), release by a void (+), refund (−). */
+export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund";
+
+export interface AccountEntry {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  kind: AccountEntryKind;
+  amount: number;
+  method: PaymentMethod | null;
+  reference: string | null;
+  receiptNumber: string | null;
+  invoiceId: string | null;
+  creditNoteId: string | null;
+  applicationId: string | null;
+  reason: string | null;
+  recordedAt: string;
+  /** On the account ledger (not on an invoice's entries). */
+  invoiceNumber?: string | null;
+  creditNoteNumber?: string | null;
+}
+
+/** The patient's deposit and credit balance at the selected facility. */
+export interface PatientAccount {
+  patientId: string;
+  facilityId: string;
+  balance: number;
+  entries: AccountEntry[];
+}
+
+export interface CreditNoteLine {
+  id: string;
+  creditNoteId: string;
+  invoiceItemId: string;
+  description: string;
+  amount: number;
+}
+
+export interface CreditNote {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  invoiceId: string;
+  creditNoteNumber: string;
+  reason: string;
+  amount: number;
+  /** The part that reduced what the patient owed on the invoice. */
+  appliedAmount: number;
+  /** The part already paid, credited to the patient's account. */
+  accountCredit: number;
+  issuedBy: string;
+  issuedAt: string;
+  lines: CreditNoteLine[];
+  invoiceNumber?: string | null;
+}
+
+/** What `GET /billing/invoices/:id` adds for deposits and credit notes. */
+export interface InvoiceSettlement {
+  depositAppliedTotal: number;
+  creditedTotal: number;
+  creditNoteTotal: number;
+  accountEntries: AccountEntry[];
+  creditNotes: CreditNote[];
+}
+
+export type InvoiceWithSettlement = InvoiceDetail & InvoiceSettlement;
+
+export interface DailyAccountFigures {
+  deposits: {
+    received: Array<{ method: PaymentMethod; count: number; amount: number }>;
+    receivedTotal: number;
+    appliedTotal: number;
+    refunds: Array<{ method: PaymentMethod; count: number; amount: number }>;
+    refundedTotal: number;
+    held: number;
+  };
+  creditNotes: { count: number; amount: number; appliedAmount: number; accountCredit: number };
+}
+
+export interface BillingPrefixes {
+  invoicePrefix: string;
+  receiptPrefix: string;
+  creditNotePrefix: string;
+}

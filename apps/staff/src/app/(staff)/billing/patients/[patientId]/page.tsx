@@ -7,9 +7,10 @@ import { InvoiceBadge } from "@/components/invoice-badge";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { BillingCharge, BillingService, InvoiceSummary, PatientDetail } from "@/lib/api/types";
+import type { BillingCharge, BillingService, InvoiceSummary, PatientAccount, PatientDetail } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { BillingNav } from "../../billing-nav";
+import { PatientAccountPanel } from "./patient-account";
 import { PatientCharges } from "./patient-charges";
 
 export const metadata = { title: "Patient billing" };
@@ -29,10 +30,11 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
       </>
     );
   }
-  const [charges, invoices, services, patient] = await Promise.all([
+  const [charges, invoices, services, account, patient] = await Promise.all([
     api<BillingCharge[]>("/billing/charges", { query: { patientId } }),
     api<InvoiceSummary[]>("/billing/invoices", { query: { patientId } }),
     api<BillingService[]>("/billing/services"),
+    api<PatientAccount>(`/billing/patients/${patientId}/account`),
     can(session, "patient.read") ? api<PatientDetail>(`/patients/${patientId}`).catch(() => null) : Promise.resolve(null),
   ]);
   const name = patient
@@ -50,28 +52,36 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
           canCapture={can(session, "billing.charge.capture")}
           canInvoice={can(session, "billing.invoice.issue")}
         />
-        <Card className="py-0">
-          <CardHeader className="pt-4">
-            <CardTitle>Invoices</CardTitle>
-          </CardHeader>
-          <CardContent className="px-0">
-            {invoices.length === 0 ? <p className="px-4 pb-4 text-body text-muted-foreground">No invoices at this facility yet.</p> : null}
-            <ul className="divide-y">
-              {invoices.map((inv) => (
-                <li key={inv.id}>
-                  <Link href={`/billing/invoices/${inv.id}`} className="flex items-center gap-2 px-4 py-2 hover:bg-accent">
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{inv.invoiceNumber ?? "Draft"}</span>
-                      <span className="block text-meta text-muted-foreground">{clinicalDateTime(inv.issuedAt ?? inv.createdAt)}</span>
-                    </span>
-                    <InvoiceBadge invoice={inv} />
-                    <span className="w-20 text-right tabular-nums">{peso(inv.netTotal)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-4">
+          <Card className="py-0">
+            <CardHeader className="pt-4">
+              <CardTitle>Invoices</CardTitle>
+            </CardHeader>
+            <CardContent className="px-0">
+              {invoices.length === 0 ? <p className="px-4 pb-4 text-body text-muted-foreground">No invoices at this facility yet.</p> : null}
+              <ul className="divide-y">
+                {invoices.map((inv) => (
+                  <li key={inv.id}>
+                    <Link href={`/billing/invoices/${inv.id}`} className="flex items-center gap-2 px-4 py-2 hover:bg-accent">
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{inv.invoiceNumber ?? "Draft"}</span>
+                        <span className="block text-meta text-muted-foreground">{clinicalDateTime(inv.issuedAt ?? inv.createdAt)}</span>
+                      </span>
+                      <InvoiceBadge invoice={inv} />
+                      <span className="w-20 text-right tabular-nums">{peso(inv.netTotal)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+          <PatientAccountPanel
+            patientId={patientId}
+            account={account}
+            canDeposit={can(session, "billing.deposit.record")}
+            canRefund={can(session, "billing.refund.issue")}
+          />
+        </div>
       </div>
     </>
   );

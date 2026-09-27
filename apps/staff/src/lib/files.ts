@@ -8,6 +8,8 @@ const ROUTES: Array<[RegExp, (id: string) => string]> = [
   [new RegExp(`^lab-reports/(${UUID})$`, "i"), (id) => `/laboratory/orders/${id}/report.pdf`],
   [new RegExp(`^invoices/(${UUID})$`, "i"), (id) => `/billing/invoices/${id}/pdf`],
   [new RegExp(`^receipts/(${UUID})$`, "i"), (id) => `/billing/payments/${id}/receipt.pdf`],
+  [new RegExp(`^deposit-receipts/(${UUID})$`, "i"), (id) => `/billing/account-entries/${id}/receipt.pdf`],
+  [new RegExp(`^credit-notes/(${UUID})$`, "i"), (id) => `/billing/credit-notes/${id}/pdf`],
 ];
 
 /** The API path for a /files/... path, or null when it is not a known document. */
@@ -24,4 +26,6 @@ export const fileHref = {
   labReport: (orderId: string) => `/files/lab-reports/${orderId}`,
   invoice: (invoiceId: string) => `/files/invoices/${invoiceId}`,
   receipt: (paymentId: string) => `/files/receipts/${paymentId}`,
+  depositReceipt: (entryId: string) => `/files/deposit-receipts/${entryId}`,
+  creditNote: (creditNoteId: string) => `/files/credit-notes/${creditNoteId}`,
 };

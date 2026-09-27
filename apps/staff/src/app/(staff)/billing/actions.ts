@@ -5,10 +5,12 @@ import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
 import type {
+  AccountEntry,
   BillingCharge,
   BillingPayer,
   BillingService,
   ClaimExchange,
+  CreditNote,
   DiscountRule,
   InvoiceDetail,
   LedgerEntry,
@@ -259,7 +261,63 @@ export async function deactivateDiscountRule(input: z.input<typeof ruleIdSchema>
   return run(ruleIdSchema, input, () => api<DiscountRule>(`/billing/discount-rules/${input.ruleId}/deactivate`, { method: "POST" }), ["/billing/settings"]);
 }
 
-const prefixSchema = z.object({ invoicePrefix: z.string().trim().min(1).max(12), receiptPrefix: z.string().trim().min(1).max(12) });
+const prefixSchema = z.object({
+  invoicePrefix: z.string().trim().min(1).max(12),
+  receiptPrefix: z.string().trim().min(1).max(12),
+  creditNotePrefix: z.string().trim().min(1).max(12),
+});
 export async function updatePrefixes(input: z.input<typeof prefixSchema>) {
   return run(prefixSchema, input, () => api("/billing/settings", { method: "PUT", body: input }), ["/billing/settings"]);
+}
+
+// ---- deposits and credit ------------------------------------------------------------------------
+
+const idempotencyKey = z.string().min(8).max(100);
+
+const depositSchema = z.object({
+  patientId: id,
+  amount: centavos.min(1),
+  method: methods,
+  reference: z.string().trim().min(1).max(60).optional(),
+  idempotencyKey,
+});
+export async function recordDeposit(input: z.input<typeof depositSchema>) {
+  const { patientId, ...body } = input;
+  return run(depositSchema, input, () => api<AccountEntry>(`/billing/patients/${patientId}/deposits`, { method: "POST", body }), [
+    `/billing/patients/${patientId}`,
+  ]);
+}
+
+const applyDepositSchema = z.object({ invoiceId: id, amount: centavos.min(1), idempotencyKey });
+export async function applyDeposit(input: z.input<typeof applyDepositSchema>) {
+  const { invoiceId, ...body } = input;
+  return run(applyDepositSchema, input, () => api<AccountEntry>(`/billing/invoices/${invoiceId}/deposit-applications`, { method: "POST", body }), ["/billing"]);
+}
+
+const accountRefundSchema = z.object({
+  patientId: id,
+  amount: centavos.min(1),
+  method: methods,
+  reason,
+  reference: z.string().trim().min(1).max(60).optional(),
+  idempotencyKey,
+});
+export async function refundAccount(input: z.input<typeof accountRefundSchema>) {
+  const { patientId, ...body } = input;
+  return run(accountRefundSchema, input, () => api<AccountEntry>(`/billing/patients/${patientId}/account-refunds`, { method: "POST", body }), [
+    `/billing/patients/${patientId}`,
+  ]);
+}
+
+// ---- credit notes --------------------------------------------------------------------------------
+
+const creditNoteSchema = z.object({
+  invoiceId: id,
+  reason,
+  lines: z.array(z.object({ invoiceItemId: id, amount: centavos.min(1) })).min(1, "Credit at least one line."),
+  idempotencyKey,
+});
+export async function issueCreditNote(input: z.input<typeof creditNoteSchema>) {
+  const { invoiceId, ...body } = input;
+  return run(creditNoteSchema, input, () => api<CreditNote>(`/billing/invoices/${invoiceId}/credit-notes`, { method: "POST", body }), ["/billing"]);
 }
