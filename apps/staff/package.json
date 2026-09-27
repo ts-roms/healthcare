@@ -37,6 +37,11 @@
     "tags": [
       "scope:staff",
       "type:app"
-    ]
+    ],
+    "targets": {
+      "dev": {
+        "continuous": true
+      }
+    }
   }
 }

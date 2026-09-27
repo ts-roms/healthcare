@@ -1,6 +1,6 @@
 /**
  * Demo fixtures for screens not yet wired to the API (laboratory, dental,
- * telemedicine, the dashboard's clinical panels, the Patient 360 preview). Pages using this module
+ * telemedicine, the dashboard's laboratory panel, the Patient 360 preview). Pages using this module
  * are badged "Demo" and show a demo-data banner. Real patient data comes from
  * the API via `@/lib/api`; never mix the two on one screen.
  */
@@ -34,9 +34,3 @@ export async function getLabWorklist() {
 export async function getAppointments() {
   return fx.appointments;
 }
-export async function getQueue() {
-  return fx.queue;
-}
-
-/** Fixed "now" so the demo data reads consistently. */
-export const DEMO_NOW = new Date("2026-09-27T10:05:00+08:00");

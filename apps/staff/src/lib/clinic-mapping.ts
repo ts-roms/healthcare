@@ -158,3 +158,10 @@ export function shiftDate(date: string, days: number): string {
 export function todayIn(timeZone: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
+
+/** Open appointments that have not ended yet, in start order (for "next patients"). */
+export function upcomingAppointments<T extends Pick<AppointmentItem, "status" | "startsAt" | "endsAt">>(items: T[], now: Date = new Date()): T[] {
+  return items
+    .filter((a) => (a.status === "booked" || a.status === "confirmed") && Date.parse(a.endsAt) >= now.getTime())
+    .sort((x, y) => x.startsAt.localeCompare(y.startsAt));
+}

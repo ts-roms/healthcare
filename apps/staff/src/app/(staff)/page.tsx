@@ -1,18 +1,33 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { ActionMetric, AppointmentCard, AttentionList, isCriticalFlag, QueueBoard, type AttentionItem } from "@healthcare/ui/healthcare";
-import { Button, Card, CardAction, CardContent, CardHeader, CardTitle, Tabs, TabsContent, TabsList, TabsTrigger } from "@healthcare/ui/primitives";
+import { ActionMetric, AppointmentCard, AttentionList, isCriticalFlag, QueueBoard } from "@healthcare/ui/healthcare";
+import {
+  Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
-import { COOKIES } from "@/lib/api/config";
-import { can, getFacilities, getSession } from "@/lib/api/session";
-import { DEMO_NOW, getAppointments, getLabWorklist, getQueue } from "@/lib/demo-data";
+import { api } from "@/lib/api/client";
+import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
+import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
+import type { AppointmentItem, ClinicDashboard, DueCareActivity, Me, Page, QueueVisit } from "@/lib/api/types";
+import { QUEUE_BOARD_STATUSES, toAppointment, todayIn, toQueueEntry, upcomingAppointments } from "@/lib/clinic-mapping";
+import { attentionItems, minutesLabel } from "@/lib/dashboard-mapping";
+import { getLabWorklist } from "@/lib/demo-data";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const [session, facilities, jar] = await Promise.all([getSession(), getFacilities(), cookies()]);
-  const facility = facilities.find((f) => f.id === jar.get(COOKIES.facility)?.value);
+  const [session, facilities, facility] = await Promise.all([getSession(), getFacilities(), getSelectedFacility()]);
   return (
     <>
       <PageHeader
@@ -39,144 +54,158 @@ export default async function DashboardPage() {
       />
       {facilities.length > 1 && !facility ? (
         <p className="border-b bg-info-subtle px-4 py-2 text-table text-info-foreground">
-          Select your facility in the top bar. Registering patients needs one.
+          Select your facility in the top bar to see today&apos;s clinic. Registering patients needs one too.
         </p>
       ) : null}
-      {can(session, "patient.read") ? (
-        <section className="p-4" aria-labelledby="preview-heading">
-          <div className="mb-2 flex items-baseline gap-2">
-            <h2 id="preview-heading" className="text-section font-semibold">
-              Clinical dashboards
-            </h2>
-            <span className="rounded-sm border border-warning/40 bg-warning-subtle px-1.5 text-meta font-medium text-warning-foreground">Demo data</span>
-            <span className="text-meta text-muted-foreground">Preview until appointments, queue and laboratory are connected (Phase 2+).</span>
-          </div>
-          <Tabs defaultValue="doctor">
-            <TabsList>
-              <TabsTrigger value="doctor">Doctor</TabsTrigger>
-              <TabsTrigger value="lab">Laboratory</TabsTrigger>
-              <TabsTrigger value="front-desk">Front desk</TabsTrigger>
-            </TabsList>
-            <TabsContent value="doctor" className="pt-2">
-              <DoctorDashboard />
-            </TabsContent>
-            <TabsContent value="lab" className="pt-2">
-              <LabDashboard />
-            </TabsContent>
-            <TabsContent value="front-desk" className="pt-2">
-              <FrontDeskDashboard />
-            </TabsContent>
-          </Tabs>
-        </section>
-      ) : null}
+      {facility && can(session, "clinic.dashboard.read") ? <ClinicToday session={session} facility={facility} /> : null}
+      {can(session, "patient.read") ? <LaboratoryPreview /> : null}
     </>
   );
 }
 
-async function DoctorDashboard() {
-  const [appts, labs] = await Promise.all([getAppointments(), getLabWorklist()]);
-  const critical = labs.filter((o) => o.observations.some((x) => isCriticalFlag(x.flag)));
-  const attention: AttentionItem[] = [
-    {
-      id: "crit",
-      severity: "critical",
-      count: critical.length,
-      title: "Critical lab results",
-      detail: critical.map((o) => `${o.test} — ${o.patientName}`).join(", "),
-      href: "/laboratory/worklist",
-    },
-    { id: "fu", severity: "warning", count: 5, title: "Patients due for follow-up", detail: "Care-plan reviews overdue this week", href: "/clinic/care-plans" },
-    { id: "unsigned", severity: "warning", count: 2, title: "Unsigned encounters", detail: "Oldest from 26 Sep", href: "/clinic/encounters" },
-  ];
+/** Live operational view of the selected facility for today (GET /clinic/dashboard and friends). */
+async function ClinicToday({ session, facility }: { session: Me; facility: { id: string; name: string; timezone: string } }) {
+  const canQueue = can(session, "clinic.queue.read");
+  const canAppointments = can(session, "appointment.read");
+  const [dashboard, due, queue] = await Promise.all([
+    api<ClinicDashboard>("/clinic/dashboard"),
+    can(session, "care-plan.read") ? api<DueCareActivity[]>("/care-plans/activities/due", { query: { withinDays: 7 } }) : Promise.resolve(null),
+    canQueue ? api<QueueVisit[]>("/queue") : Promise.resolve(null),
+  ]);
+  const attention = attentionItems(dashboard, { due, canOpenEncounters: can(session, "encounter.read"), canOpenQueue: canQueue });
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
-      <Card className="p-1">
-        <ActionMetric value={appts.length + 8} label="Patients" href="/appointments" />
-        <ActionMetric value={3} label="Waiting" tone="warning" href="/queue" />
-        <ActionMetric value={appts.filter((a) => a.mode === "online").length + 1} label="Online" href="/telemedicine" />
-        <ActionMetric value={4} label="Follow-ups" href="/clinic/care-plans" />
-      </Card>
-      <AttentionList items={attention} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Next patients</CardTitle>
-          <CardAction>
-            <Link href="/appointments" className="text-meta text-primary hover:underline">
-              Full schedule
-            </Link>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="divide-y py-0">
-          {appts.map((a) => (
-            <Link key={a.id} href={a.mode === "online" ? `/telemedicine/e-5302` : `/clinic/encounters`} className="block hover:bg-accent/40">
-              <AppointmentCard appointment={a} />
-            </Link>
-          ))}
-        </CardContent>
-      </Card>
-    </div>
+    <section className="flex flex-col gap-4 p-4" aria-labelledby="today-heading">
+      <h2 id="today-heading" className="text-section font-semibold">
+        Clinic today <span className="text-table font-normal text-muted-foreground">· {facility.name}</span>
+      </h2>
+      <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
+        <Card className="p-1">
+          <ActionMetric value={dashboard.appointments.total} label="Appointments" href={canAppointments ? "/appointments" : undefined} />
+          <ActionMetric
+            value={dashboard.queue.waiting}
+            label="Waiting"
+            tone={dashboard.queue.waiting ? "warning" : "default"}
+            href={canQueue ? "/queue" : undefined}
+          />
+          <ActionMetric value={dashboard.queue.inConsultation} label="With provider" href={canQueue ? "/queue" : undefined} />
+          <ActionMetric value={dashboard.encounters.completedToday} label="Seen" href={can(session, "encounter.read") ? "/clinic/encounters" : undefined} />
+          <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 border-t px-2 py-2 text-table">
+            <dt className="text-muted-foreground">Average wait</dt>
+            <dd className="tabular text-right font-medium">{minutesLabel(dashboard.queue.averageWaitMinutes)}</dd>
+            <dt className="text-muted-foreground">No-show rate</dt>
+            <dd className="tabular text-right font-medium">{Math.round(dashboard.appointments.noShowRate * 100)}%</dd>
+          </dl>
+        </Card>
+        <AttentionList items={attention} />
+        {canAppointments ? <NextPatients session={session} facility={facility} /> : <div />}
+      </div>
+
+      {dashboard.providerWorkload.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Provider workload</CardTitle>
+          </CardHeader>
+          <CardContent className="py-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Practitioner</TableHead>
+                  <TableHead className="text-right">Booked</TableHead>
+                  <TableHead className="text-right">Seen</TableHead>
+                  <TableHead className="text-right">Waiting</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dashboard.providerWorkload.map((w) => (
+                  <TableRow key={w.practitionerId}>
+                    <TableCell>{w.displayName}</TableCell>
+                    <TableCell className="tabular text-right">{w.booked}</TableCell>
+                    <TableCell className="tabular text-right">{w.seen}</TableCell>
+                    <TableCell className="tabular text-right">{w.waiting}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {queue && queue.length ? (
+        <div className="overflow-x-auto">
+          <QueueBoard entries={queue.map(toQueueEntry)} statuses={QUEUE_BOARD_STATUSES} hideDone className="min-w-[48rem]" />
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-async function LabDashboard() {
+/** Today's upcoming appointments: the user's own if they are a practitioner, else the facility's. */
+async function NextPatients({ session, facility }: { session: Me; facility: { id: string; timezone: string } }) {
+  const practitioners = await getPractitioners();
+  const mine = practitioners.find((p) => p.userId === session.user.id);
+  const [page, visitTypes] = await Promise.all([
+    api<Page<AppointmentItem>>("/appointments", {
+      query: { facilityId: facility.id, date: todayIn(facility.timezone), practitionerId: mine?.id, pageSize: 100 },
+    }),
+    getVisitTypes(),
+  ]);
+  const upcoming = upcomingAppointments(page.items).slice(0, 6);
+  const practitionerMap = new Map(practitioners.map((p) => [p.id, p]));
+  const visitTypeMap = new Map(visitTypes.map((v) => [v.id, v]));
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{mine ? "Your next patients" : "Next patients"}</CardTitle>
+        <CardAction>
+          <Link href={mine ? `/appointments?practitionerId=${mine.id}` : "/appointments"} className="text-meta text-primary hover:underline">
+            Full schedule
+          </Link>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="divide-y py-0">
+        {upcoming.length === 0 ? <p className="py-3 text-table text-muted-foreground">No more appointments today.</p> : null}
+        {upcoming.map((a) => (
+          <AppointmentCard key={a.id} appointment={toAppointment(a, practitionerMap, visitTypeMap)} showPatient />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Laboratory is Phase 3: this panel stays on demo fixtures, labelled as such, and never shows real patients. */
+async function LaboratoryPreview() {
   const labs = await getLabWorklist();
   const critical = labs.filter((o) => o.observations.some((x) => isCriticalFlag(x.flag)));
   return (
-    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <Card className="p-1">
-        <ActionMetric value={128} label="Orders" href="/laboratory/worklist" />
-        <ActionMetric value={96} label="Processing" href="/laboratory/worklist" />
-        <ActionMetric value={22} label="Awaiting verification" tone="warning" href="/laboratory/worklist" />
-        <ActionMetric value={10} label="Critical" tone="critical" href="/laboratory/worklist" />
-        <div className="mt-1 border-t px-2 py-2">
-          <p className="text-meta tracking-wide text-muted-foreground uppercase">Average TAT</p>
-          <p className="tabular text-page font-semibold">1h 42m</p>
-        </div>
-      </Card>
-      <AttentionList
-        items={[
-          {
-            id: "crit",
-            severity: "critical",
-            count: critical.length,
-            title: "Critical results to call",
-            detail: critical.map((o) => `${o.accession} ${o.test} — ${o.patientName}`).join(", "),
-            href: "/laboratory/worklist",
-          },
-          {
-            id: "rej",
-            severity: "warning",
-            count: 7,
-            title: "Specimens rejected",
-            detail: "Hemolyzed ×4, clotted ×2, unlabeled ×1",
-            href: "/laboratory/specimens",
-          },
-          { id: "qc", severity: "info", count: 1, title: "QC due", detail: "Chemistry analyser level 2 control at 12:00", href: "/laboratory/qc" },
-        ]}
-      />
-    </div>
-  );
-}
-
-async function FrontDeskDashboard() {
-  const queue = await getQueue();
-  return (
-    <div className="flex flex-col gap-4">
+    <section className="p-4 pt-0" aria-labelledby="lab-heading">
+      <div className="mb-2 flex items-baseline gap-2">
+        <h2 id="lab-heading" className="text-section font-semibold">
+          Laboratory
+        </h2>
+        <span className="rounded-sm border border-warning/40 bg-warning-subtle px-1.5 text-meta font-medium text-warning-foreground">Demo data</span>
+        <span className="text-meta text-muted-foreground">Preview until the laboratory module is built (Phase 3).</span>
+      </div>
       <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <Card className="p-1">
-          <ActionMetric value={queue.filter((q) => q.status === "waiting").length} label="Waiting" tone="warning" href="/queue" />
-          <ActionMetric value={queue.filter((q) => q.status === "vitals").length} label="In triage" href="/queue" />
-          <ActionMetric value={queue.filter((q) => q.status === "for-billing").length} label="For billing" href="/billing" />
-          <ActionMetric value={6} label="Arrivals expected" href="/appointments" />
+          <ActionMetric value={128} label="Orders" href="/laboratory/worklist" />
+          <ActionMetric value={22} label="Awaiting verification" tone="warning" href="/laboratory/worklist" />
+          <ActionMetric value={critical.length} label="Critical" tone="critical" href="/laboratory/worklist" />
         </Card>
         <AttentionList
+          title="Laboratory (demo)"
           items={[
-            { id: "phil", severity: "warning", count: 2, title: "PhilHealth eligibility unverified", detail: "Juan Cruz, Ramon Garcia", href: "/patients" },
-            { id: "prio", severity: "info", count: 2, title: "Priority lane patients", detail: "Senior citizen, pregnant", href: "/queue" },
+            {
+              id: "crit",
+              severity: "critical",
+              count: critical.length,
+              title: "Critical results to call",
+              detail: critical.map((o) => `${o.accession} ${o.test} — ${o.patientName}`).join(", "),
+              href: "/laboratory/worklist",
+            },
           ]}
         />
       </div>
-      <QueueBoard entries={queue} now={DEMO_NOW} hideDone />
-    </div>
+    </section>
   );
 }

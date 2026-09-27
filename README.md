@@ -109,25 +109,25 @@ facility / department, TOTP MFA, a transactional event outbox, and API integrati
 
 ## Screens (staff app)
 
-| Route                       | Screen                                                                                                                                                                           | Data       |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `/login`                    | Sign-in: password, TOTP MFA, organization choice                                                                                                                                 | API        |
-| `/`                         | Welcome, quick actions; clinical dashboard previews (doctor · lab · front desk)                                                                                                  | API + demo |
-| `/patients`                 | Patient lookup (name, patient no., mobile, birth date); minimal fields, masked mobile                                                                                            | API        |
-| `/patients/new`             | Registration with duplicate review and audited override                                                                                                                          | API        |
-| `/patients/[id]`            | Patient record: demographics, contacts, identifiers, consent, allergies and clinical summary (Patient 360)                                                                       | API        |
-| `/preview/patient-360`      | **Patient 360** design preview (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline)                                                               | Demo       |
-| `/clinic/encounters`        | Today's consultations: ready for provider, with provider, seen; start or open                                                                                                    | API        |
-| `/clinic/encounters/[id]`   | **Doctor workspace** — encounters · SOAP note (drafts, sign, amend, history) + diagnoses + prescriptions + care plans + follow-up · clinical context; collapses to tabs < 1280px | API        |
-| `/clinic/care-plans/[id]`   | Care plan: goals, activities (book follow-up, done, cancel, recurring), progress notes, status                                                                                   | API        |
-| `/laboratory/worklist`      | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                                                                                      | Demo       |
-| `/dental`                   | **Odontogram** (FDI) with per-surface charting                                                                                                                                   | Demo       |
-| `/telemedicine/[id]`        | Video consult with the patient record alongside                                                                                                                                  | Demo       |
-| `/queue`                    | Live queue board: call, send to triage / ready for provider, cancel or left-without-being-seen (with reason)                                                                     | API        |
-| `/queue/walk-in`            | Walk-in check-in from the patient record (visit type, priority, chief complaint)                                                                                                 | API        |
-| `/queue/visits/[id]/triage` | Triage: chief complaint, priority, pain score, risk flags, vital signs (with allergies and previous vitals shown)                                                                | API        |
-| `/appointments`             | Day schedule per practitioner: confirm, check in, cancel (with reason), no-show                                                                                                  | API        |
-| `/appointments/new`         | Booking from the practitioner's open slots                                                                                                                                       | API        |
+| Route                       | Screen                                                                                                                                                                                       | Data       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `/login`                    | Sign-in: password, TOTP MFA, organization choice                                                                                                                                             | API        |
+| `/`                         | Clinic today (facility): appointments, waiting, with provider, seen, average wait, no-show rate, attention list, next patients, provider workload, queue; laboratory panel is a demo preview | API + demo |
+| `/patients`                 | Patient lookup (name, patient no., mobile, birth date); minimal fields, masked mobile                                                                                                        | API        |
+| `/patients/new`             | Registration with duplicate review and audited override                                                                                                                                      | API        |
+| `/patients/[id]`            | Patient record: demographics, contacts, identifiers, consent, allergies and clinical summary (Patient 360)                                                                                   | API        |
+| `/preview/patient-360`      | **Patient 360** design preview (overview, encounters, labs, meds, care plan, dental, documents, billing, timeline)                                                                           | Demo       |
+| `/clinic/encounters`        | Today's consultations: ready for provider, with provider, seen; start or open                                                                                                                | API        |
+| `/clinic/encounters/[id]`   | **Doctor workspace** — encounters · SOAP note (drafts, sign, amend, history) + diagnoses + prescriptions + care plans + follow-up · clinical context; collapses to tabs < 1280px             | API        |
+| `/clinic/care-plans/[id]`   | Care plan: goals, activities (book follow-up, done, cancel, recurring), progress notes, status                                                                                               | API        |
+| `/laboratory/worklist`      | **Lab workbench** — TanStack worklist + result entry, auto-flagging, verify/critical/reject                                                                                                  | Demo       |
+| `/dental`                   | **Odontogram** (FDI) with per-surface charting                                                                                                                                               | Demo       |
+| `/telemedicine/[id]`        | Video consult with the patient record alongside                                                                                                                                              | Demo       |
+| `/queue`                    | Live queue board: call, send to triage / ready for provider, cancel or left-without-being-seen (with reason)                                                                                 | API        |
+| `/queue/walk-in`            | Walk-in check-in from the patient record (visit type, priority, chief complaint)                                                                                                             | API        |
+| `/queue/visits/[id]/triage` | Triage: chief complaint, priority, pain score, risk flags, vital signs (with allergies and previous vitals shown)                                                                            | API        |
+| `/appointments`             | Day schedule per practitioner: confirm, check in, cancel (with reason), no-show                                                                                                              | API        |
+| `/appointments/new`         | Booking from the practitioner's open slots                                                                                                                                                   | API        |
 
 Modules in the navigation that aren't built yet render a placeholder.
 
