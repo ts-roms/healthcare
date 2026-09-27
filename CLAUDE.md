@@ -12,12 +12,12 @@ This is **not** a generic CRM or CRUD application. It is an:
 
 Domain-specific instructions live next to the code they govern and extend (never contradict) this file:
 
-| Domain | Instructions |
-| --- | --- |
-| Clinic / EMR | `libs/clinic/CLAUDE.md` |
-| Laboratory (LIS) | `libs/laboratory/CLAUDE.md` |
-| Dental | `libs/dental/CLAUDE.md` |
-| Billing | `libs/billing/CLAUDE.md` |
+| Domain                        | Instructions                      |
+| ----------------------------- | --------------------------------- |
+| Clinic / EMR                  | `libs/clinic/CLAUDE.md`           |
+| Laboratory (LIS)              | `libs/laboratory/CLAUDE.md`       |
+| Dental                        | `libs/dental/CLAUDE.md`           |
+| Billing                       | `libs/billing/CLAUDE.md`          |
 | Interoperability / PhilHealth | `libs/interoperability/CLAUDE.md` |
 
 ---
@@ -32,19 +32,19 @@ The repository has not been scaffolded yet. Phase 1 (Foundation, §38) is the ne
 
 Use this stack unless there is a strong, documented technical reason to change it.
 
-| Area | Choice |
-| --- | --- |
-| Monorepo | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo. |
-| Frontend | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate |
-| Backend | NestJS, TypeScript, REST, OpenAPI/Swagger. Pick **one** validation approach (Zod or class-validator) and use it consistently. |
-| Database | PostgreSQL — primary transactional store, strong relational modeling |
-| Cache / jobs | Redis + BullMQ |
-| Object storage | S3-compatible |
-| Mobile | React Native + Expo (primarily for patients) |
-| Realtime | WebSockets / Socket.IO |
-| Telemedicine | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component. |
-| Infrastructure | Docker, Terraform, GitHub Actions, CDN/WAF where appropriate |
-| Observability | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking |
+| Area           | Choice                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                                   |
+| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate                   |
+| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Pick **one** validation approach (Zod or class-validator) and use it consistently. |
+| Database       | PostgreSQL — primary transactional store, strong relational modeling                                                          |
+| Cache / jobs   | Redis + BullMQ                                                                                                                |
+| Object storage | S3-compatible                                                                                                                 |
+| Mobile         | React Native + Expo (primarily for patients)                                                                                  |
+| Realtime       | WebSockets / Socket.IO                                                                                                        |
+| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component.              |
+| Infrastructure | Docker, Terraform, GitHub Actions, CDN/WAF where appropriate                                                                  |
+| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                                            |
 
 **PostgreSQL:** do not store the healthcare system as arbitrary JSON. Use JSONB only where genuinely appropriate (configurable forms, structured extension fields, specialty-specific data).
 
@@ -339,6 +339,7 @@ Differentiate through connected workflows, not screen count:
 ## 40. Engineering rules
 
 **Never:**
+
 - Expose database entities directly from controllers
 - Put business logic in React components
 - Put healthcare rules directly into SQL
@@ -353,6 +354,7 @@ Differentiate through connected workflows, not screen count:
 - Introduce microservices without a demonstrated reason
 
 **Always:**
+
 - Validate and authorize server-side
 - Audit sensitive actions
 - Use transactions for critical workflows
