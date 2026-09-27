@@ -177,3 +177,30 @@ export const juan = {
   addresses: [{ barangay: 'Poblacion', cityMunicipality: 'Makati City', province: 'Metro Manila', postalCode: '1210' }],
   identifiers: [{ type: 'philhealth_pin', value: '12-345678901-2' }],
 };
+
+/** Runs the outbox relay until no events are pending (the relay is not started in tests). */
+export async function drainEvents(ctx: TestContext): Promise<number> {
+  const { OutboxRelay } = await import('@healthcare/core');
+  return ctx.app.get(OutboxRelay).drain();
+}
+
+/** A local calendar date (Asia/Manila) `days` from now. */
+export function manilaDate(days: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(Date.now() + days * 86_400_000));
+}
+
+/** Creates a staff user and links them to a practitioner record. Returns ids. */
+export async function createClinician(
+  ctx: TestContext,
+  tenant: Tenant,
+  email: string,
+  roles: Array<string | { role: string; facilityId: string }>,
+  profession = 'physician',
+): Promise<{ userId: string; practitionerId: string }> {
+  const userId = await createStaff(ctx.pool, tenant, email, roles);
+  const result = await ctx.pool.query<{ id: string }>(
+    `INSERT INTO practitioner (organization_id, user_id, display_name, profession, license_number) VALUES ($1, $2, $3, $4, 'PRC-0000000') RETURNING id`,
+    [tenant.organizationId, userId, `Dr. ${email.split('@')[0]}`, profession],
+  );
+  return { userId, practitionerId: result.rows[0]!.id };
+}

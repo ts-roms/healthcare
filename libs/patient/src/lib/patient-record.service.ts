@@ -16,7 +16,7 @@ import {
   todayInPhilippines,
   VersionConflictError,
 } from '@healthcare/core';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { z } from 'zod';
 import { type ContactResolution, resolvePatientContact } from './communication-policy';
 import { normalizeContact } from './contact-normalization';
@@ -417,6 +417,18 @@ export class PatientRecordService {
       });
       return tx.select().from(patientCommunicationPreference).where(eq(patientCommunicationPreference.patientId, patientId));
     });
+  }
+
+  /** Minimal identification for many patients at once (queue boards, lists). Not audited here. */
+  async briefs(organizationId: string, patientIds: string[]) {
+    const result = new Map<string, { patientNumber: string; displayName: string; sex: string; age: number }>();
+    if (patientIds.length === 0) return result;
+    const rows = await this.db.select().from(patient).where(and(eq(patient.organizationId, organizationId), inArray(patient.id, patientIds)));
+    const today = todayInPhilippines();
+    for (const row of rows) {
+      result.set(row.id, { patientNumber: row.patientNumber, displayName: displayName(row), sex: row.sex, age: ageInYears(row.birthDate, today) });
+    }
+    return result;
   }
 
   /** Destination and permission for contacting a patient (used by notifications). */

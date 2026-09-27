@@ -1,9 +1,13 @@
 import * as audit from '@healthcare/audit';
 import * as auth from '@healthcare/auth';
+import * as carePlan from '@healthcare/care-plan';
+import * as clinic from '@healthcare/clinic';
+import * as core from '@healthcare/core';
 import * as documents from '@healthcare/documents';
 import * as notification from '@healthcare/notification';
 import * as organization from '@healthcare/organization';
 import * as patient from '@healthcare/patient';
+import * as prescription from '@healthcare/prescription';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
 import { resetDatabase, TEST_DATABASE_URL } from './harness';
@@ -14,7 +18,7 @@ import { resetDatabase, TEST_DATABASE_URL } from './harness';
  */
 describe('Drizzle schema matches migrations', () => {
   let pool: Pool;
-  const tables = [audit, auth, documents, notification, organization, patient]
+  const tables = [audit, auth, carePlan, clinic, core, documents, notification, organization, patient, prescription]
     .flatMap((module) => Object.values(module))
     .filter((value): value is PgTable => value instanceof PgTable);
 
@@ -26,7 +30,7 @@ describe('Drizzle schema matches migrations', () => {
   afterAll(() => pool.end());
 
   it('covers the tables', () => {
-    expect(tables.length).toBeGreaterThanOrEqual(20);
+    expect(tables.length).toBeGreaterThanOrEqual(45);
   });
 
   it.each(tables.map((table) => [getTableConfig(table).name, table] as const))('%s', async (name, table) => {

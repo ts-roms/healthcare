@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@healthcare/audit';
-import { type Actor, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from '@healthcare/core';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { type Actor, actorUserId, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from '@healthcare/core';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { sendNotificationSchema } from './notification.dto';
 import { notification, type NotificationRecord } from './notification.schema';
@@ -85,7 +85,7 @@ export class NotificationService {
           suppressionReason: resolution.allowed ? null : resolution.reason,
           idempotencyKey: input.idempotencyKey ?? null,
           scheduledFor,
-          createdBy: actor.userId,
+          createdBy: actorUserId(actor),
           deliveredAt: status === 'delivered' ? new Date() : null,
         })
         .onConflictDoNothing()
@@ -120,6 +120,36 @@ export class NotificationService {
         .catch((error: unknown) => this.logger.warn(`Enqueue failed for ${created.id}: ${String(error)}`));
     }
     return toNotificationView(created);
+  }
+
+  /**
+   * Cancels a not-yet-sent notification identified by its idempotency key
+   * (e.g. the reminder of an appointment that was cancelled). No-op if it was
+   * already sent or does not exist.
+   */
+  async cancelByIdempotencyKey(actor: Actor, idempotencyKey: string, reason: string): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [cancelled] = await tx
+        .update(notification)
+        .set({ status: 'cancelled', cancelledAt: new Date(), lastError: reason, updatedAt: new Date() })
+        .where(
+          and(
+            eq(notification.organizationId, actor.organizationId),
+            eq(notification.idempotencyKey, idempotencyKey),
+            inArray(notification.status, ['queued']),
+          ),
+        )
+        .returning();
+      if (!cancelled) return false;
+      await this.audit.record(tx, actor, {
+        action: 'notification.cancel',
+        resourceType: 'notification',
+        resourceId: cancelled.id,
+        patientId: cancelled.recipientPatientId ?? undefined,
+        reason,
+      });
+      return true;
+    });
   }
 
   async historyForPatient(actor: Actor, patientId: string): Promise<NotificationView[]> {

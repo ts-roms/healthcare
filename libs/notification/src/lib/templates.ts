@@ -40,6 +40,18 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: 'appointment.reminder',
+    version: 1,
+    category: 'administrative',
+    channels: ['sms', 'email'],
+    // No patient name, practitioner specialty or reason: only where and when.
+    variables: z.object({ facilityName: shortText, date: z.string().max(40), time: z.string().max(20) }),
+    render: (v) => ({
+      subject: `Appointment reminder: ${v.date}`,
+      text: `Reminder: you have an appointment at ${v.facilityName} on ${v.date} at ${v.time}. Please arrive 15 minutes early. To reschedule, contact the clinic.`,
+    }),
+  }),
+  defineTemplate({
     key: 'security.mfa-enabled',
     version: 1,
     category: 'security',

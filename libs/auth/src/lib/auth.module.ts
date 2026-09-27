@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { OrganizationModule } from '@healthcare/organization';
 import { AccessGuard } from './access.guard';
 import { AccessService } from './access.service';
+import { ActorResolver } from './actor-resolver';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PermissionCatalogCheck } from './permission-catalog.check';
@@ -21,6 +22,7 @@ import { UsersService } from './users.service';
   controllers: [AuthController, UsersController],
   providers: [
     AccessService,
+    ActorResolver,
     AuthService,
     PermissionCatalogCheck,
     SessionService,
@@ -28,6 +30,6 @@ import { UsersService } from './users.service';
     UsersService,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AccessService, AuthService],
+  exports: [AccessService, ActorResolver, AuthService],
 })
 export class AuthModule {}

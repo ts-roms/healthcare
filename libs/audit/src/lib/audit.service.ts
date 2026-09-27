@@ -63,7 +63,7 @@ export class AuditService {
       organizationId: actor.organizationId ?? null,
       facilityId: isAnonymous ? null : (actor.facilityId ?? null),
       actorType: isAnonymous ? (actor.authenticated ? 'user' : 'anonymous') : actor.kind,
-      actorUserId: actor.userId ?? null,
+      actorUserId: isAnonymous ? (actor.userId ?? null) : actor.kind === 'user' ? actor.userId : null,
       action: entry.action,
       resourceType: entry.resourceType,
       resourceId: entry.resourceId ?? null,

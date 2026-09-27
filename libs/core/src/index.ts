@@ -15,3 +15,7 @@ export * from './lib/access/decorators';
 export * from './lib/access/permissions';
 export * from './lib/http/request-metadata';
 export * from './lib/ph/dates';
+export * from './lib/actor-system';
+export * from './lib/events/domain-event.schema';
+export * from './lib/events/domain-events';
+export * from './lib/time/zoned-time';

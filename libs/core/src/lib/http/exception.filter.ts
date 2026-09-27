@@ -56,7 +56,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return envelope(status, httpCode(status), exception.message);
     }
     const pgError = asPgError(exception);
-    if (pgError?.code === PgErrorCode.uniqueViolation) {
+    if (pgError?.code === PgErrorCode.uniqueViolation || pgError?.code === PgErrorCode.exclusionViolation) {
       return envelope(409, 'conflict', 'The request conflicts with an existing record', { constraint: pgError.constraint });
     }
     if (pgError?.code === PgErrorCode.foreignKeyViolation || pgError?.code === PgErrorCode.checkViolation) {

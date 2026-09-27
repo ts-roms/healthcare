@@ -103,7 +103,10 @@
     "@healthcare/organization": "workspace:*",
     "@healthcare/patient": "workspace:*",
     "@healthcare/documents": "workspace:*",
-    "@healthcare/notification": "workspace:*"
+    "@healthcare/notification": "workspace:*",
+    "@healthcare/clinic": "workspace:*",
+    "@healthcare/prescription": "workspace:*",
+    "@healthcare/care-plan": "workspace:*"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

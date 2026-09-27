@@ -3,13 +3,19 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from '@healthcare/audit';
 import { AuthModule } from '@healthcare/auth';
+import { CarePlanModule } from '@healthcare/care-plan';
+import { ClinicModule } from '@healthcare/clinic';
 import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from '@healthcare/core';
 import { DocumentsModule } from '@healthcare/documents';
 import { NotificationModule } from '@healthcare/notification';
 import { OrganizationModule } from '@healthcare/organization';
 import { PatientModule } from '@healthcare/patient';
+import { PrescriptionModule } from '@healthcare/prescription';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { AppPatientDirectory, AppPrescribingContext } from './adapters/clinic-adapters';
 import { HealthController } from './health.controller';
+import { PatientSummaryController } from './patient-360/patient-summary.controller';
+import { RealtimeGateway } from './realtime/realtime.gateway';
 import { AppRecipientDirectory } from './recipient-directory';
 
 export interface AppModuleOverrides {
@@ -49,9 +55,14 @@ export class AppModule implements NestModule {
           recipientDirectory: AppRecipientDirectory,
           queue: overrides.notificationQueue,
         }),
+        // Phase 2 — clinic. Cross-domain needs are satisfied by adapters defined here.
+        ClinicModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
+        PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext }),
+        CarePlanModule,
       ],
-      controllers: [HealthController],
+      controllers: [HealthController, PatientSummaryController],
       providers: [
+        RealtimeGateway,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

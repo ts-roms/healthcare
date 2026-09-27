@@ -29,6 +29,15 @@
     },
     {
       "path": "./apps/notification-worker"
+    },
+    {
+      "path": "./libs/clinic"
+    },
+    {
+      "path": "./libs/prescription"
+    },
+    {
+      "path": "./libs/care-plan"
     }
   ],
   "compilerOptions": {}

@@ -35,6 +35,8 @@ export class NotificationModule {
   static forRoot(options: NotificationModuleOptions): DynamicModule {
     return {
       module: NotificationModule,
+      // Global so domain modules (e.g. clinic reminders) can inject NotificationService.
+      global: true,
       imports: options.imports ?? [],
       controllers: [NotificationController],
       providers: [

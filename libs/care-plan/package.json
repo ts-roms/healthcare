@@ -1,0 +1,27 @@
+{
+  "name": "@healthcare/care-plan",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "nx": {
+    "name": "care-plan",
+    "tags": [
+      "type:lib",
+      "layer:domain",
+      "scope:care-plan"
+    ]
+  },
+  "dependencies": {
+    "@healthcare/core": "workspace:*",
+    "@healthcare/audit": "workspace:*"
+  }
+}

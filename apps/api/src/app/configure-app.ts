@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { AppConfig } from '@healthcare/core';
 import helmet from 'helmet';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
+import { ConfiguredIoAdapter } from './realtime/io-adapter';
 
 /** HTTP concerns shared by main.ts and the API integration tests. */
 export function configureApp(app: NestExpressApplication, config: AppConfig): INestApplication {
@@ -16,6 +17,7 @@ export function configureApp(app: NestExpressApplication, config: AppConfig): IN
   // Clinical payloads are small JSON; files go straight to object storage.
   app.useBodyParser('json', { limit: '1mb' });
   app.enableShutdownHooks();
+  app.useWebSocketAdapter(new ConfiguredIoAdapter(app, config.CORS_ORIGINS));
 
   if (config.NODE_ENV !== 'production') {
     const document = SwaggerModule.createDocument(

@@ -13,6 +13,7 @@ export const PgErrorCode = {
   uniqueViolation: '23505',
   foreignKeyViolation: '23503',
   checkViolation: '23514',
+  exclusionViolation: '23P01',
   notNullViolation: '23502',
   insufficientPrivilege: '42501',
 } as const;

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { loadAppConfig } from '@healthcare/core';
+import { loadAppConfig, OutboxRelay } from '@healthcare/core';
 import { AppModule } from './app/app.module';
 import { configureApp } from './app/configure-app';
 
@@ -14,6 +14,8 @@ async function bootstrap(): Promise<void> {
   });
   configureApp(app, config);
   await app.listen(config.PORT);
+  // Dispatches domain events (queue updates, reminders) written by transactions.
+  app.get(OutboxRelay).start();
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, 'Bootstrap');
 }
 

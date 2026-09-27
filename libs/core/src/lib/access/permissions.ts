@@ -19,6 +19,25 @@ export const PERMISSIONS = [
   'notification.send',
   'notification.read',
   'audit.read',
+  // Phase 2 — clinic (migration 0012)
+  'clinic.configure',
+  'appointment.read',
+  'appointment.manage',
+  'clinic.queue.read',
+  'clinic.queue.manage',
+  'clinic.triage.write',
+  'clinical.read',
+  'allergy.manage',
+  'encounter.read',
+  'encounter.write',
+  'encounter.sign',
+  'encounter.amend',
+  'prescription.read',
+  'prescription.issue',
+  'prescription.cancel',
+  'care-plan.read',
+  'care-plan.manage',
+  'clinic.dashboard.read',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
