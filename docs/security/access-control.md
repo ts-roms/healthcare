@@ -107,8 +107,10 @@ sub-records / consent / preferences, document create / upload / list / download
 - Logs never contain message bodies; destinations are masked.
 - Domain events and realtime messages carry identifiers and statuses only —
   never names or clinical text. Realtime clients are checked on connect with
-  the same session, account, facility and permission rules as the REST API
-  (`clinic.queue.read`). Browsers present a ticket from
+  the same session, account, facility and permission rules as the REST API:
+  a socket receives `queue.updated` only with `clinic.queue.read` and
+  `lab.updated` only with `lab.order.read` at that facility (and is refused
+  with neither). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
   versa). A ticket is not single-use: replayed within its minute it opens a

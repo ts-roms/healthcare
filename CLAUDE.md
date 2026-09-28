@@ -125,7 +125,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Outreach (Phase 4c):** care-plan recall reminders (`CarePlanRecallReminders`, hourly in daytime, once per activity/due date/kind), no-show follow-up, in-app copies of patient notices, staff "Message in MyHealth" on the patient record; all through `NotificationService` (consent and preferences).
 
-**Next steps:** Phase 8 follow-ups (FHIR R4 read, PhilHealth eClaims and eligibility, and DOH reporting adapter stubs exist; each real adapter waits for its official specification — `docs/interoperability/`). Printable PDFs exist for laboratory reports, invoices and receipts (`docs/architecture/printable-documents.md`); released lab reports are archived to object storage via BullMQ. Billing follow-ups: packages, debit notes, online payment (provider dependency). Phase 3 follow-ups: result attachments, realtime lab status. Dental follow-ups: periodontal charting, MyHealth view, dental FHIR resources, supply use from inventory.
+**Next steps:** Phase 8 follow-ups (FHIR R4 read, PhilHealth eClaims and eligibility, and DOH reporting adapter stubs exist; each real adapter waits for its official specification — `docs/interoperability/`). Printable PDFs exist for laboratory reports, invoices and receipts (`docs/architecture/printable-documents.md`); released lab reports are archived to object storage via BullMQ. Billing follow-ups: packages, debit notes, online payment (provider dependency). Phase 3 follow-ups done: result attachments (laboratory-managed documents, frozen from verification) and realtime lab status (`lab.updated`). Dental follow-ups: periodontal charting, MyHealth view, dental FHIR resources, supply use from inventory.
 
 ## 1. Technology stack
 
