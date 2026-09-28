@@ -6,30 +6,21 @@
 -- expiry first out, never expired lots, balances never negative, controlled items need a reason and a reference) in
 -- the same database transaction as the dental record of it. Unused supplies can be returned to the lot they came from.
 --
--- Inventory ledger rows now say which record they were issued to or returned from (source type and id), so stock
--- history shows where supplies went; a new movement kind `return` puts stock back into the lot it was issued from.
+-- Inventory ledger rows name the record they were issued to (0052: source type and id; kind `return`). Dental
+-- procedures become a source. Unlike a dispense or a reagent load (taken once per lot, reversed once in full), a
+-- procedure may take from the same lot again (a further use) and return part of it several times; the inventory
+-- library checks each return against what the procedure still holds from the lot (balance row locked), so dental
+-- movements are left out of the once-per-lot index.
 
--- ---- inventory: sourced movements and returns ------------------------------------------------------------
+-- ---- inventory: dental procedures as a movement source --------------------------------------------------
 
-ALTER TABLE inventory_movement
-  ADD COLUMN source_type text CHECK (source_type ~ '^[a-z][a-z_]{2,39}$'),
-  ADD COLUMN source_id   uuid,
-  ADD CONSTRAINT inventory_movement_source_check CHECK ((source_type IS NULL) = (source_id IS NULL));
+ALTER TABLE inventory_movement DROP CONSTRAINT inventory_movement_source_type_check;
+ALTER TABLE inventory_movement ADD CONSTRAINT inventory_movement_source_type_check
+  CHECK (source_type IN ('prescription_dispense', 'lab_reagent_load', 'purchase_order_line', 'dental_procedure'));
 
-ALTER TABLE inventory_movement DROP CONSTRAINT inventory_movement_kind_check;
-ALTER TABLE inventory_movement ADD CONSTRAINT inventory_movement_kind_check
-  CHECK (kind IN ('receipt', 'issue', 'transfer_out', 'transfer_in', 'adjustment', 'write_off', 'return'));
-
--- Receipts, transfers in and returns add stock; issues, transfers out and write-offs remove it; counts go either way.
-ALTER TABLE inventory_movement DROP CONSTRAINT inventory_movement_check;
-ALTER TABLE inventory_movement ADD CONSTRAINT inventory_movement_sign_check
-  CHECK ((kind IN ('receipt', 'transfer_in', 'return')) = (quantity > 0) OR kind = 'adjustment');
-
--- A return always says why and which record the stock was issued to.
-ALTER TABLE inventory_movement ADD CONSTRAINT inventory_movement_return_check
-  CHECK (kind <> 'return' OR (reason IS NOT NULL AND source_type IS NOT NULL));
-
-CREATE INDEX inventory_movement_source ON inventory_movement (organization_id, source_type, source_id) WHERE source_type IS NOT NULL;
+DROP INDEX inventory_movement_source_once;
+CREATE UNIQUE INDEX inventory_movement_source_once ON inventory_movement (organization_id, source_type, source_id, lot_id, kind)
+  WHERE source_type IS NOT NULL AND source_type <> 'dental_procedure' AND kind IN ('issue', 'return');
 
 -- ---- dental: default stock location per facility ---------------------------------------------------------
 

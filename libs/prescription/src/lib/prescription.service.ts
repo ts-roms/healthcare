@@ -188,6 +188,26 @@ export class PrescriptionService {
     return this.views(this.db, rows);
   }
 
+  /** One prescription with its items, for dispensing. Not audited here; the caller audits. */
+  async load(executor: DbExecutor, organizationId: string, prescriptionId: string, lock = false): Promise<PrescriptionView> {
+    const query = executor
+      .select()
+      .from(prescription)
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.id, prescriptionId)));
+    const [row] = lock ? await query.for("update") : await query;
+    if (!row) throw new NotFoundError("Prescription");
+    return this.view(executor, row);
+  }
+
+  /** The prescription with this number (RX########), if any. */
+  async idForNumber(organizationId: string, prescriptionNumber: string): Promise<string | undefined> {
+    const [row] = await this.db
+      .select({ id: prescription.id })
+      .from(prescription)
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.prescriptionNumber, prescriptionNumber)));
+    return row?.id;
+  }
+
   /** Every prescription of the patient, for a record export (FHIR). Not audited here; the caller audits. */
   async allForPatient(organizationId: string, patientId: string): Promise<PrescriptionView[]> {
     const rows = await this.db

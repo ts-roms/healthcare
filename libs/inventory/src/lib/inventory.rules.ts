@@ -69,3 +69,47 @@ export function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
+
+// ---- purchase orders -------------------------------------------------------------------------------
+
+export type PurchaseOrderAction = "edit" | "submit" | "approve" | "receive" | "cancel" | "close";
+
+const ALLOWED: Record<PurchaseOrderAction, readonly string[]> = {
+  edit: ["draft"],
+  submit: ["draft"],
+  approve: ["submitted"],
+  receive: ["approved", "partially_received"],
+  // Nothing has arrived yet: the order is withdrawn.
+  cancel: ["draft", "submitted", "approved"],
+  // Some or none has arrived and no more is expected: the order is closed short.
+  close: ["approved", "partially_received"],
+};
+
+/** Whether an action applies to a purchase order in this status. */
+export function purchaseOrderAllows(status: string, action: PurchaseOrderAction): boolean {
+  return ALLOWED[action].includes(status);
+}
+
+/** PO-YYYY-NNNNNN. */
+export function purchaseOrderNumber(year: number, value: number): string {
+  return `PO-${year}-${String(value).padStart(6, "0")}`;
+}
+
+/** After a delivery: everything ordered has arrived, or part of it. */
+export function statusAfterReceipt(lines: Array<{ quantityOrdered: number; quantityReceived: number }>): "received" | "partially_received" {
+  return lines.every((l) => l.quantityReceived >= l.quantityOrdered) ? "received" : "partially_received";
+}
+
+/**
+ * Reorder suggestion for an item at a location: needed when usable stock plus what is already on order is at or below
+ * the reorder level. The suggested quantity is the configured reorder quantity (none configured: left to the buyer).
+ */
+export function reorderSuggestion(
+  usable: number,
+  onOrder: number,
+  reorderLevel: number,
+  reorderQuantity: number | null,
+): { needed: boolean; suggestedQuantity: number | null } {
+  const needed = usable + onOrder <= reorderLevel;
+  return { needed, suggestedQuantity: needed ? reorderQuantity : null };
+}

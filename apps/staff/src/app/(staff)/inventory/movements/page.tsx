@@ -5,13 +5,13 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { InventoryMovementWithSource } from "@/lib/api/types";
+import type { InventoryMovement } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { InventoryNav } from "../inventory-nav";
 
 export const metadata = { title: "Stock movements" };
 
-const KIND: Record<InventoryMovementWithSource["kind"], string> = {
+const KIND: Record<InventoryMovement["kind"], string> = {
   receipt: "Received",
   issue: "Issued",
   transfer_out: "Transferred out",
@@ -21,8 +21,14 @@ const KIND: Record<InventoryMovementWithSource["kind"], string> = {
   return: "Returned unused",
 };
 
+const SOURCE: Record<NonNullable<InventoryMovement["sourceType"]>, string> = {
+  prescription_dispense: "Pharmacy dispense",
+  lab_reagent_load: "Loaded on a laboratory instrument",
+  purchase_order_line: "Purchase order delivery",
+  dental_procedure: "Dental procedure",
+};
+
 /** Records of other domains that stock is issued to or returned from. */
-const SOURCE: Record<string, string> = { dental_procedure: "dental procedure" };
 
 /** The ledger: every movement at this facility's locations, newest first (append-only). */
 export default async function MovementsPage() {
@@ -37,7 +43,7 @@ export default async function MovementsPage() {
       </>
     );
   }
-  const movements = await api<InventoryMovementWithSource[]>("/inventory/movements");
+  const movements = await api<InventoryMovement[]>("/inventory/movements");
   return (
     <>
       <PageHeader title="Stock movements" description={`${facility.name} · the latest 200 movements`} actions={nav} />
@@ -74,10 +80,10 @@ export default async function MovementsPage() {
                     <TableCell className="max-w-sm text-meta">
                       {[
                         m.issuedTo && `To ${m.issuedTo}`,
-                        m.kind === "return" && m.sourceType ? `From ${SOURCE[m.sourceType] ?? m.sourceType}` : null,
                         m.reference && `Ref. ${m.reference}`,
                         m.reason,
                         m.unitCost !== null ? `${peso(m.unitCost)} each` : null,
+                        m.sourceType ? SOURCE[m.sourceType] : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

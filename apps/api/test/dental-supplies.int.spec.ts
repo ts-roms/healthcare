@@ -220,7 +220,11 @@ describe("dental supplies", () => {
     const audits = await auditRows(ctx.pool, "action = 'dental.supplies.issue' AND patient_id = $1", [patientId]);
     expect(audits).toHaveLength(1);
     expect(audits[0]!.metadata).toMatchObject({ supplyUseId: issueUse.id, locationId: ids.cabinet });
-    const inventoryAudit = await auditRows(ctx.pool, "action = 'inventory.issue' AND metadata->'source'->>'id' = $1", [procedureId]);
+    const inventoryAudit = await auditRows(
+      ctx.pool,
+      "action = 'inventory.issue' AND metadata->'sources' @> jsonb_build_array(jsonb_build_object('id', $1::text))",
+      [procedureId],
+    );
     expect(inventoryAudit).toHaveLength(1);
     await drainEvents(ctx);
     const events = await ctx.pool.query(`SELECT payload FROM domain_event WHERE event_type = 'DentalSuppliesIssued' AND aggregate_id = $1`, [procedureId]);
@@ -330,7 +334,9 @@ describe("dental supplies", () => {
     const audits = await auditRows(ctx.pool, "action = 'dental.supplies.return' AND patient_id = $1", [patientId]);
     expect(audits).toHaveLength(1);
     expect(audits[0]!.reason).toBe("Syringes not opened");
-    expect(await auditRows(ctx.pool, "action = 'inventory.return' AND metadata->'source'->>'id' = $1", [procedureId])).toHaveLength(1);
+    expect(
+      await auditRows(ctx.pool, "action = 'inventory.return' AND metadata->'sources' @> jsonb_build_array(jsonb_build_object('id', $1::text))", [procedureId]),
+    ).toHaveLength(1);
 
     await expect(ctx.pool.query(`UPDATE dental_supply_use_line SET quantity = 9`)).rejects.toThrow();
     await expect(ctx.pool.query(`DELETE FROM dental_supply_use`)).rejects.toThrow();

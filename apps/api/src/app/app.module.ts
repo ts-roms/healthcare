@@ -20,6 +20,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -94,7 +95,11 @@ export class AppModule implements NestModule {
       paymentGateway: overrides.paymentGateway,
     });
     // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
-    const prescriptions = PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext });
+    const prescriptions = PrescriptionModule.forRoot({
+      imports: [PatientModule, InventoryModule],
+      prescribingContext: AppPrescribingContext,
+      dispensingStock: AppDispensingStock,
+    });
     return {
       module: AppModule,
       imports: [

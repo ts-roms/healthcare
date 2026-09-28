@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import {
@@ -8,6 +9,7 @@ import {
   type Database,
   type DbExecutor,
   DomainEventPublisher,
+  ForbiddenError,
   localDate,
   NotFoundError,
   requireFacilityId,
@@ -44,8 +46,10 @@ export interface RecordedReagent {
  * inventory lot of a reagent is loaded on an instrument, for all its tests or
  * one test. Loading a new lot of the same reagent replaces the previous one;
  * the history stays. Results and QC runs record the lots in use when they
- * were entered, and an expired lot in use refuses both. Inventory stock is not
- * moved here (issuing to the laboratory stays an inventory movement).
+ * were entered, and an expired lot in use refuses both. Loading can take the
+ * lot's stock from a storage location in the same transaction (through the
+ * laboratory's port to inventory); otherwise stock is issued to the laboratory
+ * separately.
  */
 @Injectable()
 export class LabReagentService {
@@ -95,8 +99,13 @@ export class LabReagentService {
     return lots.filter((l) => l.itemStatus === "active" && !isExpired(l.expiryDate, today));
   }
 
-  async load(actor: Actor, instrumentId: string, input: { inventoryLotId: string; testId?: string }): Promise<ReagentLoadView> {
+  async load(
+    actor: Actor,
+    instrumentId: string,
+    input: { inventoryLotId: string; testId?: string; takeFromStock?: { locationId: string; quantity: number } },
+  ): Promise<ReagentLoadView> {
     const facilityId = requireFacilityId(actor);
+    if (input.takeFromStock && !actor.permissions.has("inventory.move")) throw new ForbiddenError("Taking stock needs the inventory.move permission");
     const lot = await this.context.inventoryLot(actor.organizationId, input.inventoryLotId);
     if (!lot) throw new NotFoundError("Inventory lot");
     if (lot.category !== REAGENT_CATEGORY) throw new BusinessRuleError("Only reagent lots are loaded on instruments", "not_a_reagent");
@@ -128,9 +137,21 @@ export class LabReagentService {
           .set({ unloadedAt: now, unloadedBy: actor.userId, unloadReason: `Replaced by lot ${lot.lotNumber ?? "(no lot number)"}` })
           .where(eq(labReagentLoad.id, current.id));
       }
+      const loadId = randomUUID();
+      const stock = input.takeFromStock
+        ? await this.context.takeReagentStock(tx, actor, {
+            loadId,
+            locationId: input.takeFromStock.locationId,
+            itemId: lot.itemId,
+            lotId: lot.lotId,
+            quantity: input.takeFromStock.quantity,
+            instrumentCode: instrument.code,
+          })
+        : null;
       const [row] = await tx
         .insert(labReagentLoad)
         .values({
+          id: loadId,
           organizationId: actor.organizationId,
           facilityId,
           instrumentId,
@@ -143,6 +164,9 @@ export class LabReagentService {
           expiryDate: lot.expiryDate,
           loadedAt: now,
           loadedBy: actor.userId,
+          stockLocationId: input.takeFromStock?.locationId ?? null,
+          stockQuantity: input.takeFromStock?.quantity ?? null,
+          stockMovementGroupId: stock?.movementGroupId ?? null,
         })
         .returning();
       const load = found(row, "Reagent load");
@@ -150,7 +174,15 @@ export class LabReagentService {
         action: "lab.reagent.load",
         resourceType: "lab_instrument",
         resourceId: instrumentId,
-        metadata: { loadId: load.id, inventoryLotId: lot.lotId, itemCode: lot.itemCode, lotNumber: lot.lotNumber, testId: input.testId, replaces: current?.id },
+        metadata: {
+          loadId: load.id,
+          inventoryLotId: lot.lotId,
+          itemCode: lot.itemCode,
+          lotNumber: lot.lotNumber,
+          testId: input.testId,
+          replaces: current?.id,
+          stockMovementGroupId: stock?.movementGroupId,
+        },
       });
       await this.events.record(tx, {
         type: "LaboratoryReagentLotLoaded",

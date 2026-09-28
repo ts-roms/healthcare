@@ -38,7 +38,11 @@ export class CreateSupplierDto extends createZodDto(createSupplierSchema) {}
 export const createLocationSchema = z.object({ facilityId: z.uuid(), code, name: z.string().trim().min(1).max(120) });
 export class CreateLocationDto extends createZodDto(createLocationSchema) {}
 
-export const reorderLevelSchema = z.object({ reorderLevel: z.number().int().min(0).max(1_000_000) });
+export const reorderLevelSchema = z.object({
+  reorderLevel: z.number().int().min(0).max(1_000_000),
+  /** The quantity usually ordered when stock reaches the level (suggested on purchase orders). */
+  reorderQuantity: z.number().int().positive().max(1_000_000).nullable().default(null),
+});
 export class ReorderLevelDto extends createZodDto(reorderLevelSchema) {}
 
 export const stockQuerySchema = z.object({
