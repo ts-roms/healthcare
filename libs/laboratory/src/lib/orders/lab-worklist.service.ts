@@ -6,6 +6,8 @@ import { and, asc, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { LabReadModel, type OrderItemView, type OrderView, type SpecimenView } from "../lab-read-model";
 import type { WORKLIST_STAGES } from "../laboratory.dto";
 import { labCriticalAlert, labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { awaitsReferenceLab } from "../send-outs/send-out.rules";
+import { labSendOut } from "../send-outs/send-out.schema";
 
 export type WorklistStage = (typeof WORKLIST_STAGES)[number];
 
@@ -72,7 +74,9 @@ export class LabWorklistService {
       .select({
         pendingCollection: sql<number>`count(*) filter (where ${labOrderItem.status} = 'pending_collection')::int`,
         awaitingReceipt: sql<number>`count(*) filter (where ${labOrderItem.status} = 'collected')::int`,
-        awaitingEntry: sql<number>`count(*) filter (where ${labOrderItem.status} = 'received')::int`,
+        // Tests with a send-out in flight wait on the reference laboratory, not on result entry.
+        awaitingEntry: sql<number>`count(*) filter (where ${labOrderItem.status} = 'received' and not exists (
+          select 1 from ${labSendOut} where ${labSendOut.orderItemId} = ${labOrderItem.id} and ${labSendOut.status} in ('prepared', 'dispatched')))::int`,
         statOpen: sql<number>`count(*) filter (where ${labOrder.priority} = 'stat' and ${labOrderItem.status} not in ('released', 'cancelled'))::int`,
         overdue: sql<number>`count(*) filter (where ${labOrderItem.status} not in ('released', 'cancelled') and ${labTest.turnaroundMinutes} is not null
           and ${labSpecimen.collectedAt} + make_interval(mins => ${labTest.turnaroundMinutes}) < now())::int`,
@@ -117,6 +121,16 @@ export class LabWorklistService {
         and(eq(labSpecimen.organizationId, org), eq(labSpecimen.facilityId, facilityId), gte(labSpecimen.rejectedAt, start), lt(labSpecimen.rejectedAt, end)),
       );
 
+    const [sentOut] = await this.db
+      .select({
+        toDispatch: sql<number>`count(*) filter (where ${labSendOut.status} = 'prepared')::int`,
+        awaitingResults: sql<number>`count(*) filter (where ${labSendOut.status} = 'dispatched')::int`,
+        overdue: sql<number>`count(*) filter (where ${labSendOut.status} = 'dispatched' and ${labSendOut.turnaroundMinutes} is not null
+          and ${labSendOut.dispatchedAt} + make_interval(mins => ${labSendOut.turnaroundMinutes}) < now())::int`,
+      })
+      .from(labSendOut)
+      .where(and(eq(labSendOut.organizationId, org), eq(labSendOut.facilityId, facilityId), inArray(labSendOut.status, ["prepared", "dispatched"])));
+
     const [critical] = await this.db
       .select({ count: sql<number>`count(*)::int` })
       .from(labCriticalAlert)
@@ -131,6 +145,9 @@ export class LabWorklistService {
       averageTurnaroundMinutes: released?.averageTurnaroundMinutes ?? null,
       rejectedToday: rejected?.count ?? 0,
       criticalUnacknowledged: critical?.count ?? 0,
+      sendOutsToDispatch: sentOut?.toDispatch ?? 0,
+      sendOutsAwaitingResults: sentOut?.awaitingResults ?? 0,
+      sendOutsOverdue: sentOut?.overdue ?? 0,
     };
   }
 
@@ -170,7 +187,8 @@ function inStage(item: OrderItemView, stage: WorklistStage): boolean {
     case "receive":
       return item.status === "collected";
     case "enter":
-      return item.status === "received";
+      // Not while a reference laboratory has the test (see /laboratory/send-outs).
+      return item.status === "received" && !awaitsReferenceLab(item.sendOut?.status);
     case "verify":
       return item.result?.status === "entered";
     case "approve":

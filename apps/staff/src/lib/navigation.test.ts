@@ -42,6 +42,12 @@ describe("navigationForPermissions", () => {
     expect(hrefs(["user.manage"])).toContain("/admin");
   });
 
+  it("shows record imports only to import reviewers", () => {
+    expect(hrefs(["patient.search", "clinical.read"])).not.toContain("/records");
+    const records = navigationForPermissions(["interop.fhir.import.review"]).find((i) => i.href === "/records");
+    expect(records?.children?.map((c) => c.href)).toEqual(["/records/imports"]);
+  });
+
   it("drops demo role filters from items and children", () => {
     const clinic = navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);

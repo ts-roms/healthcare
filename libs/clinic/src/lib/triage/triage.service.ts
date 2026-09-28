@@ -187,39 +187,54 @@ export class TriageService {
   }
 
   async addAllergy(actor: Actor, patientId: string, input: z.infer<typeof createAllergySchema>) {
-    const substanceNormalized = normalizeName(input.substance);
     try {
-      return await this.db.transaction(async (tx) => {
-        const [duplicate] = await tx
-          .select({ id: allergyIntolerance.id })
-          .from(allergyIntolerance)
-          .where(
-            and(
-              eq(allergyIntolerance.organizationId, actor.organizationId),
-              eq(allergyIntolerance.patientId, patientId),
-              eq(allergyIntolerance.substanceNormalized, substanceNormalized),
-              eq(allergyIntolerance.status, "active"),
-            ),
-          );
-        if (duplicate) throw new ConflictError("This allergy is already recorded", { allergyId: duplicate.id }, "allergy_exists");
-        const [created] = await tx
-          .insert(allergyIntolerance)
-          .values({ ...input, substanceNormalized, organizationId: actor.organizationId, patientId, recordedBy: actor.userId, updatedBy: actor.userId })
-          .returning();
-        const row = found(created, "Allergy");
-        await this.audit.record(tx, actor, {
-          action: "allergy.add",
-          resourceType: "allergy_intolerance",
-          resourceId: row.id,
-          patientId,
-          metadata: { category: row.category, criticality: row.criticality },
-        });
-        return publicView(row);
-      });
+      return await this.db.transaction((tx) => this.addAllergyIn(tx, actor, patientId, input));
     } catch (error) {
       if (asPgError(error)?.code === PgErrorCode.foreignKeyViolation) throw new NotFoundError("Patient");
       throw error;
     }
+  }
+
+  /**
+   * Records an allergy in the caller's transaction: a staff entry, or (with `origin`) one accepted from an external
+   * import, which is kept unconfirmed and carries its source reference. Never replaces an active allergy of the same
+   * substance.
+   */
+  async addAllergyIn(tx: DbExecutor, actor: Actor, patientId: string, input: z.infer<typeof createAllergySchema>, origin?: { reference: string }) {
+    const substanceNormalized = normalizeName(input.substance);
+    const [duplicate] = await tx
+      .select({ id: allergyIntolerance.id })
+      .from(allergyIntolerance)
+      .where(
+        and(
+          eq(allergyIntolerance.organizationId, actor.organizationId),
+          eq(allergyIntolerance.patientId, patientId),
+          eq(allergyIntolerance.substanceNormalized, substanceNormalized),
+          eq(allergyIntolerance.status, "active"),
+        ),
+      );
+    if (duplicate) throw new ConflictError("This allergy is already recorded", { allergyId: duplicate.id }, "allergy_exists");
+    const [created] = await tx
+      .insert(allergyIntolerance)
+      .values({
+        ...input,
+        ...(origin ? { verification: "unconfirmed" as const, source: "external_import" as const, sourceReference: origin.reference } : {}),
+        substanceNormalized,
+        organizationId: actor.organizationId,
+        patientId,
+        recordedBy: actor.userId,
+        updatedBy: actor.userId,
+      })
+      .returning();
+    const row = found(created, "Allergy");
+    await this.audit.record(tx, actor, {
+      action: "allergy.add",
+      resourceType: "allergy_intolerance",
+      resourceId: row.id,
+      patientId,
+      metadata: { category: row.category, criticality: row.criticality, source: row.source, ...(origin ? { sourceReference: origin.reference } : {}) },
+    });
+    return publicView(row);
   }
 
   async updateAllergyStatus(actor: Actor, patientId: string, allergyId: string, input: z.infer<typeof updateAllergyStatusSchema>) {

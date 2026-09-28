@@ -13,6 +13,7 @@ import type {
   PhilHealthAccreditation,
   TaxProfile,
   VisitType,
+  YakapParticipation,
 } from "@/lib/api/types";
 import { BillingNav } from "../billing-nav";
 import { BillingSettings } from "./billing-settings";
@@ -24,7 +25,7 @@ export default async function BillingSettingsPage() {
   if (!can(session, "billing.charge.read")) redirect("/");
   const facility = await getSelectedFacility();
   const canAccredit = can(session, "philhealth.settings.manage") && facility !== null;
-  const [services, payers, rules, settings, taxProfile, packages, visitTypes, labTests, dental, accreditation] = await Promise.all([
+  const [services, payers, rules, settings, taxProfile, packages, visitTypes, labTests, dental, accreditation, yakap] = await Promise.all([
     api<BillingService[]>("/billing/services"),
     api<BillingPayer[]>("/billing/payers"),
     api<DiscountRule[]>("/billing/discount-rules"),
@@ -37,6 +38,9 @@ export default async function BillingSettingsPage() {
     can(session, "dental.record.read") ? api<DentalSettings>("/dental/settings").catch(() => null) : Promise.resolve(null),
     canAccredit
       ? api<{ accreditation: PhilHealthAccreditation | null }>(`/philhealth/facilities/${facility.id}/accreditation`).then((r) => r.accreditation)
+      : Promise.resolve(null),
+    canAccredit
+      ? api<{ participation: YakapParticipation | null }>(`/philhealth/facilities/${facility.id}/yakap-participation`).then((r) => r.participation)
       : Promise.resolve(null),
   ]);
   return (
@@ -58,6 +62,7 @@ export default async function BillingSettingsPage() {
         dentalProcedures={(dental?.procedureTypes ?? []).map((t) => ({ code: t.code, name: t.name }))}
         canManage={can(session, "billing.pricelist.manage")}
         philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}
+        yakap={canAccredit ? { facilityId: facility.id, facilityName: facility.name, participation: yakap } : null}
       />
     </>
   );

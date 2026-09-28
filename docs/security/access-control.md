@@ -74,6 +74,18 @@ corrections with the reason); image links are audited as `document.download`.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
+FHIR imports (migration 0048): `interop.fhir.import` (org_admin; grant it to an
+integration account's role to submit) and `interop.fhir.import.review`
+(org_admin, records_officer; clinicians are not granted it by default —
+reconciling external records is a records function, and an imported allergy is
+recorded unconfirmed for the clinician to confirm). Registering a new patient
+from an import also needs `patient.register`. Audited `fhir.import.receive`
+(resource types, counts, digest — never content), `.list`, `.view`,
+`.candidates` (plus the patient domain's `patient.duplicate-check`), `.match`,
+`.entry-accept`, `.entry-reject` and `.reject` (with the reason), `.complete`,
+`.purge` (system), and the domain's own `allergy.add` / `external-history.record`
+with the import reference. The received content is sealed with the integration
+payload key ring; no PHI is kept in clear.
 DOH case reporting (migration 0023): `doh.report.manage` (org_admin, physician,
 records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),

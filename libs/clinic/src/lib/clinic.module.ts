@@ -17,6 +17,8 @@ import { ClinicQueries } from "./clinic-queries.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
+import { ExternalHistoryController } from "./external/external-history.controller";
+import { ExternalRecordsService } from "./external/external-records.service";
 import { OnlineVisitService } from "./online/online-visit.service";
 import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
 import { VisitService } from "./queue/visit.service";
@@ -36,7 +38,15 @@ export class ClinicModule {
       module: ClinicModule,
       global: true,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [ClinicConfigController, AppointmentController, QueueController, ClinicalRecordsController, EncounterController, ClinicDashboardController],
+      controllers: [
+        ClinicConfigController,
+        AppointmentController,
+        QueueController,
+        ClinicalRecordsController,
+        EncounterController,
+        ClinicDashboardController,
+        ExternalHistoryController,
+      ],
       providers: [
         AppointmentReminders,
         AppointmentService,
@@ -44,6 +54,7 @@ export class ClinicModule {
         ClinicDashboardService,
         ClinicQueries,
         EncounterService,
+        ExternalRecordsService,
         NoShowFollowUp,
         OnlineVisitService,
         PatientBookingNotices,
@@ -52,7 +63,7 @@ export class ClinicModule {
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries, OnlineVisitService, PatientBookingService],
+      exports: [ClinicQueries, ExternalRecordsService, OnlineVisitService, PatientBookingService],
     };
   }
 }

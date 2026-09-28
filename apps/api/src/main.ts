@@ -4,7 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { loadAppConfig, OutboxRelay } from "@healthcare/core";
-import { DohRescans } from "@healthcare/interoperability";
+import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
@@ -25,6 +25,8 @@ async function bootstrap(): Promise<void> {
   app.get(CarePlanRecallReminders).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
   app.get(DohRescans).start();
+  // Hourly: deletes the sealed content of FHIR imports rejected more than 30 days ago (docs/interoperability/fhir.md).
+  app.get(FhirImportRetention).start();
   // Renders released laboratory reports and archives them in object storage (BullMQ, see printable-documents.md).
   app.get(LabReportArchiveWorker).start();
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");

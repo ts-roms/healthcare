@@ -6,7 +6,7 @@
 | Specification               | **Not obtained.** No message format, transport, codes or validation rules are modelled.           |
 | Status                      | **Dependency** — adapter port and an unconfigured adapter; claims are prepared, never transmitted |
 | Accreditation/certification | None claimed                                                                                      |
-| Code                        | `libs/interoperability/src/lib/philhealth`, `apps/api/src/app/adapters/philhealth-adapters.ts`    |
+| Code                        | `libs/philhealth` (`@healthcare/philhealth`), `apps/api/src/app/adapters/philhealth-adapters.ts`  |
 | Migration                   | `0021_philhealth_claims.sql`                                                                      |
 
 Root `CLAUDE.md` §36: never invent government APIs or rules. What exists is everything the platform needs **around**
@@ -84,6 +84,7 @@ connected adapter is configured. Billing settings: **PhilHealth accreditation** 
 2. Implement `PhilHealthClaimsGateway` in an adapter (mapping `PhilHealthClaimPackage` to the official format,
    transport, credentials from secrets management), idempotent per key; set `specification.status`.
 3. Provide the adapter to both the API (`PhilHealthModule` `gateway`, for its specification status) and
-   `apps/integration-worker` (`IntegrationWorkerModule` `philhealthGateway`, which sends).
+   `apps/integration-worker` (`philhealthExchangeHandlers({ gateway })` in `IntegrationWorkerModule` `handlerSets`,
+   which sends).
 4. Add the specification's own validation, eligibility and claim-status operations as further ports.
 5. Validate against PhilHealth's test environment before any production use; do not claim accreditation until granted.

@@ -38,6 +38,7 @@ import {
 } from "../laboratory.schema";
 import { found, publicView } from "../laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
+import { SendOutService } from "../send-outs/send-out.service";
 
 /**
  * Laboratory orders and specimens: ordering (from a consultation, or at the
@@ -54,6 +55,7 @@ export class LabOrderService {
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
+    private readonly sendOuts: SendOutService,
   ) {}
 
   /** What billing needs from an order: its items' test codes and names, and the local order date. */
@@ -309,12 +311,14 @@ export class LabOrderService {
         .set({ status: "received", updatedAt: new Date(), version: sql`${labOrderItem.version} + 1` })
         .where(and(eq(labOrderItem.specimenId, specimenId), eq(labOrderItem.status, "collected")));
       await this.logSpecimen(tx, actor, updated, "received");
+      // Tests this facility refers out are prepared for a reference laboratory (see send-outs).
+      const referred = await this.sendOuts.prepareReferred(tx, actor, updated);
       await this.audit.record(tx, actor, {
         action: "lab.specimen.receive",
         resourceType: "lab_specimen",
         resourceId: specimenId,
         patientId: updated.patientId,
-        metadata: { accessionNumber: updated.accessionNumber },
+        metadata: { accessionNumber: updated.accessionNumber, referred },
       });
       await this.events.record(tx, specimenEvent("SpecimenReceived", updated));
       return this.specimen(tx, actor, updated);
@@ -353,6 +357,7 @@ export class LabOrderService {
         .returning();
       const updated = found(row, "Specimen");
       const itemIds = items.filter((i) => i.status !== "cancelled").map((i) => i.id);
+      await this.sendOuts.cancelOpenForItems(tx, actor, itemIds, `Specimen rejected: ${input.reason}`);
       if (itemIds.length) {
         await tx
           .update(labResult)
@@ -467,6 +472,12 @@ export class LabOrderService {
 
   private async cancelItems(tx: DbExecutor, actor: Actor, items: LabOrderItemRecord[], reason: string): Promise<void> {
     if (items.length === 0) return;
+    await this.sendOuts.cancelOpenForItems(
+      tx,
+      actor,
+      items.map((i) => i.id),
+      reason,
+    );
     await tx
       .update(labOrderItem)
       .set({
