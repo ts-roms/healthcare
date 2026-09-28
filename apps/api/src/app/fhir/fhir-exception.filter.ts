@@ -1,6 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from "@nestjs/common";
 import { DomainError } from "@healthcare/core";
-import { FhirSearchError, operationOutcome } from "@healthcare/interoperability";
+import { FhirImportError, FhirSearchError, operationOutcome } from "@healthcare/interoperability";
 import type { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 
@@ -11,6 +11,8 @@ function issueCode(status: number): IssueCode {
   if (status === 401) return "login";
   if (status === 403) return "forbidden";
   if (status === 404) return "not-found";
+  if (status === 409) return "conflict";
+  if (status === 413) return "too-costly";
   if (status === 429) return "throttled";
   return "exception";
 }
@@ -23,6 +25,23 @@ export class FhirExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const request = host.switchToHttp().getRequest<Request>();
     const response = host.switchToHttp().getResponse<Response>();
+    if (exception instanceof FhirImportError) {
+      // Every problem found in received content, each with its location.
+      const suffix = request.requestId ? ` (request ${request.requestId})` : "";
+      response
+        .status(exception.status)
+        .type("application/fhir+json")
+        .json({
+          resourceType: "OperationOutcome",
+          issue: exception.issues.map((issue) => ({
+            severity: "error",
+            code: issue.code,
+            diagnostics: `${issue.diagnostics}${suffix}`,
+            ...(issue.expression ? { expression: [issue.expression] } : {}),
+          })),
+        });
+      return;
+    }
     let status = 500;
     let message = "An unexpected error occurred";
     let code: IssueCode | undefined;

@@ -10,7 +10,7 @@ import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
 import { BillingModule } from "@healthcare/billing";
-import { DohReportingModule, IntegrationModule, PhilHealthModule } from "@healthcare/interoperability";
+import { DohReportingModule, FhirImportModule, IntegrationModule, PhilHealthModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
@@ -20,11 +20,13 @@ import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
+import { AppFhirImportTargets } from "./adapters/fhir-import-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
+import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
@@ -113,6 +115,8 @@ export class AppModule implements NestModule {
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
+        // Phase 8 — FHIR R4 inbound: imports into a review queue; accepted entries go through the clinic domain.
+        FhirImportModule.forRoot({ imports: [PatientModule], targets: AppFhirImportTargets }),
         // Phase 9 — inventory: stock ledger, lots and expiry, reorder levels.
         InventoryModule,
         // Outbound exchanges are sealed here and sent by apps/integration-worker.
@@ -120,6 +124,7 @@ export class AppModule implements NestModule {
       ],
       controllers: [
         FhirController,
+        FhirImportReceiveController,
         HealthController,
         PatientSummaryController,
         PortalBillingController,

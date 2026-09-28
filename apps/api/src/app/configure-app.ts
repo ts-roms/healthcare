@@ -14,8 +14,8 @@ export function configureApp(app: NestExpressApplication, config: AppConfig): IN
   app.enableCors({ origin: config.CORS_ORIGINS, credentials: true });
   app.disable("x-powered-by");
   if (config.TRUST_PROXY) app.set("trust proxy", 1);
-  // Clinical payloads are small JSON; files go straight to object storage.
-  app.useBodyParser("json", { limit: "1mb" });
+  // Clinical payloads are small JSON; files go straight to object storage. FHIR imports arrive as application/fhir+json.
+  app.useBodyParser("json", { limit: "1mb", type: ["application/json", "application/fhir+json"] });
   app.enableShutdownHooks();
   app.useWebSocketAdapter(new ConfiguredIoAdapter(app, config.CORS_ORIGINS));
 
