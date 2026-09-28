@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
+  CancelEnrollmentDto,
+  CreatePackageDto,
   ApplyDepositDto,
   ApplyDiscountDto,
   CancelChargeDto,
@@ -12,6 +14,7 @@ import {
   CreateServiceDto,
   DailyReportDto,
   IssueCreditNoteDto,
+  IssueDebitNoteDto,
   IssueInvoiceDto,
   ListChargesDto,
   ListInvoicesDto,
@@ -22,6 +25,7 @@ import {
   RefundAccountDto,
   RefundDto,
   RemoveLineDto,
+  SellPackageDto,
   SetPayerDto,
   UpdateServiceDto,
   UpdateSettingsDto,
@@ -30,8 +34,10 @@ import {
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeService } from "./charges/charge.service";
 import { CreditNoteService } from "./credit-notes/credit-note.service";
+import { DebitNoteService } from "./credit-notes/debit-note.service";
 import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
+import { PackageService } from "./packages/package.service";
 import { DepositService } from "./payments/deposit.service";
 import { PaymentService } from "./payments/payment.service";
 
@@ -40,7 +46,24 @@ import { PaymentService } from "./payments/payment.service";
 @ApiBearerAuth()
 @Controller({ path: "billing", version: "1" })
 export class BillingCatalogController {
-  constructor(private readonly catalog: BillingCatalogService) {}
+  constructor(
+    private readonly catalog: BillingCatalogService,
+    private readonly packages: PackageService,
+  ) {}
+
+  @Get("packages")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Packages with their contents and current price" })
+  packages_(@CurrentActor() actor: Actor) {
+    return this.packages.list(actor.organizationId, localDate(new Date(), PH_TIMEZONE));
+  }
+
+  @Post("packages")
+  @RequirePermissions("billing.pricelist.manage")
+  @ApiOperation({ summary: "A package: its own service and price, and the services it includes (fixed once created)" })
+  createPackage(@CurrentActor() actor: Actor, @Body() body: CreatePackageDto) {
+    return this.packages.create(actor, body);
+  }
 
   @Get("services")
   @RequirePermissions("billing.charge.read")
@@ -126,6 +149,8 @@ export class BillingController {
     private readonly payments: PaymentService,
     private readonly deposits: DepositService,
     private readonly creditNotes: CreditNoteService,
+    private readonly debitNotes: DebitNoteService,
+    private readonly packageSales: PackageService,
     private readonly documents: BillingDocuments,
   ) {}
 
@@ -345,6 +370,53 @@ export class BillingController {
   @ApiOperation({ summary: "Printable credit note (audited)" })
   async creditNotePdf(@CurrentActor() actor: Actor, @Param("creditNoteId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
     const { filename, pdf } = await this.documents.creditNotePdf(actor, id);
+    return pdfFile(pdf, filename);
+  }
+
+  // ---- packages ----------------------------------------------------------------------------------
+
+  @Get("patients/:patientId/packages")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "The patient's packages at this facility, with what is left of each included service" })
+  patientPackages(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
+    return this.packageSales.enrollments(actor, patientId);
+  }
+
+  @Post("patients/:patientId/packages")
+  @RequirePermissions("billing.charge.capture")
+  @ApiOperation({ summary: "Sell a package: the package is charged at today's price; included services are then covered" })
+  sellPackage(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: SellPackageDto) {
+    return this.packageSales.sell(actor, patientId, body);
+  }
+
+  @Post("package-enrollments/:enrollmentId/cancel")
+  @HttpCode(200)
+  @RequirePermissions("billing.charge.capture")
+  @ApiOperation({ summary: "Cancel an unused package (reason required); its charge is cancelled if not yet invoiced" })
+  cancelPackage(@CurrentActor() actor: Actor, @Param("enrollmentId", ParseUUIDPipe) id: string, @Body() body: CancelEnrollmentDto) {
+    return this.packageSales.cancel(actor, id, body);
+  }
+
+  // ---- debit notes -------------------------------------------------------------------------------
+
+  @Post("invoices/:invoiceId/debit-notes")
+  @RequirePermissions("billing.debit-note.issue")
+  @ApiOperation({ summary: "Issue a debit note adding services or an adjustment to an issued invoice (reason required; immutable; idempotent per key)" })
+  issueDebitNote(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: IssueDebitNoteDto) {
+    return this.debitNotes.issue(actor, id, body);
+  }
+
+  @Get("debit-notes/:debitNoteId")
+  @RequirePermissions("billing.charge.read")
+  debitNote(@CurrentActor() actor: Actor, @Param("debitNoteId", ParseUUIDPipe) id: string) {
+    return this.debitNotes.get(actor, id);
+  }
+
+  @Get("debit-notes/:debitNoteId/pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable debit note (audited)" })
+  async debitNotePdf(@CurrentActor() actor: Actor, @Param("debitNoteId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.debitNotePdf(actor, id);
     return pdfFile(pdf, filename);
   }
 

@@ -24,6 +24,9 @@ import {
   type BillingChargeRecord,
   billingCreditNote,
   billingCreditNoteLine,
+  billingCreditNotePayer,
+  billingDebitNote,
+  billingDebitNoteLine,
   billingDiscountRule,
   billingInvoice,
   billingInvoiceDiscount,
@@ -266,6 +269,8 @@ export class InvoiceService {
       if (paidNet(ledger) !== 0) throw new BusinessRuleError("Refund the payments before voiding this invoice", "invoice_has_payments");
       const [credited] = await tx.select({ id: billingCreditNote.id }).from(billingCreditNote).where(eq(billingCreditNote.invoiceId, invoiceId)).limit(1);
       if (credited) throw new BusinessRuleError("A credit note was issued for this invoice; correct it with another credit note", "invoice_has_credit_notes");
+      const [debited] = await tx.select({ id: billingDebitNote.id }).from(billingDebitNote).where(eq(billingDebitNote.invoiceId, invoiceId)).limit(1);
+      if (debited) throw new BusinessRuleError("A debit note was issued for this invoice; correct it with a credit note", "invoice_has_debit_notes");
       const settled = await tx
         .select({ id: billingInvoicePayer.id })
         .from(billingInvoicePayer)
@@ -349,7 +354,11 @@ export class InvoiceService {
         .where(and(eq(billingInvoicePayer.invoiceId, invoiceId), eq(billingInvoicePayer.id, invoicePayerId)))
         .for("update");
       const coverage = found(current, "Payer coverage");
-      if (input.settledAmount !== undefined && input.settledAmount > coverage.amount) {
+      const [creditedToPayer] = await tx
+        .select({ total: sql<number>`coalesce(sum(${billingCreditNotePayer.amount}), 0)::bigint` })
+        .from(billingCreditNotePayer)
+        .where(eq(billingCreditNotePayer.invoicePayerId, invoicePayerId));
+      if (input.settledAmount !== undefined && input.settledAmount > coverage.amount - Number(creditedToPayer?.total ?? 0)) {
         throw new BusinessRuleError("The settled amount is more than the coverage on the invoice", "settled_exceeds_coverage");
       }
       await tx
@@ -451,7 +460,7 @@ export class InvoiceService {
       .from(billingInvoice)
       .where(and(eq(billingInvoice.organizationId, organizationId), eq(billingInvoice.id, invoiceId)));
     const row = found(invoice, "Invoice");
-    const [items, discounts, payers, ledger, account, creditNotes, creditLines] = await Promise.all([
+    const [items, discounts, payers, ledger, account, creditNotes, creditLines, creditPayers, debitNotes, debitLines] = await Promise.all([
       this.db
         .select()
         .from(billingInvoiceItem)
@@ -471,25 +480,45 @@ export class InvoiceService {
         .from(billingCreditNoteLine)
         .innerJoin(billingCreditNote, eq(billingCreditNote.id, billingCreditNoteLine.creditNoteId))
         .where(eq(billingCreditNote.invoiceId, invoiceId)),
+      this.db
+        .select({ payer: billingCreditNotePayer })
+        .from(billingCreditNotePayer)
+        .innerJoin(billingCreditNote, eq(billingCreditNote.id, billingCreditNotePayer.creditNoteId))
+        .where(eq(billingCreditNote.invoiceId, invoiceId)),
+      this.db.select().from(billingDebitNote).where(eq(billingDebitNote.invoiceId, invoiceId)).orderBy(asc(billingDebitNote.issuedAt)),
+      this.db
+        .select({ line: billingDebitNoteLine })
+        .from(billingDebitNoteLine)
+        .innerJoin(billingDebitNote, eq(billingDebitNote.id, billingDebitNoteLine.debitNoteId))
+        .where(eq(billingDebitNote.invoiceId, invoiceId)),
     ]);
     const settlement: Settlement = {
       paid: paidNet(ledger),
       depositApplied: depositApplied(account),
       credited: creditNotes.reduce((a, c) => a + c.appliedAmount, 0),
+      debited: debitNotes.reduce((a, d) => a + d.amount, 0),
     };
+    const payerCredited = (invoicePayerId: string) =>
+      creditPayers.filter((p) => p.payer.invoicePayerId === invoicePayerId).reduce((a, p) => a + p.payer.amount, 0);
     return {
       ...publicView(row),
       items: items.map(publicView),
       // The eligibility ID number is kept for audit and claims; screens show only its last digits.
       discounts: discounts.map(({ evidenceIdNumber, ...d }) => ({ ...publicView(d), evidenceIdMasked: maskIdNumber(evidenceIdNumber) })),
-      payers: payers.map((p) => ({ ...publicView(p.coverage), payerName: p.name, payerType: p.payerType })),
+      payers: payers.map((p) => ({ ...publicView(p.coverage), payerName: p.name, payerType: p.payerType, creditedAmount: payerCredited(p.coverage.id) })),
       payments: ledger.map(publicView),
       /** Deposit or account credit applied to this invoice, and released by a void. */
       accountEntries: account.map(({ idempotencyKey: _key, ...e }) => publicView(e)),
       creditNotes: creditNotes.map(({ idempotencyKey: _key, ...c }) => ({
         ...publicView(c),
         lines: creditLines.filter((l) => l.line.creditNoteId === c.id).map((l) => publicView(l.line)),
+        payers: creditPayers.filter((p) => p.payer.creditNoteId === c.id).map((p) => publicView(p.payer)),
       })),
+      debitNotes: debitNotes.map(({ idempotencyKey: _key, ...d }) => ({
+        ...publicView(d),
+        lines: debitLines.filter((l) => l.line.debitNoteId === d.id).map((l) => publicView(l.line)),
+      })),
+      debitedTotal: settlement.debited,
       paidTotal: settlement.paid,
       depositAppliedTotal: settlement.depositApplied,
       creditedTotal: settlement.credited,
@@ -511,10 +540,11 @@ export class InvoiceService {
     }
     // Qualified by hand: inside a single-table select Drizzle would render the column unqualified.
     const paid = sql<number>`coalesce((SELECT sum(CASE WHEN p.kind = 'payment' THEN p.amount ELSE -p.amount END) FROM billing_payment p WHERE p.invoice_id = "billing_invoice"."id"), 0)::bigint`;
-    // Payments, deposit applied (less releases) and credit notes (the part that reduced the balance).
+    // Payments, deposit applied (less releases) and credit notes (the part that reduced the balance), less debit notes.
     const settled = sql<number>`(${paid}
       + coalesce((SELECT sum(CASE WHEN a.kind = 'application' THEN a.amount ELSE -a.amount END) FROM billing_account_entry a WHERE a.invoice_id = "billing_invoice"."id" AND a.kind IN ('application', 'release')), 0)
-      + coalesce((SELECT sum(c.applied_amount) FROM billing_credit_note c WHERE c.invoice_id = "billing_invoice"."id"), 0))::bigint`;
+      + coalesce((SELECT sum(c.applied_amount) FROM billing_credit_note c WHERE c.invoice_id = "billing_invoice"."id"), 0)
+      - coalesce((SELECT sum(d.amount) FROM billing_debit_note d WHERE d.invoice_id = "billing_invoice"."id"), 0))::bigint`;
     if (query.unpaid) filters.push(eq(billingInvoice.status, "issued"), sql`${billingInvoice.patientTotal} > ${settled}`);
     const rows = await this.db
       .select({ invoice: billingInvoice, paid, settled })
@@ -564,6 +594,7 @@ export class InvoiceService {
       paidTotal: inv.paidTotal,
       depositAppliedTotal: inv.depositAppliedTotal,
       creditedTotal: inv.creditedTotal,
+      debitedTotal: inv.debitedTotal,
       balance: inv.balance,
       items: inv.items.map((i) => ({
         description: i.description,
@@ -586,6 +617,14 @@ export class InvoiceService {
         appliedAmount: c.appliedAmount,
         accountCredit: c.accountCredit,
       })),
+      debitNotes: inv.debitNotes.map((d) => ({
+        id: d.id,
+        debitNoteNumber: d.debitNoteNumber,
+        issuedAt: d.issuedAt,
+        reason: d.reason,
+        amount: d.amount,
+        lines: d.lines.map((l) => ({ description: l.description, quantity: l.quantity, amount: l.amount })),
+      })),
     }));
   }
 
@@ -593,7 +632,7 @@ export class InvoiceService {
 
   /** What settles an invoice (payments, deposit applied, credit notes), read inside the caller's transaction. */
   async settlement(tx: DbExecutor, invoiceId: string): Promise<Settlement> {
-    const [ledger, account, credits] = await Promise.all([
+    const [ledger, account, credits, debits] = await Promise.all([
       tx.select({ kind: billingPayment.kind, amount: billingPayment.amount }).from(billingPayment).where(eq(billingPayment.invoiceId, invoiceId)),
       tx
         .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
@@ -603,8 +642,17 @@ export class InvoiceService {
         .select({ total: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint` })
         .from(billingCreditNote)
         .where(eq(billingCreditNote.invoiceId, invoiceId)),
+      tx
+        .select({ total: sql<number>`coalesce(sum(${billingDebitNote.amount}), 0)::bigint` })
+        .from(billingDebitNote)
+        .where(eq(billingDebitNote.invoiceId, invoiceId)),
     ]);
-    return { paid: paidNet(ledger), depositApplied: depositApplied(account), credited: Number(credits[0]?.total ?? 0) };
+    return {
+      paid: paidNet(ledger),
+      depositApplied: depositApplied(account),
+      credited: Number(credits[0]?.total ?? 0),
+      debited: Number(debits[0]?.total ?? 0),
+    };
   }
 
   /** On a void, deposit or account credit applied to the invoice goes back to the patient's account. Returns the amount. */

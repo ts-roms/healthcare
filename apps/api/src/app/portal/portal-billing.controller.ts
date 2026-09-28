@@ -44,6 +44,13 @@ export class PortalBillingController {
     return pdfFile(pdf, filename);
   }
 
+  @Get("debit-notes/:debitNoteId/pdf")
+  @ApiOperation({ summary: "The patient's copy of a debit note (PDF)" })
+  async debitNotePdf(@CurrentPatient() patient: PortalPrincipal, @Param("debitNoteId", ParseUUIDPipe) debitNoteId: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.patientDebitNotePdf(patient.organizationId, patient.patientId, debitNoteId, patientAuditContext(patient));
+    return pdfFile(pdf, filename);
+  }
+
   @Get(":invoiceId/pdf")
   @ApiOperation({ summary: "The patient's copy of an issued invoice (PDF)" })
   async pdf(@CurrentPatient() patient: PortalPrincipal, @Param("invoiceId", ParseUUIDPipe) invoiceId: string): Promise<StreamableFile> {

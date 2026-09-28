@@ -65,6 +65,7 @@ export const updateSettingsSchema = z.object({
   receiptPrefix: prefix,
   /** Unchanged when omitted. */
   creditNotePrefix: prefix.optional(),
+  debitNotePrefix: prefix.optional(),
 });
 export class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
 
@@ -85,8 +86,34 @@ export const manualChargeSchema = z.object({
   priceOverrideReason: reason.optional(),
   serviceDate: z.iso.date().optional(),
   description: text(200).optional(),
+  /** Use a package the patient bought when it covers the service (not with another price). */
+  usePackage: z.boolean().default(true),
 });
 export class ManualChargeDto extends createZodDto(manualChargeSchema) {}
+
+// ---- packages ---------------------------------------------------------------------------------
+
+export const createPackageSchema = z.object({
+  code,
+  name: text(200),
+  category: z.enum(SERVICE_CATEGORIES),
+  /** The package price (a versioned price of the package's own service). */
+  unitPrice: centavos,
+  effectiveFrom: z.iso.date(),
+  /** Days it can be used from the sale, counting that day; none = until used up or cancelled. */
+  validityDays: z.number().int().min(1).max(3660).optional(),
+  items: z
+    .array(z.object({ serviceId: z.string().uuid(), quantity: z.number().int().min(1).max(1000).default(1) }))
+    .min(1)
+    .max(50),
+});
+export class CreatePackageDto extends createZodDto(createPackageSchema) {}
+
+export const sellPackageSchema = z.object({ packageServiceId: z.string().uuid() });
+export class SellPackageDto extends createZodDto(sellPackageSchema) {}
+
+export const cancelEnrollmentSchema = z.object({ reason, version });
+export class CancelEnrollmentDto extends createZodDto(cancelEnrollmentSchema) {}
 
 export const cancelChargeSchema = z.object({ reason, version });
 export class CancelChargeDto extends createZodDto(cancelChargeSchema) {}
@@ -205,15 +232,53 @@ export const issueCreditNoteSchema = z.object({
   reason,
   lines: z
     .array(
-      z.object({
-        invoiceItemId: z.string().uuid(),
-        amount: positiveCentavos,
-        /** The invoice line's description when omitted. */
-        description: text(200).optional(),
-      }),
+      z
+        .object({
+          /** The invoice line credited, or… */
+          invoiceItemId: z.string().uuid().optional(),
+          /** …the debit note line credited. */
+          debitNoteLineId: z.string().uuid().optional(),
+          amount: positiveCentavos,
+          /** The credited line's description when omitted. */
+          description: text(200).optional(),
+        })
+        .refine((l) => (l.invoiceItemId === undefined) !== (l.debitNoteLineId === undefined), {
+          message: "Credit an invoice line or a debit note line",
+          path: ["invoiceItemId"],
+        }),
+    )
+    .min(1)
+    .max(200),
+  /** Parts of the total that reduce what payers are expected to cover (the rest is the patient's). */
+  payers: z
+    .array(z.object({ invoicePayerId: z.string().uuid(), amount: positiveCentavos }))
+    .max(20)
+    .default([]),
+  idempotencyKey,
+});
+export class IssueCreditNoteDto extends createZodDto(issueCreditNoteSchema) {}
+
+// ---- debit notes ------------------------------------------------------------------------------
+
+export const issueDebitNoteSchema = z.object({
+  reason,
+  lines: z
+    .array(
+      z
+        .object({
+          /** A billable service (its price on the date when no unit price is given), or a described adjustment. */
+          serviceId: z.string().uuid().optional(),
+          description: text(200).optional(),
+          quantity: z.number().int().min(1).max(1000).default(1),
+          unitPrice: positiveCentavos.optional(),
+        })
+        .refine((l) => l.serviceId !== undefined || (l.description !== undefined && l.unitPrice !== undefined), {
+          message: "Give a service, or a description with a unit price",
+          path: ["serviceId"],
+        }),
     )
     .min(1)
     .max(200),
   idempotencyKey,
 });
-export class IssueCreditNoteDto extends createZodDto(issueCreditNoteSchema) {}
+export class IssueDebitNoteDto extends createZodDto(issueDebitNoteSchema) {}

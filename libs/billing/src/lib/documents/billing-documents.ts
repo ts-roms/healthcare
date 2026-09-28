@@ -5,8 +5,9 @@ import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, pdfMoney, pesoWords, renderPdf } from "@healthcare/pdf";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { accountBalance, depositApplied, invoiceBalance, paidNet } from "../billing.rules";
-import { billingAccountEntry, billingCreditNote, billingPayment } from "../billing.schema";
+import { billingAccountEntry, billingCreditNote, billingDebitNote, billingPayment } from "../billing.schema";
 import { CreditNoteService } from "../credit-notes/credit-note.service";
+import { DebitNoteService } from "../credit-notes/debit-note.service";
 import { InvoiceService } from "../invoices/invoice.service";
 import { BILLING_PATIENTS, type BillingPatientDirectory } from "../ports";
 
@@ -28,6 +29,7 @@ export class BillingDocuments {
     @Inject(DATABASE) private readonly db: Database,
     private readonly invoices: InvoiceService,
     private readonly creditNotes: CreditNoteService,
+    private readonly debitNotes: DebitNoteService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     @Inject(BILLING_PATIENTS) private readonly patients: BillingPatientDirectory,
@@ -75,7 +77,7 @@ export class BillingDocuments {
       )
       .orderBy(asc(billingPayment.recordedAt));
     const asOf = sql`(SELECT p.recorded_at FROM billing_payment p WHERE p.id = ${payment.id})`;
-    const [applied, credited] = await Promise.all([
+    const [applied, credited, debited] = await Promise.all([
       this.db
         .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
         .from(billingAccountEntry)
@@ -84,11 +86,16 @@ export class BillingDocuments {
         .select({ appliedAmount: billingCreditNote.appliedAmount })
         .from(billingCreditNote)
         .where(and(eq(billingCreditNote.invoiceId, payment.invoiceId), sql`${billingCreditNote.issuedAt} <= ${asOf}`)),
+      this.db
+        .select({ amount: billingDebitNote.amount })
+        .from(billingDebitNote)
+        .where(and(eq(billingDebitNote.invoiceId, payment.invoiceId), sql`${billingDebitNote.issuedAt} <= ${asOf}`)),
     ]);
     const balanceAfter = invoiceBalance(invoice.patientTotal, {
       paid: paidNet(before),
       depositApplied: depositApplied(applied),
       credited: credited.reduce((a, c) => a + c.appliedAmount, 0),
+      debited: debited.reduce((a, d) => a + d.amount, 0),
     });
     const { letterhead, timeZone, patient } = await this.frame(actor.organizationId, invoice.facilityId, invoice.patientId);
     const pdf = await renderPdf(
@@ -210,6 +217,70 @@ export class BillingDocuments {
     return { filename: `${note.creditNoteNumber}.pdf`, pdf };
   }
 
+  async debitNotePdf(actor: Actor, debitNoteId: string) {
+    const note = await this.debitNotes.detail(actor.organizationId, debitNoteId);
+    if (actor.facilityId && note.facilityId !== actor.facilityId) throw new NotFoundError("Debit note");
+    const pdf = await this.renderDebitNote(actor.organizationId, note, "staff");
+    await this.audit.recordStandalone(actor, {
+      action: "billing.debit-note.print",
+      resourceType: "billing_debit_note",
+      resourceId: debitNoteId,
+      patientId: note.patientId,
+    });
+    return { filename: `${note.debitNoteNumber}.pdf`, pdf };
+  }
+
+  /** The patient's copy of a debit note from MyHealth. */
+  async patientDebitNotePdf(organizationId: string, patientId: string, debitNoteId: string, auditContext: PatientAuditContext) {
+    const note = await this.debitNotes.detail(organizationId, debitNoteId).catch(() => undefined);
+    if (!note || note.patientId !== patientId) throw new NotFoundError("Debit note");
+    const pdf = await this.renderDebitNote(organizationId, note, "patient");
+    await this.audit.recordStandalone(auditContext, {
+      action: "portal.debit-note-download",
+      resourceType: "billing_debit_note",
+      resourceId: debitNoteId,
+      patientId,
+    });
+    return { filename: `${note.debitNoteNumber}.pdf`, pdf };
+  }
+
+  private async renderDebitNote(organizationId: string, note: Awaited<ReturnType<DebitNoteService["detail"]>>, copy: "staff" | "patient") {
+    const { letterhead, timeZone, patient } = await this.frame(organizationId, note.facilityId, note.patientId);
+    return renderPdf(
+      {
+        title: "Debit Note",
+        subtitle: copy === "patient" ? "Patient's copy from MyHealth" : undefined,
+        letterhead,
+        printedAt: `Printed ${pdfDateTime(new Date(), timeZone)}`,
+        footerNote: "Amounts in Philippine pesos (PHP). Whether this debit note meets BIR requirements is subject to confirmation.",
+      },
+      (w) => {
+        w.fields([
+          ["Debit note number", note.debitNoteNumber],
+          ["Date", pdfDateTime(note.issuedAt, timeZone)],
+          ["Patient", patient.name],
+          ["Patient number", patient.number],
+          ["For invoice", note.invoiceNumber],
+          ["Reason", note.reason],
+        ]);
+        w.space();
+        w.table(
+          [
+            { header: "Added", width: 4.5 },
+            { header: "Qty", width: 0.6, align: "right" },
+            { header: "Unit price", width: 1.5, align: "right" },
+            { header: "Amount", width: 1.5, align: "right" },
+          ],
+          note.lines.map((l) => [l.description, String(l.quantity), pdfMoney(l.unitPrice), pdfMoney(l.amount)]),
+        );
+        w.space();
+        w.totals([["Added to the invoice", pdfMoney(note.amount), true]]);
+        w.paragraph(pesoWords(note.amount), { bold: true });
+        w.signatures([{ name: " ", role: "Authorized signature" }]);
+      },
+    );
+  }
+
   private async renderCreditNote(organizationId: string, note: Awaited<ReturnType<CreditNoteService["detail"]>>, copy: "staff" | "patient") {
     const { letterhead, timeZone, patient } = await this.frame(organizationId, note.facilityId, note.patientId);
     return renderPdf(
@@ -239,6 +310,7 @@ export class BillingDocuments {
         );
         w.space();
         const totals: Array<[string, string, boolean?]> = [["Total credited", pdfMoney(note.amount), true]];
+        for (const p of note.payers) totals.push([`Taken off ${p.payerName}'s coverage`, pdfMoney(p.amount)]);
         if (note.appliedAmount) totals.push(["Taken off the invoice balance", pdfMoney(note.appliedAmount)]);
         if (note.accountCredit) totals.push(["Credited to the patient's account (already paid)", pdfMoney(note.accountCredit)]);
         w.totals(totals);
@@ -325,6 +397,7 @@ export class BillingDocuments {
         if (issued) {
           totals.push(["Paid", `-${pdfMoney(invoice.paidTotal)}`]);
           if (invoice.depositAppliedTotal) totals.push(["Deposit applied", `-${pdfMoney(invoice.depositAppliedTotal)}`]);
+          if (invoice.debitedTotal) totals.push(["Debit notes", `+${pdfMoney(invoice.debitedTotal)}`]);
           if (invoice.creditedTotal) totals.push(["Credit notes", `-${pdfMoney(invoice.creditedTotal)}`]);
           totals.push(["Balance", pdfMoney(invoice.balance), true]);
         }
@@ -344,6 +417,18 @@ export class BillingDocuments {
               [METHOD[p.method] ?? p.method, p.reference].filter(Boolean).join(" · "),
               p.kind === "refund" ? `+${pdfMoney(p.amount)}` : `-${pdfMoney(p.amount)}`,
             ]),
+          );
+        }
+        if (invoice.debitNotes.length) {
+          w.heading("Debit notes");
+          w.table(
+            [
+              { header: "Date", width: 2 },
+              { header: "Debit note", width: 2 },
+              { header: "Reason", width: 2.5 },
+              { header: "Amount", width: 1.5, align: "right" },
+            ],
+            invoice.debitNotes.map((d) => [pdfDateTime(d.issuedAt, timeZone), d.debitNoteNumber, d.reason, `+${pdfMoney(d.amount)}`]),
           );
         }
         if (invoice.creditNotes.length) {

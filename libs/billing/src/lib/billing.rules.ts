@@ -81,26 +81,31 @@ export function refundable(payment: { amount: number }, refundsOfIt: ReadonlyArr
 }
 
 /**
- * What settles an issued invoice besides its payers: patient payments (less
- * refunds), deposit or account credit applied (less what a void released),
- * and credit notes (the part that reduced the balance).
+ * What moves the patient's balance on an issued invoice besides its lines:
+ * debit notes (added), patient payments (less refunds), deposit or account
+ * credit applied (less what a void released), and credit notes (the part that
+ * reduced the balance).
  */
 export interface Settlement {
   paid: number;
   depositApplied: number;
   credited: number;
+  debited: number;
 }
 
 /** What the patient still owes on an issued invoice. Never negative when the rules below are followed. */
 export function invoiceBalance(patientTotal: number, settlement: Settlement): number {
-  return patientTotal - settlement.paid - settlement.depositApplied - settlement.credited;
+  return patientTotal + settlement.debited - settlement.paid - settlement.depositApplied - settlement.credited;
 }
 
 // ---- patient account (deposits and credit) ---------------------------------------------------------
 
-/** Deposits, credit from credit notes and released applications add to the account; applications and refunds take from it. */
+/**
+ * Deposits, credit from credit notes, released applications and balance moved in from another facility add to the
+ * account; applications, refunds and balance moved out take from it.
+ */
 export function accountSign(kind: AccountEntryKind): 1 | -1 {
-  return kind === "deposit" || kind === "credit" || kind === "release" ? 1 : -1;
+  return kind === "deposit" || kind === "credit" || kind === "release" || kind === "transfer_in" ? 1 : -1;
 }
 
 /** The account balance from its ledger. */
@@ -121,8 +126,9 @@ export function applicationProblem(amount: number, invoiceBalance: number, accou
   return null;
 }
 
-// ---- credit notes -----------------------------------------------------------------------------------
+// ---- credit and debit notes -------------------------------------------------------------------------
 
+/** A line a credit note may credit: a line of the invoice or of one of its debit notes. */
 export interface CreditableItem {
   id: string;
   netAmount: number;
@@ -132,26 +138,64 @@ export interface CreditableItem {
 
 /**
  * Why credit note lines cannot be issued, if they cannot. Each line credits a
- * line of the invoice, at most what is left of it (its net amount less
- * earlier credits); together they credit at most what is left of the
- * patient's share (payer coverage is not credited here: that is a claim
- * matter, or void + reissue).
+ * line of the invoice (or of one of its debit notes), at most what is left of
+ * it: its amount less earlier credits.
  */
-export function creditNoteProblem(
-  lines: ReadonlyArray<{ invoiceItemId: string; amount: number }>,
-  items: ReadonlyArray<CreditableItem>,
-  patientShareLeft: number,
-): string | null {
+export function creditNoteProblem(lines: ReadonlyArray<{ targetId: string; amount: number }>, items: ReadonlyArray<CreditableItem>): string | null {
   if (lines.length === 0) return "credit_note_empty";
-  if (new Set(lines.map((l) => l.invoiceItemId)).size !== lines.length) return "credit_note_duplicate_line";
+  if (new Set(lines.map((l) => l.targetId)).size !== lines.length) return "credit_note_duplicate_line";
   for (const line of lines) {
     if (!Number.isSafeInteger(line.amount) || line.amount <= 0) return "amount_invalid";
-    const item = items.find((i) => i.id === line.invoiceItemId);
+    const item = items.find((i) => i.id === line.targetId);
     if (!item) return "credit_note_line_not_on_invoice";
     if (line.amount > item.netAmount - item.credited) return "credit_exceeds_line";
   }
-  if (sum(lines.map((l) => l.amount)) > patientShareLeft) return "credit_exceeds_patient_share";
   return null;
+}
+
+export interface CreditableCoverage {
+  id: string;
+  /** Coverage amount less earlier credits to it. */
+  left: number;
+  status: "pending" | "submitted" | "settled" | "denied";
+}
+
+/**
+ * Why a credit note's total cannot be divided as asked between payers and the
+ * patient, if it cannot. A payer's part reduces what it is expected to cover —
+ * only while the claim is pending or submitted (a settled or denied claim is
+ * a matter for the payer) and never beyond what is left of the coverage. The
+ * rest is the patient's part, at most what is left of the patient's share
+ * (their share plus debit notes, less earlier credits to them).
+ */
+export function creditAllocationProblem(
+  total: number,
+  payers: ReadonlyArray<{ invoicePayerId: string; amount: number }>,
+  coverage: ReadonlyArray<CreditableCoverage>,
+  patientShareLeft: number,
+): string | null {
+  if (new Set(payers.map((p) => p.invoicePayerId)).size !== payers.length) return "credit_note_duplicate_payer";
+  for (const p of payers) {
+    if (!Number.isSafeInteger(p.amount) || p.amount <= 0) return "amount_invalid";
+    const c = coverage.find((x) => x.id === p.invoicePayerId);
+    if (!c) return "coverage_not_on_invoice";
+    if (c.status !== "pending" && c.status !== "submitted") return "coverage_not_creditable";
+    if (p.amount > c.left) return "credit_exceeds_coverage";
+  }
+  const payerPart = sum(payers.map((p) => p.amount));
+  if (payerPart > total) return "credit_allocation_exceeds_total";
+  if (total - payerPart > patientShareLeft) return "credit_exceeds_patient_share";
+  return null;
+}
+
+/** Why debit note lines cannot be issued, if they cannot. */
+export function debitNoteProblem(lines: ReadonlyArray<{ quantity: number; unitPrice: number }>): string | null {
+  if (lines.length === 0) return "debit_note_empty";
+  for (const l of lines) {
+    if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > 1000) return "quantity_invalid";
+    if (!Number.isSafeInteger(l.unitPrice) || l.unitPrice <= 0) return "amount_invalid";
+  }
+  return Number.isSafeInteger(sum(lines.map((l) => l.unitPrice * l.quantity))) ? null : "amount_invalid";
 }
 
 /**
@@ -161,6 +205,33 @@ export function creditNoteProblem(
 export function splitCredit(amount: number, owed: number): { appliedAmount: number; accountCredit: number } {
   const appliedAmount = Math.min(amount, Math.max(owed, 0));
   return { appliedAmount, accountCredit: amount - appliedAmount };
+}
+
+// ---- packages ---------------------------------------------------------------------------------------
+
+/**
+ * Whether a sold package covers `quantity` of a service on a date: the
+ * enrollment is active and in its dates, the package includes the service,
+ * and enough is left (included less what non-cancelled covered charges used).
+ * A charge is covered whole or not at all.
+ */
+export function packageCovers(
+  enrollment: { status: "active" | "cancelled"; startsOn: string; endsOn: string | null },
+  included: number,
+  used: number,
+  quantity: number,
+  onDate: string,
+): boolean {
+  if (enrollment.status !== "active") return false;
+  if (onDate < enrollment.startsOn || (enrollment.endsOn !== null && onDate > enrollment.endsOn)) return false;
+  return included - used >= quantity;
+}
+
+/** The last day a package sold on `startsOn` can be used, from its validity in days (none = no end). */
+export function packageEndsOn(startsOn: string, validityDays: number | null): string | null {
+  if (validityDays === null) return null;
+  const [y, m, d] = startsOn.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + validityDays - 1)).toISOString().slice(0, 10);
 }
 
 /** Invoice document number: "INV-2026-000123". Prefix and series are configuration (a BIR compliance dependency). */

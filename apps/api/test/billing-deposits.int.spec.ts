@@ -273,7 +273,7 @@ describe("billing deposits and credit notes", () => {
 
   it("numbers credit notes with a configurable prefix", async () => {
     const settings = await req(cashier).get("/billing/settings").expect(200);
-    expect(settings.body).toEqual({ invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "CN" });
+    expect(settings.body).toMatchObject({ invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "CN" });
     const updated = await req(admin).put("/billing/settings", { invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "crn" }).expect(200);
     expect(updated.body.creditNotePrefix).toBe("CRN");
     // Older clients that send only the invoice and receipt prefixes leave it as it is.
@@ -293,7 +293,7 @@ describe("billing deposits and credit notes", () => {
       refundedTotal: 10_000,
       held: 45_000,
     });
-    expect(report.body.creditNotes).toEqual({ count: 2, amount: 25_000, appliedAmount: 10_000, accountCredit: 15_000 });
+    expect(report.body.creditNotes).toEqual({ count: 2, amount: 25_000, appliedAmount: 10_000, accountCredit: 15_000, payerAmount: 0 });
     expect(report.body.collectedTotal).toBe(20_000);
     expect(report.body.receivables).toMatchObject({ patientBalance: 0, invoices: 0 });
   });

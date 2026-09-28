@@ -24,7 +24,7 @@ import type {
 import { billingDiscountRule, billingPayer, billingSequence, billingService, billingServicePrice, type SequenceKind } from "../billing.schema";
 import { assertVersion, found, previousDay, publicView } from "../billing-support";
 
-export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN" } as const;
+export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN", debit_note: "DN" } as const;
 
 const SERVICE_FIELDS = ["name", "status"] as const;
 
@@ -267,7 +267,12 @@ export class BillingCatalogService {
   async settings(organizationId: string) {
     const rows = await this.db.select().from(billingSequence).where(eq(billingSequence.organizationId, organizationId));
     const prefix = (kind: SequenceKind) => rows.find((r) => r.kind === kind)?.prefix ?? DEFAULT_PREFIXES[kind];
-    return { invoicePrefix: prefix("invoice"), receiptPrefix: prefix("receipt"), creditNotePrefix: prefix("credit_note") };
+    return {
+      invoicePrefix: prefix("invoice"),
+      receiptPrefix: prefix("receipt"),
+      creditNotePrefix: prefix("credit_note"),
+      debitNotePrefix: prefix("debit_note"),
+    };
   }
 
   async updateSettings(actor: Actor, input: z.infer<typeof updateSettingsSchema>) {
@@ -276,6 +281,7 @@ export class BillingCatalogService {
         ["invoice", input.invoicePrefix],
         ["receipt", input.receiptPrefix],
         ["credit_note", input.creditNotePrefix],
+        ["debit_note", input.debitNotePrefix],
       ];
       for (const [kind, prefix] of series) {
         if (prefix === undefined) continue;
