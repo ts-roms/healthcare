@@ -4,3 +4,5 @@ export * from "./lib/periodontal.rules";
 export * from "./lib/dental.schema";
 export * from "./lib/ports";
 export * from "./lib/procedures/dental-procedure.service";
+export * from "./lib/portal/dental-patient-access";
+export * from "./lib/portal/dental-portal-settings.service";

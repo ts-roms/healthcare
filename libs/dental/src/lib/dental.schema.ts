@@ -1,6 +1,7 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0027_dental.sql and 0041_dental_periodontal.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql and 0056_dental_portal.sql (the migrations are
+// the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -221,3 +222,14 @@ export const dentalPerioSite = pgTable("dental_perio_site", {
 });
 
 export type DentalPerioChartRecord = typeof dentalPerioChart.$inferSelect;
+
+// ---- MyHealth dental records (0056) ---------------------------------------------------------------------
+
+/** The organization's choice to show patients their dental records in MyHealth (off by default). */
+export const dentalOrganizationSetting = pgTable("dental_organization_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  portalDentalRecords: boolean("portal_dental_records").notNull().default(false),
+  version: integer("version").notNull().default(1),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});

@@ -255,3 +255,62 @@ export interface PortalOnlinePayment {
   name: string;
   note: string;
 }
+
+// ---- Dental records (GET /portal/dental/*; only when the clinic shares them — libs/dental/src/lib/portal/dental-patient-access.ts) ----
+
+/** For the navigation: the clinic shares dental records in MyHealth and there is something to show. */
+export interface PortalDentalAvailability {
+  available: boolean;
+}
+
+export type PortalToothCondition =
+  "caries" | "restoration" | "sealant" | "fracture" | "crown" | "root_canal" | "missing" | "implant" | "pontic" | "impacted" | "unerupted" | "watch";
+export type PortalToothSurface = "M" | "D" | "O" | "I" | "B" | "L";
+export type PortalDentalPlanStatus = "proposed" | "accepted" | "in_progress" | "completed" | "declined" | "discontinued";
+export type PortalDentalItemStatus = "proposed" | "accepted" | "declined" | "completed" | "cancelled";
+
+export interface PortalDentalPlan {
+  id: string;
+  title: string;
+  status: PortalDentalPlanStatus;
+  /** Calendar dates (YYYY-MM-DD). */
+  proposedOn: string;
+  decidedOn: string | null;
+  facilityName: string | null;
+  dentistName: string | null;
+  items: Array<{
+    id: string;
+    phase: number;
+    /** FDI code, shown in the record's notation; null: the whole mouth. */
+    tooth: string | null;
+    surfaces: PortalToothSurface[];
+    procedureName: string;
+    status: PortalDentalItemStatus;
+    /** Null for an item that is no longer planned. */
+    decision: "awaiting" | "accepted" | "declined" | null;
+  }>;
+}
+
+export interface PortalDentalProcedure {
+  id: string;
+  performedOn: string;
+  tooth: string | null;
+  surfaces: PortalToothSurface[];
+  procedureName: string;
+  facilityName: string | null;
+  dentistName: string | null;
+}
+
+export interface PortalDentalTooth {
+  tooth: string;
+  /** Empty: checked, nothing noted. */
+  conditions: Array<{ condition: PortalToothCondition; surfaces: PortalToothSurface[] }>;
+  updatedOn: string;
+}
+
+export interface PortalDentalRecord {
+  notation: "fdi" | "universal" | "palmer";
+  chart: PortalDentalTooth[];
+  plans: PortalDentalPlan[];
+  procedures: PortalDentalProcedure[];
+}

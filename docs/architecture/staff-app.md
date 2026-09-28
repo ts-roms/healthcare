@@ -178,7 +178,7 @@ item); examinations; periodontal charts (a row per present tooth: six probing de
 suppuration, mobility, furcation where the tooth has one; view a chart with the changes since the previous one);
 imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
 link). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
-visit's encounter workspace. `/dental/settings`: the procedure catalog and the facility's tooth notation
-(`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
+visit's encounter workspace. `/dental/settings`: the procedure catalog, the facility's tooth notation
+and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
 `docs/domains/dental.md`.

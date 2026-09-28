@@ -13,6 +13,7 @@ import {
   DiscontinuePlanDto,
   EnteredInErrorDto,
   NotationDto,
+  PortalSettingDto,
   RecordExaminationDto,
   RecordPerioChartDto,
   RecordProcedureDto,
@@ -24,6 +25,7 @@ import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
+import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
 
 @ApiTags("dental")
@@ -194,7 +196,10 @@ export class DentalPlanController {
 @ApiBearerAuth()
 @Controller({ path: "dental", version: "1" })
 export class DentalSettingsController {
-  constructor(private readonly catalog: DentalCatalogService) {}
+  constructor(
+    private readonly catalog: DentalCatalogService,
+    private readonly portal: DentalPortalSettings,
+  ) {}
 
   @Get("settings")
   @RequirePermissions("dental.record.read")
@@ -205,6 +210,20 @@ export class DentalSettingsController {
       this.catalog.procedureTypes(actor.organizationId),
     ]);
     return { notation, procedureTypes };
+  }
+
+  @Get("settings/portal")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({ summary: "Whether patients see their dental records (plans, completed procedures, chart) in MyHealth" })
+  portalSetting(@CurrentActor() actor: Actor) {
+    return this.portal.get(actor.organizationId);
+  }
+
+  @Put("settings/portal")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Turn MyHealth dental records on or off for the organization (audited; optimistic version)" })
+  setPortalSetting(@CurrentActor() actor: Actor, @Body() body: PortalSettingDto) {
+    return this.portal.set(actor, body.portalDentalRecords, body.version);
   }
 
   @Put("facilities/:facilityId/notation")

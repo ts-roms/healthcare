@@ -38,6 +38,7 @@ import { PatientSummaryController } from "./patient-360/patient-summary.controll
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
+import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
 import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
@@ -159,6 +160,7 @@ export class AppModule implements NestModule {
         PatientSummaryController,
         PortalBillingController,
         PortalBookingController,
+        PortalDentalController,
         PortalMessagesController,
         PortalRecordsController,
         PortalTeleconsultController,

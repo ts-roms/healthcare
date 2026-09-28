@@ -8,6 +8,7 @@ import { uploadPatientDocument } from "@/lib/api/documents";
 import type {
   DentalExamination,
   DentalPerioChartDetail,
+  DentalPortalSetting,
   DentalImage,
   DentalProcedure,
   DentalProcedureType,
@@ -308,4 +309,14 @@ export async function setNotation(facilityId: string, notation: "fdi" | "univers
     method: "PUT",
     revalidate: ["/dental/settings", "/dental"],
   });
+}
+
+/** Turns MyHealth dental records on or off for the organization (`dental.settings.manage`; the API audits the change). */
+export async function setPortalDentalRecords(portalDentalRecords: boolean, settingVersion: number) {
+  return run<DentalPortalSetting>(
+    z.object({ portalDentalRecords: z.boolean(), version: z.number().int().min(0) }),
+    { portalDentalRecords, version: settingVersion },
+    "/dental/settings/portal",
+    { method: "PUT", revalidate: ["/dental/settings"] },
+  );
 }

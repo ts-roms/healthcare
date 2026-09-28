@@ -18,6 +18,10 @@ const reason = z.string().trim().min(5).max(500);
 export const notationSchema = z.object({ notation: z.enum(NOTATIONS) });
 export class NotationDto extends createZodDto(notationSchema) {}
 
+/** Whether patients see their dental records in MyHealth; `version` is the current setting's (0 when never set). */
+export const portalSettingSchema = z.object({ portalDentalRecords: z.boolean(), version: z.number().int().min(0) });
+export class PortalSettingDto extends createZodDto(portalSettingSchema) {}
+
 export const createProcedureTypeSchema = z.object({
   code,
   name: z.string().trim().min(1).max(160),

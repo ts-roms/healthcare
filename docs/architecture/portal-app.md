@@ -46,8 +46,9 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                  |
 | Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts) |
 | Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                               |
+| Dental (when shared)          | `GET /portal/dental/availability` (navigation), `GET /portal/dental/record` (plans, treatments done, tooth chart)           |
 
-The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
+The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`, `portal.dental-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
 **Results (CLAUDE.md §17).** A result is shown only when it is the current version, **released**, of a test the laboratory marks as releasable to patients (`lab_test.patient_releasable`), and — if critical — after the ordering side has **acknowledged** it, so the patient never learns of a critical value before their care team. While a released result is being corrected it is hidden until the corrected version is released. The portal words each value against the snapshotted range in plain language ("Within the usual range", "Higher than the usual range", "Much higher than the usual range — your care team has been told"; icon, words and colour), shows "Usual range: …", and the result page draws a trend with the range shaded plus the history with each value's range at the time. It does not interpret results; it tells the patient to talk to their doctor (`lib/records.ts`).
 
@@ -72,6 +73,16 @@ confirmations, "we missed you" after a no-show, care-plan follow-up reminders an
 record ("Message in MyHealth", `clinic.message`). New ones are labelled and marked read once shown; the navigation shows
 the unread count. Each message links to where to act (results, visits, booking; `lib/messages.ts`). Messages are
 one-way: the page tells patients to call the clinic, or 911 in an emergency.
+
+**Dental.** Off unless the organization turns on "Dental records in MyHealth" (`/dental/settings`, `dental.settings.manage`;
+off by default). The navigation shows **Dental** only when `GET /portal/dental/availability` says records are shared and
+the patient has something to show. `/dental` lists treatment plans (each item: tooth in the record's notation with its
+plain name, procedure, the patient's decision and status — icon, words and colour), treatments done (date, tooth and
+sides, dentist, clinic) and a read-only tooth chart summary with a key and a plain-language list. Only the dental
+library's patient read model is returned (`libs/dental/src/lib/portal/dental-patient-access.ts`): never examination or
+tooth notes, decision notes, periodontal charts, images, procedure codes or anything entered in error; plans carry no
+fees. `GET /portal/dental/record` is audited `portal.dental-view` (actor type `patient`) and refused (403, audited as
+denied) while records are not shared. Wording: `lib/dental.ts`. See `docs/domains/dental.md`.
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
 

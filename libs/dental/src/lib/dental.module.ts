@@ -8,6 +8,8 @@ import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DENTAL_CONTEXT, type DentalContext } from "./ports";
+import { DentalPatientAccess } from "./portal/dental-patient-access";
+import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
 
 export interface DentalModuleOptions {
@@ -15,7 +17,10 @@ export interface DentalModuleOptions {
   context: Type<DentalContext>;
 }
 
-/** Dentistry (Phase 6): chart, examinations, treatment plans, procedures, imaging. Documents come from the global DocumentsModule. */
+/**
+ * Dentistry (Phase 6): chart, examinations, treatment plans, procedures, imaging; the patient-facing read model for
+ * MyHealth (`DentalPatientAccess`). Documents come from the global DocumentsModule.
+ */
 @Module({})
 export class DentalModule {
   static forRoot(options: DentalModuleOptions): DynamicModule {
@@ -31,9 +36,11 @@ export class DentalModule {
         DentalImagingService,
         DentalPerioService,
         DentalRecordService,
+        DentalPortalSettings,
+        DentalPatientAccess,
         { provide: DENTAL_CONTEXT, useClass: options.context },
       ],
-      exports: [DentalProcedureService],
+      exports: [DentalProcedureService, DentalPatientAccess],
     };
   }
 }

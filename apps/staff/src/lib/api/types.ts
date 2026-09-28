@@ -2482,3 +2482,14 @@ export interface PayloadKeyOverview {
   currentKeyId: string;
   keys: PayloadKeyUsage[];
 }
+
+// ---- MyHealth dental records (libs/dental/src/lib/portal/dental-portal-settings.service.ts; GET/PUT /dental/settings/portal) ----
+
+export interface DentalPortalSetting {
+  /** Patients see their treatment plans, completed procedures and tooth chart in MyHealth (off by default). */
+  portalDentalRecords: boolean;
+  /** 0 until first set. */
+  version: number;
+  updatedAt: string | null;
+  updatedByName: string | null;
+}

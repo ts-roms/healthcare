@@ -11,10 +11,10 @@ prescriptions (`libs/prescription` already allows dentists to prescribe) and lab
 workflow; this domain adds only what is specific to dentistry. There is no second patient table and no second
 encounter model.
 
-Also: [periodontal charting](#periodontal-charting).
+Also: [periodontal charting](#periodontal-charting), [dental records in MyHealth](#dental-records-in-myhealth).
 
-Not in scope yet: orthodontic records, a patient-facing
-view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory), and a licensed procedure code set.
+Not in scope yet: orthodontic records, dental FHIR resources, stock use of dental supplies (inventory), and a licensed
+procedure code set.
 
 ## Entities
 
@@ -55,6 +55,8 @@ view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory
   category `imaging`; JPEG, PNG, HEIC, TIFF or DICOM); this row holds the kind (periapical, bitewing, panoramic,
   cephalometric, occlusal, CBCT, intraoral/extraoral photo, other), teeth shown, date taken, notes and optional
   encounter. Immutable except entered in error.
+- `dental_organization_setting` — the organization's choice to show patients their dental records in MyHealth
+  (`portal_dental_records`, off by default; optimistic `version`; migration `0056`).
 
 ## Commands
 
@@ -71,6 +73,7 @@ view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory
 | Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                     | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
 | Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`   | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
 | Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation` | Settings permission.                                                                                                                                                            |
+| MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, version }`                    | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                              |
 
 Examinations and procedures accept an `Idempotency-Key` header (the staff app sends one per form).
 
@@ -91,6 +94,10 @@ leaves the tooth missing; an implant or pontic replaces whatever was charted.
 - `GET /dental/perio-charts/:id` — one periodontal chart with its measurements, summary and the changes since the
   patient's previous recorded chart. Audited `dental.perio.view`. The dental record lists every chart with its summary.
 - `GET /dental/images/:id/link` — a 5-minute signed URL, audited by the documents service as `document.download`.
+- `GET /dental/settings/portal` (`dental.record.read`) — whether MyHealth shows dental records, when and by whom it was
+  last changed.
+- Patient portal (`PatientAccessGuard`): `GET /portal/dental/availability`, `GET /portal/dental/record` — see
+  [dental records in MyHealth](#dental-records-in-myhealth).
 
 ## Events
 
@@ -116,6 +123,9 @@ invoice (an invoiced one needs a void, as for laboratory orders). Capture is ide
 | `dental.imaging.upload`                               | org_admin, dentist, dental_assistant (also needs `document.upload`) |
 | `dental.settings.manage`                              | org_admin                                                           |
 
+MyHealth dental records need no new permission: the setting uses `dental.settings.manage`; patients are authorized by
+the portal's own guard.
+
 New system roles (migration `0027`): **dentist** (a physician's clinical permissions — appointments, queue,
 encounters, prescriptions, laboratory orders — plus dental ones) and **dental_assistant** (a nurse's plus the dental
 record and imaging). Recording examinations, plans and procedures additionally requires the user to be linked to an
@@ -131,7 +141,7 @@ Endpoints above under `/api/v1/dental` (OpenAPI tag `dental`). Errors: `invalid_
 
 ## Database relationships
 
-Migration `0027_dental.sql`. Composite same-organization and same-patient foreign keys to `patient`, `facility`,
+Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
 `practitioner`, `encounter (patient_id, id)` and `document`; tooth states reference their examination or procedure
 by `(patient_id, id)`, so a state cannot belong to another patient's record. Triggers: `dental_record_guard`
 (examinations, procedures, images: only `recorded → entered_in_error` with reason, author and time; no deletes),
@@ -151,6 +161,9 @@ by `(patient_id, id)`, so a state cannot belong to another patient's record. Tri
   history, plans, procedures, examinations, imaging; starting a dental visit), `/dental/settings`; "Dental record" on
   the patient record; billing settings can map a service to a dental procedure. See
   [staff-app.md](../architecture/staff-app.md).
+- **Patient portal**: `DentalPatientAccess` (exported by `DentalModule`) is read by
+  `apps/api/src/app/portal/portal-dental.controller.ts`; MyHealth `/dental`. See
+  [portal-app.md](../architecture/portal-app.md).
 
 ## Periodontal charting
 
@@ -172,6 +185,41 @@ change: trigger `dental_record_guard`; teeth and sites are append-only).
 - **Staff** — "Periodontal charts" on the dental record: record (a row per tooth offered from the odontogram, missing
   and unerupted teeth left out), view a chart with the changes since the previous one, mark entered in error.
 
+## Dental records in MyHealth
+
+**Decision (the safest reasonable interpretation; change it with the clinics):** showing dental records to patients is
+**opt-in per organization and off by default** (`/dental/settings`, "Dental records in MyHealth",
+`dental.settings.manage`, audited, optimistic version). While it is off, MyHealth shows nothing dental: the
+availability answer is `false`, the navigation has no Dental entry, and `GET /portal/dental/record` is refused (403,
+audited `portal.dental-view` with outcome `denied`).
+
+When it is on, the patient sees only what is patient-facing (`libs/dental/src/lib/portal/dental-patient-access.ts`, a
+dedicated read model — staff shapes are never reused):
+
+| Shown                                                                                                           | Fields                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Treatment plans** — presented to the patient, who decides each item, so already patient-facing (every status) | title, status, proposed and decided dates, dentist and facility name; per item: phase, tooth, surfaces, procedure name, status, decision |
+| **Completed procedures** — recorded, never entered in error                                                     | date performed, tooth, surfaces, procedure name, dentist and facility name                                                               |
+| **Current tooth chart** — the same derivation the staff see, so entered-in-error sources are already excluded   | per charted tooth: conditions with surfaces, date of the state                                                                           |
+
+Never shown: examination notes and oral hygiene, tooth notes, plan and item notes, decision notes, discontinuation
+and correction reasons, periodontal charts, images and radiographs (they would need an explicit per-image release),
+procedure codes, staff users, and anything entered in error. **Plans carry no prices** (fees are billing's), so no
+estimate is shown; MyHealth tells the patient to ask the clinic. Dates are the facility's local calendar dates.
+Teeth are stored in FDI and shown in **one notation for the whole record** — that of the facility of the patient's
+latest dental care (plan, procedure or examination) — so a tooth reads the same in every section.
+
+- `GET /portal/dental/availability` — `{ available }`: records are shared **and** the patient has a plan, a recorded
+  procedure or a charted tooth. A yes/no for the navigation without clinical content (like the unread-message count,
+  not audited).
+- `GET /portal/dental/record` — `{ notation, plans, procedures, chart }`; audited `portal.dental-view` with actor type
+  `patient` and counts only. The patient guard re-checks session, account and `portal_access` consent on every call.
+- MyHealth `/dental` (`apps/portal`): plans with each item's tooth (notation plus plain name), procedure, decision and
+  status (icon, words and colour), treatments done, and a read-only odontogram summary (charted teeth by tone —
+  no problems noted, treated, needs treatment, being watched, missing — with a key and a plain-language list; teeth not
+  charted are dashed). Wording in `apps/portal/src/lib/dental.ts`. Patients cannot decide plan items in MyHealth; they
+  are told to talk to the dentist.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.
@@ -181,5 +229,5 @@ change: trigger `dental_record_guard`; teeth and sites are append-only).
   only; a dental hygienist role, where clinics have one, is a follow-up.
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
-- MyHealth does not show dental records yet; releasing plans or charts to patients needs a decision on what is
-  patient-facing.
+- MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
+  status; confirm with the clinics. Releasing images, deciding plan items online and fee estimates are follow-ups.
