@@ -11,7 +11,9 @@ prescriptions (`libs/prescription` already allows dentists to prescribe) and lab
 workflow; this domain adds only what is specific to dentistry. There is no second patient table and no second
 encounter model.
 
-Not in scope yet: periodontal charting (probing depths, mobility, bleeding), orthodontic records, a patient-facing
+Also: [periodontal charting](#periodontal-charting).
+
+Not in scope yet: orthodontic records, a patient-facing
 view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory), and a licensed procedure code set.
 
 ## Entities
@@ -66,7 +68,8 @@ view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory
 | Discontinue plan             | `POST /dental/treatment-plans/:id/discontinue`                                      | Accepted or in-progress plans; reason; open items are cancelled, completed ones stay.                                                                                           |
 | Record procedure             | `POST /dental/patients/:patientId/procedures`                                       | Dentist; encounter in progress; site rules; a plan item must be accepted, of an active plan, same type and tooth. Chart effect applied to the tooth's current state (appended). |
 | Add image                    | `POST /dental/patients/:patientId/images`                                           | The document is this patient's, uploaded (`available`), category `imaging`, an image or DICOM type; once per document.                                                          |
-| Mark entered in error        | `POST /dental/{examinations,procedures,images}/:id/entered-in-error`                | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
+| Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                     | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
+| Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`   | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
 | Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation` | Settings permission.                                                                                                                                                            |
 
 Examinations and procedures accept an `Idempotency-Key` header (the staff app sends one per form).
@@ -85,13 +88,15 @@ leaves the tooth missing; an implant or pontic replaces whatever was charted.
 - `GET /dental/visits?date=` — dentists' encounters at the selected facility on a local day (default today), with
   examination and procedure counts (the dental worklist). Audited.
 - `GET /dental/treatment-plans/:id`, `GET /dental/settings`.
+- `GET /dental/perio-charts/:id` — one periodontal chart with its measurements, summary and the changes since the
+  patient's previous recorded chart. Audited `dental.perio.view`. The dental record lists every chart with its summary.
 - `GET /dental/images/:id/link` — a 5-minute signed URL, audited by the documents service as `document.download`.
 
 ## Events
 
 Published (outbox; payloads carry ids and codes only): `DentalExaminationRecorded`, `DentalChartUpdated` (aggregate
 `patient`; source and teeth), `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`
-(procedure code, plan item), `DentalProcedureEnteredInError`.
+(procedure code, plan item), `DentalProcedureEnteredInError`, `DentalPerioChartRecorded` (encounter, number of teeth).
 
 Consumed by billing (`ChargeCapture`): `DentalProcedurePerformed` captures a charge when a billing service maps the
 procedure's code (`source_kind = 'dental_procedure'`, description "Composite restoration — 16 MO", service date the
@@ -147,12 +152,33 @@ by `(patient_id, id)`, so a state cannot belong to another patient's record. Tri
   the patient record; billing settings can map a service to a dental procedure. See
   [staff-app.md](../architecture/staff-app.md).
 
+## Periodontal charting
+
+A periodontal chart (`dental_perio_chart`, `dental_perio_tooth`, `dental_perio_site`; migration `0041`) is recorded by
+a dentist during the patient's visit, like an examination, and is immutable (entered in error with a reason is the only
+change: trigger `dental_record_guard`; teeth and sites are append-only).
+
+- **Per site** — six sites per tooth: `MB`, `B`, `DB` (mesio-, mid-, disto-buccal/labial) and `ML`, `L`, `DL`
+  (lingual, palatal on upper teeth): probing depth (0–20 mm), gingival margin relative to the CEJ (−10 to 20 mm:
+  positive = recession, negative = margin coronal to the CEJ), bleeding on probing, plaque, suppuration. Any of them
+  may be left out; a tooth not listed was not examined.
+- **Per tooth** — mobility 0–3 (Miller) and furcation 0–3 (Glickman classes I–III), furcation only on teeth that have
+  one (permanent molars, upper first premolars, primary molars; `libs/dental/src/lib/periodontal.rules.ts`).
+- **Derived, never diagnostic** — clinical attachment level (probing depth + gingival margin), a summary (teeth, sites
+  probed, bleeding and plaque percentages, sites ≥ 4 and ≥ 6 mm, deepest pocket, mean attachment level, suppuration,
+  mobile and furcation-involved teeth) and, against the previous recorded chart, the sites whose depth changed by
+  2 mm or more. The platform does **not** stage or grade periodontitis: that is the dentist's judgement, recorded in
+  the visit's notes and diagnoses.
+- **Staff** — "Periodontal charts" on the dental record: record (a row per tooth offered from the odontogram, missing
+  and unerupted teeth left out), view a chart with the changes since the previous one, mark entered in error.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.
 - Procedure coding: the organization's own codes until a licensed code set or PhilHealth dental benefit codes are
   required and obtained.
-- Periodontal charting, orthodontic records and dental-specific consent forms are follow-ups.
+- Orthodontic records and dental-specific consent forms are follow-ups. Periodontal charting is recorded by dentists
+  only; a dental hygienist role, where clinics have one, is a follow-up.
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
 - MyHealth does not show dental records yet; releasing plans or charts to patients needs a decision on what is

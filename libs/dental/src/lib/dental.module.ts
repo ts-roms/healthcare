@@ -5,6 +5,7 @@ import { DentalChartService } from "./chart/dental-chart.service";
 import { DentalPlanController, DentalRecordController, DentalSettingsController } from "./dental.controllers";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
+import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DENTAL_CONTEXT, type DentalContext } from "./ports";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
@@ -28,6 +29,7 @@ export class DentalModule {
         DentalPlanService,
         DentalProcedureService,
         DentalImagingService,
+        DentalPerioService,
         DentalRecordService,
         { provide: DENTAL_CONTEXT, useClass: options.context },
       ],

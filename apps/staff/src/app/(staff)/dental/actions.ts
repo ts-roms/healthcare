@@ -5,7 +5,15 @@ import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
 import { uploadPatientDocument } from "@/lib/api/documents";
-import type { DentalExamination, DentalImage, DentalProcedure, DentalProcedureType, DentalToothHistoryEntry, DentalTreatmentPlan } from "@/lib/api/types";
+import type {
+  DentalExamination,
+  DentalPerioChartDetail,
+  DentalImage,
+  DentalProcedure,
+  DentalProcedureType,
+  DentalToothHistoryEntry,
+  DentalTreatmentPlan,
+} from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call (dentist, encounter, teeth).
 
@@ -74,6 +82,55 @@ export async function markExaminationEnteredInError(patientId: string, examinati
 export async function loadToothHistory(patientId: string, toothCode: string): Promise<ActionResult<DentalToothHistoryEntry[]>> {
   if (!id.safeParse(patientId).success || !tooth.safeParse(toothCode).success) return { ok: false, message: "Unknown tooth." };
   return actionResult(() => api<DentalToothHistoryEntry[]>(`/dental/patients/${patientId}/teeth/${toothCode}`));
+}
+
+// ---- periodontal charts -----------------------------------------------------------------------------
+
+const mm = (min: number, max: number) => z.number().int().min(min).max(max).optional();
+const perioSchema = z.object({
+  encounterId: id,
+  notes: z.string().trim().max(4000).optional(),
+  teeth: z
+    .array(
+      z.object({
+        tooth,
+        mobility: mm(0, 3),
+        furcation: mm(0, 3),
+        sites: z
+          .array(
+            z.object({
+              site: z.enum(["MB", "B", "DB", "ML", "L", "DL"]),
+              probingDepth: mm(0, 20),
+              gingivalMargin: mm(-10, 20),
+              bleeding: z.boolean(),
+              suppuration: z.boolean(),
+              plaque: z.boolean(),
+            }),
+          )
+          .max(6),
+      }),
+    )
+    .min(1, "Enter the measurements of at least one tooth.")
+    .max(52),
+});
+export async function recordPerioChart(
+  patientId: string,
+  input: z.input<typeof perioSchema>,
+  idempotencyKey: string,
+): Promise<ActionResult<DentalPerioChartDetail>> {
+  if (!id.safeParse(patientId).success || !key.safeParse(idempotencyKey).success) return { ok: false, message: "Unknown patient." };
+  return run(perioSchema, input, `/dental/patients/${patientId}/perio-charts`, { idempotencyKey, revalidate: record(patientId) });
+}
+
+/** One chart with its measurements and the changes since the previous chart (the API audits the view). */
+export async function loadPerioChart(chartId: string): Promise<ActionResult<DentalPerioChartDetail>> {
+  if (!id.safeParse(chartId).success) return { ok: false, message: "Unknown chart." };
+  return actionResult(() => api<DentalPerioChartDetail>(`/dental/perio-charts/${chartId}`));
+}
+
+export async function markPerioChartEnteredInError(patientId: string, chartId: string, why: string) {
+  if (!id.safeParse(chartId).success) return { ok: false as const, message: "Unknown chart." };
+  return run(z.object({ reason }), { reason: why }, `/dental/perio-charts/${chartId}/entered-in-error`, { revalidate: record(patientId) });
 }
 
 // ---- treatment plans --------------------------------------------------------------------------------

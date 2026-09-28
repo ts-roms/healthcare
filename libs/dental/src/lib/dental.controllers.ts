@@ -14,6 +14,7 @@ import {
   EnteredInErrorDto,
   NotationDto,
   RecordExaminationDto,
+  RecordPerioChartDto,
   RecordProcedureDto,
   UpdateProcedureTypeDto,
   VisitsQueryDto,
@@ -21,6 +22,7 @@ import {
 import { isTooth } from "./dental.rules";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
+import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
 
@@ -33,6 +35,7 @@ export class DentalRecordController {
     private readonly chart: DentalChartService,
     private readonly procedures: DentalProcedureService,
     private readonly imaging: DentalImagingService,
+    private readonly perio: DentalPerioService,
   ) {}
 
   @Get("visits")
@@ -71,6 +74,28 @@ export class DentalRecordController {
   @RequirePermissions("dental.record.write")
   examinationError(@CurrentActor() actor: Actor, @Param("examinationId", ParseUUIDPipe) id: string, @Body() body: EnteredInErrorDto) {
     return this.chart.markExaminationEnteredInError(actor, id, body.reason);
+  }
+
+  @Post("patients/:patientId/perio-charts")
+  @RequireFacility()
+  @RequirePermissions("dental.chart.write")
+  @ApiOperation({ summary: "Record a periodontal chart during the patient's encounter (probing depths, gingival margin, bleeding, mobility, furcation)" })
+  recordPerio(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RecordPerioChartDto) {
+    return this.perio.record(actor, patientId, body);
+  }
+
+  @Get("perio-charts/:chartId")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({ summary: "A periodontal chart with its summary and the changes since the previous chart (audited)" })
+  perioChart(@CurrentActor() actor: Actor, @Param("chartId", ParseUUIDPipe) chartId: string) {
+    return this.perio.get(actor, chartId);
+  }
+
+  @Post("perio-charts/:chartId/entered-in-error")
+  @HttpCode(200)
+  @RequirePermissions("dental.record.write")
+  perioError(@CurrentActor() actor: Actor, @Param("chartId", ParseUUIDPipe) chartId: string, @Body() body: EnteredInErrorDto) {
+    return this.perio.markEnteredInError(actor, chartId, body.reason);
   }
 
   @Post("patients/:patientId/procedures")

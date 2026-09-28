@@ -1,6 +1,6 @@
-import { bigint, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0027_dental.sql (the migration is the source of truth).
+// Mirrors database/migrations/0027_dental.sql and 0041_dental_periodontal.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -34,6 +34,9 @@ export const PLAN_ITEM_STATUSES = ["proposed", "accepted", "declined", "complete
 export type PlanItemStatus = (typeof PLAN_ITEM_STATUSES)[number];
 export const IMAGE_KINDS = ["periapical", "bitewing", "panoramic", "cephalometric", "occlusal", "cbct", "intraoral_photo", "extraoral_photo", "other"] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
+/** Periodontal probing sites: mesio-, mid- and disto-buccal; mesio-, mid- and disto-lingual (palatal on upper teeth). */
+export const PERIO_SITES = ["MB", "B", "DB", "ML", "L", "DL"] as const;
+export type PerioSite = (typeof PERIO_SITES)[number];
 type RecordStatus = "recorded" | "entered_in_error";
 
 export const dentalFacilitySetting = pgTable("dental_facility_setting", {
@@ -176,3 +179,45 @@ export const dentalImage = pgTable("dental_image", {
   recordedAt: ts("recorded_at").notNull().defaultNow(),
 });
 export type DentalImageRecord = typeof dentalImage.$inferSelect;
+
+// ---- periodontal charting (0041) ------------------------------------------------------------------------
+
+export const dentalPerioChart = pgTable("dental_perio_chart", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  encounterId: uuid("encounter_id").notNull(),
+  practitionerId: uuid("practitioner_id").notNull(),
+  notes: text("notes"),
+  status: text("status").$type<RecordStatus>().notNull().default("recorded"),
+  enteredInErrorReason: text("entered_in_error_reason"),
+  enteredInErrorAt: ts("entered_in_error_at"),
+  enteredInErrorBy: uuid("entered_in_error_by"),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+
+export const dentalPerioTooth = pgTable("dental_perio_tooth", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  chartId: uuid("chart_id").notNull(),
+  tooth: text("tooth").notNull(),
+  mobility: smallint("mobility"),
+  furcation: smallint("furcation"),
+});
+
+export const dentalPerioSite = pgTable("dental_perio_site", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  toothId: uuid("tooth_id").notNull(),
+  site: text("site").$type<PerioSite>().notNull(),
+  probingDepth: smallint("probing_depth"),
+  gingivalMargin: smallint("gingival_margin"),
+  bleeding: boolean("bleeding").notNull().default(false),
+  suppuration: boolean("suppuration").notNull().default(false),
+  plaque: boolean("plaque").notNull().default(false),
+});
+
+export type DentalPerioChartRecord = typeof dentalPerioChart.$inferSelect;

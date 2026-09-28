@@ -1630,6 +1630,58 @@ export interface DentalRecord {
   plans: DentalTreatmentPlan[];
   procedures: DentalProcedure[];
   images: DentalImage[];
+  perioCharts: DentalPerioChartSummaryItem[];
+}
+
+export type DentalPerioSite = "MB" | "B" | "DB" | "ML" | "L" | "DL";
+
+/** Figures over a periodontal chart's measurements (display aid, not a classification). */
+export interface DentalPerioSummary {
+  teeth: number;
+  sitesProbed: number;
+  bleedingPercent: number | null;
+  plaquePercent: number | null;
+  sitesDepth4Plus: number;
+  sitesDepth6Plus: number;
+  maxProbingDepth: number | null;
+  meanAttachmentLevel: number | null;
+  suppurationSites: number;
+  mobileTeeth: number;
+  furcationTeeth: number;
+}
+
+export interface DentalPerioChartSummaryItem {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  notes: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+  summary: DentalPerioSummary;
+}
+
+export interface DentalPerioTooth {
+  tooth: string;
+  mobility: number | null;
+  furcation: number | null;
+  sites: Array<{ site: DentalPerioSite; probingDepth: number | null; gingivalMargin: number | null; bleeding: boolean; suppuration: boolean; plaque: boolean }>;
+}
+
+export interface DentalPerioChange {
+  tooth: string;
+  site: DentalPerioSite;
+  before: number;
+  after: number;
+}
+
+/** GET /dental/perio-charts/:id */
+export interface DentalPerioChartDetail extends DentalPerioChartSummaryItem {
+  teeth: DentalPerioTooth[];
+  previous: { id: string; recordedAt: string; summary: DentalPerioSummary; changes: { deeper: DentalPerioChange[]; shallower: DentalPerioChange[] } } | null;
 }
 
 export interface DentalVisit {
