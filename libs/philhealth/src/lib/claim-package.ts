@@ -1,4 +1,4 @@
-import { payloadDigest } from "../exchange/integration-exchanges.service";
+import { payloadDigest } from "@healthcare/interoperability";
 
 /**
  * The platform's own, format-neutral view of a PhilHealth claim: what it can

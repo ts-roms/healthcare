@@ -72,8 +72,11 @@ payload.
 
 ## Adding an integration
 
-1. Implement an `ExchangeHandler` (`system`, `operation`, `send(payload, idempotencyKey)`) in `libs/interoperability`,
-   register it in `EXCHANGE_HANDLERS` (`IntegrationWorkerModule`).
+1. Implement an `ExchangeHandler` (`system`, `operation`, `send(payload, idempotencyKey)`) in the adapter family's
+   library (`libs/interoperability`, or its own library such as `libs/philhealth`). Handlers of `libs/interoperability`
+   itself (DOH) are registered by `IntegrationWorkerModule`; another library exports an `ExchangeHandlerSet` (its
+   gateway providers and handler classes, e.g. `philhealthExchangeHandlers()`) that `apps/integration-worker` passes as
+   `IntegrationWorkerModule.forRoot({ handlerSets: [...] })`, so `libs/interoperability` never depends on it.
 2. On the API side, prepare the payload and call `IntegrationExchanges.request(tx, actor, …)` inside the domain
    transaction; react to `IntegrationExchangeCompleted` for your `system`/`operation`.
 3. Give the operation a human name and a source link on the review screen

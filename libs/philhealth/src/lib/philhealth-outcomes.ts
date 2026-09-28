@@ -1,6 +1,6 @@
 import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import { DomainEventHandlers } from "@healthcare/core";
-import { type ExchangeCompletedPayload, INTEGRATION_EXCHANGE_COMPLETED } from "../exchange/exchange-types";
+import { type ExchangeCompletedPayload, INTEGRATION_EXCHANGE_COMPLETED } from "@healthcare/interoperability";
 import { PHILHEALTH_ECLAIMS_SYSTEM } from "./gateway";
 import { SUBMIT_CLAIM } from "./philhealth-claim-handler";
 import { PHILHEALTH_BILLING_SINK, PHILHEALTH_CLAIM_SOURCES, type PhilHealthBillingSink, type PhilHealthClaimSources } from "./ports";

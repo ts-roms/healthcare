@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { ExchangeHandler, ExchangeOutcome } from "../exchange/exchange-types";
+import type { ExchangeHandler, ExchangeOutcome } from "@healthcare/interoperability";
 import type { PhilHealthClaimPackage } from "./claim-package";
 import { PHILHEALTH_CLAIMS_GATEWAY, PHILHEALTH_ECLAIMS_SYSTEM, type PhilHealthClaimsGateway } from "./gateway";
 

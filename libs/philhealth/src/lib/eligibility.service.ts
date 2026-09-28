@@ -11,11 +11,9 @@ import {
   requireFacilityId,
   systemActor,
 } from "@healthcare/core";
+import { type ExchangeCompletedPayload, INTEGRATION_EXCHANGE_COMPLETED, integrationExchange, IntegrationExchanges } from "@healthcare/interoperability";
 import { and, desc, eq, gte, lte, ne } from "drizzle-orm";
 import type { z } from "zod";
-import { integrationExchange } from "../exchange/exchange.schema";
-import { type ExchangeCompletedPayload, INTEGRATION_EXCHANGE_COMPLETED } from "../exchange/exchange-types";
-import { IntegrationExchanges } from "../exchange/integration-exchanges.service";
 import type { recordEligibilitySchema, requestEligibilitySchema } from "./eligibility.dto";
 import {
   buildEligibilityInquiry,

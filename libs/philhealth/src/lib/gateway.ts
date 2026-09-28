@@ -1,5 +1,5 @@
 import type { Provider } from "@nestjs/common";
-import type { ExchangeOutcome, ExchangeReason, IntegrationSpecification } from "../exchange/exchange-types";
+import type { ExchangeOutcome, ExchangeReason, IntegrationSpecification } from "@healthcare/interoperability";
 import type { PhilHealthClaimPackage } from "./claim-package";
 
 export type GatewayReason = ExchangeReason;

@@ -43,7 +43,8 @@ Inspect the repository before every change — do not assume any file, library, 
 | `@healthcare/telemedicine`                           | `libs/telemedicine`        | `scope:telemedicine`, `type:feature`     | Online consultations: questionnaire, waiting room, LiveKit video port, telemedicine encounter, escalation.                    |
 | `@healthcare/billing`                                | `libs/billing`             | `scope:billing`, `type:feature`          | Services/prices, charge capture from clinical events, invoices, discounts, payer coverage, payments, refunds.                 |
 | `@healthcare/inventory`                              | `libs/inventory`           | `scope:inventory`, `type:feature`        | Items, suppliers, locations, lots/expiry, append-only stock ledger, FEFO issues, counts, write-offs, reorder levels.          |
-| `@healthcare/interoperability`                       | `libs/interoperability`    | `scope:interoperability`, `type:feature` | FHIR R4 mapping; PhilHealth claims and DOH case reporting (ports, unconfigured adapters); outbound exchanges for the worker.  |
+| `@healthcare/interoperability`                       | `libs/interoperability`    | `scope:interoperability`, `type:feature` | FHIR R4 mapping; DOH case reporting (port, unconfigured adapter); outbound exchanges and the integration worker module.       |
+| `@healthcare/philhealth`                             | `libs/philhealth`          | `scope:interoperability`, `type:feature` | PhilHealth eClaims and eligibility (ports, unconfigured adapters, worker handlers); depends on `interoperability`.            |
 | `@healthcare/pdf`                                    | `libs/pdf`                 | `scope:shared`, `type:util`              | PDF toolkit (pdfkit, standard fonts): letterhead, fields, paged tables, totals, watermark, footer; text extraction for tests. |
 
 **Frontend — partly connected to the API**
@@ -173,7 +174,7 @@ libs/
   inventory/                                                                     [exists]
   dental/ crm/ reporting/
   interoperability/ (FHIR mapping) pdf/                                          [exist]
-  philhealth/                                                                    [planned]
+  philhealth/                                                                    [exists]
 
 database/migrations/  tools/  docs/  infrastructure/
 nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json (frontend)  tsconfig.node.json (backend)

@@ -1,7 +1,8 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { CoreModule } from "@healthcare/core";
-import type { EligibilityInquiry, EligibilityOutcome, PhilHealthEligibilityGateway } from "@healthcare/interoperability";
-import { INTEGRATION_QUEUE, IntegrationExchangeProcessor, IntegrationWorkerModule, PHILHEALTH_ELIGIBILITY_GATEWAY } from "@healthcare/interoperability";
+import { INTEGRATION_QUEUE, IntegrationExchangeProcessor, IntegrationWorkerModule } from "@healthcare/interoperability";
+import type { EligibilityInquiry, EligibilityOutcome, PhilHealthEligibilityGateway } from "@healthcare/philhealth";
+import { PHILHEALTH_ELIGIBILITY_GATEWAY, philhealthExchangeHandlers } from "@healthcare/philhealth";
 import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
 
 /** A test double standing in for a real eligibility adapter (none exists: the specification is an integration dependency). */
@@ -116,7 +117,7 @@ describe("PhilHealth eligibility — through an adapter (test double) and the in
         CoreModule.forRoot(ctx.config),
         IntegrationWorkerModule.forRoot({
           autoStart: false,
-          philhealthEligibilityGateway: provider,
+          handlerSets: [philhealthExchangeHandlers({ eligibilityGateway: provider })],
           queue: { provide: INTEGRATION_QUEUE, useValue: ctx.integrations },
         }),
       ],

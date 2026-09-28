@@ -2,14 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { InvoiceService } from "@healthcare/billing";
 import { ClinicQueries } from "@healthcare/clinic";
 import { NotFoundError } from "@healthcare/core";
+import { PatientRecordService } from "@healthcare/patient";
 import {
   type ClaimSourcePatient,
   type ClaimSources,
   PHILHEALTH_ECLAIMS_SYSTEM,
   type PhilHealthBillingSink,
   type PhilHealthClaimSources,
-} from "@healthcare/interoperability";
-import { PatientRecordService } from "@healthcare/patient";
+} from "@healthcare/philhealth";
 
 /** PhilHealth claims → billing, patient and clinic: the invoice, the member's identity and the billed encounters' diagnoses. */
 @Injectable()

@@ -1,5 +1,5 @@
 import { Inject, Injectable, type Provider } from "@nestjs/common";
-import type { ExchangeHandler, ExchangeOutcome, ExchangeReason, IntegrationSpecification } from "../exchange/exchange-types";
+import type { ExchangeHandler, ExchangeOutcome, ExchangeReason, IntegrationSpecification } from "@healthcare/interoperability";
 import type { AccreditationSource, ClaimSourcePatient } from "./claim-package";
 
 /**

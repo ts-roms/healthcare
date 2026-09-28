@@ -4,7 +4,7 @@ Extends the root `CLAUDE.md`. Root rules win on conflict.
 
 ## Purpose
 
-A dedicated layer between the core healthcare domain and every external system. No PhilHealth-, DOH-, provider-, or vendor-specific logic outside this layer (and `libs/philhealth`, which is one adapter family within it).
+A dedicated layer between the core healthcare domain and every external system. No PhilHealth-, DOH-, provider-, or vendor-specific logic outside this layer. The layer is this library (exchanges, FHIR, DOH) plus adapter-family libraries such as `libs/philhealth` (`@healthcare/philhealth`, same scope), which may depend on this library but never the reverse: their worker handlers reach `IntegrationWorkerModule` from the composition root as an `ExchangeHandlerSet`.
 
 ```
 Core healthcare domain
@@ -27,7 +27,7 @@ PhilHealth · DOH · external labs · payment providers · SMS/email providers �
 
 Member information, eligibility workflows, claims / eClaims, YAKAP-related workflows, claim tracking, rejection handling, required documentation, government reporting. Each is an integration dependency until the current official specification is obtained and documented. Do not claim accreditation or compliance.
 
-- eClaims today (`src/lib/philhealth`, `docs/interoperability/philhealth-eclaims.md`): a format-neutral claim package, readiness checks of the platform's **own** data only, the `PhilHealthClaimsGateway` port and `UnconfiguredPhilHealthGateway` (status `dependency`, transmits nothing). Never replace it with a guessed format; never encode PhilHealth rules (eligibility, case rates, filing windows) without the official source.
+- eClaims and eligibility today (`libs/philhealth`, `docs/interoperability/philhealth-eclaims.md`): a format-neutral claim package, readiness checks of the platform's **own** data only, the `PhilHealthClaimsGateway` port and `UnconfiguredPhilHealthGateway` (status `dependency`, transmits nothing). Never replace it with a guessed format; never encode PhilHealth rules (eligibility, case rates, filing windows) without the official source.
 - DOH reporting (`src/lib/doh`, `docs/interoperability/doh-reporting.md`): reportable conditions are the organization's configuration (never ship a disease list, case definitions or deadlines); detection opens case reports for human review; `DohReportingGateway` with `UnconfiguredDohReportingGateway` (status `dependency`).
 - Every outbound exchange goes through `integration_exchange` (idempotency key, status, digest — no PHI payload): the API prepares and seals the payload with `IntegrationExchanges.request`, and `apps/integration-worker` sends it through an `ExchangeHandler` (`docs/architecture/integration-worker.md`). External systems are never called from the API.
 

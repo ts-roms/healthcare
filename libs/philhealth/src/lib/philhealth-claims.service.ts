@@ -1,9 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
+import { integrationExchange, type IntegrationExchangeRecord, IntegrationExchanges } from "@healthcare/interoperability";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { integrationExchange, type IntegrationExchangeRecord } from "../exchange/exchange.schema";
-import { IntegrationExchanges } from "../exchange/integration-exchanges.service";
 import { type AccreditationSource, buildClaimPackage, claimReadiness, type ClaimSources, isReady, maskPin } from "./claim-package";
 import { PHILHEALTH_CLAIMS_GATEWAY, PHILHEALTH_ECLAIMS_SYSTEM, type PhilHealthClaimsGateway } from "./gateway";
 import { SUBMIT_CLAIM } from "./philhealth-claim-handler";

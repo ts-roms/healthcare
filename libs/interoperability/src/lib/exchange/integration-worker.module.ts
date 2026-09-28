@@ -1,19 +1,23 @@
-import { type DynamicModule, Logger, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from "@nestjs/common";
+import { type DynamicModule, Logger, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider, type Type } from "@nestjs/common";
 import { AuditModule } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
-import { PhilHealthEligibilityHandler, philhealthEligibilityGatewayProvider } from "../philhealth/eligibility";
-import { PhilHealthClaimHandler } from "../philhealth/philhealth-claim-handler";
-import { philhealthGatewayProvider } from "../philhealth/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
 import { IntegrationExchangeProcessor } from "./exchange-processor";
-import { EXCHANGE_HANDLERS, INTEGRATION_QUEUE, type IntegrationQueue } from "./exchange-types";
+import { EXCHANGE_HANDLERS, type ExchangeHandler, INTEGRATION_QUEUE, type IntegrationQueue } from "./exchange-types";
+
+/**
+ * One adapter family's worker side, supplied by the composition root (e.g. `philhealthExchangeHandlers()` from
+ * `@healthcare/philhealth`): the providers its handlers need (gateways) and its handlers, one per system + operation.
+ */
+export interface ExchangeHandlerSet {
+  providers?: Provider[];
+  handlers: Type<ExchangeHandler>[];
+}
 
 export interface IntegrationWorkerModuleOptions {
-  /** The PhilHealth eClaims adapter (defaults to the unconfigured one). */
-  philhealthGateway?: Provider;
-  /** The PhilHealth eligibility adapter (defaults to the unconfigured one). */
-  philhealthEligibilityGateway?: Provider;
+  /** Further adapter families' handlers. DOH case reporting (this library's own) is always registered. */
+  handlerSets?: ExchangeHandlerSet[];
   /** The DOH reporting adapter (defaults to the unconfigured one). */
   dohGateway?: Provider;
   queue?: Provider;
@@ -47,23 +51,18 @@ class WorkerLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
 @Module({})
 export class IntegrationWorkerModule {
   static forRoot(options: IntegrationWorkerModuleOptions = {}): DynamicModule {
+    const sets = options.handlerSets ?? [];
+    const handlers: Type<ExchangeHandler>[] = [...sets.flatMap((set) => set.handlers), DohCaseReportHandler];
     return {
       module: IntegrationWorkerModule,
       imports: [AuditModule],
       providers: [
         IntegrationExchangeProcessor,
-        options.philhealthGateway ?? philhealthGatewayProvider,
-        PhilHealthClaimHandler,
-        options.philhealthEligibilityGateway ?? philhealthEligibilityGatewayProvider,
-        PhilHealthEligibilityHandler,
+        ...sets.flatMap((set) => set.providers ?? []),
         options.dohGateway ?? dohGatewayProvider,
-        DohCaseReportHandler,
+        ...handlers,
         // One handler per system + operation.
-        {
-          provide: EXCHANGE_HANDLERS,
-          inject: [PhilHealthClaimHandler, PhilHealthEligibilityHandler, DohCaseReportHandler],
-          useFactory: (claims: PhilHealthClaimHandler, eligibility: PhilHealthEligibilityHandler, doh: DohCaseReportHandler) => [claims, eligibility, doh],
-        },
+        { provide: EXCHANGE_HANDLERS, inject: handlers, useFactory: (...instances: ExchangeHandler[]) => instances },
         options.queue ?? bullMqIntegrationQueue,
         {
           provide: IntegrationWorkerRunner,

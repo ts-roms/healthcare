@@ -11,6 +11,7 @@ import * as laboratory from "@healthcare/laboratory";
 import * as notification from "@healthcare/notification";
 import * as organization from "@healthcare/organization";
 import * as patient from "@healthcare/patient";
+import * as philhealth from "@healthcare/philhealth";
 import * as prescription from "@healthcare/prescription";
 import * as telemedicine from "@healthcare/telemedicine";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
@@ -37,6 +38,7 @@ describe("Drizzle schema matches migrations", () => {
     notification,
     organization,
     patient,
+    philhealth,
     prescription,
     telemedicine,
   ]
