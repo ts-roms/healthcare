@@ -357,6 +357,10 @@ export interface PortalAccountStatus {
   activationExpiresAt: string | null;
   /** The invitation code can no longer be used (expired or too many wrong attempts). */
   invitationExpired: boolean;
+  /** Why the patient's latest activation attempt failed (staff only; the patient sees a generic message). */
+  lastActivationFailure: { reason: "expired" | "birth_date_mismatch" | "code_mismatch"; at: string } | null;
+  failedActivationAttempts: number;
+  maxActivationAttempts: number;
   activatedAt: string | null;
   lastLoginAt: string | null;
   disabledAt: string | null;
