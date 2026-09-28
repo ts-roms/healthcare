@@ -49,7 +49,7 @@ Enforced by `@nx/enforce-module-boundaries`; tags and the full rule table are in
 When a library needs something another domain owns, it defines a **port** and the app wires an adapter
 (`apps/api/src/app/adapters`, `recipient-directory.ts`). Examples: notification → `RecipientDirectory`;
 clinic → `PatientDirectory`; prescription → `PrescribingContext`; laboratory → `LaboratoryContext`; telemedicine → `TelemedicineClinic`, `VideoProvider`. Cross-domain read models such as
-Patient 360 (`GET /patients/:id/summary`) are composed in the API.
+Patient 360 (`GET /patients/:id/summary`) and the patient timeline (`GET /patients/:id/timeline`, from each domain's timeline read query) are composed in the API.
 
 ## Request pipeline
 

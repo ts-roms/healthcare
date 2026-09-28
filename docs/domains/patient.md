@@ -82,6 +82,7 @@ disable portal accounts; org admin, receptionist, records officer).
 - Documents reference patients by FK (`document.patient_id`); consent may link a document.
 - Notifications resolve patient destinations via `PatientRecordService.resolveContact`.
 - FHIR `Patient` mapping belongs in `libs/interoperability` (Phase 8).
+- The patient timeline (`GET /patients/:id/timeline`) is composed in the API from every domain's timeline read query; see [patient-timeline.md](patient-timeline.md).
 
 ## Open questions / assumptions
 
