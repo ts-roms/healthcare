@@ -56,6 +56,7 @@ describe("laboratory reagent lots", () => {
       return body ? call.send(body) : call;
     };
     const location = await inv("post", "/locations", { facilityId: tenant.facilityId, code: "lab-store", name: "Laboratory store" }).expect(201);
+    ids.labStore = location.body.id;
     ids.reagentItem = (
       await inv("post", "/items", { code: "glu-r1", name: "Glucose reagent R1", category: "reagent", stockUnit: "cassette" }).expect(201)
     ).body.id;
@@ -203,6 +204,38 @@ describe("laboratory reagent lots", () => {
     expect(actions).toContain("lab.reagent.unload");
     const events = await ctx.pool.query(`SELECT event_type FROM domain_event WHERE event_type LIKE 'LaboratoryReagentLot%'`);
     expect(events.rows.map((e) => e.event_type).sort()).toEqual(["LaboratoryReagentLotLoaded", "LaboratoryReagentLotLoaded", "LaboratoryReagentLotUnloaded"]);
+  });
+
+  it("takes the lot's stock from a storage location when loading, in the same transaction", async () => {
+    const balance = async () =>
+      (
+        await ctx.pool.query<{ quantity: number }>(`SELECT quantity FROM inventory_balance WHERE location_id = $1 AND lot_id = $2`, [
+          ids.labStore,
+          ids["R-1001"],
+        ])
+      ).rows[0]!.quantity;
+    const before = await balance();
+    const take = (token: string, quantity: number) =>
+      lab("post", `/instruments/${ids.analyzer}/reagents`, token, { inventoryLotId: ids["R-1001"], takeFromStock: { locationId: ids.labStore, quantity } });
+    // Loading needs lab.qc.enter; taking stock also needs inventory.move (pathologists have the first only).
+    await take(pathologist, 1).expect(403);
+    // More than the lot holds: nothing is loaded and no stock moves.
+    await take(medtech, before + 1)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("insufficient_stock"));
+    const loadsBefore = await ctx.pool.query(`SELECT count(*)::int AS n FROM lab_reagent_load WHERE instrument_id = $1`, [ids.analyzer]);
+    const loaded = await take(medtech, 2).expect(201);
+    expect(loaded.body).toMatchObject({ lotNumber: "R-1001", stockLocationId: ids.labStore, stockQuantity: 2, stockMovementGroupId: expect.any(String) });
+    expect(await balance()).toBe(before - 2);
+    const movement = await ctx.pool.query(`SELECT kind, quantity, source_type, source_id, reference FROM inventory_movement WHERE movement_group_id = $1`, [
+      loaded.body.stockMovementGroupId,
+    ]);
+    expect(movement.rows).toEqual([{ kind: "issue", quantity: -2, source_type: "lab_reagent_load", source_id: loaded.body.id, reference: "chem-1" }]);
+    const loadsAfter = await ctx.pool.query(`SELECT count(*)::int AS n FROM lab_reagent_load WHERE instrument_id = $1`, [ids.analyzer]);
+    expect(loadsAfter.rows[0].n).toBe(loadsBefore.rows[0].n + 1);
+    await expect(ctx.pool.query(`UPDATE lab_reagent_load SET stock_quantity = 1 WHERE id = $1`, [loaded.body.id])).rejects.toThrow(
+      /only changes when it is unloaded/,
+    );
   });
 });
 

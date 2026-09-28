@@ -62,7 +62,12 @@ export async function loadInstrumentLog(instrumentId: string): Promise<ActionRes
 
 // ---- Reagent lots ------------------------------------------------------------------------------
 
-const loadSchema = z.object({ instrumentId: id, inventoryLotId: id, testId: id.optional() });
+const loadSchema = z.object({
+  instrumentId: id,
+  inventoryLotId: id,
+  testId: id.optional(),
+  takeFromStock: z.object({ locationId: id, quantity: z.number().int().positive("Enter how much is taken.") }).optional(),
+});
 export async function loadReagentLot(input: z.input<typeof loadSchema>): Promise<ActionResult<LabReagentLoad>> {
   const parsed = loadSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);

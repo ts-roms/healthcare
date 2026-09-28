@@ -24,6 +24,7 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import type {
+  InventoryLocation,
   LabAvailableReagentLot,
   LabCatalogEntry,
   LabInstrument,
@@ -79,6 +80,7 @@ export function InstrumentRegister({
   departments,
   reagents,
   availableLots,
+  stockLocations,
   tests,
   includeRetired,
   canLog,
@@ -89,6 +91,8 @@ export function InstrumentRegister({
   /** Reagent lots loaded now at the facility. */
   reagents: LabReagentLoad[];
   availableLots: LabAvailableReagentLot[];
+  /** Storage locations a loaded lot's stock can be taken from (empty: the user cannot take stock). */
+  stockLocations: InventoryLocation[];
   tests: LabTest[];
   includeRetired: boolean;
   canLog: boolean;
@@ -188,6 +192,7 @@ export function InstrumentRegister({
                               instrument={i}
                               loads={reagents.filter((r) => r.instrumentId === i.id)}
                               availableLots={availableLots}
+                              stockLocations={stockLocations}
                               tests={tests}
                               canLog={canLog}
                             />
@@ -326,17 +331,20 @@ function ReagentPanel({
   instrument,
   loads,
   availableLots,
+  stockLocations,
   tests,
   canLog,
 }: {
   instrument: LabInstrument;
   loads: LabReagentLoad[];
   availableLots: LabAvailableReagentLot[];
+  stockLocations: InventoryLocation[];
   tests: LabTest[];
   canLog: boolean;
 }) {
   const { pending, run } = useRun();
-  const [f, setF] = React.useState({ inventoryLotId: "", testId: "" });
+  const blank = { inventoryLotId: "", testId: "", locationId: "", quantity: "" };
+  const [f, setF] = React.useState(blank);
   const [unloading, setUnloading] = React.useState<{ loadId: string; reason: string } | null>(null);
   const [history, setHistory] = React.useState<LabReagentLoad[] | null>(null);
   const canLoad = canLog && instrument.status !== "retired";
@@ -365,6 +373,7 @@ function ReagentPanel({
             ) : null}
             <span className="text-meta text-muted-foreground">
               {l.testName ? `for ${l.testName}` : "all tests"} · loaded {clinicalDateTime(l.loadedAt)} by {l.loadedByName}
+              {l.stockQuantity ? ` · ${l.stockQuantity} taken from stock` : ""}
             </span>
             {canLog ? (
               unloading?.loadId === l.id ? (
@@ -409,9 +418,15 @@ function ReagentPanel({
           onSubmit={(e) => {
             e.preventDefault();
             run(
-              () => loadReagentLot({ instrumentId: instrument.id, inventoryLotId: f.inventoryLotId, testId: f.testId || undefined }),
-              "Reagent lot loaded",
-              () => setF({ inventoryLotId: "", testId: "" }),
+              () =>
+                loadReagentLot({
+                  instrumentId: instrument.id,
+                  inventoryLotId: f.inventoryLotId,
+                  testId: f.testId || undefined,
+                  takeFromStock: f.locationId ? { locationId: f.locationId, quantity: Number.parseInt(f.quantity, 10) } : undefined,
+                }),
+              f.locationId ? "Reagent lot loaded; stock taken" : "Reagent lot loaded",
+              () => setF(blank),
             );
           }}
         >
@@ -438,7 +453,37 @@ function ReagentPanel({
               ))}
             </NativeSelect>
           </div>
-          <Button type="submit" size="sm" disabled={pending || !f.inventoryLotId}>
+          {stockLocations.length > 0 ? (
+            <>
+              <div className="grid gap-1">
+                <Label htmlFor={`reagent-location-${instrument.id}`}>Take from stock</Label>
+                <NativeSelect id={`reagent-location-${instrument.id}`} value={f.locationId} onChange={(e) => setF({ ...f, locationId: e.target.value })}>
+                  <option value="">No (issued separately)</option>
+                  {stockLocations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              {f.locationId ? (
+                <div className="grid gap-1">
+                  <Label htmlFor={`reagent-qty-${instrument.id}`}>
+                    Quantity
+                    {availableLots.find((l) => l.lotId === f.inventoryLotId) ? ` (${availableLots.find((l) => l.lotId === f.inventoryLotId)!.stockUnit})` : ""}
+                  </Label>
+                  <Input
+                    id={`reagent-qty-${instrument.id}`}
+                    inputMode="numeric"
+                    className="w-24"
+                    value={f.quantity}
+                    onChange={(e) => setF({ ...f, quantity: e.target.value.replace(/\D/g, "") })}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          <Button type="submit" size="sm" disabled={pending || !f.inventoryLotId || (Boolean(f.locationId) && !f.quantity)}>
             <PlusIcon /> Load lot
           </Button>
         </form>

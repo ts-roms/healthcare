@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { UsersService } from "@healthcare/auth";
 import { ClinicQueries } from "@healthcare/clinic";
-import { InventoryQueries } from "@healthcare/inventory";
+import type { Actor, DbExecutor } from "@healthcare/core";
+import { InventoryQueries, InventoryStockService } from "@healthcare/inventory";
 import type { LaboratoryContext, LabPatientBrief } from "@healthcare/laboratory";
 import { PatientRecordService } from "@healthcare/patient";
 
@@ -16,7 +17,26 @@ export class AppLaboratoryContext implements LaboratoryContext {
     private readonly clinic: ClinicQueries,
     private readonly users: UsersService,
     private readonly inventory: InventoryQueries,
+    private readonly stock: InventoryStockService,
   ) {}
+
+  async takeReagentStock(
+    tx: DbExecutor,
+    actor: Actor,
+    input: { loadId: string; locationId: string; itemId: string; lotId: string; quantity: number; instrumentCode: string },
+  ) {
+    const result = await this.stock.consume(tx, actor, {
+      locationId: input.locationId,
+      itemId: input.itemId,
+      lotId: input.lotId,
+      quantity: input.quantity,
+      source: { type: "lab_reagent_load", id: input.loadId },
+      issuedTo: `Laboratory instrument ${input.instrumentCode}`,
+      reference: input.instrumentCode,
+      reason: "Loaded on a laboratory instrument",
+    });
+    return { movementGroupId: result.movementGroupId };
+  }
 
   inventoryLot(organizationId: string, lotId: string) {
     return this.inventory.lot(organizationId, lotId);
