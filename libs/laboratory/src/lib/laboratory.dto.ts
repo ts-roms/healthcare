@@ -118,6 +118,8 @@ export const facilityPolicySchema = z.object({
   qcValidHours: z.number().int().min(1).max(168).optional(),
   /** Results entered on an instrument need QC within the window whose latest run is not rejected. */
   qcRequired: z.boolean().optional(),
+  /** Loading a new reagent lot for a test starts its QC window again (only runs after the change count). */
+  qcAfterReagentChange: z.boolean().optional(),
   /** Why the policy changes (audited). */
   reason,
 });

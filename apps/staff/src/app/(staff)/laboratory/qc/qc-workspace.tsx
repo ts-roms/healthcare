@@ -92,7 +92,9 @@ export function QcWorkspace({
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <p className="text-meta text-muted-foreground">
-              Latest run of each control level within {board.policy.qcValidHours} h. Rejecting rules: {rules(board.policy.qcRejectRules)} (1-2s warns).{" "}
+              Latest run of each control level within {board.policy.qcValidHours} h
+              {board.policy.qcAfterReagentChange ? " (or since the newest reagent lot change)" : ""}. Rejecting rules: {rules(board.policy.qcRejectRules)} (1-2s
+              warns).{" "}
               {board.policy.qcRequired ? <Badge variant="info">Patient results on an instrument need QC</Badge> : "Patient results are not blocked by QC."}{" "}
               <Link href="/laboratory/catalog" className="text-primary hover:underline">
                 Facility policy
@@ -120,8 +122,19 @@ export function QcWorkspace({
                           {row.instrumentName}
                           {row.instrumentStatus !== "active" ? <span className="block text-meta text-warning-foreground">Out of service</span> : null}
                         </TableCell>
-                        <TableCell>{row.testName}</TableCell>
                         <TableCell>
+                          {row.testName}
+                          {row.reagents.map((r) => (
+                            <span key={r.loadId} className={`block text-meta ${r.expired ? "font-medium text-danger-foreground" : "text-muted-foreground"}`}>
+                              {r.itemName} · lot {r.lotNumber ?? "—"}
+                              {r.expired ? " (expired)" : ""}
+                            </span>
+                          ))}
+                        </TableCell>
+                        <TableCell>
+                          {board.policy.qcAfterReagentChange && row.reagents.some((r) => r.loadedAt === row.qcSince) ? (
+                            <span className="mb-1 block text-meta text-muted-foreground">Since the reagent lot change {clinicalDateTime(row.qcSince)}:</span>
+                          ) : null}
                           {row.lots.length === 0 ? (
                             <QcStatusBadge status="none" />
                           ) : (
@@ -371,6 +384,11 @@ function RunHistory({ pair, instrumentName, test, canEnter }: { pair: Pair; inst
                           {r.violations.length ? <span className="text-meta">{rules(r.violations)}</span> : null}
                         </span>
                         {r.comment ? <span className="text-meta text-muted-foreground">{r.comment}</span> : null}
+                        {r.reagents.length ? (
+                          <span className="text-meta text-muted-foreground">
+                            Reagent: {r.reagents.map((g) => `${g.itemName} lot ${g.lotNumber ?? "—"}`).join(", ")}
+                          </span>
+                        ) : null}
                         {r.actions.map((a) => (
                           <span key={a.id} className="text-meta">
                             Action: {a.action} <span className="text-muted-foreground">— {a.recordedByName}</span>

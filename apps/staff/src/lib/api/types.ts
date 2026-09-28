@@ -706,6 +706,8 @@ export interface LabPolicy {
   qcRejectRules: QcRejectRule[];
   qcValidHours: number;
   qcRequired: boolean;
+  /** A new reagent lot for a test starts its QC window again. */
+  qcAfterReagentChange: boolean;
   version: number;
 }
 
@@ -739,6 +741,8 @@ export interface LabResult {
   instrumentId: string | null;
   qcRunId: string | null;
   qcStatus: QcStatus | "none" | null;
+  /** Reagent lots loaded on the instrument for the test when the result was entered. */
+  reagents: LabRecordedReagent[];
   patientReleasable: boolean;
   enteredAt: string;
   enteredBy: string;
@@ -1749,10 +1753,11 @@ export interface LabQcRun {
   materialName: string;
   level: string;
   actions: Array<{ id: string; action: string; recordedAt: string; recordedByName: string | null }>;
+  reagents: LabRecordedReagent[];
 }
 
 export interface LabQcBoard {
-  policy: { qcRequired: boolean; qcValidHours: number; qcRejectRules: QcRejectRule[] };
+  policy: { qcRequired: boolean; qcValidHours: number; qcRejectRules: QcRejectRule[]; qcAfterReagentChange: boolean };
   rows: Array<{
     instrumentId: string;
     instrumentName: string;
@@ -1764,6 +1769,9 @@ export interface LabQcBoard {
     decisiveRun: { id: string; status: QcStatus; runAt: string; qcLotId: string; violations: string[] } | null;
     lots: Array<{ runId: string; qcLotId: string; status: QcStatus; runAt: string; violations: string[] }>;
     resultsAllowed: boolean;
+    /** Runs from here on count (the QC window, or the newest reagent lot change). */
+    qcSince: string;
+    reagents: Array<LabRecordedReagent & { loadedAt: string; expired: boolean }>;
   }>;
 }
 
@@ -2354,4 +2362,46 @@ export interface SharedAccount {
 export interface DailyNoteFigures {
   debitNotes: { count: number; amount: number };
   creditNotes: { count: number; amount: number; appliedAmount: number; accountCredit: number; payerAmount: number };
+}
+
+// ---- Reagent lots on instruments (Phase 9) ----------------------------------------------------------
+
+export interface LabRecordedReagent {
+  loadId: string;
+  itemCode: string;
+  itemName: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+}
+
+export interface LabReagentLoad {
+  id: string;
+  instrumentId: string;
+  instrumentName: string;
+  testId: string | null;
+  testName: string | null;
+  inventoryItemId: string;
+  inventoryLotId: string;
+  itemCode: string;
+  itemName: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  loadedAt: string;
+  loadedByName: string | null;
+  unloadedAt: string | null;
+  unloadedByName: string | null;
+  unloadReason: string | null;
+  expired: boolean;
+}
+
+/** GET /laboratory/reagents/available */
+export interface LabAvailableReagentLot {
+  lotId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+  stockUnit: string;
 }

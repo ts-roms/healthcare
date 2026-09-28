@@ -553,10 +553,11 @@ function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; fa
     f.releaseOnApproval !== policy.releaseOnApproval ||
     f.qcRequired !== policy.qcRequired ||
     f.qcValidHours !== String(policy.qcValidHours) ||
+    f.qcAfterReagentChange !== policy.qcAfterReagentChange ||
     [...f.qcRejectRules].sort().join() !== [...policy.qcRejectRules].sort().join();
   const toggleRule = (rule: QcRejectRule, on: boolean) =>
     setF((s) => ({ ...s, qcRejectRules: on ? [...new Set([...s.qcRejectRules, rule])] : s.qcRejectRules.filter((r) => r !== rule) }));
-  const toggle = (key: "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRequired", label: string) => (
+  const toggle = (key: "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRequired" | "qcAfterReagentChange", label: string) => (
     <label className="flex items-center gap-2 text-table">
       <Checkbox disabled={!canManage} checked={f[key]} onCheckedChange={(c) => setF({ ...f, [key]: c === true })} /> {label}
     </label>
@@ -580,6 +581,7 @@ function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; fa
                   qcRejectRules: f.qcRejectRules,
                   qcValidHours: Number(f.qcValidHours),
                   qcRequired: f.qcRequired,
+                  qcAfterReagentChange: f.qcAfterReagentChange,
                   reason: f.reason,
                 }),
               "Laboratory policy updated",
@@ -623,6 +625,7 @@ function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; fa
               hours
             </div>
             {toggle("qcRequired", "Refuse results on an instrument without QC in that window, or while a control level is rejected")}
+            {toggle("qcAfterReagentChange", "Start the QC window again when a new reagent lot is loaded for a test")}
           </fieldset>
           {canManage && changed ? (
             <div className="flex flex-wrap items-end gap-2">

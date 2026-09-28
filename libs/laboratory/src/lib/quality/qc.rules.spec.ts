@@ -1,4 +1,4 @@
-import { decisiveRun, evaluateQc, qcAllowsResults, zScore } from "./qc.rules";
+import { decisiveRun, evaluateQc, qcAllowsResults, qcWindowStart, zScore } from "./qc.rules";
 
 const L1 = "lot-1";
 const L2 = "lot-2";
@@ -59,5 +59,23 @@ describe("QC gate for patient results", () => {
     expect(qcAllowsResults({ status: "rejected" }, true)).toMatchObject({ allowed: false });
     expect(qcAllowsResults({ status: "warning" }, true).allowed).toBe(true);
     expect(qcAllowsResults({ status: "accepted" }, true).allowed).toBe(true);
+  });
+});
+
+describe("QC window", () => {
+  const window = new Date("2026-09-28T00:00:00Z");
+  const later = new Date("2026-09-28T06:00:00Z");
+  const earlier = new Date("2026-09-27T06:00:00Z");
+
+  it("starts again at the newest reagent lot change when the policy says so", () => {
+    expect(qcWindowStart(window, [{ loadedAt: earlier }, { loadedAt: later }], true)).toEqual(later);
+    expect(qcWindowStart(window, later, true)).toEqual(later);
+  });
+
+  it("keeps the facility window otherwise", () => {
+    expect(qcWindowStart(window, [{ loadedAt: later }], false)).toEqual(window);
+    expect(qcWindowStart(window, [{ loadedAt: earlier }], true)).toEqual(window);
+    expect(qcWindowStart(window, [], true)).toEqual(window);
+    expect(qcWindowStart(window, null, true)).toEqual(window);
   });
 });

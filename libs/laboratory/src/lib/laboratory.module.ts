@@ -11,6 +11,7 @@ import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
 import { LabQualityController } from "./quality/lab-quality.controller";
 import { LabQualityService } from "./quality/lab-quality.service";
+import { LabReagentService } from "./quality/lab-reagent.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
 import { LabResultAttachments } from "./results/lab-result-attachments";
@@ -45,6 +46,7 @@ export class LaboratoryModule {
         LabOrderService,
         LabPatientAccess,
         LabQualityService,
+        LabReagentService,
         LabRecordQueries,
         LabReadModel,
         LabReportService,

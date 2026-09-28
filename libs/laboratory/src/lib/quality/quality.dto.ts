@@ -57,6 +57,22 @@ export const addQcTargetSchema = z.object({
 });
 export class AddQcTargetDto extends createZodDto(addQcTargetSchema) {}
 
+// ---- Reagent lots ---------------------------------------------------------------------------
+
+export const loadReagentSchema = z.object({
+  /** The inventory lot (a reagent item's lot) loaded on the instrument. */
+  inventoryLotId: z.uuid(),
+  /** Only for this test; left out: every test on the instrument. */
+  testId: z.uuid().optional(),
+});
+export class LoadReagentDto extends createZodDto(loadReagentSchema) {}
+
+export const unloadReagentSchema = z.object({ reason: text(500).refine((v) => v.length >= 3, "Say why the lot is unloaded") });
+export class UnloadReagentDto extends createZodDto(unloadReagentSchema) {}
+
+export const reagentQuerySchema = z.object({ instrumentId: z.uuid().optional() });
+export class ReagentQueryDto extends createZodDto(reagentQuerySchema) {}
+
 // ---- QC runs --------------------------------------------------------------------------------
 
 export const recordQcRunSchema = z.object({

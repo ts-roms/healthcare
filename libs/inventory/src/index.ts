@@ -2,4 +2,5 @@ export * from "./lib/catalog/inventory-catalog.service";
 export * from "./lib/inventory.module";
 export * from "./lib/inventory.rules";
 export * from "./lib/inventory.schema";
+export * from "./lib/stock/inventory-queries";
 export * from "./lib/stock/inventory-stock.service";

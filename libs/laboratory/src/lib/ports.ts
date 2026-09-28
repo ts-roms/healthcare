@@ -12,10 +12,26 @@ export interface LaboratoryContext {
   practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>>;
   /** Display names of staff users (who collected, entered, verified, approved). */
   staffNames(organizationId: string, userIds: string[]): Promise<Map<string, string>>;
+  /** An inventory lot (reagents are inventory items), to record which lot is loaded on an instrument. */
+  inventoryLot(organizationId: string, lotId: string): Promise<LabInventoryLot | undefined>;
+  /** Reagent lots with stock at the facility (what can be loaded), earliest expiry first. */
+  reagentLotsInStock(organizationId: string, facilityId: string): Promise<Array<LabInventoryLot & { quantity: number; stockUnit: string }>>;
   encounter(
     organizationId: string,
     encounterId: string,
   ): Promise<{ id: string; patientId: string; facilityId: string; status: "in_progress" | "completed" | "entered_in_error"; modality: string } | undefined>;
+}
+
+export interface LabInventoryLot {
+  lotId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  /** The inventory item category; only "reagent" lots are loaded on instruments. */
+  category: string;
+  itemStatus: "active" | "inactive";
+  lotNumber: string | null;
+  expiryDate: string | null;
 }
 
 export interface LabPatientBrief {

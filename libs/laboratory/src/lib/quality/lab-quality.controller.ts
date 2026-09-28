@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Que
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { LabQualityService } from "./lab-quality.service";
+import { LabReagentService } from "./lab-reagent.service";
 import {
   AddQcTargetDto,
   CreateInstrumentDto,
@@ -9,9 +10,12 @@ import {
   CreateQcMaterialDto,
   InstrumentEventDto,
   InstrumentQueryDto,
+  LoadReagentDto,
   QcActionDto,
   QcRunQueryDto,
+  ReagentQueryDto,
   RecordQcRunDto,
+  UnloadReagentDto,
   UpdateInstrumentDto,
 } from "./quality.dto";
 
@@ -22,7 +26,10 @@ const uuid = new ParseUUIDPipe();
 @ApiBearerAuth()
 @Controller({ path: "laboratory", version: "1" })
 export class LabQualityController {
-  constructor(private readonly quality: LabQualityService) {}
+  constructor(
+    private readonly quality: LabQualityService,
+    private readonly reagents: LabReagentService,
+  ) {}
 
   // ---- Instruments ----------------------------------------------------------------------
 
@@ -60,6 +67,47 @@ export class LabQualityController {
   @ApiOperation({ summary: "Record maintenance or calibration, or take the instrument out of / back into service (retiring needs lab.qc.manage)" })
   logInstrument(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: InstrumentEventDto) {
     return this.quality.recordInstrumentEvent(actor, id, body);
+  }
+
+  // ---- Reagent lots ----------------------------------------------------------------------
+
+  @Get("reagents")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Reagent lots loaded on instruments at the selected facility (optionally one instrument)" })
+  reagentsInUse(@CurrentActor() actor: Actor, @Query() query: ReagentQueryDto) {
+    return this.reagents.inUse(actor, query.instrumentId);
+  }
+
+  @Get("reagents/available")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Unexpired reagent lots with stock at the selected facility (from inventory), to load on an instrument" })
+  reagentsAvailable(@CurrentActor() actor: Actor) {
+    return this.reagents.available(actor);
+  }
+
+  @Get("instruments/:id/reagents")
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Every reagent lot loaded on the instrument, newest first" })
+  reagentHistory(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
+    return this.reagents.history(actor, id);
+  }
+
+  @Post("instruments/:id/reagents")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.enter")
+  @ApiOperation({ summary: "Load a reagent lot on the instrument (all tests or one); replaces the lot of the same reagent in use" })
+  loadReagent(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: LoadReagentDto) {
+    return this.reagents.load(actor, id, body);
+  }
+
+  @Post("reagents/:loadId/unload")
+  @HttpCode(200)
+  @RequireFacility()
+  @RequirePermissions("lab.qc.enter")
+  unloadReagent(@CurrentActor() actor: Actor, @Param("loadId", uuid) loadId: string, @Body() body: UnloadReagentDto) {
+    return this.reagents.unload(actor, loadId, body.reason);
   }
 
   // ---- QC materials, lots, targets -------------------------------------------------------

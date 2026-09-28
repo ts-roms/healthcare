@@ -49,9 +49,12 @@ export const DEFAULT_LAB_POLICY = {
   qcRejectRules: ["1_3s", "2_2s", "R_4s"] as QcRejectRule[],
   qcValidHours: 24,
   qcRequired: false,
+  // Reagent lots (0051): a new lot starts the test's QC window again.
+  qcAfterReagentChange: true,
 };
 
-type PolicyFields = "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRejectRules" | "qcValidHours" | "qcRequired";
+type PolicyFields =
+  "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRejectRules" | "qcValidHours" | "qcRequired" | "qcAfterReagentChange";
 
 export type TestView = Omit<LabTestRecord, "organizationId"> & { referenceRanges: Array<Omit<LabReferenceRangeRecord, "organizationId">> };
 
@@ -343,6 +346,7 @@ export class LabCatalogService {
         qcRejectRules: given.qcRejectRules ?? before.qcRejectRules,
         qcValidHours: given.qcValidHours ?? before.qcValidHours,
         qcRequired: given.qcRequired ?? before.qcRequired,
+        qcAfterReagentChange: given.qcAfterReagentChange ?? before.qcAfterReagentChange,
       };
       const [row] = await tx
         .insert(labFacilityPolicy)
@@ -366,6 +370,7 @@ export class LabCatalogService {
           "qcRejectRules",
           "qcValidHours",
           "qcRequired",
+          "qcAfterReagentChange",
         ]),
       });
       return publicView(saved);

@@ -456,6 +456,7 @@ function ResultRow({ item, result, permissions, onChanged }: { item: LabOrderIte
             <span className="text-danger-foreground">QC was rejected when this result was entered — review before verifying.</span>
           ) : null}
           {result.qcStatus === "none" ? <span>No QC run covered this result.</span> : null}
+          {result.reagents.length ? <span>Reagent: {result.reagents.map((g) => `${g.itemName} lot ${g.lotNumber ?? "—"}`).join(", ")}</span> : null}
         </p>
       ) : null}
       <PerformedBy laboratory={result.performingLaboratory} />

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { LabInstrument, LabInstrumentLogEntry, LabQcLot, LabQcMaterial, LabQcRun, LabQcTarget } from "@/lib/api/types";
+import type { LabInstrument, LabInstrumentLogEntry, LabQcLot, LabQcMaterial, LabQcRun, LabQcTarget, LabReagentLoad } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
@@ -58,6 +58,28 @@ export async function logInstrument(input: z.input<typeof logSchema>): Promise<A
 export async function loadInstrumentLog(instrumentId: string): Promise<ActionResult<LabInstrumentLogEntry[]>> {
   if (!id.safeParse(instrumentId).success) return { ok: false, message: "Invalid request." };
   return actionResult(() => api<LabInstrumentLogEntry[]>(`/laboratory/instruments/${instrumentId}/log`));
+}
+
+// ---- Reagent lots ------------------------------------------------------------------------------
+
+const loadSchema = z.object({ instrumentId: id, inventoryLotId: id, testId: id.optional() });
+export async function loadReagentLot(input: z.input<typeof loadSchema>): Promise<ActionResult<LabReagentLoad>> {
+  const parsed = loadSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { instrumentId, ...body } = parsed.data;
+  return actionResult(() => api<LabReagentLoad>(`/laboratory/instruments/${instrumentId}/reagents`, { method: "POST", body }));
+}
+
+const unloadSchema = z.object({ loadId: id, reason: z.string().trim().min(3, "Say why the lot is unloaded.").max(500) });
+export async function unloadReagentLot(input: z.input<typeof unloadSchema>): Promise<ActionResult<LabReagentLoad>> {
+  const parsed = unloadSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() => api<LabReagentLoad>(`/laboratory/reagents/${parsed.data.loadId}/unload`, { method: "POST", body: { reason: parsed.data.reason } }));
+}
+
+export async function loadReagentHistory(instrumentId: string): Promise<ActionResult<LabReagentLoad[]>> {
+  if (!id.safeParse(instrumentId).success) return { ok: false, message: "Invalid request." };
+  return actionResult(() => api<LabReagentLoad[]>(`/laboratory/instruments/${instrumentId}/reagents`));
 }
 
 // ---- QC setup ----------------------------------------------------------------------------------

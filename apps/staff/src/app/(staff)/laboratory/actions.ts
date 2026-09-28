@@ -272,6 +272,7 @@ const policySchema = z.object({
   qcRejectRules: z.array(z.enum(["1_3s", "2_2s", "R_4s", "4_1s", "10_x"])).optional(),
   qcValidHours: z.number().int().min(1, "The QC window is 1 to 168 hours.").max(168, "The QC window is 1 to 168 hours.").optional(),
   qcRequired: z.boolean().optional(),
+  qcAfterReagentChange: z.boolean().optional(),
   reason,
 });
 export async function setLabPolicy(input: z.input<typeof policySchema>): Promise<ActionResult<LabPolicy>> {

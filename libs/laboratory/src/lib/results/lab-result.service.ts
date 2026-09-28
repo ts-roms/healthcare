@@ -610,7 +610,9 @@ export class LabResultService {
         performingLaboratory: options.attribution?.performingLaboratory ?? null,
       })
       .returning();
-    return found(row, "Laboratory result");
+    const created = found(row, "Laboratory result");
+    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created.id, qc.reagentLoadIds);
+    return created;
   }
 
   private validateValue(test: LabTestRecord, input: ResultValueInput): Pick<LabResultRecord, "valueNumeric" | "valueText" | "valueCoded"> {

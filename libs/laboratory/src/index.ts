@@ -8,6 +8,7 @@ export * from "./lib/orders/lab-order.service";
 export * from "./lib/orders/lab-worklist.service";
 export * from "./lib/ports";
 export * from "./lib/quality/lab-quality.service";
+export * from "./lib/quality/lab-reagent.service";
 export * from "./lib/quality/qc.rules";
 export * from "./lib/results/lab-patient-access";
 export * from "./lib/results/lab-record-queries";

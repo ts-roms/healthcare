@@ -174,7 +174,7 @@ describe("laboratory quality control and instruments", () => {
 
     it("shows the QC board per test and instrument, decided by the worst latest level", async () => {
       const board = await req("get", "/qc/status", medtech).expect(200);
-      expect(board.body.policy).toEqual({ qcRequired: false, qcValidHours: 24, qcRejectRules: ["1_3s", "2_2s", "R_4s"] });
+      expect(board.body.policy).toEqual({ qcRequired: false, qcValidHours: 24, qcRejectRules: ["1_3s", "2_2s", "R_4s"], qcAfterReagentChange: true });
       const row = board.body.rows.find((r: { testId: string }) => r.testId === ids.glu);
       expect(row).toMatchObject({ instrumentId: ids.analyzer, decisiveRun: { id: ids.rejectedRun, status: "rejected" }, resultsAllowed: true });
       expect(row.lots).toHaveLength(2);

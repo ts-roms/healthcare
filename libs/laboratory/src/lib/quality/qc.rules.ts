@@ -80,3 +80,13 @@ export function qcAllowsResults(latest: { status: QcStatus } | null, required: b
   if (latest.status === "rejected") return { allowed: false, reason: "The latest QC run of a control level for this test on this instrument was rejected" };
   return { allowed: true };
 }
+
+/**
+ * Where a test's QC window starts: the facility's window, or — when the policy restarts QC on a reagent lot change —
+ * the newest load of a lot in use for the test on the instrument, if later.
+ */
+export function qcWindowStart(windowStart: Date, reagents: Array<{ loadedAt: Date }> | Date | null, afterReagentChange: boolean): Date {
+  if (!afterReagentChange || reagents === null) return windowStart;
+  const latest = reagents instanceof Date ? reagents : reagents.reduce<Date | null>((l, r) => (!l || r.loadedAt > l ? r.loadedAt : l), null);
+  return latest && latest > windowStart ? latest : windowStart;
+}

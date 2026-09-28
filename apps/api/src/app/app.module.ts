@@ -78,7 +78,7 @@ export class AppModule implements NestModule {
   static forRoot(config: AppConfig, overrides: AppModuleOverrides = {}): DynamicModule {
     // One instance, imported by the app and by billing (which reads laboratory orders through an adapter).
     const laboratory = LaboratoryModule.forRoot({
-      imports: [PatientModule, AuthModule],
+      imports: [PatientModule, AuthModule, InventoryModule],
       context: AppLaboratoryContext,
       archiveQueue: overrides.labReportArchiveQueue,
     });

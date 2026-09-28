@@ -34,7 +34,8 @@ import {
 } from "../laboratory.schema";
 import { assertVersion, found, publicView, uniquely } from "../laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
-import { decisiveRun, evaluateQc, qcAllowsResults, zScore } from "./qc.rules";
+import { isExpired, LabReagentService, type RecordedReagent, recorded } from "./lab-reagent.service";
+import { decisiveRun, evaluateQc, qcAllowsResults, qcWindowStart, zScore } from "./qc.rules";
 import type {
   addQcTargetSchema,
   createInstrumentSchema,
@@ -68,6 +69,8 @@ export type QcRunView = Omit<LabQcRunRecord, "organizationId"> & {
   materialName: string;
   level: string;
   actions: Array<{ id: string; action: string; recordedAt: Date; recordedByName: string | null }>;
+  /** Reagent lots loaded on the instrument for the test when the run was recorded. */
+  reagents: RecordedReagent[];
 };
 
 /**
@@ -84,6 +87,7 @@ export class LabQualityService {
     @Inject(DATABASE) private readonly db: Database,
     @Inject(LABORATORY_CONTEXT) private readonly context: LaboratoryContext,
     private readonly catalog: LabCatalogService,
+    private readonly reagents: LabReagentService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
@@ -439,6 +443,7 @@ export class LabQualityService {
           ),
         );
       if (!target) throw new BusinessRuleError("Set a target mean and SD for this lot, test and instrument first", "qc_target_missing");
+      const reagents = await this.reagents.forUse(tx, actor.organizationId, facilityId, input.instrumentId, input.testId);
       const previous = await tx
         .select({ z: labQcRun.zScore, qcLotId: labQcRun.qcLotId })
         .from(labQcRun)
@@ -468,11 +473,19 @@ export class LabQualityService {
         })
         .returning();
       const run = found(row, "QC run");
+      await this.reagents.recordOnQcRun(tx, actor.organizationId, run.id, reagents.loadIds);
       await this.audit.record(tx, actor, {
         action: "lab.qc.run.record",
         resourceType: "lab_qc_run",
         resourceId: run.id,
-        metadata: { instrumentId: run.instrumentId, testId: run.testId, qcLotId: run.qcLotId, status: run.status, violations: run.violations },
+        metadata: {
+          instrumentId: run.instrumentId,
+          testId: run.testId,
+          qcLotId: run.qcLotId,
+          status: run.status,
+          violations: run.violations,
+          reagentLoadIds: reagents.loadIds,
+        },
       });
       if (run.status === "rejected") {
         await this.events.record(tx, {
@@ -529,7 +542,8 @@ export class LabQualityService {
    */
   async status(actor: Actor) {
     const facilityId = requireFacilityId(actor);
-    const policy = await this.catalog.policy(this.db, facilityId);
+    const [policy, facility] = await Promise.all([this.catalog.policy(this.db, facilityId), this.organizations.getFacility(actor.organizationId, facilityId)]);
+    const today = localDate(new Date(), facility.timezone);
     const since = new Date(Date.now() - policy.qcValidHours * 3_600_000);
     const pairs = await this.db
       .selectDistinct({
@@ -568,20 +582,34 @@ export class LabQualityService {
           )
           .orderBy(labQcRun.instrumentId, labQcRun.testId, labQcRun.qcLotId, desc(labQcRun.runAt), desc(labQcRun.enteredAt))
       : [];
+    const loads = await this.reagents.current(this.db, [...new Set(pairs.map((p) => p.instrumentId))]);
     return {
-      policy: { qcRequired: policy.qcRequired, qcValidHours: policy.qcValidHours, qcRejectRules: policy.qcRejectRules },
+      policy: {
+        qcRequired: policy.qcRequired,
+        qcValidHours: policy.qcValidHours,
+        qcRejectRules: policy.qcRejectRules,
+        qcAfterReagentChange: policy.qcAfterReagentChange,
+      },
       rows: pairs.map((pair) => {
-        const runs = latest.filter((r) => r.instrumentId === pair.instrumentId && r.testId === pair.testId).sort((a, b) => +b.runAt - +a.runAt);
+        const applying = loads.filter((l) => l.instrumentId === pair.instrumentId && (l.testId === null || l.testId === pair.testId));
+        const start = qcWindowStart(since, applying, policy.qcAfterReagentChange);
+        const runs = latest
+          .filter((r) => r.instrumentId === pair.instrumentId && r.testId === pair.testId && r.runAt >= start)
+          .sort((a, b) => +b.runAt - +a.runAt);
         const decisive = decisiveRun(runs);
+        const reagents = applying.map((l) => ({ ...recorded(l), loadedAt: l.loadedAt, expired: isExpired(l.expiryDate, today) }));
         return {
           ...pair,
+          /** Runs from here on count: the QC window, or the newest reagent lot change if the policy says so. */
+          qcSince: start,
+          reagents,
           /** The run that decides the state: the worst latest control level within the window. */
           decisiveRun: decisive
             ? { id: decisive.id, status: decisive.status, runAt: decisive.runAt, qcLotId: decisive.qcLotId, violations: decisive.violations }
             : null,
           /** Latest run per control lot within the window, newest first. */
           lots: runs.map((r) => ({ runId: r.id, qcLotId: r.qcLotId, status: r.status, runAt: r.runAt, violations: r.violations })),
-          resultsAllowed: pair.instrumentStatus === "active" && qcAllowsResults(decisive, policy.qcRequired).allowed,
+          resultsAllowed: pair.instrumentStatus === "active" && !reagents.some((r) => r.expired) && qcAllowsResults(decisive, policy.qcRequired).allowed,
         };
       }),
     };
@@ -600,11 +628,13 @@ export class LabQualityService {
     facilityId: string,
     instrumentId: string,
     testId: string,
-  ): Promise<{ instrument: LabInstrumentRecord; qcRunId: string | null; qcStatus: QcStatus | "none" }> {
+  ): Promise<{ instrument: LabInstrumentRecord; qcRunId: string | null; qcStatus: QcStatus | "none"; reagentLoadIds: string[] }> {
     const instrument = await this.findInstrument(tx, organizationId, instrumentId);
     if (instrument.facilityId !== facilityId) throw new BusinessRuleError("This instrument belongs to another facility", "wrong_facility");
     if (instrument.status !== "active") throw new BusinessRuleError(`The instrument is ${instrument.status.replace(/_/g, " ")}`, "instrument_unavailable");
     const policy = await this.catalog.policy(tx, facilityId);
+    const reagents = await this.reagents.forUse(tx, organizationId, facilityId, instrumentId, testId);
+    const start = qcWindowStart(new Date(Date.now() - policy.qcValidHours * 3_600_000), reagents.latestChange, policy.qcAfterReagentChange);
     const latestPerLot = await tx
       .selectDistinctOn([labQcRun.qcLotId], { id: labQcRun.id, status: labQcRun.status, runAt: labQcRun.runAt })
       .from(labQcRun)
@@ -612,7 +642,7 @@ export class LabQualityService {
         and(
           eq(labQcRun.instrumentId, instrumentId),
           eq(labQcRun.testId, testId),
-          gte(labQcRun.runAt, new Date(Date.now() - policy.qcValidHours * 3_600_000)),
+          gte(labQcRun.runAt, start),
           lte(labQcRun.runAt, new Date(Date.now() + 60_000)),
         ),
       )
@@ -620,7 +650,12 @@ export class LabQualityService {
     const decisive = decisiveRun(latestPerLot);
     const gate = qcAllowsResults(decisive, policy.qcRequired);
     if (!gate.allowed) throw new BusinessRuleError(`${gate.reason}. Run QC before entering patient results.`, "qc_not_accepted");
-    return { instrument, qcRunId: decisive?.id ?? null, qcStatus: decisive?.status ?? "none" };
+    return { instrument, qcRunId: decisive?.id ?? null, qcStatus: decisive?.status ?? "none", reagentLoadIds: reagents.loadIds };
+  }
+
+  /** Records the reagent lots in use on a result entered on an instrument (with qcForResult, in the same transaction). */
+  recordResultReagents(tx: DbExecutor, organizationId: string, resultId: string, loadIds: string[]): Promise<void> {
+    return this.reagents.recordOnResult(tx, organizationId, resultId, loadIds);
   }
 
   // ---- internals ------------------------------------------------------------------------
@@ -644,7 +679,13 @@ export class LabQualityService {
         )
         .orderBy(asc(labQcAction.recordedAt)),
     ]);
-    const names = await this.context.staffNames(organizationId, [...new Set([...runs.map((r) => r.enteredBy), ...actions.map((a) => a.recordedBy)])]);
+    const [names, reagents] = await Promise.all([
+      this.context.staffNames(organizationId, [...new Set([...runs.map((r) => r.enteredBy), ...actions.map((a) => a.recordedBy)])]),
+      this.reagents.onQcRuns(
+        executor,
+        runs.map((r) => r.id),
+      ),
+    ]);
     return runs.map((run) => {
       const lot = lots.find((l) => l.id === run.qcLotId);
       return {
@@ -656,6 +697,7 @@ export class LabQualityService {
         actions: actions
           .filter((a) => a.qcRunId === run.id)
           .map((a) => ({ id: a.id, action: a.action, recordedAt: a.recordedAt, recordedByName: names.get(a.recordedBy) ?? null })),
+        reagents: reagents.get(run.id) ?? [],
       };
     });
   }

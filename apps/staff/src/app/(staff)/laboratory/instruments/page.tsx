@@ -3,7 +3,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { LabCatalogEntry, LabInstrument } from "@/lib/api/types";
+import type { LabAvailableReagentLot, LabCatalogEntry, LabInstrument, LabReagentLoad, LabTest } from "@/lib/api/types";
 import { InstrumentRegister } from "./instrument-register";
 
 export const metadata = { title: "Laboratory instruments" };
@@ -20,9 +20,14 @@ export default async function InstrumentsPage({ searchParams }: { searchParams: 
     );
   }
   const includeRetired = params.show === "retired";
-  const [instruments, departments] = await Promise.all([
+  const canLog = can(session, "lab.qc.enter");
+  const [instruments, departments, reagents, available, tests] = await Promise.all([
     api<LabInstrument[]>("/laboratory/instruments", { query: { includeRetired: includeRetired ? "true" : undefined } }),
     api<LabCatalogEntry[]>("/laboratory/departments"),
+    api<LabReagentLoad[]>("/laboratory/reagents"),
+    // Lots to load come from inventory stock at this facility.
+    canLog ? api<LabAvailableReagentLot[]>("/laboratory/reagents/available") : Promise.resolve([]),
+    canLog ? api<LabTest[]>("/laboratory/tests") : Promise.resolve([]),
   ]);
   return (
     <>
@@ -33,8 +38,11 @@ export default async function InstrumentsPage({ searchParams }: { searchParams: 
       <InstrumentRegister
         instruments={instruments}
         departments={departments}
+        reagents={reagents}
+        availableLots={available}
+        tests={tests}
         includeRetired={includeRetired}
-        canLog={can(session, "lab.qc.enter")}
+        canLog={canLog}
         canManage={can(session, "lab.qc.manage")}
       />
     </>

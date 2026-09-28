@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClockIcon, CheckCircle2Icon, HistoryIcon, PlusIcon, WrenchIcon, XCircleIcon } from "lucide-react";
+import { CalendarClockIcon, CheckCircle2Icon, FlaskRoundIcon, HistoryIcon, PlusIcon, TriangleAlertIcon, WrenchIcon, XCircleIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import {
   Badge,
@@ -23,8 +23,16 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabInstrument, LabInstrumentEventKind, LabInstrumentLogEntry } from "@/lib/api/types";
-import { createInstrument, loadInstrumentLog, logInstrument } from "../quality-actions";
+import type {
+  LabAvailableReagentLot,
+  LabCatalogEntry,
+  LabInstrument,
+  LabInstrumentEventKind,
+  LabInstrumentLogEntry,
+  LabReagentLoad,
+  LabTest,
+} from "@/lib/api/types";
+import { createInstrument, loadInstrumentLog, loadReagentHistory, loadReagentLot, logInstrument, unloadReagentLot } from "../quality-actions";
 
 const KIND_LABEL: Record<LabInstrumentEventKind, string> = {
   maintenance: "Maintenance",
@@ -69,12 +77,19 @@ function useRun() {
 export function InstrumentRegister({
   instruments,
   departments,
+  reagents,
+  availableLots,
+  tests,
   includeRetired,
   canLog,
   canManage,
 }: {
   instruments: LabInstrument[];
   departments: LabCatalogEntry[];
+  /** Reagent lots loaded now at the facility. */
+  reagents: LabReagentLoad[];
+  availableLots: LabAvailableReagentLot[];
+  tests: LabTest[];
   includeRetired: boolean;
   canLog: boolean;
   canManage: boolean;
@@ -100,6 +115,7 @@ export function InstrumentRegister({
                   <TableHead>Status</TableHead>
                   <TableHead>Calibration</TableHead>
                   <TableHead>Maintenance</TableHead>
+                  <TableHead>Reagent lots</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
@@ -156,6 +172,9 @@ export function InstrumentRegister({
                             <span className="text-muted-foreground">Not recorded</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-table">
+                          <ReagentSummary loads={reagents.filter((r) => r.instrumentId === i.id)} />
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button size="xs" variant="outline" onClick={() => setOpen(open === i.id ? null : i.id)}>
                             <HistoryIcon /> {open === i.id ? "Close" : "Log"}
@@ -164,7 +183,14 @@ export function InstrumentRegister({
                       </TableRow>
                       {open === i.id ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="bg-muted/30">
+                          <TableCell colSpan={6} className="bg-muted/30 whitespace-normal">
+                            <ReagentPanel
+                              instrument={i}
+                              loads={reagents.filter((r) => r.instrumentId === i.id)}
+                              availableLots={availableLots}
+                              tests={tests}
+                              canLog={canLog}
+                            />
                             <InstrumentLog instrument={i} canLog={canLog} canManage={canManage} />
                           </TableCell>
                         </TableRow>
@@ -276,6 +302,168 @@ function InstrumentLog({ instrument, canLog, canManage }: { instrument: LabInstr
           ))}
         </ul>
       ) : null}
+    </div>
+  );
+}
+
+function ReagentSummary({ loads }: { loads: LabReagentLoad[] }) {
+  if (loads.length === 0) return <span className="text-muted-foreground">None loaded</span>;
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {loads.map((l) => (
+        <li key={l.id} className={l.expired ? "font-medium text-danger-foreground" : undefined}>
+          {l.expired ? <TriangleAlertIcon className="mr-1 inline size-3.5" aria-hidden /> : null}
+          {l.itemName} · lot {l.lotNumber ?? "—"}
+          {l.expired ? " (expired)" : ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Reagent lots loaded on the instrument: load a lot from inventory stock (replaces the lot of the same reagent), unload, history. */
+function ReagentPanel({
+  instrument,
+  loads,
+  availableLots,
+  tests,
+  canLog,
+}: {
+  instrument: LabInstrument;
+  loads: LabReagentLoad[];
+  availableLots: LabAvailableReagentLot[];
+  tests: LabTest[];
+  canLog: boolean;
+}) {
+  const { pending, run } = useRun();
+  const [f, setF] = React.useState({ inventoryLotId: "", testId: "" });
+  const [unloading, setUnloading] = React.useState<{ loadId: string; reason: string } | null>(null);
+  const [history, setHistory] = React.useState<LabReagentLoad[] | null>(null);
+  const canLoad = canLog && instrument.status !== "retired";
+
+  return (
+    <div className="mb-3 flex flex-col gap-2 border-b p-1 pb-3">
+      <p className="flex items-center gap-1.5 text-table font-medium">
+        <FlaskRoundIcon className="size-4" aria-hidden /> Reagent lots in use
+      </p>
+      <p className="text-meta text-muted-foreground">
+        QC runs and patient results on this instrument record the lots in use. Loading a new lot of the same reagent replaces the current one, and — depending
+        on the facility&apos;s QC policy — QC must be run again before results are covered.
+      </p>
+      {loads.length === 0 ? <p className="text-meta text-muted-foreground">No reagent lot loaded.</p> : null}
+      <ul className="flex flex-col gap-1 text-table">
+        {loads.map((l) => (
+          <li key={l.id} className="flex flex-wrap items-center gap-2">
+            <span className={l.expired ? "font-medium text-danger-foreground" : undefined}>
+              {l.itemName} · lot {l.lotNumber ?? "—"}
+              {l.expiryDate ? ` · expires ${clinicalDate(l.expiryDate)}` : ""}
+            </span>
+            {l.expired ? (
+              <Badge variant="danger">
+                <TriangleAlertIcon aria-hidden /> Expired — QC and results refused
+              </Badge>
+            ) : null}
+            <span className="text-meta text-muted-foreground">
+              {l.testName ? `for ${l.testName}` : "all tests"} · loaded {clinicalDateTime(l.loadedAt)} by {l.loadedByName}
+            </span>
+            {canLog ? (
+              unloading?.loadId === l.id ? (
+                <form
+                  className="flex items-center gap-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(
+                      () => unloadReagentLot(unloading),
+                      "Lot unloaded",
+                      () => setUnloading(null),
+                    );
+                  }}
+                >
+                  <Input
+                    aria-label="Reason for unloading"
+                    placeholder="Why (e.g. used up, expired)"
+                    value={unloading.reason}
+                    onChange={(e) => setUnloading({ ...unloading, reason: e.target.value })}
+                    maxLength={500}
+                    className="h-7 w-56"
+                  />
+                  <Button type="submit" size="xs" disabled={pending || unloading.reason.trim().length < 3}>
+                    Unload
+                  </Button>
+                  <Button type="button" size="xs" variant="ghost" onClick={() => setUnloading(null)}>
+                    Cancel
+                  </Button>
+                </form>
+              ) : (
+                <Button size="xs" variant="ghost" onClick={() => setUnloading({ loadId: l.id, reason: "" })}>
+                  Unload…
+                </Button>
+              )
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {canLoad ? (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(
+              () => loadReagentLot({ instrumentId: instrument.id, inventoryLotId: f.inventoryLotId, testId: f.testId || undefined }),
+              "Reagent lot loaded",
+              () => setF({ inventoryLotId: "", testId: "" }),
+            );
+          }}
+        >
+          <div className="grid gap-1">
+            <Label htmlFor={`reagent-${instrument.id}`}>Load a lot from stock</Label>
+            <NativeSelect id={`reagent-${instrument.id}`} value={f.inventoryLotId} onChange={(e) => setF({ ...f, inventoryLotId: e.target.value })}>
+              <option value="">{availableLots.length ? "Choose a reagent lot…" : "No reagent lots in stock at this facility"}</option>
+              {availableLots.map((l) => (
+                <option key={l.lotId} value={l.lotId}>
+                  {l.itemName} · lot {l.lotNumber ?? "—"}
+                  {l.expiryDate ? ` · exp. ${clinicalDate(l.expiryDate)}` : ""} · {l.quantity} {l.stockUnit}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor={`reagent-test-${instrument.id}`}>For</Label>
+            <NativeSelect id={`reagent-test-${instrument.id}`} value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value })}>
+              <option value="">All tests on this instrument</option>
+              {tests.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <Button type="submit" size="sm" disabled={pending || !f.inventoryLotId}>
+            <PlusIcon /> Load lot
+          </Button>
+        </form>
+      ) : null}
+      <div>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() =>
+            history ? setHistory(null) : void loadReagentHistory(instrument.id).then((r) => (r.ok ? setHistory(r.data) : toast.error(r.message)))
+          }
+        >
+          <HistoryIcon /> {history ? "Hide lot history" : "Lot history"}
+        </Button>
+        {history ? (
+          <ul className="mt-1 flex flex-col gap-0.5 text-meta">
+            {history.map((l) => (
+              <li key={l.id}>
+                {l.itemName} · lot {l.lotNumber ?? "—"} ({l.testName ?? "all tests"}): loaded {clinicalDateTime(l.loadedAt)} by {l.loadedByName}
+                {l.unloadedAt ? ` · unloaded ${clinicalDateTime(l.unloadedAt)} by ${l.unloadedByName} — ${l.unloadReason}` : " · in use"}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
