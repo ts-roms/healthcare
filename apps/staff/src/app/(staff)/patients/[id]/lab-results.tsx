@@ -5,6 +5,7 @@ import { AlertOctagonIcon, LineChartIcon, PrinterIcon } from "lucide-react";
 import { clinicalDate, LabFlagBadge, LabTrendChart } from "@healthcare/ui/healthcare";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabTrend, PatientLabResult } from "@/lib/api/types";
+import { PerformedBy } from "@/components/send-out-badge";
 import { fileHref } from "@/lib/files";
 import { groupResultsByTest, latestRange, mixedUnits, referenceText, resultValue, trendPoints, uiFlag } from "@/lib/lab-mapping";
 import { loadLabTrend } from "../../laboratory/actions";
@@ -48,6 +49,7 @@ export function PatientLabResults({ patientId, results }: { patientId: string; r
                 <TableCell>
                   {testName}
                   {latest.versionNumber > 1 ? <span className="block text-meta text-warning-foreground">Corrected: {latest.correctionReason}</span> : null}
+                  <PerformedBy laboratory={latest.performingLaboratory} />
                 </TableCell>
                 <TableCell>
                   <span className="flex flex-wrap items-center gap-1.5">

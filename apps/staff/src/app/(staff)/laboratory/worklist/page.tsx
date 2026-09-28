@@ -3,7 +3,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow } from "@/lib/api/types";
+import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, ReferenceLaboratory } from "@/lib/api/types";
 import { isStage, STAGES } from "@/lib/lab-mapping";
 import { LabWorkbench } from "./workbench";
 
@@ -23,11 +23,12 @@ export default async function WorklistPage({ searchParams }: { searchParams: Pro
   // Default to the first stage this user can act on.
   const stage = isStage(params.stage) ? params.stage : (STAGES.find((s) => can(session, s.permission))?.stage ?? "collect");
   const departmentId = params.department && /^[0-9a-f-]{36}$/.test(params.department) ? params.department : undefined;
-  const [rows, dashboard, departments, specimenTypes] = await Promise.all([
+  const [rows, dashboard, departments, specimenTypes, referenceLabs] = await Promise.all([
     api<LabWorklistRow[]>("/laboratory/worklist", { query: { stage, departmentId } }),
     can(session, "lab.dashboard.read") ? api<LabDashboard>("/laboratory/dashboard") : Promise.resolve(null),
     api<LabCatalogEntry[]>("/laboratory/departments"),
     api<LabSpecimenType[]>("/laboratory/specimen-types"),
+    api<ReferenceLaboratory[]>("/laboratory/reference-labs"),
   ]);
   return (
     <LabWorkbench
@@ -39,6 +40,7 @@ export default async function WorklistPage({ searchParams }: { searchParams: Pro
       dashboard={dashboard}
       departments={departments}
       specimenTypes={specimenTypes}
+      referenceLabs={referenceLabs}
       permissions={{
         collect: can(session, "lab.specimen.collect"),
         receive: can(session, "lab.specimen.receive"),
