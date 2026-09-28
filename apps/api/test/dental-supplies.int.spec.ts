@@ -89,6 +89,7 @@ describe("dental supplies", () => {
     ids.gloves = await item({ code: "gloves-m", name: "Exam gloves (M)", category: "ppe", stockUnit: "pair", tracksLots: false });
     ids.midazolam = await item({ code: "midazolam-5", name: "Midazolam 5 mg/mL", category: "medicine", stockUnit: "ampoule", controlled: true });
     ids.retired = await item({ code: "retired-bond", name: "Retired bonding agent", category: "dental_supply", stockUnit: "bottle" });
+    ids.reagent = await item({ code: "glucose-reagent", name: "Glucose reagent", category: "reagent", stockUnit: "kit" });
     await ctx.http().patch(`/api/v1/inventory/items/${ids.retired}`).set(as(admin, tenant.facilityId)).send({ status: "inactive", version: 1 }).expect(200);
     ids.cabinet = (
       await api(admin).post("/inventory/locations", { facilityId: tenant.facilityId, code: "dental-cabinet", name: "Dental cabinet" }).expect(201)
@@ -101,6 +102,7 @@ describe("dental supplies", () => {
     ids.cOld = await receive(ids.composite, 10, "C0", manilaDate(-1));
     ids.l1 = await receive(ids.lido, 20, "L1", manilaDate(200));
     ids.g = await receive(ids.gloves, 50);
+    ids.r1 = await receive(ids.reagent, 3, "R1", manilaDate(200));
     ids.m1 = await api(admin)
       .post("/inventory/receipts", {
         locationId: ids.cabinet,
@@ -144,12 +146,17 @@ describe("dental supplies", () => {
           { itemId: ids.retired, quantity: 1 },
           { itemId: ids.lido, quantity: 1 },
           { itemId: ids.lido, quantity: 2 },
+          { itemId: ids.reagent, quantity: 1 },
         ],
       })
       .expect(422);
     expect(invalid.body.error).toMatchObject({
       code: "invalid_supply_template",
-      details: { [ids.retired]: ["Retired bonding agent is inactive"], [ids.lido]: ["listed more than once"] },
+      details: {
+        [ids.retired]: ["Retired bonding agent is inactive"],
+        [ids.lido]: ["listed more than once"],
+        [ids.reagent]: ["Glucose reagent is not a dental supply (reagent)"],
+      },
     });
     await api(admin).put(`/dental/procedure-types/${ids.composite1s}/supplies`, template).expect(200);
 
@@ -165,6 +172,7 @@ describe("dental supplies", () => {
     const composite = options.items.find((i: { id: string }) => i.id === ids.composite);
     expect(composite.usable).toEqual({ [ids.cabinet]: 7 }); // the expired lot does not count
     expect(options.items.some((i: { id: string }) => i.id === ids.retired)).toBe(false);
+    expect(options.items.some((i: { id: string }) => i.id === ids.reagent)).toBe(false); // laboratory items are not offered
 
     expect(await auditRows(ctx.pool, "action = 'dental.supply-template.update' AND resource_id = $1", [ids.composite1s])).toHaveLength(1);
     expect(await auditRows(ctx.pool, "action = 'dental.settings.supply-location' AND resource_id = $1", [tenant.facilityId])).toHaveLength(1);
@@ -253,6 +261,11 @@ describe("dental supplies", () => {
       .post(`/dental/procedures/${procedureId}/supplies`, { locationId: ids.cabinet, lines: [{ itemId: ids.midazolam, quantity: 1 }], idempotencyKey: key() })
       .expect(422);
     expect(bare.body.error.code).toBe("controlled_item_details");
+    const reagent = await api(dentist)
+      .post(`/dental/procedures/${procedureId}/supplies`, { locationId: ids.cabinet, lines: [{ itemId: ids.reagent, quantity: 1 }], idempotencyKey: key() })
+      .expect(422);
+    expect(reagent.body.error).toMatchObject({ code: "invalid_supplies", details: { [ids.reagent]: ["Glucose reagent is not a dental supply (reagent)"] } });
+    expect(await balance(ids.r1)).toBe(3);
     const otherFacility = await api(dentist)
       .post(`/dental/procedures/${procedureId}/supplies`, { locationId: ids.annexStore, lines: [{ itemId: ids.gloves, quantity: 1 }], idempotencyKey: key() })
       .expect(422);

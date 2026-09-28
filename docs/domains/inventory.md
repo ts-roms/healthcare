@@ -77,6 +77,11 @@ port, **inside the caller's transaction** so the workflow's record and the stock
 - `restore(tx, actor, { source, reason })` — returns exactly what the source took, to the same locations and lots, once.
 - `receiveFor(tx, actor, { locationId, supplierId, reference, idempotencyKey, lines })` — receipts for purchase order lines.
 - `usableAt(organizationId, facilityId, categories)` — usable stock per location and item (what can be taken).
+- `consume` and `issueForSource` take the **item categories** the calling workflow may use (`categories`), each list
+  owned by that workflow's domain: dispensing `DISPENSABLE_CATEGORIES` (medicine, medical supply), reagent loads
+  `REAGENT_CATEGORY`, dental supplies `DENTAL_SUPPLY_CATEGORIES` (dental and medical supply, medicine, PPE, other).
+  Anything else is refused with `item_category_not_allowed` (details: item, category, allowed) — dispensing never hands
+  over a laboratory reagent, whatever is kept in the same room.
 
 ## Queries
 

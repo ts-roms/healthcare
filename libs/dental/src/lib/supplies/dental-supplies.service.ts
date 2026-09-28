@@ -30,7 +30,7 @@ import {
 } from "../dental.schema";
 import { found, rejectIssues } from "../dental-support";
 import { DENTAL_SUPPLIES, type DentalSupplies, type DentalSupplyMovement } from "../ports";
-import { outstandingByLine, returnIssues, supplyLineIssues } from "../supplies.rules";
+import { DENTAL_SUPPLY_CATEGORIES, outstandingByLine, returnIssues, supplyLineIssues } from "../supplies.rules";
 
 /**
  * Supplies a dental procedure used, taken from inventory. Templates (per procedure type) and each facility's default
@@ -52,7 +52,8 @@ export class DentalSuppliesService {
   // ---- configuration ---------------------------------------------------------------------------
 
   /**
-   * What the supplies picker and the template editor need: the organization's active items, templates per procedure
+   * What the supplies picker and the template editor need: the organization's active items dentistry uses (dental and
+   * medical supplies, medicines, PPE, other — never laboratory reagents or consumables), templates per procedure
    * type and, with a selected facility, its active stock locations, usable stock and default location.
    */
   async options(actor: Actor) {
@@ -72,7 +73,7 @@ export class DentalSuppliesService {
       defaultLocationId,
       locations: active.map((l) => ({ id: l.id, code: l.code, name: l.name })),
       items: items
-        .filter((i) => i.status === "active")
+        .filter((i) => i.status === "active" && (DENTAL_SUPPLY_CATEGORIES as readonly string[]).includes(i.category))
         .map((i) => ({
           ...i,
           usable: Object.fromEntries(stock.filter((s) => s.itemId === i.id).map((s) => [s.locationId, s.usable])),
