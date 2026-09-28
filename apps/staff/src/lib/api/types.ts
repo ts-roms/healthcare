@@ -1479,3 +1479,214 @@ export interface InventoryMovement {
   lotNumber: string | null;
   expiryDate: string | null;
 }
+
+// ---- FHIR imports (GET/POST /fhir-imports; interop.fhir.import.review) and external history -----------
+
+/** Where an allergy came from (declaration merged into AllergyRecord above; migration 0048). */
+export interface AllergyRecord {
+  source?: "staff" | "external_import";
+  /** "fhir-import:<import id>#<entry index>" for an accepted import. */
+  sourceReference?: string | null;
+}
+
+export type FhirImportStatus = "pending_review" | "accepted" | "partially_accepted" | "rejected";
+export type FhirImportEntryOutcome = "pending" | "accepted" | "rejected" | "not_supported";
+export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "not_supported";
+
+export interface FhirImportSummary {
+  id: string;
+  status: FhirImportStatus;
+  sourceKind: "bundle" | "resource";
+  bundleType: "collection" | "document" | "searchset" | null;
+  declaredSource: string | null;
+  resourceCounts: Record<string, number>;
+  entryCount: number;
+  patientId: string | null;
+  matchedAt: string | null;
+  rejectionReason: string | null;
+  receivedAt: string;
+  completedAt: string | null;
+  contentPurged: boolean;
+  version: number;
+}
+
+export interface FhirImportListItem extends FhirImportSummary {
+  pendingEntries: number;
+  patient: { patientNumber: string; displayName: string } | null;
+}
+
+export interface ImportedCode {
+  system: string | null;
+  code: string | null;
+  display: string | null;
+}
+
+interface ImportedBase {
+  resourceType: string;
+  acceptable: boolean;
+  notes: string[];
+}
+export type SubjectMatch = "import_patient" | "other_patient" | "not_stated";
+
+export interface ImportedPatient extends ImportedBase {
+  kind: "patient";
+  familyName: string | null;
+  givenNames: string[];
+  nameText: string | null;
+  suffix: string | null;
+  sex: "male" | "female" | "unknown" | null;
+  gender: string | null;
+  birthDate: string | null;
+  deceased: boolean;
+  identifiers: Array<{ system: string | null; value: string; type: string | null }>;
+  telecom: Array<{ system: string | null; value: string; use: string | null }>;
+  addresses: Array<{
+    use: string | null;
+    lines: string[];
+    city: string | null;
+    district: string | null;
+    state: string | null;
+    postalCode: string | null;
+    country: string | null;
+    text: string | null;
+  }>;
+}
+
+export interface ImportedAllergyItem extends ImportedBase {
+  kind: "allergy";
+  subject: SubjectMatch;
+  substance: string | null;
+  codes: ImportedCode[];
+  category: string;
+  criticality: "low" | "high" | "unable_to_assess";
+  severity: "mild" | "moderate" | "severe" | null;
+  reaction: string | null;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  recordedDate: string | null;
+}
+
+export interface ImportedConditionItem extends ImportedBase {
+  kind: "condition";
+  subject: SubjectMatch;
+  display: string | null;
+  codes: ImportedCode[];
+  category: string | null;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  onset: string | null;
+  abatement: string | null;
+  recordedDate: string | null;
+}
+
+export interface ImportedObservationItem extends ImportedBase {
+  kind: "observation";
+  subject: SubjectMatch;
+  category: "laboratory" | "vital-signs" | "other";
+  display: string | null;
+  codes: ImportedCode[];
+  value: string | null;
+  interpretation: string | null;
+  referenceRange: string | null;
+  status: string;
+  effective: string | null;
+}
+
+export interface ImportedMedicationItem extends ImportedBase {
+  kind: "medication";
+  subject: SubjectMatch;
+  statement: "statement" | "request";
+  medication: string | null;
+  codes: ImportedCode[];
+  dosage: string | null;
+  status: string;
+  date: string | null;
+}
+
+export interface ImportedDocumentItem extends ImportedBase {
+  kind: "document";
+  subject: SubjectMatch;
+  type: string | null;
+  description: string | null;
+  status: string;
+  date: string | null;
+  attachments: Array<{ contentType: string | null; title: string | null; size: number | null; inline: boolean; url: string | null }>;
+}
+
+export type ImportedItem =
+  | ImportedPatient
+  | ImportedAllergyItem
+  | ImportedConditionItem
+  | ImportedObservationItem
+  | ImportedMedicationItem
+  | ImportedDocumentItem
+  | (ImportedBase & { kind: "not_supported" });
+
+export interface FhirImportEntry {
+  id: string;
+  index: number;
+  resourceType: string;
+  kind: FhirImportKind;
+  /** What accepting creates. */
+  becomes: "allergy" | "external_history" | "patient_match" | null;
+  outcome: FhirImportEntryOutcome;
+  reason: string | null;
+  resultType: "allergy_intolerance" | "external_history_entry" | "patient" | null;
+  resultId: string | null;
+  decidedAt: string | null;
+  /** Null once the received content was deleted by the retention rule. */
+  item: ImportedItem | null;
+}
+
+export interface ImportPatientBrief {
+  id: string;
+  patientNumber: string;
+  displayName: string;
+  sex: PatientSex;
+  birthDate: string;
+  status: string;
+}
+
+export interface FhirImportDetail extends FhirImportSummary {
+  patient: ImportPatientBrief | null;
+  importedPatient: ImportedPatient | null;
+  registration: {
+    possible: boolean;
+    draft: {
+      familyName: string;
+      givenName: string;
+      suffix?: string;
+      sex: string;
+      birthDate: string;
+      contacts: Array<{ system: string; value: string }>;
+      addresses: Array<{ line1?: string; cityMunicipality: string; province?: string; region?: string; postalCode?: string }>;
+      identifiers: Array<{ type: string; value: string }>;
+    } | null;
+  };
+  entries: FhirImportEntry[];
+}
+
+export interface FhirImportCandidates {
+  searchable: boolean;
+  candidates: Array<{ patient: ImportPatientBrief; level: "certain" | "high" | "possible"; reasons: string[] }>;
+}
+
+/** GET /patients/:id/external-history (clinical.read). */
+export interface ExternalHistoryEntry {
+  id: string;
+  patientId: string;
+  kind: "condition" | "observation" | "medication" | "document";
+  category: string | null;
+  display: string;
+  codeSystem: string | null;
+  code: string | null;
+  valueText: string | null;
+  statusText: string | null;
+  effectiveText: string | null;
+  source: "external_import";
+  sourceReference: string;
+  declaredSource: string | null;
+  status: "active" | "entered_in_error";
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+}

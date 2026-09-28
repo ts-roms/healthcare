@@ -2,6 +2,7 @@ import {
   BuildingIcon,
   ClipboardListIcon,
   CalendarDaysIcon,
+  FileInputIcon,
   FlaskConicalIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
@@ -69,6 +70,13 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
+  {
+    label: "Records",
+    href: "/records",
+    icon: FileInputIcon,
+    roles: ["admin"],
+    children: [{ label: "Imports", href: "/records/imports" }],
+  },
   {
     label: "Administration",
     href: "/admin",

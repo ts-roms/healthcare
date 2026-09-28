@@ -10,6 +10,7 @@ import {
   FlaskConicalIcon,
   LogInIcon,
   EyeOffIcon,
+  FileInputIcon,
   PhoneIcon,
   PillIcon,
   ShieldAlertIcon,
@@ -24,10 +25,19 @@ import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { EligibilityOverview, LabReportArchiveEntry, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import type {
+  EligibilityOverview,
+  ExternalHistoryEntry,
+  LabReportArchiveEntry,
+  PatientDetail,
+  PatientLabResult,
+  PatientSummaryResponse,
+  PortalAccountStatus,
+} from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
+import { ExternalHistory } from "./external-history";
 import { PatientLabResults } from "./lab-results";
 import { PhilHealthEligibility } from "./philhealth-eligibility";
 import { ConsentList } from "./consent-list";
@@ -87,6 +97,18 @@ async function loadArchivedLabReports(id: string): Promise<LabReportArchiveEntry
   }
 }
 
+/** History other providers recorded, accepted from FHIR imports (audited by the API); null without clinical access. */
+async function loadExternalHistory(id: string): Promise<ExternalHistoryEntry[] | null> {
+  const session = await getSession();
+  if (!can(session, "clinical.read")) return null;
+  try {
+    return await api<ExternalHistoryEntry[]>(`/patients/${id}/external-history`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -111,13 +133,14 @@ async function loadEligibility(id: string): Promise<EligibilityOverview | null> 
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, externalHistory, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
     loadLabResults(id),
     loadArchivedLabReports(id),
     loadEligibility(id),
+    loadExternalHistory(id),
     getSelectedFacility(),
     getSession(),
   ]);
@@ -359,6 +382,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <ArchivedLabReports archives={labArchives} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {externalHistory?.length ? (
+          <Card className="lg:col-span-2" id="external-history">
+            <CardHeader>
+              <FileInputIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>External history (imported)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ExternalHistory patientId={p.id} entries={externalHistory} canCorrect={can(session, "interop.fhir.import.review")} />
             </CardContent>
           </Card>
         ) : null}
