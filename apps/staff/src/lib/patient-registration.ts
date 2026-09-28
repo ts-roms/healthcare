@@ -12,7 +12,8 @@ export const registrationFormSchema = z.object({
   mobile: z
     .string()
     .trim()
-    .regex(/^(\+?63|0)?9\d{9}$/, "Enter a PH mobile number, e.g. 0917 123 4567")
+    // Spaces and dashes are allowed as typed (toRegisterPayload strips them).
+    .refine((v) => /^(\+?63|0)?9\d{9}$/.test(v.replace(/[\s-]/g, "")), "Enter a PH mobile number, e.g. 0917 123 4567")
     .or(z.literal(""))
     .optional(),
   email: z.string().trim().email("Enter a valid email").or(z.literal("")).optional(),

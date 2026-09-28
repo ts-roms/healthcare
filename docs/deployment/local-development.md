@@ -37,9 +37,33 @@ pnpm nx sync:check
 pnpm format:check
 pnpm nx run-many -t lint typecheck test build
 pnpm nx run api:integration  # needs TEST_DATABASE_URL (a database that may be wiped)
+pnpm test:e2e                # critical journeys in a browser (below)
 ```
 
 The integration tests drop and recreate the `public` schema of
 `TEST_DATABASE_URL`. Never point it at a database you care about.
+
+### End-to-end journeys (`apps/e2e`)
+
+`pnpm test:e2e` (`nx run e2e:e2e`) builds the API, the staff app and the portal, then runs the CLAUDE.md §31 critical
+journeys with Playwright against the built applications, each person in their own browser session:
+
+1. **Registration → appointment → check-in → consultation → laboratory order → specimen collection → result →
+   verification, approval and release → MyHealth** (`tests/1-clinic-laboratory-portal.journey.ts`).
+2. **Online booking in MyHealth → pre-consult questionnaire → waiting room → teleconsultation → prescription →
+   laboratory order → follow-up booking → instructions, prescription and follow-up in MyHealth**
+   (`tests/2-online-booking-telemedicine.journey.ts`). The waiting room opens 30 minutes before the appointment and
+   online bookings need notice, so the test moves the booked appointment to a few minutes from now in the database
+   (the only step that does not go through the applications). No video server runs, so the consultation uses the
+   callback-number fallback.
+
+It needs PostgreSQL and Redis (`pnpm dev:deps`) and Chromium (`pnpm --filter e2e exec playwright install chromium`;
+already present in Claude Code cloud sessions). It uses its own database (`E2E_DATABASE_URL`, default
+`healthcare_e2e`, dropped and recreated on every run — its name must contain `e2e`) and its own ports (API 3433, staff
+3100, portal 3101; `E2E_*_PORT`), so it runs next to `pnpm dev` without touching the development database.
+`support/prepare-database.ts` creates the tenant and staff users; the `setup` project (`tests/setup.setup.ts`)
+configures visit types, schedules, coding, the laboratory catalog and a MyHealth patient through the API. A journey
+fails on any browser error or server error (5xx), not only on missing text. On failure, traces and screenshots are in
+`apps/e2e/test-results` (`pnpm --filter e2e exec playwright show-trace <trace.zip>`); CI uploads them as an artifact.
 
 Mailpit (captured email): http://localhost:8025. Object storage console (RustFS): http://localhost:9001 (user `healthcare`, password `healthcare-dev-secret`).

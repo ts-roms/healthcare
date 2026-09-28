@@ -52,6 +52,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 | Project                   | Path               | Nx tags                       | What it is                                                                                                                                                                             |
 | ------------------------- | ------------------ | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `e2e`                     | `apps/e2e`         | `scope:e2e`, `type:e2e`       | Playwright critical journeys (§31) across the staff app and MyHealth; prepares its own database and starts the built apps.                                                             |
 | `staff`                   | `apps/staff`       | `scope:staff`, `type:app`     | Next.js staff app: role-aware dashboards, Patient 360, doctor encounter workspace, lab workbench, odontogram, telemedicine, queue, appointments. Unbuilt modules render a placeholder. |
 | `portal`                  | `apps/portal`      | `scope:portal`, `type:app`    | Next.js patient portal (MyHealth, mobile-first): account activation, sign-in, home, profile. Visits and results are empty states until patient-facing APIs exist.                      |
 | `@healthcare/ui`          | `libs/ui`          | `scope:shared`, `type:ui`     | Healthcare Design System on shadcn/ui + Tailwind v4: tokens (`src/styles/theme.css`), `primitives/`, `healthcare/` components, `layouts/`. Storybook.                                  |
@@ -100,9 +101,10 @@ Inspect the repository before every change — do not assume any file, library, 
 
 - Nx 23 + pnpm 10, Node 22 (`.nvmrc`). TypeScript strict everywhere: backend projects use TypeScript 6 with project references (`tsconfig.node.json`, synced by `nx sync`); frontend projects use TypeScript 5.9 with `tsconfig.base.json` (bundler resolution). The `@nx/js/typescript`, webpack and Jest plugins apply to backend projects only (see `exclude` in `nx.json`).
 - Frontend: Next.js 16, React 19, Tailwind CSS 4, Storybook 10, Vitest 4 (`*.test.ts`). Backend: NestJS 11, Drizzle, Jest 30 (`*.spec.ts`), API integration tests (`apps/api/test/*.int.spec.ts`, target `integration`) against real PostgreSQL.
+- End-to-end: `apps/e2e` (Playwright, target `e2e`, `pnpm test:e2e`) runs the §31 critical journeys in a browser against the built API, staff app and portal, with its own database (`healthcare_e2e`, recreated per run) and ports. Journeys drive the real screens; the only shortcut is moving a booked teleconsultation to "now" in the database. See `docs/deployment/local-development.md`.
 - ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
-- CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e → build (+ `build-storybook`).
-- Commands: `pnpm dev` (API, workers, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:integration-worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
+- CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e (PostgreSQL + Redis services, Chromium installed when `e2e` is affected; report uploaded on failure) → build (+ `build-storybook`).
+- Commands: `pnpm dev` (API, workers, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:integration-worker`, `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm test:e2e` (recreates `healthcare_e2e`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
 
 **Backend conventions** (details in `docs/architecture/`)
 
@@ -175,6 +177,7 @@ apps/
   api/                  NestJS modular monolith                                  [exists]
   notification-worker/  BullMQ worker                                            [exists]
   integration-worker/   BullMQ worker for external systems                       [exists]
+  e2e/                  Playwright critical journeys (§31)                       [exists]
 
 libs/
   ui/ domain/                                                                    [exist, frontend shared]

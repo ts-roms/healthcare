@@ -22,6 +22,7 @@
     "lint": "nx run-many -t lint",
     "test": "nx run-many -t test",
     "test:integration": "nx run-many -t integration",
+    "test:e2e": "nx run e2e:e2e",
     "storybook": "nx run @healthcare/ui:storybook",
     "build-storybook": "nx run @healthcare/ui:build-storybook",
     "graph": "nx graph",

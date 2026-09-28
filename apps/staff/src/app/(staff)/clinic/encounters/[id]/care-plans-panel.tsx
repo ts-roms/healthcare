@@ -43,6 +43,8 @@ export interface FollowUpContext {
   /** Where booking returns to (this encounter). */
   returnTo: string;
   today: string;
+  /** Called when a booking link is followed (the encounter saves an unsaved note first). */
+  onLeave?: (href: string) => (e: React.MouseEvent) => void;
 }
 
 /** Link to the booking page for a follow-up, returning to the encounter; optionally linked to a care-plan activity. */
@@ -152,6 +154,12 @@ export function CareActivityItem({
   canManage: boolean;
   canBook: boolean;
 }) {
+  const bookHref = followUpHref(followUp, {
+    date: a.dueDate && a.dueDate >= followUp.today ? a.dueDate : undefined,
+    reason: a.description,
+    carePlanId: planId,
+    activityId: a.id,
+  });
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [cancelling, setCancelling] = React.useState(false);
@@ -189,14 +197,7 @@ export function CareActivityItem({
         <span className="ml-auto flex gap-1">
           {actions.includes("book") ? (
             <Button asChild size="xs" variant="outline">
-              <Link
-                href={followUpHref(followUp, {
-                  date: a.dueDate && a.dueDate >= followUp.today ? a.dueDate : undefined,
-                  reason: a.description,
-                  carePlanId: planId,
-                  activityId: a.id,
-                })}
-              >
+              <Link href={bookHref} onClick={followUp.onLeave?.(bookHref)}>
                 <CalendarPlusIcon /> Book
               </Link>
             </Button>

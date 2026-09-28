@@ -58,27 +58,28 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 
 ## Current projects
 
-| Project                                                                               | Tags                                     |
-| ------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `apps/staff`                                                                          | `scope:staff`, `type:app`                |
-| `apps/portal`                                                                         | `scope:portal`, `type:app`               |
-| `apps/api`                                                                            | `scope:api`, `type:app`                  |
-| X                                                                                     |
-| `libs/ui`                                                                             | `scope:shared`, `type:ui`                |
-| `libs/domain`                                                                         | `scope:shared`, `type:domain`            |
-| `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification` | `scope:shared`, `type:data-access`       |
-| `libs/auth`                                                                           | `scope:shared`, `type:feature`           |
-| `libs/patient`                                                                        | `scope:patient`, `type:feature`          |
-| `libs/clinic`                                                                         | `scope:clinic`, `type:feature`           |
-| `libs/prescription`                                                                   | `scope:prescription`, `type:feature`     |
-| `libs/laboratory`                                                                     | `scope:laboratory`, `type:feature`       |
-| `libs/telemedicine`                                                                   | `scope:telemedicine`, `type:feature`     |
-| `libs/care-plan`                                                                      | `scope:care-plan`, `type:feature`        |
-| `libs/billing`                                                                        | `scope:billing`, `type:feature`          |
-| `libs/inventory`                                                                      | `scope:inventory`, `type:feature`        |
-| `libs/pdf`                                                                            | `scope:shared`, `type:util`              |
-| `libs/interoperability`                                                               | `scope:interoperability`, `type:feature` |
-| `libs/philhealth`                                                                     | `scope:interoperability`, `type:feature` |
+| Project                                                                                       | Tags                                     |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `apps/staff`                                                                                  | `scope:staff`, `type:app`                |
+| `apps/portal`                                                                                 | `scope:portal`, `type:app`               |
+| `apps/api`                                                                                    | `scope:api`, `type:app`                  |
+| `apps/e2e` (imports no workspace project; drives the built apps through the browser and HTTP) | `scope:e2e`, `type:e2e`                  |
+| `libs/ui`                                                                                     | `scope:shared`, `type:ui`                |
+| `libs/domain`                                                                                 | `scope:shared`, `type:domain`            |
+| `libs/core`, `libs/audit`, `libs/organization`, `libs/documents`, `libs/notification`         | `scope:shared`, `type:data-access`       |
+| `libs/auth`                                                                                   | `scope:shared`, `type:feature`           |
+| `libs/patient`                                                                                | `scope:patient`, `type:feature`          |
+| `libs/clinic`                                                                                 | `scope:clinic`, `type:feature`           |
+| `libs/prescription`                                                                           | `scope:prescription`, `type:feature`     |
+| `libs/laboratory`                                                                             | `scope:laboratory`, `type:feature`       |
+| `libs/telemedicine`                                                                           | `scope:telemedicine`, `type:feature`     |
+| `libs/care-plan`                                                                              | `scope:care-plan`, `type:feature`        |
+| `libs/billing`                                                                                | `scope:billing`, `type:feature`          |
+| `libs/inventory`                                                                              | `scope:inventory`, `type:feature`        |
+| `libs/dental`                                                                                 | `scope:dental`, `type:feature`           |
+| `libs/pdf`                                                                                    | `scope:shared`, `type:util`              |
+| `libs/interoperability`                                                                       | `scope:interoperability`, `type:feature` |
+| `libs/philhealth`                                                                             | `scope:interoperability`, `type:feature` |
 
 `libs/philhealth` is one adapter family of the interoperability layer (same scope): it depends on
 `libs/interoperability` (outbound exchanges), never the reverse. The composition roots (`apps/api`,

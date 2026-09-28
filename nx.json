@@ -48,7 +48,7 @@
     },
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*", "libs/web-session/**/*"],
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "apps/e2e/**/*", "libs/ui/**/*", "libs/domain/**/*", "libs/web-session/**/*"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -63,7 +63,7 @@
     },
     {
       "plugin": "@nx/webpack/plugin",
-      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "apps/e2e/**/*", "libs/ui/**/*", "libs/domain/**/*"],
       "options": {
         "buildTargetName": "build",
         "serveTargetName": "serve",
@@ -75,7 +75,7 @@
     },
     {
       "plugin": "@nx/jest/plugin",
-      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "libs/ui/**/*", "libs/domain/**/*"],
+      "exclude": ["apps/staff/**/*", "apps/portal/**/*", "apps/e2e/**/*", "libs/ui/**/*", "libs/domain/**/*"],
       "options": {
         "targetName": "test"
       }

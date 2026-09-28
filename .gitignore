@@ -21,6 +21,9 @@ next-env.d.ts
 # tests
 coverage
 test-output
+apps/e2e/test-results
+apps/e2e/playwright-report
+apps/e2e/.state
 
 # local environment (never commit secrets)
 .env
