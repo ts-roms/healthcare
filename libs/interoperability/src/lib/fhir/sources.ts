@@ -319,6 +319,53 @@ export interface ExternalHistorySource {
   enteredInErrorAt: string | null;
 }
 
+/** A performed dental procedure (the organization's own procedure code; no national dental code set is assumed). */
+export interface DentalProcedureSource {
+  id: string;
+  facilityId: string;
+  encounterId: string;
+  practitionerId: string;
+  code: string;
+  name: string;
+  /** FDI / ISO 3950 two-digit tooth code, when the procedure is on a tooth. */
+  tooth: string | null;
+  /** M, D, O, I, B, L. */
+  surfaces: string[];
+  notes: string | null;
+  status: "recorded" | "entered_in_error";
+  performedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** One tooth of the current dental chart (latest state; teeth never charted are absent; no findings = sound). */
+export interface DentalChartToothSource {
+  tooth: string;
+  findings: Array<{ condition: string; surfaces: string[] }>;
+  source: { type: "examination" | "procedure"; id: string };
+  recordedAt: string;
+}
+
+/** A periodontal chart with its measurements per examined tooth. */
+export interface DentalPerioChartSource {
+  id: string;
+  encounterId: string;
+  practitionerId: string;
+  status: "recorded" | "entered_in_error";
+  recordedAt: string;
+  teeth: Array<{
+    tooth: string;
+    mobility: number | null;
+    furcation: number | null;
+    sites: Array<{ site: string; probingDepth: number | null; gingivalMargin: number | null; bleeding: boolean; suppuration: boolean; plaque: boolean }>;
+  }>;
+}
+
+export interface DentalSource {
+  procedures: DentalProcedureSource[];
+  chart: DentalChartToothSource[];
+  perioCharts: DentalPerioChartSource[];
+}
+
 /** Everything about one patient that the platform exports. */
 export interface PatientRecordSource {
   patient: PatientSource;
@@ -337,4 +384,6 @@ export interface PatientRecordSource {
   documents: DocumentSource[] | null;
   /** External history accepted from imports (document descriptions are withheld with documents, when `documents` is null). */
   externalHistory: ExternalHistorySource[];
+  /** The dental record (procedures, current chart findings, periodontal charts); absent when the platform has none. */
+  dental?: DentalSource;
 }

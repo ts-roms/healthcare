@@ -36,13 +36,13 @@ selected (migration `0020_fhir_read.sql`; `org_admin` holds it — grant it deli
 role). Every access is audited (`fhir.patient-read`, `fhir.patient-everything`, `fhir.search`) with the patient, the
 resource types and the number of resources returned.
 
-| Request                                                | Returns                                                                                                                                                                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /metadata`                                        | `CapabilityStatement`                                                                                                                                                                                   |
-| `GET /Patient/{id}`                                    | `Patient`                                                                                                                                                                                               |
-| `GET /Patient/{id}/$everything`                        | `Bundle` (searchset, paged): the patient and all clinical resources as `match`, the organization, locations and practitioners the page references as `include`                                          |
-| `GET /{Type}?patient={id}` (or `patient=Patient/{id}`) | `Bundle` of one type (paged): Encounter, Condition, AllergyIntolerance, Observation, Appointment, ServiceRequest, DiagnosticReport, MedicationRequest, MedicationStatement, CarePlan, DocumentReference |
-| `GET /Binary/{documentId}`                             | The content of a `DocumentReference`: `302` to a short-lived (5 min) signed download of the file. Requires `document.read`; audited as `document.download`                                              |
+| Request                                                | Returns                                                                                                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /metadata`                                        | `CapabilityStatement`                                                                                                                                                                                              |
+| `GET /Patient/{id}`                                    | `Patient`                                                                                                                                                                                                          |
+| `GET /Patient/{id}/$everything`                        | `Bundle` (searchset, paged): the patient and all clinical resources as `match`, the organization, locations and practitioners the page references as `include`                                                     |
+| `GET /{Type}?patient={id}` (or `patient=Patient/{id}`) | `Bundle` of one type (paged): Encounter, Condition, AllergyIntolerance, Observation, Appointment, ServiceRequest, DiagnosticReport, MedicationRequest, MedicationStatement, CarePlan, DocumentReference, Procedure |
+| `GET /Binary/{documentId}`                             | The content of a `DocumentReference`: `302` to a short-lived (5 min) signed download of the file. Requires `document.read`; audited as `document.download`                                                         |
 
 Only patient-scoped searches exist: no queries across patients. Errors are `OperationOutcome` (`invalid` 400,
 `not-supported` 400, `login` 401, `forbidden` 403, `not-found` 404 — including another organization's patient —
@@ -80,8 +80,9 @@ underlying record has a reliable last-updated time:
 | `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                                                                       |
 | `DocumentReference`                                                       | Supported       | An exported document never changes after upload (archiving withdraws it); an archived lab report version is superseded when the next version is stored. Last updated = that time, else `uploaded_at`. An imported document description: as below. |
 | `MedicationStatement`                                                     | Supported       | Only external history (below): entries are append-only (database trigger), the only change is being marked entered in error. Last updated = `entered_in_error_at`, else `recorded_at`.                                                            |
+| `Procedure`                                                               | Supported       | Dental procedures only: immutable once recorded (database trigger); the only change is being marked entered in error, which records its time. Last updated = `entered_in_error_at`, else `performed_at`.                                          |
 | `Encounter`, `Condition`, `AllergyIntolerance`, `Appointment`, `CarePlan` | Refused (`400`) | `updated_at` is maintained by application code, not the database, and the resource also shows related rows (an Encounter's diagnoses, a CarePlan's activities) that change without touching it.                                                   |
-| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change (released laboratory results and external history would qualify; one type cannot be filtered only in part).                                                                     |
+| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change, and dental chart findings are derived from the chart history (released laboratory results and external history would qualify; one type cannot be filtered only in part).       |
 | `ServiceRequest`, `DiagnosticReport`                                      | Refused (`400`) | Their status derives from laboratory item and result progress; no single row holds a change time for everything shown.                                                                                                                            |
 
 Refusing is deliberate: silently ignoring the filter, or answering it approximately, would let a client miss changes.
@@ -106,6 +107,7 @@ a parameter of `$everything`.
 | Prescription line                      | `MedicationRequest` (prescription number as group identifier; superseded → `stopped`)                          |
 | Care plan                              | `CarePlan` with activities                                                                                     |
 | Stored document (libs/documents)       | `DocumentReference` (see below)                                                                                |
+| Dental procedure, chart, perio chart   | `Procedure`, `Observation` (see [Dental](#dental))                                                             |
 | Result performed by a reference lab    | `Observation.performer` → contained `Organization` (see "Performing laboratory")                               |
 | Allergy accepted from an import        | `AllergyIntolerance`, tagged external, always `unconfirmed` (see "Records from other systems")                 |
 | External history (accepted imports)    | `Condition` / `Observation` / `MedicationStatement` / `DocumentReference`, tagged external (see below)         |
@@ -184,6 +186,26 @@ no tag.
 in error): exported with the `entered-in-error` status (`verificationStatus` for a Condition, which then has no
 `clinicalStatus`), still tagged.
 
+## Dental
+
+The dental record ([dental.md](../domains/dental.md)) comes from `DentalRecordQueries` (libs/dental, unaudited; the
+FHIR access is audited). Clinical data like the rest of the export: no dental permission is checked beyond
+`interop.fhir.read`.
+
+| Internal                                   | FHIR R4                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Performed procedure (`dental_procedure`)   | `Procedure`: `completed` (or `entered-in-error`, kept visible), code in the organization's own procedure code system, category text "Dental procedure", `encounter`, `performer`, `location`, `performedDateTime`, `bodySite` = the tooth then each surface, notes as `note`                   |
+| Current chart finding (latest tooth state) | `Observation` (`exam` category) per finding on a tooth: finding code (caries, restoration, crown, missing…), `bodySite` = the tooth, one component per surface; `partOf` the procedure that left it. A sound tooth (no findings) has none; only the current chart is exported, not its history |
+| Periodontal chart (per examined tooth)     | `Observation` (`exam`), code "periodontal-charting", `bodySite` = the tooth, components per site: probing depth and gingival margin (mm, UCUM `mm`), bleeding, plaque, suppuration (booleans); mobility and furcation grades (integers). `entered-in-error` charts stay visible as such        |
+
+**Code systems.** Teeth are FDI / ISO 3950 two-digit codes (permanent and primary) in a local code system
+`{identifier base}/codesystem/fdi-tooth` (display: e.g. "upper right first molar"); surfaces (`M D O I B L`) in
+`…/codesystem/tooth-surface`; findings in `…/codesystem/dental-finding`; procedures in `…/codesystem/dental-procedure`
+(the organization's codes); periodontal measures in `…/codesystem/periodontal-measure`. HL7's tooth and surface code systems are
+published as **example** code systems, so they are not claimed (whether their content covers primary teeth and
+matches these surface meanings would need checking); a national or licensed dental code set (e.g. for procedures)
+would be configured when obtained. Ids: a finding is `{source id}-{tooth}-{finding}`, a periodontal tooth `{chart id}-{tooth}`.
+
 ## Identifier and code systems
 
 No official URIs for Philippine national identifiers are on record, so none are invented:
@@ -205,7 +227,7 @@ No official URIs for Philippine national identifiers are on record, so none are 
 Cursor (snapshot) paging; `_since` on `$everything` and `_lastUpdated` for the types above (each needs a reliable
 change time first, e.g. database-maintained timestamps); `DocumentReference` for invoices and receipts (rendered on
 request, not stored); `DiagnosticReport.presentedForm` for the archived report; `Binary` as a FHIR resource (only the native
-content is served); laboratory result attachments (laboratory-managed documents, not exported yet); dental resources (the dental record exists — [dental.md](../domains/dental.md) — but is not mapped yet); write/transaction; SMART on FHIR app authorization and patient-facing access; bulk data export;
+content is served); laboratory result attachments (laboratory-managed documents, not exported yet); dental treatment plans, examinations (their notes) and the chart history (only the current chart is exported); dental images as dental-specific resources (they are exported as `DocumentReference`s of category imaging); write/transaction; SMART on FHIR app authorization and patient-facing access; bulk data export;
 a Philippine national profile (conformance must be validated against the official specification when obtained).
 Inbound: importing documents' files, vital signs or laboratory results as internal records; a retention period for
 accepted imports' sealed originals. Patient matching stays a person's decision.

@@ -1,6 +1,7 @@
 export * from "./lib/fhir/administrative";
 export * from "./lib/fhir/bundle";
 export * from "./lib/fhir/clinical";
+export * from "./lib/fhir/dental";
 export * from "./lib/fhir/documents";
 export * from "./lib/fhir/external";
 export * from "./lib/fhir/orders";

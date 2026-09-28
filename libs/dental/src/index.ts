@@ -1,3 +1,4 @@
+export * from "./lib/dental-record.queries";
 export * from "./lib/dental.module";
 export * from "./lib/dental.rules";
 export * from "./lib/periodontal.rules";

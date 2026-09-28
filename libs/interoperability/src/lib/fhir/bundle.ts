@@ -1,6 +1,7 @@
 import type { Bundle, BundleEntry, BundleLink, CapabilityStatement, FhirResource, OperationOutcome } from "fhir/r4";
 import { toLocation, toOrganization, toPatient, toPractitioner } from "./administrative";
 import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnownAllergies, toVitalSignObservations } from "./clinical";
+import { toDentalFindingObservations, toDentalProcedure, toPerioObservations } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
@@ -22,6 +23,7 @@ export const PATIENT_COMPARTMENT_TYPES = [
   "MedicationStatement",
   "CarePlan",
   "DocumentReference",
+  "Procedure",
 ] as const;
 export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 
@@ -29,11 +31,12 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
  * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
  * immutable once issued (cancel/replace records its time), exported documents never change after upload, and external
  * history entries (the only MedicationStatements, and imported document descriptions) change only when marked entered
- * in error (database triggers). The other records are updated in place without a trustworthy change time for
+ * in error (database triggers), and dental procedures are immutable except for being marked entered in error (with its
+ * time). The other records are updated in place without a trustworthy change time for
  * everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for them rather
  * than answered approximately.
  */
-export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference"];
+export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference", "Procedure"];
 
 /** Every resource of one patient's record, the patient first; shared resources (organization, facilities, practitioners) after. */
 export function patientResources(ctx: FhirContext, src: PatientRecordSource): { patient: FhirResource; clinical: FhirResource[]; supporting: FhirResource[] } {
@@ -56,6 +59,9 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
   for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
+  for (const p of src.dental?.procedures ?? []) clinical.push(toDentalProcedure(ctx, patientId, p));
+  for (const t of src.dental?.chart ?? []) clinical.push(...toDentalFindingObservations(ctx, patientId, t));
+  for (const c of src.dental?.perioCharts ?? []) clinical.push(...toPerioObservations(ctx, patientId, c));
   // External history (tagged as imported); document descriptions are withheld with the documents.
   for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
 

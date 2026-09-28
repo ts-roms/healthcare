@@ -33,7 +33,7 @@ Member information, eligibility workflows, claims / eClaims, YAKAP-related workf
 
 ## FHIR
 
-- Map internal models to/from FHIR resources (Patient, Practitioner, Organization, Appointment, Encounter, Observation, DiagnosticReport, ServiceRequest, MedicationRequest, MedicationStatement, CarePlan, DocumentReference) in a mapping layer.
+- Map internal models to/from FHIR resources (Patient, Practitioner, Organization, Appointment, Encounter, Observation, DiagnosticReport, ServiceRequest, MedicationRequest, MedicationStatement, CarePlan, DocumentReference, Procedure) in a mapping layer.
 - Do not make internal tables FHIR resources. Internal model and interoperability model are separate.
 - Pin the FHIR version and any profiles used; record them in `docs/interoperability/`. Pinned: **R4 4.0.1**, base resources, no national profile (`docs/interoperability/fhir.md`).
 - Mappers (`src/lib/fhir`) are pure functions over this library's own source types (`sources.ts`); the API fills those from each domain's read queries. Every mapper output must stay valid against the official R4 JSON schema (the unit and integration tests check it).

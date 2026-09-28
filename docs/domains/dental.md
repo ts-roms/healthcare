@@ -13,8 +13,11 @@ encounter model.
 
 Also: [periodontal charting](#periodontal-charting).
 
+Exported through the FHIR interface as `Procedure` and `Observation` resources
+([fhir.md](../interoperability/fhir.md#dental)).
+
 Not in scope yet: orthodontic records, a patient-facing
-view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory), and a licensed procedure code set.
+view in MyHealth, stock use of dental supplies (inventory), and a licensed procedure code set.
 
 ## Entities
 
@@ -143,6 +146,8 @@ by `(patient_id, id)`, so a state cannot belong to another patient's record. Tri
 - **Clinic** (port `DentalContext`, adapter `apps/api/src/app/adapters/dental-adapters.ts`): the encounter (patient,
   facility, status), the actor's practitioner and profession, practitioner and staff names, patient briefs, and
   dentists' encounters per day (`ClinicQueries.encountersOfProfession`).
+- **FHIR** (`apps/api/src/app/fhir`): `DentalRecordQueries.patientRecord` — procedures, the current chart and periodontal
+  charts with their measurements — mapped by `libs/interoperability` (see fhir.md).
 - **Billing**: `BillingSources.dentalProcedure` (adapter over `DentalProcedureService.billable`), events above.
 - **Documents**: imaging files (upload through `POST /documents`, then linked; signed download links).
 - **Prescriptions and laboratory**: through the encounter workspace of the dental visit (the dental record links to

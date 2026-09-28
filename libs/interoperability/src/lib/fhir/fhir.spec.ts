@@ -540,7 +540,7 @@ describe("FHIR R4 mapping", () => {
     const resources = capability.rest?.[0]?.resource ?? [];
     expect(resources.map((r) => r.type)).toEqual(expect.arrayContaining(["Patient", "DocumentReference", "Binary"]));
     const withLastUpdated = resources.filter((r) => r.searchParam?.some((p) => p.name === "_lastUpdated")).map((r) => r.type);
-    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement"]);
+    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement", "Procedure"]);
   });
 });
 
@@ -906,5 +906,144 @@ describe("FHIR export of send-out results and records from other systems", () =>
     const withheld = patientEverything(ctx, { ...extended, documents: null });
     expect(withheld.entry?.some((e) => e.resource?.resourceType === "DocumentReference")).toBe(false);
     expect(withheld.entry?.some((e) => e.resource?.resourceType === "MedicationStatement")).toBe(true);
+  });
+});
+
+describe("FHIR export of the dental record", () => {
+  const PROC = "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1";
+  const EXAM = "d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2";
+  const PERIO = "d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3";
+  const dental: PatientRecordSource = {
+    ...source,
+    dental: {
+      procedures: [
+        {
+          id: PROC,
+          facilityId: FAC,
+          encounterId: ENC,
+          practitionerId: DR,
+          code: "composite",
+          name: "Composite restoration",
+          tooth: "16",
+          surfaces: ["M", "O"],
+          notes: "Shade A2",
+          status: "recorded",
+          performedAt: "2026-09-27T02:00:00.000Z",
+          enteredInErrorAt: null,
+        },
+        {
+          id: "d4d4d4d4-d4d4-4d4d-8d4d-d4d4d4d4d4d4",
+          facilityId: FAC,
+          encounterId: ENC,
+          practitionerId: DR,
+          code: "prophylaxis",
+          name: "Oral prophylaxis",
+          tooth: null,
+          surfaces: [],
+          notes: null,
+          status: "entered_in_error",
+          performedAt: "2026-09-27T01:00:00.000Z",
+          enteredInErrorAt: "2026-09-27T03:00:00.000Z",
+        },
+      ],
+      chart: [
+        {
+          tooth: "16",
+          findings: [{ condition: "restoration", surfaces: ["M", "O"] }],
+          source: { type: "procedure", id: PROC },
+          recordedAt: "2026-09-27T02:00:00.000Z",
+        },
+        {
+          tooth: "46",
+          findings: [
+            { condition: "caries", surfaces: ["D"] },
+            { condition: "root_canal", surfaces: [] },
+          ],
+          source: { type: "examination", id: EXAM },
+          recordedAt: "2026-09-27T01:30:00.000Z",
+        },
+        { tooth: "75", findings: [], source: { type: "examination", id: EXAM }, recordedAt: "2026-09-27T01:30:00.000Z" },
+      ],
+      perioCharts: [
+        {
+          id: PERIO,
+          encounterId: ENC,
+          practitionerId: DR,
+          status: "recorded",
+          recordedAt: "2026-09-27T01:45:00.000Z",
+          teeth: [
+            {
+              tooth: "16",
+              mobility: 1,
+              furcation: 2,
+              sites: [
+                { site: "MB", probingDepth: 5, gingivalMargin: -1, bleeding: true, suppuration: false, plaque: true },
+                { site: "B", probingDepth: 3, gingivalMargin: null, bleeding: false, suppuration: false, plaque: false },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const bundle = patientEverything(ctx, dental, { count: 200, offset: 0 });
+  const all = (bundle.entry ?? []).map((e) => e.resource as FhirResource);
+  const byId = (id: string) => all.find((r) => r.id === id) as FhirResource & Record<string, unknown>;
+
+  it("keeps every dental resource valid against the official R4 JSON schema, every reference resolved", () => {
+    expect(errors(bundle)).toEqual([]);
+    for (const resource of all) expect({ id: resource.id, errors: errors(resource) }).toEqual({ id: resource.id, errors: [] });
+    const present = new Set(all.map((r) => `${r.resourceType}/${r.id}`));
+    const references = [...JSON.stringify(bundle).matchAll(/"reference":"([A-Za-z]+\/[^"]+)"/g)].map((m) => m[1]);
+    expect(references.filter((r) => !present.has(r!))).toEqual([]);
+  });
+
+  it("maps procedures with the organization's code, the tooth and surfaces as body sites", () => {
+    expect(byId(PROC)).toMatchObject({
+      resourceType: "Procedure",
+      status: "completed",
+      meta: { lastUpdated: "2026-09-27T02:00:00.000Z" },
+      code: { coding: [{ system: "https://ids.example.ph/demo/codesystem/dental-procedure", code: "composite", display: "Composite restoration" }] },
+      encounter: { reference: `Encounter/${ENC}` },
+      performer: [{ actor: { reference: `Practitioner/${DR}` } }],
+      bodySite: [
+        { coding: [{ system: "https://ids.example.ph/demo/codesystem/fdi-tooth", code: "16", display: "upper right first molar" }] },
+        { coding: [{ code: "M", display: "mesial" }] },
+        { coding: [{ code: "O", display: "occlusal" }] },
+      ],
+      note: [{ text: "Shade A2" }],
+    });
+    expect(byId("d4d4d4d4-d4d4-4d4d-8d4d-d4d4d4d4d4d4")).toMatchObject({ status: "entered-in-error", meta: { lastUpdated: "2026-09-27T03:00:00.000Z" } });
+    expect(byId("d4d4d4d4-d4d4-4d4d-8d4d-d4d4d4d4d4d4")).not.toHaveProperty("bodySite");
+    const search = searchByPatient(ctx, dental, "Procedure", { paging: { count: 50, offset: 0 }, lastUpdated: { ge: "2026-09-27T02:30:00Z" } });
+    expect(search.entry?.map((e) => e.resource?.id)).toEqual(["d4d4d4d4-d4d4-4d4d-8d4d-d4d4d4d4d4d4"]);
+  });
+
+  it("maps the current chart as one Observation per finding; a sound tooth has none", () => {
+    const findings = all.filter((r) => r.resourceType === "Observation" && JSON.stringify(r).includes("dental-finding")) as Array<
+      FhirResource & Record<string, unknown>
+    >;
+    expect(findings.map((f) => f.id).sort()).toEqual([`${EXAM}-46-caries`, `${EXAM}-46-root-canal`, `${PROC}-16-restoration`].sort());
+    expect(byId(`${PROC}-16-restoration`)).toMatchObject({
+      status: "final",
+      category: [{ coding: [{ code: "exam" }] }],
+      partOf: [{ reference: `Procedure/${PROC}` }],
+      bodySite: { coding: [{ code: "16" }] },
+      component: [{ valueCodeableConcept: { coding: [{ code: "M" }] } }, { valueCodeableConcept: { coding: [{ code: "O" }] } }],
+    });
+    expect(byId(`${EXAM}-46-root-canal`)).not.toHaveProperty("component");
+    expect(JSON.stringify(all)).not.toContain('"75"');
+  });
+
+  it("maps a periodontal chart as one Observation per tooth with site measurements as components", () => {
+    const tooth = byId(`${PERIO}-16`) as unknown as Observation & { component: Array<{ code: { coding: Array<{ code: string }> } } & Record<string, unknown>> };
+    expect(tooth).toMatchObject({ status: "final", encounter: { reference: `Encounter/${ENC}` }, bodySite: { coding: [{ code: "16" }] } });
+    const value = (code: string) => tooth.component.find((c) => c.code.coding?.[0]?.code === code);
+    expect(value("probing-depth-MB")).toMatchObject({ valueQuantity: { value: 5, unit: "mm", system: "http://unitsofmeasure.org", code: "mm" } });
+    expect(value("gingival-margin-MB")).toMatchObject({ valueQuantity: { value: -1 } });
+    expect(value("gingival-margin-B")).toBeUndefined();
+    expect(value("bleeding-MB")).toMatchObject({ valueBoolean: true });
+    expect(value("mobility")).toMatchObject({ valueInteger: 1 });
+    expect(value("furcation")).toMatchObject({ valueInteger: 2 });
   });
 });
