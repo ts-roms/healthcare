@@ -1,4 +1,5 @@
 import type { ClaimSourcePatient, ClaimSources } from "./claim-package";
+import type { YakapConsultation, YakapEncounterSource } from "./yakap";
 
 /**
  * What the PhilHealth claims module needs from other domains, implemented by the
@@ -18,3 +19,15 @@ export interface PhilHealthBillingSink {
   claimSubmitted(input: { organizationId: string; invoiceId: string; invoicePayerId: string; reference: string; requestedBy: string }): Promise<void>;
 }
 export const PHILHEALTH_BILLING_SINK = Symbol("PHILHEALTH_BILLING_SINK");
+
+/**
+ * What YAKAP needs from the clinic, prescriptions, laboratory and the patient record, implemented by the app's
+ * composition root. This library never reads those domains' tables.
+ */
+export interface PhilHealthYakapSources {
+  /** One consultation with the patient's identity, diagnoses, prescriptions and laboratory orders; undefined when it does not exist. */
+  encounter(organizationId: string, encounterId: string): Promise<YakapEncounterSource | undefined>;
+  /** The patient's consultations, newest first (not entered in error). */
+  consultations(organizationId: string, patientId: string): Promise<YakapConsultation[]>;
+}
+export const PHILHEALTH_YAKAP_SOURCES = Symbol("PHILHEALTH_YAKAP_SOURCES");

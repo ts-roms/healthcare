@@ -9,3 +9,5 @@ export * from "./lib/philhealth-worker";
 export * from "./lib/philhealth.module";
 export * from "./lib/philhealth.schema";
 export * from "./lib/ports";
+export * from "./lib/yakap";
+export * from "./lib/yakap.service";

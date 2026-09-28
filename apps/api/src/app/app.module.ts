@@ -23,7 +23,7 @@ import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
-import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
+import { AppPhilHealthBillingSink, AppPhilHealthClaimSources, AppPhilHealthYakapSources } from "./adapters/philhealth-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
@@ -48,6 +48,8 @@ export interface AppModuleOverrides {
   philhealthGateway?: Provider;
   /** Replaces the PhilHealth eligibility adapter (tests; the default transmits nothing). */
   philhealthEligibilityGateway?: Provider;
+  /** Replaces the PhilHealth YAKAP adapter (tests; the default transmits nothing). */
+  philhealthYakapGateway?: Provider;
   /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
   dohGateway?: Provider;
   /** Replaces the BullMQ laboratory report archive queue (tests). */
@@ -73,6 +75,8 @@ export class AppModule implements NestModule {
     });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
     const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory });
+    // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
+    const prescriptions = PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext });
     return {
       module: AppModule,
       imports: [
@@ -96,7 +100,7 @@ export class AppModule implements NestModule {
         }),
         // Phase 2 — clinic. Cross-domain needs are satisfied by adapters defined here.
         ClinicModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
-        PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext }),
+        prescriptions,
         CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
         // Phase 3 — laboratory.
         laboratory,
@@ -104,13 +108,15 @@ export class AppModule implements NestModule {
         TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
         // Phase 7 — billing: charges from clinical events, invoices, payments.
         billing,
-        // Phase 8 — PhilHealth eClaims: claim preparation and the adapter port (unconfigured until the specification is obtained).
+        // Phase 8 — PhilHealth eClaims, eligibility and YAKAP: preparation, recorded answers and adapter ports (unconfigured until the specifications are obtained).
         PhilHealthModule.forRoot({
-          imports: [PatientModule, billing],
+          imports: [PatientModule, OrganizationModule, billing, laboratory, prescriptions],
           sources: AppPhilHealthClaimSources,
           billing: AppPhilHealthBillingSink,
           gateway: overrides.philhealthGateway,
           eligibilityGateway: overrides.philhealthEligibilityGateway,
+          yakapSources: AppPhilHealthYakapSources,
+          yakapGateway: overrides.philhealthYakapGateway,
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
