@@ -27,8 +27,8 @@ numeric tests. Loading a lot can take that lot's stock from a storage location o
 (migration `0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
 Not yet either: electronic EQA exchange with providers (results are entered by hand), automatic temperature sensors,
-documents attached to nonconformances, reminders for overdue temperature readings or competency reassessments, and
-quality counts on the laboratory dashboard.
+documents attached to nonconformances, and scheduled reminders for overdue temperature readings or competency
+reassessments (they show on the dashboard; nothing is sent).
 
 No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, whether patient
 results need QC, storage limits and reading intervals, EQA schemes, competency areas and intervals, and what a
@@ -165,7 +165,12 @@ reagent lots in use at the facility (optionally one instrument), an instrument's
 stock at the facility (from inventory) that can be loaded. Storage units with their last reading, whether a reading
 is due and excursions in the last 7 days; a unit's readings (last N days, default 31); nonconformances (open,
 closed, all) and one with its entries and what it still needs to close; EQA schemes and rounds with results; each
-result-entering staff member's latest assessment per area, and one person's history.
+result-entering staff member's latest assessment per area, and one person's history. The **quality summary**
+(`LabQualitySummaryService`, built from the same queries as the pages): open nonconformances (investigating, critical,
+major), QC pairs rejected, missing in the window or refusing patient results, instruments out of service or with
+calibration overdue, storage units with a reading due or out of range at the last reading and excursions in 7 days, EQA
+rounds past due with nothing reported or awaiting evaluation, and competency areas due or not yet competent and staff
+never assessed.
 
 ## Events
 
@@ -208,7 +213,7 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory quality`): `GET/POST instrum
 `GET/POST storage-units/:id/readings`, `GET/POST nonconformances?status=`, `GET nonconformances/:id`,
 `POST nonconformances/:id/entries | reclassify | close`, `GET/POST eqa/schemes`, `GET/POST eqa/surveys`,
 `POST eqa/surveys/:id/results`, `POST eqa/results/:id/evaluation`, `GET/POST competency`,
-`GET competency/users/:userId`. `PUT policy` accepts `qcRejectRules`, `qcValidHours`, `qcRequired`,
+`GET competency/users/:userId`, `GET quality/summary` (`lab.qc.read`, selected facility). `PUT policy` accepts `qcRejectRules`, `qcValidHours`, `qcRequired`,
 `qcAfterReagentChange`, `competencyRequired` (left out: unchanged). Results and QC runs carry `reagents`.
 `POST order-items/:itemId/results` and `POST results/:id/correct` accept `instrumentId`.
 
@@ -245,6 +250,8 @@ excursion flags, record a reading (an excursion asks for a note and links to the
 history, unit setup. `/laboratory/nonconformances`: open / closed lists, report one; the detail page shows
 links, the investigation, what is still needed to close, reclassify and close. `/laboratory/eqa`: rounds with results
 and evaluations (unacceptable ones link to their nonconformance), schemes. `/laboratory/competency`: each
-result-entering staff member's areas with their state, and recording an assessment. The QC board shows the lots in use and "since the reagent lot change". Workbench: result entry
+result-entering staff member's areas with their state, and recording an assessment. Dashboard (`/`, with
+`lab.qc.read`): a _Laboratory quality_ list of what needs attention, linking to each page — critical when patient results
+are refused, a storage unit is out of range or a critical nonconformance is open. The QC board shows the lots in use and "since the reagent lot change". Workbench: result entry
 and corrections name the instrument; each result shows its QC state. Laboratory catalog: QC settings in the facility
 policy.

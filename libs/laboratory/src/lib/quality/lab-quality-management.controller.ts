@@ -4,6 +4,7 @@ import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@
 import { LabCompetencyService } from "./lab-competency.service";
 import { LabEqaService } from "./lab-eqa.service";
 import { LabNonconformanceService } from "./lab-nonconformance.service";
+import { LabQualitySummaryService } from "./lab-quality-summary.service";
 import { LabTemperatureService } from "./lab-temperature.service";
 import {
   CloseNonconformanceDto,
@@ -35,7 +36,16 @@ export class LabQualityManagementController {
     private readonly nonconformances: LabNonconformanceService,
     private readonly eqa: LabEqaService,
     private readonly competency: LabCompetencyService,
+    private readonly summaries: LabQualitySummaryService,
   ) {}
+
+  @Get("quality/summary")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "What needs attention in the laboratory's quality system at the selected facility (counts)" })
+  summary(@CurrentActor() actor: Actor) {
+    return this.summaries.summary(actor);
+  }
 
   // ---- Temperature monitoring ------------------------------------------------------------
 

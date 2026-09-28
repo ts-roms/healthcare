@@ -2805,3 +2805,16 @@ export interface StaffNotice {
   createdAt: string;
   readAt: string | null;
 }
+
+// ---- Laboratory quality summary (GET /laboratory/quality/summary, lab.qc.read) ----------------------------------
+
+export interface LabQualitySummary {
+  facilityId: string;
+  date: string;
+  nonconformances: { open: number; investigating: number; critical: number; major: number };
+  qc: { rejected: number; missing: number; resultsBlocked: number };
+  instruments: { outOfService: number; calibrationOverdue: number };
+  temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
+  eqa: { overdue: number; awaitingEvaluation: number };
+  competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
+}

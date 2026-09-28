@@ -330,6 +330,56 @@ describe("laboratory quality management", () => {
     expect(await unread()).toBe(before - 1);
   });
 
+  it("sums up what needs attention for the dashboard, per facility", async () => {
+    await lab("get", "/quality/summary", doctor).expect(403);
+    // A round past its due date with nothing reported yet, and one with a result awaiting the provider.
+    await lab("post", "/eqa/surveys", medtech, { schemeId: ids.scheme, roundCode: "2026-1", receivedOn: "2026-01-10", dueOn: "2026-02-01" }).expect(201);
+    const pending = await lab("post", "/eqa/surveys", medtech, { schemeId: ids.scheme, roundCode: "2026-2", receivedOn: "2026-05-01" }).expect(201);
+    await lab("post", `/eqa/surveys/${pending.body.id}/results`, medtech, { testId: ids.glu, sampleCode: "S1", reportedValue: "6.0" }).expect(201);
+
+    const summary = (await lab("get", "/quality/summary", medtech).expect(200)).body;
+    const open = await ctx.pool.query<{ open: number; investigating: number; critical: number; major: number }>(
+      `SELECT count(*)::int AS open,
+              count(*) FILTER (WHERE status = 'investigating')::int AS investigating,
+              count(*) FILTER (WHERE severity = 'critical')::int AS critical,
+              count(*) FILTER (WHERE severity = 'major')::int AS major
+         FROM lab_nonconformance WHERE facility_id = $1 AND status <> 'closed'`,
+      [tenant.facilityId],
+    );
+    expect(summary.nonconformances).toEqual(open.rows[0]);
+    expect(summary.nonconformances.critical).toBeGreaterThanOrEqual(1);
+
+    // The same figures as the quality pages.
+    const units = (await lab("get", "/storage-units", medtech).expect(200)).body as Array<{ readingDue: boolean; excursionsLast7Days: number }>;
+    expect(summary.temperatures).toMatchObject({
+      readingsDue: units.filter((u) => u.readingDue).length,
+      excursionsLast7Days: units.reduce((n, u) => n + u.excursionsLast7Days, 0),
+    });
+    expect(summary.temperatures.excursionsLast7Days).toBeGreaterThanOrEqual(1);
+    expect(summary.eqa).toEqual({ overdue: 1, awaitingEvaluation: 1 });
+    const staff = (await lab("get", "/competency", medtech).expect(200)).body as {
+      competencyRequired: boolean;
+      staff: Array<{ areas: Array<{ state: string }> }>;
+    };
+    expect(summary.competency).toEqual({
+      required: staff.competencyRequired,
+      due: staff.staff.flatMap((s) => s.areas).filter((a) => a.state === "due").length,
+      notYetCompetent: staff.staff.flatMap((s) => s.areas).filter((a) => a.state === "not_yet_competent").length,
+      staffNotAssessed: staff.staff.filter((s) => s.areas.length === 0).length,
+    });
+    expect(summary.qc).toEqual({ rejected: 0, missing: 0, resultsBlocked: 0 });
+    expect(summary.instruments).toEqual({ outOfService: 0, calibrationOverdue: 0 });
+
+    // Another facility of the organization has nothing open.
+    const annex = await ctx.http().get("/api/v1/laboratory/quality/summary").set(as(admin, tenant.otherFacilityId)).expect(200);
+    expect(annex.body).toMatchObject({
+      facilityId: tenant.otherFacilityId,
+      nonconformances: { open: 0 },
+      temperatures: { readingsDue: 0, excursionsLast7Days: 0 },
+      eqa: { overdue: 0, awaitingEvaluation: 0 },
+    });
+  });
+
   it("audits and publishes quality events", async () => {
     const actions = new Set((await auditRows(ctx.pool, "action LIKE 'lab.%'")).map((a) => a.action));
     for (const action of [

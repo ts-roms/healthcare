@@ -173,6 +173,9 @@ describe("laboratory quality control and instruments", () => {
       expect(notice.text).toContain("1_2s, 2_2s");
       expect(notice.text).not.toMatch(/16\.1/);
       expect(await qcNotices(medtech)).toEqual([]);
+      // The dashboard counts the rejected pair (and its blocked results only when the facility requires QC).
+      const summary = await req("get", "/quality/summary", medtech).expect(200);
+      expect(summary.body.qc).toMatchObject({ rejected: 1, missing: 0 });
 
       await req("post", `/qc/runs/${ok.body.id}/actions`, medtech, { action: "Nothing to do" }).expect(422);
       await req("post", `/qc/runs/${ids.rejectedRun}/actions`, medtech, { action: "Reagent pack replaced, recalibrated, level 2 re-run" }).expect(201);
