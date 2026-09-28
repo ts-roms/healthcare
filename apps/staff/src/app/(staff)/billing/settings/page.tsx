@@ -3,13 +3,15 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type {
+  BillingPackage,
   BillingPayer,
-  BillingPrefixes,
   BillingService,
+  BillingSettingsFull,
   DentalSettings,
   DiscountRule,
   LabTest,
   PhilHealthAccreditation,
+  TaxProfile,
   VisitType,
   YakapParticipation,
 } from "@/lib/api/types";
@@ -23,11 +25,13 @@ export default async function BillingSettingsPage() {
   if (!can(session, "billing.charge.read")) redirect("/");
   const facility = await getSelectedFacility();
   const canAccredit = can(session, "philhealth.settings.manage") && facility !== null;
-  const [services, payers, rules, prefixes, visitTypes, labTests, dental, accreditation, yakap] = await Promise.all([
+  const [services, payers, rules, settings, taxProfile, packages, visitTypes, labTests, dental, accreditation, yakap] = await Promise.all([
     api<BillingService[]>("/billing/services"),
     api<BillingPayer[]>("/billing/payers"),
     api<DiscountRule[]>("/billing/discount-rules"),
-    api<BillingPrefixes>("/billing/settings"),
+    api<BillingSettingsFull>("/billing/settings"),
+    api<TaxProfile>("/billing/tax-profile"),
+    api<BillingPackage[]>("/billing/packages"),
     // Sources for automatic capture; staff without access to them can still type the code.
     can(session, "appointment.read") ? api<VisitType[]>("/clinic/visit-types").catch(() => []) : Promise.resolve([]),
     can(session, "lab.order.read") ? api<LabTest[]>("/laboratory/tests").catch(() => []) : Promise.resolve([]),
@@ -43,14 +47,16 @@ export default async function BillingSettingsPage() {
     <>
       <PageHeader
         title="Prices and discounts"
-        description="Billable services and their prices, HMO and other payers, discount rules and document numbers."
+        description="Billable services and their prices, packages, HMO and other payers, discount rules, tax settings and document numbers."
         actions={<BillingNav canReport={can(session, "billing.report.read")} canConfigure={false} />}
       />
       <BillingSettings
-        services={services}
+        services={services.filter((s) => !s.isPackage)}
         payers={payers}
         rules={rules}
-        prefixes={prefixes}
+        settings={settings}
+        taxProfile={taxProfile}
+        packages={packages}
         visitTypes={visitTypes.map((v) => ({ code: v.code, name: v.name }))}
         labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
         dentalProcedures={(dental?.procedureTypes ?? []).map((t) => ({ code: t.code, name: t.name }))}

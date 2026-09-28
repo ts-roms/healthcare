@@ -7,7 +7,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { DailyAccountFigures, DailyBillingReport } from "@/lib/api/types";
+import type { DailyAccountFigures, DailyBillingReport, DailyNoteFigures } from "@/lib/api/types";
 import { METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
 import { BillingNav } from "../billing-nav";
@@ -31,7 +31,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   }
   const today = todayIn(facility.timezone);
   const date = params.date && DATE.test(params.date) ? params.date : today;
-  const r = await api<DailyBillingReport & DailyAccountFigures>("/billing/reports/daily", { query: { date } });
+  const r = await api<DailyBillingReport & DailyAccountFigures & DailyNoteFigures>("/billing/reports/daily", { query: { date } });
   return (
     <>
       <PageHeader
@@ -99,6 +99,17 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
           ]}
         />
         <Figures
+          title="Debit notes issued"
+          rows={
+            r.debitNotes.count
+              ? [
+                  ["Debit notes", String(r.debitNotes.count)],
+                  ["Total added", peso(r.debitNotes.amount)],
+                ]
+              : [["None", "—"]]
+          }
+        />
+        <Figures
           title="Credit notes issued"
           rows={
             r.creditNotes.count
@@ -107,6 +118,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
                   ["Total credited", peso(r.creditNotes.amount)],
                   ["Taken off balances", peso(r.creditNotes.appliedAmount)],
                   ["To patients' accounts (already paid)", peso(r.creditNotes.accountCredit)],
+                  ["Off payers' coverage", peso(r.creditNotes.payerAmount)],
                 ]
               : [["None", "—"]]
           }

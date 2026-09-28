@@ -1,8 +1,25 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, StreamableFile } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  type RawBodyRequest,
+  Req,
+  StreamableFile,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, Public, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
+  CancelEnrollmentDto,
+  CreatePackageDto,
   ApplyDepositDto,
   ApplyDiscountDto,
   CancelChargeDto,
@@ -12,6 +29,7 @@ import {
   CreateServiceDto,
   DailyReportDto,
   IssueCreditNoteDto,
+  IssueDebitNoteDto,
   IssueInvoiceDto,
   ListChargesDto,
   ListInvoicesDto,
@@ -22,17 +40,22 @@ import {
   RefundAccountDto,
   RefundDto,
   RemoveLineDto,
+  SellPackageDto,
   SetPayerDto,
   UpdateServiceDto,
   UpdateSettingsDto,
+  UpdateTaxProfileDto,
   VoidInvoiceDto,
 } from "./billing.dto";
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeService } from "./charges/charge.service";
 import { CreditNoteService } from "./credit-notes/credit-note.service";
+import { DebitNoteService } from "./credit-notes/debit-note.service";
 import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
+import { PackageService } from "./packages/package.service";
 import { DepositService } from "./payments/deposit.service";
+import { OnlinePaymentService } from "./payments/online-payment.service";
 import { PaymentService } from "./payments/payment.service";
 
 /** Services and prices, payers, discount rules, document numbering. */
@@ -40,7 +63,38 @@ import { PaymentService } from "./payments/payment.service";
 @ApiBearerAuth()
 @Controller({ path: "billing", version: "1" })
 export class BillingCatalogController {
-  constructor(private readonly catalog: BillingCatalogService) {}
+  constructor(
+    private readonly catalog: BillingCatalogService,
+    private readonly packages: PackageService,
+  ) {}
+
+  @Get("tax-profile")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "The organization's tax and document settings, as it configured them (BIR as configuration)" })
+  taxProfile(@CurrentActor() actor: Actor) {
+    return this.catalog.taxProfile(actor.organizationId);
+  }
+
+  @Put("tax-profile")
+  @RequirePermissions("billing.pricelist.manage")
+  @ApiOperation({ summary: "Registered name, TIN, VAT status and rate, permit, document note, deposits across facilities (to be verified against BIR rules)" })
+  updateTaxProfile(@CurrentActor() actor: Actor, @Body() body: UpdateTaxProfileDto) {
+    return this.catalog.updateTaxProfile(actor, body);
+  }
+
+  @Get("packages")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Packages with their contents and current price" })
+  packages_(@CurrentActor() actor: Actor) {
+    return this.packages.list(actor.organizationId, localDate(new Date(), PH_TIMEZONE));
+  }
+
+  @Post("packages")
+  @RequirePermissions("billing.pricelist.manage")
+  @ApiOperation({ summary: "A package: its own service and price, and the services it includes (fixed once created)" })
+  createPackage(@CurrentActor() actor: Actor, @Body() body: CreatePackageDto) {
+    return this.packages.create(actor, body);
+  }
 
   @Get("services")
   @RequirePermissions("billing.charge.read")
@@ -126,6 +180,8 @@ export class BillingController {
     private readonly payments: PaymentService,
     private readonly deposits: DepositService,
     private readonly creditNotes: CreditNoteService,
+    private readonly debitNotes: DebitNoteService,
+    private readonly packageSales: PackageService,
     private readonly documents: BillingDocuments,
   ) {}
 
@@ -348,10 +404,76 @@ export class BillingController {
     return pdfFile(pdf, filename);
   }
 
+  // ---- packages ----------------------------------------------------------------------------------
+
+  @Get("patients/:patientId/packages")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "The patient's packages at this facility, with what is left of each included service" })
+  patientPackages(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
+    return this.packageSales.enrollments(actor, patientId);
+  }
+
+  @Post("patients/:patientId/packages")
+  @RequirePermissions("billing.charge.capture")
+  @ApiOperation({ summary: "Sell a package: the package is charged at today's price; included services are then covered" })
+  sellPackage(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: SellPackageDto) {
+    return this.packageSales.sell(actor, patientId, body);
+  }
+
+  @Post("package-enrollments/:enrollmentId/cancel")
+  @HttpCode(200)
+  @RequirePermissions("billing.charge.capture")
+  @ApiOperation({ summary: "Cancel an unused package (reason required); its charge is cancelled if not yet invoiced" })
+  cancelPackage(@CurrentActor() actor: Actor, @Param("enrollmentId", ParseUUIDPipe) id: string, @Body() body: CancelEnrollmentDto) {
+    return this.packageSales.cancel(actor, id, body);
+  }
+
+  // ---- debit notes -------------------------------------------------------------------------------
+
+  @Post("invoices/:invoiceId/debit-notes")
+  @RequirePermissions("billing.debit-note.issue")
+  @ApiOperation({ summary: "Issue a debit note adding services or an adjustment to an issued invoice (reason required; immutable; idempotent per key)" })
+  issueDebitNote(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: IssueDebitNoteDto) {
+    return this.debitNotes.issue(actor, id, body);
+  }
+
+  @Get("debit-notes/:debitNoteId")
+  @RequirePermissions("billing.charge.read")
+  debitNote(@CurrentActor() actor: Actor, @Param("debitNoteId", ParseUUIDPipe) id: string) {
+    return this.debitNotes.get(actor, id);
+  }
+
+  @Get("debit-notes/:debitNoteId/pdf")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "Printable debit note (audited)" })
+  async debitNotePdf(@CurrentActor() actor: Actor, @Param("debitNoteId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.documents.debitNotePdf(actor, id);
+    return pdfFile(pdf, filename);
+  }
+
   @Get("reports/daily")
   @RequirePermissions("billing.report.read")
   @ApiOperation({ summary: "The facility's day: invoices, discounts, collections by method, refunds, receivables" })
   daily(@CurrentActor() actor: Actor, @Query() query: DailyReportDto) {
     return this.payments.dailyReport(actor, query.date);
+  }
+}
+
+/**
+ * Notifications from the payment provider. Public (the provider has no staff
+ * session): the adapter verifies each one against the raw body before
+ * anything changes, and each payment completes once.
+ */
+@ApiTags("billing")
+@Public()
+@Controller({ path: "billing/online-payments", version: "1" })
+export class OnlinePaymentNotificationController {
+  constructor(private readonly online: OnlinePaymentService) {}
+
+  @Post("notifications")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Payment provider notification (verified by the adapter)" })
+  notify(@Req() request: RawBodyRequest<{ headers: Record<string, string | string[] | undefined> }>) {
+    return this.online.notify(request.headers, request.rawBody);
   }
 }

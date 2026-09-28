@@ -30,9 +30,9 @@ export function maskIdNumber(value: string | null): string | null {
 }
 
 /**
- * Serializes changes to one patient's account at one facility (deposits, applications, credit, refunds) for the
- * rest of the transaction. Taken after any invoice lock, never before, so the lock order is always the same.
+ * Serializes changes to one patient's deposit and credit accounts (all facilities: balance can move between them)
+ * for the rest of the transaction. Taken after any invoice lock, never before, so the lock order is always the same.
  */
-export async function lockPatientAccount(tx: DbExecutor, organizationId: string, facilityId: string, patientId: string): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`billing-account:${organizationId}:${facilityId}:${patientId}`}, 0))`);
+export async function lockPatientAccount(tx: DbExecutor, organizationId: string, patientId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`billing-account:${organizationId}:${patientId}`}, 0))`);
 }
