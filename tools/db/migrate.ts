@@ -6,6 +6,7 @@ import "dotenv/config";
 import { join } from "node:path";
 import { Pool } from "pg";
 import { runMigrations } from "../../libs/core/src/lib/database/migrator";
+import { describeError } from "./describe-error";
 
 async function main(): Promise<void> {
   const url = process.argv[2] ?? process.env.DATABASE_URL;
@@ -21,6 +22,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(describeError(error));
   process.exit(1);
 });

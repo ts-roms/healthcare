@@ -9,6 +9,7 @@
 import "dotenv/config";
 import { hash } from "@node-rs/argon2";
 import { Pool } from "pg";
+import { describeError } from "./describe-error";
 
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
@@ -69,6 +70,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(describeError(error));
   process.exit(1);
 });
