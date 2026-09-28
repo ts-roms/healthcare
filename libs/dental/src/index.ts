@@ -6,3 +6,4 @@ export * from "./lib/ports";
 export * from "./lib/procedures/dental-procedure.service";
 export * from "./lib/portal/dental-patient-access";
 export * from "./lib/portal/dental-portal-settings.service";
+export * from "./lib/supplies.rules";

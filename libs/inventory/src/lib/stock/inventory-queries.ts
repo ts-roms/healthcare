@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { inventoryBalance, inventoryItem, type ItemCategory, inventoryLocation, inventoryLot } from "../inventory.schema";
 
 export interface InventoryLotInfo {
@@ -56,6 +56,67 @@ export class InventoryQueries {
       .groupBy(inventoryLot.id, inventoryItem.id)
       .orderBy(asc(inventoryItem.name), sql`${inventoryLot.expiryDate} ASC NULLS LAST`);
     return rows.map((row) => ({ ...info(row), quantity: row.quantity, stockUnit: row.item.stockUnit }));
+  }
+
+  /** Items of the organization (any status) by id, for other domains' configuration and snapshots. */
+  async items(organizationId: string, itemIds?: string[]) {
+    if (itemIds && itemIds.length === 0) return [];
+    const conditions = [eq(inventoryItem.organizationId, organizationId)];
+    if (itemIds) conditions.push(inArray(inventoryItem.id, [...new Set(itemIds)]));
+    const rows = await this.db
+      .select()
+      .from(inventoryItem)
+      .where(and(...conditions))
+      .orderBy(asc(inventoryItem.name));
+    return rows.map((i) => ({
+      id: i.id,
+      code: i.code,
+      name: i.name,
+      category: i.category,
+      stockUnit: i.stockUnit,
+      controlled: i.controlled,
+      status: i.status,
+    }));
+  }
+
+  /** Storage locations of a facility (any status). */
+  async locations(organizationId: string, facilityId: string) {
+    const rows = await this.db
+      .select()
+      .from(inventoryLocation)
+      .where(and(eq(inventoryLocation.organizationId, organizationId), eq(inventoryLocation.facilityId, facilityId)))
+      .orderBy(asc(inventoryLocation.name));
+    return rows.map((l) => ({ id: l.id, facilityId: l.facilityId, code: l.code, name: l.name, status: l.status }));
+  }
+
+  async location(organizationId: string, locationId: string) {
+    const [row] = await this.db
+      .select()
+      .from(inventoryLocation)
+      .where(and(eq(inventoryLocation.organizationId, organizationId), eq(inventoryLocation.id, locationId)));
+    return row ? { id: row.id, facilityId: row.facilityId, code: row.code, name: row.name, status: row.status } : undefined;
+  }
+
+  /** Usable stock (lots not expired on `today`, the facility's local date) per location and item at a facility. */
+  async usableStock(organizationId: string, facilityId: string, today: string): Promise<Array<{ locationId: string; itemId: string; usable: number }>> {
+    return this.db
+      .select({
+        locationId: inventoryBalance.locationId,
+        itemId: inventoryBalance.itemId,
+        usable: sql<number>`sum(${inventoryBalance.quantity})::int`,
+      })
+      .from(inventoryBalance)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryBalance.locationId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryBalance.lotId))
+      .where(
+        and(
+          eq(inventoryLocation.organizationId, organizationId),
+          eq(inventoryLocation.facilityId, facilityId),
+          gt(inventoryBalance.quantity, 0),
+          or(isNull(inventoryLot.expiryDate), gte(inventoryLot.expiryDate, today)),
+        ),
+      )
+      .groupBy(inventoryBalance.locationId, inventoryBalance.itemId);
   }
 }
 

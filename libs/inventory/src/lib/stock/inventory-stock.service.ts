@@ -33,6 +33,44 @@ import {
 } from "../inventory.schema";
 import { found, strip } from "../inventory-support";
 
+/** The record of another domain that stock was issued to or returned from (e.g. a dental procedure). */
+export interface MovementSource {
+  /** Lowercase with underscores, e.g. `dental_procedure`. */
+  type: string;
+  id: string;
+}
+
+/** Several items issued to one record from one location of the actor's facility, in the caller's transaction. */
+export interface SourcedIssueInput {
+  locationId: string;
+  source: MovementSource;
+  /** Shown on the ledger: a department or purpose — never a patient identifier. */
+  issuedTo: string;
+  lines: Array<{ itemId: string; quantity: number; reason?: string; reference?: string }>;
+  idempotencyKey: string;
+}
+
+/** Unused stock returned from a record to the lots it was issued from, in the caller's transaction. */
+export interface SourcedReturnInput {
+  locationId: string;
+  source: MovementSource;
+  lines: Array<{ itemId: string; lotId: string; quantity: number; reason: string; reference?: string }>;
+  idempotencyKey: string;
+}
+
+/** One ledger row of a sourced issue or return, with what identifies the item and lot. Quantity is positive. */
+export interface SourcedMovement {
+  movementId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+}
+
 interface Posting {
   kind: MovementKind;
   locationId: string;
@@ -195,6 +233,104 @@ export class InventoryStockService {
     ]);
   }
 
+  // ---- movements for other domains (inside their transaction, through their ports) ------------
+
+  /**
+   * Issues several items to a record of another domain (e.g. the supplies a dental procedure used) inside the
+   * caller's transaction, so the caller's record and the ledger commit or roll back together. The same rules as an
+   * issue: the location belongs to the actor's facility and is active, items are active, lots first-expiry-first-out
+   * and never expired, balances never negative, controlled items need a reason and a reference. Any refusal throws
+   * before anything is committed. The same idempotency key returns the movements it already produced.
+   */
+  async issueForSource(tx: DbExecutor, actor: Actor, input: SourcedIssueInput): Promise<{ movementGroupId: string; movements: SourcedMovement[] }> {
+    const replay = await this.sourcedReplay(tx, actor.organizationId, input.idempotencyKey);
+    if (replay) return replay;
+    if (input.lines.length === 0) throw new BusinessRuleError("Nothing to issue", "nothing_to_issue");
+    if (new Set(input.lines.map((l) => l.itemId)).size !== input.lines.length) throw new BusinessRuleError("Each item once per issue", "duplicate_item");
+    const { location, today } = await this.locationContext(tx, actor, input.locationId);
+    const postings: Posting[] = [];
+    for (const line of input.lines) {
+      const item = await this.activeItem(tx, actor.organizationId, line.itemId);
+      this.requireControlledDetails(item, line);
+      const allocations = await this.allocate(tx, location.id, item, line.quantity, today);
+      postings.push(
+        ...allocations.map((a) => ({
+          kind: "issue" as const,
+          locationId: location.id,
+          itemId: item.id,
+          lotId: a.lotId,
+          delta: -a.quantity,
+          issuedTo: input.issuedTo,
+          reference: line.reference ?? null,
+          reason: line.reason ?? null,
+        })),
+      );
+    }
+    const posted = await this.post(tx, actor, "inventory.issue", input.idempotencyKey, today, postings, input.source);
+    return { movementGroupId: posted.movementGroupId, movements: await this.sourcedView(tx, posted.rows) };
+  }
+
+  /**
+   * Returns unused stock from a record of another domain to the lots and location it was issued from, inside the
+   * caller's transaction (movement kind `return`, with a reason). A lot never takes back more than was issued from it
+   * to that record, net of earlier returns. Controlled items need a reason and a reference.
+   */
+  async returnForSource(tx: DbExecutor, actor: Actor, input: SourcedReturnInput): Promise<{ movementGroupId: string; movements: SourcedMovement[] }> {
+    const replay = await this.sourcedReplay(tx, actor.organizationId, input.idempotencyKey);
+    if (replay) return replay;
+    if (input.lines.length === 0) throw new BusinessRuleError("Nothing to return", "nothing_to_return");
+    if (new Set(input.lines.map((l) => l.lotId)).size !== input.lines.length) throw new BusinessRuleError("Each lot once per return", "duplicate_lot");
+    const { location, today } = await this.locationContext(tx, actor, input.locationId);
+    const postings: Posting[] = [];
+    for (const line of input.lines) {
+      const [item] = await tx
+        .select()
+        .from(inventoryItem)
+        .where(and(eq(inventoryItem.organizationId, actor.organizationId), eq(inventoryItem.id, line.itemId)));
+      if (!item) throw new NotFoundError("Item");
+      this.requireControlledDetails(item, line);
+      const [lot] = await tx
+        .select()
+        .from(inventoryLot)
+        .where(and(eq(inventoryLot.organizationId, actor.organizationId), eq(inventoryLot.id, line.lotId), eq(inventoryLot.itemId, item.id)));
+      if (!lot) throw new NotFoundError("Lot");
+      // Serialize returns of this lot at this location before counting what is still out.
+      await this.lockBalance(tx, actor.organizationId, location.id, item.id, lot.id);
+      const [issued] = await tx
+        .select({ net: sql<number>`coalesce(-sum(${inventoryMovement.quantity}), 0)`.mapWith(Number) })
+        .from(inventoryMovement)
+        .where(
+          and(
+            eq(inventoryMovement.organizationId, actor.organizationId),
+            eq(inventoryMovement.sourceType, input.source.type),
+            eq(inventoryMovement.sourceId, input.source.id),
+            eq(inventoryMovement.locationId, location.id),
+            eq(inventoryMovement.lotId, lot.id),
+            inArray(inventoryMovement.kind, ["issue", "return"]),
+          ),
+        );
+      const outstanding = issued?.net ?? 0;
+      if (line.quantity > outstanding) {
+        throw new BusinessRuleError(
+          `Only ${outstanding} ${item.stockUnit} of ${item.name} lot ${lot.lotNumber ?? "(no lot)"} can be returned here`,
+          "return_exceeds_issued",
+          { itemId: item.id, lotId: lot.id, outstanding },
+        );
+      }
+      postings.push({
+        kind: "return",
+        locationId: location.id,
+        itemId: item.id,
+        lotId: lot.id,
+        delta: line.quantity,
+        reason: line.reason,
+        reference: line.reference ?? null,
+      });
+    }
+    const posted = await this.post(tx, actor, "inventory.return", input.idempotencyKey, today, postings, input.source);
+    return { movementGroupId: posted.movementGroupId, movements: await this.sourcedView(tx, posted.rows) };
+  }
+
   // ---- views ---------------------------------------------------------------------------------
 
   /**
@@ -305,25 +441,48 @@ export class InventoryStockService {
 
   /** Posts the movements of one operation atomically, audits it, and announces reorder-level crossings. */
   private async transaction(actor: Actor, action: string, idempotencyKey: string, today: string, build: (tx: DbExecutor) => Promise<Posting[]>) {
+    let groupId = "";
+    await this.db.transaction(async (tx) => {
+      groupId = (await this.post(tx, actor, action, idempotencyKey, today, await build(tx))).movementGroupId;
+    });
+    return this.group(actor.organizationId, groupId);
+  }
+
+  /**
+   * Posts movements inside the caller's transaction: locks each balance row, refuses a negative balance, appends the
+   * ledger rows, audits and records `InventoryStockLow` for reorder-level crossings. Everything rolls back with the
+   * caller's transaction.
+   */
+  private async post(
+    tx: DbExecutor,
+    actor: Actor,
+    action: string,
+    idempotencyKey: string,
+    today: string,
+    postings: Posting[],
+    source?: MovementSource,
+  ): Promise<{ movementGroupId: string; rows: MovementRecord[] }> {
     const groupId = randomUUID();
     const low: Array<{ itemId: string; locationId: string; onHand: number; reorderLevel: number }> = [];
-    await this.db.transaction(async (tx) => {
-      const postings = await build(tx);
-      const before = new Map<string, number>();
-      for (const p of postings) {
-        const key = `${p.locationId}|${p.itemId}`;
-        if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
-      }
-      let first = true;
-      for (const p of postings) {
-        const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
-        const next = current + p.delta;
-        if (next < 0) throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock");
-        await tx
-          .update(inventoryBalance)
-          .set({ quantity: next, updatedAt: new Date() })
-          .where(and(eq(inventoryBalance.locationId, p.locationId), eq(inventoryBalance.lotId, p.lotId)));
-        await tx.insert(inventoryMovement).values({
+    const rows: MovementRecord[] = [];
+    const before = new Map<string, number>();
+    for (const p of postings) {
+      const key = `${p.locationId}|${p.itemId}`;
+      if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
+    }
+    let first = true;
+    for (const p of postings) {
+      const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
+      const next = current + p.delta;
+      if (next < 0)
+        throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock", { itemId: p.itemId, lotId: p.lotId });
+      await tx
+        .update(inventoryBalance)
+        .set({ quantity: next, updatedAt: new Date() })
+        .where(and(eq(inventoryBalance.locationId, p.locationId), eq(inventoryBalance.lotId, p.lotId)));
+      const [row] = await tx
+        .insert(inventoryMovement)
+        .values({
           organizationId: actor.organizationId,
           movementGroupId: groupId,
           kind: p.kind,
@@ -339,44 +498,48 @@ export class InventoryStockService {
           reason: p.reason ?? null,
           idempotencyKey: first ? idempotencyKey : null,
           recordedBy: actor.userId,
-        });
-        first = false;
-      }
-      for (const [key, total] of before) {
-        const [locationId, itemId] = key.split("|") as [string, string];
-        const after = await this.usableTotal(tx, locationId, itemId, today);
-        const [level] = await tx
-          .select({ reorderLevel: inventoryStockLevel.reorderLevel })
-          .from(inventoryStockLevel)
-          .where(and(eq(inventoryStockLevel.locationId, locationId), eq(inventoryStockLevel.itemId, itemId)));
-        if (level && crossedReorderLevel(total, after, level.reorderLevel)) low.push({ itemId, locationId, onHand: after, reorderLevel: level.reorderLevel });
-      }
-      await this.audit.record(tx, actor, {
-        action,
-        resourceType: "inventory_item",
-        resourceId: postings[0]!.itemId,
-        reason: postings.find((p) => p.reason)?.reason ?? undefined,
-        metadata: {
-          movementGroupId: groupId,
-          movements: postings.map((p) => ({ kind: p.kind, locationId: p.locationId, lotId: p.lotId, quantity: p.delta })),
-          reference: postings[0]!.reference ?? null,
-        },
-      });
-      if (low.length) {
-        await this.events.record(
-          tx,
-          ...low.map((l) => ({
-            type: "InventoryStockLow",
-            organizationId: actor.organizationId,
-            aggregateType: "inventory_item",
-            aggregateId: l.itemId,
-            facilityId: actor.facilityId ?? null,
-            payload: { locationId: l.locationId, onHand: l.onHand, reorderLevel: l.reorderLevel },
-          })),
-        );
-      }
+          sourceType: source?.type ?? null,
+          sourceId: source?.id ?? null,
+        })
+        .returning();
+      rows.push(row!);
+      first = false;
+    }
+    for (const [key, total] of before) {
+      const [locationId, itemId] = key.split("|") as [string, string];
+      const after = await this.usableTotal(tx, locationId, itemId, today);
+      const [level] = await tx
+        .select({ reorderLevel: inventoryStockLevel.reorderLevel })
+        .from(inventoryStockLevel)
+        .where(and(eq(inventoryStockLevel.locationId, locationId), eq(inventoryStockLevel.itemId, itemId)));
+      if (level && crossedReorderLevel(total, after, level.reorderLevel)) low.push({ itemId, locationId, onHand: after, reorderLevel: level.reorderLevel });
+    }
+    await this.audit.record(tx, actor, {
+      action,
+      resourceType: "inventory_item",
+      resourceId: postings[0]!.itemId,
+      reason: postings.find((p) => p.reason)?.reason ?? undefined,
+      metadata: {
+        movementGroupId: groupId,
+        movements: postings.map((p) => ({ kind: p.kind, locationId: p.locationId, itemId: p.itemId, lotId: p.lotId, quantity: p.delta })),
+        reference: postings[0]!.reference ?? null,
+        ...(source ? { source } : {}),
+      },
     });
-    return this.group(actor.organizationId, groupId);
+    if (low.length) {
+      await this.events.record(
+        tx,
+        ...low.map((l) => ({
+          type: "InventoryStockLow",
+          organizationId: actor.organizationId,
+          aggregateType: "inventory_item",
+          aggregateId: l.itemId,
+          facilityId: actor.facilityId ?? null,
+          payload: { locationId: l.locationId, onHand: l.onHand, reorderLevel: l.reorderLevel },
+        })),
+      );
+    }
+    return { movementGroupId: groupId, rows };
   }
 
   /** The same idempotency key returns the movements it already produced. */
@@ -497,20 +660,87 @@ export class InventoryStockService {
     }
     const result = allocateFefo(lots, quantity, today);
     if (!result.ok) {
+      const expired = lots.filter((l) => isExpired(l.expiryDate, today)).reduce((sum, l) => sum + l.quantity, 0);
       throw new BusinessRuleError(
-        `Not enough usable ${item.name} here: ${result.available} ${item.stockUnit} available (expired lots excluded)`,
+        `Not enough usable ${item.name} here: ${result.available} ${item.stockUnit} available` +
+          (expired ? ` (${expired} more in expired lots, which are never issued)` : " (expired lots excluded)"),
         "insufficient_stock",
-        {
-          available: result.available,
-        },
+        { itemId: item.id, available: result.available, expired },
       );
     }
     return result.allocations;
   }
 
+  /** A location of the actor's facility, active, and the facility's local date. */
+  private async locationContext(executor: DbExecutor, actor: Actor, locationId: string) {
+    const facilityId = requireFacilityId(actor);
+    const [location] = await executor
+      .select()
+      .from(inventoryLocation)
+      .where(and(eq(inventoryLocation.organizationId, actor.organizationId), eq(inventoryLocation.id, locationId)));
+    if (!location) throw new NotFoundError("Location");
+    if (location.facilityId !== facilityId) throw new BusinessRuleError("The location belongs to another facility", "location_other_facility");
+    if (location.status !== "active") throw new BusinessRuleError("The location is inactive", "location_inactive");
+    const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
+    return { location, today: localDate(new Date(), facility.timezone) };
+  }
+
+  private async activeItem(executor: DbExecutor, organizationId: string, itemId: string): Promise<ItemRecord> {
+    const [item] = await executor
+      .select()
+      .from(inventoryItem)
+      .where(and(eq(inventoryItem.organizationId, organizationId), eq(inventoryItem.id, itemId)));
+    if (!item) throw new NotFoundError("Item");
+    if (item.status !== "active") throw new BusinessRuleError(`${item.name} is inactive`, "item_inactive", { itemId });
+    return item;
+  }
+
+  private async sourcedReplay(tx: DbExecutor, organizationId: string, idempotencyKey: string) {
+    const [first] = await tx
+      .select({ groupId: inventoryMovement.movementGroupId })
+      .from(inventoryMovement)
+      .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.idempotencyKey, idempotencyKey)));
+    if (!first) return null;
+    const rows = await tx
+      .select()
+      .from(inventoryMovement)
+      .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.movementGroupId, first.groupId)))
+      .orderBy(asc(inventoryMovement.recordedAt));
+    return { movementGroupId: first.groupId, movements: await this.sourcedView(tx, rows) };
+  }
+
+  private async sourcedView(tx: DbExecutor, rows: MovementRecord[]): Promise<SourcedMovement[]> {
+    if (!rows.length) return [];
+    const items = await tx
+      .select()
+      .from(inventoryItem)
+      .where(inArray(inventoryItem.id, [...new Set(rows.map((r) => r.itemId))]));
+    const lots = await tx
+      .select()
+      .from(inventoryLot)
+      .where(inArray(inventoryLot.id, [...new Set(rows.map((r) => r.lotId))]));
+    return rows.map((r) => {
+      const item = items.find((i) => i.id === r.itemId)!;
+      const lot = lots.find((l) => l.id === r.lotId)!;
+      return {
+        movementId: r.id,
+        itemId: item.id,
+        itemCode: item.code,
+        itemName: item.name,
+        stockUnit: item.stockUnit,
+        lotId: lot.id,
+        lotNumber: lot.lotNumber,
+        expiryDate: lot.expiryDate,
+        quantity: Math.abs(r.quantity),
+      };
+    });
+  }
+
   private requireControlledDetails(item: ItemRecord, input: { reason?: string; reference?: string }): void {
     if (item.controlled && (!input.reason || !input.reference)) {
-      throw new BusinessRuleError(`${item.name} is a controlled item: every movement needs a reason and a reference`, "controlled_item_details");
+      throw new BusinessRuleError(`${item.name} is a controlled item: every movement needs a reason and a reference`, "controlled_item_details", {
+        itemId: item.id,
+      });
     }
   }
 }

@@ -17,6 +17,10 @@ import {
   RecordExaminationDto,
   RecordPerioChartDto,
   RecordProcedureDto,
+  RecordSuppliesDto,
+  ReturnSuppliesDto,
+  SupplyLocationDto,
+  SupplyTemplateDto,
   UpdateProcedureTypeDto,
   VisitsQueryDto,
 } from "./dental.dto";
@@ -27,6 +31,7 @@ import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
+import { DentalSuppliesService } from "./supplies/dental-supplies.service";
 
 @ApiTags("dental")
 @ApiBearerAuth()
@@ -243,5 +248,53 @@ export class DentalSettingsController {
   @RequirePermissions("dental.settings.manage")
   updateProcedureType(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: UpdateProcedureTypeDto) {
     return this.catalog.updateProcedureType(actor, id, body);
+  }
+}
+
+@ApiTags("dental")
+@ApiBearerAuth()
+@Controller({ path: "dental", version: "1" })
+export class DentalSuppliesController {
+  constructor(private readonly supplies: DentalSuppliesService) {}
+
+  @Get("supplies/options")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({
+    summary: "Supply templates per procedure type, active inventory items and, for the selected facility, stock locations, usable stock and the default",
+  })
+  options(@CurrentActor() actor: Actor) {
+    return this.supplies.options(actor);
+  }
+
+  @Put("procedure-types/:procedureTypeId/supplies")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Set the supplies a procedure usually uses (inventory items and quantities; staff confirm each time)" })
+  setTemplate(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: SupplyTemplateDto) {
+    return this.supplies.setTemplate(actor, id, body);
+  }
+
+  @Put("facilities/:facilityId/supply-location")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "The stock location of the facility dental supplies are taken from by default (null: none)" })
+  setLocation(@CurrentActor() actor: Actor, @Param("facilityId", ParseUUIDPipe) facilityId: string, @Body() body: SupplyLocationDto) {
+    return this.supplies.setLocation(actor, facilityId, body.locationId);
+  }
+
+  @Post("procedures/:procedureId/supplies")
+  @RequireFacility()
+  @RequirePermissions("dental.procedure.record")
+  @ApiOperation({
+    summary: "Record the supplies a procedure used and issue them from stock (FEFO, never expired lots; all lines or nothing; idempotent by key)",
+  })
+  record(@CurrentActor() actor: Actor, @Param("procedureId", ParseUUIDPipe) procedureId: string, @Body() body: RecordSuppliesDto) {
+    return this.supplies.record(actor, procedureId, body);
+  }
+
+  @Post("procedures/:procedureId/supplies/returns")
+  @RequireFacility()
+  @RequirePermissions("dental.procedure.record")
+  @ApiOperation({ summary: "Return unused supplies of a procedure to the lots they were issued from (with a reason)" })
+  returnUnused(@CurrentActor() actor: Actor, @Param("procedureId", ParseUUIDPipe) procedureId: string, @Body() body: ReturnSuppliesDto) {
+    return this.supplies.returnUnused(actor, procedureId, body);
   }
 }

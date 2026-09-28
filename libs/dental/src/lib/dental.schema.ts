@@ -1,7 +1,7 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql and 0056_dental_portal.sql (the migrations are
-// the source of truth).
+// Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql and
+// 0057_dental_supplies.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -44,6 +44,8 @@ export const dentalFacilitySetting = pgTable("dental_facility_setting", {
   facilityId: uuid("facility_id").primaryKey(),
   organizationId: uuid("organization_id").notNull(),
   notation: text("notation").$type<Notation>().notNull().default("fdi"),
+  /** Where dental supplies are taken from by default (an inventory location of this facility; 0057). */
+  supplyLocationId: uuid("supply_location_id"),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
@@ -233,3 +235,51 @@ export const dentalOrganizationSetting = pgTable("dental_organization_setting", 
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
+
+// ---- supplies used, from inventory (0057) --------------------------------------------------------------
+
+export const SUPPLY_USE_KINDS = ["issue", "return"] as const;
+export type SupplyUseKind = (typeof SUPPLY_USE_KINDS)[number];
+
+export const dentalSupplyTemplateItem = pgTable("dental_supply_template_item", {
+  organizationId: uuid("organization_id").notNull(),
+  procedureTypeId: uuid("procedure_type_id").notNull(),
+  inventoryItemId: uuid("inventory_item_id").notNull(),
+  quantity: integer("quantity").notNull(),
+  position: smallint("position").notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const dentalSupplyUse = pgTable("dental_supply_use", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  procedureId: uuid("procedure_id").notNull(),
+  kind: text("kind").$type<SupplyUseKind>().notNull(),
+  locationId: uuid("location_id").notNull(),
+  reason: text("reason"),
+  movementGroupId: uuid("movement_group_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+export type DentalSupplyUseRecord = typeof dentalSupplyUse.$inferSelect;
+
+export const dentalSupplyUseLine = pgTable("dental_supply_use_line", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  supplyUseId: uuid("supply_use_id").notNull(),
+  inventoryItemId: uuid("inventory_item_id").notNull(),
+  inventoryLotId: uuid("inventory_lot_id").notNull(),
+  inventoryMovementId: uuid("inventory_movement_id").notNull(),
+  itemCode: text("item_code").notNull(),
+  itemName: text("item_name").notNull(),
+  stockUnit: text("stock_unit").notNull(),
+  lotNumber: text("lot_number"),
+  expiryDate: date("expiry_date", { mode: "string" }),
+  quantity: integer("quantity").notNull(),
+  returnsLineId: uuid("returns_line_id"),
+});
+export type DentalSupplyUseLineRecord = typeof dentalSupplyUseLine.$inferSelect;

@@ -21,7 +21,7 @@ import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
-import { AppDentalContext } from "./adapters/dental-adapters";
+import { AppDentalContext, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppFhirImportTargets } from "./adapters/fhir-import-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
@@ -84,7 +84,8 @@ export class AppModule implements NestModule {
       archiveQueue: overrides.labReportArchiveQueue,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
-    const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule], context: AppDentalContext });
+    // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction.
+    const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule, InventoryModule], context: AppDentalContext, supplies: AppDentalSupplies });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
     const billing = BillingModule.forRoot({
       imports: [PatientModule, laboratory, dental],
