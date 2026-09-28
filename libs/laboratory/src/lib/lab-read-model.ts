@@ -13,6 +13,7 @@ import {
 } from "./laboratory.schema";
 import { publicView } from "./laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext, type LabPatientBrief } from "./ports";
+import { attachmentsOf, type AttachmentView } from "./results/lab-result-attachments";
 import { labReferenceLaboratory, labSendOut, type SendOutStatus } from "./send-outs/send-out.schema";
 
 /** The latest send-out of a test on its current specimen (null: performed in-house, or not decided yet). */
@@ -39,6 +40,8 @@ export type ResultView = Omit<LabResultRecord, "organizationId"> & {
   verifiedByName: string | null;
   approvedByName: string | null;
   releasedByName: string | null;
+  /** Files attached to this version (pending uploads only for laboratory staff). */
+  attachments: AttachmentView[];
 };
 
 export type SpecimenView = Omit<LabSpecimenRecord, "organizationId"> & { collectedByName: string | null; receivedByName: string | null };
@@ -124,7 +127,12 @@ export class LabReadModel {
         ].filter((id): id is string => !!id),
       ),
     ]);
-    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff)]));
+    const attachments = await attachmentsOf(
+      executor,
+      actor,
+      results.map((r) => r.id),
+    );
+    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff, attachments.get(r.id))]));
     return orders.map((order) => ({
       ...publicView(order),
       orderingPractitionerName: order.orderingPractitionerId ? (practitioners.get(order.orderingPractitionerId) ?? null) : null,
@@ -140,14 +148,21 @@ export class LabReadModel {
     }));
   }
 
-  async results(organizationId: string, rows: LabResultRecord[]): Promise<ResultView[]> {
-    const staff = await this.context.staffNames(organizationId, [
-      ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
+  async results(executor: DbExecutor, actor: Actor, rows: LabResultRecord[]): Promise<ResultView[]> {
+    const [staff, attachments] = await Promise.all([
+      this.context.staffNames(actor.organizationId, [
+        ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
+      ]),
+      attachmentsOf(
+        executor,
+        actor,
+        rows.map((r) => r.id),
+      ),
     ]);
-    return rows.map((r) => this.resultView(r, staff));
+    return rows.map((r) => this.resultView(r, staff, attachments.get(r.id)));
   }
 
-  resultView(r: LabResultRecord, staff: Map<string, string>): ResultView {
+  resultView(r: LabResultRecord, staff: Map<string, string>, attachments: AttachmentView[] = []): ResultView {
     const name = (id: string | null) => (id ? (staff.get(id) ?? null) : null);
     return {
       ...publicView(r),
@@ -155,6 +170,7 @@ export class LabReadModel {
       verifiedByName: name(r.verifiedBy),
       approvedByName: name(r.approvedBy),
       releasedByName: name(r.releasedBy),
+      attachments,
     };
   }
 

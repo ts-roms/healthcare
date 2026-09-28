@@ -1,10 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, actorUserId, asPgError, BusinessRuleError, DATABASE, type Database, type DbExecutor, NotFoundError, PgErrorCode } from "@healthcare/core";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
-import { document, type DocumentCategory, type DocumentRecord } from "./document.schema";
+import { document, type DocumentCategory, type DocumentManager, type DocumentRecord } from "./document.schema";
 import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./object-storage";
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
@@ -25,6 +25,14 @@ export interface GeneratedDocumentInput {
   body: Buffer;
 }
 
+/**
+ * Which documents a call may touch. Omitted (the documents API, consent forms, FHIR…): ordinary documents only. A
+ * managing domain passes its own name to reach the documents it manages — and applies its own access rules first.
+ */
+export interface DocumentScope {
+  managedBy?: DocumentManager | null;
+}
+
 function toView({ storageKey: _key, organizationId: _org, ...rest }: DocumentRecord): DocumentView {
   return rest;
 }
@@ -42,7 +50,11 @@ export class DocumentsService {
     private readonly audit: AuditService,
   ) {}
 
-  async create(actor: Actor, input: z.infer<typeof createDocumentSchema>): Promise<{ document: DocumentView; upload: PresignedUpload }> {
+  async create(
+    actor: Actor,
+    input: z.infer<typeof createDocumentSchema>,
+    scope: DocumentScope = {},
+  ): Promise<{ document: DocumentView; upload: PresignedUpload }> {
     const id = crypto.randomUUID();
     // Keys carry no patient data; they are opaque and organization-scoped.
     const storageKey = `org/${actor.organizationId}/documents/${id}`;
@@ -63,6 +75,7 @@ export class DocumentsService {
             sizeBytes: input.sizeBytes,
             storageKey,
             createdBy: actor.userId,
+            managedBy: scope.managedBy ?? null,
           })
           .returning();
         await this.audit.record(tx, actor, {
@@ -84,8 +97,8 @@ export class DocumentsService {
     return { document: toView(created), upload };
   }
 
-  async completeUpload(actor: Actor, documentId: string): Promise<DocumentView> {
-    const record = await this.find(actor.organizationId, documentId);
+  async completeUpload(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
+    const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "pending_upload") throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
     const stored = await this.storage.head(record.storageKey);
     if (!stored) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
@@ -112,12 +125,18 @@ export class DocumentsService {
     });
   }
 
-  async get(actor: Actor, documentId: string): Promise<DocumentView> {
-    return toView(await this.find(actor.organizationId, documentId));
+  async get(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
+    return toView(await this.find(actor.organizationId, documentId, scope));
   }
 
   async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
-    const conditions = [eq(document.organizationId, actor.organizationId), eq(document.patientId, patientId), ne(document.status, "pending_upload")];
+    const conditions = [
+      eq(document.organizationId, actor.organizationId),
+      eq(document.patientId, patientId),
+      ne(document.status, "pending_upload"),
+      // Documents a domain manages are listed by that domain (e.g. attachments of results not yet released).
+      isNull(document.managedBy),
+    ];
     if (!includeArchived) conditions.push(ne(document.status, "archived"));
     const rows = await this.db
       .select()
@@ -134,8 +153,8 @@ export class DocumentsService {
   }
 
   /** Issues a short-lived download URL. Every issuance is audited as an access. */
-  async downloadUrl(actor: Actor, documentId: string): Promise<{ url: string; expiresAt: string }> {
-    const record = await this.find(actor.organizationId, documentId);
+  async downloadUrl(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ url: string; expiresAt: string }> {
+    const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
     await this.audit.recordStandalone(actor, {
@@ -207,8 +226,8 @@ export class DocumentsService {
    * The bytes of an available document, for a caller that has already authorized the access (e.g. the laboratory's
    * archived reports). Audited as a download.
    */
-  async content(actor: Actor, documentId: string): Promise<{ document: DocumentView; body: Buffer }> {
-    const record = await this.find(actor.organizationId, documentId);
+  async content(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ document: DocumentView; body: Buffer }> {
+    const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     const body = await this.storage.get(record.storageKey);
     if (!body) throw new NotFoundError("Stored document");
@@ -222,12 +241,12 @@ export class DocumentsService {
   }
 
   /** Documents are archived, never deleted; the object is retained per retention policy. */
-  async archive(actor: Actor, documentId: string, reason: string): Promise<DocumentView> {
+  async archive(actor: Actor, documentId: string, reason: string, scope: DocumentScope = {}): Promise<DocumentView> {
     return this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(document)
         .set({ status: "archived", archivedAt: new Date(), archivedBy: actor.userId, archiveReason: reason })
-        .where(and(eq(document.organizationId, actor.organizationId), eq(document.id, documentId), eq(document.status, "available")))
+        .where(and(eq(document.organizationId, actor.organizationId), eq(document.id, documentId), eq(document.status, "available"), managedByIs(scope)))
         .returning();
       if (!updated) throw new NotFoundError("Available document");
       await this.audit.record(tx, actor, {
@@ -241,12 +260,16 @@ export class DocumentsService {
     });
   }
 
-  private async find(organizationId: string, documentId: string): Promise<DocumentRecord> {
+  private async find(organizationId: string, documentId: string, scope: DocumentScope = {}): Promise<DocumentRecord> {
     const [row] = await this.db
       .select()
       .from(document)
-      .where(and(eq(document.organizationId, organizationId), eq(document.id, documentId)));
+      .where(and(eq(document.organizationId, organizationId), eq(document.id, documentId), managedByIs(scope)));
     if (!row) throw new NotFoundError("Document");
     return row;
   }
+}
+
+function managedByIs(scope: DocumentScope) {
+  return scope.managedBy ? eq(document.managedBy, scope.managedBy) : isNull(document.managedBy);
 }

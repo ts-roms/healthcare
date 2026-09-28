@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ApiError } from "@healthcare/web-session";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
+import { uploadResultAttachment } from "@/lib/api/documents";
 import type {
   LabCatalogEntry,
   LabCriticalAlert,
@@ -12,6 +13,7 @@ import type {
   LabPolicy,
   LabReferenceRange,
   LabResult,
+  LabResultAttachment,
   LabSendOut,
   LabSendOutDispatchDetail,
   LabSpecimen,
@@ -21,6 +23,7 @@ import type {
   ReferenceLaboratory,
   ReferenceLabSubmissionStatus,
 } from "@/lib/api/types";
+import { attachmentTitle, checkAttachmentFile } from "@/lib/lab-attachments";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call
 // (permissions, separation of duties, facility, result lifecycle).
@@ -273,6 +276,37 @@ export async function setLabPolicy(input: z.input<typeof policySchema>): Promise
 export async function loadLabTrend(patientId: string, testId: string): Promise<ActionResult<LabTrend>> {
   if (!id.safeParse(patientId).success || !id.safeParse(testId).success) return { ok: false, message: "Invalid request." };
   return actionResult(() => api<LabTrend>(`/laboratory/patients/${patientId}/trends`, { query: { testId } }));
+}
+
+// ---- Result attachments ------------------------------------------------------------------------
+
+/** Uploads a file (form fields resultId, title, file) and attaches it to an entered result. */
+export async function attachResultFile(data: FormData): Promise<ActionResult<LabResultAttachment>> {
+  const resultId = id.safeParse(data.get("resultId"));
+  if (!resultId.success) return { ok: false, message: "Unknown result." };
+  const file = data.get("file");
+  if (!(file instanceof File)) return { ok: false, message: "Choose a file." };
+  const problem = checkAttachmentFile(file);
+  if (problem) return { ok: false, message: problem };
+  const title = String(data.get("title") ?? "").trim() || attachmentTitle(file.name);
+  if (title.length > 200) return { ok: false, message: "Shorten the title (at most 200 characters)." };
+  return actionResult(() => uploadResultAttachment({ resultId: resultId.data, title, file }));
+}
+
+const removeAttachmentSchema = z.object({ attachmentId: id, reason: z.string().trim().min(5, "Give a reason (at least 5 characters).").max(500) });
+export async function removeResultAttachment(input: z.input<typeof removeAttachmentSchema>): Promise<ActionResult<LabResultAttachment>> {
+  const parsed = removeAttachmentSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() =>
+    api<LabResultAttachment>(`/laboratory/attachments/${parsed.data.attachmentId}/remove`, { method: "POST", body: { reason: parsed.data.reason } }),
+  );
+}
+
+/** A short-lived link to open an attachment (the API checks visibility and audits the access). */
+export async function resultAttachmentUrl(attachmentId: string): Promise<ActionResult<{ url: string }>> {
+  const parsed = id.safeParse(attachmentId);
+  if (!parsed.success) return { ok: false, message: "Unknown attachment." };
+  return actionResult(() => api<{ url: string; expiresAt: string }>(`/laboratory/attachments/${parsed.data}/download-url`));
 }
 
 // ---- Reference laboratories and send-outs ------------------------------------------------------
