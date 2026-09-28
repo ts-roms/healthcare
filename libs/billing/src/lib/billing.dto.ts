@@ -144,6 +144,8 @@ export const createPackageSchema = z.object({
   effectiveFrom: z.iso.date(),
   /** Days it can be used from the sale, counting that day; none = until used up or cancelled. */
   validityDays: z.number().int().min(1).max(3660).optional(),
+  /** VAT class of the package itself, for a VAT-registered organization (configuration). */
+  taxClass: z.enum(TAX_CLASSES).optional(),
   items: z
     .array(z.object({ serviceId: z.string().uuid(), quantity: z.number().int().min(1).max(1000).default(1) }))
     .min(1)

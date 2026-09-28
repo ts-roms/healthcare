@@ -113,6 +113,7 @@ export class PackageService {
             category: input.category,
             isPackage: true,
             packageValidityDays: input.validityDays ?? null,
+            taxClass: input.taxClass ?? null,
           })
           .returning();
         const pkg = found(created, "Package");

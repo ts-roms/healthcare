@@ -100,6 +100,7 @@ describe("billing packages", () => {
       unitPrice: 60_000,
       effectiveFrom: manilaDate(-1),
       validityDays: 365,
+      taxClass: "vat_exempt",
       items: [
         { serviceId: ids.consult, quantity: 1 },
         { serviceId: ids.fbs, quantity: 2 },
@@ -121,6 +122,7 @@ describe("billing packages", () => {
         code: "annual-pe",
         isPackage: true,
         packageValidityDays: 365,
+        taxClass: "vat_exempt",
         currentPrice: 60_000,
         items: expect.arrayContaining([expect.objectContaining({ serviceCode: "fbs", quantity: 2 })]),
       }),

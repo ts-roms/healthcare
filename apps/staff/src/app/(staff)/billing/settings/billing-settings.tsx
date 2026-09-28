@@ -114,7 +114,7 @@ export function BillingSettings({
           canManage={canManage}
           vatRegistered={taxProfile.vatStatus === "vat_registered"}
         />
-        <Packages packages={packages} services={services} canManage={canManage} />
+        <Packages packages={packages} services={services} canManage={canManage} vatRegistered={taxProfile.vatStatus === "vat_registered"} />
         <Rules rules={rules} canManage={canManage} />
       </div>
       <div className="flex flex-col gap-4">
@@ -194,7 +194,7 @@ function Services({
                       {canManage ? (
                         <NativeSelect
                           aria-label={`VAT class of ${s.name}`}
-                          className="h-7"
+                          className="h-7 min-w-36"
                           value={s.taxClass ?? ""}
                           disabled={pending}
                           onChange={(e) =>

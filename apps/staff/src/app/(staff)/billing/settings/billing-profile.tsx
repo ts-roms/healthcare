@@ -4,10 +4,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, PlusIcon, XIcon } from "lucide-react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import type { BillingCategory, BillingPackage, BillingService, BillingSettingsFull, SequenceKind, TaxProfile, VatStatus } from "@/lib/api/types";
-import { CATEGORY_LABEL, parsePesos, peso } from "@/lib/billing-mapping";
+import type { BillingCategory, BillingPackage, BillingService, BillingSettingsFull, SequenceKind, TaxClass, TaxProfile, VatStatus } from "@/lib/api/types";
+import { CATEGORY_LABEL, parsePesos, peso, TAX_CLASS_LABEL } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
-import { createPackage, updatePrefixes, updateTaxProfile } from "../actions";
+import { createPackage, setServiceTaxClass, updatePrefixes, updateTaxProfile } from "../actions";
 
 const SERIES_LABEL: Record<SequenceKind, string> = { invoice: "Invoices", receipt: "Receipts", credit_note: "Credit notes", debit_note: "Debit notes" };
 const VAT_STATUS_LABEL: Record<VatStatus, string> = { not_configured: "Not configured", vat_registered: "VAT-registered", non_vat: "Non-VAT" };
@@ -225,11 +225,29 @@ export function TaxProfileCard({ profile, canManage }: { profile: TaxProfile; ca
 type PackageRow = { key: string; serviceId: string; quantity: string };
 
 /** Packages: a price and the services included; contents are fixed once created (a changed package is a new one). */
-export function Packages({ packages, services, canManage }: { packages: BillingPackage[]; services: BillingService[]; canManage: boolean }) {
+export function Packages({
+  packages,
+  services,
+  canManage,
+  vatRegistered,
+}: {
+  packages: BillingPackage[];
+  services: BillingService[];
+  canManage: boolean;
+  vatRegistered: boolean;
+}) {
   const { pending, submit } = useSubmit();
   const [open, setOpen] = React.useState(false);
   const blank = (): PackageRow => ({ key: crypto.randomUUID(), serviceId: "", quantity: "1" });
-  const [f, setF] = React.useState({ code: "", name: "", category: "consultation" as BillingCategory, price: "", validity: "", from: todayIn("Asia/Manila") });
+  const [f, setF] = React.useState({
+    code: "",
+    name: "",
+    category: "consultation" as BillingCategory,
+    price: "",
+    validity: "",
+    from: todayIn("Asia/Manila"),
+    taxClass: "" as TaxClass | "",
+  });
   const [rows, setRows] = React.useState<PackageRow[]>(() => [blank()]);
   const included = services.filter((s) => s.status === "active" && !packages.some((p) => p.id === s.id));
   return (
@@ -251,6 +269,28 @@ export function Packages({ packages, services, canManage }: { packages: BillingP
                 {p.packageValidityDays ? ` · usable ${p.packageValidityDays} days` : ""}
                 {p.status === "inactive" ? " · no longer sold" : ""}
               </span>
+              {canManage ? (
+                <NativeSelect
+                  aria-label={`VAT class of ${p.name}`}
+                  className="mt-1 h-7 w-44"
+                  value={p.taxClass ?? ""}
+                  disabled={pending}
+                  onChange={(e) =>
+                    submit(
+                      () => setServiceTaxClass({ serviceId: p.id, taxClass: (e.target.value || null) as TaxClass | null, version: p.version }),
+                      "VAT class saved",
+                    )
+                  }
+                >
+                  <option value="">VAT: not classified</option>
+                  {(Object.keys(TAX_CLASS_LABEL) as TaxClass[]).map((c) => (
+                    <option key={c} value={c}>
+                      VAT: {TAX_CLASS_LABEL[c]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              ) : null}
+              {vatRegistered && !p.taxClass ? <span className="block text-meta text-warning-foreground">VAT class needed to invoice it</span> : null}
             </li>
           ))}
         </ul>
@@ -274,6 +314,7 @@ export function Packages({ packages, services, canManage }: { packages: BillingP
                       unitPrice: price,
                       effectiveFrom: f.from,
                       validityDays: f.validity ? Number(f.validity) : undefined,
+                      taxClass: f.taxClass || undefined,
                       items: rows.filter((r) => r.serviceId).map((r) => ({ serviceId: r.serviceId, quantity: Number(r.quantity) || 1 })),
                     }),
                   "Package created",
@@ -309,6 +350,14 @@ export function Packages({ packages, services, canManage }: { packages: BillingP
                   onChange={(e) => setF({ ...f, validity: e.target.value.replace(/\D/g, "") })}
                 />
                 <Input aria-label="Price from" type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+                <NativeSelect aria-label="VAT class" value={f.taxClass} onChange={(e) => setF({ ...f, taxClass: e.target.value as TaxClass | "" })}>
+                  <option value="">VAT: not classified</option>
+                  {(Object.keys(TAX_CLASS_LABEL) as TaxClass[]).map((c) => (
+                    <option key={c} value={c}>
+                      VAT: {TAX_CLASS_LABEL[c]}
+                    </option>
+                  ))}
+                </NativeSelect>
               </div>
               <span className="text-meta text-muted-foreground">Includes</span>
               {rows.map((r) => (

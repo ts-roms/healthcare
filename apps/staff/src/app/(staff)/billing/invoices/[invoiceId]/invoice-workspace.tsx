@@ -461,6 +461,7 @@ function Coverage({ invoice, payers, canEdit, canFollowUp }: { invoice: InvoiceF
                     {p.reference ? `Ref. ${p.reference} · ` : ""}
                     {COVERAGE_STATUS_LABEL[p.status]}
                     {p.settledAmount !== null ? ` ${peso(p.settledAmount)}` : ""}
+                    {p.creditedAmount ? ` · ${peso(p.creditedAmount)} credited (claim ${peso(p.amount - p.creditedAmount)})` : ""}
                   </span>
                 </span>
                 <span className="tabular-nums">{peso(p.amount)}</span>

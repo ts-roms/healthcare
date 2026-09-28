@@ -360,6 +360,7 @@ const packageSchema = z.object({
   unitPrice: centavos,
   effectiveFrom: date,
   validityDays: z.number().int().min(1).max(3660).optional(),
+  taxClass: z.enum(["vatable", "vat_exempt", "zero_rated"]).optional(),
   items: z.array(z.object({ serviceId: id, quantity: z.number().int().min(1).max(1000) })).min(1, "Include at least one service."),
 });
 export async function createPackage(input: z.input<typeof packageSchema>) {
