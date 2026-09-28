@@ -21,7 +21,15 @@ import type {
   updateServiceSchema,
   updateSettingsSchema,
 } from "../billing.dto";
-import { billingDiscountRule, billingPayer, billingSequence, billingService, billingServicePrice, type SequenceKind } from "../billing.schema";
+import {
+  billingDiscountRule,
+  billingPayer,
+  billingSequence,
+  billingService,
+  billingServicePrice,
+  type SequenceKind,
+  type ServiceSourceKind,
+} from "../billing.schema";
 import { assertVersion, found, previousDay, publicView } from "../billing-support";
 
 export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN" } as const;
@@ -154,7 +162,7 @@ export class BillingCatalogService {
   }
 
   /** The active service captured automatically for a visit type or laboratory test code. */
-  async serviceForSource(executor: DbExecutor, organizationId: string, sourceKind: "visit_type" | "lab_test", sourceCode: string) {
+  async serviceForSource(executor: DbExecutor, organizationId: string, sourceKind: ServiceSourceKind, sourceCode: string) {
     const [row] = await executor
       .select()
       .from(billingService)

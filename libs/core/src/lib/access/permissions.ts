@@ -89,6 +89,15 @@ export const PERMISSIONS = [
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 6 — dental (migration 0027)
+  "dental.record.read",
+  "dental.record.write",
+  "dental.chart.write",
+  "dental.treatment-plan.manage",
+  "dental.procedure.record",
+  "dental.imaging.read",
+  "dental.imaging.upload",
+  "dental.settings.manage",
   // Phase 8 — FHIR R4 inbound imports into a review queue (migration 0048). Submitting never writes the record;
   // reviewers match the patient and accept or reject each entry.
   "interop.fhir.import",

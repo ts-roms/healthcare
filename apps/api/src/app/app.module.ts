@@ -5,6 +5,7 @@ import { AuditModule } from "@healthcare/audit";
 import { AuthModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
 import { ClinicModule } from "@healthcare/clinic";
+import { DentalModule } from "@healthcare/dental";
 import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
 import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
@@ -20,6 +21,7 @@ import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
+import { AppDentalContext } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppFhirImportTargets } from "./adapters/fhir-import-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
@@ -78,8 +80,10 @@ export class AppModule implements NestModule {
       context: AppLaboratoryContext,
       archiveQueue: overrides.labReportArchiveQueue,
     });
+    // Imported by the app and by billing (which charges performed dental procedures through an adapter).
+    const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule], context: AppDentalContext });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
-    const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory });
+    const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory, dental], sources: AppBillingSources, patients: AppPatientDirectory });
     // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
     const prescriptions = PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext });
     return {
@@ -111,6 +115,8 @@ export class AppModule implements NestModule {
         laboratory,
         // Phase 5 — telemedicine.
         TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
+        // Phase 6 — dental: chart, examinations, treatment plans, procedures, imaging.
+        dental,
         // Phase 7 — billing: charges from clinical events, invoices, payments.
         billing,
         // Phase 8 — PhilHealth eClaims, eligibility and YAKAP: preparation, recorded answers and adapter ports (unconfigured until the specifications are obtained).

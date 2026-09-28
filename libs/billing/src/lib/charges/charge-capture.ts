@@ -18,5 +18,11 @@ export class ChargeCapture implements OnModuleInit {
     this.handlers.on("EncounterCompleted", "billing.capture-encounter", (event) => this.charges.captureEncounter(event.organizationId, event.aggregateId));
     this.handlers.on("LaboratoryOrderCreated", "billing.capture-lab-order", (event) => this.charges.captureLabOrder(event.organizationId, event.aggregateId));
     this.handlers.on("LaboratoryOrderCancelled", "billing.cancel-lab-order", (event) => this.charges.cancelLabOrder(event.organizationId, event.aggregateId));
+    this.handlers.on("DentalProcedurePerformed", "billing.capture-dental-procedure", (event) =>
+      this.charges.captureDentalProcedure(event.organizationId, event.aggregateId),
+    );
+    this.handlers.on("DentalProcedureEnteredInError", "billing.cancel-dental-procedure", (event) =>
+      this.charges.cancelDentalProcedure(event.organizationId, event.aggregateId),
+    );
   }
 }

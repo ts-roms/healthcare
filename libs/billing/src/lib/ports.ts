@@ -23,9 +23,21 @@ export interface BillableLabOrder {
   items: Array<{ id: string; testCode: string; testName: string }>;
 }
 
+/** A performed dental procedure: its code in the organization's dental catalog, and a description (procedure, tooth, surfaces). */
+export interface BillableDentalProcedure {
+  id: string;
+  patientId: string;
+  facilityId: string;
+  procedureCode: string;
+  description: string;
+  serviceDate: string;
+}
+
 export interface BillingSources {
   encounter(organizationId: string, encounterId: string): Promise<BillableEncounter | undefined>;
   labOrder(organizationId: string, orderId: string): Promise<BillableLabOrder | undefined>;
+  /** Undefined once the procedure has been marked entered in error. */
+  dentalProcedure(organizationId: string, procedureId: string): Promise<BillableDentalProcedure | undefined>;
 }
 export const BILLING_SOURCES = Symbol("BILLING_SOURCES");
 

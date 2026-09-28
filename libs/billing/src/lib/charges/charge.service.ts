@@ -15,7 +15,7 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { cancelChargeSchema, listChargesSchema, manualChargeSchema } from "../billing.dto";
-import { billingCharge, type BillingChargeRecord, billingService, type ChargeSourceType } from "../billing.schema";
+import { billingCharge, type BillingChargeRecord, billingService, type ChargeSourceType, type ServiceSourceKind } from "../billing.schema";
 import { assertVersion, found, publicView } from "../billing-support";
 import { BillingCatalogService } from "../catalog/billing-catalog.service";
 import { BILLING_PATIENTS, BILLING_SOURCES, type BillingPatientDirectory, type BillingSources } from "../ports";
@@ -27,7 +27,7 @@ interface CaptureInput {
   sourceType: Exclude<ChargeSourceType, "manual">;
   sourceId: string;
   sourceGroupId: string | null;
-  sourceKind: "visit_type" | "lab_test";
+  sourceKind: ServiceSourceKind;
   sourceCode: string;
   description: string;
   serviceDate: string;
@@ -92,14 +92,44 @@ export class ChargeService {
     }
   }
 
+  async captureDentalProcedure(organizationId: string, procedureId: string): Promise<void> {
+    const procedure = await this.sources.dentalProcedure(organizationId, procedureId);
+    if (!procedure) return;
+    await this.capture({
+      organizationId,
+      facilityId: procedure.facilityId,
+      patientId: procedure.patientId,
+      sourceType: "dental_procedure",
+      sourceId: procedure.id,
+      sourceGroupId: null,
+      sourceKind: "dental_procedure",
+      sourceCode: procedure.procedureCode,
+      description: procedure.description,
+      serviceDate: procedure.serviceDate,
+    });
+  }
+
   /** A cancelled laboratory order: its charges not yet on an invoice are cancelled (invoiced ones need a void). */
   async cancelLabOrder(organizationId: string, orderId: string): Promise<void> {
+    await this.cancelSourceCharges(organizationId, eq(billingCharge.sourceGroupId, orderId), "Laboratory order cancelled");
+  }
+
+  /** A dental procedure marked entered in error: its charge not yet on an invoice is cancelled (an invoiced one needs a void). */
+  async cancelDentalProcedure(organizationId: string, procedureId: string): Promise<void> {
+    await this.cancelSourceCharges(
+      organizationId,
+      and(eq(billingCharge.sourceType, "dental_procedure"), eq(billingCharge.sourceId, procedureId))!,
+      "Dental procedure entered in error",
+    );
+  }
+
+  private async cancelSourceCharges(organizationId: string, source: SQL, reason: string): Promise<void> {
     const actor = systemActor(organizationId, null, "billing-capture");
     await this.db.transaction(async (tx) => {
       const cancelled = await tx
         .update(billingCharge)
-        .set({ status: "cancelled", cancelReason: "Laboratory order cancelled", updatedAt: new Date(), version: sql`${billingCharge.version} + 1` })
-        .where(and(eq(billingCharge.organizationId, organizationId), eq(billingCharge.sourceGroupId, orderId), eq(billingCharge.status, "pending")))
+        .set({ status: "cancelled", cancelReason: reason, updatedAt: new Date(), version: sql`${billingCharge.version} + 1` })
+        .where(and(eq(billingCharge.organizationId, organizationId), source, eq(billingCharge.status, "pending")))
         .returning();
       for (const row of cancelled) {
         await this.audit.record(tx, actor, {

@@ -85,6 +85,7 @@ export function BillingSettings({
   prefixes,
   visitTypes,
   labTests,
+  dentalProcedures,
   canManage,
   philhealth,
   yakap,
@@ -95,6 +96,7 @@ export function BillingSettings({
   prefixes: BillingPrefixes;
   visitTypes: Source[];
   labTests: Source[];
+  dentalProcedures: Source[];
   canManage: boolean;
   /** The selected facility's PhilHealth accreditation (only for staff who may record it). */
   philhealth: { facilityId: string; facilityName: string; accreditation: PhilHealthAccreditation | null } | null;
@@ -104,7 +106,7 @@ export function BillingSettings({
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
       <div className="flex flex-col gap-4">
-        <Services services={services} visitTypes={visitTypes} labTests={labTests} canManage={canManage} />
+        <Services services={services} sources={{ visit_type: visitTypes, lab_test: labTests, dental_procedure: dentalProcedures }} canManage={canManage} />
         <Rules rules={rules} canManage={canManage} />
       </div>
       <div className="flex flex-col gap-4">
@@ -117,13 +119,16 @@ export function BillingSettings({
   );
 }
 
-function Services({ services, visitTypes, labTests, canManage }: { services: BillingService[]; visitTypes: Source[]; labTests: Source[]; canManage: boolean }) {
+type SourceKind = NonNullable<BillingService["sourceKind"]>;
+type Sources = Record<SourceKind, Source[]>;
+const SOURCE_LABEL: Record<SourceKind, string> = { visit_type: "Signed visit", lab_test: "Lab order", dental_procedure: "Dental procedure" };
+
+function Services({ services, sources, canManage }: { services: BillingService[]; sources: Sources; canManage: boolean }) {
   const { pending, submit } = useSubmit();
   const sourceName = (s: BillingService) => {
     if (!s.sourceKind) return "Added by staff";
-    const list = s.sourceKind === "visit_type" ? visitTypes : labTests;
-    const name = list.find((x) => x.code === s.sourceCode)?.name ?? s.sourceCode;
-    return s.sourceKind === "visit_type" ? `Signed visit: ${name}` : `Lab order: ${name}`;
+    const name = sources[s.sourceKind].find((x) => x.code === s.sourceCode)?.name ?? s.sourceCode;
+    return `${SOURCE_LABEL[s.sourceKind]}: ${name}`;
   };
   return (
     <Card className="py-0">
@@ -194,7 +199,7 @@ function Services({ services, visitTypes, labTests, canManage }: { services: Bil
             </TableBody>
           </Table>
         ) : null}
-        {canManage ? <NewService visitTypes={visitTypes} labTests={labTests} /> : null}
+        {canManage ? <NewService sources={sources} /> : null}
       </CardContent>
     </Card>
   );
@@ -242,7 +247,7 @@ function NewPrice({ service }: { service: BillingService }) {
   );
 }
 
-function NewService({ visitTypes, labTests }: { visitTypes: Source[]; labTests: Source[] }) {
+function NewService({ sources }: { sources: Sources }) {
   const { pending, submit } = useSubmit();
   const [f, setF] = React.useState({
     code: "",
@@ -253,7 +258,8 @@ function NewService({ visitTypes, labTests }: { visitTypes: Source[]; labTests: 
     price: "",
     from: todayIn("Asia/Manila"),
   });
-  const options = f.sourceKind === "visit_type" ? visitTypes : f.sourceKind === "lab_test" ? labTests : [];
+  const kind = f.sourceKind in SOURCE_LABEL ? (f.sourceKind as SourceKind) : undefined;
+  const options = kind ? sources[kind] : [];
   const centavos = parsePesos(f.price);
   return (
     <form
@@ -270,7 +276,7 @@ function NewService({ visitTypes, labTests }: { visitTypes: Source[]; labTests: 
               code: f.code,
               name: f.name,
               category: f.category,
-              sourceKind: f.sourceKind === "visit_type" || f.sourceKind === "lab_test" ? f.sourceKind : undefined,
+              sourceKind: kind,
               sourceCode: f.sourceKind ? f.sourceCode : undefined,
               unitPrice: centavos,
               effectiveFrom: f.from,
@@ -296,10 +302,11 @@ function NewService({ visitTypes, labTests }: { visitTypes: Source[]; labTests: 
         <option value="">Only when added by staff</option>
         <option value="visit_type">When a visit of a type is signed</option>
         <option value="lab_test">When a laboratory test is ordered</option>
+        <option value="dental_procedure">When a dental procedure is performed</option>
       </NativeSelect>
       {f.sourceKind ? (
         options.length ? (
-          <NativeSelect aria-label="Visit type or test" value={f.sourceCode} onChange={(e) => setF({ ...f, sourceCode: e.target.value })} required>
+          <NativeSelect aria-label="Visit type, test or procedure" value={f.sourceCode} onChange={(e) => setF({ ...f, sourceCode: e.target.value })} required>
             <option value="">Choose…</option>
             {options.map((o) => (
               <option key={o.code} value={o.code}>
@@ -309,7 +316,7 @@ function NewService({ visitTypes, labTests }: { visitTypes: Source[]; labTests: 
           </NativeSelect>
         ) : (
           <Input
-            aria-label="Visit type or test code"
+            aria-label="Visit type, test or procedure code"
             placeholder="Code"
             value={f.sourceCode}
             onChange={(e) => setF({ ...f, sourceCode: e.target.value })}

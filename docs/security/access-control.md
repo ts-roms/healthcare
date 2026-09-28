@@ -63,6 +63,14 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Dental (migration 0027): `dental.record.read`, `dental.record.write`
+(corrections), `dental.chart.write`, `dental.treatment-plan.manage`,
+`dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`,
+`dental.settings.manage`; new system roles `dentist` (a physician's clinical
+permissions plus dental) and `dental_assistant` (a nurse's plus the dental
+record and imaging); recording also requires a practitioner with profession
+`dentist`. Audited `dental.*` (views, examinations, plans, procedures, images,
+corrections with the reason); image links are audited as `document.download`.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
