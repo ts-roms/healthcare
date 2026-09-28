@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
+import { DATABASE, type Database, localDate, localDayBounds, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import {
@@ -356,6 +356,132 @@ export class ClinicQueries {
         ),
       )
       .orderBy(asc(encounter.startedAt));
+  }
+
+  // ---- Patient timeline (composed in apps/api) ----------------------------------------------------------------
+  // Each returns at most `window.limit` rows of one source, newest first, with ids, times, statuses and short display
+  // fields only: no notes, reasons, complaints or other free text. Not audited here: the caller audits.
+
+  /** Appointments at their scheduled start (cancelled and no-show ones included, with their status). */
+  timelineAppointments(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = appointment.startsAt;
+    return this.db
+      .select({
+        id: appointment.id,
+        at: timelineInstant(at),
+        facilityId: appointment.facilityId,
+        status: appointment.status,
+        modality: visitType.modality,
+        visitTypeName: visitType.name,
+        practitionerId: appointment.practitionerId,
+        practitionerName: practitioner.displayName,
+        bookedByPatient: appointment.bookedByPatient,
+      })
+      .from(appointment)
+      .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+      .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
+      .where(
+        and(
+          eq(appointment.organizationId, organizationId),
+          eq(appointment.patientId, patientId),
+          timelineFacility(appointment.facilityId, window),
+          timelineRange("appointment", at, appointment.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(appointment.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Encounters (in person or online) at their start, with the codes of their diagnoses (never the diagnosis text or
+   * notes). Entered-in-error encounters are included with their status; diagnoses entered in error are left out.
+   */
+  timelineEncounters(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = encounter.startedAt;
+    return this.db
+      .select({
+        id: encounter.id,
+        at: timelineInstant(at),
+        facilityId: encounter.facilityId,
+        status: encounter.status,
+        modality: encounter.modality,
+        visitTypeName: visitType.name,
+        practitionerName: practitioner.displayName,
+        appointmentId: encounter.appointmentId,
+        completedAt: encounter.completedAt,
+        // The outer table is named literally (Drizzle leaves columns unqualified when a select has no joins).
+        diagnosisCount: sql<number>`(SELECT count(*)::int FROM ${diagnosis} d WHERE d.encounter_id = encounter.id AND d.status <> 'entered_in_error')`,
+        diagnosisCodes: sql<string[]>`coalesce((SELECT array_agg(d.code ORDER BY d.rank = 'primary' DESC, d.recorded_at) FROM ${diagnosis} d
+          WHERE d.encounter_id = encounter.id AND d.status <> 'entered_in_error' AND d.code IS NOT NULL), '{}')`,
+      })
+      .from(encounter)
+      .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+      .leftJoin(visit, eq(visit.id, encounter.visitId))
+      .leftJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(
+        and(
+          eq(encounter.organizationId, organizationId),
+          eq(encounter.patientId, patientId),
+          timelineFacility(encounter.facilityId, window),
+          timelineRange("encounter", at, encounter.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(encounter.id))
+      .limit(window.limit);
+  }
+
+  /** Vital sign sets at the time measured (no values: the record shows them). */
+  timelineVitals(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = vitalSignSet.measuredAt;
+    return this.db
+      .select({
+        id: vitalSignSet.id,
+        at: timelineInstant(at),
+        facilityId: vitalSignSet.facilityId,
+        status: vitalSignSet.status,
+        encounterId: vitalSignSet.encounterId,
+        visitId: vitalSignSet.visitId,
+      })
+      .from(vitalSignSet)
+      .where(
+        and(
+          eq(vitalSignSet.organizationId, organizationId),
+          eq(vitalSignSet.patientId, patientId),
+          timelineFacility(vitalSignSet.facilityId, window),
+          timelineRange("vitals", at, vitalSignSet.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(vitalSignSet.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * External history accepted from imports, when it was accepted (the other provider's dates are free text). Kind,
+   * code and declared source only. Entries have no facility, so a facility filter leaves them out.
+   */
+  timelineExternalHistory(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return Promise.resolve([]);
+    const at = externalHistoryEntry.recordedAt;
+    return this.db
+      .select({
+        id: externalHistoryEntry.id,
+        at: timelineInstant(at),
+        kind: externalHistoryEntry.kind,
+        codeSystem: externalHistoryEntry.codeSystem,
+        code: externalHistoryEntry.code,
+        declaredSource: externalHistoryEntry.declaredSource,
+        status: externalHistoryEntry.status,
+      })
+      .from(externalHistoryEntry)
+      .where(
+        and(
+          eq(externalHistoryEntry.organizationId, organizationId),
+          eq(externalHistoryEntry.patientId, patientId),
+          timelineRange("external_history", at, externalHistoryEntry.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(externalHistoryEntry.id))
+      .limit(window.limit);
   }
 
   /** Practitioner records by id (record exports). */

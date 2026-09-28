@@ -3,6 +3,7 @@ export * from "./lib/config/app-config";
 export * from "./lib/core.module";
 export * from "./lib/database/database";
 export * from "./lib/database/migrator";
+export * from "./lib/database/timeline";
 export * from "./lib/errors";
 export * from "./lib/http/exception.filter";
 export * from "./lib/http/request-id";

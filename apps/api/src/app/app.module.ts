@@ -36,6 +36,8 @@ import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
+import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
+import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -164,6 +166,7 @@ export class AppModule implements NestModule {
         FhirImportReceiveController,
         HealthController,
         PatientSummaryController,
+        PatientTimelineController,
         PortalBillingController,
         PortalBookingController,
         PortalDentalController,
@@ -173,6 +176,7 @@ export class AppModule implements NestModule {
       ],
       providers: [
         FhirRecordComposer,
+        PatientTimelineService,
         RealtimeGateway,
         LaboratoryNotifications,
         PatientResultNotices,

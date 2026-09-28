@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
 import { labReferenceLaboratory } from "../send-outs/send-out.schema";
 
@@ -76,5 +76,85 @@ export class LabRecordQueries {
     return rows.flatMap((r) =>
       r.documentId && r.storedAt ? [{ orderId: r.orderId, documentId: r.documentId, archiveVersion: r.archiveVersion, storedAt: r.storedAt }] : [],
     );
+  }
+
+  // ---- Patient timeline (composed in apps/api) ----------------------------------------------------------------
+
+  /**
+   * Laboratory orders for the patient timeline, when ordered: number, status, priority, encounter and the names of
+   * the tests (no clinical indication or notes). Cancelled orders are included with their status. Not audited here.
+   */
+  timelineOrders(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = labOrder.orderedAt;
+    return this.db
+      .select({
+        id: labOrder.id,
+        at: timelineInstant(at),
+        facilityId: labOrder.facilityId,
+        orderNumber: labOrder.orderNumber,
+        status: labOrder.status,
+        priority: labOrder.priority,
+        encounterId: labOrder.encounterId,
+        // The outer table is named literally: Drizzle leaves columns unqualified in a single-table select.
+        tests: sql<string[]>`coalesce((SELECT array_agg(i.test_name ORDER BY i.test_name) FROM ${labOrderItem} i WHERE i.order_id = lab_order.id), '{}')`,
+      })
+      .from(labOrder)
+      .where(
+        and(
+          eq(labOrder.organizationId, organizationId),
+          eq(labOrder.patientId, patientId),
+          timelineFacility(labOrder.facilityId, window),
+          timelineRange("lab_order", at, labOrder.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(labOrder.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Releases of laboratory results for the patient timeline: one row per release of an order's results (the result
+   * versions one person released in the same second — releasing an order is one transaction), identified by its
+   * first result version. Test names and counts, whether any result was abnormal or critical and whether it was a
+   * correction — never values. A release whose results were all corrected later is `superseded`. Not audited here.
+   */
+  timelineReleases(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = sql`min(${labResult.releasedAt})`;
+    const id = sql`(array_agg(${labResult.id} ORDER BY ${labResult.id}))[1]`;
+    return this.db
+      .select({
+        id: sql<string>`${id}`,
+        at: timelineInstant(at),
+        orderId: labResult.orderId,
+        facilityId: labResult.facilityId,
+        orderNumber: labOrder.orderNumber,
+        encounterId: labOrder.encounterId,
+        tests: sql<string[]>`array_agg(${labOrderItem.testName} ORDER BY ${labOrderItem.testName})`,
+        abnormal: sql<boolean>`coalesce(bool_or(${labResult.flag} IS NOT NULL AND ${labResult.flag} <> 'normal'), false)`,
+        critical: sql<boolean>`bool_or(${labResult.critical})`,
+        correction: sql<boolean>`bool_or(${labResult.versionNumber} > 1)`,
+        superseded: sql<boolean>`bool_and(${labResult.status} = 'superseded')`,
+      })
+      .from(labResult)
+      .innerJoin(labOrder, eq(labOrder.id, labResult.orderId))
+      .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
+      .where(
+        and(
+          eq(labResult.organizationId, organizationId),
+          eq(labResult.patientId, patientId),
+          isNotNull(labResult.releasedAt),
+          timelineFacility(labResult.facilityId, window),
+        ),
+      )
+      .groupBy(
+        labResult.orderId,
+        labResult.facilityId,
+        labOrder.orderNumber,
+        labOrder.encounterId,
+        labResult.releasedBy,
+        sql`date_trunc('second', ${labResult.releasedAt})`,
+      )
+      .having(timelineRange("lab_result_release", at, id, window))
+      .orderBy(desc(at), desc(id))
+      .limit(window.limit);
   }
 }

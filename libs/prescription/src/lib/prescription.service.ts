@@ -10,6 +10,10 @@ import {
   DomainEventPublisher,
   ForbiddenError,
   NotFoundError,
+  timelineFacility,
+  timelineInstant,
+  timelineRange,
+  type TimelineWindow,
 } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
@@ -216,6 +220,38 @@ export class PrescriptionService {
       .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId)))
       .orderBy(asc(prescription.issuedAt));
     return this.views(this.db, rows);
+  }
+
+  /**
+   * Prescriptions for the patient timeline (composed in apps/api), newest first within the window: number, status,
+   * encounter and the generic names of the items (no doses, instructions or notes). Cancelled and superseded ones
+   * are included with their status. Not audited here; the caller audits.
+   */
+  async timeline(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = prescription.issuedAt;
+    return this.db
+      .select({
+        id: prescription.id,
+        at: timelineInstant(at),
+        facilityId: prescription.facilityId,
+        encounterId: prescription.encounterId,
+        prescriptionNumber: prescription.prescriptionNumber,
+        status: prescription.status,
+        // The outer table is named literally: Drizzle leaves columns unqualified in a single-table select.
+        medicines: sql<string[]>`coalesce((SELECT array_agg(i.generic_name ORDER BY i.line_number) FROM ${prescriptionItem} i
+          WHERE i.prescription_id = prescription.id), '{}')`,
+      })
+      .from(prescription)
+      .where(
+        and(
+          eq(prescription.organizationId, organizationId),
+          eq(prescription.patientId, patientId),
+          timelineFacility(prescription.facilityId, window),
+          timelineRange("prescription", at, prescription.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(prescription.id))
+      .limit(window.limit);
   }
 
   // ---- internals -----------------------------------------------------------------

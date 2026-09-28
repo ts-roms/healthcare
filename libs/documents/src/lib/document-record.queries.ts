@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { document, type DocumentCategory } from "./document.schema";
 
 export interface PatientDocumentRecord {
@@ -41,5 +41,32 @@ export class DocumentRecordQueries {
       .orderBy(asc(document.uploadedAt), asc(document.id));
     // An available document always has its upload time (set when the upload is verified).
     return rows.flatMap((r) => (r.uploadedAt ? [{ ...r, uploadedAt: r.uploadedAt }] : []));
+  }
+
+  /**
+   * Documents staff uploaded for the patient, for the patient timeline (composed in apps/api): when the upload was
+   * verified, with the category only (titles and file names are free text). Documents the platform generated (e.g.
+   * archived laboratory reports, which the laboratory's own entries cover), domain-managed, pending and archived
+   * documents are left out. A facility filter matches the document's facility. Not audited here: the caller audits.
+   */
+  timeline(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = document.uploadedAt;
+    return this.db
+      .select({ id: document.id, at: timelineInstant(at), facilityId: document.facilityId, category: document.category })
+      .from(document)
+      .where(
+        and(
+          eq(document.organizationId, organizationId),
+          eq(document.patientId, patientId),
+          eq(document.status, "available"),
+          eq(document.source, "upload"),
+          isNull(document.managedBy),
+          isNotNull(at),
+          timelineFacility(document.facilityId, window),
+          timelineRange("document", at, document.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(document.id))
+      .limit(window.limit);
   }
 }

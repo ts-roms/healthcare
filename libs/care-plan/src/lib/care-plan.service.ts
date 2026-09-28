@@ -10,6 +10,9 @@ import {
   DomainEventPublisher,
   NotFoundError,
   PgErrorCode,
+  timelineInstant,
+  timelineRange,
+  type TimelineWindow,
   todayInPhilippines,
   VersionConflictError,
 } from "@healthcare/core";
@@ -226,6 +229,47 @@ export class CarePlanService {
         .filter((a) => a.carePlanId === plan.id)
         .map((a) => ({ id: a.id, kind: a.kind, description: a.description, assignee: a.assignee, dueDate: a.dueDate, status: a.status })),
     }));
+  }
+
+  /**
+   * Care plans for the patient timeline (composed in apps/api), when created, with title, category and current
+   * status (the plan keeps no status history). Plans belong to the organization, not a facility, so a facility
+   * filter leaves them out. Not audited here; the caller audits.
+   */
+  async timelinePlans(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return [];
+    const at = carePlan.createdAt;
+    return this.db
+      .select({ id: carePlan.id, at: timelineInstant(at), title: carePlan.title, category: carePlan.category, status: carePlan.status })
+      .from(carePlan)
+      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId), timelineRange("care_plan", at, carePlan.id, window)))
+      .orderBy(desc(at), desc(carePlan.id))
+      .limit(window.limit);
+  }
+
+  /** Completed care plan activities for the patient timeline: when completed, with the activity's kind (not its text). */
+  async timelineCompletedActivities(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return [];
+    const at = carePlanActivity.completedAt;
+    return this.db
+      .select({
+        id: carePlanActivity.id,
+        at: timelineInstant(at),
+        carePlanId: carePlanActivity.carePlanId,
+        kind: carePlanActivity.kind,
+        status: carePlanActivity.status,
+      })
+      .from(carePlanActivity)
+      .where(
+        and(
+          eq(carePlanActivity.organizationId, organizationId),
+          eq(carePlanActivity.patientId, patientId),
+          isNotNull(at),
+          timelineRange("care_plan_activity", at, carePlanActivity.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(carePlanActivity.id))
+      .limit(window.limit);
   }
 
   async changeStatus(actor: Actor, carePlanId: string, input: z.infer<typeof changePlanStatusSchema>) {
