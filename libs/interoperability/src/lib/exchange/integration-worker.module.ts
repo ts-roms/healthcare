@@ -5,6 +5,7 @@ import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
 import { PhilHealthEligibilityHandler, philhealthEligibilityGatewayProvider } from "../philhealth/eligibility";
 import { PhilHealthClaimHandler } from "../philhealth/philhealth-claim-handler";
 import { philhealthGatewayProvider } from "../philhealth/gateway";
+import { ReferenceLabSendOutHandler, referenceLabGatewayProvider } from "../reference-lab/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
 import { IntegrationExchangeProcessor } from "./exchange-processor";
 import { EXCHANGE_HANDLERS, INTEGRATION_QUEUE, type IntegrationQueue } from "./exchange-types";
@@ -16,6 +17,8 @@ export interface IntegrationWorkerModuleOptions {
   philhealthEligibilityGateway?: Provider;
   /** The DOH reporting adapter (defaults to the unconfigured one). */
   dohGateway?: Provider;
+  /** The reference laboratory adapter (defaults to the unconfigured one). */
+  referenceLabGateway?: Provider;
   queue?: Provider;
   /** Start consuming the queue on bootstrap (false in tests). */
   autoStart?: boolean;
@@ -58,11 +61,18 @@ export class IntegrationWorkerModule {
         PhilHealthEligibilityHandler,
         options.dohGateway ?? dohGatewayProvider,
         DohCaseReportHandler,
+        options.referenceLabGateway ?? referenceLabGatewayProvider,
+        ReferenceLabSendOutHandler,
         // One handler per system + operation.
         {
           provide: EXCHANGE_HANDLERS,
-          inject: [PhilHealthClaimHandler, PhilHealthEligibilityHandler, DohCaseReportHandler],
-          useFactory: (claims: PhilHealthClaimHandler, eligibility: PhilHealthEligibilityHandler, doh: DohCaseReportHandler) => [claims, eligibility, doh],
+          inject: [PhilHealthClaimHandler, PhilHealthEligibilityHandler, DohCaseReportHandler, ReferenceLabSendOutHandler],
+          useFactory: (
+            claims: PhilHealthClaimHandler,
+            eligibility: PhilHealthEligibilityHandler,
+            doh: DohCaseReportHandler,
+            referenceLab: ReferenceLabSendOutHandler,
+          ) => [claims, eligibility, doh, referenceLab],
         },
         options.queue ?? bullMqIntegrationQueue,
         {

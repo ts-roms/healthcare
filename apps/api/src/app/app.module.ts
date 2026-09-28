@@ -10,7 +10,7 @@ import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
 import { BillingModule } from "@healthcare/billing";
-import { DohReportingModule, IntegrationModule, PhilHealthModule } from "@healthcare/interoperability";
+import { DohReportingModule, IntegrationModule, PhilHealthModule, ReferenceLabIntegrationModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
 import { PatientModule } from "@healthcare/patient";
@@ -23,6 +23,7 @@ import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources } from "./adapters/philhealth-adapters";
+import { AppReferenceLabSink, AppReferenceLabSources } from "./adapters/reference-lab-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
@@ -49,6 +50,8 @@ export interface AppModuleOverrides {
   philhealthEligibilityGateway?: Provider;
   /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
   dohGateway?: Provider;
+  /** Replaces the reference laboratory adapter (tests; the default transmits nothing). */
+  referenceLabGateway?: Provider;
   /** Replaces the BullMQ laboratory report archive queue (tests). */
   labReportArchiveQueue?: Provider;
   /** Replaces the BullMQ integration queue (tests). */
@@ -113,6 +116,13 @@ export class AppModule implements NestModule {
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
         DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
+        // Phase 8 — send-outs to reference laboratories: electronic submission (unconfigured until a laboratory's interface is obtained).
+        ReferenceLabIntegrationModule.forRoot({
+          imports: [PatientModule, laboratory],
+          sources: AppReferenceLabSources,
+          sink: AppReferenceLabSink,
+          gateway: overrides.referenceLabGateway,
+        }),
         // Phase 9 — inventory: stock ledger, lots and expiry, reorder levels.
         InventoryModule,
         // Outbound exchanges are sealed here and sent by apps/integration-worker.

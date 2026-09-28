@@ -35,3 +35,8 @@ export * from "./lib/philhealth/philhealth-settings.service";
 export * from "./lib/philhealth/philhealth.module";
 export * from "./lib/philhealth/philhealth.schema";
 export * from "./lib/philhealth/ports";
+export * from "./lib/reference-lab/gateway";
+export * from "./lib/reference-lab/ports";
+export * from "./lib/reference-lab/reference-lab.module";
+export * from "./lib/reference-lab/reference-lab-submissions.service";
+export * from "./lib/reference-lab/send-out-package";
