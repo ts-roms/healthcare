@@ -44,6 +44,8 @@ describe("dispensing", () => {
     ids.amox = (await inv("/items", { code: "amoxicillin-500", name: "Amoxicillin 500 mg", category: "medicine", stockUnit: "capsule" })).id;
     ids.tramadol = (await inv("/items", { code: "tramadol-50", name: "Tramadol 50 mg", category: "medicine", stockUnit: "capsule", controlled: true })).id;
     ids.syrup = (await inv("/items", { code: "salbutamol-syrup", name: "Salbutamol syrup 60 mL", category: "medicine", stockUnit: "bottle" })).id;
+    // A laboratory reagent kept in the same room: never dispensed.
+    ids.reagent = (await inv("/items", { code: "glucose-reagent", name: "Glucose reagent", category: "reagent", stockUnit: "kit" })).id;
     const receive = (itemId: string, lotNumber: string, days: number, quantity: number, extra: object = {}) =>
       inv("/receipts", { locationId: ids.pharmacy, itemId, lotNumber, expiryDate: manilaDate(days), quantity, idempotencyKey: randomUUID(), ...extra });
     await receive(ids.amox, "AMX-SOON", 30, 10);
@@ -51,6 +53,7 @@ describe("dispensing", () => {
     await receive(ids.amox, "AMX-OLD", -2, 50, { reason: "Returned from ward" });
     await receive(ids.tramadol, "TRM-1", 200, 20, { reason: "Initial stock", reference: "DR-1" });
     await receive(ids.syrup, "SAL-1", 200, 5);
+    await receive(ids.reagent, "GLU-1", 200, 3);
 
     // A consultation with a prescription: 30 amoxicillin capsules (no refills), tramadol, and salbutamol in mL.
     const visitTypeId = (
@@ -172,6 +175,18 @@ describe("dispensing", () => {
     const today = await req(pharmacist).get("/dispensing/dispenses").expect(200);
     expect(today.body.dispenses).toHaveLength(3);
     expect(today.body.dispenses[0].patient).toMatchObject({ displayName: "DELA CRUZ, Juan Santos" });
+  });
+
+  it("dispenses only medicines and medical supplies", async () => {
+    const stock = await req(pharmacist).get("/dispensing/stock").expect(200);
+    expect(stock.body.some((s: { itemId: string }) => s.itemId === ids.reagent)).toBe(false);
+    const refused = await req(pharmacist)
+      .post(`/dispensing/prescriptions/${ids.rx}/dispenses`, {
+        lines: [{ prescriptionItemId: ids.lineAmox, inventoryItemId: ids.reagent, locationId: ids.pharmacy, quantity: 1 }],
+      })
+      .expect(422);
+    expect(refused.body.error).toMatchObject({ code: "item_category_not_allowed", details: { category: "reagent" } });
+    expect(await balance("GLU-1")).toBe(3);
   });
 
   it("dispenses only active prescriptions", async () => {

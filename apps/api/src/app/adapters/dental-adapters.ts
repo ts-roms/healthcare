@@ -5,6 +5,7 @@ import { type Actor, type DbExecutor, localDate } from "@healthcare/core";
 import {
   type DentalContext,
   type DentalPatientBrief,
+  DENTAL_SUPPLY_CATEGORIES,
   DENTAL_SUPPLY_SOURCE,
   type DentalSupplies,
   type DentalSupplyIssue,
@@ -85,6 +86,7 @@ export class AppDentalSupplies implements DentalSupplies {
       locationId: input.locationId,
       source: { type: DENTAL_SUPPLY_SOURCE.type, id: input.procedureId },
       issuedTo: DENTAL_SUPPLY_SOURCE.issuedTo,
+      categories: DENTAL_SUPPLY_CATEGORIES,
       lines: input.lines,
       idempotencyKey: input.idempotencyKey,
     });

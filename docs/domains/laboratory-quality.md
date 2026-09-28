@@ -147,7 +147,7 @@ date), _not yet competent_. For a test, its own latest assessment counts first, 
 
 Load a reagent lot on an instrument (replacing the lot of the same reagent in use), optionally taking a quantity of that
 lot from a storage location (`takeFromStock: { locationId, quantity }`; needs `inventory.move` too; an inventory issue
-with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short); unload a lot (reason);
+with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short; inventory also accepts only `REAGENT_CATEGORY` items for it); unload a lot (reason);
 register/update instruments; record log entries (retiring needs `lab.qc.manage`); create materials and lots; retire a
 lot; set a target; record a QC run; record a corrective action; change the facility QC policy (with the laboratory
 policy, reason required, audited). Register, update or retire a storage unit; record a reading; report a

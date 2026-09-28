@@ -69,6 +69,8 @@ export interface StockUse {
   /** A document number (e.g. a prescription number); required with the reason for controlled items. */
   reference?: string;
   reason?: string;
+  /** The item categories this workflow may take (e.g. dispensing: medicines and medical supplies); left out: any. */
+  categories?: readonly ItemCategory[];
 }
 
 export interface StockUseResult {
@@ -85,6 +87,8 @@ export interface SourcedIssueInput {
   issuedTo: string;
   lines: Array<{ itemId: string; quantity: number; reason?: string; reference?: string }>;
   idempotencyKey: string;
+  /** The item categories this workflow may take; left out: any. */
+  categories?: readonly ItemCategory[];
 }
 
 /** Part of what a record was issued, returned unused to the lots it came from. */
@@ -274,6 +278,7 @@ export class InventoryStockService {
    */
   async consume(tx: DbExecutor, actor: Actor, input: StockUse): Promise<StockUseResult> {
     const { location, item, today } = await this.context(actor, input.locationId, input.itemId, tx);
+    this.requireCategory(item, input.categories);
     this.requireControlledDetails(item, input);
     const allocations = await this.allocate(tx, location.id, item, input.quantity, today, input.lotId);
     const groupId = await this.post(
@@ -394,6 +399,7 @@ export class InventoryStockService {
     for (const line of input.lines) {
       const context = await this.context(actor, input.locationId, line.itemId, tx);
       today = context.today;
+      this.requireCategory(context.item, input.categories);
       this.requireControlledDetails(context.item, line);
       const allocations = await this.allocate(tx, context.location.id, context.item, line.quantity, today);
       postings.push(
@@ -889,6 +895,21 @@ export class InventoryStockService {
       );
     }
     return result.allocations;
+  }
+
+  /** A workflow takes only the kinds of items it uses (dispensing never hands over a reagent). */
+  private requireCategory(item: ItemRecord, categories: readonly ItemCategory[] | undefined): void {
+    if (categories && !categories.includes(item.category)) {
+      throw new BusinessRuleError(
+        `${item.name} (${item.category.replace("_", " ")}) is not an item this workflow takes from stock`,
+        "item_category_not_allowed",
+        {
+          itemId: item.id,
+          category: item.category,
+          allowed: categories,
+        },
+      );
+    }
   }
 
   private requireControlledDetails(item: ItemRecord, input: { reason?: string; reference?: string }): void {
