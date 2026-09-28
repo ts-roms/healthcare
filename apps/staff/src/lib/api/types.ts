@@ -1479,3 +1479,108 @@ export interface InventoryMovement {
   lotNumber: string | null;
   expiryDate: string | null;
 }
+
+// ---- PhilHealth YAKAP (libs/philhealth/src/lib/yakap*.ts) --------------------------------------------
+
+/** PhilHealth's answer about a patient's YAKAP registration, in the platform's own neutral vocabulary (recorded, never decided). */
+export type YakapRegistrationStatus = "registered" | "not_registered" | "pending" | "unknown";
+
+export interface YakapParticipation {
+  id: string;
+  facilityId: string;
+  participationReference: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  updatedBy: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface YakapRegistration {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  status: YakapRegistrationStatus;
+  effectiveDate: string | null;
+  externalReference: string | null;
+  note: string | null;
+  recordedBy: string;
+  recordedAt: string;
+}
+
+export interface YakapRegistrationOverview {
+  integration: IntegrationSpecification;
+  /** The selected facility's participation reference (null when none is recorded or no facility is selected). */
+  participation: YakapParticipation | null;
+  registrations: YakapRegistration[];
+}
+
+export interface YakapConsultation {
+  encounterId: string;
+  facilityId: string;
+  facilityName: string;
+  date: string;
+  modality: string;
+  status: "in_progress" | "completed" | "entered_in_error";
+  visitTypeName: string | null;
+  clinicianName: string | null;
+  latestSubmission: ClaimExchange | null;
+}
+
+export interface YakapConsultationList {
+  integration: IntegrationSpecification;
+  consultations: YakapConsultation[];
+}
+
+/** The platform's format-neutral package of one consultation (not PhilHealth's format). */
+export interface YakapEncounterPackage {
+  model: "platform-yakap-1";
+  facility: { id: string; name: string; participationReference: string | null };
+  patient: {
+    patientNumber: string;
+    familyName: string;
+    givenName: string;
+    middleName: string | null;
+    sex: string;
+    birthDate: string;
+    philhealthPin: string | null;
+  };
+  registration: { status: YakapRegistrationStatus; effectiveDate: string | null; reference: string | null; recordedAt: string } | null;
+  encounter: {
+    id: string;
+    date: string;
+    startedAt: string;
+    completedAt: string | null;
+    modality: string;
+    visitType: string | null;
+    clinician: { name: string; profession: string; licenseNumber: string | null } | null;
+  };
+  diagnoses: Array<{ codeSystem: "icd-10"; code: string; display: string; primary: boolean; certainty: string }>;
+  prescriptions: Array<{
+    prescriptionNumber: string;
+    issuedAt: string;
+    items: Array<{ genericName: string; brandName: string | null; strength: string | null; dosageForm: string | null; quantity: number; quantityUnit: string }>;
+  }>;
+  labOrders: Array<{ orderNumber: string; orderedAt: string; tests: Array<{ code: string; name: string; loincCode: string | null }> }>;
+}
+
+export interface YakapPackagePreview {
+  integration: IntegrationSpecification;
+  encounterId: string;
+  patientId: string;
+  consultation: {
+    date: string;
+    modality: string;
+    status: "in_progress" | "completed" | "entered_in_error";
+    facilityId: string;
+    facilityName: string;
+    visitTypeName: string | null;
+    clinicianName: string | null;
+  };
+  registration: { status: YakapRegistrationStatus; effectiveDate: string | null; externalReference: string | null; recordedAt: string } | null;
+  ready: boolean;
+  checks: ClaimReadinessCheck[];
+  /** PIN masked. Null until the readiness checks pass. */
+  package: YakapEncounterPackage | null;
+  submissions: ClaimExchange[];
+}

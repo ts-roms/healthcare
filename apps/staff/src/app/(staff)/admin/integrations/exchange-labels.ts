@@ -5,6 +5,7 @@ const OPERATIONS: Record<string, string> = {
   "philhealth-eclaims submit_claim": "PhilHealth claim",
   "philhealth-eligibility check_eligibility": "PhilHealth eligibility check",
   "doh-reporting submit_case_report": "DOH case report",
+  "philhealth-yakap submit_encounter": "PhilHealth YAKAP encounter package",
 };
 
 export function operationLabel(e: Pick<ExchangeReviewItem, "system" | "operation">): string {
@@ -12,8 +13,10 @@ export function operationLabel(e: Pick<ExchangeReviewItem, "system" | "operation
 }
 
 /** Where to fix the cause and prepare the request again. */
-export function sourceLink(e: Pick<ExchangeReviewItem, "resourceType" | "resourceId">): { href: string; label: string } | null {
+export function sourceLink(e: Pick<ExchangeReviewItem, "resourceType" | "resourceId"> & { patientId?: string | null }): { href: string; label: string } | null {
   switch (e.resourceType) {
+    case "encounter":
+      return e.patientId ? { href: `/patients/${e.patientId}/yakap/${e.resourceId}`, label: "Open YAKAP package" } : null;
     case "billing_invoice":
       return { href: `/billing/invoices/${e.resourceId}`, label: "Open invoice" };
     case "doh_case_report":

@@ -24,12 +24,22 @@ import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { EligibilityOverview, LabReportArchiveEntry, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import type {
+  EligibilityOverview,
+  LabReportArchiveEntry,
+  PatientDetail,
+  PatientLabResult,
+  PatientSummaryResponse,
+  PortalAccountStatus,
+  YakapConsultationList,
+  YakapRegistrationOverview,
+} from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
 import { PatientLabResults } from "./lab-results";
 import { PhilHealthEligibility } from "./philhealth-eligibility";
+import { PhilHealthYakap } from "./philhealth-yakap";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
 import { SendPortalMessage } from "./send-portal-message";
@@ -109,15 +119,35 @@ async function loadEligibility(id: string): Promise<EligibilityOverview | null> 
   }
 }
 
+/** PhilHealth YAKAP registration answers and the patient's consultations (each audited by the API); each part null without its permission. */
+async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverview | null; consultations: YakapConsultationList | null } | null> {
+  const session = await getSession();
+  const tolerate = <T,>(call: () => Promise<T>) =>
+    call().catch((e: unknown) => {
+      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+      throw e;
+    });
+  const [overview, consultations] = await Promise.all([
+    can(session, "philhealth.eligibility.manage")
+      ? tolerate(() => api<YakapRegistrationOverview>("/philhealth/yakap/registrations", { query: { patientId: id } }))
+      : Promise.resolve(null),
+    can(session, "philhealth.claim.submit")
+      ? tolerate(() => api<YakapConsultationList>(`/philhealth/yakap/patients/${id}/consultations`))
+      : Promise.resolve(null),
+  ]);
+  return overview || consultations ? { overview, consultations } : null;
+}
+
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, yakap, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
     loadLabResults(id),
     loadArchivedLabReports(id),
     loadEligibility(id),
+    loadYakap(id),
     getSelectedFacility(),
     getSession(),
   ]);
@@ -285,6 +315,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                 today={todayIn(facility?.timezone ?? "Asia/Manila")}
                 facilitySelected={facility !== null}
               />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {yakap ? (
+          <Card>
+            <CardHeader>
+              <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>PhilHealth YAKAP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PhilHealthYakap patientId={p.id} overview={yakap.overview} consultations={yakap.consultations} facilityId={facility?.id ?? null} />
             </CardContent>
           </Card>
         ) : null}

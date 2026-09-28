@@ -23,7 +23,16 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { BillingCategory, BillingPayer, BillingPrefixes, BillingService, DiscountRule, PhilHealthAccreditation } from "@/lib/api/types";
+import type {
+  BillingCategory,
+  BillingPayer,
+  BillingPrefixes,
+  BillingService,
+  DiscountRule,
+  PhilHealthAccreditation,
+  YakapParticipation as YakapParticipationRecord,
+} from "@/lib/api/types";
+import { YakapParticipation } from "./yakap-participation";
 import { CATEGORY_LABEL, parsePesos, percent, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import {
@@ -78,6 +87,7 @@ export function BillingSettings({
   labTests,
   canManage,
   philhealth,
+  yakap,
 }: {
   services: BillingService[];
   payers: BillingPayer[];
@@ -88,6 +98,8 @@ export function BillingSettings({
   canManage: boolean;
   /** The selected facility's PhilHealth accreditation (only for staff who may record it). */
   philhealth: { facilityId: string; facilityName: string; accreditation: PhilHealthAccreditation | null } | null;
+  /** The selected facility's PhilHealth YAKAP participation reference (same permission as the accreditation). */
+  yakap: { facilityId: string; facilityName: string; participation: YakapParticipationRecord | null } | null;
 }) {
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
@@ -99,6 +111,7 @@ export function BillingSettings({
         <Payers payers={payers} canManage={canManage} />
         <Prefixes prefixes={prefixes} canManage={canManage} />
         {philhealth ? <Accreditation {...philhealth} /> : null}
+        {yakap ? <YakapParticipation {...yakap} /> : null}
       </div>
     </div>
   );
