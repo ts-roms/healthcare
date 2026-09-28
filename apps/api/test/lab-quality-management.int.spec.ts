@@ -1,4 +1,4 @@
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
 
 /**
  * Phase 9 — laboratory quality management: temperature monitoring with
@@ -284,6 +284,50 @@ describe("laboratory quality management", () => {
         .expect((r) => expect(r.body.error.code).toBe("competency_required"));
       await lab("post", `/order-items/${ids.item}/results`, medtech, { valueNumeric: 5.1 }).expect(201);
     });
+  });
+
+  it("tells the facility's quality managers about each new nonconformance, except the person who reported it", async () => {
+    await createStaff(ctx.pool, tenant, "annex-patho@example.ph", [{ role: "pathologist", facilityId: tenant.otherFacilityId }]);
+    const annex = (await login(ctx, "annex-patho@example.ph")).accessToken;
+    const own = await lab("post", "/nonconformances", pathologist, {
+      category: "safety",
+      severity: "critical",
+      title: "Serum spill",
+      description: "Serum spill at the centrifuge",
+    }).expect(201);
+    await drainEvents(ctx);
+
+    type Notice = { id: string; subject: string; text: string; href: string | null };
+    const notices = async (token: string): Promise<Notice[]> =>
+      (await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200)).body.filter(
+        (n: { templateKey: string }) => n.templateKey === "lab.quality-notice",
+      );
+    const opened = await ctx.pool.query<{ id: string; email: string | null }>(
+      `SELECT n.id, u.email FROM lab_nonconformance n LEFT JOIN app_user u ON u.id = n.reported_by WHERE n.organization_id = $1`,
+      [tenant.organizationId],
+    );
+    const adminNotices = await notices(admin);
+    expect(adminNotices.map((n) => n.href).sort()).toEqual(opened.rows.map((r) => `/laboratory/nonconformances/${r.id}`).sort());
+    expect(adminNotices.find((n) => n.href?.endsWith(own.body.id))).toMatchObject({ subject: `Critical nonconformance ${own.body.number}` });
+    const pathologistNotices = await notices(pathologist);
+    expect(pathologistNotices.map((n) => n.href).sort()).toEqual(
+      opened.rows
+        .filter((r) => r.email !== "patho@example.ph")
+        .map((r) => `/laboratory/nonconformances/${r.id}`)
+        .sort(),
+    );
+    expect(pathologistNotices.some((n) => n.href?.endsWith(own.body.id))).toBe(false);
+    // Not quality managers of this facility.
+    expect(await notices(medtech)).toEqual([]);
+    expect(await notices(annex)).toEqual([]);
+    // Record numbers and categories only: no patient, specimen, title or description.
+    expect(JSON.stringify(adminNotices.map((n) => [n.subject, n.text]))).not.toMatch(/P\d{8}|Juan|spill|smudged/i);
+
+    const unread = async () => (await ctx.http().get("/api/v1/me/notifications/unread-count").set(as(admin)).expect(200)).body.unread as number;
+    const before = await unread();
+    expect(before).toBeGreaterThanOrEqual(adminNotices.length);
+    await ctx.http().post(`/api/v1/me/notifications/${adminNotices[0]!.id}/read`).set(as(admin)).expect(204);
+    expect(await unread()).toBe(before - 1);
   });
 
   it("audits and publishes quality events", async () => {

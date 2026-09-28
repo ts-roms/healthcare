@@ -180,10 +180,28 @@ export class NotificationService {
         templateKey: row.templateKey,
         subject: rendered?.subject ?? null,
         text: rendered?.text ?? "",
+        href: rendered?.href ?? null,
         createdAt: row.createdAt,
         readAt: row.readAt,
       };
     });
+  }
+
+  /** Unread in-app messages of the signed-in staff member (the top bar's badge). */
+  async unreadCount(actor: Actor): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, actor.organizationId),
+          eq(notification.recipientUserId, actor.userId),
+          eq(notification.channel, "in_app"),
+          eq(notification.status, "delivered"),
+          isNull(notification.readAt),
+        ),
+      );
+    return row?.count ?? 0;
   }
 
   /**

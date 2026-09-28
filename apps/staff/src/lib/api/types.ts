@@ -2792,3 +2792,16 @@ export interface DentalSupplyUse {
 export interface DentalRecordSupplies {
   supplyUses?: DentalSupplyUse[];
 }
+
+// ---- Staff in-app inbox (GET /me/notifications, GET /me/notifications/unread-count) ----------------------------
+
+export interface StaffNotice {
+  id: string;
+  templateKey: string;
+  subject: string | null;
+  text: string;
+  /** The staff page the message is about, when there is one. */
+  href: string | null;
+  createdAt: string;
+  readAt: string | null;
+}

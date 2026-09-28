@@ -19,6 +19,8 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
 export interface RenderedMessage {
   subject?: string;
   text: string;
+  /** Staff in-app only: the page in the staff app the message is about. */
+  href?: string;
 }
 
 function defineTemplate<V extends z.ZodType>(template: NotificationTemplate<V>): NotificationTemplate<V> {
@@ -26,6 +28,20 @@ function defineTemplate<V extends z.ZodType>(template: NotificationTemplate<V>):
 }
 
 const shortText = z.string().trim().min(1).max(80);
+
+/** Labels of the laboratory's nonconformance categories (libs/laboratory quality-management.schema.ts). */
+const NONCONFORMANCE_CATEGORY_LABEL = {
+  pre_analytical: "Pre-analytical",
+  analytical: "Analytical",
+  post_analytical: "Post-analytical",
+  equipment: "Equipment",
+  temperature_excursion: "Temperature excursion",
+  qc_failure: "QC failure",
+  eqa_failure: "EQA failure",
+  safety: "Safety",
+  complaint: "Complaint",
+  other: "Other",
+} as const;
 
 export const TEMPLATES = [
   defineTemplate({
@@ -172,6 +188,40 @@ export const TEMPLATES = [
         : {
             subject: `Corrected laboratory result — ${v.patientNumber}`,
             text: `A released result on laboratory order ${v.orderNumber} for patient ${v.patientNumber} was corrected. Open the order to see the new version and its reason.`,
+          },
+  }),
+  defineTemplate({
+    key: "lab.quality-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to the facility's quality managers. No patient, specimen or control values — the record is read behind access control.
+    channels: ["in_app"],
+    variables: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("nonconformance"),
+        nonconformanceId: z.uuid(),
+        number: z.string().regex(/^NC\d{8}$/),
+        category: z.enum(Object.keys(NONCONFORMANCE_CATEGORY_LABEL) as [keyof typeof NONCONFORMANCE_CATEGORY_LABEL]),
+        severity: z.enum(["minor", "major", "critical"]),
+      }),
+      z.object({
+        kind: z.literal("qc_rejected"),
+        instrumentCode: shortText,
+        testName: shortText,
+        rules: z.array(z.string().regex(/^[0-9A-Za-z_]{2,8}$/)).max(6),
+      }),
+    ]),
+    render: (v) =>
+      v.kind === "nonconformance"
+        ? {
+            subject: `${v.severity === "minor" ? "Nonconformance" : `${v.severity === "critical" ? "Critical" : "Major"} nonconformance`} ${v.number}`,
+            text: `${NONCONFORMANCE_CATEGORY_LABEL[v.category]} nonconformance ${v.number} (${v.severity}) was opened. Open it to investigate and record the corrective action.`,
+            href: `/laboratory/nonconformances/${v.nonconformanceId}`,
+          }
+        : {
+            subject: `QC rejected — ${v.testName} on ${v.instrumentCode}`,
+            text: `A QC run for ${v.testName} on instrument ${v.instrumentCode} was rejected${v.rules.length ? ` (${v.rules.join(", ")})` : ""}. Review the run and record a corrective action.`,
+            href: "/laboratory/qc",
           },
   }),
 ] as const;
