@@ -5,6 +5,7 @@ import { LabResult } from "./lab-result";
 import { LabResultTable } from "./lab-result-table";
 import { LabTrendChart } from "./lab-trend-chart";
 import { LabWorklist } from "./lab-worklist";
+import { QcLeveyJenningsChart, type QcChartPoint, QcStatusBadge } from "./qc-chart";
 import { SpecimenStatus } from "./specimen-status";
 import { LabFlagBadge, labFlagSpec } from "./status";
 
@@ -54,4 +55,39 @@ export const Flags: StoryObj = {
 
 export const Trend: StoryObj = {
   render: () => <LabTrendChart className="max-w-md" data={hba1cTrend} name="HbA1c" unit="%" referenceLow={4} referenceHigh={5.7} />,
+};
+
+const qcPoints: QcChartPoint[] = [0.4, -0.8, 1.2, 0.3, 2.3, -0.5, 1.1, 3.4, 0.2, -1.4].flatMap((z, day) => [
+  {
+    id: `l1-${day}`,
+    runAt: new Date(Date.UTC(2026, 8, 1 + day, 0, 30)).toISOString(),
+    z,
+    value: +(5 + z * 0.2).toFixed(2),
+    status: Math.abs(z) > 3 ? "rejected" : Math.abs(z) > 2 ? "warning" : "accepted",
+    violations: Math.abs(z) > 3 ? ["1_2s", "1_3s"] : Math.abs(z) > 2 ? ["1_2s"] : [],
+    series: "Level 1 · lot A100",
+  },
+  {
+    id: `l2-${day}`,
+    runAt: new Date(Date.UTC(2026, 8, 1 + day, 0, 35)).toISOString(),
+    z: -z / 2,
+    value: +(15 - z / 4).toFixed(2),
+    status: "accepted",
+    violations: [],
+    series: "Level 2 · lot B200",
+  },
+]);
+
+export const QualityControl: StoryObj = {
+  render: () => (
+    <div className="flex max-w-2xl flex-col gap-3">
+      <div className="flex gap-2">
+        <QcStatusBadge status="accepted" />
+        <QcStatusBadge status="warning" />
+        <QcStatusBadge status="rejected" />
+        <QcStatusBadge status="none" />
+      </div>
+      <QcLeveyJenningsChart points={qcPoints} name="Glucose on Chemistry analyzer 1" unit=" mmol/L" />
+    </div>
+  ),
 };

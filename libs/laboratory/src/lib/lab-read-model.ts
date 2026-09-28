@@ -4,6 +4,8 @@ import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import {
   labOrderItem,
   type LabOrderItemRecord,
+  labReagentLoad,
+  labResultReagent,
   type LabOrderRecord,
   labResult,
   type LabResultRecord,
@@ -42,6 +44,8 @@ export type ResultView = Omit<LabResultRecord, "organizationId"> & {
   releasedByName: string | null;
   /** Files attached to this version (pending uploads only for laboratory staff). */
   attachments: AttachmentView[];
+  /** Reagent lots loaded on the instrument for the test when the result was entered. */
+  reagents: Array<{ loadId: string; itemCode: string; itemName: string; lotNumber: string | null; expiryDate: string | null }>;
 };
 
 export type SpecimenView = Omit<LabSpecimenRecord, "organizationId"> & { collectedByName: string | null; receivedByName: string | null };
@@ -113,7 +117,7 @@ export class LabReadModel {
       });
     }
     const organizationId = actor.organizationId;
-    const [patients, practitioners, staff] = await Promise.all([
+    const [patients, practitioners, staff, reagents] = await Promise.all([
       this.context.patientBriefs(organizationId, [...new Set(orders.map((o) => o.patientId))]),
       this.context.practitionerNames(organizationId, [...new Set(orders.map((o) => o.orderingPractitionerId).filter((id): id is string => !!id))]),
       this.context.staffNames(
@@ -126,13 +130,17 @@ export class LabReadModel {
           ]),
         ].filter((id): id is string => !!id),
       ),
+      this.reagentsOn(
+        executor,
+        results.map((r) => r.id),
+      ),
     ]);
     const attachments = await attachmentsOf(
       executor,
       actor,
       results.map((r) => r.id),
     );
-    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff, attachments.get(r.id))]));
+    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff, attachments.get(r.id), reagents.get(r.id))]));
     return orders.map((order) => ({
       ...publicView(order),
       orderingPractitionerName: order.orderingPractitionerId ? (practitioners.get(order.orderingPractitionerId) ?? null) : null,
@@ -148,8 +156,9 @@ export class LabReadModel {
     }));
   }
 
+  /** Result views with names, attachments and reagent lots; pass the transaction when the rows were just written in it. */
   async results(executor: DbExecutor, actor: Actor, rows: LabResultRecord[]): Promise<ResultView[]> {
-    const [staff, attachments] = await Promise.all([
+    const [staff, attachments, reagents] = await Promise.all([
       this.context.staffNames(actor.organizationId, [
         ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
       ]),
@@ -158,11 +167,15 @@ export class LabReadModel {
         actor,
         rows.map((r) => r.id),
       ),
+      this.reagentsOn(
+        executor,
+        rows.map((r) => r.id),
+      ),
     ]);
-    return rows.map((r) => this.resultView(r, staff, attachments.get(r.id)));
+    return rows.map((r) => this.resultView(r, staff, attachments.get(r.id), reagents.get(r.id)));
   }
 
-  resultView(r: LabResultRecord, staff: Map<string, string>, attachments: AttachmentView[] = []): ResultView {
+  resultView(r: LabResultRecord, staff: Map<string, string>, attachments: AttachmentView[] = [], reagents: ResultView["reagents"] = []): ResultView {
     const name = (id: string | null) => (id ? (staff.get(id) ?? null) : null);
     return {
       ...publicView(r),
@@ -171,11 +184,29 @@ export class LabReadModel {
       approvedByName: name(r.approvedBy),
       releasedByName: name(r.releasedBy),
       attachments,
+      reagents,
     };
   }
 
   specimenView(s: LabSpecimenRecord, staff: Map<string, string>): SpecimenView {
     return { ...publicView(s), collectedByName: staff.get(s.collectedBy) ?? null, receivedByName: s.receivedBy ? (staff.get(s.receivedBy) ?? null) : null };
+  }
+
+  private async reagentsOn(executor: DbExecutor, resultIds: string[]): Promise<Map<string, ResultView["reagents"]>> {
+    const map = new Map<string, ResultView["reagents"]>();
+    if (resultIds.length === 0) return map;
+    const rows = await executor
+      .select({ resultId: labResultReagent.resultId, load: labReagentLoad })
+      .from(labResultReagent)
+      .innerJoin(labReagentLoad, eq(labReagentLoad.id, labResultReagent.reagentLoadId))
+      .where(inArray(labResultReagent.resultId, resultIds));
+    for (const { resultId, load } of rows) {
+      map.set(resultId, [
+        ...(map.get(resultId) ?? []),
+        { loadId: load.id, itemCode: load.itemCode, itemName: load.itemName, lotNumber: load.lotNumber, expiryDate: load.expiryDate },
+      ]);
+    }
+    return map;
   }
 
   /** Current (not superseded or cancelled) results; released only, unless the actor works in the laboratory. */

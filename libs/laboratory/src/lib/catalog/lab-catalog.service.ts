@@ -34,13 +34,27 @@ import {
   labSpecimenType,
   labTest,
   type LabTestRecord,
+  type QcRejectRule,
 } from "../laboratory.schema";
 import { assertVersion, found, publicView, uniquely } from "../laboratory-support";
 
 const TEST_FIELDS = ["name", "loincCode", "unit", "turnaroundMinutes", "requiresFasting", "patientReleasable", "collectionInstructions", "status"] as const;
 
 /** The safe default when a facility has no policy row: separation of duties, manual release. */
-export const DEFAULT_LAB_POLICY = { allowSelfVerification: false, allowSelfApproval: false, releaseOnApproval: false } as const;
+export const DEFAULT_LAB_POLICY = {
+  allowSelfVerification: false,
+  allowSelfApproval: false,
+  releaseOnApproval: false,
+  // Quality control (0050): the common 1_3s / 2_2s / R_4s rejection set, a 24-hour window, not required.
+  qcRejectRules: ["1_3s", "2_2s", "R_4s"] as QcRejectRule[],
+  qcValidHours: 24,
+  qcRequired: false,
+  // Reagent lots (0051): a new lot starts the test's QC window again.
+  qcAfterReagentChange: true,
+};
+
+type PolicyFields =
+  "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRejectRules" | "qcValidHours" | "qcRequired" | "qcAfterReagentChange";
 
 export type TestView = Omit<LabTestRecord, "organizationId"> & { referenceRanges: Array<Omit<LabReferenceRangeRecord, "organizationId">> };
 
@@ -309,10 +323,7 @@ export class LabCatalogService {
 
   // ---- Facility policy ------------------------------------------------------------------
 
-  async policy(
-    executor: DbExecutor,
-    facilityId: string,
-  ): Promise<Pick<LabFacilityPolicyRecord, "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval">> {
+  async policy(executor: DbExecutor, facilityId: string): Promise<Pick<LabFacilityPolicyRecord, PolicyFields>> {
     const [row] = await executor.select().from(labFacilityPolicy).where(eq(labFacilityPolicy.facilityId, facilityId));
     return row ?? DEFAULT_LAB_POLICY;
   }
@@ -325,11 +336,18 @@ export class LabCatalogService {
     return row ? publicView(row) : { facilityId, ...DEFAULT_LAB_POLICY, version: 0 };
   }
 
-  /** Relaxing separation of duties is a deliberate, audited facility decision with a reason. */
+  /** Relaxing separation of duties is a deliberate, audited facility decision with a reason. QC fields left out keep their value. */
   async setPolicy(actor: Actor, facilityId: string, input: z.infer<typeof facilityPolicySchema>) {
-    const { reason, ...values } = input;
+    const { reason, ...given } = input;
     return this.db.transaction(async (tx) => {
       const before = await this.policy(tx, facilityId);
+      const values = {
+        ...given,
+        qcRejectRules: given.qcRejectRules ?? before.qcRejectRules,
+        qcValidHours: given.qcValidHours ?? before.qcValidHours,
+        qcRequired: given.qcRequired ?? before.qcRequired,
+        qcAfterReagentChange: given.qcAfterReagentChange ?? before.qcAfterReagentChange,
+      };
       const [row] = await tx
         .insert(labFacilityPolicy)
         .values({ ...values, facilityId, organizationId: actor.organizationId, updatedBy: actor.userId })
@@ -345,7 +363,15 @@ export class LabCatalogService {
         resourceType: "facility",
         resourceId: facilityId,
         reason,
-        changes: diffChanges(before, values, ["allowSelfVerification", "allowSelfApproval", "releaseOnApproval"]),
+        changes: diffChanges(before, values, [
+          "allowSelfVerification",
+          "allowSelfApproval",
+          "releaseOnApproval",
+          "qcRejectRules",
+          "qcValidHours",
+          "qcRequired",
+          "qcAfterReagentChange",
+        ]),
       });
       return publicView(saved);
     });

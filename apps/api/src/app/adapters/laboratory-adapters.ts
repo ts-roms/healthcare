@@ -1,17 +1,30 @@
 import { Injectable } from "@nestjs/common";
 import { UsersService } from "@healthcare/auth";
 import { ClinicQueries } from "@healthcare/clinic";
+import { InventoryQueries } from "@healthcare/inventory";
 import type { LaboratoryContext, LabPatientBrief } from "@healthcare/laboratory";
 import { PatientRecordService } from "@healthcare/patient";
 
-/** Laboratory → patient, clinic and staff directory: identification, demographics, ordering provider and encounter state. */
+/**
+ * Laboratory → patient, clinic, staff directory and inventory: identification, demographics, ordering provider,
+ * encounter state, and the reagent lots the laboratory loads on its instruments.
+ */
 @Injectable()
 export class AppLaboratoryContext implements LaboratoryContext {
   constructor(
     private readonly patients: PatientRecordService,
     private readonly clinic: ClinicQueries,
     private readonly users: UsersService,
+    private readonly inventory: InventoryQueries,
   ) {}
+
+  inventoryLot(organizationId: string, lotId: string) {
+    return this.inventory.lot(organizationId, lotId);
+  }
+
+  reagentLotsInStock(organizationId: string, facilityId: string) {
+    return this.inventory.lotsInStock(organizationId, facilityId, ["reagent"]);
+  }
 
   patientBriefs(organizationId: string, patientIds: string[]): Promise<Map<string, LabPatientBrief>> {
     return this.patients.briefs(organizationId, patientIds);
