@@ -19,6 +19,8 @@ export const VISIT_STATUSES = [
 export const VISIT_PRIORITIES = ["routine", "urgent", "emergency"] as const;
 export const ALLERGY_CATEGORIES = ["medication", "food", "environment", "biologic", "other"] as const;
 export const ALLERGY_STATUSES = ["active", "inactive", "resolved", "entered_in_error"] as const;
+export const ALLERGY_SOURCES = ["staff", "external_import"] as const;
+export const EXTERNAL_HISTORY_KINDS = ["condition", "observation", "medication", "document"] as const;
 
 export type Profession = (typeof PROFESSIONS)[number];
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
@@ -255,6 +257,10 @@ export const allergyIntolerance = pgTable("allergy_intolerance", {
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  /** Where the allergy came from: staff entry, or accepted from an external import (migration 0048). */
+  source: text("source").$type<(typeof ALLERGY_SOURCES)[number]>().notNull().default("staff"),
+  /** For an import: "fhir-import:<import id>#<entry index>". */
+  sourceReference: text("source_reference"),
 });
 
 export const allergyReview = pgTable("allergy_review", {
@@ -324,6 +330,33 @@ export const diagnosis = pgTable("diagnosis", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
+/**
+ * External clinical history accepted from an import (migration 0048): what another provider recorded, labelled as
+ * such. Not an internal diagnosis, vital sign, laboratory result or prescription. Append-only except entered in error.
+ */
+export const externalHistoryEntry = pgTable("external_history_entry", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  kind: text("kind").$type<(typeof EXTERNAL_HISTORY_KINDS)[number]>().notNull(),
+  category: text("category"),
+  display: text("display").notNull(),
+  codeSystem: text("code_system"),
+  code: text("code"),
+  valueText: text("value_text"),
+  statusText: text("status_text"),
+  effectiveText: text("effective_text"),
+  source: text("source").$type<"external_import">().notNull().default("external_import"),
+  sourceReference: text("source_reference").notNull(),
+  declaredSource: text("declared_source"),
+  status: text("status").$type<"active" | "entered_in_error">().notNull().default("active"),
+  enteredInErrorReason: text("entered_in_error_reason"),
+  enteredInErrorBy: uuid("entered_in_error_by"),
+  enteredInErrorAt: ts("entered_in_error_at"),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+
 export type PractitionerRecord = typeof practitioner.$inferSelect;
 export type AppointmentRecord = typeof appointment.$inferSelect;
 export type VisitRecord = typeof visit.$inferSelect;
@@ -331,4 +364,5 @@ export type EncounterRecord = typeof encounter.$inferSelect;
 export type DiagnosisRecord = typeof diagnosis.$inferSelect;
 export type VitalSignSetRecord = typeof vitalSignSet.$inferSelect;
 export type AllergyRecord = typeof allergyIntolerance.$inferSelect;
+export type ExternalHistoryRecord = typeof externalHistoryEntry.$inferSelect;
 export type ScheduleRecord = typeof practitionerSchedule.$inferSelect;

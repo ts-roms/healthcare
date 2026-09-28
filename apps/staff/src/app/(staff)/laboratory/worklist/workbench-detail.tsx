@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   AlertOctagonIcon,
   BanIcon,
@@ -13,11 +14,13 @@ import {
   SendIcon,
   ShieldCheckIcon,
   TriangleAlertIcon,
+  TruckIcon,
   ZapIcon,
 } from "lucide-react";
 import { clinicalDateTime, LabFlagBadge } from "@healthcare/ui/healthcare";
 import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import type { LabOrderItem, LabResult, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import { PerformedBy, SendOutBadge } from "@/components/send-out-badge";
+import type { LabOrderItem, LabResult, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import {
   bySpecimenType,
@@ -35,6 +38,7 @@ import {
   collectSpecimen,
   correctResult,
   enterResult,
+  prepareSendOut,
   receiveSpecimen,
   rejectSpecimen,
   removeResultAttachment,
@@ -64,6 +68,7 @@ export function WorkbenchDetail({
   stage,
   permissions,
   specimenTypeName,
+  referenceLabs,
   onChanged,
 }: {
   row: LabWorklistRow;
@@ -71,10 +76,14 @@ export function WorkbenchDetail({
   stage: LabWorklistStage | null;
   permissions: LabPermissions;
   specimenTypeName: Map<string, string>;
+  referenceLabs: ReferenceLaboratory[];
   onChanged: () => void;
 }) {
   const { order, patient, specimen, items } = row;
-  const toEnter = items.filter((i) => i.status === "received" && !i.result);
+  // Tests with a reference laboratory are entered once its results are back (see /laboratory/send-outs).
+  const inFlight = (i: LabOrderItem) => i.sendOut?.status === "prepared" || i.sendOut?.status === "dispatched";
+  const toEnter = items.filter((i) => i.status === "received" && !i.result && !inFlight(i));
+  const sentOut = items.filter((i) => i.sendOut && i.status !== "cancelled");
   const withResults = items.filter((i) => i.result);
   const canReject = permissions.reject && specimen && ["collected", "received"].includes(specimen.status) && !items.some((i) => i.status === "released");
 
@@ -124,7 +133,13 @@ export function WorkbenchDetail({
 
       {specimen?.status === "collected" && permissions.receive ? <ReceiveButton specimenId={specimen.id} onChanged={onChanged} /> : null}
 
+      {sentOut.length ? <SendOutList items={sentOut} /> : null}
+
       {toEnter.length && permissions.enter ? <EnterPanel items={toEnter} onChanged={onChanged} /> : null}
+
+      {toEnter.length && permissions.receive && referenceLabs.length ? (
+        <SendOutForm items={toEnter} referenceLabs={referenceLabs} onChanged={onChanged} />
+      ) : null}
 
       {withResults.length ? (
         <section aria-labelledby="results-heading" className="flex flex-col gap-2">
@@ -334,6 +349,12 @@ function EnterPanel({ items, onChanged }: { items: LabOrderItem[]; onChanged: ()
       {items.map((item) => (
         <div key={item.id} className="grid gap-1 rounded-md border bg-card p-2">
           <Label htmlFor={`value-${item.id}`}>{item.testName}</Label>
+          {item.sendOut?.status === "results_received" ? (
+            <p className="text-meta text-muted-foreground">
+              From {item.sendOut.referenceLaboratoryName}&apos;s report
+              {item.sendOut.referenceAccession ? ` (their accession ${item.sendOut.referenceAccession})` : ""} — recorded as performed by them
+            </p>
+          ) : null}
           <ValueInput item={item} id={`value-${item.id}`} value={values[item.id] ?? ""} onChange={(v) => setValues((s) => ({ ...s, [item.id]: v }))} />
           <Input
             aria-label={`Comment for ${item.testName}`}
@@ -401,6 +422,7 @@ function ResultRow({ item, result, permissions, onChanged }: { item: LabOrderIte
         </p>
       ) : null}
       {result.comment ? <p className="text-meta">Comment: {result.comment}</p> : null}
+      <PerformedBy laboratory={result.performingLaboratory} />
       <ResultAttachments result={result} editable={result.status === "entered" && permissions.enter} onChanged={onChanged} />
 
       {mode === "view" ? (
@@ -633,5 +655,92 @@ function ResultAttachments({ result, editable, onChanged }: { result: LabResult;
         </label>
       ) : null}
     </div>
+  );
+}
+
+/** Tests of this specimen referred to a reference laboratory, with where each stands. */
+function SendOutList({ items }: { items: LabOrderItem[] }) {
+  return (
+    <section aria-labelledby="send-outs-heading" className="flex flex-col gap-1.5">
+      <h3 id="send-outs-heading" className="text-table font-semibold">
+        Referred to a reference laboratory
+      </h3>
+      {items.map((item) => {
+        const sendOut = item.sendOut;
+        if (!sendOut) return null;
+        return (
+          <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-table">
+            <span className="font-medium">{item.testName}</span>
+            <span className="text-muted-foreground">{sendOut.referenceLaboratoryName}</span>
+            <SendOutBadge status={sendOut.status} className="ml-auto" />
+            {sendOut.rejectionReason ? <span className="basis-full text-meta text-muted-foreground">Their reason: {sendOut.rejectionReason}</span> : null}
+          </div>
+        );
+      })}
+      <Link href="/laboratory/send-outs" className="self-start text-meta text-primary hover:underline">
+        Dispatch and record results back on the send-outs page
+      </Link>
+    </section>
+  );
+}
+
+/** Refer received tests by hand (tests configured as referred are prepared when the specimen is received). */
+function SendOutForm({ items, referenceLabs, onChanged }: { items: LabOrderItem[]; referenceLabs: ReferenceLaboratory[]; onChanged: () => void }) {
+  const { pending, run } = useRun(onChanged);
+  const [open, setOpen] = React.useState(false);
+  const [labId, setLabId] = React.useState(referenceLabs[0]?.id ?? "");
+  const [chosen, setChosen] = React.useState<Set<string>>(new Set());
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" className="self-start" onClick={() => setOpen(true)}>
+        <TruckIcon /> Send to a reference laboratory…
+      </Button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-md border p-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(
+          () => prepareSendOut({ orderItemIds: [...chosen], referenceLaboratoryId: labId }),
+          "Prepared for dispatch",
+          () => setOpen(false),
+        );
+      }}
+    >
+      <Label htmlFor="send-out-lab">Reference laboratory</Label>
+      <NativeSelect id="send-out-lab" value={labId} onChange={(e) => setLabId(e.target.value)}>
+        {referenceLabs.map((lab) => (
+          <option key={lab.id} value={lab.id}>
+            {lab.name}
+          </option>
+        ))}
+      </NativeSelect>
+      {items.map((item) => (
+        <label key={item.id} className="flex items-center gap-2 text-table">
+          <Checkbox
+            checked={chosen.has(item.id)}
+            onCheckedChange={(checked) =>
+              setChosen((prev) => {
+                const next = new Set(prev);
+                if (checked) next.add(item.id);
+                else next.delete(item.id);
+                return next;
+              })
+            }
+          />
+          {item.testName}
+        </label>
+      ))}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={pending || chosen.size === 0 || !labId}>
+          Prepare send-out
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          Back
+        </Button>
+      </div>
+    </form>
   );
 }

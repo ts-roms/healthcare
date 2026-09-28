@@ -34,6 +34,9 @@
       "path": "../../libs/dental/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/philhealth/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/interoperability/tsconfig.lib.json"
     },
     {

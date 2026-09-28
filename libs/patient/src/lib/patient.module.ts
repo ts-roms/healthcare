@@ -13,6 +13,6 @@ import { PortalTokenService } from "./portal/portal-tokens";
   imports: [JwtModule.register({})],
   controllers: [PatientController, PortalController, PatientPortalAccountController],
   providers: [PatientRecordService, PatientRegistrationService, PatientSearchService, PortalAccountService, PortalTokenService, PatientAccessGuard],
-  exports: [PatientRecordService, PortalAccountService, PatientAccessGuard],
+  exports: [PatientRecordService, PatientRegistrationService, PortalAccountService, PatientAccessGuard],
 })
 export class PatientModule {}

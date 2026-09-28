@@ -14,3 +14,8 @@ export * from "./lib/results/lab-report";
 export * from "./lib/results/lab-result-attachments";
 export * from "./lib/results/lab-report-archive";
 export * from "./lib/results/lab-report-archive-queue";
+export * from "./lib/send-outs/reference-lab.service";
+export * from "./lib/send-outs/send-out-manifest";
+export * from "./lib/send-outs/send-out.rules";
+export * from "./lib/send-outs/send-out.schema";
+export * from "./lib/send-outs/send-out.service";

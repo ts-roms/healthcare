@@ -14,9 +14,14 @@ import type {
   LabReferenceRange,
   LabResult,
   LabResultAttachment,
+  LabSendOut,
+  LabSendOutDispatchDetail,
   LabSpecimen,
   LabTest,
+  LabTestReferral,
   LabTrend,
+  ReferenceLaboratory,
+  ReferenceLabSubmissionStatus,
 } from "@/lib/api/types";
 import { attachmentTitle, checkAttachmentFile } from "@/lib/lab-attachments";
 
@@ -302,4 +307,135 @@ export async function resultAttachmentUrl(attachmentId: string): Promise<ActionR
   const parsed = id.safeParse(attachmentId);
   if (!parsed.success) return { ok: false, message: "Unknown attachment." };
   return actionResult(() => api<{ url: string; expiresAt: string }>(`/laboratory/attachments/${parsed.data}/download-url`));
+}
+
+// ---- Reference laboratories and send-outs ------------------------------------------------------
+
+const optionalText = (max: number) => z.string().trim().max(max).optional();
+const orNull = (value: string | undefined) => (value ? value : null);
+
+const referenceLabSchema = z.object({
+  code,
+  name: z.string().trim().min(1, "Give the laboratory's name.").max(160),
+  contactName: optionalText(160),
+  phone: optionalText(40),
+  email: z.union([z.literal(""), z.email("Enter a valid email address.")]).optional(),
+  address: optionalText(500),
+  accreditationReference: optionalText(120),
+});
+export async function createReferenceLab(input: z.input<typeof referenceLabSchema>): Promise<ActionResult<ReferenceLaboratory>> {
+  const parsed = referenceLabSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const body = {
+    code: v.code,
+    name: v.name,
+    contactName: orNull(v.contactName),
+    phone: orNull(v.phone),
+    email: orNull(v.email),
+    address: orNull(v.address),
+    accreditationReference: orNull(v.accreditationReference),
+  };
+  return actionResult(() => api<ReferenceLaboratory>("/laboratory/reference-labs", { method: "POST", body }));
+}
+
+const referenceLabStatusSchema = z.object({ id, status: z.enum(["active", "inactive"]), version: z.number().int().positive() });
+export async function setReferenceLabStatus(input: z.input<typeof referenceLabStatusSchema>): Promise<ActionResult<ReferenceLaboratory>> {
+  const parsed = referenceLabStatusSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { id: labId, ...body } = parsed.data;
+  return actionResult(() => api<ReferenceLaboratory>(`/laboratory/reference-labs/${labId}`, { method: "PATCH", body }));
+}
+
+const referralSchema = z.object({
+  testId: id,
+  referenceLaboratoryId: id,
+  turnaroundHours: z
+    .number()
+    .int()
+    .positive()
+    .max(24 * 90)
+    .nullable(),
+});
+export async function setTestReferral(input: z.input<typeof referralSchema>): Promise<ActionResult<LabTestReferral>> {
+  const parsed = referralSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { testId, referenceLaboratoryId, turnaroundHours } = parsed.data;
+  return actionResult(() =>
+    api<LabTestReferral>(`/laboratory/referrals/${testId}`, {
+      method: "PUT",
+      body: { referenceLaboratoryId, turnaroundMinutes: turnaroundHours === null ? null : turnaroundHours * 60 },
+    }),
+  );
+}
+
+const removeReferralSchema = z.object({ testId: id, reason });
+export async function removeTestReferral(input: z.input<typeof removeReferralSchema>): Promise<ActionResult<{ removed: boolean }>> {
+  const parsed = removeReferralSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() =>
+    api<{ removed: boolean }>(`/laboratory/referrals/${parsed.data.testId}`, { method: "DELETE", body: { reason: parsed.data.reason } }),
+  );
+}
+
+const prepareSchema = z.object({ orderItemIds: z.array(id).min(1), referenceLaboratoryId: id });
+/** Refer received tests by hand (configured referrals are prepared by the API when the specimen is received). */
+export async function prepareSendOut(input: z.input<typeof prepareSchema>): Promise<ActionResult<LabSendOut[]>> {
+  const parsed = prepareSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() => api<LabSendOut[]>("/laboratory/send-outs", { method: "POST", body: parsed.data }));
+}
+
+const dispatchSchema = z.object({
+  sendOutIds: z.array(id).min(1, "Choose the specimens that leave now."),
+  courier: z.string().trim().min(1, "Who carries the specimens?").max(120),
+  courierReference: optionalText(80),
+});
+export async function dispatchSendOuts(input: z.input<typeof dispatchSchema>, idempotencyKey: string): Promise<ActionResult<LabSendOutDispatchDetail>> {
+  const parsed = dispatchSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const body = { ...parsed.data, courierReference: parsed.data.courierReference || undefined };
+  return actionResult(() => api<LabSendOutDispatchDetail>("/laboratory/send-out-dispatches", { method: "POST", body, idempotencyKey }));
+}
+
+const resultsBackSchema = z.object({
+  sendOutId: id,
+  referenceAccession: z.string().trim().min(1, "Enter the reference laboratory's accession number.").max(60),
+});
+export async function recordSendOutResultsReceived(input: z.input<typeof resultsBackSchema>): Promise<ActionResult<LabSendOut>> {
+  const parsed = resultsBackSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { sendOutId, referenceAccession } = parsed.data;
+  return actionResult(() => api<LabSendOut>(`/laboratory/send-outs/${sendOutId}/results-received`, { method: "POST", body: { referenceAccession } }));
+}
+
+const referenceRejectSchema = z.object({ sendOutId: id, reason, referenceAccession: optionalText(60) });
+export async function recordSendOutRejected(input: z.input<typeof referenceRejectSchema>): Promise<ActionResult<LabSendOut>> {
+  const parsed = referenceRejectSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { sendOutId, reason: why, referenceAccession } = parsed.data;
+  return actionResult(() =>
+    api<LabSendOut>(`/laboratory/send-outs/${sendOutId}/reject`, {
+      method: "POST",
+      body: { reason: why, referenceAccession: referenceAccession || undefined },
+    }),
+  );
+}
+
+const cancelSendOutSchema = z.object({ sendOutId: id, reason });
+export async function cancelSendOut(input: z.input<typeof cancelSendOutSchema>): Promise<ActionResult<LabSendOut>> {
+  const parsed = cancelSendOutSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() => api<LabSendOut>(`/laboratory/send-outs/${parsed.data.sendOutId}/cancel`, { method: "POST", body: { reason: parsed.data.reason } }));
+}
+
+/** Electronic submission of a dispatch: refused by the API while no reference laboratory interface is configured. */
+export async function submitDispatchElectronically(dispatchId: string, idempotencyKey: string): Promise<ActionResult<ReferenceLabSubmissionStatus>> {
+  if (!id.safeParse(dispatchId).success) return { ok: false, message: "Invalid request." };
+  return actionResult(() =>
+    api<ReferenceLabSubmissionStatus>(`/integrations/reference-laboratories/dispatches/${dispatchId}/submissions`, {
+      method: "POST",
+      body: { idempotencyKey },
+    }),
+  );
 }

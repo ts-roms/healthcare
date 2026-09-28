@@ -6,12 +6,14 @@ The Laboratory Information System: test catalog and reference ranges, orders, sp
 result entry, verification, approval, release, corrections, critical-result communication, worklists, trends and the
 laboratory dashboard. Rules for this domain are in `libs/laboratory/CLAUDE.md`.
 
-Also: printable reports (PDF), specimen tube labels, and an archive of each released report in object storage.
+Also: printable reports (PDF), specimen tube labels, an archive of each released report in object storage, and
+[send-out tests](#send-out-tests) to external reference laboratories (dispatch with a manifest, results back attributed
+to the reference laboratory).
 
 Also: files attached to result versions (see [Result attachments](#result-attachments)) and realtime status updates.
 
-Not in scope yet: instrument and outsourced-lab interfaces (`libs/interoperability`), QC, reagent
-lots and inventory (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
+Not in scope yet: instrument interfaces and electronic reference-laboratory interfaces (integration dependencies in
+`libs/interoperability`), QC and reagent lots (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
 
 ## Entities
 
@@ -29,6 +31,11 @@ lots and inventory (Phase 9). Billing charges are billing's (the LIS emits event
 - `lab_panel` / `lab_panel_test` — ordered groups of tests; ordering a panel orders its active tests.
 - `lab_facility_policy` — per facility: `allow_self_verification`, `allow_self_approval`, `release_on_approval`.
   Defaults (no row) are the safe choice: separation of duties, manual release. Changes need a reason and are audited.
+
+- `lab_reference_laboratory` — external laboratories the organization sends tests to: code, name, contact, and the
+  accreditation / licence reference **as recorded by staff (not verified)**; active / inactive.
+- `lab_test_referral` — per facility and test: the reference laboratory it is referred to and an expected turnaround
+  (from dispatch; defaults to the test's). Changes are audited.
 
 **Workflow:**
 
@@ -48,6 +55,8 @@ lots and inventory (Phase 9). Billing charges are billing's (the LIS emits event
   the sign-offs (entered, verified, approved, released — each who and when; `self_verified` / `self_approved` record
   policy exceptions). Status `entered → verified → approved → released`, `superseded` (replaced by a newer version) or
   `cancelled` (unreleased only).
+  Results performed by a reference laboratory carry `send_out_id`, `reference_laboratory_id` and a snapshot of its name
+  (`performing_laboratory`), immutable like the values.
 - `lab_critical_alert` — raised when a critical result is verified; `open → communicated` (to whom, how, read-back
   confirmed, note) `→ acknowledged` (by the ordering side).
 
@@ -78,13 +87,20 @@ self_verified`). Holding the permission is required in every case.
 - Regulatory requirements (DOH laboratory licensing, reporting, retention) are **not encoded**. Validate them against
   current official issuances and add them as configuration with a documented source.
 
+- **Send-outs.** A referred test is entered only once the reference laboratory's results are back (recorded with its
+  accession number); while a send-out is prepared or dispatched, result entry is refused (`awaiting_reference_laboratory`)
+  and the test is not on the _Enter results_ worklist. The result is then attributed to the reference laboratory and
+  follows the same verify / approve / release rules; a correction keeps the attribution. See [Send-out tests](#send-out-tests).
+
 ## Commands
 
 Catalog: create/update departments, specimen types, tests; add reference ranges; create/update panels; set facility
 policy. Orders: create, cancel, cancel one test. Specimens: collect (assigns accession), print tube labels, receive,
 reject. Results:
 enter, verify, approve (auto-release if the policy says so), release, release all approved on an order, correct,
-cancel. Critical results: communicate, acknowledge.
+cancel. Critical results: communicate, acknowledge. Send-outs: create/update reference laboratories, refer / stop
+referring a test (per facility), prepare a send-out by hand, dispatch (manifest), print the manifest, record results
+back, record a rejection by the reference laboratory, cancel.
 
 ## Queries
 
@@ -93,7 +109,9 @@ worklists by stage (`collect | receive | enter | verify | approve | release`, ST
 dashboard (per-stage counts, STAT open, overdue against turnaround time, released today, average collection-to-release
 minutes, rejections today, unacknowledged criticals); a patient's released results; result history per test; trend of
 one analyte (tests sharing a LOINC code line up) with each point's range snapshot; critical-result list; a patient's
-archived reports and the stored PDF of one.
+archived reports and the stored PDF of one; send-outs by view (to dispatch, awaiting results with turnaround, closed,
+all), recent dispatches, one dispatch with its send-outs; the dashboard's send-out counts (to dispatch, awaiting,
+overdue).
 
 ## Events
 
@@ -102,7 +120,10 @@ archived reports and the stored PDF of one.
 `LaboratoryResultApproved`, `LaboratoryResultReleased`, `LaboratoryResultCorrectionStarted`,
 `LaboratoryResultAmended` (a released result's correction was released), `LaboratoryResultCancelled`,
 `CriticalResultRaised`, `CriticalResultCommunicated`, `CriticalResultAcknowledged`, `LaboratoryReportReleased` (once per
-releasing transaction: the order and the ids of every result version then released — what the report shows). Payloads
+releasing transaction: the order and the ids of every result version then released — what the report shows),
+`LaboratorySendOutPrepared`, `LaboratorySendOutDispatched`, `LaboratorySendOutResultsReceived`,
+`LaboratorySendOutRejected`, `LaboratorySendOutCancelled` (per send-out: order, item, specimen, reference laboratory and
+dispatch ids, status). Payloads
 carry ids, numbers, statuses and the `critical` flag — never values, test names or clinical text.
 
 `LabReportArchive` (in this library) handles `LaboratoryReportReleased`: it records a `lab_report_archive` row for the
@@ -171,6 +192,10 @@ down. One API instance holds the sockets (no Socket.IO Redis adapter yet — the
 | `lab.catalog.manage`   |           |       |         |                   |      ✓      |              |
 | `lab.dashboard.read`   |           |       |         |         ✓         |      ✓      |              |
 
+Send-outs use these permissions (no new ones): reference laboratories and referrals `lab.catalog.manage` (read with
+`lab.order.read`); preparing, dispatching, printing the manifest, recording results back, cancelling and submitting
+electronically `lab.specimen.receive`; recording a rejection by the reference laboratory `lab.specimen.reject`.
+
 Organization administrators hold all of them. `medical_technologist`, `pathologist` and `phlebotomist` are new system
 roles (migration `0015`); assign them per facility for laboratory staff.
 
@@ -197,22 +222,38 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory`):
   `GET report-archive/:id/report.pdf`.
 - Critical results: `GET critical-results?status=`, `POST critical-results/:id/{communicate,acknowledge}`.
 - `GET worklist?stage=&departmentId=`, `GET dashboard`.
+- Reference laboratories: `GET/POST reference-labs`, `PATCH reference-labs/:id`; `GET referrals`,
+  `PUT/DELETE referrals/:testId` (selected facility; removal needs a reason).
+- Send-outs (selected facility): `GET send-outs?view=to_dispatch|awaiting|closed|all`, `POST send-outs` (by hand),
+  `POST send-outs/:id/{results-received,reject,cancel}`, `POST send-out-dispatches` (Idempotency-Key),
+  `GET send-out-dispatches`, `GET send-out-dispatches/:id`, `GET send-out-dispatches/:id/manifest.pdf`.
+- Electronic submission (`libs/interoperability`): `GET /api/v1/integrations/reference-laboratories`,
+  `GET/POST /api/v1/integrations/reference-laboratories/dispatches/:dispatchId/submissions` — refused with
+  `integration_not_configured` while no interface is configured
+  ([reference-laboratories.md](../interoperability/reference-laboratories.md)).
 
 Views and reads of patient results are audited (`lab.order.view`, `lab.order.list`, `lab.result.list`,
 `lab.result.history`, `lab.result.trend`, `lab.worklist.view`, `lab.specimen.label-print`, `lab.report.print`,
-`lab.report.archive.list`, `lab.report.archive.download`); every change is audited in its transaction (archiving:
-`lab.report.archive.schedule`, `lab.report.archive`, and `document.generate` by the documents library; attachments:
-`lab.result.attachment.{add,attach,remove}`, downloads as `document.download`).
+`lab.report.archive.list`, `lab.report.archive.download`, `lab.send-out.list`, `lab.send-out.dispatch-view`,
+`lab.send-out.manifest-print`); every change is audited in its transaction (archiving: `lab.report.archive.schedule`,
+`lab.report.archive`, and `document.generate` by the documents library; attachments:
+`lab.result.attachment.{add,attach,remove}`, downloads as `document.download`; send-outs: `lab.reference-lab.create|update`,
+`lab.referral.set|remove`, and per patient and order `lab.send-out.prepare|dispatch|results-received|reference-rejected|cancel`).
 
 ## Database relationships
 
-Migrations `0015_laboratory.sql` and `0030_lab_report_archive.sql`. Same-organization composite FKs throughout; same-patient FKs tie items, specimens,
+Migrations `0015_laboratory.sql`, `0030_lab_report_archive.sql` and `0047_reference_laboratory.sql`. Same-organization composite FKs throughout; same-patient FKs tie items, specimens,
 results and critical alerts to their order's patient, and an order's encounter to the same patient. Triggers:
 `lab_result_immutable`, `lab_reference_range_immutable`, `lab_specimen_event_append_only`, `lab_critical_alert_no_delete`,
 `lab_report_archive_immutable` (a stored archive never changes; none is deleted). `lab_report_archive` references its
 order, patient, facility and the `document` holding the PDF (same id); unique per order and result set, and per order and
 archive version.
 Results reference instrument and method as text today; QC runs and reagent lots (Phase 9) can be linked later.
+Send-outs reference their order, item and specimen with same-patient FKs and travel in a dispatch of the same facility
+and reference laboratory (composite FK); at most one send-out per test is in flight (partial unique index). Triggers:
+`lab_send_out_history` (status only moves forward, recorded steps never change, no deletes), `lab_send_out_dispatch_immutable`
+(a handover never changes; an electronic acknowledgement is added once). `lab_result_guard` includes the attribution
+columns.
 
 ## Integration points
 
@@ -221,6 +262,10 @@ state) implemented in `apps/api/src/app/adapters/laboratory-adapters.ts` over `P
 and `UsersService`. Other domains order tests only through the API above; they never read laboratory tables. Archived
 reports are stored through `DocumentsService` (`libs/documents`, a shared platform service): private S3-compatible
 storage, category `laboratory_report`, source `generated`.
+
+The reference-laboratory interface is an integration dependency: `SendOutService.dispatchSource` feeds the
+`ReferenceLabSources` port of `libs/interoperability` (adapter `apps/api/src/app/adapters/reference-lab-adapters.ts`,
+which adds the patients' identity), and an acknowledged electronic submission comes back through `ReferenceLabSink`.
 
 ## Staff app
 
@@ -232,7 +277,8 @@ record: see [staff-app.md](../architecture/staff-app.md#laboratory).
 - Accession numbers are per facility per day; if a site needs a different format (prefixes, check digits for its
   barcode printers), make the format configurable.
 - One accession per specimen container; aliquots and add-on tests to an existing specimen are not modelled yet.
-- The order's facility is the collecting/performing laboratory; referral to another branch's laboratory is future work.
+- The order's facility is the collecting laboratory; tests it does not perform are sent out to reference laboratories
+  (below). Referral to another branch's own laboratory would be modelled the same way (a reference laboratory record).
 
 ## Printable reports
 
@@ -263,3 +309,43 @@ gives the durable, at-least-once hand-off from the release transaction. The cons
 in the API process, started in `main.ts` — rendering needs the laboratory's data and the patient adapters wired only in
 the API's composition root; it can move to its own process by composing the same module there. Pending archives whose
 job was lost are re-queued every 5 minutes; after 8 failed attempts an archive is marked `failed` (shown to staff).
+
+## Send-out tests
+
+Tests a facility does not perform are referred to an external **reference laboratory**. The order, collection and
+receipt are the normal ones; the send-out is the part in between receipt and result entry.
+
+```
+Receive specimen ─► send-out prepared (referral configuration, or by hand)
+                   ─► dispatched (dispatch: manifest SM########, courier, courier reference, time; specimen "routed")
+                        ─► results received (reference laboratory's accession number) ─► enter result ─► verify ─► approve ─► release
+                        ─► rejected by the reference laboratory (its reason) ─► send again, recollect or test in-house
+                   ─► cancelled (reason; also when the test is cancelled or the specimen rejected)
+```
+
+- **Configuration**: reference laboratories are organization records; which tests are referred, and where, is per
+  facility (like the laboratory policy), with an expected turnaround counted from dispatch. An inactive reference
+  laboratory receives no new send-outs. The accreditation / licence reference is recorded, never verified.
+- **Preparation**: receiving a specimen prepares a send-out for each of its tests the facility refers out (in the same
+  transaction). Staff can also send a received test without a result by hand (to any active reference laboratory), e.g.
+  after a rejection or for a test not normally referred. At most one send-out per test is in flight.
+- **Dispatch**: prepared send-outs of one facility and one reference laboratory are handed over together; the dispatch
+  gets a manifest number and is immutable. Each specimen's event log records `routed` ("Sent to … (manifest …)"). The
+  **manifest** PDF (`SendOutManifestService`, A4) lists each specimen with minimal identification — accession number,
+  patient name and number, sex/age, specimen type and container, collection time, test codes, STAT — and signature lines
+  for the laboratory, the courier and the reference laboratory; no birth date, address, indication or results.
+- **Awaiting results**: the send-out list shows time out and the expected-by time; a send-out past its turnaround is
+  flagged overdue (dashboard `sendOutsOverdue`). Turnaround is a display aid for follow-up, not a rule.
+- **Results back**: staff record the reference laboratory's accession number; the test then appears on the _Enter
+  results_ worklist, and the result entered is attributed to that laboratory (`performing_laboratory`, a snapshot of its
+  name). It is flagged against the platform's snapshotted reference range and then verified, approved and released like
+  any result — separation of duties and the facility policy apply. An amended report from the reference laboratory is
+  entered through the correction path (a new version, same attribution); released results are never overwritten.
+- **Attribution** is shown on results in the workbench, on the patient record and summaries (`Performed by …`), and on
+  the printed and archived reports (tests marked `*`, with "Performed by … (reference laboratory): …").
+- **Rejection by the reference laboratory** closes the send-out with its reason; the test stays received. The laboratory
+  sends again, rejects the specimen in-house and requests recollection (the normal path, which also cancels in-flight
+  send-outs), or tests in-house.
+- **Electronic interface**: an integration dependency (no reference laboratory's HL7 v2 / ASTM / vendor specification
+  is on record) — see [reference-laboratories.md](../interoperability/reference-laboratories.md). Nothing is sent; the
+  manifest travels with the specimens and results are entered from the reference laboratory's report.

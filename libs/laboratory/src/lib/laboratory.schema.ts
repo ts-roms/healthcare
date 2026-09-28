@@ -1,6 +1,8 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql and 0040_lab_result_attachments.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql and
+// 0047_reference_laboratory.sql (the migrations are the source of truth).
+// Send-out tables (0047) are in send-outs/send-out.schema.ts.
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
 export type ResultType = (typeof RESULT_TYPES)[number];
@@ -251,6 +253,10 @@ export const labResult = pgTable("lab_result", {
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   cancelledBy: uuid("cancelled_by"),
   cancellationReason: text("cancellation_reason"),
+  /** Performed by a reference laboratory (null: the facility's own laboratory); the name is a snapshot. */
+  sendOutId: uuid("send_out_id"),
+  referenceLaboratoryId: uuid("reference_laboratory_id"),
+  performingLaboratory: text("performing_laboratory"),
 });
 
 export const labCriticalAlert = pgTable("lab_critical_alert", {
