@@ -120,6 +120,8 @@ export const facilityPolicySchema = z.object({
   qcRequired: z.boolean().optional(),
   /** Loading a new reagent lot for a test starts its QC window again (only runs after the change count). */
   qcAfterReagentChange: z.boolean().optional(),
+  /** Result entry needs a current "competent" assessment of the person for the test or its department. */
+  competencyRequired: z.boolean().optional(),
   /** Why the policy changes (audited). */
   reason,
 });

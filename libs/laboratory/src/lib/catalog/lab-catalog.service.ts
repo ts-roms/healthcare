@@ -51,10 +51,19 @@ export const DEFAULT_LAB_POLICY = {
   qcRequired: false,
   // Reagent lots (0051): a new lot starts the test's QC window again.
   qcAfterReagentChange: true,
+  // Quality management (0055): result entry does not check staff competency unless the facility turns it on.
+  competencyRequired: false,
 };
 
 type PolicyFields =
-  "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRejectRules" | "qcValidHours" | "qcRequired" | "qcAfterReagentChange";
+  | "allowSelfVerification"
+  | "allowSelfApproval"
+  | "releaseOnApproval"
+  | "qcRejectRules"
+  | "qcValidHours"
+  | "qcRequired"
+  | "qcAfterReagentChange"
+  | "competencyRequired";
 
 export type TestView = Omit<LabTestRecord, "organizationId"> & { referenceRanges: Array<Omit<LabReferenceRangeRecord, "organizationId">> };
 
@@ -347,6 +356,7 @@ export class LabCatalogService {
         qcValidHours: given.qcValidHours ?? before.qcValidHours,
         qcRequired: given.qcRequired ?? before.qcRequired,
         qcAfterReagentChange: given.qcAfterReagentChange ?? before.qcAfterReagentChange,
+        competencyRequired: given.competencyRequired ?? before.competencyRequired,
       };
       const [row] = await tx
         .insert(labFacilityPolicy)
@@ -371,6 +381,7 @@ export class LabCatalogService {
           "qcValidHours",
           "qcRequired",
           "qcAfterReagentChange",
+          "competencyRequired",
         ]),
       });
       return publicView(saved);

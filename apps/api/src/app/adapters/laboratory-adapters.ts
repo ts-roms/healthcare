@@ -18,6 +18,10 @@ export class AppLaboratoryContext implements LaboratoryContext {
     private readonly inventory: InventoryQueries,
   ) {}
 
+  laboratoryStaff(organizationId: string, facilityId: string) {
+    return this.users.holdersOf(organizationId, "lab.result.enter", facilityId);
+  }
+
   inventoryLot(organizationId: string, lotId: string) {
     return this.inventory.lot(organizationId, lotId);
   }
