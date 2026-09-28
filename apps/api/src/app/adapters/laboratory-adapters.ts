@@ -20,6 +20,10 @@ export class AppLaboratoryContext implements LaboratoryContext {
     private readonly stock: InventoryStockService,
   ) {}
 
+  laboratoryStaff(organizationId: string, facilityId: string) {
+    return this.users.holdersOf(organizationId, "lab.result.enter", facilityId);
+  }
+
   async takeReagentStock(
     tx: DbExecutor,
     actor: Actor,

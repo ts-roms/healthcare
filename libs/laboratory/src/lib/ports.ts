@@ -14,6 +14,8 @@ export interface LaboratoryContext {
   practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>>;
   /** Display names of staff users (who collected, entered, verified, approved). */
   staffNames(organizationId: string, userIds: string[]): Promise<Map<string, string>>;
+  /** Staff who enter results at the facility (holders of lab.result.enter), for competency records. */
+  laboratoryStaff(organizationId: string, facilityId: string): Promise<Array<{ id: string; displayName: string }>>;
   /** An inventory lot (reagents are inventory items), to record which lot is loaded on an instrument. */
   inventoryLot(organizationId: string, lotId: string): Promise<LabInventoryLot | undefined>;
   /**

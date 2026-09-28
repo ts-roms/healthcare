@@ -13,10 +13,11 @@ to the reference laboratory).
 Also: files attached to result versions (see [Result attachments](#result-attachments)) and realtime status updates.
 
 Quality management — instruments with their maintenance and calibration log, internal QC with Westgard rules, reagent
-lots loaded on instruments, and the instrument, QC and reagent-lot links on results — is in [laboratory-quality.md](laboratory-quality.md) (Phase 9).
+lots loaded on instruments, the instrument, QC and reagent-lot links on results, temperature logs, nonconformances with
+CAPA, proficiency testing (EQA) and staff competency — is in [laboratory-quality.md](laboratory-quality.md) (Phase 9).
 
 Not in scope yet: instrument interfaces and electronic reference-laboratory interfaces (integration dependencies in
-`libs/interoperability`), temperature logs, incidents, proficiency testing and competency. Billing charges are
+`libs/interoperability`). Billing charges are
 billing's (the LIS emits events and never computes invoices).
 
 ## Entities

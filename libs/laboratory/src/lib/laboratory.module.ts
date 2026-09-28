@@ -9,7 +9,12 @@ import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
+import { LabCompetencyService } from "./quality/lab-competency.service";
+import { LabEqaService } from "./quality/lab-eqa.service";
+import { LabNonconformanceService } from "./quality/lab-nonconformance.service";
 import { LabQualityController } from "./quality/lab-quality.controller";
+import { LabQualityManagementController } from "./quality/lab-quality-management.controller";
+import { LabTemperatureService } from "./quality/lab-temperature.service";
 import { LabQualityService } from "./quality/lab-quality.service";
 import { LabReagentService } from "./quality/lab-reagent.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
@@ -39,7 +44,15 @@ export class LaboratoryModule {
     return {
       module: LaboratoryModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [LabCatalogController, LabOrderController, LabResultController, ReferenceLabController, SendOutController, LabQualityController],
+      controllers: [
+        LabCatalogController,
+        LabOrderController,
+        LabResultController,
+        ReferenceLabController,
+        SendOutController,
+        LabQualityController,
+        LabQualityManagementController,
+      ],
       providers: [
         LabCatalogService,
         LabLabelService,
@@ -47,6 +60,10 @@ export class LaboratoryModule {
         LabPatientAccess,
         LabQualityService,
         LabReagentService,
+        LabNonconformanceService,
+        LabTemperatureService,
+        LabEqaService,
+        LabCompetencyService,
         LabRecordQueries,
         LabReadModel,
         LabReportService,
