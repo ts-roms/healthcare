@@ -224,7 +224,7 @@ describe("patient timeline", () => {
     expect(page.withheld).toEqual([]);
     expect(page.nextCursor).toBeNull();
     expect(page.timeZone).toBe("Asia/Manila");
-    const recent = page.items.filter((e) => e.occurredAt > "2026-06-01");
+    const recent = page.items.filter((e) => !e.occurredAt.startsWith("2026-01-15")); // leave out the paging fixtures
     expect(recent.map((e) => e.kind)).toEqual([
       "communication",
       "payment",
@@ -293,11 +293,15 @@ describe("patient timeline", () => {
   });
 
   it("never carries notes, reasons, complaints, diagnosis text, result values, vital values or message bodies", async () => {
-    const body = JSON.stringify(await timeline(admin, "?limit=100"));
+    const page = await timeline(admin, "?limit=100");
+    const body = JSON.stringify(page);
     expect(body).not.toMatch(/SECRET/);
-    expect(body).not.toContain("12.34");
-    expect(body).not.toContain("187");
     expect(body).not.toContain("+639171234567");
+    // Values are checked in the display text only (ids and timestamps may contain any digits).
+    const text = page.items.flatMap((e) => [e.title, e.detail ?? "", e.status ?? ""]).join(" | ");
+    expect(text).not.toContain("12.34");
+    expect(text).not.toMatch(/\b187\b|\b99\b/);
+    expect(text).not.toMatch(/mmol|mmHg/i);
   });
 
   it("shows each kind only to callers with that domain's read permission and says which were withheld", async () => {
@@ -370,9 +374,9 @@ describe("patient timeline", () => {
   it("audits each view with its filters and counts, never content", async () => {
     await timeline(cashier, "?kinds=invoice,payment,encounter");
     const rows = await auditRows(ctx.pool, `action = 'patient.timeline.view' AND patient_id = $1`, [patientId]);
-    const last = rows[rows.length - 1]!;
-    expect(last.outcome).toBe("success");
-    expect(last.metadata).toEqual({
+    const last = rows.at(-1);
+    expect(last?.outcome).toBe("success");
+    expect(last?.metadata).toEqual({
       filters: { kinds: ["invoice", "payment", "encounter"], from: null, to: null, facilityId: null, page: "first" },
       counts: { invoice: 1, payment: 1 },
       withheld: ["encounter"],
