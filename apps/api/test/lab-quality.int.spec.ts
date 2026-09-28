@@ -1,4 +1,4 @@
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
 
 /**
  * Phase 9 — laboratory quality management: instruments with their
@@ -161,6 +161,18 @@ describe("laboratory quality control and instruments", () => {
       ]);
       expect(event.rows[0].payload).toMatchObject({ instrumentId: ids.analyzer, violations: ["1_2s", "2_2s"] });
       await expect(ctx.pool.query(`UPDATE lab_qc_run SET status = 'accepted' WHERE id = $1`, [ids.rejectedRun])).rejects.toThrow();
+
+      // Quality managers are told in the app (instrument, test and rules — no control values); the medtech who ran it is not.
+      await drainEvents(ctx);
+      const qcNotices = async (token: string) =>
+        (await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200)).body.filter(
+          (n: { templateKey: string }) => n.templateKey === "lab.quality-notice",
+        );
+      const [notice] = await qcNotices(pathologist);
+      expect(notice).toMatchObject({ subject: "QC rejected — GLU on cobas-1", href: "/laboratory/qc" });
+      expect(notice.text).toContain("1_2s, 2_2s");
+      expect(notice.text).not.toMatch(/16\.1/);
+      expect(await qcNotices(medtech)).toEqual([]);
 
       await req("post", `/qc/runs/${ok.body.id}/actions`, medtech, { action: "Nothing to do" }).expect(422);
       await req("post", `/qc/runs/${ids.rejectedRun}/actions`, medtech, { action: "Reagent pack replaced, recalibrated, level 2 re-run" }).expect(201);

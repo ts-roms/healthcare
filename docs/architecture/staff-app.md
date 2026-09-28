@@ -28,6 +28,14 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 
 Authorization is always the API's: the staff app hides what the user can't do (navigation from `GET /auth/me` permissions, buttons via `can()`), but every request is checked server-side by the API.
 
+## Notifications
+
+The top bar's bell shows the signed-in user's unread in-app messages (`GET /me/notifications/unread-count`, read by the
+`(staff)` layout on each navigation; a failure shows no badge rather than an error). `/notifications` lists them with
+**Open** (marks read and goes to the page the message links to, e.g. a nonconformance) and **Mark read**. Messages:
+critical and corrected results to the ordering practitioner, laboratory quality notices to quality managers, staff
+messages. See `docs/domains/notification.md`.
+
 ## Data
 
 | Area                                                                                                                                                                             | Source                                                     |

@@ -242,7 +242,7 @@ export class LabNonconformanceService {
       aggregateType: "lab_nonconformance",
       aggregateId: record.id,
       facilityId: record.facilityId,
-      payload: { number: record.number, category: record.category, severity: record.severity },
+      payload: { number: record.number, category: record.category, severity: record.severity, reportedBy: record.reportedBy },
     });
     return record;
   }

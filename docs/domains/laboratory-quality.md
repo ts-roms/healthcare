@@ -27,7 +27,8 @@ numeric tests. Loading a lot can take that lot's stock from a storage location o
 (migration `0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
 Not yet either: electronic EQA exchange with providers (results are entered by hand), automatic temperature sensors,
-documents attached to nonconformances, and notifications to the section head.
+documents attached to nonconformances, reminders for overdue temperature readings or competency reassessments, and
+quality counts on the laboratory dashboard.
 
 No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, whether patient
 results need QC, storage limits and reading intervals, EQA schemes, competency areas and intervals, and what a
@@ -168,11 +169,18 @@ result-entering staff member's latest assessment per area, and one person's hist
 
 ## Events
 
-`LaboratoryQcRunRejected` (run id, instrument, test, lot, rules — no values), `LaboratoryInstrumentStatusChanged` (from,
+`LaboratoryQcRunRejected` (run id, instrument, test, lot, rules, who entered it — no values), `LaboratoryInstrumentStatusChanged` (from,
 to), `LaboratoryReagentLotLoaded` (load, inventory lot, test, replaced load), `LaboratoryReagentLotUnloaded`,
-`LaboratoryTemperatureExcursion` (reading, unit, nonconformance), `LaboratoryNonconformanceOpened` (category, severity,
-source), `LaboratoryNonconformanceClosed`, `LaboratoryEqaResultUnacceptable` (result, survey, test, nonconformance) — ids
-only. No subscribers yet (intended: notify the section head; dashboard).
+`LaboratoryTemperatureExcursion` (reading, unit, nonconformance), `LaboratoryNonconformanceOpened` (number, category,
+severity, who reported it), `LaboratoryNonconformanceClosed`, `LaboratoryEqaResultUnacceptable` (result, survey, test,
+nonconformance) — ids only.
+
+**Notifications** (`apps/api/src/app/laboratory-quality-notifications.ts`): on `LaboratoryNonconformanceOpened` (by
+staff, a temperature excursion or an unacceptable EQA result) and `LaboratoryQcRunRejected`, every active user holding
+`lab.qc.manage` at the event's facility (organization-wide or facility role) gets an in-app `lab.quality-notice`, except
+the person whose action raised it. The message names the record number, category and severity, or the instrument code,
+test name and rules; never a patient, specimen, title, description or control value. It links to the nonconformance or
+to `/laboratory/qc`. One message per event and recipient (idempotency key), so redelivered events are not repeated.
 
 ## Permissions
 

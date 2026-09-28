@@ -85,6 +85,7 @@ export class LaboratoryModule {
       ],
       exports: [
         LabOrderService,
+        LabQualityService,
         LabPatientAccess,
         LabRecordQueries,
         LabReportService,
