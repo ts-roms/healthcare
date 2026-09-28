@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { DISCOUNT_KINDS, PAYER_STATUSES, PAYER_TYPES, PAYMENT_METHODS, SERVICE_CATEGORIES } from "./billing.schema";
+import { DISCOUNT_KINDS, PAYER_STATUSES, PAYER_TYPES, PAYMENT_METHODS, SERVICE_CATEGORIES, SERVICE_SOURCE_KINDS } from "./billing.schema";
 
 const code = z
   .string()
@@ -21,7 +21,7 @@ export const createServiceSchema = z
     code,
     name: text(200),
     category: z.enum(SERVICE_CATEGORIES),
-    sourceKind: z.enum(["visit_type", "lab_test"]).optional(),
+    sourceKind: z.enum(SERVICE_SOURCE_KINDS).optional(),
     sourceCode: z.string().trim().toLowerCase().min(1).max(60).optional(),
     unitPrice: centavos,
     effectiveFrom: z.iso.date(),

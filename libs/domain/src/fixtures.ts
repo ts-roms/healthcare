@@ -376,12 +376,19 @@ export const prescriptionDraft: PrescriptionItem[] = [
 ];
 
 export const dentalChart: DentalChart = {
-  16: { tooth: 16, condition: "filled", surfaces: ["occlusal"] },
-  26: { tooth: 26, condition: "crown", surfaces: [] },
-  36: { tooth: 36, condition: "caries", surfaces: ["mesial", "occlusal"], notes: "Moderate caries, schedule restoration." },
-  38: { tooth: 38, condition: "missing", surfaces: [] },
-  46: { tooth: 46, condition: "root-canal", surfaces: [] },
-  48: { tooth: 48, condition: "extraction", surfaces: [], notes: "Impacted, refer to OMFS." },
+  "16": { tooth: "16", findings: [{ condition: "restoration", surfaces: ["O"] }] },
+  "26": { tooth: "26", findings: [{ condition: "crown", surfaces: [] }] },
+  "36": { tooth: "36", findings: [{ condition: "caries", surfaces: ["M", "O"] }], note: "Moderate caries, schedule restoration." },
+  "38": { tooth: "38", findings: [{ condition: "missing", surfaces: [] }] },
+  "46": {
+    tooth: "46",
+    findings: [
+      { condition: "crown", surfaces: [] },
+      { condition: "root_canal", surfaces: [] },
+    ],
+  },
+  "48": { tooth: "48", findings: [{ condition: "impacted", surfaces: [] }], note: "Impacted, refer to OMFS." },
+  "11": { tooth: "11", findings: [] },
 };
 
 export const auditHistory: AuditEntry[] = [

@@ -63,7 +63,16 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Quality Control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
     ],
   },
-  { label: "Dental", href: "/dental", icon: SmileIcon, roles: ["dentist", "admin"] },
+  {
+    label: "Dental",
+    href: "/dental",
+    icon: SmileIcon,
+    roles: ["dentist", "admin"],
+    children: [
+      { label: "Today's patients", href: "/dental" },
+      { label: "Settings", href: "/dental/settings", roles: ["admin"] },
+    ],
+  },
   { label: "Telemedicine", href: "/telemedicine", icon: MonitorIcon, roles: ["doctor", "admin"] },
   { label: "Billing", href: "/billing", icon: ReceiptIcon, roles: ["billing", "reception", "admin"] },
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },

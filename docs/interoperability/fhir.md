@@ -149,5 +149,5 @@ No official URIs for Philippine national identifiers are on record, so none are 
 Cursor (snapshot) paging; `_since` on `$everything` and `_lastUpdated` for the types above (each needs a reliable
 change time first, e.g. database-maintained timestamps); `DocumentReference` for invoices and receipts (rendered on
 request, not stored); `DiagnosticReport.presentedForm` for the archived report; `Binary` as a FHIR resource (only the native
-content is served); dental resources (Phase 6); write/transaction; SMART on FHIR app authorization and patient-facing access; bulk data export;
+content is served); dental resources (the dental record exists — [dental.md](../domains/dental.md) — but is not mapped yet); write/transaction; SMART on FHIR app authorization and patient-facing access; bulk data export;
 a Philippine national profile (conformance must be validated against the official specification when obtained).

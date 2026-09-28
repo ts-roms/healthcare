@@ -234,6 +234,9 @@ importers:
       '@healthcare/core':
         specifier: workspace:*
         version: link:../../libs/core
+      '@healthcare/dental':
+        specifier: workspace:*
+        version: link:../../libs/dental
       '@healthcare/documents':
         specifier: workspace:*
         version: link:../../libs/documents
@@ -547,6 +550,21 @@ importers:
         version: link:../organization
 
   libs/core: {}
+
+  libs/dental:
+    dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
+      '@healthcare/documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
 
   libs/documents:
     dependencies:
