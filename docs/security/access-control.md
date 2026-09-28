@@ -71,6 +71,10 @@ permissions plus dental) and `dental_assistant` (a nurse's plus the dental
 record and imaging); recording also requires a practitioner with profession
 `dentist`. Audited `dental.*` (views, examinations, plans, procedures, images,
 corrections with the reason); image links are audited as `document.download`.
+Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
+(org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
+pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions
+and the instrument log are append-only.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
