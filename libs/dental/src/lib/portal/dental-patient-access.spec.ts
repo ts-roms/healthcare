@@ -109,6 +109,7 @@ describe("dental patient access (what MyHealth shows)", () => {
   it("shows the chart's conditions without tooth notes, sources or authors", () => {
     const chart: ChartTooth[] = [
       {
+        stateId: "s1",
         tooth: "16",
         findings: [{ condition: "caries", surfaces: ["M", "O"] }],
         note: "Deep lesion, watch the pulp",
@@ -116,7 +117,7 @@ describe("dental patient access (what MyHealth shows)", () => {
         recordedAt: late,
         recordedBy: "u1",
       },
-      { tooth: "21", findings: [], note: null, source: { type: "procedure", id: "d1" }, recordedAt: late, recordedBy: "u1" },
+      { stateId: "s2", tooth: "21", findings: [], note: null, source: { type: "procedure", id: "d1" }, recordedAt: late, recordedBy: "u1" },
     ];
     const view = toPatientChart(chart);
     expect(view).toEqual([
