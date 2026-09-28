@@ -1,0 +1,47 @@
+{
+  "name": "e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@node-rs/argon2": "^2.2.1",
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
+    "typescript": "^5.9.0"
+  },
+  "nx": {
+    "name": "e2e",
+    "tags": [
+      "scope:e2e",
+      "type:e2e"
+    ],
+    "implicitDependencies": [
+      "api",
+      "staff",
+      "portal"
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          {
+            "projects": [
+              "api",
+              "staff",
+              "portal"
+            ],
+            "target": "build"
+          }
+        ],
+        "options": {
+          "command": "pnpm exec playwright test",
+          "cwd": "{projectRoot}"
+        }
+      }
+    }
+  }
+}

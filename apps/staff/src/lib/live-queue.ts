@@ -26,3 +26,10 @@ export function liveStatusLabel(status: LiveStatus): string {
       return "Updates every 15 s";
   }
 }
+
+// Event names live here, not in the "use client" component module: a server component (the dashboard) reads them, and
+// values imported from a client module are client references on the server, not arrays.
+/** Socket messages that mean the queue changed. */
+export const QUEUE_EVENTS = ["queue.updated"] as const;
+/** Socket messages that mean the facility laboratory changed (sent only to users who may read laboratory orders). */
+export const LAB_EVENTS = ["lab.updated"] as const;

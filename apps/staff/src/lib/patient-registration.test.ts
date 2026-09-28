@@ -11,7 +11,8 @@ describe("registrationFormSchema", () => {
   });
 
   it("accepts PH mobile formats and empty optional fields", () => {
-    for (const mobile of ["09171234567", "+639171234567", "639171234567", ""]) expect(registrationFormSchema.safeParse({ ...base, mobile }).success).toBe(true);
+    for (const mobile of ["09171234567", "+639171234567", "639171234567", "0917 123 4567", "0917-123-4567", ""])
+      expect(registrationFormSchema.safeParse({ ...base, mobile }).success).toBe(true);
     expect(registrationFormSchema.safeParse({ ...base, mobile: "12345" }).success).toBe(false);
   });
 });

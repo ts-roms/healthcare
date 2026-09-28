@@ -15,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@healthcare/ui/primitives";
-import { LAB_EVENTS, LiveQueueRefresh, QUEUE_EVENTS } from "@/components/live-queue";
+import { LiveQueueRefresh } from "@/components/live-queue";
+import { LAB_EVENTS, QUEUE_EVENTS } from "@/lib/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";

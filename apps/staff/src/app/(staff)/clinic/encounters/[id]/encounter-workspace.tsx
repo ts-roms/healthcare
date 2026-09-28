@@ -140,19 +140,38 @@ export function EncounterWorkspace({
     }
   };
 
+  /** Saves the note as a new draft revision; false (with the error shown) when it was refused. */
+  const persist = async (): Promise<number | null> => {
+    const result = await saveNote({ encounterId: encounter.id, basedOnRevision: baseRevision, ...template, ...notePayload(note) });
+    if (result.ok) {
+      setBaseRevision(result.data.revisionNumber);
+      setConflict(false);
+      return result.data.revisionNumber;
+    }
+    toast.error(result.message);
+    onConflict(result.code);
+    return null;
+  };
+
   const save = () => {
     if (!controls.editNote || !dirty) return;
     startTransition(async () => {
-      const result = await saveNote({ encounterId: encounter.id, basedOnRevision: baseRevision, ...template, ...notePayload(note) });
-      if (result.ok) {
-        setBaseRevision(result.data.revisionNumber);
-        setConflict(false);
-        toast.success("Draft saved", { description: `Revision ${result.data.revisionNumber}` });
-        router.refresh();
-      } else {
-        toast.error(result.message);
-        onConflict(result.code);
-      }
+      const revision = await persist();
+      if (revision === null) return;
+      toast.success("Draft saved", { description: `Revision ${revision}` });
+      router.refresh();
+    });
+  };
+
+  // Leaving the workspace inside the app (e.g. to book the follow-up) skips beforeunload: save the note first so an
+  // unsaved draft is never lost on the way.
+  const leaveTo = (href: string) => (e: React.MouseEvent) => {
+    if (!controls.editNote || !dirty) return;
+    e.preventDefault();
+    startTransition(async () => {
+      if ((await persist()) === null) return;
+      toast.success("Draft saved");
+      router.push(href);
     });
   };
 
@@ -369,7 +388,7 @@ export function EncounterWorkspace({
               />
               <CarePlansPanel
                 plans={carePlans}
-                followUp={followUp}
+                followUp={{ ...followUp, onLeave: leaveTo }}
                 encounterId={encounter.id}
                 diagnoses={encounter.diagnoses.filter((d) => d.status === "active").map((d) => ({ id: d.id, label: diagnosisLabel(d) }))}
                 canManage={canManageCarePlans && encounter.status !== "entered_in_error"}
@@ -474,11 +493,16 @@ export function EncounterWorkspace({
             {canBookFollowUp && encounter.status !== "entered_in_error" ? (
               <span className="flex flex-wrap items-center gap-1 text-meta text-muted-foreground">
                 <CalendarPlusIcon className="size-4" aria-hidden /> Follow-up in
-                {FOLLOW_UP_PRESETS.map((p) => (
-                  <Button key={p.days} asChild size="xs" variant="outline">
-                    <Link href={followUpHref(followUp, { date: addDays(followUp.today, p.days), reason: "Follow-up" })}>{p.label}</Link>
-                  </Button>
-                ))}
+                {FOLLOW_UP_PRESETS.map((p) => {
+                  const href = followUpHref(followUp, { date: addDays(followUp.today, p.days), reason: "Follow-up" });
+                  return (
+                    <Button key={p.days} asChild size="xs" variant="outline">
+                      <Link href={href} onClick={leaveTo(href)}>
+                        {p.label}
+                      </Link>
+                    </Button>
+                  );
+                })}
               </span>
             ) : null}
             <span className="ml-auto text-meta text-muted-foreground" role="status">

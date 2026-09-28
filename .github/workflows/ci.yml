@@ -28,7 +28,8 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # PostgreSQL for the API integration tests (apps/api `integration` target).
+    # PostgreSQL for the API integration tests (apps/api `integration` target) and the E2E journeys (apps/e2e, which
+    # create their own `healthcare_e2e` database); Redis for the API's queues during the E2E journeys.
     services:
       postgres:
         image: postgres:16
@@ -39,6 +40,14 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U healthcare"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -83,8 +92,26 @@ jobs:
       - name: Integration tests
         run: pnpm exec nx affected -t integration --outputStyle=static
 
+      # Chromium for the critical-journey tests (apps/e2e); only when the E2E project is affected.
+      - name: E2E browser
+        run: |
+          if pnpm exec nx show projects --affected --with-target e2e --json | grep -q '"e2e"'; then
+            pnpm --filter e2e exec playwright install --with-deps chromium
+          fi
+
       - name: E2E tests
         run: pnpm exec nx affected -t e2e --outputStyle=static
+
+      - name: E2E report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/e2e/playwright-report
+            apps/e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build
         run: pnpm exec nx affected -t build build-storybook --outputStyle=static
