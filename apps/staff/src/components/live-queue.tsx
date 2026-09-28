@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { RadioIcon, RefreshCwIcon, WifiOffIcon } from "lucide-react";
 import type { Socket } from "socket.io-client";
 import { realtimeTicket } from "@/app/(staff)/actions";
-import { LIVE_REFRESH_DEBOUNCE_MS, type LiveStatus, liveStatusLabel, QUEUE_TICK_MS, RECONNECT_DELAY_MS, shouldPoll } from "@/lib/live-queue";
-
-/** Socket messages that mean the queue changed. */
-export const QUEUE_EVENTS = ["queue.updated"] as const;
-/** Socket messages that mean the facility laboratory changed (sent only to users who may read laboratory orders). */
-export const LAB_EVENTS = ["lab.updated"] as const;
+import {
+  LAB_EVENTS,
+  LIVE_REFRESH_DEBOUNCE_MS,
+  type LiveStatus,
+  liveStatusLabel,
+  QUEUE_EVENTS,
+  QUEUE_TICK_MS,
+  RECONNECT_DELAY_MS,
+  shouldPoll,
+} from "@/lib/live-queue";
 
 /**
  * Live updates for the selected facility. Opens the API's realtime socket with

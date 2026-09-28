@@ -64,6 +64,7 @@ already present in Claude Code cloud sessions). It uses its own database (`E2E_D
 `support/prepare-database.ts` creates the tenant and staff users; the `setup` project (`tests/setup.setup.ts`)
 configures visit types, schedules, coding, the laboratory catalog and a MyHealth patient through the API. A journey
 fails on any browser error or server error (5xx), not only on missing text. On failure, traces and screenshots are in
-`apps/e2e/test-results` (`pnpm --filter e2e exec playwright show-trace <trace.zip>`); CI uploads them as an artifact.
+`apps/e2e/test-results` (`pnpm --filter e2e exec playwright show-trace <trace.zip>`); CI uploads them as an artifact. A
+minified React error (e.g. "#441") becomes readable with `E2E_STAFF_DEV=1`, which runs the staff app with `next dev`.
 
 Mailpit (captured email): http://localhost:8025. Object storage console (RustFS): http://localhost:9001 (user `healthcare`, password `healthcare-dev-secret`).

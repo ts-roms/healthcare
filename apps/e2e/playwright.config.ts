@@ -65,7 +65,8 @@ export default defineConfig({
     },
     {
       name: "staff",
-      command: `pnpm exec next start --port ${STAFF_PORT}`,
+      // E2E_STAFF_DEV=1 runs the staff app with `next dev` (full React error messages while debugging a journey).
+      command: `pnpm exec next ${process.env.E2E_STAFF_DEV ? "dev" : "start"} --port ${STAFF_PORT}`,
       cwd: `${root}/apps/staff`,
       url: `${STAFF_URL}/login`,
       env: { API_BASE_URL: API_URL, REALTIME_URL: `http://localhost:${API_PORT}/realtime` },

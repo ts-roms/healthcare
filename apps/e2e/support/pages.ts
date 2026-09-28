@@ -3,7 +3,7 @@ import { PATIENT_PASSWORD, PORTAL_URL, STAFF_PASSWORD, STAFF_URL } from "./env";
 
 /** Collects uncaught page errors and server errors so a journey fails on them, not only on missing text. */
 export function watchErrors(page: Page, who: string, errors: string[]): void {
-  page.on("pageerror", (error) => errors.push(`${who}: ${error.message}`));
+  page.on("pageerror", (error) => errors.push(`${who} at ${new URL(page.url()).pathname}: ${error.message}`));
   page.on("response", (response) => {
     if (response.status() >= 500) errors.push(`${who}: ${response.status()} ${response.url()}`);
   });
