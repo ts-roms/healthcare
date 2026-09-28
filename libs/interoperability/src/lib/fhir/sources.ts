@@ -287,6 +287,24 @@ export interface DocumentSource {
   replaces: string[];
   /** Resources the document belongs to, e.g. the DiagnosticReport of an archived laboratory report. */
   related: Array<{ type: string; id: string }>;
+  /** What the file shows when it is in the dental record (a radiograph or photo); absent for other documents. */
+  dentalImage?: DentalImageSource | null;
+}
+
+/** A dental radiograph or photo: the dental record's description of a stored document. */
+export interface DentalImageSource {
+  id: string;
+  /** periapical, bitewing, panoramic, cephalometric, occlusal, cbct, intraoral_photo, extraoral_photo, other. */
+  kind: string;
+  /** FDI tooth codes shown. */
+  teeth: string[];
+  /** YYYY-MM-DD. */
+  takenOn: string;
+  encounterId: string | null;
+  status: "recorded" | "entered_in_error";
+  /** When the image was added to the dental record (after the upload). */
+  recordedAt: string;
+  enteredInErrorAt: string | null;
 }
 
 /**
@@ -319,6 +337,117 @@ export interface ExternalHistorySource {
   enteredInErrorAt: string | null;
 }
 
+/**
+ * The dental record (libs/dental), in this layer's terms. Teeth are FDI / ISO 3950 two-digit codes; surfaces the
+ * platform's fixed set (M, D, O, I, B, L). Examinations, procedures and periodontal charts are immutable except for
+ * being marked entered in error (database trigger), so `enteredInErrorAt ?? recorded/performed time` is reliable.
+ */
+export interface DentalRecordSource {
+  procedures: DentalProcedureSource[];
+  plans: DentalPlanSource[];
+  examinations: DentalExaminationSource[];
+  /** The current derived chart: the latest state of each charted tooth whose examination or procedure is still recorded. */
+  chart: DentalToothStateSource[];
+  perioCharts: DentalPerioChartSource[];
+}
+
+export interface DentalProcedureSource {
+  id: string;
+  facilityId: string;
+  encounterId: string;
+  practitionerId: string;
+  /** The organization's own procedure code (fixed once created) and its catalog name. */
+  code: string;
+  name: string;
+  tooth: string | null;
+  surfaces: string[];
+  notes: string | null;
+  /** The treatment plan whose item this procedure carried out. */
+  planId: string | null;
+  status: "recorded" | "entered_in_error";
+  performedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+export interface DentalPlanSource {
+  id: string;
+  practitionerId: string;
+  title: string;
+  notes: string | null;
+  status: "proposed" | "accepted" | "in_progress" | "completed" | "declined" | "discontinued";
+  /** How the patient decided (e.g. options and fees explained). */
+  decisionNote: string | null;
+  decidedAt: string | null;
+  discontinuedReason: string | null;
+  createdAt: string;
+  items: Array<{
+    id: string;
+    phase: number;
+    code: string;
+    name: string;
+    tooth: string | null;
+    surfaces: string[];
+    note: string | null;
+    status: "proposed" | "accepted" | "declined" | "completed" | "cancelled";
+    /** The recorded procedure that carried the item out. */
+    procedureId: string | null;
+  }>;
+}
+
+export interface DentalExaminationSource {
+  id: string;
+  facilityId: string;
+  encounterId: string;
+  practitionerId: string;
+  oralHygiene: "good" | "fair" | "poor" | null;
+  notes: string | null;
+  status: "recorded" | "entered_in_error";
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** One tooth of the current chart. No findings: the tooth was charted sound. */
+export interface DentalToothStateSource {
+  id: string;
+  tooth: string;
+  findings: Array<{ condition: string; surfaces: string[] }>;
+  note: string | null;
+  source: { type: "examination" | "procedure"; id: string };
+  encounterId: string;
+  practitionerId: string;
+  recordedAt: string;
+}
+
+export interface DentalPerioChartSource {
+  id: string;
+  facilityId: string;
+  encounterId: string;
+  practitionerId: string;
+  notes: string | null;
+  status: "recorded" | "entered_in_error";
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+  teeth: Array<{
+    id: string;
+    tooth: string;
+    /** Miller 0–3. */
+    mobility: number | null;
+    /** Glickman 0–3. */
+    furcation: number | null;
+    sites: Array<{
+      /** MB, B, DB, ML, L, DL. */
+      site: string;
+      /** mm. */
+      probingDepth: number | null;
+      /** mm relative to the CEJ: positive = recession, negative = margin coronal to the CEJ. */
+      gingivalMargin: number | null;
+      bleeding: boolean;
+      suppuration: boolean;
+      plaque: boolean;
+    }>;
+  }>;
+}
+
 /** Everything about one patient that the platform exports. */
 export interface PatientRecordSource {
   patient: PatientSource;
@@ -337,4 +466,6 @@ export interface PatientRecordSource {
   documents: DocumentSource[] | null;
   /** External history accepted from imports (document descriptions are withheld with documents, when `documents` is null). */
   externalHistory: ExternalHistorySource[];
+  /** The dental record, or null when the caller may not read it (dental resources are then withheld, with a notice). */
+  dental: DentalRecordSource | null;
 }

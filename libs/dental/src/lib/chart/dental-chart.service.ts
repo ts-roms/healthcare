@@ -11,6 +11,8 @@ import { DENTAL_CONTEXT, type DentalContext } from "../ports";
 
 /** One tooth's charted state and where it came from. */
 export interface ChartTooth {
+  /** The tooth state (an append-only row). */
+  stateId: string;
   tooth: string;
   findings: Finding[];
   note: string | null;
@@ -165,6 +167,7 @@ export class DentalChartService {
       rows.map((r) => r.id),
     );
     return rows.map((r) => ({
+      stateId: r.id,
       tooth: r.tooth,
       findings: findings.get(r.id) ?? [],
       note: r.note,

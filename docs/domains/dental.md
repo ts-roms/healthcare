@@ -14,7 +14,7 @@ encounter model.
 Also: [periodontal charting](#periodontal-charting).
 
 Not in scope yet: orthodontic records, a patient-facing
-view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory), and a licensed procedure code set.
+view in MyHealth, stock use of dental supplies (inventory), and a licensed procedure code set.
 
 ## Entities
 
@@ -147,6 +147,13 @@ by `(patient_id, id)`, so a state cannot belong to another patient's record. Tri
 - **Documents**: imaging files (upload through `POST /documents`, then linked; signed download links).
 - **Prescriptions and laboratory**: through the encounter workspace of the dental visit (the dental record links to
   it as "Notes & prescriptions").
+- **FHIR R4 export** (read-only, `apps/api/src/app/fhir`): `DentalRecordQueries.patientRecord` (every examination,
+  procedure, plan and periodontal chart, the current chart with each tooth's encounter and dentist) and
+  `DentalRecordQueries.images` (unaudited; the FHIR controller audits) are mapped by `libs/interoperability` to
+  `Procedure`, `CarePlan` (category dental), `Observation` (category exam: examinations, the current chart per tooth,
+  periodontal charts) and the image documents' `DocumentReference`. Local code systems for procedure codes, FDI teeth,
+  surfaces and conditions (no licensed code set); requires `dental.record.read` besides `interop.fhir.read` (images:
+  `document.read`, like every document). See [fhir.md](../interoperability/fhir.md#dental-record).
 - **Staff app**: `/dental` (today's dental patients), `/dental/patients/[id]` (chart, charting an examination, tooth
   history, plans, procedures, examinations, imaging; starting a dental visit), `/dental/settings`; "Dental record" on
   the patient record; billing settings can map a service to a dental procedure. See
