@@ -1,13 +1,8 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { CoreModule } from "@healthcare/core";
-import type { ClaimSubmissionOutcome, PhilHealthClaimPackage, PhilHealthClaimsGateway } from "@healthcare/interoperability";
-import {
-  INTEGRATION_QUEUE,
-  IntegrationExchangeProcessor,
-  IntegrationWorkerModule,
-  PHILHEALTH_CLAIMS_GATEWAY,
-  RetryableExchangeError,
-} from "@healthcare/interoperability";
+import { INTEGRATION_QUEUE, IntegrationExchangeProcessor, IntegrationWorkerModule, RetryableExchangeError } from "@healthcare/interoperability";
+import type { ClaimSubmissionOutcome, PhilHealthClaimPackage, PhilHealthClaimsGateway } from "@healthcare/philhealth";
+import { PHILHEALTH_CLAIMS_GATEWAY, philhealthExchangeHandlers } from "@healthcare/philhealth";
 import {
   as,
   auditRows,
@@ -217,7 +212,7 @@ describe("PhilHealth claims — through an adapter (test double) and the integra
         CoreModule.forRoot(ctx.config),
         IntegrationWorkerModule.forRoot({
           autoStart: false,
-          philhealthGateway: gatewayProvider,
+          handlerSets: [philhealthExchangeHandlers({ gateway: gatewayProvider })],
           queue: { provide: INTEGRATION_QUEUE, useValue: ctx.integrations },
         }),
       ],

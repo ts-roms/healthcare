@@ -16,6 +16,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/inventory": ["inventory.read"],
   "/communications": ["notification.read", "notification.send"],
   "/reporting": ["doh.report.manage"],
+  "/records": ["interop.fhir.import.review"],
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
 };
 

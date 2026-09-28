@@ -63,6 +63,11 @@ export function AllergiesPanel({ patientId, summary, canManage }: { patientId: s
                   {a.criticality === "high" ? " · high criticality" : ""}
                 </span>
                 {a.verification === "unconfirmed" ? <Badge variant="warning">Unconfirmed</Badge> : null}
+                {a.source === "external_import" ? (
+                  <Badge variant="outline" title={a.sourceReference ?? undefined}>
+                    External record
+                  </Badge>
+                ) : null}
                 {canManage && a.version ? (
                   <span className="ml-auto flex gap-0.5">
                     {(Object.keys(STATUS_CHANGE_LABEL) as AllergyStatusChange[]).map((status) => (

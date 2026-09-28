@@ -2,6 +2,7 @@ import {
   BuildingIcon,
   ClipboardListIcon,
   CalendarDaysIcon,
+  FileInputIcon,
   FlaskConicalIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
@@ -58,6 +59,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     roles: ["lab-tech", "doctor", "nurse", "admin"],
     children: [
       { label: "Workbench", href: "/laboratory/worklist", roles: ["lab-tech", "admin"] },
+      { label: "Send-outs", href: "/laboratory/send-outs", roles: ["lab-tech", "admin"] },
       { label: "Critical results", href: "/laboratory/critical" },
       { label: "Catalog", href: "/laboratory/catalog", roles: ["lab-tech", "admin"] },
       { label: "Quality Control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
@@ -78,6 +80,13 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
+  {
+    label: "Records",
+    href: "/records",
+    icon: FileInputIcon,
+    roles: ["admin"],
+    children: [{ label: "Imports", href: "/records/imports" }],
+  },
   {
     label: "Administration",
     href: "/admin",

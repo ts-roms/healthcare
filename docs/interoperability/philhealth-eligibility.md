@@ -5,7 +5,7 @@
 | External system | PhilHealth member eligibility                                                                             |
 | Specification   | **Not obtained.** No inquiry format, transport, result codes, membership categories or rules are modelled |
 | Status          | **Dependency** — recorded checks, a format-neutral inquiry, the port and an unconfigured adapter          |
-| Code            | `libs/interoperability/src/lib/philhealth/eligibility*.ts`, staff patient record                          |
+| Code            | `libs/philhealth/src/lib/eligibility*.ts` (`@healthcare/philhealth`), staff patient record                |
 | Migration       | `0024_philhealth_eligibility.sql`                                                                         |
 
 Root `CLAUDE.md` §36: never invent government APIs or rules. The platform does not decide eligibility: it records
@@ -50,6 +50,7 @@ record or ask. Audit: `philhealth.eligibility.list`, `.record`, `.request`, `.an
 1. Record the specification in [dependencies.md](dependencies.md).
 2. Implement `PhilHealthEligibilityGateway` (map `EligibilityInquiry` to the official format; map the official result to
    the three answers — keep the official codes in `reasons`); provide it to the API (`PhilHealthModule`
-   `eligibilityGateway`) and the worker (`IntegrationWorkerModule` `philhealthEligibilityGateway`).
+   `eligibilityGateway`) and the worker (`philhealthExchangeHandlers({ eligibilityGateway })` in
+   `IntegrationWorkerModule` `handlerSets`).
 3. If the specification defines membership details worth keeping (e.g. category, dependants), add them as recorded
    fields from the official source — never inferred.

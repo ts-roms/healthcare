@@ -219,7 +219,7 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
 
 /** A FHIR error body. */
 export function operationOutcome(
-  code: "not-found" | "forbidden" | "invalid" | "login" | "exception" | "not-supported" | "throttled",
+  code: "not-found" | "forbidden" | "invalid" | "login" | "exception" | "not-supported" | "throttled" | "conflict" | "too-costly",
   diagnostics: string,
 ): OperationOutcome {
   return { resourceType: "OperationOutcome", issue: [{ severity: "error", code, diagnostics }] };

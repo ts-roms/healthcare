@@ -78,6 +78,11 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | `libs/inventory`                                                                      | `scope:inventory`, `type:feature`        |
 | `libs/pdf`                                                                            | `scope:shared`, `type:util`              |
 | `libs/interoperability`                                                               | `scope:interoperability`, `type:feature` |
+| `libs/philhealth`                                                                     | `scope:interoperability`, `type:feature` |
+
+`libs/philhealth` is one adapter family of the interoperability layer (same scope): it depends on
+`libs/interoperability` (outbound exchanges), never the reverse. The composition roots (`apps/api`,
+`apps/integration-worker`) wire it in.
 
 ## Adding a clinical domain library
 

@@ -3,6 +3,7 @@ import { AlertOctagonIcon } from "lucide-react";
 import { clinicalDate, LabFlagBadge } from "@healthcare/ui/healthcare";
 import type { PatientLabResult } from "@/lib/api/types";
 import { groupResultsByTest, resultValue, uiFlag } from "@/lib/lab-mapping";
+import { PerformedBy } from "./send-out-badge";
 
 /** The latest released result per test, for side panels. Values come from the laboratory, flags against its snapshotted range. */
 export function LabResultsSummary({ results, limit, href }: { results: PatientLabResult[]; limit: number; href?: string }) {
@@ -21,6 +22,7 @@ export function LabResultsSummary({ results, limit, href }: { results: PatientLa
               {latest.critical ? <AlertOctagonIcon className="size-3.5 text-critical" aria-label="Critical" /> : null}
               {flag && flag !== "normal" ? <LabFlagBadge flag={flag} /> : null}
               <span className="text-meta text-muted-foreground">· {clinicalDate(latest.collectedAt ?? latest.releasedAt ?? latest.enteredAt)}</span>
+              <PerformedBy laboratory={latest.performingLaboratory} />
             </li>
           );
         })}

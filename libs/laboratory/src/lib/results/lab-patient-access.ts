@@ -24,6 +24,8 @@ export interface PatientResultView {
   releasedAt: Date | null;
   /** A later version corrected an earlier released value. */
   corrected: boolean;
+  /** The reference laboratory that performed the test (null: the facility's own laboratory). */
+  performingLaboratory: string | null;
 }
 
 /**
@@ -122,6 +124,7 @@ export class LabPatientAccess {
       collectedAt,
       releasedAt: r.releasedAt,
       corrected: r.versionNumber > 1,
+      performingLaboratory: r.performingLaboratory,
     }));
   }
 }
