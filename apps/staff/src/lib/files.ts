@@ -13,6 +13,7 @@ const ROUTES: Array<[RegExp, (id: string) => string]> = [
   [new RegExp(`^lab-report-archive/(${UUID})$`, "i"), (id) => `/laboratory/report-archive/${id}/report.pdf`],
   [new RegExp(`^deposit-receipts/(${UUID})$`, "i"), (id) => `/billing/account-entries/${id}/receipt.pdf`],
   [new RegExp(`^credit-notes/(${UUID})$`, "i"), (id) => `/billing/credit-notes/${id}/pdf`],
+  [new RegExp(`^debit-notes/(${UUID})$`, "i"), (id) => `/billing/debit-notes/${id}/pdf`],
   [new RegExp(`^send-out-manifests/(${UUID})$`, "i"), (id) => `/laboratory/send-out-dispatches/${id}/manifest.pdf`],
 ];
 
@@ -34,5 +35,6 @@ export const fileHref = {
   archivedLabReport: (archiveId: string) => `/files/lab-report-archive/${archiveId}`,
   depositReceipt: (entryId: string) => `/files/deposit-receipts/${entryId}`,
   creditNote: (creditNoteId: string) => `/files/credit-notes/${creditNoteId}`,
+  debitNote: (debitNoteId: string) => `/files/debit-notes/${debitNoteId}`,
   sendOutManifest: (dispatchId: string) => `/files/send-out-manifests/${dispatchId}`,
 };

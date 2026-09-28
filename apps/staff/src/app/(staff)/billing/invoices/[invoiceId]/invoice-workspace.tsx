@@ -9,7 +9,6 @@ import {
   BuildingIcon,
   CheckIcon,
   FileCheck2Icon,
-  FileMinusIcon,
   PiggyBankIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -39,23 +38,12 @@ import {
 } from "@healthcare/ui/primitives";
 import { InvoiceBadge } from "@/components/invoice-badge";
 import { fileHref } from "@/lib/files";
-import type { BillingPayer, DiscountRule, InvoiceCoverage, InvoiceWithSettlement, LedgerEntry, PaymentMethod } from "@/lib/api/types";
-import {
-  CATEGORY_LABEL,
-  COVERAGE_STATUS_LABEL,
-  creditableLeft,
-  METHOD_LABEL,
-  parsePesos,
-  percent,
-  peso,
-  pesoInput,
-  refundableAmount,
-} from "@/lib/billing-mapping";
+import type { BillingPayer, BillingService, DiscountRule, InvoiceCoverage, InvoiceFull, LedgerEntry, PaymentMethod } from "@/lib/api/types";
+import { CATEGORY_LABEL, COVERAGE_STATUS_LABEL, METHOD_LABEL, parsePesos, percent, peso, pesoInput, refundableAmount } from "@/lib/billing-mapping";
 import {
   applyDeposit,
   applyDiscount,
   discardInvoice,
-  issueCreditNote,
   issueInvoice,
   recordPayment,
   refundPayment,
@@ -66,6 +54,8 @@ import {
   updateClaim,
   voidInvoice,
 } from "../../actions";
+import { InvoiceUpdate, useAction } from "./invoice-action";
+import { CreditNotes, DebitNotes, OnlinePayments, VatBreakdown } from "./invoice-notes";
 
 interface Permissions {
   issue: boolean;
@@ -75,33 +65,7 @@ interface Permissions {
   void: boolean;
   deposit: boolean;
   creditNote: boolean;
-}
-
-type Result = { ok: true; data?: unknown } | { ok: false; message: string };
-
-/** Receives the invoice an action returns, so the next action uses its new version without waiting for the page refresh. */
-const InvoiceUpdate = React.createContext<(invoice: InvoiceWithSettlement) => void>(() => undefined);
-
-function isInvoice(value: unknown): value is InvoiceWithSettlement {
-  return typeof value === "object" && value !== null && "items" in value && "version" in value;
-}
-
-/** Runs an action, toasts the outcome and refreshes the page data. */
-function useAction() {
-  const router = useRouter();
-  const update = React.useContext(InvoiceUpdate);
-  const [pending, startTransition] = React.useTransition();
-  const run = (call: () => Promise<Result>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        if (isInvoice(result.data)) update(result.data);
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, run };
+  debitNote: boolean;
 }
 
 /**
@@ -114,20 +78,23 @@ export function InvoiceWorkspace({
   rules,
   payers,
   accountBalance,
+  services,
   can,
   aside,
 }: {
-  invoice: InvoiceWithSettlement;
+  invoice: InvoiceFull;
   rules: DiscountRule[];
   payers: BillingPayer[];
   /** The patient's deposit and credit balance at the facility, when it can be applied here. */
   accountBalance: number | null;
+  /** Services a debit note may add. */
+  services: BillingService[];
   can: Permissions;
   /** Extra panels for the side column (e.g. the PhilHealth claim). */
   aside?: React.ReactNode;
 }) {
   // The newest of what the page loaded and what the last action returned.
-  const [latest, setLatest] = React.useState<InvoiceWithSettlement | null>(null);
+  const [latest, setLatest] = React.useState<InvoiceFull | null>(null);
   const invoice = latest && latest.id === loaded.id && latest.version > loaded.version ? latest : loaded;
   const draft = invoice.status === "draft";
   return (
@@ -136,6 +103,7 @@ export function InvoiceWorkspace({
         <div className="flex flex-col gap-4">
           <Lines invoice={invoice} canEdit={draft && can.issue} />
           {invoice.status === "issued" || invoice.payments.length ? <Payments key={invoice.balance} invoice={invoice} can={can} /> : null}
+          {invoice.onlinePayments.length ? <OnlinePayments invoice={invoice} /> : null}
           {invoice.accountEntries.length || (accountBalance && invoice.balance > 0) ? (
             <DepositApplied key={`deposit-${invoice.balance}`} invoice={invoice} accountBalance={accountBalance} canApply={can.deposit} />
           ) : null}
@@ -144,6 +112,10 @@ export function InvoiceWorkspace({
           <Summary invoice={invoice} can={can} />
           <Discounts invoice={invoice} rules={rules} canEdit={draft && can.discount} />
           <Coverage invoice={invoice} payers={payers} canEdit={draft && can.issue} canFollowUp={invoice.status === "issued" && can.issue} />
+          {invoice.taxStatus === "vat_registered" ? <VatBreakdown invoice={invoice} /> : null}
+          {invoice.debitNotes.length || (invoice.status === "issued" && can.debitNote) ? (
+            <DebitNotes invoice={invoice} services={services} canIssue={invoice.status === "issued" && can.debitNote} />
+          ) : null}
           {invoice.creditNotes.length || (invoice.status === "issued" && can.creditNote) ? (
             <CreditNotes invoice={invoice} canIssue={invoice.status === "issued" && can.creditNote} />
           ) : null}
@@ -154,7 +126,7 @@ export function InvoiceWorkspace({
   );
 }
 
-function Summary({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permissions }) {
+function Summary({ invoice, can }: { invoice: InvoiceFull; can: Permissions }) {
   const router = useRouter();
   const { pending, run } = useAction();
   const [voiding, setVoiding] = React.useState(false);
@@ -169,6 +141,7 @@ function Summary({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permis
   ];
   if (invoice.status !== "draft") {
     rows.push(["Paid", -invoice.paidTotal]);
+    if (invoice.debitedTotal) rows.push(["Debit notes", invoice.debitedTotal]);
     if (invoice.depositAppliedTotal) rows.push(["Deposit applied", -invoice.depositAppliedTotal]);
     if (invoice.creditedTotal) rows.push(["Credit notes", -invoice.creditedTotal]);
     rows.push(["Balance", invoice.balance, true]);
@@ -241,10 +214,12 @@ function Summary({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permis
         {invoice.status === "draft" ? (
           <p className="text-meta text-muted-foreground">Issuing numbers the invoice. After that it cannot be changed, only voided or credited.</p>
         ) : null}
-        {invoice.status === "issued" && can.void && invoice.creditNotes.length > 0 ? (
-          <p className="text-meta text-muted-foreground">A credit note was issued for this invoice; correct it with another credit note, not a void.</p>
+        {invoice.status === "issued" && can.void && (invoice.creditNotes.length > 0 || invoice.debitNotes.length > 0) ? (
+          <p className="text-meta text-muted-foreground">
+            A credit or debit note was issued for this invoice; correct it with a credit or debit note, not a void.
+          </p>
         ) : null}
-        {invoice.status === "issued" && can.void && invoice.creditNotes.length === 0 ? (
+        {invoice.status === "issued" && can.void && invoice.creditNotes.length === 0 && invoice.debitNotes.length === 0 ? (
           voiding ? (
             <form
               className="flex flex-col gap-2 rounded-lg border p-3"
@@ -290,7 +265,7 @@ function Summary({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permis
   );
 }
 
-function Lines({ invoice, canEdit }: { invoice: InvoiceWithSettlement; canEdit: boolean }) {
+function Lines({ invoice, canEdit }: { invoice: InvoiceFull; canEdit: boolean }) {
   const { pending, run } = useAction();
   return (
     <Card className="py-0">
@@ -356,7 +331,7 @@ function Lines({ invoice, canEdit }: { invoice: InvoiceWithSettlement; canEdit: 
   );
 }
 
-function Discounts({ invoice, rules, canEdit }: { invoice: InvoiceWithSettlement; rules: DiscountRule[]; canEdit: boolean }) {
+function Discounts({ invoice, rules, canEdit }: { invoice: InvoiceFull; rules: DiscountRule[]; canEdit: boolean }) {
   const { pending, run } = useAction();
   const [ruleId, setRuleId] = React.useState("");
   const [evidence, setEvidence] = React.useState("");
@@ -461,17 +436,7 @@ function Discounts({ invoice, rules, canEdit }: { invoice: InvoiceWithSettlement
   );
 }
 
-function Coverage({
-  invoice,
-  payers,
-  canEdit,
-  canFollowUp,
-}: {
-  invoice: InvoiceWithSettlement;
-  payers: BillingPayer[];
-  canEdit: boolean;
-  canFollowUp: boolean;
-}) {
+function Coverage({ invoice, payers, canEdit, canFollowUp }: { invoice: InvoiceFull; payers: BillingPayer[]; canEdit: boolean; canFollowUp: boolean }) {
   const { pending, run } = useAction();
   const [payerId, setPayerId] = React.useState("");
   const [amount, setAmount] = React.useState("");
@@ -496,6 +461,7 @@ function Coverage({
                     {p.reference ? `Ref. ${p.reference} · ` : ""}
                     {COVERAGE_STATUS_LABEL[p.status]}
                     {p.settledAmount !== null ? ` ${peso(p.settledAmount)}` : ""}
+                    {p.creditedAmount ? ` · ${peso(p.creditedAmount)} credited (claim ${peso(p.amount - p.creditedAmount)})` : ""}
                   </span>
                 </span>
                 <span className="tabular-nums">{peso(p.amount)}</span>
@@ -618,7 +584,7 @@ function ClaimFollowUp({ invoiceId, coverage }: { invoiceId: string; coverage: I
   );
 }
 
-function Payments({ invoice, can }: { invoice: InvoiceWithSettlement; can: Permissions }) {
+function Payments({ invoice, can }: { invoice: InvoiceFull; can: Permissions }) {
   const { pending, run } = useAction();
   const [amount, setAmount] = React.useState(pesoInput(Math.max(invoice.balance, 0)));
   const [method, setMethod] = React.useState<PaymentMethod>("cash");
@@ -779,7 +745,7 @@ function Refund({ payment, ledger }: { payment: LedgerEntry; ledger: LedgerEntry
 }
 
 /** Deposit or account credit applied to this invoice (and returned by a void), and applying more of it. */
-function DepositApplied({ invoice, accountBalance, canApply }: { invoice: InvoiceWithSettlement; accountBalance: number | null; canApply: boolean }) {
+function DepositApplied({ invoice, accountBalance, canApply }: { invoice: InvoiceFull; accountBalance: number | null; canApply: boolean }) {
   const { pending, run } = useAction();
   const available = Math.min(accountBalance ?? 0, Math.max(invoice.balance, 0));
   const [amount, setAmount] = React.useState(pesoInput(available));
@@ -828,122 +794,6 @@ function DepositApplied({ invoice, accountBalance, canApply }: { invoice: Invoic
               Apply deposit
             </Button>
           </form>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Credit notes of an issued invoice, and issuing one: amounts per line (at most what is left of each), with a reason. */
-function CreditNotes({ invoice, canIssue }: { invoice: InvoiceWithSettlement; canIssue: boolean }) {
-  const { pending, run } = useAction();
-  const [open, setOpen] = React.useState(false);
-  const [reason, setReason] = React.useState("");
-  const [amounts, setAmounts] = React.useState<Record<string, string>>({});
-  const [key, setKey] = React.useState(() => crypto.randomUUID());
-  const lines = invoice.items.map((item) => ({ item, left: creditableLeft(item, invoice.creditNotes), typed: amounts[item.id]?.trim() ?? "" }));
-  const chosen = lines.filter((l) => l.typed !== "");
-  const parsed = chosen.map((l) => ({ invoiceItemId: l.item.id, amount: parsePesos(l.typed), left: l.left }));
-  const total = parsed.reduce((a, l) => a + (l.amount ?? 0), 0);
-  const invalid = parsed.some((l) => l.amount === null || l.amount <= 0 || l.amount > l.left);
-
-  return (
-    <Card>
-      <CardHeader>
-        <FileMinusIcon className="size-4 text-muted-foreground" aria-hidden />
-        <CardTitle>Credit notes</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {invoice.creditNotes.length === 0 ? <p className="text-body text-muted-foreground">None.</p> : null}
-        <ul className="flex flex-col gap-2">
-          {invoice.creditNotes.map((c) => (
-            <li key={c.id} className="text-body">
-              <span className="flex items-baseline gap-2">
-                <a
-                  href={fileHref.creditNote(c.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 font-mono text-table text-primary hover:underline"
-                >
-                  <PrinterIcon className="size-3.5" aria-hidden /> {c.creditNoteNumber}
-                </a>
-                <span className="ml-auto tabular-nums">−{peso(c.amount)}</span>
-              </span>
-              <span className="block text-meta text-muted-foreground">
-                {clinicalDateTime(c.issuedAt)} · {c.reason}
-              </span>
-              {c.accountCredit ? (
-                <span className="block text-meta text-muted-foreground">{peso(c.accountCredit)} already paid went to the patient&apos;s account</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {canIssue ? (
-          open ? (
-            <form
-              className="flex flex-col gap-2 rounded-lg border p-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (chosen.length === 0 || invalid) {
-                  toast.error("Enter an amount for each line to credit, at most what is left of it.");
-                  return;
-                }
-                run(
-                  () =>
-                    issueCreditNote({
-                      invoiceId: invoice.id,
-                      reason,
-                      lines: parsed.map((l) => ({ invoiceItemId: l.invoiceItemId, amount: l.amount ?? 0 })),
-                      idempotencyKey: key,
-                    }),
-                  "Credit note issued",
-                  () => {
-                    setKey(crypto.randomUUID());
-                    setAmounts({});
-                    setReason("");
-                    setOpen(false);
-                  },
-                );
-              }}
-            >
-              {lines.map(({ item, left }) => (
-                <div key={item.id} className="grid grid-cols-[1fr_7rem] items-center gap-2">
-                  <Label htmlFor={`credit-${item.id}`} className="flex flex-col items-start gap-0">
-                    <span>{item.description}</span>
-                    <span className="text-meta font-normal text-muted-foreground">Up to {peso(left)}</span>
-                  </Label>
-                  <Input
-                    id={`credit-${item.id}`}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    disabled={left <= 0}
-                    value={amounts[item.id] ?? ""}
-                    onChange={(e) => setAmounts({ ...amounts, [item.id]: e.target.value })}
-                  />
-                </div>
-              ))}
-              <Label htmlFor="credit-reason">Reason</Label>
-              <Input id="credit-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} required />
-              <p className="text-body font-medium tabular-nums">Total {peso(total)}</p>
-              <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={pending || reason.trim().length < 3 || chosen.length === 0 || invalid}>
-                  Issue credit note
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-                  Close
-                </Button>
-              </div>
-              <p className="text-meta text-muted-foreground">
-                A credit note is numbered and cannot be changed. It first reduces what the patient still owes; what they already paid goes to their deposit and
-                credit balance (apply it or refund it). Payer coverage is not credited here. Whether the document meets BIR requirements must be confirmed
-                before production use.
-              </p>
-            </form>
-          ) : (
-            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setOpen(true)}>
-              <FileMinusIcon /> Issue credit note…
-            </Button>
-          )
         ) : null}
       </CardContent>
     </Card>

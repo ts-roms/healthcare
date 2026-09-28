@@ -1000,6 +1000,8 @@ export interface BillingService {
   version: number;
   currentPrice: number | null;
   prices: BillingServicePrice[];
+  isPackage?: boolean;
+  taxClass?: "vatable" | "vat_exempt" | "zero_rated" | null;
 }
 
 export interface BillingPayer {
@@ -1326,7 +1328,7 @@ export interface LabReportArchiveEntry {
 // ---- Billing: patient deposits and credit notes (migration 0035) -----------------------------------
 
 /** deposit (+), credit from a credit note (+), application to an invoice (−), release by a void (+), refund (−). */
-export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund";
+export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund" | "transfer_in" | "transfer_out";
 
 export interface AccountEntry {
   id: string;
@@ -1358,7 +1360,8 @@ export interface PatientAccount {
 export interface CreditNoteLine {
   id: string;
   creditNoteId: string;
-  invoiceItemId: string;
+  invoiceItemId: string | null;
+  debitNoteLineId?: string | null;
   description: string;
   amount: number;
 }
@@ -2114,4 +2117,127 @@ export interface ExternalHistoryEntry {
   status: "active" | "entered_in_error";
   enteredInErrorReason: string | null;
   recordedAt: string;
+}
+
+// ---- Billing: debit notes, payer credits, packages, online payment, tax profile (migrations 0036–0039) ----
+
+export type TaxClass = "vatable" | "vat_exempt" | "zero_rated";
+export type VatStatus = "not_configured" | "vat_registered" | "non_vat";
+
+export interface DebitNoteLine {
+  id: string;
+  debitNoteId: string;
+  serviceId: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface DebitNote {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  invoiceId: string;
+  debitNoteNumber: string;
+  reason: string;
+  amount: number;
+  issuedBy: string;
+  issuedAt: string;
+  lines: DebitNoteLine[];
+  invoiceNumber?: string | null;
+}
+
+/** A credit note's part that reduced a payer's coverage. */
+export interface CreditNotePayer {
+  id: string;
+  creditNoteId: string;
+  invoicePayerId: string;
+  amount: number;
+  payerName?: string;
+}
+
+export interface OnlinePayment {
+  id: string;
+  amount: number;
+  status: "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+  provider: string;
+  paidAmount: number | null;
+  failureCode: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** What `GET /billing/invoices/:id` adds for debit notes, payer credits, online payment and the tax snapshot. */
+export interface InvoiceFollowUps {
+  debitNotes: DebitNote[];
+  debitedTotal: number;
+  onlinePayments: OnlinePayment[];
+  creditNotes: Array<CreditNote & { payerAmount: number; payers: CreditNotePayer[] }>;
+  payers: Array<InvoiceCoverage & { creditedAmount: number }>;
+  items: Array<InvoiceLine & { taxClass: TaxClass | null; vatAmount: number }>;
+  taxStatus: VatStatus | null;
+  vatRateBp: number | null;
+  sellerRegisteredName: string | null;
+  sellerTin: string | null;
+  vatableSales: number;
+  vatAmount: number;
+  vatExemptSales: number;
+  zeroRatedSales: number;
+}
+
+export type InvoiceFull = Omit<InvoiceWithSettlement, "creditNotes" | "payers" | "items"> & InvoiceFollowUps;
+
+export interface BillingPackage extends BillingService {
+  isPackage: true;
+  packageValidityDays: number | null;
+  items: Array<{ serviceId: string; serviceCode: string; serviceName: string; quantity: number }>;
+}
+
+export interface PackageEnrollment {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  packageServiceId: string;
+  packageName: string;
+  packageCode: string;
+  status: "active" | "cancelled";
+  startsOn: string;
+  endsOn: string | null;
+  cancelReason: string | null;
+  version: number;
+  saleCharge: { id: string; status: BillingCharge["status"]; invoiceId: string | null } | null;
+  items: Array<{ serviceId: string; serviceName: string; included: number; used: number; left: number }>;
+}
+
+/** The organization's own tax and document settings (BIR as configuration). */
+export interface TaxProfile {
+  registeredName: string | null;
+  tin: string | null;
+  businessAddress: string | null;
+  vatStatus: VatStatus;
+  vatRateBp: number | null;
+  permitReference: string | null;
+  documentNote: string | null;
+  depositsAcrossFacilities: boolean;
+  version: number;
+}
+
+export type SequenceKind = "invoice" | "receipt" | "credit_note" | "debit_note";
+
+export interface BillingSettingsFull extends BillingPrefixes {
+  debitNotePrefix: string;
+  series: Array<{ kind: SequenceKind; prefix: string; nextValue: number; lastValue: number | null }>;
+}
+
+/** What the patient account view adds when deposits can be used across facilities. */
+export interface SharedAccount {
+  usableAcrossFacilities: boolean;
+  facilities: Array<{ facilityId: string; facilityName: string; balance: number }> | null;
+  organizationBalance: number | null;
+}
+
+export interface DailyNoteFigures {
+  debitNotes: { count: number; amount: number };
+  creditNotes: { count: number; amount: number; appliedAmount: number; accountCredit: number; payerAmount: number };
 }

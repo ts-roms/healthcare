@@ -26,6 +26,17 @@ export const ACCOUNT_ENTRY: Record<PortalAccount["entries"][number]["kind"], { l
   application: { label: "Used for invoice", adds: false },
   release: { label: "Returned from a cancelled invoice", adds: true },
   refund: { label: "Refunded to you", adds: false },
+  transfer_in: { label: "Moved here from another of the clinic's branches", adds: true },
+  transfer_out: { label: "Moved to another of the clinic's branches", adds: false },
+};
+
+/** What the patient should know about an online payment of theirs. */
+export const ONLINE_PAYMENT_STATUS: Record<"pending" | "succeeded" | "failed" | "cancelled" | "expired", string> = {
+  pending: "being confirmed by the payment provider",
+  succeeded: "paid online",
+  failed: "not completed",
+  cancelled: "cancelled",
+  expired: "not completed in time",
 };
 
 /** Total the patient still owes across their invoices. */

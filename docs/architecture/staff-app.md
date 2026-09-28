@@ -129,7 +129,9 @@ shown in pesos with `lib/billing-mapping.ts` (`parsePesos`, `peso`, invoice stat
 invoice each action returns, so quick successive changes use the latest version without waiting for the page refresh.
 Each payment, refund, deposit, deposit application and credit note form carries its own idempotency key (a retried
 submit is recorded once; a new key after success). The patient's billing page shows the deposit and credit balance
-(`patient-account.tsx`); the invoice workspace applies it and issues credit notes. The patient record links to the patient's billing page. The API recomputes and enforces every amount and
+(`patient-account.tsx`) and packages (`patient-packages.tsx`); the invoice workspace applies deposit, issues credit and
+debit notes and shows online payments and the VAT breakdown (`invoice-notes.tsx`); settings hold the tax profile,
+packages and number ranges (`billing-profile.tsx`). The patient record links to the patient's billing page. The API recomputes and enforces every amount and
 rule; see [billing.md](../domains/billing.md#screens).
 
 ## Disease reporting

@@ -1,4 +1,4 @@
-import type { AccountEntryKind, BillingCategory, CreditNote, InvoiceCoverage, InvoiceSummary, PaymentMethod } from "./api/types";
+import type { AccountEntryKind, BillingCategory, InvoiceCoverage, InvoiceSummary, PaymentMethod, TaxClass } from "./api/types";
 
 /**
  * Display helpers for billing. Amounts are integer centavos from the API;
@@ -91,15 +91,27 @@ export const ACCOUNT_ENTRY_LABEL: Record<AccountEntryKind, string> = {
   application: "Applied to invoice",
   release: "Returned from voided invoice",
   refund: "Refunded",
+  transfer_in: "Moved in from another facility",
+  transfer_out: "Moved to another facility",
 };
 
 /** Whether an account entry adds to the patient's deposit and credit balance. */
 export function addsToAccount(kind: AccountEntryKind): boolean {
-  return kind === "deposit" || kind === "credit" || kind === "release";
+  return kind === "deposit" || kind === "credit" || kind === "release" || kind === "transfer_in";
 }
 
-/** How much of an invoice line can still be credited, given the credit notes already issued. */
-export function creditableLeft(line: { id: string; netAmount: number }, creditNotes: ReadonlyArray<Pick<CreditNote, "lines">>): number {
-  const credited = creditNotes.flatMap((c) => c.lines).filter((l) => l.invoiceItemId === line.id);
-  return line.netAmount - credited.reduce((a, l) => a + l.amount, 0);
+/** How much of an invoice line (or debit note line) can still be credited, given the credit notes already issued. */
+export function creditableLeft(
+  line: { id: string; amount: number },
+  creditNotes: ReadonlyArray<{ lines: ReadonlyArray<{ invoiceItemId: string | null; debitNoteLineId?: string | null; amount: number }> }>,
+): number {
+  const credited = creditNotes.flatMap((c) => c.lines).filter((l) => l.invoiceItemId === line.id || l.debitNoteLineId === line.id);
+  return line.amount - credited.reduce((a, l) => a + l.amount, 0);
 }
+
+/** How much of a payer's coverage can still be credited: its amount less earlier credits, and only while the claim is open. */
+export function coverageCreditable(coverage: Pick<InvoiceCoverage, "amount" | "status"> & { creditedAmount: number }): number {
+  return coverage.status === "pending" || coverage.status === "submitted" ? coverage.amount - coverage.creditedAmount : 0;
+}
+
+export const TAX_CLASS_LABEL: Record<TaxClass, string> = { vatable: "VATable", vat_exempt: "VAT-exempt", zero_rated: "Zero-rated" };

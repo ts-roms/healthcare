@@ -84,6 +84,8 @@ export const PERMISSIONS = [
   // Refunds of deposit or credit balance use billing.refund.issue.
   "billing.deposit.record",
   "billing.credit-note.issue",
+  // Billing follow-ups — debit notes (migration 0036).
+  "billing.debit-note.issue",
   // Phase 9 — inventory (migration 0026)
   "inventory.read",
   "inventory.move",

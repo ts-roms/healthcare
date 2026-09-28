@@ -18,6 +18,7 @@ import { documentNumber, invoiceBalance, refundable } from "../billing.rules";
 import {
   billingAccountEntry,
   billingCreditNote,
+  billingDebitNote,
   billingInvoice,
   billingInvoiceDiscount,
   billingInvoicePayer,
@@ -225,6 +226,7 @@ export class PaymentService {
         amount: sql<number>`coalesce(sum(${billingCreditNote.amount}), 0)::bigint`,
         applied: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint`,
         accountCredit: sql<number>`coalesce(sum(${billingCreditNote.accountCredit}), 0)::bigint`,
+        payerAmount: sql<number>`coalesce(sum(${billingCreditNote.payerAmount}), 0)::bigint`,
       })
       .from(billingCreditNote)
       .where(
@@ -233,6 +235,17 @@ export class PaymentService {
           eq(billingCreditNote.facilityId, facilityId),
           gte(billingCreditNote.issuedAt, start),
           lt(billingCreditNote.issuedAt, end),
+        ),
+      );
+    const [debits] = await this.db
+      .select({ count: sql<number>`count(*)::int`, amount: sql<number>`coalesce(sum(${billingDebitNote.amount}), 0)::bigint` })
+      .from(billingDebitNote)
+      .where(
+        and(
+          eq(billingDebitNote.organizationId, actor.organizationId),
+          eq(billingDebitNote.facilityId, facilityId),
+          gte(billingDebitNote.issuedAt, start),
+          lt(billingDebitNote.issuedAt, end),
         ),
       );
     const receivable = await this.invoices.list(actor, { unpaid: true });
@@ -278,7 +291,9 @@ export class PaymentService {
         amount: num(credits?.amount),
         appliedAmount: num(credits?.applied),
         accountCredit: num(credits?.accountCredit),
+        payerAmount: num(credits?.payerAmount),
       },
+      debitNotes: { count: debits?.count ?? 0, amount: num(debits?.amount) },
       receivables: {
         /** What patients still owe on issued invoices at this facility (all dates). */
         patientBalance: receivable.reduce((a, r) => a + r.balance, 0),
