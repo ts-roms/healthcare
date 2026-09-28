@@ -19,7 +19,14 @@ export const notationSchema = z.object({ notation: z.enum(NOTATIONS) });
 export class NotationDto extends createZodDto(notationSchema) {}
 
 /** Whether patients see their dental records in MyHealth; `version` is the current setting's (0 when never set). */
-export const portalSettingSchema = z.object({ portalDentalRecords: z.boolean(), version: z.number().int().min(0) });
+export const portalSettingSchema = z.object({
+  portalDentalRecords: z.boolean(),
+  /** Patients decide plan items in MyHealth (left out: unchanged). */
+  portalPlanDecisions: z.boolean().optional(),
+  /** The organization's own text patients confirm before deciding online (left out: unchanged). */
+  portalPlanAcknowledgement: z.string().trim().min(20).max(1000).nullable().optional(),
+  version: z.number().int().min(0),
+});
 export class PortalSettingDto extends createZodDto(portalSettingSchema) {}
 
 export const createProcedureTypeSchema = z.object({
@@ -203,3 +210,18 @@ export const returnSuppliesSchema = z.object({
   idempotencyKey,
 });
 export class ReturnSuppliesDto extends createZodDto(returnSuppliesSchema) {}
+
+// ---- MyHealth ---------------------------------------------------------------------------------------
+
+export const withdrawImageSchema = z.object({ reason });
+export class WithdrawImageDto extends createZodDto(withdrawImageSchema) {}
+
+export const patientPlanDecisionSchema = z.object({
+  /** Items the patient accepts; every other item awaiting a decision is declined. */
+  acceptedItemIds: z.array(z.uuid()).max(60),
+  /** The items that were awaiting a decision when the patient looked (the plan must not have changed since). */
+  awaitingItemIds: z.array(z.uuid()).min(1).max(60),
+  /** The patient confirmed the organization's acknowledgement. */
+  acknowledged: z.literal(true, { message: "Confirm the acknowledgement to continue" }),
+});
+export class PatientPlanDecisionDto extends createZodDto(patientPlanDecisionSchema) {}

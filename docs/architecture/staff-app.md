@@ -197,7 +197,9 @@ location, issued from inventory with the lots shown, refusals inline next to the
 examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,
 suppuration, mobility, furcation where the tooth has one; view a chart with the changes since the previous one);
 imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
-link). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
+link; share with the patient in MyHealth and stop sharing — `dental.imaging.release`); plans decided by the patient
+in MyHealth are marked as such. `/dental/settings` also holds "Dental records in MyHealth" and, when on, "Treatment plan
+decisions in MyHealth" with the organization's acknowledgement text. Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
 visit's encounter workspace. `/dental/settings`: the procedure catalog, supply templates per procedure, the facility's tooth notation and
 default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See

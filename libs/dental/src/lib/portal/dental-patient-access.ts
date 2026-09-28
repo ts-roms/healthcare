@@ -1,7 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, localDate } from "@healthcare/core";
+import type { PatientAuditContext } from "@healthcare/audit";
+import { DATABASE, type Database, ForbiddenError, localDate, NotFoundError } from "@healthcare/core";
+import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { DentalCatalogService } from "../catalog/dental-catalog.service";
 import { type ChartTooth, DentalChartService } from "../chart/dental-chart.service";
 import {
@@ -13,12 +15,16 @@ import {
   dentalTreatmentPlanItem,
   type DentalTreatmentPlanItemRecord,
   type DentalTreatmentPlanRecord,
+  dentalImage,
+  dentalImageRelease,
+  type ImageKind,
   type Notation,
   type PlanItemStatus,
   type PlanStatus,
   type Surface,
   type ToothCondition,
 } from "../dental.schema";
+import { DentalPlanService } from "../plans/dental-plan.service";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
 import { DentalPortalSettings } from "./dental-portal-settings.service";
 
@@ -46,6 +52,10 @@ export interface PatientDentalPlan {
   id: string;
   title: string;
   status: PlanStatus;
+  /** Where the latest decision was taken: at the clinic (told to staff) or by the patient in MyHealth. */
+  decidedIn: "clinic" | "myhealth" | null;
+  /** The patient can accept or decline items awaiting their decision here (the organization allows it). */
+  canDecide: boolean;
   /** Facility-local calendar dates (YYYY-MM-DD). */
   proposedOn: string;
   decidedOn: string | null;
@@ -71,12 +81,25 @@ export interface PatientDentalTooth {
   updatedOn: string;
 }
 
+/** An image the dentist released to the patient (never notes; opened through a short-lived link). */
+export interface PatientDentalImage {
+  id: string;
+  kind: ImageKind;
+  teeth: string[];
+  takenOn: string;
+  sharedOn: string;
+  facilityName: string | null;
+}
+
 export interface PatientDentalRecord {
   /** How teeth are numbered for this patient: the notation of the facility of their latest dental care. */
   notation: Notation;
   chart: PatientDentalTooth[];
   plans: PatientDentalPlan[];
   procedures: PatientDentalProcedure[];
+  images: PatientDentalImage[];
+  /** Online plan decisions: allowed or not, and the organization's text the patient confirms. */
+  decisions: { enabled: boolean; acknowledgement: string | null };
 }
 
 interface Facility {
@@ -106,12 +129,16 @@ export function toPatientPlan(
   procedureNames: ReadonlyMap<string, string>,
   facility: Facility | undefined,
   dentistName: string | null,
+  decisionsEnabled = false,
 ): PatientDentalPlan {
   const timezone = facility?.timezone ?? DEFAULT_TIMEZONE;
+  const open = plan.status === "proposed" || plan.status === "accepted" || plan.status === "in_progress";
   return {
     id: plan.id,
     title: plan.title,
     status: plan.status,
+    decidedIn: plan.decidedAt ? (plan.decisionChannel === "portal" ? "myhealth" : "clinic") : null,
+    canDecide: decisionsEnabled && open && items.some((i) => i.status === "proposed"),
     proposedOn: localDate(plan.createdAt, timezone),
     decidedOn: plan.decidedAt ? localDate(plan.decidedAt, timezone) : null,
     facilityName: facility?.name ?? null,
@@ -169,6 +196,8 @@ export class DentalPatientAccess {
     private readonly catalog: DentalCatalogService,
     private readonly chart: DentalChartService,
     private readonly organizations: OrganizationService,
+    private readonly plans: DentalPlanService,
+    private readonly documents: DocumentsService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
   ) {}
 
@@ -194,6 +223,11 @@ export class DentalPatientAccess {
         ) OR EXISTS (
           SELECT 1 FROM ${dentalProcedure}
           WHERE ${dentalProcedure.organizationId} = ${organizationId} AND ${dentalProcedure.patientId} = ${patientId} AND ${dentalProcedure.status} = 'recorded'
+        ) OR EXISTS (
+          SELECT 1 FROM ${dentalImageRelease}
+          JOIN ${dentalImage} ON ${dentalImage.id} = ${dentalImageRelease.imageId}
+          WHERE ${dentalImage.organizationId} = ${organizationId} AND ${dentalImage.patientId} = ${patientId}
+            AND ${dentalImage.status} = 'recorded' AND ${dentalImageRelease.withdrawnAt} IS NULL
         ) AS available`,
       )
       .then((r) => r.rows);
@@ -203,7 +237,7 @@ export class DentalPatientAccess {
   /** The patient's plans, procedures and chart; undefined while the organization does not share dental records. */
   async record(organizationId: string, patientId: string): Promise<PatientDentalRecord | undefined> {
     if (!(await this.settings.enabled(organizationId))) return undefined;
-    const [plans, procedures, chart, latestExamination, facilityRows] = await Promise.all([
+    const [plans, procedures, chart, latestExamination, facilityRows, decisions, images] = await Promise.all([
       this.db
         .select()
         .from(dentalTreatmentPlan)
@@ -223,6 +257,8 @@ export class DentalPatientAccess {
         .orderBy(desc(dentalExamination.recordedAt))
         .limit(1),
       this.organizations.listFacilities(organizationId),
+      this.settings.decisions(organizationId),
+      this.releasedImages(organizationId, patientId),
     ]);
     const items = plans.length
       ? await this.db
@@ -265,12 +301,69 @@ export class DentalPatientAccess {
           names,
           facilities.get(p.facilityId),
           dentists.get(p.practitionerId) ?? null,
+          decisions !== undefined,
         ),
       ),
       procedures: procedures.flatMap(
         (p) =>
           toPatientProcedure(p, names.get(p.procedureTypeId) ?? "Dental procedure", facilities.get(p.facilityId), dentists.get(p.practitionerId) ?? null) ?? [],
       ),
+      images: images.map(({ image, release }) => {
+        const facility = facilities.get(image.facilityId);
+        return {
+          id: image.id,
+          kind: image.kind,
+          teeth: [...image.teeth],
+          takenOn: image.takenOn,
+          sharedOn: localDate(release.releasedAt, facility?.timezone ?? DEFAULT_TIMEZONE),
+          facilityName: facility?.name ?? null,
+        };
+      }),
+      decisions: { enabled: decisions !== undefined, acknowledgement: decisions?.acknowledgement ?? null },
     };
   }
+
+  /**
+   * A short-lived link to an image the dentist released to this patient (while dental records are shared, not
+   * entered in error). Audited as the patient's access by the documents service.
+   */
+  async imageLink(context: PatientAuditContext, imageId: string) {
+    if (!(await this.settings.enabled(context.organizationId))) throw new ForbiddenError("Your clinic does not share dental records in MyHealth");
+    const released = (await this.releasedImages(context.organizationId, context.patientId)).find((r) => r.image.id === imageId);
+    if (!released) throw new NotFoundError("Image");
+    return this.documents.downloadUrlForPatient(context, released.image.documentId);
+  }
+
+  /**
+   * The patient accepts the listed items awaiting their decision and declines the others, after confirming the
+   * organization's acknowledgement (kept as the decision note). Only while the organization allows online decisions.
+   */
+  async decidePlan(context: PatientAuditContext, planId: string, input: { acceptedItemIds: string[]; awaitingItemIds: string[] }) {
+    const decisions = await this.settings.decisions(context.organizationId);
+    if (!decisions) throw new ForbiddenError("Your clinic takes treatment plan decisions in person");
+    await this.db.transaction((tx) => this.plans.decideByPatient(tx, context, planId, { ...input, acknowledgement: decisions.acknowledgement }));
+    const record = await this.record(context.organizationId, context.patientId);
+    return found(record?.plans.find((p) => p.id === planId));
+  }
+
+  private releasedImages(organizationId: string, patientId: string) {
+    return this.db
+      .select({ image: dentalImage, release: dentalImageRelease })
+      .from(dentalImageRelease)
+      .innerJoin(dentalImage, eq(dentalImage.id, dentalImageRelease.imageId))
+      .where(
+        and(
+          eq(dentalImage.organizationId, organizationId),
+          eq(dentalImage.patientId, patientId),
+          eq(dentalImage.status, "recorded"),
+          isNull(dentalImageRelease.withdrawnAt),
+        ),
+      )
+      .orderBy(desc(dentalImage.takenOn), desc(dentalImage.recordedAt));
+  }
+}
+
+function found<T>(value: T | undefined): T {
+  if (value === undefined) throw new NotFoundError("Treatment plan");
+  return value;
 }

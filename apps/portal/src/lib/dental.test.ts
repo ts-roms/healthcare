@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortalDentalTooth, PortalToothCondition, PortalToothSurface } from "./api/types";
-import { chartRows, conditionsText, planItemState, surfacesText, toothText, toothTone } from "./dental";
+import { chartRows, conditionsText, decisionSummary, planItemState, surfacesText, toothText, toothTone } from "./dental";
 
 const tooth = (t: string, conditions: Array<[PortalToothCondition, PortalToothSurface[]]>): PortalDentalTooth => ({
   tooth: t,
@@ -44,5 +44,18 @@ describe("dental wording", () => {
     expect(chartRows([tooth("16", [])]).map((r) => r.label)).toEqual(["Upper teeth", "Lower teeth"]);
     expect(chartRows([tooth("55", [])]).map((r) => r.label)).toEqual(["Upper teeth", "Upper baby teeth", "Lower teeth", "Lower baby teeth"]);
     expect(chartRows([]).every((r) => r.teeth.length === 16)).toBe(true);
+  });
+});
+
+describe("plan decision summary", () => {
+  const items = [
+    { id: "a", procedureName: "Composite restoration" },
+    { id: "b", procedureName: "Extraction" },
+  ];
+  it("says what will be accepted and declined", () => {
+    expect(decisionSummary(items, new Set(["a"]))).toBe("You accept Composite restoration and decline Extraction.");
+    expect(decisionSummary(items, new Set(["a", "b"]))).toBe("You accept all 2 treatments.");
+    expect(decisionSummary(items, new Set())).toBe("You decline all 2 treatments.");
+    expect(decisionSummary(items.slice(0, 1), new Set(["a"]))).toBe("You accept this treatment.");
   });
 });

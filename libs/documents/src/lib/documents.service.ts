@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import { type Actor, actorUserId, asPgError, BusinessRuleError, DATABASE, type Database, type DbExecutor, NotFoundError, PgErrorCode } from "@healthcare/core";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import type { z } from "zod";
@@ -162,6 +162,24 @@ export class DocumentsService {
       resourceType: "document",
       resourceId: documentId,
       patientId: record.patientId ?? undefined,
+    });
+    return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString() };
+  }
+
+  /**
+   * A short-lived download URL for the patient themself (MyHealth), for a document of theirs that the calling domain
+   * has decided to release. Audited as the patient's access.
+   */
+  async downloadUrlForPatient(context: PatientAuditContext, documentId: string): Promise<{ url: string; expiresAt: string }> {
+    const record = await this.find(context.organizationId, documentId, {});
+    if (record.patientId !== context.patientId) throw new NotFoundError("Document");
+    if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
+    const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
+    await this.audit.recordStandalone(context, {
+      action: "document.download",
+      resourceType: "document",
+      resourceId: documentId,
+      patientId: record.patientId,
     });
     return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString() };
   }

@@ -22,6 +22,7 @@ import {
   SupplyLocationDto,
   SupplyTemplateDto,
   UpdateProcedureTypeDto,
+  WithdrawImageDto,
   VisitsQueryDto,
 } from "./dental.dto";
 import { isTooth } from "./dental.rules";
@@ -135,6 +136,21 @@ export class DentalRecordController {
     return this.imaging.link(actor, id);
   }
 
+  @Post("images/:imageId/release")
+  @RequirePermissions("dental.imaging.release")
+  @ApiOperation({ summary: "Share an image with the patient in MyHealth (seen only while the organization shares dental records)" })
+  releaseImage(@CurrentActor() actor: Actor, @Param("imageId", ParseUUIDPipe) id: string) {
+    return this.imaging.release(actor, id);
+  }
+
+  @Post("images/:imageId/withdraw")
+  @HttpCode(200)
+  @RequirePermissions("dental.imaging.release")
+  @ApiOperation({ summary: "Stop sharing an image in MyHealth (with a reason)" })
+  withdrawImage(@CurrentActor() actor: Actor, @Param("imageId", ParseUUIDPipe) id: string, @Body() body: WithdrawImageDto) {
+    return this.imaging.withdraw(actor, id, body.reason);
+  }
+
   @Post("images/:imageId/entered-in-error")
   @HttpCode(200)
   @RequirePermissions("dental.record.write")
@@ -228,7 +244,7 @@ export class DentalSettingsController {
   @RequirePermissions("dental.settings.manage")
   @ApiOperation({ summary: "Turn MyHealth dental records on or off for the organization (audited; optimistic version)" })
   setPortalSetting(@CurrentActor() actor: Actor, @Body() body: PortalSettingDto) {
-    return this.portal.set(actor, body.portalDentalRecords, body.version);
+    return this.portal.set(actor, body);
   }
 
   @Put("facilities/:facilityId/notation")

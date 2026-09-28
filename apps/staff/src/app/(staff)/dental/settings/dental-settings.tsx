@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { EyeOffIcon, PlusIcon, SmartphoneIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
-import { createProcedureType, setNotation, setPortalDentalRecords, setProcedureTypeStatus } from "../actions";
+import { createProcedureType, setNotation, setPortalDentalRecords, setPortalPlanDecisions, setProcedureTypeStatus } from "../actions";
 
 const EFFECTS: Record<DentalChartEffect, string> = {
   restoration: "Restoration (on the treated surfaces)",
@@ -205,8 +205,9 @@ export function DentalSettingsForm({
               chart.
             </p>
             <p className="text-meta text-muted-foreground">
-              Never shown: examination and plan notes, tooth notes, decision notes, periodontal charts, radiographs and photos, procedure codes, and anything
-              entered in error. Plans carry no fees; patients are told to ask the clinic.
+              Never shown: examination and plan notes, tooth notes, decision notes, periodontal charts, procedure codes, and anything entered in error.
+              Radiographs and photos are shown only when a dentist shares them one by one from the patient&apos;s dental record. Plans carry no fees; patients
+              are told to ask the clinic.
             </p>
             {portal.updatedAt ? (
               <p className="text-meta text-muted-foreground">
@@ -232,7 +233,91 @@ export function DentalSettingsForm({
             ) : null}
           </CardContent>
         </Card>
+
+        {portal.portalDentalRecords ? <PlanDecisions portal={portal} canManage={canManage} pending={pending} act={act} /> : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Online plan decisions: patients accept or decline plan items awaiting their decision in MyHealth, after confirming
+ * the organization's own text (the platform supplies no consent wording).
+ */
+function PlanDecisions({
+  portal,
+  canManage,
+  pending,
+  act,
+}: {
+  portal: DentalPortalSetting;
+  canManage: boolean;
+  pending: boolean;
+  act: (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) => void;
+}) {
+  const [text, setText] = React.useState(portal.portalPlanAcknowledgement ?? "");
+  const save = (portalPlanDecisions: boolean, done: string) =>
+    act(
+      () =>
+        setPortalPlanDecisions({
+          portalDentalRecords: true,
+          portalPlanDecisions,
+          portalPlanAcknowledgement: text.trim() || null,
+          version: portal.version,
+        }),
+      done,
+    );
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Treatment plan decisions in MyHealth</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 text-body">
+        {portal.portalPlanDecisions ? (
+          <Badge variant="info" className="w-fit">
+            <SmartphoneIcon aria-hidden /> Patients can decide online
+          </Badge>
+        ) : (
+          <Badge variant="neutral" className="w-fit">
+            <EyeOffIcon aria-hidden /> Decisions taken at the clinic only
+          </Badge>
+        )}
+        <p className="text-meta text-muted-foreground">
+          When on, a patient can accept or decline the items of a plan awaiting their decision in MyHealth, after confirming the text below. The plan records
+          that it was decided in MyHealth, with that text. Write it with your clinic&apos;s own consent practice in mind: the platform does not supply consent
+          wording, and whether an online acknowledgement is enough for a given treatment is for your clinic to decide.
+        </p>
+        <label htmlFor="plan-acknowledgement" className="text-label font-medium">
+          What the patient confirms
+        </label>
+        <Textarea
+          id="plan-acknowledgement"
+          rows={3}
+          maxLength={1000}
+          value={text}
+          disabled={!canManage}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. I discussed this plan with my dentist and understand the options, risks and fees."
+        />
+        {canManage ? (
+          <div className="flex flex-wrap gap-2">
+            {portal.portalPlanDecisions ? (
+              <>
+                <Button size="sm" variant="outline" disabled={pending || text.trim().length < 20} onClick={() => save(true, "Acknowledgement saved")}>
+                  Save text
+                </Button>
+                <Button size="sm" variant="outline" disabled={pending} onClick={() => save(false, "Plan decisions taken at the clinic only")}>
+                  Stop online decisions
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" disabled={pending || text.trim().length < 20} onClick={() => save(true, "Patients can decide plans in MyHealth")}>
+                Allow online decisions
+              </Button>
+            )}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

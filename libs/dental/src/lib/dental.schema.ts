@@ -1,7 +1,7 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql and
-// 0057_dental_supplies.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql,
+// 0057_dental_supplies.sql and 0058_dental_portal_images_decisions.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -94,6 +94,9 @@ export const dentalTreatmentPlan = pgTable("dental_treatment_plan", {
   decisionNote: text("decision_note"),
   decidedAt: ts("decided_at"),
   decidedBy: uuid("decided_by"),
+  // 0058: how the decision was taken; a MyHealth decision names the patient's portal account instead of a staff user.
+  decisionChannel: text("decision_channel").$type<"in_person" | "portal">(),
+  decidedByPortalAccount: uuid("decided_by_portal_account"),
   discontinuedReason: text("discontinued_reason"),
   createdBy: uuid("created_by").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
@@ -231,6 +234,9 @@ export type DentalPerioChartRecord = typeof dentalPerioChart.$inferSelect;
 export const dentalOrganizationSetting = pgTable("dental_organization_setting", {
   organizationId: uuid("organization_id").primaryKey(),
   portalDentalRecords: boolean("portal_dental_records").notNull().default(false),
+  // 0058: patients decide plans in MyHealth, after confirming the organization's own acknowledgement text.
+  portalPlanDecisions: boolean("portal_plan_decisions").notNull().default(false),
+  portalPlanAcknowledgement: text("portal_plan_acknowledgement"),
   version: integer("version").notNull().default(1),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
@@ -283,3 +289,17 @@ export const dentalSupplyUseLine = pgTable("dental_supply_use_line", {
   returnsLineId: uuid("returns_line_id"),
 });
 export type DentalSupplyUseLineRecord = typeof dentalSupplyUseLine.$inferSelect;
+
+// ---- images released to the patient in MyHealth (0058) --------------------------------------------------
+
+export const dentalImageRelease = pgTable("dental_image_release", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  imageId: uuid("image_id").notNull(),
+  releasedBy: uuid("released_by").notNull(),
+  releasedAt: ts("released_at").notNull().defaultNow(),
+  withdrawnBy: uuid("withdrawn_by"),
+  withdrawnAt: ts("withdrawn_at"),
+  withdrawReason: text("withdraw_reason"),
+});
+export type DentalImageReleaseRecord = typeof dentalImageRelease.$inferSelect;

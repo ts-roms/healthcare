@@ -6,16 +6,17 @@ import {
   ConflictError,
   DATABASE,
   type Database,
+  type DbExecutor,
   NotFoundError,
   requireFacilityId,
   asPgError,
   PgErrorCode,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import type { addImageSchema } from "../dental.dto";
-import { dentalImage, type DentalImageRecord } from "../dental.schema";
+import { dentalImage, type DentalImageRecord, dentalImageRelease, type DentalImageReleaseRecord } from "../dental.schema";
 import { found, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
 
@@ -24,7 +25,8 @@ const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/tif
 /**
  * Dental radiographs and photos. The file is a private document in object storage (uploaded through
  * `POST /documents`, category "imaging"); this records what it shows. Opening one issues a short-lived signed URL,
- * audited by the documents service.
+ * audited by the documents service. A dentist can release an image to the patient in MyHealth (and withdraw it);
+ * releases are kept as history (`dental_image_release`).
  */
 @Injectable()
 export class DentalImagingService {
@@ -81,13 +83,86 @@ export class DentalImagingService {
     }
   }
 
+  /** The patient's images, each with its active MyHealth release (null when not shared). */
   async forPatient(organizationId: string, patientId: string) {
     const rows = await this.db
       .select()
       .from(dentalImage)
       .where(and(eq(dentalImage.organizationId, organizationId), eq(dentalImage.patientId, patientId)))
       .orderBy(desc(dentalImage.takenOn), desc(dentalImage.recordedAt));
-    return rows.map(strip);
+    const releases = await this.activeReleases(
+      organizationId,
+      rows.map((r) => r.id),
+    );
+    return rows.map((r) => {
+      const release = releases.get(r.id);
+      return { ...strip(r), release: release ? { releasedAt: release.releasedAt, releasedBy: release.releasedBy } : null };
+    });
+  }
+
+  /** Active releases (not withdrawn) by image id. */
+  async activeReleases(organizationId: string, imageIds: string[]): Promise<Map<string, DentalImageReleaseRecord>> {
+    if (imageIds.length === 0) return new Map();
+    const rows = await this.db
+      .select()
+      .from(dentalImageRelease)
+      .where(and(eq(dentalImageRelease.organizationId, organizationId), inArray(dentalImageRelease.imageId, imageIds), isNull(dentalImageRelease.withdrawnAt)));
+    return new Map(rows.map((r) => [r.imageId, r]));
+  }
+
+  /**
+   * Shares an image with the patient in MyHealth. They see it only while the organization shares dental records
+   * (dental settings); an image entered in error cannot be released.
+   */
+  async release(actor: Actor, imageId: string) {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(dentalImage)
+        .where(and(eq(dentalImage.organizationId, actor.organizationId), eq(dentalImage.id, imageId)))
+        .for("update");
+      const image = found(current, "Image");
+      if (image.status !== "recorded") throw new BusinessRuleError("This image was marked entered in error", "image_entered_in_error");
+      const [active] = await tx
+        .select({ id: dentalImageRelease.id })
+        .from(dentalImageRelease)
+        .where(and(eq(dentalImageRelease.imageId, imageId), isNull(dentalImageRelease.withdrawnAt)));
+      if (active) throw new ConflictError("This image is already shared in MyHealth", undefined, "image_released");
+      const [release] = await tx.insert(dentalImageRelease).values({ organizationId: actor.organizationId, imageId, releasedBy: actor.userId }).returning();
+      await this.audit.record(tx, actor, {
+        action: "dental.image.release",
+        resourceType: "dental_image",
+        resourceId: imageId,
+        patientId: image.patientId,
+        metadata: { releaseId: release!.id },
+      });
+      return { imageId, releasedAt: release!.releasedAt };
+    });
+  }
+
+  /** Stops sharing an image in MyHealth (with a reason); the release stays in the history. */
+  async withdraw(actor: Actor, imageId: string, reason: string) {
+    return this.db.transaction(async (tx) => {
+      const image = found(
+        (
+          await tx
+            .select()
+            .from(dentalImage)
+            .where(and(eq(dentalImage.organizationId, actor.organizationId), eq(dentalImage.id, imageId)))
+        )[0],
+        "Image",
+      );
+      const withdrawn = await this.endRelease(tx, actor, imageId, reason);
+      if (!withdrawn) throw new NotFoundError("Active release");
+      await this.audit.record(tx, actor, {
+        action: "dental.image.withdraw",
+        resourceType: "dental_image",
+        resourceId: imageId,
+        patientId: image.patientId,
+        reason,
+      });
+      return { imageId, withdrawnAt: withdrawn.withdrawnAt };
+    });
   }
 
   /** A short-lived link to open the image (the documents service audits each one). */
@@ -111,15 +186,27 @@ export class DentalImagingService {
         .set({ status: "entered_in_error", enteredInErrorReason: reason, enteredInErrorAt: new Date(), enteredInErrorBy: actor.userId })
         .where(eq(dentalImage.id, imageId))
         .returning()) as [DentalImageRecord];
+      // An image entered in error is no longer shared with the patient.
+      const withdrawn = await this.endRelease(tx, actor, imageId, "Image entered in error");
       await this.audit.record(tx, actor, {
         action: "dental.image.entered-in-error",
         resourceType: "dental_image",
         resourceId: imageId,
         patientId: image.patientId,
         reason,
+        metadata: withdrawn ? { releaseWithdrawn: true } : undefined,
       });
       return strip(row);
     });
+  }
+
+  private async endRelease(tx: DbExecutor, actor: Actor, imageId: string, reason: string) {
+    const [row] = await tx
+      .update(dentalImageRelease)
+      .set({ withdrawnAt: new Date(), withdrawnBy: actor.userId, withdrawReason: reason })
+      .where(and(eq(dentalImageRelease.organizationId, actor.organizationId), eq(dentalImageRelease.imageId, imageId), isNull(dentalImageRelease.withdrawnAt)))
+      .returning();
+    return row;
   }
 
   private async find(organizationId: string, imageId: string): Promise<DentalImageRecord> {

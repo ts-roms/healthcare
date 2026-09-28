@@ -105,6 +105,8 @@ export const PERMISSIONS = [
   "dental.imaging.read",
   "dental.imaging.upload",
   "dental.settings.manage",
+  // MyHealth dental images: a dentist releases each one explicitly (migration 0058)
+  "dental.imaging.release",
   // Phase 9 — laboratory quality control and instruments (migration 0050)
   "lab.qc.read",
   "lab.qc.enter",

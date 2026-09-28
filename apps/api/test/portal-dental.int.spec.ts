@@ -4,7 +4,8 @@ const PATIENT_PASSWORD = "Ngiti-sa-umaga-2026";
 
 /**
  * MyHealth dental records (docs/domains/dental.md, "Dental records in MyHealth"): off by default per organization;
- * when on, the patient sees their treatment plans, completed procedures and current chart — and nothing else.
+ * when on, the patient sees their treatment plans, completed procedures, current chart and the images a dentist
+ * released — and nothing else; when the organization also allows it, the patient decides plan items online.
  */
 describe("patient portal dental records", () => {
   let ctx: TestContext;
@@ -97,7 +98,7 @@ describe("patient portal dental records", () => {
     const { rows } = await ctx.pool.query<{ storage_key: string }>("SELECT storage_key FROM document WHERE id = $1", [document.body.document.id]);
     ctx.storage.put(rows[0]!.storage_key, { sizeBytes: 4096, contentType: "image/png" });
     await api(adminToken).post(`/documents/${document.body.document.id}/complete`).expect(200);
-    await api(adminToken)
+    const image = await api(adminToken)
       .post(`/dental/patients/${forPatient}/images`, {
         documentId: document.body.document.id,
         kind: "bitewing",
@@ -106,7 +107,14 @@ describe("patient portal dental records", () => {
         notes: "SECRET-IMAGE",
       })
       .expect(201);
-    return { plan: plan.body.id as string, awaiting: awaiting.body.id as string, procedure: performed.body.id as string, wrong: wrong.body.id as string };
+    return {
+      plan: plan.body.id as string,
+      awaiting: awaiting.body.id as string,
+      procedure: performed.body.id as string,
+      wrong: wrong.body.id as string,
+      image: image.body.id as string,
+      document: document.body.document.id as string,
+    };
   }
 
   async function portalAccount(t: Tenant, orgCode: string, forPatient: string, email: string) {
@@ -219,7 +227,10 @@ describe("patient portal dental records", () => {
   it("shows plans, completed procedures and the chart with exactly the patient-facing fields", async () => {
     expect((await portal("/availability").expect(200)).body).toEqual({ available: true });
     const { body } = await portal("/record").expect(200);
-    expect(Object.keys(body).sort()).toEqual(["chart", "notation", "plans", "procedures"]);
+    expect(Object.keys(body).sort()).toEqual(["chart", "decisions", "images", "notation", "plans", "procedures"]);
+    // No image is shared until a dentist releases one; online decisions are off by default.
+    expect(body.images).toEqual([]);
+    expect(body.decisions).toEqual({ enabled: false, acknowledgement: null });
     expect(body.notation).toBe("fdi");
 
     // The chart: current states only, without notes or authors; the corrected extraction left no trace on 36.
@@ -243,8 +254,26 @@ describe("patient portal dental records", () => {
 
     expect(body.plans.map((p: { id: string }) => p.id)).toEqual([ids.awaiting, ids.plan]);
     const [awaiting, decided] = body.plans;
-    expect(Object.keys(decided).sort()).toEqual(["decidedOn", "dentistName", "facilityName", "id", "items", "proposedOn", "status", "title"]);
-    expect(decided).toMatchObject({ title: "JUAN restorative plan", status: "completed", proposedOn: manilaDate(0), decidedOn: manilaDate(0) });
+    expect(Object.keys(decided).sort()).toEqual([
+      "canDecide",
+      "decidedIn",
+      "decidedOn",
+      "dentistName",
+      "facilityName",
+      "id",
+      "items",
+      "proposedOn",
+      "status",
+      "title",
+    ]);
+    expect(decided).toMatchObject({
+      title: "JUAN restorative plan",
+      status: "completed",
+      proposedOn: manilaDate(0),
+      decidedOn: manilaDate(0),
+      decidedIn: "clinic",
+      canDecide: false,
+    });
     expect(decided.items).toEqual([
       {
         id: expect.any(String),
@@ -257,7 +286,13 @@ describe("patient portal dental records", () => {
       },
       { id: expect.any(String), phase: 2, tooth: "48", surfaces: [], procedureName: "JUAN extraction", status: "declined", decision: "declined" },
     ]);
-    expect(awaiting).toMatchObject({ status: "proposed", decidedOn: null, items: [expect.objectContaining({ status: "proposed", decision: "awaiting" })] });
+    expect(awaiting).toMatchObject({
+      status: "proposed",
+      decidedOn: null,
+      decidedIn: null,
+      canDecide: false,
+      items: [expect.objectContaining({ status: "proposed", decision: "awaiting" })],
+    });
 
     // Never: notes, remarks, periodontal measurements, images, codes, staff users, corrections — nor anyone else's record.
     const text = JSON.stringify(body);
@@ -309,5 +344,124 @@ describe("patient portal dental records", () => {
       ["success", "patient"],
     ]);
     expect(rows[1]!.metadata).toEqual({ plans: 2, procedures: 1, teeth: 3 });
+  });
+
+  it("shares the images a dentist releases, through short-lived links, until withdrawn", async () => {
+    await staff(assistant).post(`/dental/images/${ids.image}/release`).expect(403);
+    await staff(dentist).post(`/dental/images/${ids.image}/release`).expect(201);
+    await staff(dentist).post(`/dental/images/${ids.image}/release`).expect(409);
+    const staffView = (await staff(dentist).get(`/dental/patients/${patientId}`).expect(200)).body.images;
+    expect(staffView[0].release).toMatchObject({ releasedAt: expect.any(String) });
+
+    const { body } = await portal("/record").expect(200);
+    expect(body.images).toEqual([
+      { id: ids.image, kind: "bitewing", teeth: ["16"], takenOn: manilaDate(0), sharedOn: manilaDate(0), facilityName: "Main Clinic" },
+    ]);
+    expect(JSON.stringify(body.images)).not.toContain("SECRET");
+
+    const link = await portal(`/images/${ids.image}/link`).expect(200);
+    expect(link.body).toMatchObject({ url: expect.any(String), expiresAt: expect.any(String) });
+    const downloads = await auditRows(ctx.pool, "action = 'document.download' AND resource_id = $1", [ids.document]);
+    expect(downloads.map((a) => a.actor_type)).toEqual(["patient"]);
+    await portal(`/images/${ids.wrong}/link`).expect(404);
+
+    await staff(dentist).post(`/dental/images/${ids.image}/withdraw`, { reason: "x" }).expect(400);
+    await staff(dentist).post(`/dental/images/${ids.image}/withdraw`, { reason: "Shared the wrong image" }).expect(200);
+    expect((await portal("/record").expect(200)).body.images).toEqual([]);
+    await portal(`/images/${ids.image}/link`).expect(404);
+    await staff(dentist).post(`/dental/images/${ids.image}/withdraw`, { reason: "Shared the wrong image" }).expect(404);
+
+    // Released again, then entered in error: no longer shared, and the release is ended with the reason.
+    await staff(dentist).post(`/dental/images/${ids.image}/release`).expect(201);
+    await staff(dentist).post(`/dental/images/${ids.image}/entered-in-error`, { reason: "Belongs to another patient" }).expect(200);
+    expect((await portal("/record").expect(200)).body.images).toEqual([]);
+    await staff(dentist).post(`/dental/images/${ids.image}/release`).expect(422);
+    const releases = await ctx.pool.query("SELECT withdraw_reason FROM dental_image_release WHERE image_id = $1 ORDER BY released_at", [ids.image]);
+    expect(releases.rows.map((r) => r.withdraw_reason)).toEqual(["Shared the wrong image", "Image entered in error"]);
+    await expect(ctx.pool.query("DELETE FROM dental_image_release WHERE image_id = $1", [ids.image])).rejects.toThrow(/not deleted/);
+    const actions = (await auditRows(ctx.pool, "action LIKE 'dental.image.%' AND patient_id = $1", [patientId])).map((a) => a.action);
+    expect(actions.filter((a) => a === "dental.image.release")).toHaveLength(2);
+    expect(actions).toContain("dental.image.withdraw");
+  });
+
+  it("lets the patient decide plan items online only when the clinic allows it, after its own acknowledgement", async () => {
+    const acknowledgement = "I discussed this plan with my dentist and understand its options, risks and fees.";
+    const awaitingPlan = async () => (await portal("/record").expect(200)).body.plans.find((p: { id: string }) => p.id === ids.awaiting);
+    const decide = (body: object) =>
+      ctx
+        .http()
+        .post(`/api/v1/portal/dental/plans/${ids.awaiting}/decision`)
+        .set({ authorization: `Bearer ${patientToken}` })
+        .send(body);
+    const itemId = (await awaitingPlan()).items[0].id as string;
+
+    await decide({ acceptedItemIds: [itemId], awaitingItemIds: [itemId], acknowledged: true })
+      .expect(403)
+      .expect((r) => expect(r.body.error.message).toMatch(/in person/));
+
+    const current = (await staff(admin).get("/dental/settings/portal").expect(200)).body;
+    await staff(admin)
+      .put("/dental/settings/portal", { portalDentalRecords: true, portalPlanDecisions: true, version: current.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("acknowledgement_required"));
+    await staff(admin)
+      .put("/dental/settings/portal", {
+        portalDentalRecords: true,
+        portalPlanDecisions: true,
+        portalPlanAcknowledgement: "Too short",
+        version: current.version,
+      })
+      .expect(400);
+    const on = await staff(admin)
+      .put("/dental/settings/portal", {
+        portalDentalRecords: true,
+        portalPlanDecisions: true,
+        portalPlanAcknowledgement: acknowledgement,
+        version: current.version,
+      })
+      .expect(200);
+    expect(on.body).toMatchObject({ portalPlanDecisions: true, portalPlanAcknowledgement: acknowledgement });
+
+    const record = (await portal("/record").expect(200)).body;
+    expect(record.decisions).toEqual({ enabled: true, acknowledgement });
+    expect(record.plans.find((p: { id: string }) => p.id === ids.plan).canDecide).toBe(false);
+    expect((await awaitingPlan()).canDecide).toBe(true);
+
+    await decide({ acceptedItemIds: [itemId], awaitingItemIds: [itemId] }).expect(400);
+    // The dentist added an item since the patient opened the plan: nothing is decided.
+    const plan = (await staff(dentist).get(`/dental/treatment-plans/${ids.awaiting}`).expect(200)).body;
+    const extraction = plan.items[0].procedureTypeId as string;
+    const added = await staff(dentist)
+      .post(`/dental/treatment-plans/${ids.awaiting}/items`, { procedureTypeId: extraction, tooth: "38", version: plan.version })
+      .expect(201);
+    const newItem = (added.body.items as Array<{ id: string; tooth: string }>).find((i) => i.tooth === "38")!.id;
+    await decide({ acceptedItemIds: [itemId], awaitingItemIds: [itemId], acknowledged: true })
+      .expect(409)
+      .expect((r) => expect(r.body.error.code).toBe("plan_changed"));
+    await decide({ acceptedItemIds: [ids.plan], awaitingItemIds: [itemId, newItem], acknowledged: true }).expect(422);
+
+    const decided = await decide({ acceptedItemIds: [itemId], awaitingItemIds: [itemId, newItem], acknowledged: true }).expect(201);
+    expect(decided.body).toMatchObject({ id: ids.awaiting, status: "accepted", decidedIn: "myhealth", canDecide: false });
+    expect(decided.body.items.map((i: { decision: string }) => i.decision).sort()).toEqual(["accepted", "declined"]);
+    await decide({ acceptedItemIds: [], awaitingItemIds: [itemId], acknowledged: true }).expect(409);
+
+    const row = await ctx.pool.query(
+      "SELECT decision_channel, decided_by, decision_note, decided_by_portal_account IS NOT NULL AS by_account FROM dental_treatment_plan WHERE id = $1",
+      [ids.awaiting],
+    );
+    expect(row.rows[0]).toEqual({ decision_channel: "portal", decided_by: null, decision_note: acknowledgement, by_account: true });
+    const staffPlan = (await staff(dentist).get(`/dental/treatment-plans/${ids.awaiting}`).expect(200)).body;
+    expect(staffPlan).toMatchObject({ decisionChannel: "portal", decisionNote: acknowledgement });
+    const audit = await auditRows(ctx.pool, "action = 'dental.plan.decide' AND resource_id = $1", [ids.awaiting]);
+    expect(audit.map((a) => [a.actor_type, a.metadata?.channel])).toEqual([["patient", "portal"]]);
+    const events = await ctx.pool.query("SELECT payload FROM domain_event WHERE event_type = 'DentalTreatmentPlanAccepted' AND aggregate_id = $1", [
+      ids.awaiting,
+    ]);
+    expect(events.rows.map((e) => e.payload)).toEqual([{ acceptedItems: 1, channel: "portal" }]);
+
+    // Turning dental records off turns online decisions off too.
+    const now = (await staff(admin).get("/dental/settings/portal").expect(200)).body;
+    const off = await staff(admin).put("/dental/settings/portal", { portalDentalRecords: false, version: now.version }).expect(200);
+    expect(off.body).toMatchObject({ portalDentalRecords: false, portalPlanDecisions: false, portalPlanAcknowledgement: acknowledgement });
   });
 });

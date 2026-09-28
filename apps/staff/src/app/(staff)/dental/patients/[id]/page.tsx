@@ -7,7 +7,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { DentalRecord, DentalRecordSupplies, DentalSettings, DentalSupplyOptions, DentalVisits } from "@/lib/api/types";
+import type { DentalPortalSetting, DentalRecord, DentalRecordSupplies, DentalSettings, DentalSupplyOptions, DentalVisits } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { openVisit } from "@/lib/dental-mapping";
 import { DentalChartPanel } from "./dental-chart-panel";
@@ -39,8 +39,9 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
     throw e;
   }
   const canRecordProcedure = can(session, "dental.procedure.record");
-  const [settings, visits, supplyOptions] = await Promise.all([
+  const [settings, portal, visits, supplyOptions] = await Promise.all([
     api<DentalSettings>("/dental/settings"),
+    api<DentalPortalSetting>("/dental/settings/portal"),
     facility ? api<DentalVisits>("/dental/visits").then((v) => v.visits) : Promise.resolve([]),
     facility && canRecordProcedure ? api<DentalSupplyOptions>("/dental/supplies/options") : Promise.resolve(null),
   ]);
@@ -128,6 +129,8 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
             canRead={can(session, "dental.imaging.read")}
             canUpload={can(session, "dental.imaging.upload") && can(session, "document.upload") && Boolean(facility)}
             canCorrect={canCorrect}
+            canRelease={can(session, "dental.imaging.release")}
+            portalOn={portal.portalDentalRecords}
           />
         </div>
       </div>
