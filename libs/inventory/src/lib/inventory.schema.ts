@@ -1,12 +1,12 @@
 import { bigint, boolean, date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0026_inventory.sql (the migration is the source of truth).
+// Mirrors database/migrations/0026_inventory.sql and 0057_dental_supplies.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 export const ITEM_CATEGORIES = ["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "other"] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
-export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off"] as const;
+export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off", "return"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 type Status = "active" | "inactive";
 
@@ -90,6 +90,9 @@ export const inventoryMovement = pgTable("inventory_movement", {
   idempotencyKey: text("idempotency_key"),
   recordedBy: uuid("recorded_by").notNull(),
   recordedAt: ts("recorded_at").notNull().defaultNow(),
+  /** The record the stock was issued to or returned from (e.g. `dental_procedure`), when another domain moved it. */
+  sourceType: text("source_type"),
+  sourceId: uuid("source_id"),
 });
 
 export type ItemRecord = typeof inventoryItem.$inferSelect;

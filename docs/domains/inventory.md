@@ -6,8 +6,9 @@ Stock of medicines, medical and dental supplies, laboratory reagents and consuma
 locations: what is on hand, by lot and expiry, and every movement that changed it. Code: `libs/inventory`
 (`scope:inventory`), migration `0026_inventory.sql`, staff `/inventory`.
 
-Not (yet) responsible for: purchase orders and procurement, automatic consumption from clinical or laboratory workflows
-(dispensing from a prescription, reagent use per test run), costing/valuation methods, or the official register
+Not (yet) responsible for: purchase orders and procurement, consumption from other clinical or laboratory workflows
+(dispensing from a prescription, reagent use per test run — dental supplies used by a procedure are wired, see below),
+costing/valuation methods, or the official register
 formats for dangerous drugs and other regulated products (a compliance dependency — see below).
 
 ## Entities
@@ -22,7 +23,9 @@ formats for dangerous drugs and other regulated products (a compliance dependenc
 - **Balance** (`inventory_balance`) — quantity per location and lot; **never negative** (check constraint).
 - **Movement** (`inventory_movement`) — the **append-only ledger** (trigger): receipt, issue, transfer out/in (two rows
   sharing a group), adjustment (count), write-off; signed quantity, balance after, supplier and unit cost (receipts,
-  centavos), reference, issued to (a department or purpose — never a patient identifier), reason, who, when.
+  centavos), reference, issued to (a department or purpose — never a patient identifier), reason, who, when; and, when
+  another domain moved the stock, its **source** (`source_type`, `source_id`, e.g. `dental_procedure` and the
+  procedure id). Kind `return` (migration `0057`) puts unused stock issued to a source back into the same lot.
 
 ## Commands
 
@@ -33,6 +36,8 @@ formats for dangerous drugs and other regulated products (a compliance dependenc
 | Transfer           | From a location of the selected facility to any active location of the organization (another branch included); FEFO like issues.      |
 | Count (adjustment) | The physical count for a lot; the difference to the balance is posted; a reason is required; a count equal to the balance is refused. |
 | Write off          | Expired, damaged or lost stock; a reason is required (expired lots can only leave this way).                                          |
+| Issue for a source | Another domain's record (a dental procedure), several items at once, **inside the caller's transaction**; rules as an issue.          |
+| Return from source | Unused stock back to the lot and location it was issued from; a reason; never more than issued to that source from the lot, net.      |
 
 All: the location must belong to the **selected facility** and be active; the item active; one transaction locks the
 balance rows, posts the movements, updates balances and audits; an **idempotency key** makes a retried request return
@@ -79,7 +84,12 @@ and expiry; the ledger is append-only; a partial unique index enforces one movem
 - Laboratory (`libs/laboratory/CLAUDE.md`, Phase 9): reagent lots here are loaded on laboratory instruments and
   recorded on results and QC runs ([laboratory-quality.md](laboratory-quality.md)), read through `InventoryQueries`
   (`lot`, `lotsInStock`) behind the laboratory's port. Loading does not move stock; consumption per test is not wired.
-- Prescriptions/dispensing and dental procedures ([dental.md](dental.md)) could consume stock through a port — not wired yet.
+- Dental ([dental.md](dental.md#supplies-used)): the supplies a procedure used are issued through
+  `InventoryStockService.issueForSource` (and unused ones returned through `returnForSource`) behind dentistry's
+  `DentalSupplies` port, in dentistry's transaction: the dental record of the use and the ledger commit together or not
+  at all. The ledger rows name the procedure as their source; the staff movements list shows "To Dental procedure" and
+  returns "From dental procedure". Items, locations and usable stock are read through `InventoryQueries`.
+- Prescriptions/dispensing could consume stock the same way — not wired yet.
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 
 ## Open questions / assumptions

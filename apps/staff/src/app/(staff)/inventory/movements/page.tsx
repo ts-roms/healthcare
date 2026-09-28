@@ -5,20 +5,24 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { InventoryMovement } from "@/lib/api/types";
+import type { InventoryMovementWithSource } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { InventoryNav } from "../inventory-nav";
 
 export const metadata = { title: "Stock movements" };
 
-const KIND: Record<InventoryMovement["kind"], string> = {
+const KIND: Record<InventoryMovementWithSource["kind"], string> = {
   receipt: "Received",
   issue: "Issued",
   transfer_out: "Transferred out",
   transfer_in: "Transferred in",
   adjustment: "Count adjustment",
   write_off: "Written off",
+  return: "Returned unused",
 };
+
+/** Records of other domains that stock is issued to or returned from. */
+const SOURCE: Record<string, string> = { dental_procedure: "dental procedure" };
 
 /** The ledger: every movement at this facility's locations, newest first (append-only). */
 export default async function MovementsPage() {
@@ -33,7 +37,7 @@ export default async function MovementsPage() {
       </>
     );
   }
-  const movements = await api<InventoryMovement[]>("/inventory/movements");
+  const movements = await api<InventoryMovementWithSource[]>("/inventory/movements");
   return (
     <>
       <PageHeader title="Stock movements" description={`${facility.name} · the latest 200 movements`} actions={nav} />
@@ -70,6 +74,7 @@ export default async function MovementsPage() {
                     <TableCell className="max-w-sm text-meta">
                       {[
                         m.issuedTo && `To ${m.issuedTo}`,
+                        m.kind === "return" && m.sourceType ? `From ${SOURCE[m.sourceType] ?? m.sourceType}` : null,
                         m.reference && `Ref. ${m.reference}`,
                         m.reason,
                         m.unitCost !== null ? `${peso(m.unitCost)} each` : null,

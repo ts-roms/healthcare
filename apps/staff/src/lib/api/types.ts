@@ -2482,3 +2482,64 @@ export interface PayloadKeyOverview {
   currentKeyId: string;
   keys: PayloadKeyUsage[];
 }
+
+// ---- Dental supplies from inventory (libs/dental/src/lib/supplies; migration 0057) ----
+
+/** GET /dental/supplies/options */
+export interface DentalSupplyOptions {
+  facilityId: string | null;
+  defaultLocationId: string | null;
+  locations: Array<{ id: string; code: string; name: string }>;
+  items: Array<{
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    stockUnit: string;
+    controlled: boolean;
+    status: "active" | "inactive";
+    /** Usable (not expired) stock per location id of the selected facility. */
+    usable: Record<string, number>;
+  }>;
+  templates: Array<{ procedureTypeId: string; items: Array<{ itemId: string; quantity: number }> }>;
+}
+
+export interface DentalSupplyUseLine {
+  id: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+  returnsLineId: string | null;
+  /** Issued lines: how much is still out (not returned). Null on return lines. */
+  outstanding: number | null;
+}
+
+export interface DentalSupplyUse {
+  id: string;
+  procedureId: string;
+  kind: "issue" | "return";
+  locationId: string;
+  locationName: string | null;
+  reason: string | null;
+  recordedBy: string;
+  recordedByName?: string | null;
+  recordedAt: string;
+  lines: DentalSupplyUseLine[];
+}
+
+/** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
+export interface DentalRecordSupplies {
+  supplyUses?: DentalSupplyUse[];
+}
+
+/** Inventory movements now include returns and the record they were issued to (e.g. a dental procedure). */
+export type InventoryMovementWithSource = Omit<InventoryMovement, "kind"> & {
+  kind: InventoryMovement["kind"] | "return";
+  sourceType?: string | null;
+  sourceId?: string | null;
+};

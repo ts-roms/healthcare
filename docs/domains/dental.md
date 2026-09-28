@@ -11,10 +11,10 @@ prescriptions (`libs/prescription` already allows dentists to prescribe) and lab
 workflow; this domain adds only what is specific to dentistry. There is no second patient table and no second
 encounter model.
 
-Also: [periodontal charting](#periodontal-charting).
+Also: [periodontal charting](#periodontal-charting), [supplies used](#supplies-used) (from inventory).
 
 Not in scope yet: orthodontic records, a patient-facing
-view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory), and a licensed procedure code set.
+view in MyHealth, dental FHIR resources, and a licensed procedure code set.
 
 ## Entities
 
@@ -71,6 +71,10 @@ view in MyHealth, dental FHIR resources, stock use of dental supplies (inventory
 | Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                     | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
 | Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`   | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
 | Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation` | Settings permission.                                                                                                                                                            |
+| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                          | Settings permission; active inventory items, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                                          |
+| Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                | Settings permission; an active inventory location of that facility, or `null`.                                                                                                  |
+| Record supplies used         | `POST /dental/procedures/:id/supplies`                                              | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                           |
+| Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                      | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                     |
 
 Examinations and procedures accept an `Idempotency-Key` header (the staff app sends one per form).
 
@@ -91,12 +95,18 @@ leaves the tooth missing; an implant or pontic replaces whatever was charted.
 - `GET /dental/perio-charts/:id` — one periodontal chart with its measurements, summary and the changes since the
   patient's previous recorded chart. Audited `dental.perio.view`. The dental record lists every chart with its summary.
 - `GET /dental/images/:id/link` — a 5-minute signed URL, audited by the documents service as `document.download`.
+- `GET /dental/supplies/options` — supply templates, the organization's active inventory items and, with a selected
+  facility, its active stock locations, usable stock per location and item, and the default location. The dental
+  record (`GET /dental/patients/:patientId`) also carries `supplyUses` (issues with their lots and what is still out,
+  returns).
 
 ## Events
 
 Published (outbox; payloads carry ids and codes only): `DentalExaminationRecorded`, `DentalChartUpdated` (aggregate
 `patient`; source and teeth), `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`
-(procedure code, plan item), `DentalProcedureEnteredInError`, `DentalPerioChartRecorded` (encounter, number of teeth).
+(procedure code, plan item), `DentalProcedureEnteredInError`, `DentalPerioChartRecorded` (encounter, number of teeth),
+`DentalSuppliesIssued` and `DentalSuppliesReturned` (aggregate `dental_procedure`; supply use, inventory movement group,
+number of lines). Inventory records `InventoryStockLow` when an issue crosses a reorder level.
 
 Consumed by billing (`ChargeCapture`): `DentalProcedurePerformed` captures a charge when a billing service maps the
 procedure's code (`source_kind = 'dental_procedure'`, description "Composite restoration — 16 MO", service date the
@@ -138,12 +148,23 @@ by `(patient_id, id)`, so a state cannot belong to another patient's record. Tri
 `prevent_mutation` (tooth states and findings). The migration also widens billing's source kinds
 (`billing_service.source_kind`, `billing_charge.source_type`) with `dental_procedure`.
 
+Migration `0057_dental_supplies.sql`: `dental_supply_template_item` (procedure type, inventory item, quantity,
+position), `dental_facility_setting.supply_location_id` (→ `inventory_location`), `dental_supply_use` (procedure by
+`(patient_id, id)`, kind `issue | return`, location, reason for returns, inventory movement group, unique idempotency
+key per organization) and `dental_supply_use_line` (inventory item, lot and movement, snapshot of item code, name,
+stock unit, lot number and expiry, quantity; a return line names the issued line). Both are append-only
+(`prevent_mutation`). The inventory's own tables gain the movement's source (`source_type`, `source_id`) and the kind
+`return` in the same migration.
+
 ## Integration points
 
 - **Clinic** (port `DentalContext`, adapter `apps/api/src/app/adapters/dental-adapters.ts`): the encounter (patient,
   facility, status), the actor's practitioner and profession, practitioner and staff names, patient briefs, and
   dentists' encounters per day (`ClinicQueries.encountersOfProfession`).
 - **Billing**: `BillingSources.dentalProcedure` (adapter over `DentalProcedureService.billable`), events above.
+- **Inventory** (port `DentalSupplies`, adapter `AppDentalSupplies` in `dental-adapters.ts` over `InventoryQueries` and
+  `InventoryStockService.issueForSource` / `returnForSource`): items, locations, usable stock, and issues and returns
+  inside dentistry's transaction.
 - **Documents**: imaging files (upload through `POST /documents`, then linked; signed download links).
 - **Prescriptions and laboratory**: through the encounter workspace of the dental visit (the dental record links to
   it as "Notes & prescriptions").
@@ -172,6 +193,46 @@ change: trigger `dental_record_guard`; teeth and sites are append-only).
 - **Staff** — "Periodontal charts" on the dental record: record (a row per tooth offered from the odontogram, missing
   and unerupted teeth left out), view a chart with the changes since the previous one, mark entered in error.
 
+## Supplies used
+
+The supplies a procedure used are taken from inventory stock (`libs/dental/src/lib/supplies`, migration `0057`).
+
+- **Templates (configuration)** — per procedure type, the inventory items and quantities usually used (e.g. anaesthetic
+  cartridge × 1, composite × 1), in order; and per facility the stock location offered first. `dental.settings.manage`;
+  audited `dental.supply-template.update` (before and after) and `dental.settings.supply-location`. Staff `/dental/settings`.
+- **Recording use** — after a procedure is recorded (the staff app opens the procedure's "Supplies used" panel), staff
+  confirm what was actually used: prefilled from the template, editable (add, remove, quantity), from a stock location
+  of the procedure's facility (the selected facility). Controlled items need a reason and a reference. The request
+  carries an idempotency key: a retry returns the recorded use; the same key for another request is refused
+  (`idempotency_key_reused`). Further supplies can be recorded later as another use; none once the procedure is
+  entered in error (`procedure_entered_in_error`).
+- **One transaction across the two domains** — the platform is one database, so dentistry opens the transaction, locks
+  the procedure row, and calls the `DentalSupplies` port with it; the API's adapter runs the inventory's own command
+  (`InventoryStockService.issueForSource`) inside that transaction: location of the actor's facility and active, items
+  active, lots first-expiry-first-out and never expired, balance rows locked and never negative, controlled items with
+  reason and reference, ledger rows (`kind = issue`, `issued_to = 'Dental procedure'`, `source_type =
+'dental_procedure'`, `source_id` = the procedure), inventory audit and `InventoryStockLow`. Dentistry then records the
+  use and one line per lot issued (a FEFO issue may split an item across lots), audits `dental.supplies.issue` with the
+  patient and procedure, and records `DentalSuppliesIssued`. Any refusal — `insufficient_stock` (details: item,
+  usable quantity, quantity in expired lots), `controlled_item_details`, `location_other_facility`, `invalid_supplies` —
+  rolls back everything: nothing is issued and nothing is recorded. Neither library imports the other.
+- **Traceability** — the dental record lists each use with item, lot number and expiry, and what is still out; the lot
+  lines are indexed by lot, so a material recall can find the procedures (and patients) that used a lot.
+- **Entered in error and returns** — used material is consumed, so marking a procedure entered in error does **not**
+  put anything back in stock. Unused supplies come back only through an explicit **return** (also after entered in
+  error): chosen issued lines and quantities, a reason (and a reference for controlled items), back to the same lots at
+  the location they were issued from (one location per return). Inventory posts `kind = return` movements with the
+  same source and refuses to take back more than was issued to the procedure from that lot net of earlier returns
+  (`return_exceeds_issued`); dentistry checks the same per issued line (`invalid_supply_return`). Audited
+  `dental.supplies.return` (with the reason), event `DentalSuppliesReturned`.
+- **Billing is unchanged** — supplies are not charged separately. An organization that charges for a material does so
+  through its own price list (e.g. a billing service mapped to the procedure code); charging supplies from their use is
+  a follow-up.
+- **Permissions** — no new ones: templates and the default location need `dental.settings.manage`; recording use and
+  returns need `dental.procedure.record` (dentists, organization administrators). Inventory's stock rules apply to the
+  movement whatever the user's inventory permissions: the dental permission authorizes the clinical action, the
+  inventory command enforces the stock rules.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.
@@ -181,5 +242,8 @@ change: trigger `dental_record_guard`; teeth and sites are append-only).
   only; a dental hygienist role, where clinics have one, is a follow-up.
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
+- Supplies: dental assistants cannot record supply use (they lack `dental.procedure.record`); a narrower permission
+  for them is a follow-up if clinics want it. Charging supplies separately and a recall search screen by lot are
+  follow-ups.
 - MyHealth does not show dental records yet; releasing plans or charts to patients needs a decision on what is
   patient-facing.
