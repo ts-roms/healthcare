@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { type Actor, DATABASE, type Database, NotFoundError } from "@healthcare/core";
+import { type Actor, DATABASE, type Database, NotFoundError, systemActor } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -23,6 +23,8 @@ export interface LabReportRow {
   releasedAt: Date | null;
   corrected: boolean;
   comment?: string | null;
+  /** Files attached to the result (staff and archived copies; listed, not embedded). */
+  attachments?: string[];
 }
 
 export interface LabReportData {
@@ -104,6 +106,7 @@ export class LabReportService {
           releasedAt: r.releasedAt,
           corrected: r.versionNumber > 1,
           comment: [r.comment, r.versionNumber > 1 && r.correctionReason ? `Corrected: ${r.correctionReason}` : null].filter(Boolean).join(" · ") || null,
+          attachments: r.attachments.filter((a) => a.status === "attached").map((a) => `${a.title} (${a.fileName})`),
         };
       }),
       pending: order.items.filter((i) => i.status !== "cancelled" && i.result?.status !== "released").map((i) => i.testName),
@@ -195,7 +198,7 @@ export class LabReportService {
     const [items, specimens, views, names] = await Promise.all([
       this.db.select().from(labOrderItem).where(eq(labOrderItem.orderId, orderId)).orderBy(asc(labOrderItem.testName)),
       this.db.select({ id: labSpecimen.id, collectedAt: labSpecimen.collectedAt }).from(labSpecimen).where(eq(labSpecimen.orderId, orderId)),
-      this.readModel.results(organizationId, results),
+      this.readModel.results(this.db, systemActor(organizationId), results),
       order.orderingPractitionerId
         ? this.context.practitionerNames(organizationId, [order.orderingPractitionerId])
         : Promise.resolve(new Map<string, string>()),
@@ -219,6 +222,7 @@ export class LabReportService {
           releasedAt: r.releasedAt,
           corrected: r.versionNumber > 1,
           comment: [r.comment, r.versionNumber > 1 && r.correctionReason ? `Corrected: ${r.correctionReason}` : null].filter(Boolean).join(" · ") || null,
+          attachments: r.attachments.filter((a) => a.status === "attached").map((a) => `${a.title} (${a.fileName})`),
         };
       }),
       // Tests of the order without a released result in this version (cancelled tests are not listed).
@@ -318,6 +322,12 @@ export function renderLabReport(data: LabReportData): Promise<Buffer> {
       if (comments.length) {
         w.heading("Comments");
         for (const r of comments) w.paragraph(`${r.test}: ${r.comment}`);
+      }
+      const attached = data.rows.filter((r) => r.attachments?.length);
+      if (attached.length) {
+        w.heading("Attachments");
+        for (const r of attached) w.paragraph(`${r.test}: ${r.attachments!.join("; ")}`);
+        w.paragraph("Attached files are kept by the laboratory with the result; ask the laboratory for a copy.", { muted: true });
       }
       if (data.rows.some((r) => r.corrected)) {
         w.paragraph("A result marked (corrected) replaces an earlier released value; the laboratory keeps both.", { muted: true });

@@ -1,6 +1,7 @@
 import "server-only";
 import { ApiError } from "@healthcare/web-session";
 import { api } from "./client";
+import type { LabResultAttachment } from "./types";
 
 interface CreatedDocument {
   document: { id: string };
@@ -40,4 +41,26 @@ export async function uploadPatientDocument({ patientId, category, title, file, 
 /** A short-lived download link (the API audits each one). */
 export function documentDownloadUrl(documentId: string): Promise<{ url: string; expiresAt: string }> {
   return api(`/documents/${documentId}/download-url`);
+}
+
+interface StartedAttachment {
+  attachment: LabResultAttachment;
+  upload: { url: string; method: "PUT"; headers: Record<string, string>; expiresAt: string };
+}
+
+/**
+ * Attaches a file to an entered laboratory result through the laboratory's two-step flow (the file is a document the
+ * laboratory manages): register, send the bytes from this server to the presigned URL, then ask the API to check the
+ * stored object and attach it. Returns the attached file.
+ */
+export async function uploadResultAttachment({ resultId, title, file }: { resultId: string; title: string; file: File }): Promise<LabResultAttachment> {
+  const { attachment, upload } = await api<StartedAttachment>(`/laboratory/results/${resultId}/attachments`, {
+    method: "POST",
+    body: { title, fileName: file.name, contentType: file.type, sizeBytes: file.size },
+  });
+  const stored = await fetch(upload.url, { method: upload.method, headers: upload.headers, body: await file.arrayBuffer(), cache: "no-store" }).catch(
+    () => undefined,
+  );
+  if (!stored?.ok) throw new ApiError(502, "storage_upload_failed", "The file could not be stored. Remove the pending attachment and try again.");
+  return api<LabResultAttachment>(`/laboratory/attachments/${attachment.id}/complete`, { method: "POST" });
 }

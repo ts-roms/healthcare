@@ -5,7 +5,9 @@ import {
   AlertOctagonIcon,
   BanIcon,
   CheckIcon,
+  FileIcon,
   FlaskConicalIcon,
+  PaperclipIcon,
   PencilIcon,
   PrinterIcon,
   SendIcon,
@@ -27,7 +29,19 @@ import {
   resultValue,
   uiFlag,
 } from "@/lib/lab-mapping";
-import { cancelResult, collectSpecimen, correctResult, enterResult, receiveSpecimen, rejectSpecimen, signResult } from "../actions";
+import {
+  attachResultFile,
+  cancelResult,
+  collectSpecimen,
+  correctResult,
+  enterResult,
+  receiveSpecimen,
+  rejectSpecimen,
+  removeResultAttachment,
+  resultAttachmentUrl,
+  signResult,
+} from "../actions";
+import { fileSize } from "@/lib/lab-attachments";
 
 export interface LabPermissions {
   collect: boolean;
@@ -387,6 +401,7 @@ function ResultRow({ item, result, permissions, onChanged }: { item: LabOrderIte
         </p>
       ) : null}
       {result.comment ? <p className="text-meta">Comment: {result.comment}</p> : null}
+      <ResultAttachments result={result} editable={result.status === "entered" && permissions.enter} onChanged={onChanged} />
 
       {mode === "view" ? (
         <div className="flex flex-wrap gap-1.5">
@@ -516,6 +531,107 @@ function SignAll({ items, permissions, onChanged }: { items: LabOrderItem[]; per
           {step === "verify" ? "Verify" : step === "approve" ? "Approve" : "Release"} all {results.length}
         </Button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Files on a result version. Added or removed only while the result is entered (from verification on they are part of
+ * what was verified and released); opening one fetches a short-lived link, audited by the API.
+ */
+function ResultAttachments({ result, editable, onChanged }: { result: LabResult; editable: boolean; onChanged: () => void }) {
+  const { pending, run } = useRun(onChanged);
+  const [removing, setRemoving] = React.useState<string | null>(null);
+  const [reason, setReason] = React.useState("");
+  const [opening, startOpen] = React.useTransition();
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const attachments = result.attachments ?? [];
+  if (!editable && attachments.length === 0) return null;
+
+  const open = (attachmentId: string) =>
+    startOpen(async () => {
+      const link = await resultAttachmentUrl(attachmentId);
+      if (link.ok) window.open(link.data.url, "_blank", "noopener,noreferrer");
+      else toast.error(link.message);
+    });
+  const upload = (file: File | undefined) => {
+    if (!file) return;
+    const data = new FormData();
+    data.set("resultId", result.id);
+    data.set("file", file);
+    run(
+      () => attachResultFile(data),
+      `Attached ${file.name}`,
+      () => {
+        if (fileRef.current) fileRef.current.value = "";
+      },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-1" aria-label="Attachments">
+      {attachments.map((a) => (
+        <div key={a.id} className="flex flex-wrap items-center gap-2 text-meta">
+          <FileIcon className="size-3.5 text-muted-foreground" aria-hidden />
+          <span className="font-medium">{a.title}</span>
+          <span className="text-muted-foreground">
+            {a.fileName} · {fileSize(a.sizeBytes)}
+          </span>
+          {a.status === "pending" ? (
+            <Badge variant="warning">Upload not finished</Badge>
+          ) : (
+            <Button size="xs" variant="ghost" disabled={opening} onClick={() => open(a.id)}>
+              Open
+            </Button>
+          )}
+          {editable && removing !== a.id ? (
+            <Button size="xs" variant="ghost" disabled={pending} onClick={() => (setRemoving(a.id), setReason(""))}>
+              Remove…
+            </Button>
+          ) : null}
+          {editable && removing === a.id ? (
+            <form
+              className="flex items-center gap-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                run(
+                  () => removeResultAttachment({ attachmentId: a.id, reason }),
+                  `Removed ${a.title}`,
+                  () => setRemoving(null),
+                );
+              }}
+            >
+              <Input
+                aria-label="Reason for removing"
+                placeholder="Reason (kept with the result)"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="h-7 w-56"
+              />
+              <Button size="xs" type="submit" variant="destructive" disabled={pending || reason.trim().length < 5}>
+                Remove
+              </Button>
+              <Button size="xs" type="button" variant="ghost" onClick={() => setRemoving(null)}>
+                Keep
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      ))}
+      {editable ? (
+        <label className="inline-flex w-fit cursor-pointer items-center gap-1 text-meta text-primary hover:underline">
+          <PaperclipIcon className="size-3.5" aria-hidden />
+          {pending ? "Attaching…" : "Attach a file (PDF or image, up to 10 MB)"}
+          <input
+            ref={fileRef}
+            type="file"
+            className="sr-only"
+            accept="application/pdf,image/jpeg,image/png,image/heic,image/tiff"
+            disabled={pending}
+            onChange={(e) => upload(e.target.files?.[0])}
+          />
+        </label>
+      ) : null}
     </div>
   );
 }

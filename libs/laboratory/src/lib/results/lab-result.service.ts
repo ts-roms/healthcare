@@ -38,6 +38,7 @@ import {
   type LabOrderRecord,
   labReferenceRange,
   labResult,
+  labResultAttachment,
   type LabResultRecord,
   type LabTestRecord,
   labSpecimen,
@@ -151,7 +152,7 @@ export class LabResultService {
         released.push(await this.releaseLocked(tx, actor, row));
       }
       await this.recordReportReleased(tx, orderId);
-      return this.readModel.results(actor.organizationId, released);
+      return this.readModel.results(tx, actor, released);
     });
   }
 
@@ -237,7 +238,7 @@ export class LabResultService {
       resourceId: current.orderId,
       patientId: current.patientId,
     });
-    return this.readModel.results(actor.organizationId, rows);
+    return this.readModel.results(this.db, actor, rows);
   }
 
   /** A patient's released results (current versions), newest first — for Patient 360 and the encounter workspace. */
@@ -259,7 +260,8 @@ export class LabResultService {
       .limit(200);
     await this.audit.recordStandalone(actor, { action: "lab.result.list", resourceType: "lab_result", patientId });
     const views = await this.readModel.results(
-      actor.organizationId,
+      this.db,
+      actor,
       rows.map((r) => r.result),
     );
     return rows.map((r, index) => ({ ...views[index]!, testCode: r.testCode, testName: r.testName, orderNumber: r.orderNumber, collectedAt: r.collectedAt }));
@@ -430,6 +432,15 @@ export class LabResultService {
       this.assertFacility(current, facilityId);
       if (current.status !== (kind === "verify" ? "entered" : "verified")) {
         throw new ConflictError(`The result is ${current.status}; it cannot be ${target} now`, undefined, "invalid_result_status");
+      }
+      if (kind === "verify") {
+        // What is verified is frozen, attachments included: an upload still in progress must finish or be removed first.
+        const [pending] = await tx
+          .select({ id: labResultAttachment.id })
+          .from(labResultAttachment)
+          .where(and(eq(labResultAttachment.resultId, current.id), eq(labResultAttachment.status, "pending")))
+          .limit(1);
+        if (pending) throw new BusinessRuleError("An attachment of this result is still uploading: finish or remove it before verifying", "attachment_pending");
       }
       const policy = await this.catalog.policy(tx, current.facilityId);
       const decision = signOffDecision(kind, current, actor.userId, policy);
@@ -632,8 +643,7 @@ export class LabResultService {
   }
 
   private async view(executor: DbExecutor, actor: Actor, row: LabResultRecord): Promise<ResultView> {
-    void executor;
-    const [view] = await this.readModel.results(actor.organizationId, [row]);
+    const [view] = await this.readModel.results(executor, actor, [row]);
     return view!;
   }
 

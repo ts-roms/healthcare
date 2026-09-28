@@ -11,6 +11,7 @@ import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
+import { LabResultAttachments } from "./results/lab-result-attachments";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./results/lab-report-archive";
 import { bullMqLabReportArchiveQueue, LabReportArchiveWorker } from "./results/lab-report-archive-queue";
 import { LabResultService } from "./results/lab-result.service";
@@ -42,6 +43,7 @@ export class LaboratoryModule {
         LabReportService,
         LabReportArchive,
         LabResultService,
+        LabResultAttachments,
         LabWorklistService,
         { provide: LABORATORY_CONTEXT, useClass: options.context },
         options.archiveQueue ?? bullMqLabReportArchiveQueue,

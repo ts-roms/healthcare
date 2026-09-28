@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { AlertOctagonIcon, LineChartIcon, PrinterIcon } from "lucide-react";
+import { AlertOctagonIcon, LineChartIcon, PaperclipIcon, PrinterIcon } from "lucide-react";
 import { clinicalDate, LabFlagBadge, LabTrendChart } from "@healthcare/ui/healthcare";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabTrend, PatientLabResult } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import { groupResultsByTest, latestRange, mixedUnits, referenceText, resultValue, trendPoints, uiFlag } from "@/lib/lab-mapping";
-import { loadLabTrend } from "../../laboratory/actions";
+import { loadLabTrend, resultAttachmentUrl } from "../../laboratory/actions";
 
 /**
  * The patient's released laboratory results, latest per test, with a trend
@@ -26,6 +26,14 @@ export function PatientLabResults({ patientId, results }: { patientId: string; r
       const result = await loadLabTrend(patientId, testId);
       if (result.ok) setTrend({ testId, data: result.data });
       else toast.error(result.message);
+    });
+
+  // Attachments are served through short-lived links (the API checks the result is released and audits each).
+  const openAttachment = (attachmentId: string) =>
+    start(async () => {
+      const link = await resultAttachmentUrl(attachmentId);
+      if (link.ok) window.open(link.data.url, "_blank", "noopener,noreferrer");
+      else toast.error(link.message);
     });
 
   return (
@@ -48,6 +56,16 @@ export function PatientLabResults({ patientId, results }: { patientId: string; r
                 <TableCell>
                   {testName}
                   {latest.versionNumber > 1 ? <span className="block text-meta text-warning-foreground">Corrected: {latest.correctionReason}</span> : null}
+                  {(latest.attachments ?? []).map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="flex items-center gap-1 text-meta text-primary hover:underline"
+                      onClick={() => openAttachment(a.id)}
+                    >
+                      <PaperclipIcon className="size-3" aria-hidden /> {a.title}
+                    </button>
+                  ))}
                 </TableCell>
                 <TableCell>
                   <span className="flex flex-wrap items-center gap-1.5">

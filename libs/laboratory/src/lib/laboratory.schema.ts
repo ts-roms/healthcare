@@ -1,6 +1,6 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0015_laboratory.sql and 0030_lab_report_archive.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql and 0040_lab_result_attachments.sql (the migrations are the source of truth).
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
 export type ResultType = (typeof RESULT_TYPES)[number];
@@ -292,6 +292,29 @@ export const labReportArchive = pgTable("lab_report_archive", {
   storedAt: timestamp("stored_at", { withTimezone: true }),
 });
 
+export type LabResultAttachmentStatus = "pending" | "attached" | "removed";
+
+/** A file attached to a result version (the file is a laboratory-managed document); see migration 0040. */
+export const labResultAttachment = pgTable("lab_result_attachment", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  resultId: uuid("result_id").notNull(),
+  documentId: uuid("document_id").notNull(),
+  title: text("title").notNull(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+  status: text("status").$type<LabResultAttachmentStatus>().notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid("created_by").notNull(),
+  attachedAt: timestamp("attached_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  removedBy: uuid("removed_by"),
+  removalReason: text("removal_reason"),
+});
+
 export type LabDepartmentRecord = typeof labDepartment.$inferSelect;
 export type LabSpecimenTypeRecord = typeof labSpecimenType.$inferSelect;
 export type LabTestRecord = typeof labTest.$inferSelect;
@@ -304,4 +327,5 @@ export type LabSpecimenRecord = typeof labSpecimen.$inferSelect;
 export type LabSpecimenEventRecord = typeof labSpecimenEvent.$inferSelect;
 export type LabResultRecord = typeof labResult.$inferSelect;
 export type LabCriticalAlertRecord = typeof labCriticalAlert.$inferSelect;
+export type LabResultAttachmentRecord = typeof labResultAttachment.$inferSelect;
 export type LabReportArchiveRecord = typeof labReportArchive.$inferSelect;

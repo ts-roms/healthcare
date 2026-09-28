@@ -742,6 +742,20 @@ export interface LabResult {
   releasedAt: string | null;
   releasedByName: string | null;
   cancellationReason: string | null;
+  /** Files on this version (pending uploads are shown to laboratory staff only). */
+  attachments: LabResultAttachment[];
+}
+
+export interface LabResultAttachment {
+  id: string;
+  resultId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  status: "pending" | "attached" | "removed";
+  createdAt: string;
+  attachedAt: string | null;
 }
 
 export interface LabSpecimen {
