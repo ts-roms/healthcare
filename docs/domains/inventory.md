@@ -76,8 +76,9 @@ and expiry; the ledger is append-only; a partial unique index enforces one movem
 
 ## Integration points
 
-- Laboratory (`libs/laboratory/CLAUDE.md`, Phase 9): reagent lots here are the lots results should later reference
-  (with instrument and QC run). Not wired yet.
+- Laboratory (`libs/laboratory/CLAUDE.md`, Phase 9): reagent lots here are loaded on laboratory instruments and
+  recorded on results and QC runs ([laboratory-quality.md](laboratory-quality.md)), read through `InventoryQueries`
+  (`lot`, `lotsInStock`) behind the laboratory's port. Loading does not move stock; consumption per test is not wired.
 - Prescriptions/dispensing and dental procedures ([dental.md](dental.md)) could consume stock through a port — not wired yet.
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 

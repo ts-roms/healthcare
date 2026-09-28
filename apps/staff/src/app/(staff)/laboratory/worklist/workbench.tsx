@@ -7,7 +7,7 @@ import { AlertOctagonIcon, ScanBarcodeIcon, TruckIcon, ZapIcon } from "lucide-re
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
+import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { LiveIndicator, useLabUpdates } from "@/components/live-queue";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
 import { findByAccession } from "../actions";
@@ -21,6 +21,7 @@ export function LabWorkbench({
   dashboard,
   departments,
   specimenTypes,
+  instruments,
   referenceLabs,
   permissions,
 }: {
@@ -31,6 +32,8 @@ export function LabWorkbench({
   dashboard: LabDashboard | null;
   departments: LabCatalogEntry[];
   specimenTypes: LabSpecimenType[];
+  /** Active instruments at the facility, for result entry. */
+  instruments: LabInstrument[];
   referenceLabs: ReferenceLaboratory[];
   permissions: LabPermissions;
 }) {
@@ -217,6 +220,7 @@ export function LabWorkbench({
             stage={scanned ? null : stage}
             permissions={permissions}
             specimenTypeName={specimenTypeName}
+            instruments={instruments}
             referenceLabs={referenceLabs}
             onChanged={afterChange}
           />

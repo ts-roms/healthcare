@@ -1,8 +1,8 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql and
-// 0047_reference_laboratory.sql (the migrations are the source of truth).
-// Send-out tables (0047) are in send-outs/send-out.schema.ts.
+// Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql,
+// 0047_reference_laboratory.sql, 0050_lab_quality.sql and 0051_lab_reagent_lots.sql (the migrations are the source of
+// truth). Send-out tables (0047) are in send-outs/send-out.schema.ts.
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
 export type ResultType = (typeof RESULT_TYPES)[number];
@@ -115,6 +115,10 @@ export const labFacilityPolicy = pgTable("lab_facility_policy", {
   allowSelfVerification: boolean("allow_self_verification").notNull().default(false),
   allowSelfApproval: boolean("allow_self_approval").notNull().default(false),
   releaseOnApproval: boolean("release_on_approval").notNull().default(false),
+  qcRejectRules: text("qc_reject_rules").array().$type<QcRejectRule[]>().notNull().default(["1_3s", "2_2s", "R_4s"]),
+  qcValidHours: integer("qc_valid_hours").notNull().default(24),
+  qcRequired: boolean("qc_required").notNull().default(false),
+  qcAfterReagentChange: boolean("qc_after_reagent_change").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid("updated_by").notNull(),
   version: integer("version").notNull().default(1),
@@ -253,6 +257,9 @@ export const labResult = pgTable("lab_result", {
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   cancelledBy: uuid("cancelled_by"),
   cancellationReason: text("cancellation_reason"),
+  instrumentId: uuid("instrument_id"),
+  qcRunId: uuid("qc_run_id"),
+  qcStatus: text("qc_status").$type<QcStatus | "none">(),
   /** Performed by a reference laboratory (null: the facility's own laboratory); the name is a snapshot. */
   sendOutId: uuid("send_out_id"),
   referenceLaboratoryId: uuid("reference_laboratory_id"),
@@ -276,6 +283,161 @@ export const labCriticalAlert = pgTable("lab_critical_alert", {
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
   acknowledgedBy: uuid("acknowledged_by"),
 });
+
+// ---- Quality management (0050) --------------------------------------------------------------
+
+/** Westgard rules a facility may set to reject a run; 1_2s is always a warning. */
+export const QC_REJECT_RULES = ["1_3s", "2_2s", "R_4s", "4_1s", "10_x"] as const;
+export type QcRejectRule = (typeof QC_REJECT_RULES)[number];
+export type QcStatus = "accepted" | "warning" | "rejected";
+export type InstrumentStatus = "active" | "out_of_service" | "retired";
+export const INSTRUMENT_EVENT_KINDS = ["maintenance", "calibration", "repair", "verification", "out_of_service", "returned_to_service", "retired"] as const;
+export type InstrumentEventKind = (typeof INSTRUMENT_EVENT_KINDS)[number];
+
+export const labInstrument = pgTable("lab_instrument", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  departmentId: uuid("department_id"),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  status: text("status").$type<InstrumentStatus>().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid("created_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+
+export const labInstrumentEvent = pgTable("lab_instrument_event", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  instrumentId: uuid("instrument_id").notNull(),
+  kind: text("kind").$type<InstrumentEventKind>().notNull(),
+  outcome: text("outcome").$type<"pass" | "fail">(),
+  performedAt: timestamp("performed_at", { withTimezone: true }).notNull(),
+  nextDueOn: date("next_due_on"),
+  notes: text("notes"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  recordedBy: uuid("recorded_by").notNull(),
+});
+
+export const labQcMaterial = pgTable("lab_qc_material", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  level: text("level").notNull(),
+  manufacturer: text("manufacturer"),
+  status: text("status").$type<CatalogStatus>().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const labQcLot = pgTable("lab_qc_lot", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  materialId: uuid("material_id").notNull(),
+  lotNumber: text("lot_number").notNull(),
+  expiresOn: date("expires_on").notNull(),
+  status: text("status").$type<"active" | "retired">().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const labQcTarget = pgTable("lab_qc_target", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  qcLotId: uuid("qc_lot_id").notNull(),
+  testId: uuid("test_id").notNull(),
+  instrumentId: uuid("instrument_id").notNull(),
+  mean: decimal("mean").notNull(),
+  sd: decimal("sd").notNull(),
+  source: text("source"),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid("created_by").notNull(),
+});
+
+export const labQcRun = pgTable("lab_qc_run", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  instrumentId: uuid("instrument_id").notNull(),
+  testId: uuid("test_id").notNull(),
+  qcLotId: uuid("qc_lot_id").notNull(),
+  targetId: uuid("target_id").notNull(),
+  value: decimal("value").notNull(),
+  targetMean: decimal("target_mean").notNull(),
+  targetSd: decimal("target_sd").notNull(),
+  zScore: decimal("z_score").notNull(),
+  status: text("status").$type<QcStatus>().notNull(),
+  violations: text("violations").array().notNull().default([]),
+  comment: text("comment"),
+  runAt: timestamp("run_at", { withTimezone: true }).notNull(),
+  enteredAt: timestamp("entered_at", { withTimezone: true }).notNull().defaultNow(),
+  enteredBy: uuid("entered_by").notNull(),
+});
+
+export const labQcAction = pgTable("lab_qc_action", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  qcRunId: uuid("qc_run_id").notNull(),
+  action: text("action").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  recordedBy: uuid("recorded_by").notNull(),
+});
+
+// ---- Reagent lots (0051) ---------------------------------------------------------------------
+
+export const labReagentLoad = pgTable("lab_reagent_load", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  instrumentId: uuid("instrument_id").notNull(),
+  testId: uuid("test_id"),
+  inventoryItemId: uuid("inventory_item_id").notNull(),
+  inventoryLotId: uuid("inventory_lot_id").notNull(),
+  itemCode: text("item_code").notNull(),
+  itemName: text("item_name").notNull(),
+  lotNumber: text("lot_number"),
+  expiryDate: date("expiry_date"),
+  loadedAt: timestamp("loaded_at", { withTimezone: true }).notNull(),
+  loadedBy: uuid("loaded_by").notNull(),
+  unloadedAt: timestamp("unloaded_at", { withTimezone: true }),
+  unloadedBy: uuid("unloaded_by"),
+  unloadReason: text("unload_reason"),
+});
+
+export const labResultReagent = pgTable(
+  "lab_result_reagent",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    resultId: uuid("result_id").notNull(),
+    reagentLoadId: uuid("reagent_load_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.resultId, t.reagentLoadId] })],
+);
+
+export const labQcRunReagent = pgTable(
+  "lab_qc_run_reagent",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    qcRunId: uuid("qc_run_id").notNull(),
+    reagentLoadId: uuid("reagent_load_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.qcRunId, t.reagentLoadId] })],
+);
+
+export type LabReagentLoadRecord = typeof labReagentLoad.$inferSelect;
+export type LabInstrumentRecord = typeof labInstrument.$inferSelect;
+export type LabInstrumentEventRecord = typeof labInstrumentEvent.$inferSelect;
+export type LabQcMaterialRecord = typeof labQcMaterial.$inferSelect;
+export type LabQcLotRecord = typeof labQcLot.$inferSelect;
+export type LabQcTargetRecord = typeof labQcTarget.$inferSelect;
+export type LabQcRunRecord = typeof labQcRun.$inferSelect;
+export type LabQcActionRecord = typeof labQcAction.$inferSelect;
 
 export type LabReportArchiveStatus = "pending" | "stored" | "failed";
 

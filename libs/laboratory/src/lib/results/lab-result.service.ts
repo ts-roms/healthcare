@@ -48,6 +48,7 @@ import {
 import { found, publicView } from "../laboratory-support";
 import { LabCatalogService } from "../catalog/lab-catalog.service";
 import { LabOrderService } from "../orders/lab-order.service";
+import { LabQualityService } from "../quality/lab-quality.service";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
 import { type ResultAttribution, SendOutService } from "../send-outs/send-out.service";
 
@@ -83,6 +84,7 @@ export class LabResultService {
     private readonly readModel: LabReadModel,
     private readonly catalog: LabCatalogService,
     private readonly orders: LabOrderService,
+    private readonly quality: LabQualityService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
@@ -571,6 +573,7 @@ export class LabResultService {
     const definition = found(test, "Laboratory test");
     const value = this.validateValue(definition, input);
     const interpretation = await this.interpret(tx, actor, order, definition, value);
+    const qc = input.instrumentId ? await this.quality.qcForResult(tx, actor.organizationId, order.facilityId, input.instrumentId, definition.id) : null;
     const [row] = await tx
       .insert(labResult)
       .values({
@@ -596,7 +599,10 @@ export class LabResultService {
         refText: interpretation.range?.textRange ?? null,
         comment: input.comment ?? null,
         method: input.method ?? null,
-        instrument: input.instrument ?? null,
+        instrument: input.instrument ?? qc?.instrument.name ?? null,
+        instrumentId: qc?.instrument.id ?? null,
+        qcRunId: qc?.qcRunId ?? null,
+        qcStatus: qc?.qcStatus ?? null,
         patientReleasable: definition.patientReleasable,
         enteredBy: actor.userId,
         sendOutId: options.attribution?.sendOutId ?? null,
@@ -604,7 +610,9 @@ export class LabResultService {
         performingLaboratory: options.attribution?.performingLaboratory ?? null,
       })
       .returning();
-    return found(row, "Laboratory result");
+    const created = found(row, "Laboratory result");
+    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created.id, qc.reagentLoadIds);
+    return created;
   }
 
   private validateValue(test: LabTestRecord, input: ResultValueInput): Pick<LabResultRecord, "valueNumeric" | "valueText" | "valueCoded"> {

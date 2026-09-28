@@ -17,10 +17,10 @@ import {
   TruckIcon,
   ZapIcon,
 } from "lucide-react";
-import { clinicalDateTime, LabFlagBadge } from "@healthcare/ui/healthcare";
+import { clinicalDateTime, LabFlagBadge, QcStatusBadge } from "@healthcare/ui/healthcare";
 import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import { PerformedBy, SendOutBadge } from "@/components/send-out-badge";
-import type { LabOrderItem, LabResult, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
+import type { LabInstrument, LabOrderItem, LabResult, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import {
   bySpecimenType,
@@ -47,6 +47,27 @@ import {
 } from "../actions";
 import { fileSize } from "@/lib/lab-attachments";
 
+/** Active instruments at the facility; a result names the one it was measured on (the API links the QC in force). */
+const InstrumentsContext = React.createContext<LabInstrument[]>([]);
+
+function InstrumentSelect({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const instruments = React.useContext(InstrumentsContext);
+  if (instruments.length === 0) return null;
+  return (
+    <div className="grid gap-1">
+      <Label htmlFor={id}>Instrument</Label>
+      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Manual / not on a registered instrument</option>
+        {instruments.map((i) => (
+          <option key={i.id} value={i.id}>
+            {i.name}
+          </option>
+        ))}
+      </NativeSelect>
+    </div>
+  );
+}
+
 export interface LabPermissions {
   collect: boolean;
   receive: boolean;
@@ -68,6 +89,7 @@ export function WorkbenchDetail({
   stage,
   permissions,
   specimenTypeName,
+  instruments = [],
   referenceLabs,
   onChanged,
 }: {
@@ -76,6 +98,7 @@ export function WorkbenchDetail({
   stage: LabWorklistStage | null;
   permissions: LabPermissions;
   specimenTypeName: Map<string, string>;
+  instruments?: LabInstrument[];
   referenceLabs: ReferenceLaboratory[];
   onChanged: () => void;
 }) {
@@ -88,83 +111,85 @@ export function WorkbenchDetail({
   const canReject = permissions.reject && specimen && ["collected", "received"].includes(specimen.status) && !items.some((i) => i.status === "released");
 
   return (
-    <div className="flex flex-col gap-4 p-3">
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-section font-semibold">{patient?.displayName ?? "Patient"}</h2>
-          {order.priority === "stat" ? (
-            <Badge variant="critical">
-              <ZapIcon aria-hidden /> STAT
-            </Badge>
-          ) : (
-            <Badge variant="neutral">{PRIORITY_LABEL[order.priority]}</Badge>
-          )}
-          {order.fastingRequired ? <Badge variant="info">Fasting</Badge> : null}
-        </div>
-        <p className="text-meta text-muted-foreground">
-          {patient ? `${patient.patientNumber} · ${patient.sex} · ${patient.age} y · ` : null}
-          Order <span className="font-mono">{order.orderNumber}</span> · {clinicalDateTime(order.orderedAt)}
-        </p>
-        <p className="text-meta text-muted-foreground">
-          Requested by {order.orderingPractitionerName ?? order.externalOrderer ?? order.orderedByName ?? "—"}
-          {order.source === "external" ? " (external)" : order.source === "patient_request" ? " (patient request)" : ""}
-        </p>
-        {order.clinicalIndication ? <p className="text-table">Indication: {order.clinicalIndication}</p> : null}
-        {order.notes ? <p className="text-table text-muted-foreground">Notes: {order.notes}</p> : null}
-        {specimen ? (
-          <p className="mt-1 rounded-md border bg-card px-2 py-1.5 text-table">
-            <FlaskConicalIcon className="mr-1 inline size-4 align-text-bottom" aria-hidden />
-            <span className="font-mono text-body font-semibold">{specimen.accessionNumber}</span> ·{" "}
-            {specimenTypeName.get(specimen.specimenTypeId) ?? "Specimen"} · {specimen.status} · collected {clinicalDateTime(specimen.collectedAt)}
-            {specimen.collectedByName ? ` by ${specimen.collectedByName}` : ""}
-            {specimen.receivedAt ? ` · received ${clinicalDateTime(specimen.receivedAt)}` : ""}
+    <InstrumentsContext.Provider value={instruments}>
+      <div className="flex flex-col gap-4 p-3">
+        <header className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-section font-semibold">{patient?.displayName ?? "Patient"}</h2>
+            {order.priority === "stat" ? (
+              <Badge variant="critical">
+                <ZapIcon aria-hidden /> STAT
+              </Badge>
+            ) : (
+              <Badge variant="neutral">{PRIORITY_LABEL[order.priority]}</Badge>
+            )}
+            {order.fastingRequired ? <Badge variant="info">Fasting</Badge> : null}
+          </div>
+          <p className="text-meta text-muted-foreground">
+            {patient ? `${patient.patientNumber} · ${patient.sex} · ${patient.age} y · ` : null}
+            Order <span className="font-mono">{order.orderNumber}</span> · {clinicalDateTime(order.orderedAt)}
+          </p>
+          <p className="text-meta text-muted-foreground">
+            Requested by {order.orderingPractitionerName ?? order.externalOrderer ?? order.orderedByName ?? "—"}
+            {order.source === "external" ? " (external)" : order.source === "patient_request" ? " (patient request)" : ""}
+          </p>
+          {order.clinicalIndication ? <p className="text-table">Indication: {order.clinicalIndication}</p> : null}
+          {order.notes ? <p className="text-table text-muted-foreground">Notes: {order.notes}</p> : null}
+          {specimen ? (
+            <p className="mt-1 rounded-md border bg-card px-2 py-1.5 text-table">
+              <FlaskConicalIcon className="mr-1 inline size-4 align-text-bottom" aria-hidden />
+              <span className="font-mono text-body font-semibold">{specimen.accessionNumber}</span> ·{" "}
+              {specimenTypeName.get(specimen.specimenTypeId) ?? "Specimen"} · {specimen.status} · collected {clinicalDateTime(specimen.collectedAt)}
+              {specimen.collectedByName ? ` by ${specimen.collectedByName}` : ""}
+              {specimen.receivedAt ? ` · received ${clinicalDateTime(specimen.receivedAt)}` : ""}
+            </p>
+          ) : null}
+          {specimen && permissions.collect && specimen.status !== "rejected" ? (
+            <Button asChild size="xs" variant="outline" className="self-start">
+              <a href={fileHref.specimenLabel(specimen.id)} target="_blank" rel="noreferrer">
+                <PrinterIcon /> Print tube label
+              </a>
+            </Button>
+          ) : null}
+        </header>
+
+        {stage === "collect" && permissions.collect ? <CollectPanel row={row} specimenTypeName={specimenTypeName} onChanged={onChanged} /> : null}
+
+        {specimen?.status === "collected" && permissions.receive ? <ReceiveButton specimenId={specimen.id} onChanged={onChanged} /> : null}
+
+        {sentOut.length ? <SendOutList items={sentOut} /> : null}
+
+        {toEnter.length && permissions.enter ? <EnterPanel items={toEnter} onChanged={onChanged} /> : null}
+
+        {toEnter.length && permissions.receive && referenceLabs.length ? (
+          <SendOutForm items={toEnter} referenceLabs={referenceLabs} onChanged={onChanged} />
+        ) : null}
+
+        {withResults.length ? (
+          <section aria-labelledby="results-heading" className="flex flex-col gap-2">
+            <h3 id="results-heading" className="text-table font-semibold">
+              Results
+            </h3>
+            {withResults.map((item) => (
+              <ResultRow key={item.id} item={item} result={item.result!} permissions={permissions} onChanged={onChanged} />
+            ))}
+            <SignAll items={withResults} permissions={permissions} onChanged={onChanged} />
+          </section>
+        ) : null}
+
+        {items.some((i) => i.status === "cancelled") ? (
+          <p className="text-meta text-muted-foreground">
+            Cancelled:{" "}
+            {items
+              .filter((i) => i.status === "cancelled")
+              .map((i) => `${i.testName} (${i.cancellationReason})`)
+              .join("; ")}
           </p>
         ) : null}
-        {specimen && permissions.collect && specimen.status !== "rejected" ? (
-          <Button asChild size="xs" variant="outline" className="self-start">
-            <a href={fileHref.specimenLabel(specimen.id)} target="_blank" rel="noreferrer">
-              <PrinterIcon /> Print tube label
-            </a>
-          </Button>
-        ) : null}
-      </header>
 
-      {stage === "collect" && permissions.collect ? <CollectPanel row={row} specimenTypeName={specimenTypeName} onChanged={onChanged} /> : null}
-
-      {specimen?.status === "collected" && permissions.receive ? <ReceiveButton specimenId={specimen.id} onChanged={onChanged} /> : null}
-
-      {sentOut.length ? <SendOutList items={sentOut} /> : null}
-
-      {toEnter.length && permissions.enter ? <EnterPanel items={toEnter} onChanged={onChanged} /> : null}
-
-      {toEnter.length && permissions.receive && referenceLabs.length ? (
-        <SendOutForm items={toEnter} referenceLabs={referenceLabs} onChanged={onChanged} />
-      ) : null}
-
-      {withResults.length ? (
-        <section aria-labelledby="results-heading" className="flex flex-col gap-2">
-          <h3 id="results-heading" className="text-table font-semibold">
-            Results
-          </h3>
-          {withResults.map((item) => (
-            <ResultRow key={item.id} item={item} result={item.result!} permissions={permissions} onChanged={onChanged} />
-          ))}
-          <SignAll items={withResults} permissions={permissions} onChanged={onChanged} />
-        </section>
-      ) : null}
-
-      {items.some((i) => i.status === "cancelled") ? (
-        <p className="text-meta text-muted-foreground">
-          Cancelled:{" "}
-          {items
-            .filter((i) => i.status === "cancelled")
-            .map((i) => `${i.testName} (${i.cancellationReason})`)
-            .join("; ")}
-        </p>
-      ) : null}
-
-      {canReject && specimen ? <RejectForm specimenId={specimen.id} onChanged={onChanged} /> : null}
-    </div>
+        {canReject && specimen ? <RejectForm specimenId={specimen.id} onChanged={onChanged} /> : null}
+      </div>
+    </InstrumentsContext.Provider>
   );
 }
 
@@ -315,6 +340,7 @@ function EnterPanel({ items, onChanged }: { items: LabOrderItem[]; onChanged: ()
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [comments, setComments] = React.useState<Record<string, string>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [instrumentId, setInstrumentId] = React.useState("");
   const [pending, start] = React.useTransition();
   const filled = items.filter((i) => (values[i.id] ?? "").trim());
 
@@ -329,7 +355,7 @@ function EnterPanel({ items, onChanged }: { items: LabOrderItem[]; onChanged: ()
           nextErrors[item.id] = parsed.message;
           continue;
         }
-        const result = await enterResult({ itemId: item.id, value: parsed.value, comment: comments[item.id] });
+        const result = await enterResult({ itemId: item.id, value: parsed.value, comment: comments[item.id], instrumentId: instrumentId || undefined });
         if (result.ok) saved += 1;
         else nextErrors[item.id] = result.message;
       }
@@ -346,6 +372,7 @@ function EnterPanel({ items, onChanged }: { items: LabOrderItem[]; onChanged: ()
       <h3 id="enter-heading" className="text-table font-semibold">
         Enter results
       </h3>
+      <InstrumentSelect id="enter-instrument" value={instrumentId} onChange={setInstrumentId} />
       {items.map((item) => (
         <div key={item.id} className="grid gap-1 rounded-md border bg-card p-2">
           <Label htmlFor={`value-${item.id}`}>{item.testName}</Label>
@@ -422,6 +449,16 @@ function ResultRow({ item, result, permissions, onChanged }: { item: LabOrderIte
         </p>
       ) : null}
       {result.comment ? <p className="text-meta">Comment: {result.comment}</p> : null}
+      {result.qcStatus ? (
+        <p className="flex flex-wrap items-center gap-1.5 text-meta text-muted-foreground">
+          {result.instrument ?? "Instrument"} · <QcStatusBadge status={result.qcStatus} />
+          {result.qcStatus === "rejected" ? (
+            <span className="text-danger-foreground">QC was rejected when this result was entered — review before verifying.</span>
+          ) : null}
+          {result.qcStatus === "none" ? <span>No QC run covered this result.</span> : null}
+          {result.reagents.length ? <span>Reagent: {result.reagents.map((g) => `${g.itemName} lot ${g.lotNumber ?? "—"}`).join(", ")}</span> : null}
+        </p>
+      ) : null}
       <PerformedBy laboratory={result.performingLaboratory} />
       <ResultAttachments result={result} editable={result.status === "entered" && permissions.enter} onChanged={onChanged} />
 
@@ -471,6 +508,7 @@ function ChangeForm({
   const { pending, run } = useRun(onChanged);
   const [value, setValue] = React.useState("");
   const [reason, setReason] = React.useState("");
+  const [instrumentId, setInstrumentId] = React.useState(result.instrumentId ?? "");
   const [error, setError] = React.useState<string | null>(null);
 
   const submit = (e: React.FormEvent) => {
@@ -479,7 +517,7 @@ function ChangeForm({
     const parsed = parseResultInput(item.resultType, value);
     if (!parsed.ok) return setError(parsed.message);
     run(
-      () => correctResult({ resultId: result.id, value: parsed.value, reason }),
+      () => correctResult({ resultId: result.id, value: parsed.value, reason, instrumentId: instrumentId || undefined }),
       `${item.testName}: corrected version entered — it needs verification and approval again`,
       onDone,
     );
@@ -491,6 +529,7 @@ function ChangeForm({
         <>
           <Label htmlFor={`correct-${result.id}`}>Corrected value</Label>
           <ValueInput item={item} id={`correct-${result.id}`} value={value} onChange={setValue} />
+          <InstrumentSelect id={`correct-instrument-${result.id}`} value={instrumentId} onChange={setInstrumentId} />
           {result.status === "released" ? (
             <p className="text-meta text-warning-foreground">
               This result was released. The corrected version replaces it after sign-off; the original stays in the history and the ordering practitioner is

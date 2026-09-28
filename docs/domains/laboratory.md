@@ -12,8 +12,12 @@ to the reference laboratory).
 
 Also: files attached to result versions (see [Result attachments](#result-attachments)) and realtime status updates.
 
+Quality management — instruments with their maintenance and calibration log, internal QC with Westgard rules, reagent
+lots loaded on instruments, and the instrument, QC and reagent-lot links on results — is in [laboratory-quality.md](laboratory-quality.md) (Phase 9).
+
 Not in scope yet: instrument interfaces and electronic reference-laboratory interfaces (integration dependencies in
-`libs/interoperability`), QC and reagent lots (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
+`libs/interoperability`), temperature logs, incidents, proficiency testing and competency. Billing charges are
+billing's (the LIS emits events and never computes invoices).
 
 ## Entities
 
@@ -248,7 +252,8 @@ results and critical alerts to their order's patient, and an order's encounter t
 `lab_report_archive_immutable` (a stored archive never changes; none is deleted). `lab_report_archive` references its
 order, patient, facility and the `document` holding the PDF (same id); unique per order and result set, and per order and
 archive version.
-Results reference instrument and method as text today; QC runs and reagent lots (Phase 9) can be linked later.
+Results record their instrument, the QC run in force and the reagent lots in use (Phase 9, migrations `0050`–`0051`;
+see [laboratory-quality.md](laboratory-quality.md)); method stays text.
 Send-outs reference their order, item and specimen with same-patient FKs and travel in a dispatch of the same facility
 and reference laboratory (composite FK); at most one send-out per test is in flight (partial unique index). Triggers:
 `lab_send_out_history` (status only moves forward, recorded steps never change, no deletes), `lab_send_out_dispatch_immutable`

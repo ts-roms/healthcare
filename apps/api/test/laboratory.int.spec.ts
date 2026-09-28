@@ -365,7 +365,8 @@ describe("laboratory journey", () => {
     const inbox = await ctx.http().get("/api/v1/me/notifications").set(as(doctor)).expect(200);
     const notices = inbox.body.filter((n: { templateKey: string }) => n.templateKey === "lab.result-notice");
     expect(notices.map((n: { subject: string }) => n.subject).sort()).toEqual([expect.stringMatching(/^Corrected/), expect.stringMatching(/^Critical/)]);
-    expect(JSON.stringify(notices)).not.toMatch(/6\.8|6\.2|7\.2|Potassium/);
+    // Only the message text (timestamps and ids could contain the digits by chance).
+    expect(JSON.stringify(notices.map((n: { subject: string; text: string }) => [n.subject, n.text]))).not.toMatch(/6\.8|6\.2|7\.2|Potassium/);
   });
 
   it("prints the order's report: released results, corrections and who signed them off", async () => {
