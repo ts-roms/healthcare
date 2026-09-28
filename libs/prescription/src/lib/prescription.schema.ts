@@ -91,3 +91,29 @@ export interface AllergyWarning {
 
 export type PrescriptionRecord = typeof prescription.$inferSelect;
 export type PrescriptionItemRecord = typeof prescriptionItem.$inferSelect;
+
+// Mirrors database/migrations/0053_prescription_dispensing.sql.
+export const prescriptionDispense = pgTable("prescription_dispense", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  prescriptionId: uuid("prescription_id").notNull(),
+  prescriptionItemId: uuid("prescription_item_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  inventoryItemId: uuid("inventory_item_id").notNull(),
+  locationId: uuid("location_id").notNull(),
+  quantity: integer("quantity").notNull(),
+  itemName: text("item_name").notNull(),
+  stockUnit: text("stock_unit").notNull(),
+  stockMovementGroupId: uuid("stock_movement_group_id").notNull(),
+  note: text("note"),
+  dispensedBy: uuid("dispensed_by").notNull(),
+  dispensedAt: timestamp("dispensed_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status").$type<"recorded" | "reversed">().notNull().default("recorded"),
+  reversedBy: uuid("reversed_by"),
+  reversedAt: timestamp("reversed_at", { withTimezone: true }),
+  reversalReason: text("reversal_reason"),
+  reversalMovementGroupId: uuid("reversal_movement_group_id"),
+});
+
+export type PrescriptionDispenseRecord = typeof prescriptionDispense.$inferSelect;

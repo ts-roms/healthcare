@@ -1,4 +1,15 @@
-import { addDays, allocateFefo, crossedReorderLevel, expiryStatus, isExpired, stockStatus } from "./inventory.rules";
+import {
+  addDays,
+  allocateFefo,
+  crossedReorderLevel,
+  expiryStatus,
+  isExpired,
+  purchaseOrderAllows,
+  purchaseOrderNumber,
+  reorderSuggestion,
+  statusAfterReceipt,
+  stockStatus,
+} from "./inventory.rules";
 
 const today = "2026-09-28";
 const lots = [
@@ -46,5 +57,38 @@ describe("inventory rules", () => {
       false,
     ]);
     expect(addDays("2026-12-25", 10)).toBe("2027-01-04");
+  });
+});
+
+describe("purchase order rules", () => {
+  it("allows each action only in the right statuses", () => {
+    expect(purchaseOrderAllows("draft", "edit")).toBe(true);
+    expect(purchaseOrderAllows("submitted", "edit")).toBe(false);
+    expect(purchaseOrderAllows("submitted", "approve")).toBe(true);
+    expect(purchaseOrderAllows("draft", "receive")).toBe(false);
+    expect(purchaseOrderAllows("partially_received", "receive")).toBe(true);
+    expect(purchaseOrderAllows("partially_received", "cancel")).toBe(false);
+    expect(purchaseOrderAllows("partially_received", "close")).toBe(true);
+    expect(purchaseOrderAllows("received", "close")).toBe(false);
+  });
+
+  it("numbers orders per year", () => {
+    expect(purchaseOrderNumber(2026, 42)).toBe("PO-2026-000042");
+  });
+
+  it("knows when an order is fully received", () => {
+    expect(
+      statusAfterReceipt([
+        { quantityOrdered: 10, quantityReceived: 10 },
+        { quantityOrdered: 5, quantityReceived: 2 },
+      ]),
+    ).toBe("partially_received");
+    expect(statusAfterReceipt([{ quantityOrdered: 10, quantityReceived: 10 }])).toBe("received");
+  });
+
+  it("suggests reordering when stock plus open orders is at or below the level", () => {
+    expect(reorderSuggestion(5, 0, 10, 50)).toEqual({ needed: true, suggestedQuantity: 50 });
+    expect(reorderSuggestion(5, 20, 10, 50)).toEqual({ needed: false, suggestedQuantity: null });
+    expect(reorderSuggestion(10, 0, 10, null)).toEqual({ needed: true, suggestedQuantity: null });
   });
 });

@@ -64,6 +64,8 @@ export const loadReagentSchema = z.object({
   inventoryLotId: z.uuid(),
   /** Only for this test; left out: every test on the instrument. */
   testId: z.uuid().optional(),
+  /** Take this quantity of the lot from a storage location of the facility (an inventory issue in the same transaction). */
+  takeFromStock: z.object({ locationId: z.uuid(), quantity: z.number().int().positive().max(100_000) }).optional(),
 });
 export class LoadReagentDto extends createZodDto(loadReagentSchema) {}
 

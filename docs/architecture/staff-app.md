@@ -163,7 +163,17 @@ resolve with a note. Labels for systems/operations and source links live in
 `/inventory` (`inventory.read`; a selected facility is required): stock by location, item and lot with expiry and
 reorder status (filters: low or out, expiring), and a form to record a movement (receive, issue, transfer; count and
 write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/inventory/catalog`
-(`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels. See `docs/domains/inventory.md`.
+(`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels and reorder quantities.
+`/inventory/purchase-orders`: open and past orders, what to reorder, a new order (`inventory.procurement.manage`, lines
+can be filled from the reorder list); `/inventory/purchase-orders/[id]`: lines and totals, submit, approve (someone
+else), receive a delivery (lots, expiry, delivery reference), cancel or close short. See `docs/domains/inventory.md`.
+
+## Pharmacy
+
+`/pharmacy` (`prescription.dispense`): find a prescription by its number; today's dispenses at the facility.
+`/pharmacy/[prescriptionId]`: the patient's identification, allergy warnings the prescriber overrode, what was prescribed,
+dispensed and remains; dispense from stock (per item: stock item and location, quantity in its unit; needs
+`inventory.move`); reverse a mistaken dispense with a reason. See `docs/domains/prescription.md`.
 
 ## Dental
 

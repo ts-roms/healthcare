@@ -132,8 +132,8 @@ export class InventoryCatalogService {
     });
   }
 
-  /** Reorder level of an item at a location of the actor's facility. */
-  async setReorderLevel(actor: Actor, locationId: string, itemId: string, reorderLevel: number) {
+  /** Reorder level (and the quantity usually ordered, for purchase suggestions) of an item at a location of the actor's facility. */
+  async setReorderLevel(actor: Actor, locationId: string, itemId: string, reorderLevel: number, reorderQuantity: number | null = null) {
     const facilityId = requireFacilityId(actor);
     return this.db.transaction(async (tx) => {
       const [location] = await tx
@@ -153,18 +153,18 @@ export class InventoryCatalogService {
       );
       await tx
         .insert(inventoryStockLevel)
-        .values({ organizationId: actor.organizationId, locationId, itemId, reorderLevel, updatedBy: actor.userId })
+        .values({ organizationId: actor.organizationId, locationId, itemId, reorderLevel, reorderQuantity, updatedBy: actor.userId })
         .onConflictDoUpdate({
           target: [inventoryStockLevel.locationId, inventoryStockLevel.itemId],
-          set: { reorderLevel, updatedBy: actor.userId, updatedAt: sql`now()` },
+          set: { reorderLevel, reorderQuantity, updatedBy: actor.userId, updatedAt: sql`now()` },
         });
       await this.audit.record(tx, actor, {
         action: "inventory.reorder-level.set",
         resourceType: "inventory_item",
         resourceId: itemId,
-        metadata: { locationId, reorderLevel },
+        metadata: { locationId, reorderLevel, reorderQuantity },
       });
-      return { locationId, itemId, reorderLevel };
+      return { locationId, itemId, reorderLevel, reorderQuantity };
     });
   }
 }

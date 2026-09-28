@@ -409,6 +409,10 @@ export const labReagentLoad = pgTable("lab_reagent_load", {
   unloadedAt: timestamp("unloaded_at", { withTimezone: true }),
   unloadedBy: uuid("unloaded_by"),
   unloadReason: text("unload_reason"),
+  // 0054: stock taken from inventory when the lot was loaded (all three or none).
+  stockLocationId: uuid("stock_location_id"),
+  stockQuantity: integer("stock_quantity"),
+  stockMovementGroupId: uuid("stock_movement_group_id"),
 });
 
 export const labResultReagent = pgTable(

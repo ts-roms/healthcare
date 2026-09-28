@@ -1,13 +1,18 @@
-import { bigint, boolean, date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0026_inventory.sql (the migration is the source of truth).
+// Mirrors database/migrations/0026_inventory.sql and 0052_inventory_procurement.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 export const ITEM_CATEGORIES = ["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "other"] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
-export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off"] as const;
+export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off", "return"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
+/** Workflows that move stock through the inventory contract (the movement names its source). */
+export const MOVEMENT_SOURCES = ["prescription_dispense", "lab_reagent_load", "purchase_order_line"] as const;
+export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
+export const PURCHASE_ORDER_STATUSES = ["draft", "submitted", "approved", "partially_received", "received", "cancelled", "closed"] as const;
+export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
 type Status = "active" | "inactive";
 
 export const inventoryItem = pgTable("inventory_item", {
@@ -59,6 +64,7 @@ export const inventoryStockLevel = pgTable("inventory_stock_level", {
   locationId: uuid("location_id").notNull(),
   itemId: uuid("item_id").notNull(),
   reorderLevel: integer("reorder_level").notNull(),
+  reorderQuantity: integer("reorder_quantity"),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
@@ -88,10 +94,55 @@ export const inventoryMovement = pgTable("inventory_movement", {
   issuedTo: text("issued_to"),
   reason: text("reason"),
   idempotencyKey: text("idempotency_key"),
+  sourceType: text("source_type").$type<MovementSource>(),
+  sourceId: uuid("source_id"),
   recordedBy: uuid("recorded_by").notNull(),
   recordedAt: ts("recorded_at").notNull().defaultNow(),
 });
 
+export const inventoryNumberSequence = pgTable("inventory_number_sequence", {
+  organizationId: uuid("organization_id").notNull(),
+  series: text("series").$type<"purchase_order">().notNull(),
+  year: integer("year").notNull(),
+  nextValue: integer("next_value").notNull(),
+});
+
+export const inventoryPurchaseOrder = pgTable("inventory_purchase_order", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  poNumber: text("po_number").notNull(),
+  supplierId: uuid("supplier_id").notNull(),
+  locationId: uuid("location_id").notNull(),
+  status: text("status").$type<PurchaseOrderStatus>().notNull().default("draft"),
+  expectedDate: date("expected_date", { mode: "string" }),
+  notes: text("notes"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  submittedBy: uuid("submitted_by"),
+  submittedAt: ts("submitted_at"),
+  approvedBy: uuid("approved_by"),
+  approvedAt: ts("approved_at"),
+  endedBy: uuid("ended_by"),
+  endedAt: ts("ended_at"),
+  endReason: text("end_reason"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+
+export const inventoryPurchaseOrderLine = pgTable("inventory_purchase_order_line", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  purchaseOrderId: uuid("purchase_order_id").notNull(),
+  lineNumber: smallint("line_number").notNull(),
+  itemId: uuid("item_id").notNull(),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  unitCost: bigint("unit_cost", { mode: "number" }),
+  quantityReceived: integer("quantity_received").notNull().default(0),
+});
+
+export type PurchaseOrderRecord = typeof inventoryPurchaseOrder.$inferSelect;
+export type PurchaseOrderLineRecord = typeof inventoryPurchaseOrderLine.$inferSelect;
 export type ItemRecord = typeof inventoryItem.$inferSelect;
 export type SupplierRecord = typeof inventorySupplier.$inferSelect;
 export type LocationRecord = typeof inventoryLocation.$inferSelect;

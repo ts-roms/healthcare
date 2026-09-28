@@ -22,8 +22,9 @@ management in `LabTemperatureService`, `LabNonconformanceService`, `LabEqaServic
 `quality-management.rules.ts`, migration `0055_lab_quality_management.sql`, staff `/laboratory/temperatures`,
 `/laboratory/nonconformances`, `/laboratory/eqa` and `/laboratory/competency`.
 
-Not yet: instrument interfaces (results and QC values arriving from analyzers through `libs/interoperability`). QC is for numeric tests.
-Loading a lot does not move inventory stock (issuing reagents to the laboratory stays an inventory movement).
+Not yet: instrument interfaces (results and QC values arriving from analyzers through `libs/interoperability`). QC is for
+numeric tests. Loading a lot can take that lot's stock from a storage location of the facility in the same transaction
+(migration `0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
 Not yet either: electronic EQA exchange with providers (results are entered by hand), automatic temperature sensors,
 documents attached to nonconformances, and notifications to the section head.
@@ -144,7 +145,9 @@ date), _not yet competent_. For a test, its own latest assessment counts first, 
 
 ## Commands
 
-Load a reagent lot on an instrument (replacing the lot of the same reagent in use); unload a lot (reason);
+Load a reagent lot on an instrument (replacing the lot of the same reagent in use), optionally taking a quantity of that
+lot from a storage location (`takeFromStock: { locationId, quantity }`; needs `inventory.move` too; an inventory issue
+with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short); unload a lot (reason);
 register/update instruments; record log entries (retiring needs `lab.qc.manage`); create materials and lots; retire a
 lot; set a target; record a QC run; record a corrective action; change the facility QC policy (with the laboratory
 policy, reason required, audited). Register, update or retire a storage unit; record a reading; report a

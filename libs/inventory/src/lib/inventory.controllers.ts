@@ -77,7 +77,7 @@ export class InventoryCatalogController {
     @Param("itemId", ParseUUIDPipe) itemId: string,
     @Body() body: ReorderLevelDto,
   ) {
-    return this.catalog.setReorderLevel(actor, locationId, itemId, body.reorderLevel);
+    return this.catalog.setReorderLevel(actor, locationId, itemId, body.reorderLevel, body.reorderQuantity);
   }
 }
 
