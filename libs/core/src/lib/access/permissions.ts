@@ -91,6 +91,11 @@ export const PERMISSIONS = [
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 9 — purchase orders (migration 0052); approval is separate from submission
+  "inventory.procurement.manage",
+  "inventory.procurement.approve",
+  // Phase 9 — dispensing from prescriptions (migration 0053)
+  "prescription.dispense",
   // Phase 6 — dental (migration 0027)
   "dental.record.read",
   "dental.record.write",

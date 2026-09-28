@@ -18,6 +18,13 @@ const KIND: Record<InventoryMovement["kind"], string> = {
   transfer_in: "Transferred in",
   adjustment: "Count adjustment",
   write_off: "Written off",
+  return: "Returned",
+};
+
+const SOURCE: Record<NonNullable<InventoryMovement["sourceType"]>, string> = {
+  prescription_dispense: "Pharmacy dispense",
+  lab_reagent_load: "Loaded on a laboratory instrument",
+  purchase_order_line: "Purchase order delivery",
 };
 
 /** The ledger: every movement at this facility's locations, newest first (append-only). */
@@ -73,6 +80,7 @@ export default async function MovementsPage() {
                         m.reference && `Ref. ${m.reference}`,
                         m.reason,
                         m.unitCost !== null ? `${peso(m.unitCost)} each` : null,
+                        m.sourceType ? SOURCE[m.sourceType] : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

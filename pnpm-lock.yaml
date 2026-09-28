@@ -723,6 +723,9 @@ importers:
       '@healthcare/core':
         specifier: workspace:*
         version: link:../core
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
 
   libs/telemedicine:
     dependencies:

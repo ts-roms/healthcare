@@ -1500,7 +1500,7 @@ export interface StockRow {
 export interface InventoryMovement {
   id: string;
   movementGroupId: string;
-  kind: "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off";
+  kind: "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off" | "return";
   locationId: string;
   itemId: string;
   lotId: string;
@@ -1511,6 +1511,9 @@ export interface InventoryMovement {
   reference: string | null;
   issuedTo: string | null;
   reason: string | null;
+  /** The workflow that moved the stock (a dispense, a reagent load, a purchase order line). */
+  sourceType: "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | null;
+  sourceId: string | null;
   recordedBy: string;
   recordedAt: string;
   itemName: string;
@@ -1518,6 +1521,115 @@ export interface InventoryMovement {
   locationName: string;
   lotNumber: string | null;
   expiryDate: string | null;
+}
+
+export type PurchaseOrderStatus = "draft" | "submitted" | "approved" | "partially_received" | "received" | "cancelled" | "closed";
+
+/** GET /inventory/purchase-orders(/:id) */
+export interface PurchaseOrder {
+  id: string;
+  facilityId: string;
+  poNumber: string;
+  supplierId: string;
+  locationId: string;
+  status: PurchaseOrderStatus;
+  expectedDate: string | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  endedBy: string | null;
+  endedAt: string | null;
+  endReason: string | null;
+  updatedAt: string;
+  version: number;
+  supplier: { id: string; code: string; name: string } | null;
+  location: { id: string; name: string } | null;
+  lines: Array<{
+    id: string;
+    lineNumber: number;
+    item: { id: string; code: string; name: string; stockUnit: string; tracksLots: boolean; controlled: boolean };
+    quantityOrdered: number;
+    quantityReceived: number;
+    outstanding: number;
+    /** Centavos per stock unit. */
+    unitCost: number | null;
+  }>;
+  /** Centavos, over the priced lines. */
+  totalCost: number;
+  unpricedLines: number;
+  submittedByYou: boolean;
+}
+
+/** GET /inventory/reorder-suggestions */
+export interface ReorderSuggestion {
+  location: { id: string; name: string };
+  item: { id: string; code: string; name: string; stockUnit: string; category: InventoryCategory };
+  usable: number;
+  onOrder: number;
+  reorderLevel: number;
+  reorderQuantity: number | null;
+  suggestedQuantity: number | null;
+  lastSupplier: { id: string; name: string; unitCost: number | null } | null;
+}
+
+// ---- Dispensing (libs/prescription) ---------------------------------------------------------------
+
+/** GET /dispensing/stock */
+export interface DispensableStock {
+  locationId: string;
+  locationName: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  controlled: boolean;
+  quantity: number;
+}
+
+export interface PrescriptionDispense {
+  id: string;
+  facilityId: string;
+  prescriptionId: string;
+  prescriptionItemId: string;
+  patientId: string;
+  inventoryItemId: string;
+  locationId: string;
+  quantity: number;
+  itemName: string;
+  stockUnit: string;
+  stockMovementGroupId: string;
+  note: string | null;
+  dispensedBy: string;
+  dispensedAt: string;
+  status: "recorded" | "reversed";
+  reversedBy: string | null;
+  reversedAt: string | null;
+  reversalReason: string | null;
+}
+
+/** GET /dispensing/prescriptions/:id */
+export interface DispensingView {
+  prescription: Prescription;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+  items: Array<{
+    prescriptionItemId: string;
+    lineNumber: number;
+    prescribed: { quantity: number; quantityUnit: string; refills: number };
+    dispensed: Array<{ stockUnit: string; quantity: number }>;
+    /** In the prescribed unit; null when something was dispensed in another unit. */
+    remaining: number | null;
+  }>;
+  dispenses: PrescriptionDispense[];
+}
+
+/** GET /dispensing/dispenses */
+export interface RecentDispenses {
+  date: string;
+  dispenses: Array<PrescriptionDispense & { patient: { patientNumber: string; displayName: string } | null }>;
 }
 
 // ---- Dental (libs/dental) ------------------------------------------------------------------------
@@ -2452,6 +2564,9 @@ export interface LabReagentLoad {
   unloadedAt: string | null;
   unloadedByName: string | null;
   unloadReason: string | null;
+  /** Stock taken from inventory when the lot was loaded. */
+  stockLocationId: string | null;
+  stockQuantity: number | null;
   expired: boolean;
 }
 

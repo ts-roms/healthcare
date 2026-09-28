@@ -20,6 +20,7 @@ async function run<T>(schema: z.ZodType, input: unknown, path: string, body: unk
     revalidatePath("/inventory");
     revalidatePath("/inventory/movements");
     revalidatePath("/inventory/catalog");
+    revalidatePath("/inventory/purchase-orders", "layout");
   }
   return result;
 }
@@ -109,7 +110,71 @@ export async function createLocation(input: z.input<typeof locationSchema>) {
   return run(locationSchema, input, "/locations", input);
 }
 
-const reorderSchema = z.object({ locationId: id, itemId: id, reorderLevel: z.number().int().min(0) });
+const reorderSchema = z.object({ locationId: id, itemId: id, reorderLevel: z.number().int().min(0), reorderQuantity: z.number().int().positive().nullable() });
 export async function setReorderLevel(input: z.input<typeof reorderSchema>) {
-  return run(reorderSchema, input, `/locations/${input.locationId}/items/${input.itemId}/reorder-level`, { reorderLevel: input.reorderLevel }, "PUT");
+  return run(
+    reorderSchema,
+    input,
+    `/locations/${input.locationId}/items/${input.itemId}/reorder-level`,
+    { reorderLevel: input.reorderLevel, reorderQuantity: input.reorderQuantity },
+    "PUT",
+  );
+}
+
+// ---- purchase orders ----------------------------------------------------------------------------
+
+const orderSchema = z.object({
+  supplierId: z.uuid("Choose a supplier."),
+  locationId: z.uuid("Choose where it is delivered."),
+  expectedDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  notes: text(2000),
+  lines: z
+    .array(z.object({ itemId: id, quantity: qty, unitCost: z.number().int().min(0).nullable() }))
+    .min(1, "Add at least one item.")
+    .refine((lines) => new Set(lines.map((l) => l.itemId)).size === lines.length, "Each item appears once on an order."),
+});
+export async function createPurchaseOrder(input: z.input<typeof orderSchema>) {
+  return run<{ id: string }>(orderSchema, input, "/purchase-orders", input);
+}
+
+const versionSchema = z.object({ id, version: z.number().int().positive() });
+export async function submitPurchaseOrder(input: z.input<typeof versionSchema>) {
+  return run(versionSchema, input, `/purchase-orders/${input.id}/submit`, { version: input.version });
+}
+export async function approvePurchaseOrder(input: z.input<typeof versionSchema>) {
+  return run(versionSchema, input, `/purchase-orders/${input.id}/approve`, { version: input.version });
+}
+
+const endSchema = versionSchema.extend({
+  action: z.enum(["cancel", "close"]),
+  reason: z.string().trim().min(5, "Give a reason (at least 5 characters).").max(500),
+});
+export async function endPurchaseOrder(input: z.input<typeof endSchema>) {
+  return run(endSchema, input, `/purchase-orders/${input.id}/${input.action}`, { reason: input.reason, version: input.version });
+}
+
+const deliverySchema = z.object({
+  id,
+  reference: z.string().trim().min(1, "Enter the delivery receipt number.").max(80),
+  lines: z
+    .array(
+      z.object({
+        lineId: id,
+        quantity: qty,
+        lotNumber: text(60),
+        expiryDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      }),
+    )
+    .min(1, "Enter what arrived."),
+  idempotencyKey: key,
+});
+export async function receivePurchaseOrder(input: z.input<typeof deliverySchema>) {
+  const { id: orderId, ...body } = input;
+  return run(deliverySchema, input, `/purchase-orders/${orderId}/receipts`, body);
 }

@@ -15,10 +15,17 @@ export class AppPatientDirectory implements PatientDirectory, CarePlanPatientDir
   }
 }
 
-/** Prescription → clinic: prescriber identity, encounter state and allergies. */
+/** Prescription → clinic and patient: prescriber identity, encounter state, allergies, and who receives a dispense. */
 @Injectable()
 export class AppPrescribingContext implements PrescribingContext {
-  constructor(private readonly clinic: ClinicQueries) {}
+  constructor(
+    private readonly clinic: ClinicQueries,
+    private readonly patients: PatientRecordService,
+  ) {}
+
+  patientBriefs(organizationId: string, patientIds: string[]) {
+    return this.patients.briefs(organizationId, patientIds);
+  }
 
   async prescriber(organizationId: string, userId: string) {
     const practitioner = await this.clinic.practitionerForUser(organizationId, userId);
