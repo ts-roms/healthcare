@@ -24,7 +24,7 @@ import { patient, patientConsent } from "../patient.schema";
 import { displayName } from "../patient.views";
 import { ACTIVATION_TTL_HOURS, generateActivationCode, hashActivationCode, MAX_ACTIVATION_ATTEMPTS } from "./activation-code";
 import type { PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
-import { patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
+import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
 import { PortalTokenService } from "./portal-tokens";
 
 /** The authenticated patient on a portal request. */
@@ -43,6 +43,15 @@ export interface PortalAccountStatusView {
   activationExpiresAt: string | null;
   /** An invitation whose code can no longer be used (expired or attempts exhausted); a new code is needed. */
   invitationExpired: boolean;
+  /**
+   * Why the patient's latest activation attempt against this invitation failed. Staff-only:
+   * the patient is always told the same generic message. Null when no attempt reached the
+   * invitation, e.g. a mistyped patient number.
+   */
+  lastActivationFailure: { reason: PortalActivationFailure; at: string } | null;
+  /** Wrong birth date or code entries against the current code, out of `maxActivationAttempts`. */
+  failedActivationAttempts: number;
+  maxActivationAttempts: number;
   activatedAt: string | null;
   lastLoginAt: string | null;
   disabledAt: string | null;
@@ -83,6 +92,12 @@ export class PortalAccountService {
       invitedAt: iso(account?.invitedAt),
       activationExpiresAt: account?.status === "invited" ? iso(account.activationExpiresAt) : null,
       invitationExpired: account?.status === "invited" && (!account.activationExpiresAt || account.activationExpiresAt <= new Date()),
+      lastActivationFailure:
+        account?.status === "invited" && account.lastActivationFailure && account.lastActivationFailureAt
+          ? { reason: account.lastActivationFailure, at: account.lastActivationFailureAt.toISOString() }
+          : null,
+      failedActivationAttempts: account?.status === "invited" ? account.failedAttempts : 0,
+      maxActivationAttempts: MAX_ACTIVATION_ATTEMPTS,
       activatedAt: iso(account?.activatedAt),
       lastLoginAt: iso(account?.lastLoginAt),
       disabledAt: iso(account?.disabledAt),
@@ -119,6 +134,8 @@ export class PortalAccountService {
         activationExpiresAt: expiresAt,
         failedAttempts: 0,
         lockedUntil: null,
+        lastActivationFailure: null,
+        lastActivationFailureAt: null,
         invitedBy: actor.userId,
         invitedAt: new Date(),
         disabledAt: null,
@@ -199,17 +216,22 @@ export class PortalAccountService {
       });
       throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
     }
-    const failed = async (reason: "expired" | "mismatch") => {
+    // The patient always gets the same message; the specific reason is kept for staff (and the audit trail).
+    const failed = async (reason: PortalActivationFailure) => {
       // An expired (or exhausted) code is already unusable: don't count further attempts against it.
-      const attempts = reason === "mismatch" ? account.failedAttempts + 1 : account.failedAttempts;
-      const exhausted = reason === "mismatch" && attempts >= MAX_ACTIVATION_ATTEMPTS;
-      if (reason === "mismatch") {
-        await this.db
-          .update(patientPortalAccount)
+      const mismatch = reason !== "expired";
+      const attempts = mismatch ? account.failedAttempts + 1 : account.failedAttempts;
+      const exhausted = mismatch && attempts >= MAX_ACTIVATION_ATTEMPTS;
+      await this.db
+        .update(patientPortalAccount)
+        .set({
+          lastActivationFailure: reason,
+          lastActivationFailureAt: new Date(),
           // Exhausted: expire the code (the row stays "invited" until staff re-invite).
-          .set(exhausted ? { failedAttempts: attempts, activationExpiresAt: new Date() } : { failedAttempts: attempts })
-          .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")));
-      }
+          ...(mismatch ? { failedAttempts: attempts } : {}),
+          ...(exhausted ? { activationExpiresAt: new Date() } : {}),
+        })
+        .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")));
       await this.audit.recordStandalone(anonymous, {
         action: "portal.activate",
         resourceType: "patient_portal_account",
@@ -221,7 +243,8 @@ export class PortalAccountService {
       throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
     };
     if (account.activationExpiresAt <= new Date()) return failed("expired");
-    if (row.birthDate !== input.birthDate || hashActivationCode(input.activationCode) !== account.activationCodeHash) return failed("mismatch");
+    if (row.birthDate !== input.birthDate) return failed("birth_date_mismatch");
+    if (hashActivationCode(input.activationCode) !== account.activationCodeHash) return failed("code_mismatch");
 
     return this.db.transaction(async (tx) => {
       if (!(await this.hasPortalConsent(tx, org.id, account.patientId))) {
@@ -244,6 +267,8 @@ export class PortalAccountService {
           activationCodeHash: null,
           activationExpiresAt: null,
           failedAttempts: 0,
+          lastActivationFailure: null,
+          lastActivationFailureAt: null,
           activatedAt: new Date(),
           lastLoginAt: new Date(),
           updatedAt: new Date(),
