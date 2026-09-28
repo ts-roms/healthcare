@@ -3,6 +3,7 @@ import { OrganizationModule } from "@healthcare/organization";
 import { DentalCatalogService } from "./catalog/dental-catalog.service";
 import { DentalChartService } from "./chart/dental-chart.service";
 import { DentalPlanController, DentalRecordController, DentalSettingsController, DentalSuppliesController } from "./dental.controllers";
+import { DentalRecordQueries } from "./dental-record.queries";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
@@ -42,10 +43,11 @@ export class DentalModule {
         DentalPortalSettings,
         DentalPatientAccess,
         DentalSuppliesService,
+        DentalRecordQueries,
         { provide: DENTAL_CONTEXT, useClass: options.context },
         { provide: DENTAL_SUPPLIES, useClass: options.supplies },
       ],
-      exports: [DentalProcedureService, DentalPatientAccess],
+      exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries],
     };
   }
 }

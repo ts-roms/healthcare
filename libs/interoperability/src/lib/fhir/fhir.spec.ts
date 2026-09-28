@@ -1,4 +1,4 @@
-import type { Bundle, CapabilityStatement, DocumentReference, FhirResource, Observation, OperationOutcome, Patient } from "fhir/r4";
+import type { Bundle, CapabilityStatement, CarePlan, DocumentReference, FhirResource, Observation, OperationOutcome, Patient, Procedure } from "fhir/r4";
 import { capabilityStatement, type CompartmentType, operationOutcome, patientEverything, searchByPatient } from "./bundle";
 import { DEFAULT_PAGING, FhirSearchError, PAGE_SIZE, parseLastUpdated, parsePaging, parseSearchParameters, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
@@ -324,6 +324,7 @@ const source: PatientRecordSource = {
     },
   ],
   externalHistory: [],
+  dental: { procedures: [], plans: [], examinations: [], chart: [], perioCharts: [] },
 };
 
 function errors(resource: { resourceType: string }): unknown[] {
@@ -540,7 +541,7 @@ describe("FHIR R4 mapping", () => {
     const resources = capability.rest?.[0]?.resource ?? [];
     expect(resources.map((r) => r.type)).toEqual(expect.arrayContaining(["Patient", "DocumentReference", "Binary"]));
     const withLastUpdated = resources.filter((r) => r.searchParam?.some((p) => p.name === "_lastUpdated")).map((r) => r.type);
-    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement"]);
+    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement", "Procedure"]);
   });
 });
 
@@ -906,5 +907,403 @@ describe("FHIR export of send-out results and records from other systems", () =>
     const withheld = patientEverything(ctx, { ...extended, documents: null });
     expect(withheld.entry?.some((e) => e.resource?.resourceType === "DocumentReference")).toBe(false);
     expect(withheld.entry?.some((e) => e.resource?.resourceType === "MedicationStatement")).toBe(true);
+  });
+});
+
+describe("FHIR export of the dental record", () => {
+  const DENTIST = "d0000000-0000-4000-8000-000000000001";
+  const DENC = "d0000000-0000-4000-8000-000000000002";
+  const D = {
+    exam: "d1000000-0000-4000-8000-000000000001",
+    examInError: "d1000000-0000-4000-8000-000000000002",
+    procedure: "d2000000-0000-4000-8000-000000000001",
+    procedureInError: "d2000000-0000-4000-8000-000000000002",
+    cleaning: "d2000000-0000-4000-8000-000000000003",
+    plan: "d3000000-0000-4000-8000-000000000001",
+    declinedPlan: "d3000000-0000-4000-8000-000000000002",
+    state16: "d4000000-0000-4000-8000-000000000016",
+    state26: "d4000000-0000-4000-8000-000000000026",
+    state36: "d4000000-0000-4000-8000-000000000036",
+    perio: "d5000000-0000-4000-8000-000000000001",
+    perio16: "d5000000-0000-4000-8000-000000000016",
+    image: "d6000000-0000-4000-8000-000000000001",
+    imageDocument: "d6000000-0000-4000-8000-000000000002",
+  };
+  const local = (key: string) => `https://ids.example.ph/demo/codesystem/${key}`;
+  const dental: PatientRecordSource = {
+    ...source,
+    practitioners: [
+      ...source.practitioners,
+      { id: DENTIST, displayName: "Dr. Ana Santos", profession: "dentist", specialty: null, licenseNumber: "0654321", status: "active" },
+    ],
+    encounters: [...source.encounters, { ...source.encounters[0]!, id: DENC, practitionerId: DENTIST, appointmentId: null, visitTypeName: "Dental" }],
+    documents: [
+      ...source.documents!,
+      {
+        id: D.imageDocument,
+        category: "imaging",
+        title: "Bitewing right",
+        fileName: "bw-right.jpg",
+        contentType: "image/jpeg",
+        sizeBytes: 120000,
+        uploadedAt: "2026-09-27T02:00:00.000Z",
+        supersededAt: null,
+        replaces: [],
+        related: [],
+        dentalImage: {
+          id: D.image,
+          kind: "bitewing",
+          teeth: ["16", "46"],
+          takenOn: "2026-09-27",
+          encounterId: DENC,
+          status: "recorded",
+          recordedAt: "2026-09-27T02:05:00.000Z",
+          enteredInErrorAt: null,
+        },
+      },
+    ],
+    dental: {
+      examinations: [
+        {
+          id: D.exam,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          oralHygiene: "fair",
+          notes: "Gingiva slightly inflamed",
+          status: "recorded",
+          recordedAt: "2026-09-27T01:10:00.000Z",
+          enteredInErrorAt: null,
+        },
+        {
+          id: D.examInError,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          oralHygiene: null,
+          notes: "Wrong patient",
+          status: "entered_in_error",
+          recordedAt: "2026-09-27T01:05:00.000Z",
+          enteredInErrorAt: "2026-09-27T01:06:00.000Z",
+        },
+      ],
+      procedures: [
+        {
+          id: D.procedure,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          code: "D-RESIN-2",
+          name: "Composite restoration, two surfaces",
+          tooth: "16",
+          surfaces: ["M", "O"],
+          notes: "Shade A2",
+          planId: D.plan,
+          status: "recorded",
+          performedAt: "2026-09-27T01:30:00.000Z",
+          enteredInErrorAt: null,
+        },
+        {
+          id: D.procedureInError,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          code: "D-EXT",
+          name: "Extraction",
+          tooth: "36",
+          surfaces: [],
+          notes: null,
+          planId: null,
+          status: "entered_in_error",
+          performedAt: "2026-09-27T01:35:00.000Z",
+          enteredInErrorAt: "2026-09-28T16:30:00.000Z",
+        },
+        {
+          id: D.cleaning,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          code: "D-PROPH",
+          name: "Oral prophylaxis",
+          tooth: null,
+          surfaces: [],
+          notes: null,
+          planId: null,
+          status: "recorded",
+          performedAt: "2026-09-27T01:40:00.000Z",
+          enteredInErrorAt: null,
+        },
+      ],
+      plans: [
+        {
+          id: D.plan,
+          practitionerId: DENTIST,
+          title: "Restorative plan",
+          notes: "Two phases",
+          status: "in_progress",
+          decisionNote: "Options and fees explained",
+          decidedAt: "2026-09-27T01:20:00.000Z",
+          discontinuedReason: null,
+          createdAt: "2026-09-27T01:15:00.000Z",
+          items: [
+            {
+              id: "i1",
+              phase: 1,
+              code: "D-RESIN-2",
+              name: "Composite restoration, two surfaces",
+              tooth: "16",
+              surfaces: ["M", "O"],
+              note: null,
+              status: "completed",
+              procedureId: D.procedure,
+            },
+            { id: "i2", phase: 2, code: "D-CROWN", name: "Crown", tooth: "26", surfaces: [], note: "After RCT", status: "accepted", procedureId: null },
+            { id: "i3", phase: 2, code: "D-SEAL", name: "Sealant", tooth: "37", surfaces: ["O"], note: null, status: "declined", procedureId: null },
+          ],
+        },
+        {
+          id: D.declinedPlan,
+          practitionerId: DENTIST,
+          title: "Orthodontic referral",
+          notes: null,
+          status: "declined",
+          decisionNote: "Patient prefers to wait",
+          decidedAt: "2026-09-27T01:21:00.000Z",
+          discontinuedReason: null,
+          createdAt: "2026-09-27T01:16:00.000Z",
+          items: [
+            { id: "i4", phase: 1, code: "D-CONSULT", name: "Consultation", tooth: null, surfaces: [], note: null, status: "declined", procedureId: null },
+          ],
+        },
+      ],
+      chart: [
+        {
+          id: D.state16,
+          tooth: "16",
+          findings: [{ condition: "restoration", surfaces: ["M", "O"] }],
+          note: null,
+          source: { type: "procedure", id: D.procedure },
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          recordedAt: "2026-09-27T01:30:00.000Z",
+        },
+        {
+          id: D.state26,
+          tooth: "26",
+          findings: [
+            { condition: "caries", surfaces: ["D"] },
+            { condition: "root_canal", surfaces: [] },
+          ],
+          note: "Deep lesion",
+          source: { type: "examination", id: D.exam },
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          recordedAt: "2026-09-27T01:10:00.000Z",
+        },
+        {
+          id: D.state36,
+          tooth: "36",
+          findings: [],
+          note: null,
+          source: { type: "examination", id: D.exam },
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          recordedAt: "2026-09-27T01:10:00.000Z",
+        },
+      ],
+      perioCharts: [
+        {
+          id: D.perio,
+          facilityId: FAC,
+          encounterId: DENC,
+          practitionerId: DENTIST,
+          notes: "Localized pockets",
+          status: "recorded",
+          recordedAt: "2026-09-27T01:25:00.000Z",
+          enteredInErrorAt: null,
+          teeth: [
+            {
+              id: D.perio16,
+              tooth: "16",
+              mobility: 1,
+              furcation: 2,
+              sites: [
+                { site: "MB", probingDepth: 5, gingivalMargin: 1, bleeding: true, suppuration: false, plaque: true },
+                { site: "B", probingDepth: 3, gingivalMargin: -1, bleeding: false, suppuration: false, plaque: false },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const bundle = patientEverything(ctx, dental, { count: PAGE_SIZE.max, offset: 0 });
+  const all = (bundle.entry ?? []).map((e) => e.resource as FhirResource);
+  const byId = <T extends FhirResource>(id: string) => all.find((r) => r.id === id) as T;
+
+  it("keeps every dental resource valid against the official R4 JSON schema, every reference resolved", () => {
+    expect(errors(bundle)).toEqual([]);
+    for (const r of all) expect({ id: `${r.resourceType}/${r.id}`, errors: errors(r) }).toEqual({ id: `${r.resourceType}/${r.id}`, errors: [] });
+    const present = new Set(all.map((r) => `${r.resourceType}/${r.id}`));
+    const references = [...JSON.stringify(bundle).matchAll(/"reference":"([A-Za-z]+\/[^"]+)"/g)].map((m) => m[1]);
+    expect(references.filter((r) => !present.has(r!))).toEqual([]);
+    expect(present.has(`Practitioner/${DENTIST}`)).toBe(true);
+  });
+
+  it("maps procedures with the organization's local code, the FDI tooth and surfaces as bodySite, the dentist and the plan", () => {
+    const procedure = byId<Procedure>(D.procedure);
+    expect(procedure).toMatchObject({
+      status: "completed",
+      meta: { lastUpdated: "2026-09-27T01:30:00.000Z" },
+      code: { coding: [{ system: local("dental-procedure"), code: "D-RESIN-2", display: "Composite restoration, two surfaces" }] },
+      subject: { reference: `Patient/${P}` },
+      encounter: { reference: `Encounter/${DENC}` },
+      performedDateTime: "2026-09-27T01:30:00.000Z",
+      performer: [{ actor: { reference: `Practitioner/${DENTIST}` } }],
+      location: { reference: `Location/${FAC}` },
+      basedOn: [{ reference: `CarePlan/${D.plan}` }],
+      note: [{ text: "Shade A2" }],
+    });
+    expect(procedure.bodySite?.map((b) => [b.coding?.[0]?.system, b.coding?.[0]?.code])).toEqual([
+      [local("fdi-tooth"), "16"],
+      [local("tooth-surface"), "M"],
+      [local("tooth-surface"), "O"],
+    ]);
+    const inError = byId<Procedure>(D.procedureInError);
+    expect(inError).toMatchObject({ status: "entered-in-error", meta: { lastUpdated: "2026-09-28T16:30:00.000Z" } });
+    expect(byId<Procedure>(D.cleaning)).not.toHaveProperty("bodySite");
+    // No licensed dental code system (CDT/ADA, SNOMED CT body structures) is claimed.
+    expect(JSON.stringify([procedure, inError])).not.toMatch(/ada\.org|snomed/);
+  });
+
+  it("uses a configured code system only where one is configured", () => {
+    const configured = { ...ctx, codeSystems: { "dental-procedure": "https://codes.example.ph/licensed-dental" } };
+    const procedure = patientEverything(configured, dental, { count: PAGE_SIZE.max, offset: 0 }).entry?.find((e) => e.resource?.id === D.procedure)
+      ?.resource as Procedure;
+    expect(procedure.code?.coding?.[0]?.system).toBe("https://codes.example.ph/licensed-dental");
+    expect(procedure.bodySite?.[0]?.coding?.[0]?.system).toBe(local("fdi-tooth"));
+  });
+
+  it("maps treatment plans to CarePlan with the patient's decision per item and the performed procedure as outcome", () => {
+    const plan = byId<CarePlan>(D.plan);
+    expect(plan).toMatchObject({
+      status: "active",
+      intent: "plan",
+      category: [{ text: "dental" }],
+      title: "Restorative plan",
+      author: { reference: `Practitioner/${DENTIST}` },
+    });
+    expect(plan.note).toEqual([{ text: "Patient's decision: Options and fees explained", time: "2026-09-27T01:20:00.000Z" }]);
+    expect(
+      plan.activity?.map((a) => [a.detail?.code?.coding?.[0]?.code, a.detail?.status, a.detail?.statusReason?.text, a.outcomeReference?.[0]?.reference]),
+    ).toEqual([
+      ["D-RESIN-2", "completed", undefined, `Procedure/${D.procedure}`],
+      ["D-CROWN", "not-started", "Accepted by the patient", undefined],
+      ["D-SEAL", "cancelled", "Declined by the patient", undefined],
+    ]);
+    expect(plan.activity?.[1]?.detail?.description).toBe("Phase 2: Crown — tooth 26. After RCT");
+    expect(plan.activity?.[2]?.detail?.description).toBe("Phase 2: Sealant — tooth 37 O");
+    const declined = byId<CarePlan>(D.declinedPlan);
+    expect(declined.status).toBe("revoked");
+    expect(declined.note?.[0]?.text).toBe("Declined by the patient.");
+  });
+
+  it("maps the examination and the current chart as exam Observations: tooth as bodySite, findings per surface, sound teeth", () => {
+    const exam = byId<Observation>(D.exam);
+    expect(exam).toMatchObject({
+      status: "final",
+      category: [{ coding: [{ code: "exam" }] }],
+      code: { coding: [{ system: local("dental-observation"), code: "dental-examination" }] },
+      component: [{ valueCodeableConcept: { coding: [{ system: local("oral-hygiene"), code: "fair" }] } }],
+      note: [{ text: "Gingiva slightly inflamed" }],
+    });
+    expect(byId<Observation>(D.examInError).status).toBe("entered-in-error");
+    const tooth26 = byId<Observation>(D.state26);
+    expect(tooth26.bodySite?.coding?.[0]).toEqual({ system: local("fdi-tooth"), code: "26", display: "Tooth 26" });
+    expect(tooth26.derivedFrom).toEqual([{ reference: `Observation/${D.exam}` }]);
+    expect(tooth26.component?.map((c) => [c.code.coding?.[0]?.code, c.valueCodeableConcept?.coding?.[0]?.code ?? c.valueBoolean])).toEqual([
+      ["caries", "D"],
+      ["root_canal", true],
+    ]);
+    expect(byId<Observation>(D.state16).partOf).toEqual([{ reference: `Procedure/${D.procedure}` }]);
+    expect(byId<Observation>(D.state36).valueCodeableConcept?.coding?.[0]).toMatchObject({ system: local("tooth-condition"), code: "sound" });
+  });
+
+  it("maps a periodontal chart to a panel with one Observation per tooth, a component per site measurement", () => {
+    const panel = byId<Observation>(D.perio);
+    expect(panel.hasMember).toEqual([{ reference: `Observation/${D.perio16}` }]);
+    const tooth = byId<Observation>(D.perio16);
+    expect(tooth.bodySite?.coding?.[0]?.code).toBe("16");
+    const values = Object.fromEntries(
+      (tooth.component ?? []).map((c) => [c.code.coding?.[0]?.code, c.valueQuantity?.value ?? c.valueInteger ?? c.valueBoolean]),
+    );
+    expect(values).toEqual({
+      "tooth-mobility": 1,
+      furcation: 2,
+      "probing-depth-MB": 5,
+      "gingival-margin-MB": 1,
+      "bleeding-on-probing-MB": true,
+      "plaque-MB": true,
+      "suppuration-MB": false,
+      "probing-depth-B": 3,
+      "gingival-margin-B": -1,
+      "bleeding-on-probing-B": false,
+      "plaque-B": false,
+      "suppuration-B": false,
+    });
+    expect(tooth.component?.find((c) => c.code.coding?.[0]?.code === "probing-depth-MB")?.valueQuantity).toEqual({
+      value: 5,
+      unit: "mm",
+      system: "http://unitsofmeasure.org",
+      code: "mm",
+    });
+  });
+
+  it("describes dental images on their DocumentReference and marks one entered in error", () => {
+    const image = byId<DocumentReference>(D.imageDocument);
+    expect(image).toMatchObject({
+      status: "current",
+      meta: { lastUpdated: "2026-09-27T02:05:00.000Z" },
+      category: [{ coding: [{ system: local("dental-image-kind"), code: "bitewing", display: "Bitewing radiograph" }] }],
+      description: "Bitewing right (teeth 16, 46, FDI)",
+      context: { encounter: [{ reference: `Encounter/${DENC}` }], period: { start: "2026-09-27" } },
+      content: [{ attachment: { url: `${ctx.baseUrl}/Binary/${D.imageDocument}` } }],
+    });
+    const inError = {
+      ...dental.documents![1]!,
+      dentalImage: { ...dental.documents![1]!.dentalImage!, status: "entered_in_error" as const, enteredInErrorAt: "2026-09-29T00:00:00.000Z" },
+    };
+    const withError = patientEverything(ctx, { ...dental, documents: [dental.documents![0]!, inError] });
+    const marked = withError.entry?.find((e) => e.resource?.id === D.imageDocument)?.resource as DocumentReference;
+    expect(marked).toMatchObject({ status: "entered-in-error", meta: { lastUpdated: "2026-09-29T00:00:00.000Z" } });
+    expect(errors(marked)).toEqual([]);
+  });
+
+  it("searches Procedure by patient with _lastUpdated, and dental items appear in the Observation and CarePlan searches", () => {
+    const search = (type: CompartmentType, lastUpdated: SearchParameters["lastUpdated"] = {}) =>
+      searchByPatient(ctx, dental, type, { paging: DEFAULT_PAGING, lastUpdated });
+    expect(search("Procedure").total).toBe(3);
+    expect(search("Procedure", { ge: "2026-09-29" }).entry?.map((e) => e.resource?.id)).toEqual([D.procedureInError]);
+    expect(search("CarePlan").total).toBe(3); // 1 care plan + 2 dental plans
+    expect(search("Observation").total).toBe(10 + 2 + 3 + 2); // vital signs and results + examinations + chart + perio panel and tooth
+    const paged = searchByPatient(ctx, dental, "Procedure", { paging: { count: 2, offset: 0 }, lastUpdated: {} });
+    expect(paged.entry).toHaveLength(2);
+    expect(paged.link?.find((l) => l.relation === "next")?.url).toBe(`${ctx.baseUrl}/Procedure?patient=${P}&_count=2&_offset=2`);
+    expect(errors(search("Procedure"))).toEqual([]);
+  });
+
+  it("withholds the dental record with a notice when the caller may not read it; dental images stay with the documents", () => {
+    const withheld = patientEverything(ctx, { ...dental, dental: null }, { count: PAGE_SIZE.max, offset: 0 });
+    const ids = new Set((withheld.entry ?? []).map((e) => e.resource?.id));
+    for (const id of [D.procedure, D.plan, D.exam, D.state16, D.perio, D.perio16]) expect(ids.has(id)).toBe(false);
+    expect(ids.has(D.imageDocument)).toBe(true);
+    const notices = (withheld.entry ?? []).filter((e) => e.search?.mode === "outcome").map((e) => (e.resource as OperationOutcome).issue[0]?.diagnostics);
+    expect(notices).toEqual([expect.stringContaining("dental.record.read")]);
+    expect(withheld.total).toBe((bundle.total ?? 0) - 12);
+    const observations = searchByPatient(ctx, { ...dental, dental: null }, "Observation");
+    expect(observations.total).toBe(10);
+    expect(observations.entry?.filter((e) => e.search?.mode === "outcome")).toHaveLength(1);
+    expect(searchByPatient(ctx, { ...dental, dental: null }, "Encounter").entry?.some((e) => e.search?.mode === "outcome")).toBe(false);
+    expect(errors(withheld)).toEqual([]);
   });
 });

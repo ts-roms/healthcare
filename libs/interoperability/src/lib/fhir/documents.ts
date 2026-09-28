@@ -1,4 +1,5 @@
 import type { DocumentReference } from "fhir/r4";
+import { dentalImageKind } from "./dental";
 import type { DocumentSource, FhirContext } from "./sources";
 import { compact, localSystem, ref } from "./support";
 import { LAB_REPORT_CODE } from "./terminology";
@@ -22,18 +23,27 @@ export function documentContentUrl(ctx: FhirContext, documentId: string): string
   return `${ctx.baseUrl}/Binary/${documentId}`;
 }
 
+/** The later of two ISO instants (both from the same serializer, so they compare as text). */
+const later = (a: string, b: string | undefined) => (b && b > a ? b : a);
+
 /**
  * A stored document as a DocumentReference. The attachment carries metadata and a URL on this endpoint that
  * requires the caller's token (and `document.read`) and answers with a short-lived signed download.
+ *
+ * A dental radiograph or photo adds what the dental record says about it: the kind of image as `category`, the teeth
+ * shown in the description, the visit and the date taken as `context`. When the dental record marks the image entered
+ * in error, the DocumentReference is `entered-in-error` (the platform's rule for records in error).
  */
 export function toDocumentReference(ctx: FhirContext, patientId: string, d: DocumentSource): DocumentReference {
   const display = CATEGORY_DISPLAY[d.category] ?? d.category.replace(/_/g, " ");
+  const image = d.dentalImage ?? undefined;
   return compact<DocumentReference>({
     resourceType: "DocumentReference",
     id: d.id,
-    // Reliable: after upload an exported document changes only when a newer version supersedes it (archiving withdraws it).
-    meta: { lastUpdated: d.supersededAt ?? d.uploadedAt },
-    status: d.supersededAt ? "superseded" : "current",
+    // Reliable: after upload an exported document changes only when a newer version supersedes it (archiving withdraws
+    // it), or when the dental record describes it or marks that description entered in error (immutable otherwise).
+    meta: { lastUpdated: image?.enteredInErrorAt ?? later(d.supersededAt ?? d.uploadedAt, image?.recordedAt) },
+    status: image?.status === "entered_in_error" ? "entered-in-error" : d.supersededAt ? "superseded" : "current",
     type: {
       coding: [
         ...(d.category === "laboratory_report" ? [{ ...LAB_REPORT_CODE }] : []),
@@ -41,11 +51,12 @@ export function toDocumentReference(ctx: FhirContext, patientId: string, d: Docu
       ],
       text: display,
     },
+    category: image ? [dentalImageKind(ctx, image)] : undefined,
     subject: ref("Patient", patientId),
     date: d.uploadedAt,
     custodian: ref("Organization", ctx.organization.id, ctx.organization.name),
     relatesTo: d.replaces.map((id) => ({ code: "replaces" as const, target: ref("DocumentReference", id) })),
-    description: d.title,
+    description: image?.teeth.length ? `${d.title} (teeth ${image.teeth.join(", ")}, FDI)` : d.title,
     content: [
       {
         attachment: {
@@ -57,6 +68,13 @@ export function toDocumentReference(ctx: FhirContext, patientId: string, d: Docu
         },
       },
     ],
-    context: d.related.length ? { related: d.related.map((r) => ref(r.type, r.id)) } : undefined,
+    context:
+      d.related.length || image
+        ? compact({
+            encounter: image?.encounterId ? [ref("Encounter", image.encounterId)] : undefined,
+            period: image ? { start: image.takenOn } : undefined,
+            related: d.related.map((r) => ref(r.type, r.id)),
+          })
+        : undefined,
   });
 }
