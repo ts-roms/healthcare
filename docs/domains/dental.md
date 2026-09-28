@@ -74,7 +74,7 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
 | Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`   | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
 | Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation` | Settings permission.                                                                                                                                                            |
 | MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, version }`                    | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                              |
-| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                          | Settings permission; active inventory items, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                                          |
+| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                          | Settings permission; active inventory items dentistry uses, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                           |
 | Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                | Settings permission; an active inventory location of that facility, or `null`.                                                                                                  |
 | Record supplies used         | `POST /dental/procedures/:id/supplies`                                              | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                           |
 | Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                      | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                     |
@@ -102,7 +102,9 @@ leaves the tooth missing; an implant or pontic replaces whatever was charted.
   last changed.
 - Patient portal (`PatientAccessGuard`): `GET /portal/dental/availability`, `GET /portal/dental/record` — see
   [dental records in MyHealth](#dental-records-in-myhealth).
-- `GET /dental/supplies/options` — supply templates, the organization's active inventory items and, with a selected
+- `GET /dental/supplies/options` — supply templates, the organization's active inventory items that dentistry uses
+  (`DENTAL_SUPPLY_CATEGORIES`: dental and medical supplies, medicines, PPE, other — never laboratory reagents or
+  consumables; templates and uses refuse them, "… is not a dental supply", and inventory checks again) and, with a selected
   facility, its active stock locations, usable stock per location and item, and the default location. The dental
   record (`GET /dental/patients/:patientId`) also carries `supplyUses` (issues with their lots and what is still out,
   returns).

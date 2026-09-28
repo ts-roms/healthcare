@@ -7,6 +7,9 @@
  * and the screen shows both.
  */
 
+/** Inventory item categories that are dispensed on a prescription (never reagents, dental or laboratory supplies). */
+export const DISPENSABLE_CATEGORIES = ["medicine", "medical_supply"] as const;
+
 /** Lower case, trimmed, simple English plural removed ("tablets" → "tablet", "boxes" → "box"). */
 export function normalizeUnit(unit: string): string {
   const u = unit.trim().toLowerCase().replace(/\s+/g, " ");

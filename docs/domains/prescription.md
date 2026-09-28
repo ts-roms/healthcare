@@ -36,7 +36,8 @@ deleted; nothing else changes (trigger).
 - The dispenser chooses the inventory item and storage location (of the selected facility) per prescribed item; the
   stock leaves inventory **in the same transaction** (first-expiry-first-out, never an expired lot; a shortage refuses
   the whole request). The screen lists stock whose name matches the prescribed medicine first — a name match only; the
-  pharmacist decides what is equivalent.
+  pharmacist decides what is equivalent. Only medicines and medical supplies are dispensed (`DISPENSABLE_CATEGORIES`;
+  anything else `item_category_not_allowed`, and not offered).
 - **No more than prescribed** (quantity × (1 + refills)) when the stock unit is the prescribed unit (case and simple
   plurals ignored, `dispensing.rules.ts`) — `exceeds_prescribed` with what remains. When the units differ (e.g. a
   syrup prescribed in mL, stocked in bottles) the platform cannot compare and shows both; the pharmacist's judgement applies.

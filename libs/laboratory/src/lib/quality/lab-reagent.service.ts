@@ -20,8 +20,8 @@ import { labInstrument, labQcRunReagent, labReagentLoad, type LabReagentLoadReco
 import { found, publicView } from "../laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
 
-/** Only inventory items of this category are loaded on instruments. */
-const REAGENT_CATEGORY = "reagent";
+/** Only inventory items of this category are loaded on instruments (and taken from stock when loading). */
+export const REAGENT_CATEGORY = "reagent";
 
 export type ReagentLoadView = Omit<LabReagentLoadRecord, "organizationId"> & {
   testName: string | null;
