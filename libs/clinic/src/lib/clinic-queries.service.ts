@@ -2,7 +2,18 @@ import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
-import { allergyIntolerance, allergyReview, appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
+import {
+  allergyIntolerance,
+  allergyReview,
+  appointment,
+  diagnosis,
+  encounter,
+  externalHistoryEntry,
+  practitioner,
+  visit,
+  visitType,
+  vitalSignSet,
+} from "./clinic.schema";
 import { publicView } from "./clinic-support";
 import { canApply } from "./domain/appointment-state";
 import { patientMayChange } from "./domain/patient-booking";
@@ -187,10 +198,11 @@ export class ClinicQueries {
 
   /**
    * The patient's whole clinic record for a record export (FHIR): encounters with their visit type, diagnoses,
-   * allergies and the latest allergy review, vital signs and appointments. Not audited here: the caller audits.
+   * allergies (with their source) and the latest allergy review, vital signs, appointments and the external history
+   * accepted from imports. Not audited here: the caller audits.
    */
   async patientRecord(organizationId: string, patientId: string) {
-    const [encounters, diagnoses, allergies, [review], vitals, appointments] = await Promise.all([
+    const [encounters, diagnoses, allergies, [review], vitals, appointments, externalHistory] = await Promise.all([
       this.db
         .select({ encounter, visitTypeName: visitType.name })
         .from(encounter)
@@ -226,6 +238,25 @@ export class ClinicQueries {
         .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
         .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId)))
         .orderBy(asc(appointment.startsAt)),
+      this.db
+        .select({
+          id: externalHistoryEntry.id,
+          kind: externalHistoryEntry.kind,
+          category: externalHistoryEntry.category,
+          display: externalHistoryEntry.display,
+          codeSystem: externalHistoryEntry.codeSystem,
+          code: externalHistoryEntry.code,
+          valueText: externalHistoryEntry.valueText,
+          statusText: externalHistoryEntry.statusText,
+          effectiveText: externalHistoryEntry.effectiveText,
+          declaredSource: externalHistoryEntry.declaredSource,
+          status: externalHistoryEntry.status,
+          recordedAt: externalHistoryEntry.recordedAt,
+          enteredInErrorAt: externalHistoryEntry.enteredInErrorAt,
+        })
+        .from(externalHistoryEntry)
+        .where(and(eq(externalHistoryEntry.organizationId, organizationId), eq(externalHistoryEntry.patientId, patientId)))
+        .orderBy(asc(externalHistoryEntry.recordedAt)),
     ]);
     return {
       encounters: encounters.map((r) => ({ ...r.encounter, visitTypeName: r.visitTypeName })),
@@ -234,6 +265,8 @@ export class ClinicQueries {
       allergyReview: review ?? null,
       vitals,
       appointments: appointments.map((r) => ({ ...r.appointment, visitTypeName: r.visitTypeName, modality: r.modality, practitionerName: r.practitionerName })),
+      /** Accepted from imports: labelled external records, never the clinic's own (entries in error included, marked). */
+      externalHistory,
     };
   }
 

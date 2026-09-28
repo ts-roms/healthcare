@@ -17,8 +17,10 @@ export const canReadDocuments = (actor: Actor) => actor.permissions.has("documen
 /**
  * Composes one patient's record from the domains' read queries into the
  * interoperability layer's source model (libs/interoperability maps it to FHIR).
- * Laboratory results are the current released versions only. Documents are
- * included only for a caller who may read documents (`document.read`).
+ * Laboratory results are the current released versions only (with the
+ * reference laboratory that performed a send-out). Documents — and imported
+ * document descriptions — are included only for a caller who may read
+ * documents (`document.read`). External history comes from the clinic.
  */
 @Injectable()
 export class FhirRecordComposer {
@@ -159,6 +161,7 @@ export class FhirRecordComposer {
                 comment: i.result.comment,
                 collectedAt: iso(i.result.collectedAt),
                 releasedAt: iso(i.result.releasedAt),
+                performer: i.result.referenceLaboratory,
               }
             : null,
         })),
@@ -198,6 +201,11 @@ export class FhirRecordComposer {
           replaces: reports.get(d.id)?.replaces ?? [],
           related: reports.has(d.id) ? [{ type: "DiagnosticReport", id: reports.get(d.id)!.orderId }] : [],
         })) ?? null,
+      externalHistory: clinic.externalHistory.map((e) => ({
+        ...e,
+        recordedAt: e.recordedAt.toISOString(),
+        enteredInErrorAt: iso(e.enteredInErrorAt),
+      })),
     };
   }
 }

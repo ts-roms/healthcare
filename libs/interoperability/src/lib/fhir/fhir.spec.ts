@@ -1,5 +1,5 @@
 import type { Bundle, CapabilityStatement, DocumentReference, FhirResource, Observation, OperationOutcome, Patient } from "fhir/r4";
-import { capabilityStatement, operationOutcome, patientEverything, searchByPatient } from "./bundle";
+import { capabilityStatement, type CompartmentType, operationOutcome, patientEverything, searchByPatient } from "./bundle";
 import { DEFAULT_PAGING, FhirSearchError, PAGE_SIZE, parseLastUpdated, parsePaging, parseSearchParameters, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
 
@@ -140,6 +140,7 @@ const source: PatientRecordSource = {
       verification: "confirmed",
       status: "active",
       recordedAt: "2026-01-01T00:00:00.000Z",
+      source: "staff",
     },
   ],
   allergyReview: { noKnownAllergies: false, reviewedAt: "2026-01-01T00:00:00.000Z" },
@@ -207,6 +208,7 @@ const source: PatientRecordSource = {
             comment: "Corrected: transcription error",
             collectedAt: "2026-09-27T02:00:00.000Z",
             releasedAt: "2026-09-27T05:00:00.000Z",
+            performer: null,
           },
         },
         {
@@ -230,6 +232,7 @@ const source: PatientRecordSource = {
             comment: null,
             collectedAt: "2026-09-27T02:00:00.000Z",
             releasedAt: "2026-09-27T04:00:00.000Z",
+            performer: null,
           },
         },
         { id: "99999999-9999-4999-8999-999999999995", testCode: "lipid", testName: "Lipid profile", loincCode: null, status: "received", result: null },
@@ -320,6 +323,7 @@ const source: PatientRecordSource = {
       related: [],
     },
   ],
+  externalHistory: [],
 };
 
 function errors(resource: { resourceType: string }): unknown[] {
@@ -536,7 +540,7 @@ describe("FHIR R4 mapping", () => {
     const resources = capability.rest?.[0]?.resource ?? [];
     expect(resources.map((r) => r.type)).toEqual(expect.arrayContaining(["Patient", "DocumentReference", "Binary"]));
     const withLastUpdated = resources.filter((r) => r.searchParam?.some((p) => p.name === "_lastUpdated")).map((r) => r.type);
-    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest"]);
+    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement"]);
   });
 });
 
@@ -663,5 +667,244 @@ describe("FHIR _lastUpdated", () => {
     expect(code(() => parseLastUpdated("ge2026-09-01T10:00:00"))).toBe("invalid"); // an instant needs its time zone
     expect(code(() => parseSearchParameters({ _lastUpdated: "ge2026-09-01" }, { type: "Encounter", lastUpdated: false }))).toBe("not-supported");
     expect(parseSearchParameters({ _count: "5" }, { type: "Encounter", lastUpdated: false })).toEqual({ paging: { count: 5, offset: 0 }, lastUpdated: {} });
+  });
+});
+
+describe("FHIR export of send-out results and records from other systems", () => {
+  const RL = "12121212-1212-4121-8121-121212121212";
+  const referenceLab = { id: RL, name: "Metro Reference Laboratory", accreditationReference: "DOH-LIC-TEST-001" };
+  const TAG = { system: "https://ids.example.ph/demo/codesystem/record-source", code: "external-import", display: "Imported from another system" };
+  const IDS = {
+    importedAllergy: "13131313-1313-4131-8131-131313131313",
+    condition: "e1000000-0000-4000-8000-000000000001",
+    conditionInError: "e1000000-0000-4000-8000-000000000002",
+    observation: "e1000000-0000-4000-8000-000000000003",
+    reported: "e1000000-0000-4000-8000-000000000004",
+    prescribedElsewhere: "e1000000-0000-4000-8000-000000000005",
+    document: "e1000000-0000-4000-8000-000000000006",
+  };
+  type Entry = PatientRecordSource["externalHistory"][number];
+  const entry = (id: string, fields: Partial<Entry>): Entry => ({
+    id,
+    kind: "condition",
+    category: null,
+    display: "Entry",
+    codeSystem: null,
+    code: null,
+    valueText: null,
+    statusText: null,
+    effectiveText: null,
+    declaredSource: "https://hospital.test.invalid/fhir",
+    status: "active",
+    recordedAt: "2026-09-20T02:00:00.000Z",
+    enteredInErrorAt: null,
+    ...fields,
+  });
+  const order = source.labOrders[0]!;
+  const extended: PatientRecordSource = {
+    ...source,
+    allergies: [
+      ...source.allergies,
+      {
+        id: IDS.importedAllergy,
+        category: "food",
+        substance: "Shrimp",
+        reaction: "Urticaria",
+        severity: "mild",
+        criticality: "low",
+        // Stored unconfirmed by the import; the export states it whatever the row says.
+        verification: "confirmed",
+        status: "active",
+        recordedAt: "2026-09-20T02:00:00.000Z",
+        source: "external_import",
+      },
+    ],
+    labOrders: [
+      {
+        ...order,
+        items: order.items.map((i) => (i.testCode === "fbs" && i.result ? { ...i, result: { ...i.result, performer: referenceLab } } : i)),
+      },
+    ],
+    externalHistory: [
+      entry(IDS.condition, {
+        category: "problem-list-item",
+        display: "Type 2 diabetes mellitus",
+        codeSystem: "http://hl7.org/fhir/sid/icd-10",
+        code: "E11.9",
+        statusText: "active · confirmed",
+        effectiveText: "2019-05",
+      }),
+      entry(IDS.conditionInError, {
+        display: "Asthma",
+        statusText: "active",
+        effectiveText: "sometime in 2010",
+        status: "entered_in_error",
+        enteredInErrorAt: "2026-09-21T02:00:00.000Z",
+        declaredSource: "not a uri",
+      }),
+      entry(IDS.observation, {
+        kind: "observation",
+        category: "laboratory",
+        display: "Hemoglobin A1c",
+        codeSystem: "http://loinc.org",
+        code: "4548-4",
+        valueText: "7.2 % (High) ref. 4 – 5.6",
+        statusText: "final",
+        effectiveText: "2026-08-01T08:00:00+08:00",
+      }),
+      entry(IDS.reported, {
+        kind: "medication",
+        category: "reported",
+        display: "Metformin 500 mg tablet",
+        valueText: "1 tablet twice daily",
+        statusText: "active",
+        effectiveText: "2026-01-15",
+      }),
+      entry(IDS.prescribedElsewhere, {
+        kind: "medication",
+        category: "prescribed_elsewhere",
+        display: "Losartan 50 mg tablet",
+        statusText: "cancelled",
+        effectiveText: "2026-02-01T09:00:00Z",
+        recordedAt: "2026-09-25T02:00:00.000Z",
+      }),
+      entry(IDS.document, {
+        kind: "document",
+        category: "Discharge summary",
+        display: "Discharge summary, Hospital X",
+        valueText: "summary.pdf, application/pdf, 120 KB (file not imported)",
+        statusText: "current",
+        effectiveText: "2026-07-01T10:00:00+08:00",
+      }),
+    ],
+  };
+  const bundle = patientEverything(ctx, extended, { count: PAGE_SIZE.max, offset: 0 });
+  const all = (bundle.entry ?? []).map((e) => e.resource as FhirResource);
+  const byId = <T extends FhirResource>(id: string) => all.find((r) => r.id === id) as T;
+  type Loose = FhirResource & Record<string, unknown>;
+
+  it("keeps every resource valid against the official R4 JSON schema, every reference resolved", () => {
+    expect(errors(bundle)).toEqual([]);
+    for (const resource of all) expect({ id: resource.id, errors: errors(resource) }).toEqual({ id: resource.id, errors: [] });
+    const present = new Set(all.map((r) => `${r.resourceType}/${r.id}`));
+    const references = [...JSON.stringify(bundle).matchAll(/"reference":"([A-Za-z]+\/[^"]+)"/g)].map((m) => m[1]);
+    expect(references.filter((r) => !present.has(r!))).toEqual([]);
+  });
+
+  it("names the reference laboratory that performed a send-out as a contained Organization, without an unconfigured identifier", () => {
+    const fbs = byId<Observation>("99999999-9999-4999-8999-999999999992");
+    expect(fbs.performer).toEqual([{ reference: `#reference-lab-${RL}`, display: "Metro Reference Laboratory" }]);
+    expect(fbs.contained).toEqual([
+      { resourceType: "Organization", id: `reference-lab-${RL}`, type: [{ text: "Reference laboratory" }], name: "Metro Reference Laboratory" },
+    ]);
+    // In-house results are unchanged: the organization performs them.
+    const hbsag = byId<Observation>("99999999-9999-4999-8999-999999999994");
+    expect(hbsag.performer).toEqual([{ reference: `Organization/${ctx.organization.id}` }]);
+    expect(hbsag).not.toHaveProperty("contained");
+    const report = byId<Loose>("88888888-8888-4888-8888-888888888888");
+    expect(report["performer"]).toEqual([
+      { reference: `Organization/${ctx.organization.id}` },
+      { reference: `#reference-lab-${RL}`, display: "Metro Reference Laboratory" },
+    ]);
+    expect(report["contained"]).toHaveLength(1);
+    // Without send-outs: no contained resources at all.
+    expect(JSON.stringify(patientEverything(ctx, source))).not.toContain("contained");
+  });
+
+  it("gives the accreditation reference as an identifier only with a configured system", () => {
+    const configured: FhirContext = {
+      ...ctx,
+      identifierSystems: { ...ctx.identifierSystems, reference_laboratory_accreditation: "https://ids.test.invalid/lab-licence" },
+    };
+    const fbs = (patientEverything(configured, extended).entry ?? [])
+      .map((e) => e.resource as Observation)
+      .find((r) => r.id === "99999999-9999-4999-8999-999999999992");
+    expect(fbs?.contained?.[0]).toMatchObject({
+      identifier: [{ system: "https://ids.test.invalid/lab-licence", value: "DOH-LIC-TEST-001", type: { text: "Accreditation / licence reference" } }],
+    });
+    expect(errors(fbs as Observation)).toEqual([]);
+  });
+
+  it("flags imported allergies with the external-source tag, always unconfirmed; staff allergies are unchanged", () => {
+    expect(byId(IDS.importedAllergy)).toMatchObject({
+      meta: { tag: [TAG] },
+      verificationStatus: { coding: [{ code: "unconfirmed" }] },
+      clinicalStatus: { coding: [{ code: "active" }] },
+    });
+    expect(byId("66666666-6666-4666-8666-666666666666")).not.toHaveProperty("meta");
+  });
+
+  it("maps external history to Condition, Observation, MedicationStatement and DocumentReference, tagged and never as the platform's own", () => {
+    const condition = byId<Loose>(IDS.condition);
+    expect(condition).toMatchObject({
+      resourceType: "Condition",
+      meta: { lastUpdated: "2026-09-20T02:00:00.000Z", source: "https://hospital.test.invalid/fhir", tag: [TAG] },
+      clinicalStatus: { coding: [{ code: "active" }] },
+      verificationStatus: { coding: [{ system: "http://terminology.hl7.org/CodeSystem/condition-ver-status", code: "unconfirmed" }] },
+      category: [{ coding: [{ code: "problem-list-item" }] }],
+      code: { coding: [{ system: "http://hl7.org/fhir/sid/icd-10", code: "E11.9", display: "Type 2 diabetes mellitus" }] },
+      onsetDateTime: "2019-05",
+    });
+    expect(condition).not.toHaveProperty("encounter");
+    expect(condition["note"]).toEqual([
+      { text: "Imported from another system; not verified by this organization." },
+      { text: "Status at the source: active · confirmed" },
+    ]);
+
+    // Entered in error: like a diagnosis in error (status kept, no clinical status); a declared source that is not a URI is left out.
+    const inError = byId<Loose>(IDS.conditionInError);
+    expect(inError).toMatchObject({ verificationStatus: { coding: [{ code: "entered-in-error" }] }, onsetString: "sometime in 2010" });
+    expect(inError).not.toHaveProperty("clinicalStatus");
+    expect(inError["meta"]).toEqual({ lastUpdated: "2026-09-21T02:00:00.000Z", tag: [TAG] });
+
+    const observation = byId<Observation>(IDS.observation);
+    expect(observation).toMatchObject({
+      status: "final",
+      category: [{ coding: [{ code: "laboratory" }] }],
+      code: { coding: [{ system: "http://loinc.org", code: "4548-4" }] },
+      valueString: "7.2 % (High) ref. 4 – 5.6",
+      effectiveDateTime: "2026-08-01T08:00:00+08:00",
+      meta: { tag: [TAG] },
+    });
+    for (const property of ["performer", "issued", "basedOn", "encounter", "contained"]) expect(observation).not.toHaveProperty(property);
+
+    expect(byId(IDS.reported)).toMatchObject({
+      resourceType: "MedicationStatement",
+      status: "active",
+      medicationCodeableConcept: { text: "Metformin 500 mg tablet" },
+      dosage: [{ text: "1 tablet twice daily" }],
+      effectiveDateTime: "2026-01-15",
+    });
+    const elsewhere = byId<Loose>(IDS.prescribedElsewhere);
+    expect(elsewhere).toMatchObject({ resourceType: "MedicationStatement", status: "unknown" });
+    expect(JSON.stringify(elsewhere["note"])).toContain("Status at the source: cancelled");
+    expect(JSON.stringify(elsewhere["note"])).toContain("Prescribed elsewhere");
+
+    const document = byId<DocumentReference>(IDS.document);
+    expect(document).toMatchObject({
+      status: "current",
+      type: { text: "Discharge summary" },
+      description: "Discharge summary, Hospital X",
+      date: "2026-07-01T10:00:00+08:00",
+      content: [{ attachment: { title: "summary.pdf, application/pdf, 120 KB (file not imported)" } }],
+    });
+    expect(document).not.toHaveProperty("custodian");
+    expect(JSON.stringify(document)).not.toContain("Binary");
+    expect(all.filter((r) => r.resourceType === "Encounter")).toHaveLength(source.encounters.length);
+  });
+
+  it("searches external history by type, with _lastUpdated where reliable, and withholds document descriptions with documents", () => {
+    const search = (type: CompartmentType, lastUpdated: SearchParameters["lastUpdated"] = {}) =>
+      searchByPatient(ctx, extended, type, { paging: DEFAULT_PAGING, lastUpdated });
+    expect(search("MedicationStatement").total).toBe(2);
+    expect(search("MedicationStatement", { ge: "2026-09-25" }).entry?.map((e) => e.resource?.id)).toEqual([IDS.prescribedElsewhere]);
+    expect(search("Condition").total).toBe(4); // 2 diagnoses + 2 external conditions
+    expect(search("Observation").total).toBe(11); // 8 vital signs + 2 laboratory results + 1 external
+    expect(search("DocumentReference").total).toBe(2);
+    expect(search("DocumentReference", { ge: "2026-09-20", le: "2026-09-20" }).entry?.map((e) => e.resource?.id)).toEqual([IDS.document]);
+    expect(errors(search("MedicationStatement"))).toEqual([]);
+    const withheld = patientEverything(ctx, { ...extended, documents: null });
+    expect(withheld.entry?.some((e) => e.resource?.resourceType === "DocumentReference")).toBe(false);
+    expect(withheld.entry?.some((e) => e.resource?.resourceType === "MedicationStatement")).toBe(true);
   });
 });

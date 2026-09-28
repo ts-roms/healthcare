@@ -20,6 +20,12 @@ export interface FhirContext {
   codeSystems?: Partial<Record<string, string>>;
 }
 
+/**
+ * Where a record came from: the platform's own staff, or another system through an accepted FHIR import (it is then
+ * flagged as externally sourced in the export and never presented as this organization's own record).
+ */
+export type RecordSource = "staff" | "external_import";
+
 export interface OrganizationSource {
   id: string;
   code: string;
@@ -119,6 +125,8 @@ export interface AllergySource {
   verification: "unconfirmed" | "confirmed";
   status: string;
   recordedAt: string;
+  /** `external_import`: accepted from an import (always unconfirmed); exported with the external-source tag. */
+  source: RecordSource | string;
 }
 
 export interface AllergyReviewSource {
@@ -193,6 +201,17 @@ export interface LabResultSource {
   comment: string | null;
   collectedAt: string | null;
   releasedAt: string | null;
+  /** The reference laboratory that performed the test (a send-out); null when the organization's own laboratory did. */
+  performer: ReferenceLaboratorySource | null;
+}
+
+/** A reference laboratory as recorded by the organization (nothing about it is verified by the platform). */
+export interface ReferenceLaboratorySource {
+  id: string;
+  /** The name the result was attributed to when it was entered (a snapshot: what the report says). */
+  name: string;
+  /** The accreditation / licence reference as recorded by staff; exported only with a configured identifier system. */
+  accreditationReference: string | null;
 }
 
 export interface PrescriptionSource {
@@ -270,6 +289,36 @@ export interface DocumentSource {
   related: Array<{ type: string; id: string }>;
 }
 
+/**
+ * An entry of the patient's external history: a Condition, Observation, medication or document description received
+ * from another system and accepted by staff from a FHIR import. Kept as received (as text), never a diagnosis,
+ * laboratory result, vital sign, prescription or stored document of the platform. Append-only: the only change is
+ * being marked entered in error (database trigger), so `enteredInErrorAt ?? recordedAt` is a reliable last-updated time.
+ */
+export interface ExternalHistorySource {
+  id: string;
+  kind: "condition" | "observation" | "medication" | "document";
+  /**
+   * condition: the sender's condition category code; observation: "laboratory", "vital-signs" or "other"; medication:
+   * "reported" (a MedicationStatement) or "prescribed_elsewhere" (a MedicationRequest); document: the type as text.
+   */
+  category: string | null;
+  display: string;
+  codeSystem: string | null;
+  code: string | null;
+  /** The value / dosage / attachment summary, as text. */
+  valueText: string | null;
+  /** The status as received (condition: "clinical · verification"). */
+  statusText: string | null;
+  /** The date as received (onset, effective, authored or document date). */
+  effectiveText: string | null;
+  /** The sending system as it declared itself (`Bundle.meta.source`; not verified). */
+  declaredSource: string | null;
+  status: "active" | "entered_in_error";
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
 /** Everything about one patient that the platform exports. */
 export interface PatientRecordSource {
   patient: PatientSource;
@@ -286,4 +335,6 @@ export interface PatientRecordSource {
   carePlans: CarePlanSource[];
   /** The patient's documents, or null when the caller may not see documents (they are then withheld, with a notice). */
   documents: DocumentSource[] | null;
+  /** External history accepted from imports (document descriptions are withheld with documents, when `documents` is null). */
+  externalHistory: ExternalHistorySource[];
 }
