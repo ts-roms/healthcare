@@ -41,6 +41,7 @@ export default async function ResultPage({ params }: { params: Promise<{ testId:
         <p className="text-meta text-muted-foreground">
           {usualRange(latest) ?? ""} · {resultDate(latest.collectedAt ?? latest.releasedAt)}
           {latest.corrected ? " · updated by the laboratory" : ""}
+          {latest.performingLaboratory ? ` · tested at ${latest.performingLaboratory}` : ""}
         </p>
       </div>
 
@@ -73,6 +74,7 @@ export default async function ResultPage({ params }: { params: Promise<{ testId:
               </p>
               <ResultMeaning result={p} />
               {usualRange(p) ? <p className="text-meta text-muted-foreground">{usualRange(p)} (at the time)</p> : null}
+              {p.performingLaboratory ? <p className="text-meta text-muted-foreground">Tested at {p.performingLaboratory}</p> : null}
             </li>
           ))}
         </ul>

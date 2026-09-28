@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { CaseReportStatus, CaseReportSummary } from "@/lib/api/types";
-import { CaseStatus } from "./case-status";
+import { CaseStatus, FoundByCheck } from "./case-status";
 import { ReportingNav } from "./reporting-nav";
 
 export const metadata = { title: "Disease reporting" };
@@ -64,6 +64,11 @@ export default async function ReportingPage({ searchParams }: { searchParams: Pr
                       <Link className="underline-offset-2 hover:underline" href={`/reporting/${c.id}`}>
                         {clinicalDateTime(c.detectedAt)}
                       </Link>
+                      {c.rescanId ? (
+                        <div className="mt-1">
+                          <FoundByCheck />
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       {c.patient ? (

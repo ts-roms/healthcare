@@ -37,6 +37,6 @@ export class SubmitCaseDto extends createZodDto(submitCaseSchema) {}
 
 const calendarDate = z.iso.date("A calendar date (YYYY-MM-DD)");
 
-/** Check the organization's diagnoses recorded in this range (both dates included, Philippine time) against its rules. */
+/** Check the organization's diagnoses recorded in this range (both dates included, in the time zone of the facility the requester works in) against its rules. */
 export const rescanSchema = z.object({ from: calendarDate, to: calendarDate });
 export class RescanDto extends createZodDto(rescanSchema) {}

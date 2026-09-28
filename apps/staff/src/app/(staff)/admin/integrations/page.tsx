@@ -6,9 +6,10 @@ import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeade
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { ExchangeReviewItem, ExchangeReviewList } from "@/lib/api/types";
+import type { ExchangeReviewItem, ExchangeReviewList, PayloadKeyOverview } from "@/lib/api/types";
 import { operationLabel, sourceLink } from "./exchange-labels";
 import { ExchangeRowActions } from "./exchange-row-actions";
+import { PayloadKeys } from "./payload-keys";
 
 export const metadata = { title: "Integrations" };
 
@@ -48,7 +49,11 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   const [params, session] = await Promise.all([searchParams, getSession()]);
   if (!can(session, "integration.exchange.manage")) redirect("/");
   const view = params.view === "all" ? "all" : "attention";
-  const { summary, exchanges } = await api<ExchangeReviewList>("/integrations/exchanges", { query: { view } });
+  const [{ summary, exchanges }, keys] = await Promise.all([
+    api<ExchangeReviewList>("/integrations/exchanges", { query: { view } }),
+    // Key rotation is a platform operation: only platform administrators see the key ring's usage.
+    session.user.isPlatformAdmin ? api<PayloadKeyOverview>("/integrations/payload-keys").catch(() => null) : Promise.resolve(null),
+  ]);
   return (
     <>
       <PageHeader
@@ -138,6 +143,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
             </Table>
           )}
         </Card>
+        {keys ? <PayloadKeys overview={keys} /> : null}
       </div>
     </>
   );

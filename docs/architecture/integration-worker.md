@@ -109,9 +109,11 @@ Procedure ([runbook](../runbooks/integration-payload-key-rotation.md)):
    `INTEGRATION_PAYLOAD_KEY_ID` unchanged. Deploy the worker first (it must be able to open what the API will seal).
 3. **Switch** `INTEGRATION_PAYLOAD_KEY_ID` to the new id on every API instance. New payloads use the new key; queued ones
    keep theirs and are still opened.
-4. **Wait** until nothing sealed with the old key is queued:
-   `SELECT key_id, count(*) FROM integration_exchange_payload GROUP BY key_id;` (payloads are deleted as soon as their
-   exchange is final; a `NULL` key id is a payload from before key ids, opened with any listed key).
+4. **Wait** until nothing sealed with the old key is stored: queued payloads (deleted as soon as their exchange is
+   final) and kept FHIR import content (`fhir_import_content`, which uses the same key ring). Platform administrators
+   see both per key id on `/admin/integrations` (`GET /api/v1/integrations/payload-keys`, counts only); a `NULL` key id
+   is a payload from before key ids, opened with any listed key. A key still needed by kept imports stays listed as a
+   decrypt-only key.
 5. **Remove** the old key (and `INTEGRATION_PAYLOAD_KEY`, if it was the old key) from the API and the worker.
 
 - `pnpm dev` starts it with the other apps; `pnpm dev:integration-worker` alone.

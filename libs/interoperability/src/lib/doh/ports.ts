@@ -17,6 +17,11 @@ export interface DohCaseSources {
     after: { recordedAt: string; diagnosisId: string } | null,
     limit: number,
   ): Promise<DohDiagnosisBrief[]>;
+  /**
+   * The time zone (IANA) checks of earlier diagnoses read their calendar dates in: the facility the requester works in
+   * (clinical dates follow the facility's time zone), Asia/Manila without one.
+   */
+  timeZone(organizationId: string, facilityId: string | null): Promise<string>;
   /** Patient number and name for lists. */
   patientBriefs(organizationId: string, patientIds: string[]): Promise<Map<string, { patientNumber: string; displayName: string }>>;
 }

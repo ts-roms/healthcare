@@ -130,7 +130,7 @@ export class AppModule implements NestModule {
           yakapGateway: overrides.philhealthYakapGateway,
         }),
         // Phase 8 — DOH disease case reporting (unconfigured until the specification is obtained).
-        DohReportingModule.forRoot({ imports: [PatientModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
+        DohReportingModule.forRoot({ imports: [PatientModule, OrganizationModule], sources: AppDohCaseSources, gateway: overrides.dohGateway }),
         // Phase 8 — send-outs to reference laboratories: electronic submission (unconfigured until a laboratory's interface is obtained).
         ReferenceLabIntegrationModule.forRoot({
           imports: [PatientModule, laboratory],
