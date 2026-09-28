@@ -2722,6 +2722,7 @@ export interface LabCompetencyOverview {
       state: "competent" | "due" | "not_yet_competent";
     }>;
   }>;
+}
 
 // ---- MyHealth dental records (libs/dental/src/lib/portal/dental-portal-settings.service.ts; GET/PUT /dental/settings/portal) ----
 
