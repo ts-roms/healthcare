@@ -8,6 +8,8 @@ import type {
   LabResultFlag,
   LabResultStatus,
   LabResultType,
+  LabSendOut,
+  LabSendOutStatus,
   LabTrend,
   LabWorklistStage,
   PatientLabResult,
@@ -152,4 +154,43 @@ export function overdueMinutes(item: Pick<LabOrderItem, "turnaroundMinutes" | "s
 export function patientLine(patient: { patientNumber: string; displayName: string; sex: string; age: number } | null): string {
   if (!patient) return "Patient";
   return `${patient.displayName} · ${patient.patientNumber} · ${patient.age} y`;
+}
+
+// ---- Send-outs to reference laboratories ----------------------------------------------------------
+
+export const SEND_OUT_STATUS_LABEL: Record<LabSendOutStatus, string> = {
+  prepared: "To dispatch",
+  dispatched: "At the reference laboratory",
+  results_received: "Results received",
+  rejected: "Rejected by the reference laboratory",
+  cancelled: "Send-out cancelled",
+};
+
+/** "45 min", "6 h", "2 d 3 h" — elapsed or expected turnaround. */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest ? `${days} d ${rest} h` : `${days} d`;
+}
+
+/** Tone for a send-out's turnaround badge (always shown with an icon and text, never colour alone). */
+export function sendOutTone(row: Pick<LabSendOut, "status" | "overdue">): "critical" | "warning" | "info" | "success" | "neutral" {
+  if (row.status === "dispatched") return row.overdue ? "critical" : "info";
+  if (row.status === "prepared") return "warning";
+  if (row.status === "results_received") return "success";
+  return "neutral";
+}
+
+/** Prepared send-outs grouped by reference laboratory: one dispatch (manifest) per laboratory. */
+export function byReferenceLaboratory(rows: LabSendOut[]): Array<{ referenceLaboratoryId: string; name: string; rows: LabSendOut[] }> {
+  const groups = new Map<string, { referenceLaboratoryId: string; name: string; rows: LabSendOut[] }>();
+  for (const row of rows) {
+    const group = groups.get(row.referenceLaboratoryId) ?? { referenceLaboratoryId: row.referenceLaboratoryId, name: row.referenceLaboratoryName, rows: [] };
+    group.rows.push(row);
+    groups.set(row.referenceLaboratoryId, group);
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

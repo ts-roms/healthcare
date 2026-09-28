@@ -3,11 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { AlertOctagonIcon, ScanBarcodeIcon, ZapIcon } from "lucide-react";
+import { AlertOctagonIcon, ScanBarcodeIcon, TruckIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
 import { findByAccession } from "../actions";
 import { type LabPermissions, WorkbenchDetail } from "./workbench-detail";
@@ -20,6 +20,7 @@ export function LabWorkbench({
   dashboard,
   departments,
   specimenTypes,
+  referenceLabs,
   permissions,
 }: {
   facilityName: string;
@@ -29,6 +30,7 @@ export function LabWorkbench({
   dashboard: LabDashboard | null;
   departments: LabCatalogEntry[];
   specimenTypes: LabSpecimenType[];
+  referenceLabs: ReferenceLaboratory[];
   permissions: LabPermissions;
 }) {
   const router = useRouter();
@@ -88,6 +90,15 @@ export function LabWorkbench({
           <>
             <span className="tabular">{dashboard.statOpen} STAT open</span>
             {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
+            {dashboard.sendOutsToDispatch || dashboard.sendOutsAwaitingResults ? (
+              <Link href="/laboratory/send-outs" className="inline-flex items-center gap-1 hover:underline">
+                <TruckIcon className="size-4" aria-hidden />
+                <span className="tabular">
+                  {dashboard.sendOutsToDispatch} to dispatch · {dashboard.sendOutsAwaitingResults} at reference labs
+                  {dashboard.sendOutsOverdue ? ` (${dashboard.sendOutsOverdue} overdue)` : ""}
+                </span>
+              </Link>
+            ) : null}
             {dashboard.criticalUnacknowledged ? (
               <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
                 <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
@@ -200,6 +211,7 @@ export function LabWorkbench({
             stage={scanned ? null : stage}
             permissions={permissions}
             specimenTypeName={specimenTypeName}
+            referenceLabs={referenceLabs}
             onChanged={afterChange}
           />
         ) : (

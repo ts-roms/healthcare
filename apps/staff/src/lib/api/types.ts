@@ -1584,3 +1584,153 @@ export interface YakapPackagePreview {
   package: YakapEncounterPackage | null;
   submissions: ClaimExchange[];
 }
+// ---- Laboratory send-outs to reference laboratories (Phase 8) -----------------------------------------
+// The declarations below extend LabResult, LabOrderItem and LabDashboard (interface merging).
+
+export type LabSendOutStatus = "prepared" | "dispatched" | "results_received" | "rejected" | "cancelled";
+
+export interface LabResult {
+  /** Performed by a reference laboratory (null: the facility's own laboratory); the name is a snapshot. */
+  sendOutId: string | null;
+  referenceLaboratoryId: string | null;
+  performingLaboratory: string | null;
+}
+
+/** The latest send-out of a test on its current specimen. */
+export interface LabItemSendOut {
+  id: string;
+  status: LabSendOutStatus;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  dispatchedAt: string | null;
+  referenceAccession: string | null;
+  resultsReceivedAt: string | null;
+  rejectionReason: string | null;
+}
+
+export interface LabOrderItem {
+  sendOut: LabItemSendOut | null;
+}
+
+export interface LabDashboard {
+  sendOutsToDispatch: number;
+  sendOutsAwaitingResults: number;
+  sendOutsOverdue: number;
+}
+
+/** GET /laboratory/reference-labs */
+export interface ReferenceLaboratory {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  /** As recorded by staff; not verified. */
+  accreditationReference: string | null;
+  notes: string | null;
+  status: "active" | "inactive";
+  version: number;
+}
+
+/** GET /laboratory/referrals (selected facility) */
+export interface LabTestReferral {
+  facilityId: string;
+  testId: string;
+  testCode: string;
+  testName: string;
+  testTurnaroundMinutes: number | null;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  referenceLaboratoryStatus: "active" | "inactive";
+  turnaroundMinutes: number | null;
+  updatedAt: string;
+  version: number;
+}
+
+/** GET /laboratory/send-outs row */
+export interface LabSendOut {
+  id: string;
+  status: LabSendOutStatus;
+  facilityId: string;
+  patientId: string;
+  orderId: string;
+  orderItemId: string;
+  specimenId: string;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  turnaroundMinutes: number | null;
+  preparedAt: string;
+  preparedByName: string | null;
+  dispatchId: string | null;
+  manifestNumber: string | null;
+  dispatchedAt: string | null;
+  referenceAccession: string | null;
+  resultsReceivedAt: string | null;
+  resultsReceivedByName: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  /** Turnaround counted from dispatch. */
+  dueAt: string | null;
+  minutesOut: number | null;
+  overdue: boolean;
+  orderNumber: string;
+  priority: LabPriority;
+  testCode: string;
+  testName: string;
+  itemStatus: LabItemStatus;
+  accessionNumber: string;
+  collectedAt: string;
+  specimenTypeName: string;
+  patient: PatientBrief | null;
+  version: number;
+}
+
+/** GET /laboratory/send-out-dispatches/:id (the list rows carry a count instead of the send-outs) */
+export interface LabSendOutDispatch {
+  id: string;
+  facilityId: string;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string | null;
+  manifestNumber: string;
+  courier: string;
+  courierReference: string | null;
+  dispatchedAt: string;
+  dispatchedByName: string | null;
+  electronicReference: string | null;
+  electronicAcknowledgedAt: string | null;
+}
+
+export interface LabSendOutDispatchSummary extends LabSendOutDispatch {
+  sendOuts: number;
+}
+
+export interface LabSendOutDispatchDetail extends LabSendOutDispatch {
+  sendOuts: LabSendOut[];
+}
+
+/** GET /integrations/reference-laboratories/dispatches/:id/submissions */
+export interface ReferenceLabSubmissionStatus {
+  integration: {
+    system: string;
+    name: string;
+    status: "dependency" | "stubbed" | "implemented" | "certified";
+    specificationVersion: string | null;
+    note: string;
+  };
+  dispatchId: string;
+  ready: boolean;
+  checks: Array<{ key: string; ok: boolean; message: string }>;
+  submissions: Array<{
+    id: string;
+    status: string;
+    attempts: number;
+    externalReference: string | null;
+    lastError: string | null;
+    requestedAt: string;
+    completedAt: string | null;
+  }>;
+}

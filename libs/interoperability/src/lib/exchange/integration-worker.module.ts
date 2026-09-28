@@ -2,6 +2,7 @@ import { type DynamicModule, Logger, Module, type OnApplicationBootstrap, type O
 import { AuditModule } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
+import { ReferenceLabSendOutHandler, referenceLabGatewayProvider } from "../reference-lab/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
 import { IntegrationExchangeProcessor } from "./exchange-processor";
 import { EXCHANGE_HANDLERS, type ExchangeHandler, INTEGRATION_QUEUE, type IntegrationQueue } from "./exchange-types";
@@ -16,10 +17,12 @@ export interface ExchangeHandlerSet {
 }
 
 export interface IntegrationWorkerModuleOptions {
-  /** Further adapter families' handlers. DOH case reporting (this library's own) is always registered. */
+  /** Further adapter families' handlers. This library's own (DOH case reporting, reference laboratory send-outs) are always registered. */
   handlerSets?: ExchangeHandlerSet[];
   /** The DOH reporting adapter (defaults to the unconfigured one). */
   dohGateway?: Provider;
+  /** The reference laboratory adapter (defaults to the unconfigured one). */
+  referenceLabGateway?: Provider;
   queue?: Provider;
   /** Start consuming the queue on bootstrap (false in tests). */
   autoStart?: boolean;
@@ -52,7 +55,7 @@ class WorkerLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
 export class IntegrationWorkerModule {
   static forRoot(options: IntegrationWorkerModuleOptions = {}): DynamicModule {
     const sets = options.handlerSets ?? [];
-    const handlers: Type<ExchangeHandler>[] = [...sets.flatMap((set) => set.handlers), DohCaseReportHandler];
+    const handlers: Type<ExchangeHandler>[] = [...sets.flatMap((set) => set.handlers), DohCaseReportHandler, ReferenceLabSendOutHandler];
     return {
       module: IntegrationWorkerModule,
       imports: [AuditModule],
@@ -60,6 +63,7 @@ export class IntegrationWorkerModule {
         IntegrationExchangeProcessor,
         ...sets.flatMap((set) => set.providers ?? []),
         options.dohGateway ?? dohGatewayProvider,
+        options.referenceLabGateway ?? referenceLabGatewayProvider,
         ...handlers,
         // One handler per system + operation.
         { provide: EXCHANGE_HANDLERS, inject: handlers, useFactory: (...instances: ExchangeHandler[]) => instances },

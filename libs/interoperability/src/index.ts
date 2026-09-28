@@ -25,3 +25,8 @@ export * from "./lib/doh/doh.rules";
 export * from "./lib/doh/doh.schema";
 export * from "./lib/doh/gateway";
 export * from "./lib/doh/ports";
+export * from "./lib/reference-lab/gateway";
+export * from "./lib/reference-lab/ports";
+export * from "./lib/reference-lab/reference-lab.module";
+export * from "./lib/reference-lab/reference-lab-submissions.service";
+export * from "./lib/reference-lab/send-out-package";

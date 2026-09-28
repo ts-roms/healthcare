@@ -1,7 +1,7 @@
 # Integration worker
 
 `apps/integration-worker` sends outbound exchanges to external systems (today, all through unconfigured adapters:
-PhilHealth eClaims, eligibility and YAKAP encounter packages, DOH case reporting; later external laboratories and others). It is a BullMQ consumer like the
+PhilHealth eClaims, eligibility and YAKAP encounter packages, DOH case reporting, reference laboratory send-outs; later others). It is a BullMQ consumer like the
 notification worker: no HTTP server, one Nest application context, scaled and restarted independently of the API.
 
 ## Why a separate process

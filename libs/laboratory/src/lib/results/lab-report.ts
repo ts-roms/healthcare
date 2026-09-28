@@ -23,6 +23,8 @@ export interface LabReportRow {
   releasedAt: Date | null;
   corrected: boolean;
   comment?: string | null;
+  /** The reference laboratory that performed the test (null: the facility's own laboratory). */
+  performedBy?: string | null;
 }
 
 export interface LabReportData {
@@ -104,6 +106,7 @@ export class LabReportService {
           releasedAt: r.releasedAt,
           corrected: r.versionNumber > 1,
           comment: [r.comment, r.versionNumber > 1 && r.correctionReason ? `Corrected: ${r.correctionReason}` : null].filter(Boolean).join(" · ") || null,
+          performedBy: r.performingLaboratory,
         };
       }),
       pending: order.items.filter((i) => i.status !== "cancelled" && i.result?.status !== "released").map((i) => i.testName),
@@ -158,6 +161,7 @@ export class LabReportService {
         collectedAt: r.collectedAt,
         releasedAt: r.releasedAt,
         corrected: r.corrected,
+        performedBy: r.performingLaboratory,
       })),
       // Never name tests the patient is not shown (e.g. results the laboratory does not release to patients).
       pending: [],
@@ -219,6 +223,7 @@ export class LabReportService {
           releasedAt: r.releasedAt,
           corrected: r.versionNumber > 1,
           comment: [r.comment, r.versionNumber > 1 && r.correctionReason ? `Corrected: ${r.correctionReason}` : null].filter(Boolean).join(" · ") || null,
+          performedBy: r.performingLaboratory,
         };
       }),
       // Tests of the order without a released result in this version (cancelled tests are not listed).
@@ -305,7 +310,7 @@ export function renderLabReport(data: LabReportData): Promise<Buffer> {
           { header: "Collected", width: 1.8 },
         ],
         data.rows.map((r) => [
-          r.corrected ? `${r.test} (corrected)` : r.test,
+          `${r.test}${r.corrected ? " (corrected)" : ""}${r.performedBy ? " *" : ""}`,
           r.result,
           r.unit ?? "",
           r.reference,
@@ -314,6 +319,10 @@ export function renderLabReport(data: LabReportData): Promise<Buffer> {
         ]),
         { emphasis: data.rows.flatMap((r, i) => (r.flag && r.flag !== "normal" ? [i] : [])) },
       );
+      // Tests performed by a reference laboratory are attributed to it (marked * in the table).
+      for (const [laboratory, tests] of performers(data.rows)) {
+        w.paragraph(`* Performed by ${laboratory} (reference laboratory): ${tests.join(", ")}.`);
+      }
       const comments = data.rows.filter((r) => r.comment);
       if (comments.length) {
         w.heading("Comments");
@@ -337,6 +346,13 @@ export function renderLabReport(data: LabReportData): Promise<Buffer> {
       w.signatures(data.signatories);
     },
   );
+}
+
+/** Reference laboratories and the tests each performed, in table order. */
+export function performers(rows: Array<Pick<LabReportRow, "test" | "performedBy">>): Map<string, string[]> {
+  const byLab = new Map<string, string[]>();
+  for (const r of rows) if (r.performedBy) byLab.set(r.performedBy, [...(byLab.get(r.performedBy) ?? []), r.test]);
+  return byLab;
 }
 
 function capitalize(value: string): string {
