@@ -45,6 +45,8 @@ export interface AppModuleOverrides {
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
   philhealthGateway?: Provider;
+  /** Replaces the payment provider adapter (tests; the default takes no payment). */
+  paymentGateway?: Provider;
   /** Replaces the PhilHealth eligibility adapter (tests; the default transmits nothing). */
   philhealthEligibilityGateway?: Provider;
   /** Replaces the DOH reporting adapter (tests; the default transmits nothing). */
@@ -71,7 +73,12 @@ export class AppModule implements NestModule {
       archiveQueue: overrides.labReportArchiveQueue,
     });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
-    const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory], sources: AppBillingSources, patients: AppPatientDirectory });
+    const billing = BillingModule.forRoot({
+      imports: [PatientModule, laboratory],
+      sources: AppBillingSources,
+      patients: AppPatientDirectory,
+      paymentGateway: overrides.paymentGateway,
+    });
     return {
       module: AppModule,
       imports: [

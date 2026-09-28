@@ -5,6 +5,7 @@ import {
   creditAllocationProblem,
   creditNoteProblem,
   debitNoteProblem,
+  onlinePaymentSplit,
   packageCovers,
   packageEndsOn,
   depositApplied,
@@ -204,5 +205,13 @@ describe("packages", () => {
     expect(packageEndsOn("2026-01-01", 365)).toBe("2026-12-31");
     expect(packageEndsOn("2026-02-28", 2)).toBe("2026-03-01");
     expect(packageEndsOn("2026-01-01", null)).toBeNull();
+  });
+});
+
+describe("online payment", () => {
+  it("settles the balance and keeps any excess as a deposit", () => {
+    expect(onlinePaymentSplit(45_000, 45_000)).toEqual({ payment: 45_000, deposit: 0 });
+    expect(onlinePaymentSplit(45_000, 20_000)).toEqual({ payment: 20_000, deposit: 25_000 });
+    expect(onlinePaymentSplit(45_000, 0)).toEqual({ payment: 0, deposit: 45_000 });
   });
 });

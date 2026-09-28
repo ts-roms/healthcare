@@ -35,6 +35,7 @@ import {
   type BillingInvoiceRecord,
   billingPayer,
   billingPayment,
+  billingPaymentIntent,
   billingService,
 } from "../billing.schema";
 import { assertVersion, found, maskIdNumber, publicView } from "../billing-support";
@@ -460,7 +461,7 @@ export class InvoiceService {
       .from(billingInvoice)
       .where(and(eq(billingInvoice.organizationId, organizationId), eq(billingInvoice.id, invoiceId)));
     const row = found(invoice, "Invoice");
-    const [items, discounts, payers, ledger, account, creditNotes, creditLines, creditPayers, debitNotes, debitLines] = await Promise.all([
+    const [items, discounts, payers, ledger, account, creditNotes, creditLines, creditPayers, debitNotes, debitLines, intents] = await Promise.all([
       this.db
         .select()
         .from(billingInvoiceItem)
@@ -491,6 +492,7 @@ export class InvoiceService {
         .from(billingDebitNoteLine)
         .innerJoin(billingDebitNote, eq(billingDebitNote.id, billingDebitNoteLine.debitNoteId))
         .where(eq(billingDebitNote.invoiceId, invoiceId)),
+      this.db.select().from(billingPaymentIntent).where(eq(billingPaymentIntent.invoiceId, invoiceId)).orderBy(asc(billingPaymentIntent.createdAt)),
     ]);
     const settlement: Settlement = {
       paid: paidNet(ledger),
@@ -519,6 +521,17 @@ export class InvoiceService {
         lines: debitLines.filter((l) => l.line.debitNoteId === d.id).map((l) => publicView(l.line)),
       })),
       debitedTotal: settlement.debited,
+      /** Payments started online (the provider's checkout), whatever their outcome. */
+      onlinePayments: intents.map((i) => ({
+        id: i.id,
+        amount: i.amount,
+        status: i.status,
+        provider: i.provider,
+        paidAmount: i.paidAmount,
+        failureCode: i.failureCode,
+        createdAt: i.createdAt,
+        completedAt: i.completedAt,
+      })),
       paidTotal: settlement.paid,
       depositAppliedTotal: settlement.depositApplied,
       creditedTotal: settlement.credited,
@@ -617,6 +630,7 @@ export class InvoiceService {
         appliedAmount: c.appliedAmount,
         accountCredit: c.accountCredit,
       })),
+      onlinePayments: inv.onlinePayments.map((o) => ({ id: o.id, amount: o.amount, status: o.status, createdAt: o.createdAt })),
       debitNotes: inv.debitNotes.map((d) => ({
         id: d.id,
         debitNoteNumber: d.debitNoteNumber,

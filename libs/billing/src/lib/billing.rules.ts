@@ -207,6 +207,15 @@ export function splitCredit(amount: number, owed: number): { appliedAmount: numb
   return { appliedAmount, accountCredit: amount - appliedAmount };
 }
 
+/**
+ * How money collected online settles: the invoice's balance at that moment,
+ * and the rest (the invoice was paid at the counter meanwhile) as a deposit.
+ */
+export function onlinePaymentSplit(collected: number, balance: number): { payment: number; deposit: number } {
+  const payment = Math.min(collected, Math.max(balance, 0));
+  return { payment, deposit: collected - payment };
+}
+
 // ---- packages ---------------------------------------------------------------------------------------
 
 /**

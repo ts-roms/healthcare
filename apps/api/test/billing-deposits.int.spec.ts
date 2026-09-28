@@ -335,6 +335,15 @@ describe("billing deposits and credit notes", () => {
     expect(first.creditNotes).toEqual([expect.objectContaining({ creditNoteNumber: `CN-${year}-000001`, amount: 15_000, accountCredit: 15_000 })]);
     const copy = await portal(`/portal/billing/credit-notes/${ids.creditNote1}/pdf`).buffer(true).parse(binary).expect(200);
     expect(extractPdfText(copy.body as Buffer)).toContain("Patient's copy from MyHealth");
+    // No payment provider is configured: online payment is not offered.
+    expect((await portal("/portal/billing/online-payment").expect(200)).body).toMatchObject({ available: false, provider: "unconfigured" });
+    await ctx
+      .http()
+      .post(`/api/v1/portal/billing/${ids.invoice2}/online-payments`)
+      .set({ authorization: `Bearer ${token}` })
+      .send({ amount: 1_000, idempotencyKey: "online-unconfigured", returnUrl: "http://localhost:3001/billing" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("integration_not_configured"));
     const audit = await auditRows(ctx.pool, "action IN ('portal.billing-account-view', 'portal.credit-note-download')");
     expect(audit.map((a) => a.actor_type)).toEqual(["patient", "patient"]);
   });

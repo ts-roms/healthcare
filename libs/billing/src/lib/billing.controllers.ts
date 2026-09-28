@@ -1,6 +1,21 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, StreamableFile } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  type RawBodyRequest,
+  Req,
+  StreamableFile,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, Public, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
   CancelEnrollmentDto,
@@ -39,6 +54,7 @@ import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
 import { PackageService } from "./packages/package.service";
 import { DepositService } from "./payments/deposit.service";
+import { OnlinePaymentService } from "./payments/online-payment.service";
 import { PaymentService } from "./payments/payment.service";
 
 /** Services and prices, payers, discount rules, document numbering. */
@@ -425,5 +441,24 @@ export class BillingController {
   @ApiOperation({ summary: "The facility's day: invoices, discounts, collections by method, refunds, receivables" })
   daily(@CurrentActor() actor: Actor, @Query() query: DailyReportDto) {
     return this.payments.dailyReport(actor, query.date);
+  }
+}
+
+/**
+ * Notifications from the payment provider. Public (the provider has no staff
+ * session): the adapter verifies each one against the raw body before
+ * anything changes, and each payment completes once.
+ */
+@ApiTags("billing")
+@Public()
+@Controller({ path: "billing/online-payments", version: "1" })
+export class OnlinePaymentNotificationController {
+  constructor(private readonly online: OnlinePaymentService) {}
+
+  @Post("notifications")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Payment provider notification (verified by the adapter)" })
+  notify(@Req() request: RawBodyRequest<{ headers: Record<string, string | string[] | undefined> }>) {
+    return this.online.notify(request.headers, request.rawBody);
   }
 }

@@ -282,3 +282,14 @@ export const issueDebitNoteSchema = z.object({
   idempotencyKey,
 });
 export class IssueDebitNoteDto extends createZodDto(issueDebitNoteSchema) {}
+
+// ---- online payment ---------------------------------------------------------------------------
+
+export const startOnlinePaymentSchema = z.object({
+  amount: positiveCentavos,
+  /** One per attempt, so a retried request starts one payment. */
+  idempotencyKey,
+  /** MyHealth's page the provider returns the patient to (one of the platform's origins). */
+  returnUrl: z.string().url().max(500),
+});
+export class StartOnlinePaymentDto extends createZodDto(startOnlinePaymentSchema) {}

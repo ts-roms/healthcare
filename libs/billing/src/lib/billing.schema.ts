@@ -192,8 +192,10 @@ export const billingPayment = pgTable("billing_payment", {
   refundOfId: uuid("refund_of_id"),
   reason: text("reason"),
   idempotencyKey: text("idempotency_key").notNull(),
-  recordedBy: uuid("recorded_by").notNull(),
+  /** Staff who recorded it; none for a payment completed online (see paymentIntentId). */
+  recordedBy: uuid("recorded_by"),
   recordedAt: ts("recorded_at").notNull().defaultNow(),
+  paymentIntentId: uuid("payment_intent_id"),
 });
 
 export const billingCreditNote = pgTable("billing_credit_note", {
@@ -275,8 +277,9 @@ export const billingAccountEntry = pgTable("billing_account_entry", {
   applicationId: uuid("application_id"),
   reason: text("reason"),
   idempotencyKey: text("idempotency_key"),
-  recordedBy: uuid("recorded_by").notNull(),
+  recordedBy: uuid("recorded_by"),
   recordedAt: ts("recorded_at").notNull().defaultNow(),
+  paymentIntentId: uuid("payment_intent_id"),
 });
 
 export const billingPackageItem = pgTable("billing_package_item", {
@@ -303,6 +306,29 @@ export const billingPackageEnrollment = pgTable("billing_package_enrollment", {
   version: integer("version").notNull().default(1),
 });
 
+export type PaymentIntentStatus = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+
+/** A payment started online (MyHealth) and completed by the payment provider's notification. */
+export const billingPaymentIntent = pgTable("billing_payment_intent", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  amount: money("amount").notNull(),
+  status: text("status").$type<PaymentIntentStatus>().notNull().default("pending"),
+  provider: text("provider").notNull(),
+  providerReference: text("provider_reference"),
+  checkoutUrl: text("checkout_url"),
+  requestedVia: text("requested_via").$type<"portal">().notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  paidAmount: money("paid_amount"),
+  failureCode: text("failure_code"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  completedAt: ts("completed_at"),
+});
+
 export type BillingChargeRecord = typeof billingCharge.$inferSelect;
 export type BillingInvoiceRecord = typeof billingInvoice.$inferSelect;
 export type BillingPaymentRecord = typeof billingPayment.$inferSelect;
@@ -310,3 +336,4 @@ export type BillingCreditNoteRecord = typeof billingCreditNote.$inferSelect;
 export type BillingAccountEntryRecord = typeof billingAccountEntry.$inferSelect;
 export type BillingDebitNoteRecord = typeof billingDebitNote.$inferSelect;
 export type BillingPackageEnrollmentRecord = typeof billingPackageEnrollment.$inferSelect;
+export type BillingPaymentIntentRecord = typeof billingPaymentIntent.$inferSelect;

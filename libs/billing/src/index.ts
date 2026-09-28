@@ -10,5 +10,7 @@ export * from "./lib/invoices/invoice.service";
 export * from "./lib/money";
 export * from "./lib/packages/package.service";
 export * from "./lib/payments/deposit.service";
+export * from "./lib/payments/online-payment.service";
+export * from "./lib/payments/payment-gateway";
 export * from "./lib/payments/payment.service";
 export * from "./lib/ports";
