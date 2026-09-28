@@ -16,6 +16,9 @@ import {
   patientBalance,
   refundable,
   splitCredit,
+  taxBreakdown,
+  transferPlan,
+  vatIncluded,
 } from "./billing.rules";
 import { formatPeso, percentOf } from "./money";
 
@@ -213,5 +216,55 @@ describe("online payment", () => {
     expect(onlinePaymentSplit(45_000, 45_000)).toEqual({ payment: 45_000, deposit: 0 });
     expect(onlinePaymentSplit(45_000, 20_000)).toEqual({ payment: 20_000, deposit: 25_000 });
     expect(onlinePaymentSplit(45_000, 0)).toEqual({ payment: 0, deposit: 45_000 });
+  });
+});
+
+describe("tax breakdown (from the organization's settings)", () => {
+  it("takes VAT out of VAT-inclusive amounts, half up to the centavo", () => {
+    expect(vatIncluded(112_000, 1_200)).toBe(12_000); // ₱1,120 at 12% → ₱120
+    expect(vatIncluded(100, 1_200)).toBe(11); // 10.71 → 11
+    expect(vatIncluded(0, 1_200)).toBe(0);
+    expect(() => vatIncluded(100, 0)).toThrow(RangeError);
+  });
+
+  it("breaks an invoice down by class when VAT-registered, and not otherwise", () => {
+    const lines = [
+      { netAmount: 112_000, taxClass: "vatable" as const },
+      { netAmount: 50_000, taxClass: "vat_exempt" as const },
+      { netAmount: 10_000, taxClass: "zero_rated" as const },
+    ];
+    expect(taxBreakdown(lines, { vatStatus: "vat_registered", vatRateBp: 1_200 })).toEqual({
+      breakdown: { lineVat: [12_000, 0, 0], vatableSales: 100_000, vatAmount: 12_000, vatExemptSales: 50_000, zeroRatedSales: 10_000 },
+    });
+    expect(taxBreakdown(lines, { vatStatus: "non_vat", vatRateBp: null })).toEqual({
+      breakdown: { lineVat: [0, 0, 0], vatableSales: 0, vatAmount: 0, vatExemptSales: 0, zeroRatedSales: 0 },
+    });
+    expect(taxBreakdown([{ netAmount: 1, taxClass: null }], { vatStatus: "vat_registered", vatRateBp: 1_200 })).toEqual({ problem: "tax_class_required" });
+  });
+});
+
+describe("deposits across facilities", () => {
+  it("moves balance from the other facilities, largest first, never more than each has", () => {
+    const others = [
+      { facilityId: "b", balance: 10_000 },
+      { facilityId: "c", balance: 30_000 },
+      { facilityId: "d", balance: 0 },
+    ];
+    expect(transferPlan(35_000, others)).toEqual([
+      { facilityId: "c", amount: 30_000 },
+      { facilityId: "b", amount: 5_000 },
+    ]);
+    expect(transferPlan(50_000, others).reduce((a, p) => a + p.amount, 0)).toBe(40_000);
+    expect(transferPlan(0, others)).toEqual([]);
+  });
+
+  it("counts transfers in and out in the balance", () => {
+    expect(
+      accountBalance([
+        { kind: "deposit", amount: 10_000 },
+        { kind: "transfer_out", amount: 4_000 },
+        { kind: "transfer_in", amount: 1_000 },
+      ]),
+    ).toBe(7_000);
   });
 });

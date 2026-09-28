@@ -336,6 +336,17 @@ export class BillingDocuments {
         footerNote: "This invoice is not an official receipt. Amounts in Philippine pesos (PHP).",
       },
       (w) => {
+        // The seller's details as the organization configured them, captured when the invoice was issued.
+        if (issued && (invoice.sellerRegisteredName || invoice.sellerTin)) {
+          w.fields([
+            ["Registered name", invoice.sellerRegisteredName],
+            ["TIN", invoice.sellerTin],
+            ["Business address", invoice.sellerAddress],
+            ["VAT status", invoice.taxStatus === "vat_registered" ? "VAT-registered" : invoice.taxStatus === "non_vat" ? "Non-VAT" : null],
+            ["Permit", invoice.permitReference],
+          ]);
+          w.space();
+        }
         w.fields([
           ["Invoice number", invoice.invoiceNumber ?? "Not yet issued"],
           ["Date", issued && invoice.issuedAt ? pdfDateTime(invoice.issuedAt, timeZone) : pdfDateTime(invoice.createdAt, timeZone)],
@@ -402,6 +413,16 @@ export class BillingDocuments {
           totals.push(["Balance", pdfMoney(invoice.balance), true]);
         }
         w.totals(totals);
+        if (invoice.taxStatus === "vat_registered" && invoice.vatRateBp !== null) {
+          w.heading("VAT breakdown");
+          w.totals([
+            ["VATable sales", pdfMoney(invoice.vatableSales)],
+            [`VAT (${invoice.vatRateBp / 100}%)`, pdfMoney(invoice.vatAmount)],
+            ["VAT-exempt sales", pdfMoney(invoice.vatExemptSales)],
+            ["Zero-rated sales", pdfMoney(invoice.zeroRatedSales)],
+          ]);
+        }
+        if (issued && invoice.documentNote) w.paragraph(invoice.documentNote, { muted: true });
         if (invoice.payments.length) {
           w.heading("Payments");
           w.table(

@@ -44,6 +44,7 @@ import {
   SetPayerDto,
   UpdateServiceDto,
   UpdateSettingsDto,
+  UpdateTaxProfileDto,
   VoidInvoiceDto,
 } from "./billing.dto";
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
@@ -66,6 +67,20 @@ export class BillingCatalogController {
     private readonly catalog: BillingCatalogService,
     private readonly packages: PackageService,
   ) {}
+
+  @Get("tax-profile")
+  @RequirePermissions("billing.charge.read")
+  @ApiOperation({ summary: "The organization's tax and document settings, as it configured them (BIR as configuration)" })
+  taxProfile(@CurrentActor() actor: Actor) {
+    return this.catalog.taxProfile(actor.organizationId);
+  }
+
+  @Put("tax-profile")
+  @RequirePermissions("billing.pricelist.manage")
+  @ApiOperation({ summary: "Registered name, TIN, VAT status and rate, permit, document note, deposits across facilities (to be verified against BIR rules)" })
+  updateTaxProfile(@CurrentActor() actor: Actor, @Body() body: UpdateTaxProfileDto) {
+    return this.catalog.updateTaxProfile(actor, body);
+  }
 
   @Get("packages")
   @RequirePermissions("billing.charge.read")

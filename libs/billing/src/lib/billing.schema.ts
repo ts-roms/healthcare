@@ -15,6 +15,9 @@ export type ChargeStatus = "pending" | "invoiced" | "cancelled";
 export type InvoiceStatus = "draft" | "issued" | "void";
 export type ChargeSourceType = "encounter" | "lab_order_item" | "manual" | "package";
 export type SequenceKind = "invoice" | "receipt" | "credit_note" | "debit_note";
+export const TAX_CLASSES = ["vatable", "vat_exempt", "zero_rated"] as const;
+export type TaxClass = (typeof TAX_CLASSES)[number];
+export type VatStatus = "not_configured" | "vat_registered" | "non_vat";
 export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund" | "transfer_in" | "transfer_out";
 
 export const billingService = pgTable("billing_service", {
@@ -31,6 +34,8 @@ export const billingService = pgTable("billing_service", {
   /** A package: its contents are in billing_package_item. */
   isPackage: boolean("is_package").notNull().default(false),
   packageValidityDays: integer("package_validity_days"),
+  /** VAT class (null: not classified); configuration, see billing_organization_profile. */
+  taxClass: text("tax_class").$type<TaxClass>(),
 });
 
 export const billingServicePrice = pgTable("billing_service_price", {
@@ -79,6 +84,8 @@ export const billingSequence = pgTable(
     kind: text("kind").$type<SequenceKind>().notNull(),
     prefix: text("prefix").notNull(),
     nextValue: bigint("next_value", { mode: "number" }).notNull().default(1),
+    /** Last number the organization is authorized to use (none = no limit configured). */
+    lastValue: bigint("last_value", { mode: "number" }),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.kind] })],
 );
@@ -131,6 +138,18 @@ export const billingInvoice = pgTable("billing_invoice", {
   replacedById: uuid("replaced_by_id"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  // Tax snapshot taken on issue from the organization's profile.
+  taxStatus: text("tax_status").$type<VatStatus>(),
+  vatRateBp: integer("vat_rate_bp"),
+  sellerRegisteredName: text("seller_registered_name"),
+  sellerTin: text("seller_tin"),
+  sellerAddress: text("seller_address"),
+  permitReference: text("permit_reference"),
+  documentNote: text("document_note"),
+  vatableSales: money("vatable_sales").notNull().default(0),
+  vatAmount: money("vat_amount").notNull().default(0),
+  vatExemptSales: money("vat_exempt_sales").notNull().default(0),
+  zeroRatedSales: money("zero_rated_sales").notNull().default(0),
 });
 
 export const billingInvoiceItem = pgTable("billing_invoice_item", {
@@ -147,6 +166,8 @@ export const billingInvoiceItem = pgTable("billing_invoice_item", {
   grossAmount: money("gross_amount").notNull(),
   discountAmount: money("discount_amount").notNull().default(0),
   netAmount: money("net_amount").notNull(),
+  taxClass: text("tax_class").$type<TaxClass>(),
+  vatAmount: money("vat_amount").notNull().default(0),
 });
 
 export const billingInvoiceDiscount = pgTable("billing_invoice_discount", {
@@ -280,6 +301,9 @@ export const billingAccountEntry = pgTable("billing_account_entry", {
   recordedBy: uuid("recorded_by"),
   recordedAt: ts("recorded_at").notNull().defaultNow(),
   paymentIntentId: uuid("payment_intent_id"),
+  /** Balance moved between facilities: both entries share it. */
+  transferId: uuid("transfer_id"),
+  counterpartFacilityId: uuid("counterpart_facility_id"),
 });
 
 export const billingPackageItem = pgTable("billing_package_item", {
@@ -337,3 +361,19 @@ export type BillingAccountEntryRecord = typeof billingAccountEntry.$inferSelect;
 export type BillingDebitNoteRecord = typeof billingDebitNote.$inferSelect;
 export type BillingPackageEnrollmentRecord = typeof billingPackageEnrollment.$inferSelect;
 export type BillingPaymentIntentRecord = typeof billingPaymentIntent.$inferSelect;
+
+/** The organization's own tax and document settings (BIR as configuration) and billing options. */
+export const billingOrganizationProfile = pgTable("billing_organization_profile", {
+  organizationId: uuid("organization_id").primaryKey(),
+  registeredName: text("registered_name"),
+  tin: text("tin"),
+  businessAddress: text("business_address"),
+  vatStatus: text("vat_status").$type<VatStatus>().notNull().default("not_configured"),
+  vatRateBp: integer("vat_rate_bp"),
+  permitReference: text("permit_reference"),
+  documentNote: text("document_note"),
+  depositsAcrossFacilities: boolean("deposits_across_facilities").notNull().default(false),
+  updatedBy: uuid("updated_by"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});

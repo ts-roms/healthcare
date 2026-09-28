@@ -201,7 +201,7 @@ export class OnlinePaymentService {
         });
       }
       if (split.deposit > 0) {
-        await lockPatientAccount(tx, intent.organizationId, intent.facilityId, intent.patientId);
+        await lockPatientAccount(tx, intent.organizationId, intent.patientId);
         const series = await this.catalog.nextNumber(tx, intent.organizationId, "receipt");
         await tx.insert(billingAccountEntry).values({
           organizationId: intent.organizationId,

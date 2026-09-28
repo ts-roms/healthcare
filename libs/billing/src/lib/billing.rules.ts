@@ -1,4 +1,4 @@
-import type { AccountEntryKind } from "./billing.schema";
+import type { AccountEntryKind, TaxClass, VatStatus } from "./billing.schema";
 import { percentOf } from "./money";
 
 /**
@@ -241,6 +241,68 @@ export function packageEndsOn(startsOn: string, validityDays: number | null): st
   if (validityDays === null) return null;
   const [y, m, d] = startsOn.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + validityDays - 1)).toISOString().slice(0, 10);
+}
+
+// ---- tax (configuration, not BIR rules) -------------------------------------------------------------
+
+/** VAT inside a VAT-inclusive amount at a rate in basis points: amount × rate ÷ (10000 + rate), half up to the centavo. */
+export function vatIncluded(amount: number, rateBp: number): number {
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new RangeError("amount must be a non-negative integer of centavos");
+  if (!Number.isInteger(rateBp) || rateBp < 1 || rateBp > 10_000) throw new RangeError("rate must be 1–10000 basis points");
+  const divisor = 10_000 + rateBp;
+  return Math.floor((2 * amount * rateBp + divisor) / (2 * divisor));
+}
+
+export interface TaxBreakdown {
+  /** VAT per line, in the order given. */
+  lineVat: number[];
+  vatableSales: number;
+  vatAmount: number;
+  vatExemptSales: number;
+  zeroRatedSales: number;
+}
+
+/**
+ * The VAT breakdown of an invoice's lines, from the organization's own
+ * settings (VAT status and rate) and each service's class. Only for a
+ * VAT-registered organization; then every line must be classified. Prices are
+ * VAT-inclusive. Whether the settings and this breakdown meet BIR requirements
+ * is a compliance dependency.
+ */
+export function taxBreakdown(
+  lines: ReadonlyArray<{ netAmount: number; taxClass: TaxClass | null }>,
+  profile: { vatStatus: VatStatus; vatRateBp: number | null },
+): { breakdown: TaxBreakdown } | { problem: string } {
+  const none = { lineVat: lines.map(() => 0), vatableSales: 0, vatAmount: 0, vatExemptSales: 0, zeroRatedSales: 0 };
+  if (profile.vatStatus !== "vat_registered") return { breakdown: none };
+  if (profile.vatRateBp === null) return { problem: "vat_rate_required" };
+  if (lines.some((l) => l.taxClass === null)) return { problem: "tax_class_required" };
+  const rate = profile.vatRateBp;
+  const lineVat = lines.map((l) => (l.taxClass === "vatable" ? vatIncluded(l.netAmount, rate) : 0));
+  const of = (cls: TaxClass) => sum(lines.filter((l) => l.taxClass === cls).map((l) => l.netAmount));
+  const vatAmount = sum(lineVat);
+  return { breakdown: { lineVat, vatableSales: of("vatable") - vatAmount, vatAmount, vatExemptSales: of("vat_exempt"), zeroRatedSales: of("zero_rated") } };
+}
+
+// ---- deposits across facilities ---------------------------------------------------------------------
+
+/**
+ * Where to move balance from so a facility's account can cover `needed`: the
+ * other facilities' balances, largest first, never more than each has.
+ * Returns what to move from each; the total is less than needed when the
+ * organization-wide balance is not enough.
+ */
+export function transferPlan(needed: number, others: ReadonlyArray<{ facilityId: string; balance: number }>): Array<{ facilityId: string; amount: number }> {
+  const plan: Array<{ facilityId: string; amount: number }> = [];
+  let left = needed;
+  for (const o of [...others].sort((a, b) => b.balance - a.balance || a.facilityId.localeCompare(b.facilityId))) {
+    if (left <= 0) break;
+    if (o.balance <= 0) continue;
+    const amount = Math.min(o.balance, left);
+    plan.push({ facilityId: o.facilityId, amount });
+    left -= amount;
+  }
+  return plan;
 }
 
 /** Invoice document number: "INV-2026-000123". Prefix and series are configuration (a BIR compliance dependency). */

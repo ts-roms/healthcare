@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { DISCOUNT_KINDS, PAYER_STATUSES, PAYER_TYPES, PAYMENT_METHODS, SERVICE_CATEGORIES } from "./billing.schema";
+import { DISCOUNT_KINDS, PAYER_STATUSES, PAYER_TYPES, PAYMENT_METHODS, SERVICE_CATEGORIES, TAX_CLASSES } from "./billing.schema";
 
 const code = z
   .string()
@@ -25,6 +25,8 @@ export const createServiceSchema = z
     sourceCode: z.string().trim().toLowerCase().min(1).max(60).optional(),
     unitPrice: centavos,
     effectiveFrom: z.iso.date(),
+    /** VAT class, for a VAT-registered organization (configuration; see the tax profile). */
+    taxClass: z.enum(TAX_CLASSES).optional(),
   })
   .refine((v) => (v.sourceKind === undefined) === (v.sourceCode === undefined), {
     message: "Give both the source kind and its code, or neither",
@@ -32,7 +34,13 @@ export const createServiceSchema = z
   });
 export class CreateServiceDto extends createZodDto(createServiceSchema) {}
 
-export const updateServiceSchema = z.object({ name: text(200).optional(), status: z.enum(["active", "inactive"]).optional(), version });
+export const updateServiceSchema = z.object({
+  name: text(200).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  /** null clears the class. */
+  taxClass: z.enum(TAX_CLASSES).nullable().optional(),
+  version,
+});
 export class UpdateServiceDto extends createZodDto(updateServiceSchema) {}
 
 export const addPriceSchema = z.object({ unitPrice: centavos, effectiveFrom: z.iso.date() });
@@ -66,7 +74,41 @@ export const updateSettingsSchema = z.object({
   /** Unchanged when omitted. */
   creditNotePrefix: prefix.optional(),
   debitNotePrefix: prefix.optional(),
+  /** The last number of each series the organization is authorized to use (null = no limit); unchanged when omitted. */
+  lastNumbers: z
+    .object({
+      invoice: z.number().int().positive().nullable().optional(),
+      receipt: z.number().int().positive().nullable().optional(),
+      credit_note: z.number().int().positive().nullable().optional(),
+      debit_note: z.number().int().positive().nullable().optional(),
+    })
+    .optional(),
 });
+
+/** The organization's tax and document settings, as its registration says (BIR as configuration; nothing is assumed). */
+export const updateTaxProfileSchema = z
+  .object({
+    registeredName: z.string().trim().min(1).max(200).nullable(),
+    tin: z
+      .string()
+      .trim()
+      .regex(/^[0-9][0-9-]{7,19}$/, "Digits and hyphens, as registered")
+      .nullable(),
+    businessAddress: z.string().trim().min(1).max(300).nullable(),
+    vatStatus: z.enum(["not_configured", "vat_registered", "non_vat"]),
+    /** Basis points (1200 = 12%), only when VAT-registered. */
+    vatRateBp: z.number().int().min(1).max(10_000).nullable(),
+    permitReference: z.string().trim().min(1).max(120).nullable(),
+    documentNote: z.string().trim().max(500).nullable(),
+    depositsAcrossFacilities: z.boolean(),
+    /** The profile's version (omit the first time). */
+    version: version.optional(),
+  })
+  .refine((v) => (v.vatStatus === "vat_registered") === (v.vatRateBp !== null), {
+    message: "A VAT-registered organization enters its VAT rate (and only then)",
+    path: ["vatRateBp"],
+  });
+export class UpdateTaxProfileDto extends createZodDto(updateTaxProfileSchema) {}
 export class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
 
 // ---- charges ----------------------------------------------------------------------------------

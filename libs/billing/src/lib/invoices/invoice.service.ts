@@ -17,7 +17,7 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, gte, inArray, lt, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { applyDiscountSchema, createInvoiceSchema, listInvoicesSchema, payerStatusSchema, setPayerSchema, voidInvoiceSchema } from "../billing.dto";
-import { computeInvoice, depositApplied, discountConflict, documentNumber, invoiceBalance, paidNet, type Settlement } from "../billing.rules";
+import { computeInvoice, depositApplied, discountConflict, documentNumber, invoiceBalance, paidNet, type Settlement, taxBreakdown } from "../billing.rules";
 import {
   billingAccountEntry,
   billingCharge,
@@ -230,6 +230,7 @@ export class InvoiceService {
       const [line] = await tx.select({ id: billingInvoiceItem.id }).from(billingInvoiceItem).where(eq(billingInvoiceItem.invoiceId, invoiceId)).limit(1);
       if (!line) throw new BusinessRuleError("An invoice needs at least one line", "invoice_empty");
       await this.recompute(tx, invoiceId);
+      const tax = await this.taxSnapshot(tx, actor.organizationId, invoiceId);
       const now = new Date();
       const series = await this.catalog.nextNumber(tx, actor.organizationId, "invoice");
       const year = Number((await this.today(actor.organizationId, invoice.facilityId)).slice(0, 4));
@@ -240,6 +241,7 @@ export class InvoiceService {
           invoiceNumber: documentNumber(series.prefix, year, series.value),
           issuedAt: now,
           issuedBy: actor.userId,
+          ...tax,
           updatedAt: now,
           version: sql`${billingInvoice.version} + 1`,
         })
@@ -760,6 +762,56 @@ export class InvoiceService {
       .update(billingCharge)
       .set({ status: "pending", invoiceId: null, updatedAt: new Date(), version: sql`${billingCharge.version} + 1` })
       .where(eq(billingCharge.invoiceId, invoiceId));
+  }
+
+  /**
+   * The tax snapshot of an invoice being issued, from the organization's own settings (BIR as configuration): the
+   * seller's registered details and, when VAT-registered, the VAT per line and the breakdown. Lines are updated while
+   * the invoice is still a draft; the caller stores the rest with the issue.
+   */
+  private async taxSnapshot(tx: DbExecutor, organizationId: string, invoiceId: string) {
+    const profile = await this.catalog.taxProfile(organizationId);
+    const lines = await tx
+      .select({
+        id: billingInvoiceItem.id,
+        netAmount: billingInvoiceItem.netAmount,
+        taxClass: billingService.taxClass,
+        description: billingInvoiceItem.description,
+      })
+      .from(billingInvoiceItem)
+      .innerJoin(billingService, eq(billingService.id, billingInvoiceItem.serviceId))
+      .where(eq(billingInvoiceItem.invoiceId, invoiceId))
+      .orderBy(asc(billingInvoiceItem.id));
+    const result = taxBreakdown(lines, profile);
+    if ("problem" in result) {
+      throw new BusinessRuleError(
+        result.problem === "tax_class_required"
+          ? "The organization is VAT-registered: classify these services for VAT in billing settings before issuing"
+          : "The organization is VAT-registered but has no VAT rate configured",
+        result.problem,
+        { services: lines.filter((l) => l.taxClass === null).map((l) => l.description) },
+      );
+    }
+    const { breakdown } = result;
+    for (const [i, line] of lines.entries()) {
+      await tx
+        .update(billingInvoiceItem)
+        .set({ taxClass: line.taxClass, vatAmount: breakdown.lineVat[i] ?? 0 })
+        .where(eq(billingInvoiceItem.id, line.id));
+    }
+    return {
+      taxStatus: profile.vatStatus,
+      vatRateBp: profile.vatStatus === "vat_registered" ? profile.vatRateBp : null,
+      sellerRegisteredName: profile.registeredName,
+      sellerTin: profile.tin,
+      sellerAddress: profile.businessAddress,
+      permitReference: profile.permitReference,
+      documentNote: profile.documentNote,
+      vatableSales: breakdown.vatableSales,
+      vatAmount: breakdown.vatAmount,
+      vatExemptSales: breakdown.vatExemptSales,
+      zeroRatedSales: breakdown.zeroRatedSales,
+    };
   }
 
   /** Recomputes a draft's discounts and totals from its lines, discounts and payer coverage. */

@@ -160,7 +160,7 @@ export class CreditNoteService {
           .values(payers.map((p) => ({ organizationId: actor.organizationId, creditNoteId: note.id, invoicePayerId: p.invoicePayerId, amount: p.amount })));
       }
       if (split.accountCredit > 0) {
-        await lockPatientAccount(tx, actor.organizationId, invoice.facilityId, invoice.patientId);
+        await lockPatientAccount(tx, actor.organizationId, invoice.patientId);
         await tx.insert(billingAccountEntry).values({
           organizationId: actor.organizationId,
           facilityId: invoice.facilityId,
