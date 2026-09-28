@@ -7,7 +7,7 @@ import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { CaseReportDetail } from "@/lib/api/types";
 import { dismissCase, recordReported, submitCase } from "../actions";
-import { CaseStatus } from "../case-status";
+import { CaseStatus, FoundByCheck } from "../case-status";
 
 const OPEN = ["pending_review", "rejected", "failed"];
 
@@ -43,6 +43,7 @@ export function CaseReview({ detail }: { detail: CaseReportDetail }) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Prepared report <CaseStatus status={detail.status} />
+              {detail.rescanId ? <FoundByCheck /> : null}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 text-body">

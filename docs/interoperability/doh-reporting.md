@@ -23,7 +23,8 @@ exists.
   wins) opens a **case report** (`doh_case_report`, one per diagnosis) in `pending_review`. Diagnoses recorded before a
   rule was added are not reached by detection; staff check them on request (below).
 - **Checking earlier diagnoses** (`doh_rescan`, staff with `doh.settings.manage`) — an explicit, audited request to
-  check the organization's coded diagnoses recorded within a date range (calendar dates in Asia/Manila, both included,
+  check the organization's coded diagnoses recorded within a date range (calendar dates in the time zone of the facility the requester works in — `facility.timezone`, Asia/Manila without a
+  selected facility — both included,
   at most **90 days**, not in the future) against the rules active when the check runs. The API runs it in the
   background (`DohRescans`, polled every 15 s and started at once in the requesting instance): diagnoses are read in
   pages of 500 through the `DohCaseSources` port (`ClinicQueries.codedDiagnosesRecorded`, in `(recorded_at, id)` order,
@@ -54,16 +55,16 @@ exists.
 
 ## API
 
-| Request                                                  | Permission            |
-| -------------------------------------------------------- | --------------------- |
-| `GET /api/v1/doh/integration`                            | `doh.report.manage`   |
-| `GET /api/v1/doh/rules`                                  | `doh.report.manage`   |
-| `POST /api/v1/doh/rules`, `POST …/rules/{id}/deactivate` | `doh.settings.manage` |
-| `GET, PUT /api/v1/doh/facilities/{id}/facility-code`     | `doh.settings.manage` |
-| `POST /api/v1/doh/rescans` (`{ from, to }`, 202)         | `doh.settings.manage` |
-| `GET /api/v1/doh/rescans`, `GET …/rescans/{id}`          | `doh.settings.manage` |
-| `GET /api/v1/doh/case-reports[?status=]`, `GET …/{id}`   | `doh.report.manage`   |
-| `POST …/{id}/reported`, `…/dismiss`, `…/submissions`     | `doh.report.manage`   |
+| Request                                                                          | Permission            |
+| -------------------------------------------------------------------------------- | --------------------- |
+| `GET /api/v1/doh/integration`                                                    | `doh.report.manage`   |
+| `GET /api/v1/doh/rules`                                                          | `doh.report.manage`   |
+| `POST /api/v1/doh/rules`, `POST …/rules/{id}/deactivate`                         | `doh.settings.manage` |
+| `GET, PUT /api/v1/doh/facilities/{id}/facility-code`                             | `doh.settings.manage` |
+| `POST /api/v1/doh/rescans` (`{ from, to }`, 202)                                 | `doh.settings.manage` |
+| `GET /api/v1/doh/rescans` (`{ timeZone, today, rescans }`), `GET …/rescans/{id}` | `doh.settings.manage` |
+| `GET /api/v1/doh/case-reports[?status=]`, `GET …/{id}`                           | `doh.report.manage`   |
+| `POST …/{id}/reported`, `…/dismiss`, `…/submissions`                             | `doh.report.manage`   |
 
 Roles: `org_admin` (both), `physician` and `records_officer` (`doh.report.manage`). Audit: `doh.case.detected`
 (system), `doh.case.list`, `doh.case.view`, `doh.case.reported`, `doh.case.dismissed` (with the reason),
@@ -77,9 +78,10 @@ Roles: `org_admin` (both), `physician` and `records_officer` (`doh.report.manage
 
 Staff **Disease reporting** (`/reporting`): case reports, those to review first, filterable by status; one case
 (`/reporting/{id}`) with the prepared report, the checklist, and the decision (reference from DOH's channel, dismiss with
-a reason; submit only when an adapter is connected). **Reportable conditions** (`/reporting/settings`): rules and the
-selected facility's DOH health facility code, and **Check earlier diagnoses** (a date range, the recent checks with their
-status and counts; refresh while one runs).
+a reason; submit only when an adapter is connected). Case reports opened by a check of earlier diagnoses carry an
+"Earlier diagnosis" badge in the list and on the case. **Reportable conditions** (`/reporting/settings`): rules and the
+selected facility's DOH health facility code, and **Check earlier diagnoses** (a date range in the facility's time
+zone, the recent checks with their status and counts; the page refreshes itself every 5 s while one waits or runs).
 
 ## Not modelled (integration dependencies)
 

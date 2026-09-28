@@ -43,12 +43,15 @@ export function ReportingSettings({
   rules,
   rescans,
   today,
+  timeZone,
   facility,
 }: {
   rules: ReportableRule[];
   rescans: DohRescan[];
-  /** Today's date in Asia/Manila (YYYY-MM-DD). */
+  /** Today's date in the time zone the check uses (the selected facility's). */
   today: string;
+  /** The selected facility's time zone: the check reads its calendar dates there. */
+  timeZone: string;
   facility: { id: string; name: string; code: DohFacilityCode | null } | null;
 }) {
   return (
@@ -56,7 +59,7 @@ export function ReportingSettings({
       <Rules rules={rules} />
       <div className="flex flex-col gap-4">
         {facility ? <FacilityCode facility={facility} /> : null}
-        <EarlierDiagnoses rescans={rescans} today={today} hasActiveRules={rules.some((r) => r.status === "active")} />
+        <EarlierDiagnoses rescans={rescans} today={today} timeZone={timeZone} hasActiveRules={rules.some((r) => r.status === "active")} />
       </div>
     </div>
   );
@@ -195,11 +198,20 @@ const RESCAN_STATUS: Record<DohRescanStatus, { label: string; variant: "info" | 
 };
 
 /** Rules added later do not reach diagnoses recorded before them: staff can ask for a range to be checked. */
-function EarlierDiagnoses({ rescans, today, hasActiveRules }: { rescans: DohRescan[]; today: string; hasActiveRules: boolean }) {
+/** How often the page refreshes while a check is waiting or running. */
+const RESCAN_REFRESH_MS = 5_000;
+
+function EarlierDiagnoses({ rescans, today, timeZone, hasActiveRules }: { rescans: DohRescan[]; today: string; timeZone: string; hasActiveRules: boolean }) {
   const router = useRouter();
   const { pending, submit } = useSubmit();
   const [range, setRange] = React.useState({ from: addDays(today, -29), to: today });
   const inProgress = rescans.some((r) => r.status === "queued" || r.status === "running");
+  // Follow a check while it runs; stops by itself once none is waiting or running.
+  React.useEffect(() => {
+    if (!inProgress) return;
+    const timer = setInterval(() => router.refresh(), RESCAN_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [inProgress, router]);
   return (
     <Card>
       <CardHeader>
@@ -208,7 +220,7 @@ function EarlierDiagnoses({ rescans, today, hasActiveRules }: { rescans: DohResc
       <CardContent className="flex flex-col gap-3 text-body">
         <p className="text-meta text-muted-foreground">
           Rules apply to diagnoses as they are recorded. After adding a rule, check diagnoses recorded before it (up to {MAX_RESCAN_DAYS} days at a time)
-          against the active rules. Matches open case reports for review; a diagnosis never gets a second one.
+          against the active rules. Matches open case reports for review; a diagnosis never gets a second one. Dates are read in {timeZone}.
         </p>
         <form
           className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
@@ -262,9 +274,9 @@ function EarlierDiagnoses({ rescans, today, hasActiveRules }: { rescans: DohResc
           </ul>
         ) : null}
         {inProgress ? (
-          <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => router.refresh()}>
-            <RefreshCwIcon /> Refresh
-          </Button>
+          <p className="flex items-center gap-2 text-meta text-muted-foreground" role="status">
+            <RefreshCwIcon aria-hidden className="size-3.5" /> Updating every few seconds while the check runs.
+          </p>
         ) : null}
       </CardContent>
     </Card>

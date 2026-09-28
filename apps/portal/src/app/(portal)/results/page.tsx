@@ -46,6 +46,7 @@ export default async function ResultsPage() {
                     {usualRange(latest) ?? ""}
                     {count > 1 ? ` · ${count} results over time` : ""}
                     {latest.corrected ? " · updated by the laboratory" : ""}
+                    {latest.performingLaboratory ? ` · tested at ${latest.performingLaboratory}` : ""}
                   </p>
                 </div>
                 <ChevronRightIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />

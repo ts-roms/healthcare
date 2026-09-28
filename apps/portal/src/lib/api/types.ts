@@ -68,6 +68,8 @@ export interface PortalResult {
   collectedAt: string | null;
   releasedAt: string | null;
   corrected: boolean;
+  /** The partner (reference) laboratory that performed the test; null: the clinic's own laboratory. */
+  performingLaboratory: string | null;
 }
 
 /** `GET /portal/results/trend?testId=` */

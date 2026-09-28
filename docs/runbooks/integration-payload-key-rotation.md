@@ -32,18 +32,32 @@ AES-256-GCM and tagged with the id of the key used. The worker opens each with t
 3. **Switch the current key** on every API instance: `INTEGRATION_PAYLOAD_KEY_ID=2026-10`, deploy. New payloads are
    sealed with it; queued ones keep the old key and are still opened.
 
-4. **Wait for the old key's payloads to leave the queue** (each is deleted when its exchange is final; retries back off
-   for up to about an hour, and the reconciler re-enqueues stranded ones every 5 minutes):
+4. **Check what still needs the old key.** Two kinds of stored values are sealed with the key ring:
+   - prepared payloads waiting for the integration worker (`integration_exchange_payload`; each is deleted when its
+     exchange is final — retries back off for up to about an hour, and the reconciler re-enqueues stranded ones every
+     5 minutes);
+   - received FHIR import content (`fhir_import_content`; rejected imports are purged 30 days after rejection, accepted
+     imports are **kept**).
+
+   A platform administrator sees both per key id under **Integrations → Payload encryption keys**
+   (`/admin/integrations`, `GET /api/v1/integrations/payload-keys`: counts and key ids only), or:
 
    ```sql
    SELECT key_id, count(*) FROM integration_exchange_payload GROUP BY key_id;
+   SELECT key_id, count(*) FROM fhir_import_content GROUP BY key_id;
    ```
 
-   Continue when no rows remain for the old id (`default` in the example) — and none with `key_id` NULL if the old key
-   is the one that sealed payloads from before key ids existed.
+   Continue when nothing remains for the old id (`default` in the example) — and nothing with `key_id` NULL if the old
+   key is the one that sealed payloads from before key ids existed.
+
+   Kept FHIR import content means the old key is usually still needed. Then keep it listed in
+   `INTEGRATION_PAYLOAD_KEYS` as a **decrypt-only** key (not current: nothing new is sealed with it) and only revoke
+   write access to it in the secrets manager; remove it when the imports that need it are purged. For a key that may
+   be exposed, treat the stored content as exposed regardless of rotation, and follow the incident process.
 
 5. **Remove the old key** from the worker and the API (drop it from `INTEGRATION_PAYLOAD_KEYS`, or unset
-   `INTEGRATION_PAYLOAD_KEY`), deploy, and revoke it in the secrets manager.
+   `INTEGRATION_PAYLOAD_KEY`) once nothing needs it, deploy, and revoke it in the secrets manager. The screen then shows
+   it as gone; a key still listed and needed by nothing shows "Not needed — can be removed".
 
 ## If a key was removed too early
 

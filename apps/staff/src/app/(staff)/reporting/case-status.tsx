@@ -1,4 +1,4 @@
-import { BanIcon, CheckCircle2Icon, ClockIcon, SendIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, ClockIcon, HistoryIcon, SendIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
 import { Badge } from "@healthcare/ui/primitives";
 import type { CaseReportStatus } from "@/lib/api/types";
 
@@ -17,6 +17,15 @@ export function CaseStatus({ status }: { status: CaseReportStatus }) {
   return (
     <Badge variant={variant}>
       <Icon aria-hidden /> {label}
+    </Badge>
+  );
+}
+
+/** Marks a case report opened by a check of earlier diagnoses (the diagnosis was recorded before its rule existed). */
+export function FoundByCheck() {
+  return (
+    <Badge variant="neutral" title="Opened by a check of earlier diagnoses: the diagnosis was recorded before the rule was added">
+      <HistoryIcon aria-hidden /> Earlier diagnosis
     </Badge>
   );
 }

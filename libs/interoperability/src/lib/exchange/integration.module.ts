@@ -5,6 +5,8 @@ import { ExchangeReviewController } from "./exchange-review.controller";
 import { ExchangeReviewService } from "./exchange-review.service";
 import { EXCHANGE_PATIENTS, type ExchangePatientDirectory } from "./exchange-types";
 import { IntegrationExchanges } from "./integration-exchanges.service";
+import { PayloadKeysController } from "./payload-keys.controller";
+import { PayloadKeyUsageService } from "./payload-keys.service";
 
 export interface IntegrationModuleOptions {
   imports?: ModuleMetadata["imports"];
@@ -25,11 +27,12 @@ export class IntegrationModule {
       module: IntegrationModule,
       global: true,
       imports: options.imports ?? [],
-      controllers: [ExchangeReviewController],
+      controllers: [ExchangeReviewController, PayloadKeysController],
       providers: [
         IntegrationExchanges,
         ExchangeDispatch,
         ExchangeReviewService,
+        PayloadKeyUsageService,
         options.queue ?? bullMqIntegrationQueue,
         { provide: EXCHANGE_PATIENTS, useClass: options.patients },
       ],

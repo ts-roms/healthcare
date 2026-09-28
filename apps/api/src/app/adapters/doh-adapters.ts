@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { PH_TIMEZONE } from "@healthcare/core";
 import { ClinicQueries } from "@healthcare/clinic";
 import type { DohCaseSource, DohCaseSources, DohDiagnosisBrief } from "@healthcare/interoperability";
+import { OrganizationService } from "@healthcare/organization";
 import { PatientRecordService } from "@healthcare/patient";
 
 /** DOH reporting → clinic and patient: the diagnosis, its encounter and facility, the patient's identity and address. */
@@ -9,6 +11,7 @@ export class AppDohCaseSources implements DohCaseSources {
   constructor(
     private readonly clinic: ClinicQueries,
     private readonly patients: PatientRecordService,
+    private readonly organizations: OrganizationService,
   ) {}
 
   async forDiagnosis(organizationId: string, diagnosisId: string): Promise<DohCaseSource | undefined> {
@@ -42,6 +45,11 @@ export class AppDohCaseSources implements DohCaseSources {
       },
       patient: { ...patient, ...reach },
     };
+  }
+
+  async timeZone(organizationId: string, facilityId: string | null): Promise<string> {
+    if (!facilityId) return PH_TIMEZONE;
+    return (await this.organizations.getFacility(organizationId, facilityId)).timezone;
   }
 
   codedDiagnosesRecorded(

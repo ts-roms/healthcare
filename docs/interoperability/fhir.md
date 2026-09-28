@@ -17,7 +17,7 @@ and never stored (root `CLAUDE.md` §19–20, `libs/interoperability/CLAUDE.md`)
 ## Architecture
 
 ```
-PatientRecordService · ClinicQueries.patientRecord · LabRecordQueries · PrescriptionService.allForPatient · CarePlanService.allForPatient · DocumentRecordQueries
+PatientRecordService · ClinicQueries.patientRecord (incl. external history) · LabRecordQueries · PrescriptionService.allForPatient · CarePlanService.allForPatient · DocumentRecordQueries
         │  (each domain's own read query, unaudited; no domain knows FHIR)
         ▼
 apps/api/src/app/fhir/fhir-record.ts  — FhirRecordComposer: domain rows → PatientRecordSource (interop's own terms)
@@ -36,13 +36,13 @@ selected (migration `0020_fhir_read.sql`; `org_admin` holds it — grant it deli
 role). Every access is audited (`fhir.patient-read`, `fhir.patient-everything`, `fhir.search`) with the patient, the
 resource types and the number of resources returned.
 
-| Request                                                | Returns                                                                                                                                                                            |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /metadata`                                        | `CapabilityStatement`                                                                                                                                                              |
-| `GET /Patient/{id}`                                    | `Patient`                                                                                                                                                                          |
-| `GET /Patient/{id}/$everything`                        | `Bundle` (searchset, paged): the patient and all clinical resources as `match`, the organization, locations and practitioners the page references as `include`                     |
-| `GET /{Type}?patient={id}` (or `patient=Patient/{id}`) | `Bundle` of one type (paged): Encounter, Condition, AllergyIntolerance, Observation, Appointment, ServiceRequest, DiagnosticReport, MedicationRequest, CarePlan, DocumentReference |
-| `GET /Binary/{documentId}`                             | The content of a `DocumentReference`: `302` to a short-lived (5 min) signed download of the file. Requires `document.read`; audited as `document.download`                         |
+| Request                                                | Returns                                                                                                                                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /metadata`                                        | `CapabilityStatement`                                                                                                                                                                                   |
+| `GET /Patient/{id}`                                    | `Patient`                                                                                                                                                                                               |
+| `GET /Patient/{id}/$everything`                        | `Bundle` (searchset, paged): the patient and all clinical resources as `match`, the organization, locations and practitioners the page references as `include`                                          |
+| `GET /{Type}?patient={id}` (or `patient=Patient/{id}`) | `Bundle` of one type (paged): Encounter, Condition, AllergyIntolerance, Observation, Appointment, ServiceRequest, DiagnosticReport, MedicationRequest, MedicationStatement, CarePlan, DocumentReference |
+| `GET /Binary/{documentId}`                             | The content of a `DocumentReference`: `302` to a short-lived (5 min) signed download of the file. Requires `document.read`; audited as `document.download`                                              |
 
 Only patient-scoped searches exist: no queries across patients. Errors are `OperationOutcome` (`invalid` 400,
 `not-supported` 400, `login` 401, `forbidden` 403, `not-found` 404 — including another organization's patient —
@@ -75,13 +75,14 @@ time; `le` includes that day) or an instant with a time zone (`2026-09-01T08:00:
 prefixes (and none) are `not-supported`. The filter applies to `meta.lastUpdated`, which is set only where the
 underlying record has a reliable last-updated time:
 
-| Type                                                                      | `_lastUpdated`  | Why                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                           |
-| `DocumentReference`                                                       | Supported       | An exported document never changes after upload (archiving withdraws it); an archived lab report version is superseded when the next version is stored. Last updated = that time, else `uploaded_at`. |
-| `Encounter`, `Condition`, `AllergyIntolerance`, `Appointment`, `CarePlan` | Refused (`400`) | `updated_at` is maintained by application code, not the database, and the resource also shows related rows (an Encounter's diagnoses, a CarePlan's activities) that change without touching it.       |
-| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change (released laboratory results would qualify; one type cannot be filtered only in part).                                              |
-| `ServiceRequest`, `DiagnosticReport`                                      | Refused (`400`) | Their status derives from laboratory item and result progress; no single row holds a change time for everything shown.                                                                                |
+| Type                                                                      | `_lastUpdated`  | Why                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                                                                       |
+| `DocumentReference`                                                       | Supported       | An exported document never changes after upload (archiving withdraws it); an archived lab report version is superseded when the next version is stored. Last updated = that time, else `uploaded_at`. An imported document description: as below. |
+| `MedicationStatement`                                                     | Supported       | Only external history (below): entries are append-only (database trigger), the only change is being marked entered in error. Last updated = `entered_in_error_at`, else `recorded_at`.                                                            |
+| `Encounter`, `Condition`, `AllergyIntolerance`, `Appointment`, `CarePlan` | Refused (`400`) | `updated_at` is maintained by application code, not the database, and the resource also shows related rows (an Encounter's diagnoses, a CarePlan's activities) that change without touching it.                                                   |
+| `Observation`                                                             | Refused (`400`) | Vital signs marked entered-in-error record no time of that change (released laboratory results and external history would qualify; one type cannot be filtered only in part).                                                                     |
+| `ServiceRequest`, `DiagnosticReport`                                      | Refused (`400`) | Their status derives from laboratory item and result progress; no single row holds a change time for everything shown.                                                                                                                            |
 
 Refusing is deliberate: silently ignoring the filter, or answering it approximately, would let a client miss changes.
 The Patient resource carries `meta.lastUpdated` (the patient row's `updated_at`) for information; `_lastUpdated` is not
@@ -105,6 +106,9 @@ a parameter of `$everything`.
 | Prescription line                      | `MedicationRequest` (prescription number as group identifier; superseded → `stopped`)                          |
 | Care plan                              | `CarePlan` with activities                                                                                     |
 | Stored document (libs/documents)       | `DocumentReference` (see below)                                                                                |
+| Result performed by a reference lab    | `Observation.performer` → contained `Organization` (see "Performing laboratory")                               |
+| Allergy accepted from an import        | `AllergyIntolerance`, tagged external, always `unconfirmed` (see "Records from other systems")                 |
+| External history (accepted imports)    | `Condition` / `Observation` / `MedicationStatement` / `DocumentReference`, tagged external (see below)         |
 
 **Laboratory results:** only the current **released** version of each result is exported. Unreleased, superseded and
 cancelled results never leave the laboratory through this interface. (Unlike the patient portal, the `patient_releasable`
@@ -133,6 +137,53 @@ answers with a redirect to a signed download that expires in 5 minutes; no objec
 **Entered in error:** resources keep their `entered-in-error` status (FHIR expects them to be visible as such), and
 conditions/allergies in error carry no clinical status (invariants `con-5`, `ait-2`).
 
+### Performing laboratory (send-outs)
+
+A released result performed by a reference laboratory ([reference-laboratories.md](reference-laboratories.md): the
+result's `reference_laboratory_id` and `performing_laboratory`, migration `0047`) names it as the Observation's
+`performer`: a **contained** `Organization` (`id` `reference-lab-{reference laboratory id}`, `type.text` "Reference
+laboratory", `name` = the name the result was attributed to), referenced as `#reference-lab-…` with the name as
+`display`. It is contained rather than a readable `Organization/{id}`: a reference laboratory is the organization's own
+configuration record (nothing about it is verified), not a resource this server serves, so no new resource type, access
+rule or audit action was added. Its accreditation / licence reference (as recorded by staff) is exported **only** as an
+`identifier` whose system is configured in `FHIR_IDENTIFIER_SYSTEMS` under the key
+`reference_laboratory_accreditation`; without that key the laboratory is exported by name only (no local namespace is
+used: it would suggest the platform issued or verified the reference). The order's `DiagnosticReport` keeps the
+organization as its first performer (it releases the report) and adds each reference laboratory that performed one of
+its results (contained, the same way). In-house results are unchanged: `performer` → `Organization/{organization}`.
+
+### Records from other systems (external-source tag)
+
+Content accepted from FHIR imports (below, "Inbound") is exported, but never as the organization's own record. Every
+such resource carries in `meta.tag` the platform-defined code
+
+| `system`                                                              | `code`            | `display`                    |
+| --------------------------------------------------------------------- | ----------------- | ---------------------------- |
+| `{FHIR_IDENTIFIER_BASE}/{organization code}/codesystem/record-source` | `external-import` | Imported from another system |
+
+— a local code system built like the platform's other local namespaces (`FhirContext.identifierBase`; e.g.
+`https://api.example.ph/fhir/identifiers/demo/codesystem/record-source` by default). Resources recorded by staff carry
+no tag.
+
+- **Imported allergies** (`allergy_intolerance.source = external_import`): the tag, and `verificationStatus`
+  `unconfirmed` whatever the row says. Everything else as for any allergy; entered in error as for any allergy.
+- **External history** (`external_history_entry`, migration `0048`): additionally `meta.lastUpdated`
+  (`entered_in_error_at`, else `recorded_at` — reliable, the table is append-only), `meta.source` = the sender's
+  declared `Bundle.meta.source` when it is an absolute URI (as declared, **not verified**), and a first `note`
+  "Imported from another system; not verified by this organization." Values are exported as they were kept (text as
+  received); nothing is re-coded.
+
+| Kind          | Exported as           | Details                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `condition`   | `Condition`           | `verificationStatus` **`unconfirmed`** (the sender's statuses in a note); `clinicalStatus` as received when it was a condition-clinical code; category `problem-list-item`/`encounter-diagnosis` as received (else text); code as received (system, code, name); onset as `onsetDateTime` when it is a FHIR dateTime, else `onsetString`. No encounter               |
+| `observation` | `Observation`         | `status` **as received** (else `unknown`); category `laboratory`/`vital-signs` as received; code as received; the kept value text (value, interpretation, reference range) as `valueString`; `effectiveDateTime`. No performer, issued time, `basedOn` or encounter: never a released laboratory result or a vital sign set (the vital signs profile is not claimed) |
+| `medication`  | `MedicationStatement` | Both received MedicationStatements and MedicationRequests ("prescribed elsewhere", said in a note): never a `MedicationRequest` of the platform. `status` as received when it is a MedicationStatement status, else `unknown` (the received one in a note); dosage text; `effectiveDateTime` (the statement's date or the request's authoring date)                  |
+| `document`    | `DocumentReference`   | Metadata only: `status` as received, type as text, description, `date` (an instant), and one attachment whose `title` summarises the received attachments. No URL, data or `custodian` (the file was never fetched). Withheld with the documents from callers without `document.read`                                                                                |
+
+**Entered in error:** an entry marked entered in error follows the rule for the platform's own records (as a diagnosis
+in error): exported with the `entered-in-error` status (`verificationStatus` for a Condition, which then has no
+`clinicalStatus`), still tagged.
+
 ## Identifier and code systems
 
 No official URIs for Philippine national identifiers are on record, so none are invented:
@@ -143,6 +194,10 @@ No official URIs for Philippine national identifiers are on record, so none are 
   `…/identifier/{type}` under that namespace until **configured** with `FHIR_IDENTIFIER_SYSTEMS`, a JSON map from the
   internal identifier type to the official URI, e.g. `{"philhealth_pin": "<official URI>"}`.
 - Diagnosis coding keys other than ICD-10 map through `FHIR_CODE_SYSTEMS` in the same way.
+- A reference laboratory's accreditation / licence reference is exported only with a system configured under
+  `FHIR_IDENTIFIER_SYSTEMS.reference_laboratory_accreditation` (no local default; see "Performing laboratory").
+- Platform-defined code systems use the same namespace: `…/codesystem/document-category`, `…/codesystem/lab-test`
+  and `…/codesystem/record-source` (`external-import`, the tag of resources received from other systems).
 - `FHIR_BASE_URL` sets the public base used in `Bundle` links (defaults to the request URL).
 
 ## Not yet
@@ -254,4 +309,5 @@ it belongs to the matched patient.
 External history appears on the patient record as **External history (imported)** (`GET /patients/{id}/external-history`,
 `clinical.read`); imported allergies carry an "External record" badge. A mistaken acceptance is corrected by marking the
 allergy entered in error (`allergy.manage`) or the external history entry entered in error (`interop.fhir.import.review`,
-with a reason); nothing is deleted.
+with a reason); nothing is deleted. Both are exported by the read interface with the external-source tag (see "Records
+from other systems" above).

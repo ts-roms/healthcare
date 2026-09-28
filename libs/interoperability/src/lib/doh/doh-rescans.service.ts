@@ -10,7 +10,6 @@ import {
   localDate,
   localDayBounds,
   NotFoundError,
-  PH_TIMEZONE,
   systemActor,
 } from "@healthcare/core";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -51,16 +50,17 @@ export class DohRescans implements OnApplicationShutdown {
     private readonly audit: AuditService,
   ) {}
 
-  /** Queues a check of the organization's diagnoses recorded from `from` to `to` (Philippine calendar dates, both included). */
+  /** Queues a check of the organization's diagnoses recorded from `from` to `to` (calendar dates in the requester's facility time zone, both included). */
   async request(actor: Actor, input: z.infer<typeof rescanSchema>, now = new Date()) {
-    const problem = rescanRangeProblem(input.from, input.to, localDate(now, PH_TIMEZONE));
+    const timeZone = await this.sources.timeZone(actor.organizationId, actor.facilityId ?? null);
+    const problem = rescanRangeProblem(input.from, input.to, localDate(now, timeZone));
     if (problem) throw new BusinessRuleError(problem, "rescan_range");
     const rules = await this.settings.rules(actor.organizationId, true);
     if (rules.length === 0) throw new BusinessRuleError("No reportable conditions are active: add the rules first", "no_active_rules");
     const row = await this.db.transaction(async (tx) => {
       const [inserted] = (await tx
         .insert(dohRescan)
-        .values({ organizationId: actor.organizationId, fromDate: input.from, toDate: input.to, timeZone: PH_TIMEZONE, requestedBy: actor.userId })
+        .values({ organizationId: actor.organizationId, fromDate: input.from, toDate: input.to, timeZone, requestedBy: actor.userId })
         // One check at a time per organization (doh_rescan_one_open).
         .onConflictDoNothing()
         .returning()) as RescanRecord[];
@@ -69,7 +69,7 @@ export class DohRescans implements OnApplicationShutdown {
         action: "doh.rescan.request",
         resourceType: "doh_rescan",
         resourceId: inserted.id,
-        metadata: { from: input.from, to: input.to, timeZone: PH_TIMEZONE, activeRules: rules.length },
+        metadata: { from: input.from, to: input.to, timeZone, activeRules: rules.length },
       });
       return inserted;
     });
@@ -77,15 +77,13 @@ export class DohRescans implements OnApplicationShutdown {
     return view(row);
   }
 
-  /** The organization's recent checks, newest first. */
-  async list(actor: Actor) {
-    const rows = await this.db
-      .select()
-      .from(dohRescan)
-      .where(eq(dohRescan.organizationId, actor.organizationId))
-      .orderBy(desc(dohRescan.requestedAt))
-      .limit(10);
-    return rows.map(view);
+  /** The organization's recent checks, newest first, with the time zone a new check would use and today's date there. */
+  async list(actor: Actor, now = new Date()) {
+    const [timeZone, rows] = await Promise.all([
+      this.sources.timeZone(actor.organizationId, actor.facilityId ?? null),
+      this.db.select().from(dohRescan).where(eq(dohRescan.organizationId, actor.organizationId)).orderBy(desc(dohRescan.requestedAt)).limit(10),
+    ]);
+    return { timeZone, today: localDate(now, timeZone), rescans: rows.map(view) };
   }
 
   async get(actor: Actor, rescanId: string) {

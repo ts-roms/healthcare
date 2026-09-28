@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import { todayIn } from "@/lib/clinic-mapping";
-import type { DohFacilityCode, DohRescan, ReportableRule } from "@/lib/api/types";
+import type { DohFacilityCode, DohRescanOverview, ReportableRule } from "@/lib/api/types";
 import { ReportingNav } from "../reporting-nav";
 import { ReportingSettings } from "./reporting-settings";
 
@@ -14,7 +13,7 @@ export default async function ReportingSettingsPage() {
   if (!can(session, "doh.settings.manage")) redirect("/reporting");
   const [rules, rescans, code] = await Promise.all([
     api<ReportableRule[]>("/doh/rules"),
-    api<DohRescan[]>("/doh/rescans"),
+    api<DohRescanOverview>("/doh/rescans"),
     facility
       ? api<{ facilityCode: DohFacilityCode | null }>(`/doh/facilities/${facility.id}/facility-code`).then((r) => r.facilityCode)
       : Promise.resolve(null),
@@ -28,8 +27,9 @@ export default async function ReportingSettingsPage() {
       />
       <ReportingSettings
         rules={rules}
-        rescans={rescans}
-        today={todayIn("Asia/Manila")}
+        rescans={rescans.rescans}
+        today={rescans.today}
+        timeZone={rescans.timeZone}
         facility={facility ? { id: facility.id, name: facility.name, code } : null}
       />
     </>

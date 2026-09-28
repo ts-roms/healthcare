@@ -1,4 +1,4 @@
-import type { Address, CodeableConcept, Coding, Identifier, Reference } from "fhir/r4";
+import type { Address, CodeableConcept, Coding, Identifier, Meta, Reference } from "fhir/r4";
 import type { FhirContext } from "./sources";
 import { SYSTEMS } from "./terminology";
 
@@ -30,6 +30,28 @@ const KNOWN_CODE_SYSTEMS: Record<string, string> = { "icd-10": SYSTEMS.icd10, ic
 /** The system URI for an internal coding-system key (configured, ICD-10 known, else a local namespace). */
 export function codeSystem(ctx: FhirContext, key: string): string {
   return ctx.codeSystems?.[key] ?? KNOWN_CODE_SYSTEMS[key.toLowerCase()] ?? localSystem(ctx, `codesystem/${key}`);
+}
+
+/**
+ * The `meta.tag` that marks a resource as received from another system (an accepted FHIR import), not recorded by
+ * this organization: a platform-defined code in the local namespace (`{identifierBase}/codesystem/record-source`).
+ */
+export function externalSourceTag(ctx: FhirContext): Coding {
+  return { system: localSystem(ctx, "codesystem/record-source"), code: "external-import", display: "Imported from another system" };
+}
+
+const ABSOLUTE_URI = /^[A-Za-z][A-Za-z0-9+.-]*:\S+$/;
+
+/**
+ * `meta` of an externally sourced resource: the tag and, when the sender declared its system as an absolute URI, that
+ * URI as `meta.source` (as declared, not verified).
+ */
+export function externalMeta(ctx: FhirContext, extra: { lastUpdated?: string; declaredSource?: string | null } = {}): Meta {
+  return compact<Meta>({
+    lastUpdated: extra.lastUpdated,
+    source: extra.declaredSource && extra.declaredSource.length <= 200 && ABSOLUTE_URI.test(extra.declaredSource) ? extra.declaredSource : undefined,
+    tag: [externalSourceTag(ctx)],
+  });
 }
 
 export function identifier(system: string, value: string, extra: Partial<Identifier> = {}): Identifier {

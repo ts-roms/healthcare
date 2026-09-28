@@ -28,7 +28,8 @@ results_received | rejected | cancelled`, the reference laboratory's own accessi
   handover (manifest number `SM########`, courier and its reference, time) with a printable manifest.
 - **Results back** are entered as normal, versioned results attributed to the reference laboratory
   (`performing_laboratory`) and verified, approved and released under the same rules as in-house results; released
-  results are corrected, never overwritten. "Performed by" appears on results, the patient record and the printed report.
+  results are corrected, never overwritten. "Performed by" appears on results, the patient record and the printed report,
+  and in the FHIR export as a contained `Organization` performer ([fhir.md](fhir.md#performing-laboratory-send-outs)).
 
 The electronic side (this document):
 

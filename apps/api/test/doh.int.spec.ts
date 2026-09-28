@@ -360,7 +360,8 @@ describe("DOH case reporting — checking earlier diagnoses against the rules", 
     await rescans.runPending();
     expect((await s.req(s.admin).get(`/doh/rescans/${earlier.body.id}`).expect(200)).body).toMatchObject({ status: "completed", scanned: 0, opened: 0 });
     const list = (await s.req(s.admin).get("/doh/rescans").expect(200)).body;
-    expect(list.map((r: { id: string }) => r.id)).toEqual([earlier.body.id, second.body.id, expect.any(String)]);
+    expect(list).toMatchObject({ timeZone: "Asia/Manila", today });
+    expect(list.rescans.map((r: { id: string }) => r.id)).toEqual([earlier.body.id, second.body.id, expect.any(String)]);
   });
 
   it("resumes an interrupted check from its cursor without counting twice", async () => {
@@ -391,6 +392,23 @@ describe("DOH case reporting — checking earlier diagnoses against the rules", 
     });
     const pending = (await s.req(s.records).get("/doh/case-reports?status=pending_review").expect(200)).body;
     expect(pending.map((c: { diagnosisCode: string }) => c.diagnosisCode).sort()).toEqual(["A91", "A91.0", "B05.3", "B05.9"]);
+  });
+
+  it("reads the range in the time zone of the facility the requester works in", async () => {
+    await ctx.pool.query("UPDATE facility SET timezone = 'Pacific/Kiritimati' WHERE id = $1", [s.tenant.facilityId]);
+    try {
+      const localToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date());
+      const overview = (await s.req(s.admin).get("/doh/rescans").expect(200)).body;
+      expect(overview).toMatchObject({ timeZone: "Pacific/Kiritimati", today: localToday });
+      const tomorrow = new Date(Date.parse(`${localToday}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+      expect((await s.req(s.admin).post("/doh/rescans", { from: localToday, to: tomorrow }).expect(422)).body.error.code).toBe("rescan_range");
+      const check = await s.req(s.admin).post("/doh/rescans", { from: localToday, to: localToday }).expect(202);
+      expect(check.body).toMatchObject({ timeZone: "Pacific/Kiritimati", fromDate: localToday });
+      await rescans.runPending();
+      expect((await s.req(s.admin).get(`/doh/rescans/${check.body.id}`).expect(200)).body.status).toBe("completed");
+    } finally {
+      await ctx.pool.query("UPDATE facility SET timezone = 'Asia/Manila' WHERE id = $1", [s.tenant.facilityId]);
+    }
   });
 });
 
@@ -509,5 +527,23 @@ describe("Integration payload key rotation — queued DOH submissions through th
     expect(await payloadRow(exchangeId)).toBeUndefined();
     await drainEvents(ctx);
     expect((await s.req(s.records).get(`/doh/case-reports/${c.id}`).expect(200)).body).toMatchObject({ status: "failed" });
+  });
+
+  it("shows platform administrators which keys stored values still need (counts only)", async () => {
+    await s.diagnose(["A93.0", "Oropouche virus disease"]);
+    await drainEvents(ctx);
+    const c = await pendingCase();
+    await s.req(s.records).post(`/doh/case-reports/${c.id}/submissions`, { idempotencyKey: "rotation-5", version: c.version }).expect(202);
+
+    await s.req(s.admin).get("/integrations/payload-keys").expect(403); // organization administrators do not manage platform keys
+    await createStaff(ctx.pool, s.tenant, "platform@doh-keys.ph", ["org_admin"], { platformAdmin: true });
+    const platform = (await login(ctx, "platform@doh-keys.ph")).accessToken;
+    const usage = await ctx.http().get("/api/v1/integrations/payload-keys").set(as(platform)).expect(200);
+    expect(usage.body).toEqual({
+      currentKeyId: "2026-a",
+      keys: [{ keyId: "2026-a", configured: true, current: true, queuedPayloads: 1, importContents: 0 }],
+    });
+    expect(JSON.stringify(usage.body)).not.toMatch(/Dela Cruz|A93|organization/i);
+    expect(await auditRows(ctx.pool, "action = 'integration.payload-keys.view'")).toHaveLength(1);
   });
 });

@@ -2,12 +2,15 @@ import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { labReferenceLaboratory } from "../send-outs/send-out.schema";
 
 /**
  * A patient's laboratory record for a record export (FHIR): every order with its
  * tests and, per test, the current released result only. Unreleased and
- * superseded versions never leave the laboratory this way. Not audited here:
- * the caller audits the access it serves.
+ * superseded versions never leave the laboratory this way. A result performed
+ * by a reference laboratory (send-out) carries that laboratory's name as
+ * attributed on the result and its recorded accreditation reference. Not
+ * audited here: the caller audits the access it serves.
  */
 @Injectable()
 export class LabRecordQueries {
@@ -29,13 +32,26 @@ export class LabRecordQueries {
         .where(and(eq(labOrderItem.organizationId, organizationId), inArray(labOrderItem.orderId, orderIds)))
         .orderBy(asc(labOrderItem.testName)),
       this.db
-        .select({ result: labResult, collectedAt: labSpecimen.collectedAt })
+        .select({ result: labResult, collectedAt: labSpecimen.collectedAt, referenceLabAccreditation: labReferenceLaboratory.accreditationReference })
         .from(labResult)
         .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
         .leftJoin(labSpecimen, eq(labSpecimen.id, labOrderItem.specimenId))
+        .leftJoin(labReferenceLaboratory, eq(labReferenceLaboratory.id, labResult.referenceLaboratoryId))
         .where(and(eq(labResult.organizationId, organizationId), inArray(labResult.orderId, orderIds), eq(labResult.status, "released"))),
     ]);
-    const resultByItem = new Map(results.map((r) => [r.result.orderItemId, { ...r.result, collectedAt: r.collectedAt }]));
+    const resultByItem = new Map(
+      results.map((r) => [
+        r.result.orderItemId,
+        {
+          ...r.result,
+          collectedAt: r.collectedAt,
+          referenceLaboratory:
+            r.result.referenceLaboratoryId && r.result.performingLaboratory
+              ? { id: r.result.referenceLaboratoryId, name: r.result.performingLaboratory, accreditationReference: r.referenceLabAccreditation ?? null }
+              : null,
+        },
+      ]),
+    );
     return orders.map((order) => ({
       ...order,
       items: items.filter((i) => i.item.orderId === order.id).map(({ item, loincCode }) => ({ ...item, loincCode, result: resultByItem.get(item.id) ?? null })),

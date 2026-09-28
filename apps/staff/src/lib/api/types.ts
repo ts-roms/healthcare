@@ -1232,6 +1232,8 @@ export interface CaseReportSummary {
   detectedAt: string;
   reviewedAt: string | null;
   version: number;
+  /** Set when a check of earlier diagnoses opened it (rather than detection as the diagnosis was recorded). */
+  rescanId: string | null;
   patient: { patientNumber: string; displayName: string } | null;
 }
 
@@ -1426,6 +1428,13 @@ export interface BillingPrefixes {
 }
 
 // ---- DOH: checks of earlier diagnoses against the rules (libs/interoperability/src/lib/doh/doh-rescans.service.ts) ----
+
+/** GET /doh/rescans: recent checks, with the organization's time zone and today's date there. */
+export interface DohRescanOverview {
+  timeZone: string;
+  today: string;
+  rescans: DohRescan[];
+}
 
 export type DohRescanStatus = "queued" | "running" | "completed" | "failed";
 
@@ -2404,4 +2413,20 @@ export interface LabAvailableReagentLot {
   expiryDate: string | null;
   quantity: number;
   stockUnit: string;
+}
+
+// ---- Integration payload keys (libs/interoperability/src/lib/exchange/payload-keys.service.ts; platform administrators) ----
+
+export interface PayloadKeyUsage {
+  /** null: sealed before key ids existed. */
+  keyId: string | null;
+  configured: boolean;
+  current: boolean;
+  queuedPayloads: number;
+  importContents: number;
+}
+
+export interface PayloadKeyOverview {
+  currentKeyId: string;
+  keys: PayloadKeyUsage[];
 }
