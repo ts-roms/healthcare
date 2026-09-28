@@ -7,14 +7,19 @@ import type { Socket } from "socket.io-client";
 import { realtimeTicket } from "@/app/(staff)/actions";
 import { LIVE_REFRESH_DEBOUNCE_MS, type LiveStatus, liveStatusLabel, QUEUE_TICK_MS, RECONNECT_DELAY_MS, shouldPoll } from "@/lib/live-queue";
 
+/** Socket messages that mean the queue changed. */
+export const QUEUE_EVENTS = ["queue.updated"] as const;
+/** Socket messages that mean the facility laboratory changed (sent only to users who may read laboratory orders). */
+export const LAB_EVENTS = ["lab.updated"] as const;
+
 /**
- * Live queue updates for the selected facility. Opens the API's realtime
- * socket with a short-lived ticket from the staff server (a fresh one for each
- * connection attempt) and refreshes the page's server data when the queue
- * changes. Messages carry ids only; the refresh re-reads the queue through the
+ * Live updates for the selected facility. Opens the API's realtime socket with
+ * a short-lived ticket from the staff server (a fresh one for each connection
+ * attempt) and refreshes the page's server data when one of `events` arrives.
+ * Messages carry ids and statuses only; the refresh re-reads through the
  * authorized API. Callers keep polling as a fallback while not "live".
  */
-export function useLiveQueue(onRefresh?: () => void): LiveStatus {
+export function useLiveUpdates(events: readonly string[], onRefresh?: () => void): LiveStatus {
   const router = useRouter();
   const [status, setStatus] = React.useState<LiveStatus>("connecting");
   const refreshed = React.useRef(onRefresh);
@@ -22,7 +27,10 @@ export function useLiveQueue(onRefresh?: () => void): LiveStatus {
     refreshed.current = onRefresh;
   });
 
+  const eventKey = events.join(",");
+
   React.useEffect(() => {
+    const subscribed = eventKey.split(",").filter(Boolean);
     let socket: Socket | null = null;
     let stopped = false;
     let refreshTimer: number | undefined;
@@ -70,7 +78,7 @@ export function useLiveQueue(onRefresh?: () => void): LiveStatus {
         // Catch up on anything missed while disconnected.
         refreshSoon();
       });
-      socket.on("queue.updated", refreshSoon);
+      for (const event of subscribed) socket.on(event, refreshSoon);
       // Socket.IO reconnects by itself after network loss; a refusal by the server ends the socket, so retry later.
       socket.on("disconnect", (reason) => (reason === "io server disconnect" ? retryLater() : setStatus("connecting")));
       socket.on("connect_error", () => setStatus("offline"));
@@ -83,19 +91,24 @@ export function useLiveQueue(onRefresh?: () => void): LiveStatus {
       window.clearTimeout(retryTimer);
       socket?.close();
     };
-  }, [router]);
+  }, [router, eventKey]);
 
   return status;
 }
 
+/** Live queue updates (see useLiveUpdates). */
+export function useLiveQueue(onRefresh?: () => void): LiveStatus {
+  return useLiveUpdates(QUEUE_EVENTS, onRefresh);
+}
+
 /**
- * Keeps a queue screen current: live updates when the socket is up, polling
+ * Keeps a screen current: live updates when the socket is up, polling
  * otherwise. `onTick` runs on every tick and every live refresh (e.g. to
  * advance waiting times and the "updated" time).
  */
-export function useQueueUpdates(onTick?: () => void): LiveStatus {
+export function useQueueUpdates(onTick?: () => void, events: readonly string[] = QUEUE_EVENTS): LiveStatus {
   const router = useRouter();
-  const status = useLiveQueue(onTick);
+  const status = useLiveUpdates(events, onTick);
   const lastRefresh = React.useRef(0);
   const tick = React.useRef(onTick);
   React.useEffect(() => {
@@ -129,6 +142,16 @@ export function LiveIndicator({ status }: { status: LiveStatus }) {
 }
 
 /** For pages that show the queue without managing it (the dashboard): keeps it current and shows the indicator. */
-export function LiveQueueRefresh() {
-  return <LiveIndicator status={useQueueUpdates()} />;
+export function LiveQueueRefresh({ events = QUEUE_EVENTS }: { events?: readonly string[] }) {
+  return <LiveIndicator status={useQueueUpdates(undefined, events)} />;
+}
+
+/** Keeps a laboratory screen (worklists, critical results) current and shows the indicator. */
+export function useLabUpdates(): LiveStatus {
+  return useQueueUpdates(undefined, LAB_EVENTS);
+}
+
+/** Indicator + live refresh for server-rendered laboratory pages. */
+export function LiveLabRefresh() {
+  return <LiveIndicator status={useLabUpdates()} />;
 }

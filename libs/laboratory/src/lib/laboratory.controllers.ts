@@ -24,11 +24,14 @@ import {
   UpdateCatalogEntryDto,
   UpdateTestDto,
   WorklistDto,
+  RemoveAttachmentDto,
+  StartAttachmentDto,
 } from "./laboratory.dto";
 import { LabLabelService } from "./orders/lab-labels";
 import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
+import { LabResultAttachments } from "./results/lab-result-attachments";
 import { LabReportArchive } from "./results/lab-report-archive";
 import { LabResultService } from "./results/lab-result.service";
 
@@ -260,6 +263,7 @@ export class LabResultController {
     private readonly results: LabResultService,
     private readonly reports: LabReportService,
     private readonly archive: LabReportArchive,
+    private readonly attachments: LabResultAttachments,
   ) {}
 
   @Post("order-items/:itemId/results")
@@ -325,6 +329,46 @@ export class LabResultController {
   @RequirePermissions("lab.result.enter")
   cancel(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: CancelDto) {
     return this.results.cancel(actor, id, body.reason);
+  }
+
+  @Get("results/:id/attachments")
+  @RequirePermissions("lab.result.read")
+  @ApiOperation({ summary: "Files attached to a result version (released results; any version for laboratory staff)" })
+  listAttachments(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
+    return this.attachments.list(actor, id);
+  }
+
+  @Post("results/:id/attachments")
+  @RequireFacility()
+  @RequirePermissions("lab.result.enter")
+  @ApiOperation({ summary: "Register a file for an entered result and get a presigned upload URL (PUT the file, then call …/complete)" })
+  startAttachment(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: StartAttachmentDto) {
+    return this.attachments.start(actor, id, body);
+  }
+
+  @Post("attachments/:id/complete")
+  @HttpCode(200)
+  @RequireFacility()
+  @RequirePermissions("lab.result.enter")
+  @ApiOperation({ summary: "Check the uploaded file and attach it to the (still entered) result" })
+  completeAttachment(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
+    return this.attachments.complete(actor, id);
+  }
+
+  @Post("attachments/:id/remove")
+  @HttpCode(200)
+  @RequireFacility()
+  @RequirePermissions("lab.result.enter")
+  @ApiOperation({ summary: "Take an attachment off a result before verification (kept, with the reason)" })
+  removeAttachment(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: RemoveAttachmentDto) {
+    return this.attachments.remove(actor, id, body.reason);
+  }
+
+  @Get("attachments/:id/download-url")
+  @RequirePermissions("lab.result.read")
+  @ApiOperation({ summary: "Short-lived download URL of an attachment (audited)" })
+  attachmentDownloadUrl(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
+    return this.attachments.downloadUrl(actor, id);
   }
 
   @Get("orders/:id/report.pdf")

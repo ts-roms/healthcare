@@ -10,8 +10,10 @@ Also: printable reports (PDF), specimen tube labels, an archive of each released
 [send-out tests](#send-out-tests) to external reference laboratories (dispatch with a manifest, results back attributed
 to the reference laboratory).
 
-Not in scope yet: result attachments, instrument interfaces and electronic reference-laboratory interfaces (integration
-dependencies in `libs/interoperability`), QC and reagent lots (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
+Also: files attached to result versions (see [Result attachments](#result-attachments)) and realtime status updates.
+
+Not in scope yet: instrument interfaces and electronic reference-laboratory interfaces (integration dependencies in
+`libs/interoperability`), QC and reagent lots (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
 
 ## Entities
 
@@ -136,6 +138,40 @@ visible to them, and when a visible result is corrected (`lab.results-available`
 **Patient visibility** (`LabPatientAccess`): current version, released, test `patient_releasable`, and — if critical —
 alert acknowledged. See [portal-app.md](../architecture/portal-app.md).
 
+## Result attachments
+
+A result version may carry files — instrument printouts, images (a smear, a culture plate), an outsourced
+laboratory's own report — in table `lab_result_attachment` (migration `0040`; `LabResultAttachments`).
+
+- **Storage.** Each file is a private document in object storage (category `clinical_attachment`, the patient's),
+  uploaded in two steps like any document: `POST results/:id/attachments` registers it and returns a presigned PUT;
+  `POST attachments/:id/complete` checks the stored object and attaches it. The document is **managed by the
+  laboratory** (`document.managed_by = 'laboratory'`): the generic documents API does not list, serve or archive it,
+  and the FHIR interface does not export it, so the laboratory's own visibility rules always apply.
+- **Visibility.** Before release a result is the laboratory's own: only staff who work results
+  (`lab.result.enter/verify/approve/release/amend`) see its attachments. Once released (and for versions that were
+  released before being superseded), clinicians with `lab.result.read` see and open them. Pending uploads are shown to
+  laboratory staff only. Patients do not see attachments in MyHealth.
+- **Frozen from verification.** Files are added or removed (with a reason, kept; the document is archived) only while
+  the version is `entered`; verification is refused while an upload is unfinished (`attachment_pending`). From
+  verification on, what was verified, approved and released never changes — enforced in the service and by a
+  database trigger (no updates unless the result is `entered`, no deletes). A correction is a new version: attach
+  files to it again if they still apply.
+- **Views and reports.** Result views carry `attachments`; the workbench attaches, opens and removes them; the
+  patient record links them next to released results. The staff report (and each archived report) lists the
+  attached files of released results under "Attachments" — listed, not embedded.
+
+## Realtime
+
+Laboratory events are pushed on the Socket.IO `/realtime` gateway (the one the queue uses) as `lab.updated`, to sockets
+whose user holds `lab.order.read` at the event's facility (room `laboratory:<facility>`). The message is built from an
+allow-list (`apps/api/src/app/realtime/lab-updates.ts`): `{ event, kind: order|specimen|result|critical, id, orderId,
+status, critical, occurredAt }` — no patient, test, value, order or accession number. Events: order created, cancelled,
+completed; specimen collected, received, rejected; result entered, verified, approved, released, correction started,
+amended, cancelled; critical raised, communicated, acknowledged. The staff workbench, the critical-results page and
+the dashboard re-read through the REST API when a message arrives (debounced), and poll every 15 s while the socket is
+down. One API instance holds the sockets (no Socket.IO Redis adapter yet — the same limit as the queue).
+
 ## Permissions
 
 | Permission             | Physician | Nurse | Records | Med. technologist | Pathologist | Phlebotomist |
@@ -178,6 +214,10 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory`):
 - Results: `POST order-items/:itemId/results` (enter), `GET order-items/:itemId/results` (history),
   `POST results/:id/{verify,approve,release,correct,cancel}`, `POST orders/:id/release`,
   `GET patients/:patientId/results`, `GET patients/:patientId/trends?testId=`, `GET orders/:id/report.pdf`.
+- Attachments: `GET results/:id/attachments`, `GET attachments/:id/download-url` (`lab.result.read`; released results,
+  any version for laboratory staff), `POST results/:id/attachments` (register, presigned PUT),
+  `POST attachments/:id/complete`, `POST attachments/:id/remove` (`lab.result.enter`, selected facility, result
+  entered).
 - Archived reports (`lab.order.read` + `lab.result.read`): `GET patients/:patientId/report-archive`,
   `GET report-archive/:id/report.pdf`.
 - Critical results: `GET critical-results?status=`, `POST critical-results/:id/{communicate,acknowledge}`.
@@ -196,7 +236,8 @@ Views and reads of patient results are audited (`lab.order.view`, `lab.order.lis
 `lab.result.history`, `lab.result.trend`, `lab.worklist.view`, `lab.specimen.label-print`, `lab.report.print`,
 `lab.report.archive.list`, `lab.report.archive.download`, `lab.send-out.list`, `lab.send-out.dispatch-view`,
 `lab.send-out.manifest-print`); every change is audited in its transaction (archiving: `lab.report.archive.schedule`,
-`lab.report.archive`, and `document.generate` by the documents library; send-outs: `lab.reference-lab.create|update`,
+`lab.report.archive`, and `document.generate` by the documents library; attachments:
+`lab.result.attachment.{add,attach,remove}`, downloads as `document.download`; send-outs: `lab.reference-lab.create|update`,
 `lab.referral.set|remove`, and per patient and order `lab.send-out.prepare|dispatch|results-received|reference-rejected|cancel`).
 
 ## Database relationships

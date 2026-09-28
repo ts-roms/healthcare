@@ -11,6 +11,7 @@ export * from "./lib/results/lab-patient-access";
 export * from "./lib/results/lab-record-queries";
 export * from "./lib/results/lab-result.service";
 export * from "./lib/results/lab-report";
+export * from "./lib/results/lab-result-attachments";
 export * from "./lib/results/lab-report-archive";
 export * from "./lib/results/lab-report-archive-queue";
 export * from "./lib/send-outs/reference-lab.service";

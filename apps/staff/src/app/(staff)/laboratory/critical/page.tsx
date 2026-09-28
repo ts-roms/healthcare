@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
+import { LiveLabRefresh } from "@/components/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -28,9 +29,15 @@ export default async function CriticalResultsPage({ searchParams }: { searchPara
         title="Critical results"
         description={`${facility.name} · document who was told, then the ordering side acknowledges`}
         actions={
-          <Link href={showAcknowledged ? "/laboratory/critical" : "/laboratory/critical?show=acknowledged"} className="text-meta text-primary hover:underline">
-            {showAcknowledged ? "Show open" : "Show acknowledged"}
-          </Link>
+          <span className="flex items-center gap-3">
+            {can(session, "lab.order.read") ? <LiveLabRefresh /> : null}
+            <Link
+              href={showAcknowledged ? "/laboratory/critical" : "/laboratory/critical?show=acknowledged"}
+              className="text-meta text-primary hover:underline"
+            >
+              {showAcknowledged ? "Show open" : "Show acknowledged"}
+            </Link>
+          </span>
         }
       />
       <CriticalList alerts={alerts} canCommunicate={can(session, "lab.critical.manage")} acknowledged={showAcknowledged} />

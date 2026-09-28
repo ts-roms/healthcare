@@ -75,7 +75,7 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
 `/queue` (+ `walk-ins`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
-Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
+Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
 

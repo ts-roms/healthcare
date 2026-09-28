@@ -43,6 +43,14 @@ foreign key `(organization_id, patient_id, document_id)` (migration 0014).
 storage key), unaudited, for record exports composed in the API: the FHIR interface maps them to `DocumentReference`
 and serves the content through `DocumentsService.downloadUrl` (audited). See `docs/interoperability/fhir.md`.
 
+## Documents managed by a domain
+
+`document.managed_by` (migration 0040) marks documents a domain serves itself, with its own rules — today
+`laboratory` (result attachments, visible to clinicians only after release). `DocumentsService` methods take an
+optional `{ managedBy }` scope: without it (the documents API, consent forms, FHIR) they only see ordinary documents,
+so managed documents are never listed, served or archived through the generic API; the managing domain passes its
+name after applying its own checks.
+
 ## Permissions
 
 `document.upload`, `document.read`, `document.archive`.
