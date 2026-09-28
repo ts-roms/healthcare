@@ -89,6 +89,10 @@ export const PERMISSIONS = [
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 8 — FHIR R4 inbound imports into a review queue (migration 0048). Submitting never writes the record;
+  // reviewers match the patient and accept or reject each entry.
+  "interop.fhir.import",
+  "interop.fhir.import.review",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
