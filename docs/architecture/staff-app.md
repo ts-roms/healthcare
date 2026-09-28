@@ -184,11 +184,13 @@ dentition; each tooth shows glyph + chart code, never colour alone), a tooth's s
 the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
 **Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
 record the patient's decision item by item, cancel items, discontinue); procedures (optionally from an accepted plan
-item); examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,
+item), each with a **Supplies used** panel (opened after recording: prefilled from the procedure's template, stock
+location, issued from inventory with the lots shown, refusals inline next to the supply; return unused supplies);
+examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,
 suppuration, mobility, furcation where the tooth has one; view a chart with the changes since the previous one);
 imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
 link). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
-visit's encounter workspace. `/dental/settings`: the procedure catalog and the facility's tooth notation
-(`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
+visit's encounter workspace. `/dental/settings`: the procedure catalog, supply templates per procedure, the facility's tooth notation and
+default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
 `docs/domains/dental.md`.

@@ -20,7 +20,7 @@ import {
 } from "@healthcare/interoperability";
 import type { Request } from "express";
 import { FhirExceptionFilter } from "./fhir-exception.filter";
-import { canReadDocuments, FhirRecordComposer } from "./fhir-record";
+import { canReadDental, canReadDocuments, FhirRecordComposer } from "./fhir-record";
 
 const FHIR_JSON = "application/fhir+json; charset=utf-8";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,6 +111,8 @@ export class FhirController {
     if (!patientId || !UUID.test(patientId)) throw new BadRequestError("Search by patient: give ?patient=<patient id>");
     const params = parseSearchParameters(query, { type, lastUpdated: LAST_UPDATED_TYPES.includes(compartmentType) });
     if (compartmentType === "DocumentReference" && !canReadDocuments(actor)) throw new ForbiddenError("Searching documents requires document.read");
+    // Every Procedure is a dental procedure; dental items in other types are withheld with a notice instead.
+    if (compartmentType === "Procedure" && !canReadDental(actor)) throw new ForbiddenError("Searching dental procedures requires dental.record.read");
     const ctx = await this.composer.context(actor.organizationId, baseUrl(request));
     const bundle = searchByPatient(ctx, await this.composer.record(actor, patientId), compartmentType, params);
     await this.audited(actor, "fhir.search", patientId, bundle, params.paging, params.lastUpdated);

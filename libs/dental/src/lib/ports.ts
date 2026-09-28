@@ -1,3 +1,5 @@
+import type { Actor, DbExecutor } from "@healthcare/core";
+
 /**
  * What dentistry needs from other domains, implemented by the app's composition root
  * (apps/api/src/app/adapters/dental-adapters.ts). The dental library never reads clinic or patient tables: a dental
@@ -50,3 +52,72 @@ export interface DentalContext {
 }
 
 export const DENTAL_CONTEXT = Symbol("DENTAL_CONTEXT");
+
+// ---- supplies (inventory) ---------------------------------------------------------------------------
+
+/** An inventory item as dentistry sees it (templates, the supplies picker). */
+export interface DentalSupplyItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  stockUnit: string;
+  controlled: boolean;
+  status: "active" | "inactive";
+}
+
+export interface DentalSupplyLocation {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+/** One ledger row the inventory posted for a supply use (quantity positive), with what identifies the lot. */
+export interface DentalSupplyMovement {
+  movementId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+}
+
+export interface DentalSupplyIssue {
+  locationId: string;
+  procedureId: string;
+  lines: Array<{ itemId: string; quantity: number; reason?: string; reference?: string }>;
+  idempotencyKey: string;
+}
+
+export interface DentalSupplyReturn {
+  locationId: string;
+  procedureId: string;
+  lines: Array<{ itemId: string; lotId: string; quantity: number; reason: string; reference?: string }>;
+  idempotencyKey: string;
+}
+
+/**
+ * Stock of dental supplies, implemented over the inventory library by the app (apps/api/src/app/adapters/
+ * dental-adapters.ts). `issue` and `return` run the inventory's own commands inside the transaction dentistry passes
+ * (one database, one transaction): first expiry first out, never expired lots, balances never negative, controlled
+ * items need a reason and a reference. A refusal throws and nothing is committed on either side.
+ */
+export interface DentalSupplies {
+  items(organizationId: string, itemIds?: string[]): Promise<DentalSupplyItem[]>;
+  locations(organizationId: string, facilityId: string): Promise<DentalSupplyLocation[]>;
+  location(organizationId: string, locationId: string): Promise<DentalSupplyLocation | undefined>;
+  /** Usable (not expired) stock per location and item at a facility, on the facility's local date. */
+  usableStock(organizationId: string, facilityId: string): Promise<Array<{ locationId: string; itemId: string; usable: number }>>;
+  issue(tx: DbExecutor, actor: Actor, input: DentalSupplyIssue): Promise<{ movementGroupId: string; movements: DentalSupplyMovement[] }>;
+  return(tx: DbExecutor, actor: Actor, input: DentalSupplyReturn): Promise<{ movementGroupId: string; movements: DentalSupplyMovement[] }>;
+}
+
+export const DENTAL_SUPPLIES = Symbol("DENTAL_SUPPLIES");
+
+/** How the stock ledger names where dental supplies went: the procedure as source, never a patient identifier. */
+export const DENTAL_SUPPLY_SOURCE = { type: "dental_procedure", issuedTo: "Dental procedure" } as const;

@@ -7,7 +7,7 @@ locations: what is on hand, by lot and expiry, and every movement that changed i
 the stock contract other workflows use (dispensing, reagent loads). Code: `libs/inventory` (`scope:inventory`),
 migrations `0026_inventory.sql` and `0052_inventory_procurement.sql`, staff `/inventory`, `/inventory/purchase-orders`.
 
-Not (yet) responsible for: dental supply use per procedure, reagent use per test run, costing/valuation methods,
+Not (yet) responsible for: reagent use per test run, costing/valuation methods,
 supplier invoices and payables, government procurement rules (e.g. RA 9184 for public facilities), or the official
 register formats for dangerous drugs and other regulated products (compliance dependencies — see below).
 
@@ -25,8 +25,10 @@ register formats for dangerous drugs and other regulated products (compliance de
   sharing a group), adjustment (count), write-off, **return** (stock a workflow gives back); signed quantity, balance
   after, supplier and unit cost (receipts, centavos), reference, issued to (a department or purpose — never a patient
   identifier), reason, who, when, and its **source** when another workflow moved it (`prescription_dispense`,
-  `lab_reagent_load`, `purchase_order_line` + id). A source takes stock from a lot once and returns it at most once
-  (partial unique index); a return needs a source and a reason.
+  `lab_reagent_load`, `purchase_order_line`, `dental_procedure` + id). A source takes stock from a lot once and returns
+  it at most once (partial unique index) — except a dental procedure (migration `0057`), which may take from a lot
+  again and return part of it several times, each return checked against what it still holds; a return needs a
+  source and a reason.
 - **Reorder quantity** (`inventory_stock_level.reorder_quantity`, optional) — the quantity usually ordered, suggested on
   purchase orders.
 - **Purchase order** (`inventory_purchase_order`) — number `PO-YYYY-NNNNNN` (per organization and year,
@@ -48,6 +50,8 @@ register formats for dangerous drugs and other regulated products (compliance de
 | Transfer           | From a location of the selected facility to any active location of the organization (another branch included); FEFO like issues.      |
 | Count (adjustment) | The physical count for a lot; the difference to the balance is posted; a reason is required; a count equal to the balance is refused. |
 | Write off          | Expired, damaged or lost stock; a reason is required (expired lots can only leave this way).                                          |
+| Issue for a source | Another domain's record (a dental procedure), several items at once, **inside the caller's transaction**; rules as an issue.          |
+| Return from source | Unused stock back to the lot and location it was issued from; a reason; never more than issued to that source from the lot, net.      |
 
 All: the location must belong to the **selected facility** and be active; the item active; one transaction locks the
 balance rows, posts the movements, updates balances and audits; an **idempotency key** makes a retried request return
@@ -132,7 +136,11 @@ and expiry; the ledger is append-only; a partial unique index enforces one movem
   transaction (`consume`, source `lab_reagent_load`, reference = the instrument code). Consumption per test is not wired.
 - Dispensing ([prescription.md](prescription.md)): each dispense takes stock (`consume`, source `prescription_dispense`,
   reference = the prescription number); a reversal returns it (`restore`). Adapter: `apps/api/src/app/adapters/inventory-adapters.ts`.
-- Dental procedures ([dental.md](dental.md)) could consume supplies the same way — not wired yet.
+- Dental ([dental.md](dental.md#supplies-used)): the supplies a procedure used are issued through
+  `InventoryStockService.issueForSource` (several items in one movement group, idempotent) and unused ones returned
+  through `returnForSource` (partial, never more than the procedure still holds from the lot), behind dentistry's
+  `DentalSupplies` port, in dentistry's transaction. Source `dental_procedure`; the staff movements list shows
+  "Dental procedure". Items, locations and usable stock are read through `InventoryQueries`.
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 
 ## Open questions / assumptions

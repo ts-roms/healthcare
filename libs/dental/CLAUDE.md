@@ -21,7 +21,7 @@ Dental history, examination, odontogram / tooth chart, tooth surfaces, dental di
 
 ## Key events
 
-`DentalExaminationRecorded`, `DentalChartUpdated`, `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`, `DentalProcedureEnteredInError`.
+`DentalExaminationRecorded`, `DentalChartUpdated`, `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`, `DentalProcedureEnteredInError`, `DentalSuppliesIssued`, `DentalSuppliesReturned` (supplies from inventory through the `DentalSupplies` port, in dentistry's transaction).
 
 ## Permissions (initial)
 
