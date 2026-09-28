@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@healthcare/ui/primitives";
-import { LiveQueueRefresh } from "@/components/live-queue";
+import { LAB_EVENTS, LiveQueueRefresh, QUEUE_EVENTS } from "@/components/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
@@ -78,9 +78,10 @@ async function ClinicToday({ session, facility }: { session: Me; facility: { id:
     <section className="flex flex-col gap-4 p-4" aria-labelledby="today-heading">
       <h2 id="today-heading" className="text-section font-semibold">
         Clinic today <span className="text-table font-normal text-muted-foreground">· {facility.name}</span>
-        {canQueue ? (
+        {canQueue || can(session, "lab.order.read") ? (
           <span className="ml-2 align-middle">
-            <LiveQueueRefresh />
+            {/* One socket keeps the clinic figures and the laboratory panel current (each only if the user may see it). */}
+            <LiveQueueRefresh events={[...QUEUE_EVENTS, ...LAB_EVENTS]} />
           </span>
         ) : null}
       </h2>

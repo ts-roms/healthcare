@@ -115,6 +115,17 @@ visible to them, and when a visible result is corrected (`lab.results-available`
 **Patient visibility** (`LabPatientAccess`): current version, released, test `patient_releasable`, and — if critical —
 alert acknowledged. See [portal-app.md](../architecture/portal-app.md).
 
+## Realtime
+
+Laboratory events are pushed on the Socket.IO `/realtime` gateway (the one the queue uses) as `lab.updated`, to sockets
+whose user holds `lab.order.read` at the event's facility (room `laboratory:<facility>`). The message is built from an
+allow-list (`apps/api/src/app/realtime/lab-updates.ts`): `{ event, kind: order|specimen|result|critical, id, orderId,
+status, critical, occurredAt }` — no patient, test, value, order or accession number. Events: order created, cancelled,
+completed; specimen collected, received, rejected; result entered, verified, approved, released, correction started,
+amended, cancelled; critical raised, communicated, acknowledged. The staff workbench, the critical-results page and
+the dashboard re-read through the REST API when a message arrives (debounced), and poll every 15 s while the socket is
+down. One API instance holds the sockets (no Socket.IO Redis adapter yet — the same limit as the queue).
+
 ## Permissions
 
 | Permission             | Physician | Nurse | Records | Med. technologist | Pathologist | Phlebotomist |

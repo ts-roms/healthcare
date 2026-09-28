@@ -8,6 +8,7 @@ import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import { LiveIndicator, useLabUpdates } from "@/components/live-queue";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
 import { findByAccession } from "../actions";
 import { type LabPermissions, WorkbenchDetail } from "./workbench-detail";
@@ -38,6 +39,8 @@ export function LabWorkbench({
   const [scanning, startScan] = React.useTransition();
   const scanRef = React.useRef<HTMLInputElement>(null);
   const selected = scanned ?? rows.find((r) => r.key === selectedKey) ?? null;
+  // Other benches' work (collection, receipt, sign-off) shows up without reloading; polling while the socket is down.
+  const live = useLabUpdates();
   const specimenTypeName = React.useMemo(() => new Map(specimenTypes.map((s) => [s.id, s.name])), [specimenTypes]);
 
   // F2 focuses the barcode field: scanners type the accession number and Enter.
@@ -84,17 +87,20 @@ export function LabWorkbench({
     <LaboratoryLayout
       title={`Laboratory · ${facilityName}`}
       status={
-        dashboard ? (
-          <>
-            <span className="tabular">{dashboard.statOpen} STAT open</span>
-            {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
-            {dashboard.criticalUnacknowledged ? (
-              <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
-                <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
-              </Link>
-            ) : null}
-          </>
-        ) : null
+        <>
+          <LiveIndicator status={live} />
+          {dashboard ? (
+            <>
+              <span className="tabular">{dashboard.statOpen} STAT open</span>
+              {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
+              {dashboard.criticalUnacknowledged ? (
+                <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
+                  <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
+                </Link>
+              ) : null}
+            </>
+          ) : null}
+        </>
       }
       toolbar={
         <>

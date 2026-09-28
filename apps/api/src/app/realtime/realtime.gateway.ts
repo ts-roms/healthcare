@@ -3,6 +3,7 @@ import { type OnGatewayConnection, WebSocketGateway, WebSocketServer } from "@ne
 import { ActorResolver } from "@healthcare/auth";
 import { DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
 import type { Namespace, Socket } from "socket.io";
+import { LAB_REALTIME_EVENTS, labUpdate } from "./lab-updates";
 
 export const REALTIME_NAMESPACE = "/realtime";
 
@@ -10,13 +11,19 @@ function facilityRoom(facilityId: string): string {
   return `facility:${facilityId}`;
 }
 
+/** Laboratory updates go only to sockets allowed to read the facility's laboratory orders. */
+function laboratoryRoom(facilityId: string): string {
+  return `laboratory:${facilityId}`;
+}
+
 /**
- * Realtime queue updates for display boards and worklists (CLAUDE.md §1).
+ * Realtime updates for display boards, the queue and laboratory worklists (CLAUDE.md §1).
  * Browsers connect with { auth: { ticket } } (a 60-second ticket from
  * POST /auth/realtime-tickets, bound to their session and facility); server
- * clients may use { auth: { token, facilityId } }. Either way the session,
- * account and clinic.queue.read at that facility are checked on connect. Messages carry ids and statuses only —
- * clients refetch details through the authorized REST API.
+ * clients may use { auth: { token, facilityId } }. Either way the session and
+ * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
+ * `queue.updated` with clinic.queue.read, `lab.updated` with lab.order.read (a socket with neither is refused).
+ * Messages carry ids and statuses only — clients refetch details through the authorized REST API.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
 export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
@@ -29,6 +36,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
 
   onModuleInit(): void {
     this.handlers.on("QueueEntryUpdated", "realtime.queue", async (event) => this.broadcastQueue(event));
+    this.handlers.on([...LAB_REALTIME_EVENTS], "realtime.laboratory", async (event) => this.broadcastLaboratory(event));
   }
 
   async handleConnection(client: Socket): Promise<void> {
@@ -45,9 +53,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
       } else {
         throw new Error("A ticket (or token and facilityId) is required");
       }
-      if (!actor.facilityId || !actor.permissions.has("clinic.queue.read")) throw new Error("Not permitted");
-      await client.join(facilityRoom(actor.facilityId));
-      client.emit("ready", { facilityId: actor.facilityId });
+      const channels = [
+        ...(actor.permissions.has("clinic.queue.read") ? ["queue" as const] : []),
+        ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
+      ];
+      if (!actor.facilityId || channels.length === 0) throw new Error("Not permitted");
+      if (channels.includes("queue")) await client.join(facilityRoom(actor.facilityId));
+      if (channels.includes("laboratory")) await client.join(laboratoryRoom(actor.facilityId));
+      client.emit("ready", { facilityId: actor.facilityId, channels });
     } catch (error) {
       client.emit("unauthorized", { message: error instanceof Error ? error.message : "Unauthorized" });
       client.disconnect(true);
@@ -61,5 +74,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
       occurredAt: event.occurredAt,
       ...event.payload,
     });
+  }
+
+  private async broadcastLaboratory(event: DomainEventRecord): Promise<void> {
+    const update = labUpdate(event);
+    if (!update || !event.facilityId || !this.server) return;
+    this.server.to(laboratoryRoom(event.facilityId)).emit("lab.updated", update);
   }
 }
