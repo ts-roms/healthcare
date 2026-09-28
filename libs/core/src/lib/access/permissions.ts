@@ -91,6 +91,15 @@ export const PERMISSIONS = [
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 6 — dental (migration 0027)
+  "dental.record.read",
+  "dental.record.write",
+  "dental.chart.write",
+  "dental.treatment-plan.manage",
+  "dental.procedure.record",
+  "dental.imaging.read",
+  "dental.imaging.upload",
+  "dental.settings.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

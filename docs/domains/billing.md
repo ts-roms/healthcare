@@ -25,10 +25,10 @@ organization `vatable + VAT + exempt + zero-rated = net`).
 
 - `billing_service` — billable service (code, name, category: consultation, procedure, laboratory, dental,
   telemedicine, supply, other), optionally mapped to a clinical source for automatic capture: a **visit type code**
-  (charged when an encounter of that visit type is signed) or a **laboratory test code** (charged when ordered). Its
-  optional **VAT class** (`vatable`, `vat_exempt`, `zero_rated`) is configuration. A **package** is a service with
-  `is_package`, an optional validity in days and its contents in `billing_package_item` (services and quantities,
-  fixed once created).
+  (charged when an encounter of that visit type is signed), a **laboratory test code** (charged when ordered) or a
+  **dental procedure code** (charged when performed; see [dental.md](dental.md)). Its optional **VAT class**
+  (`vatable`, `vat_exempt`, `zero_rated`) is configuration. A **package** is a service with `is_package`, an optional
+  validity in days and its contents in `billing_package_item` (services and quantities, fixed once created).
 - `billing_service_price` — versioned prices with effective dates (no overlaps: exclusion constraint). Adding a price
   ends the previous one the day before; charges and invoice lines keep the price they used. Packages are priced the
   same way.
@@ -37,10 +37,10 @@ organization `vatable + VAT + exempt + zero-rated = net`).
   `requires_evidence` (always for statutory), `stackable`, effective dates. A changed rule is a new row.
 - `billing_package_enrollment` — a package sold to a patient at a facility: `active` or `cancelled` (reason), from the
   day of sale to its end date (from the validity). What is left of each included service is derived from its charges.
-- `billing_charge` — one billable thing for a patient at a facility: source (`encounter`, `lab_order_item`, `manual`,
-  `package` — the sale of a package), price snapshot, service date, status `pending → invoiced` (on a draft or issued
-  invoice) or `cancelled` (reason). Unique per clinical source and service, so event redelivery charges once. A charge a
-  package covers is at zero and points to the enrollment.
+- `billing_charge` — one billable thing for a patient at a facility: source (`encounter`, `lab_order_item`,
+  `dental_procedure`, `manual`, `package` — the sale of a package), price snapshot, service date, status
+  `pending → invoiced` (on a draft or issued invoice) or `cancelled` (reason). Unique per clinical source and service,
+  so event redelivery charges once. A charge a package covers is at zero and points to the enrollment.
 - `billing_invoice` (+ `_item`, `_discount`, `_payer`) — `draft → issued → void`. Numbered on issue
   (`INV-2026-000001`; prefix configurable). **Issued invoices and their lines are immutable** (triggers); only payer
   claim status may change after issue. On issue the invoice takes a **tax snapshot** from the organization's profile

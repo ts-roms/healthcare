@@ -13,7 +13,10 @@ export const PAYER_STATUSES = ["pending", "submitted", "settled", "denied"] as c
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export type ChargeStatus = "pending" | "invoiced" | "cancelled";
 export type InvoiceStatus = "draft" | "issued" | "void";
-export type ChargeSourceType = "encounter" | "lab_order_item" | "manual" | "package";
+export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
+/** What captures a service automatically: a visit type (signed encounter), a laboratory test (ordering) or a dental procedure (performed). */
+export const SERVICE_SOURCE_KINDS = ["visit_type", "lab_test", "dental_procedure"] as const;
+export type ServiceSourceKind = (typeof SERVICE_SOURCE_KINDS)[number];
 export type SequenceKind = "invoice" | "receipt" | "credit_note" | "debit_note";
 export const TAX_CLASSES = ["vatable", "vat_exempt", "zero_rated"] as const;
 export type TaxClass = (typeof TAX_CLASSES)[number];
@@ -26,7 +29,7 @@ export const billingService = pgTable("billing_service", {
   code: text("code").notNull(),
   name: text("name").notNull(),
   category: text("category").$type<ServiceCategory>().notNull(),
-  sourceKind: text("source_kind").$type<"visit_type" | "lab_test">(),
+  sourceKind: text("source_kind").$type<ServiceSourceKind>(),
   sourceCode: text("source_code"),
   status: text("status").$type<"active" | "inactive">().notNull().default("active"),
   createdAt: ts("created_at").notNull().defaultNow(),

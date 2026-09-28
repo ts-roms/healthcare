@@ -30,10 +30,10 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 ## Data
 
-| Area                                                                                                                                                                     | Source                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory | API                                                        |
-| Dental, `/preview/patient-360`                                                                                                                                           | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                                             | Source                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
+| `/preview/patient-360` (including its dental tab)                                                                                                                                | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -162,3 +162,19 @@ resolve with a note. Labels for systems/operations and source links live in
 reorder status (filters: low or out, expiring), and a form to record a movement (receive, issue, transfer; count and
 write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/inventory/catalog`
 (`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels. See `docs/domains/inventory.md`.
+
+## Dental
+
+`/dental` (`dental.record.read`; a selected facility is required): today's dental patients — dentists' encounters at
+the facility with whether each has been charted and how many procedures were recorded. `/dental/patients/[id]` (also
+"Dental record" on the patient record): the odontogram in the facility's notation (permanent, mixed or primary
+dentition; each tooth shows glyph + chart code, never colour alone), a tooth's state, source and full history; with
+the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
+**Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
+record the patient's decision item by item, cancel items, discontinue); procedures (optionally from an accepted plan
+item); examinations; imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
+link). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
+visit's encounter workspace. `/dental/settings`: the procedure catalog and the facility's tooth notation
+(`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
+`libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
+`docs/domains/dental.md`.

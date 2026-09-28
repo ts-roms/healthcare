@@ -9,6 +9,7 @@ Dental history, examination, odontogram / tooth chart, tooth surfaces, dental di
 ## Rules
 
 - **Same Patient Master.** Dental records reference the canonical patient id. Never create a second patient table.
+- **A dental visit is a clinic encounter with a dentist.** Reach the clinic only through the `DentalContext` port (`src/lib/ports.ts`); never read clinic tables.
 - **Tooth identification:** store a canonical internal tooth identifier (default: FDI / ISO 3950 two-digit notation, including primary dentition) and render in the facility's configured notation (FDI, Universal, Palmer). Assumption — confirm preferred display notation with target clinics.
 - Surfaces use a fixed, validated set (e.g. M, O/I, D, B/F, L/P); validate tooth–surface combinations server-side.
 - **Odontogram history:** each examination produces a new chart snapshot / set of condition entries with timestamp and author. Never mutate a previous chart; the current chart is derived from history.
@@ -20,11 +21,11 @@ Dental history, examination, odontogram / tooth chart, tooth surfaces, dental di
 
 ## Key events
 
-`DentalExaminationRecorded`, `DentalChartUpdated`, `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`.
+`DentalExaminationRecorded`, `DentalChartUpdated`, `DentalTreatmentPlanCreated`, `DentalTreatmentPlanAccepted`, `DentalProcedurePerformed`, `DentalProcedureEnteredInError`.
 
 ## Permissions (initial)
 
-`dental.record.read`, `dental.record.write`, `dental.chart.write`, `dental.treatment-plan.manage`, `dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`.
+`dental.record.read`, `dental.record.write` (corrections: entered in error), `dental.chart.write`, `dental.treatment-plan.manage`, `dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`, `dental.settings.manage` (procedure catalog, notation).
 
 ## Docs
 

@@ -52,7 +52,7 @@ CREATE INDEX billing_package_enrollment_patient_idx ON billing_package_enrollmen
 
 -- Charges: the sale of a package (source 'package', the enrollment) and charges a package covers.
 ALTER TABLE billing_charge DROP CONSTRAINT billing_charge_source_type_check;
-ALTER TABLE billing_charge ADD CONSTRAINT billing_charge_source_type_check CHECK (source_type IN ('encounter', 'lab_order_item', 'manual', 'package'));
+ALTER TABLE billing_charge ADD CONSTRAINT billing_charge_source_type_check CHECK (source_type IN ('encounter', 'lab_order_item', 'dental_procedure', 'manual', 'package'));
 -- Staff enter manual charges and sell packages; clinical sources are captured by the system.
 ALTER TABLE billing_charge DROP CONSTRAINT billing_charge_check1;
 ALTER TABLE billing_charge ADD CONSTRAINT billing_charge_captured_by_check CHECK ((source_type IN ('manual', 'package')) = (captured_by IS NOT NULL));

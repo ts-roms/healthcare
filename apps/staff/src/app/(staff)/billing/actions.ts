@@ -214,7 +214,7 @@ const serviceSchema = z.object({
   code,
   name: z.string().trim().min(1).max(200),
   category: categories,
-  sourceKind: z.enum(["visit_type", "lab_test"]).optional(),
+  sourceKind: z.enum(["visit_type", "lab_test", "dental_procedure"]).optional(),
   sourceCode: z.string().trim().min(1).max(60).optional(),
   unitPrice: centavos,
   effectiveFrom: date,

@@ -6,6 +6,8 @@
  * libraries (or generate them from the OpenAPI document) as domains grow.
  */
 
+import type { ToothFinding, ToothNotation, ToothSurface } from "@healthcare/domain";
+
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown; requestId?: string };
 }
@@ -978,7 +980,7 @@ export interface BillingService {
   code: string;
   name: string;
   category: BillingCategory;
-  sourceKind: "visit_type" | "lab_test" | null;
+  sourceKind: "visit_type" | "lab_test" | "dental_procedure" | null;
   sourceCode: string | null;
   status: "active" | "inactive";
   version: number;
@@ -1481,6 +1483,160 @@ export interface InventoryMovement {
   locationName: string;
   lotNumber: string | null;
   expiryDate: string | null;
+}
+
+// ---- Dental (libs/dental) ------------------------------------------------------------------------
+
+export type DentalProcedureSite = "mouth" | "tooth" | "surface";
+export type DentalChartEffect = "restoration" | "sealant" | "crown" | "root_canal" | "missing" | "implant" | "pontic";
+
+export interface DentalProcedureType {
+  id: string;
+  code: string;
+  name: string;
+  site: DentalProcedureSite;
+  chartEffect: DentalChartEffect | null;
+  status: "active" | "inactive";
+  version: number;
+}
+
+export interface DentalSettings {
+  notation: ToothNotation;
+  procedureTypes: DentalProcedureType[];
+}
+
+export interface DentalChartTooth {
+  tooth: string;
+  findings: ToothFinding[];
+  note: string | null;
+  source: { type: "examination" | "procedure"; id: string };
+  recordedAt: string;
+  recordedBy: string;
+  recordedByName: string | null;
+}
+
+export interface DentalToothHistoryEntry {
+  tooth: string;
+  findings: ToothFinding[];
+  note: string | null;
+  source: { type: "examination" | "procedure"; id: string; status: DentalRecordStatus };
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+export type DentalRecordStatus = "recorded" | "entered_in_error";
+
+export interface DentalExamination {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  oralHygiene: "good" | "fair" | "poor" | null;
+  notes: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+  teeth: Array<{ tooth: string; findings: ToothFinding[]; note: string | null }>;
+}
+
+export type DentalPlanStatus = "proposed" | "accepted" | "in_progress" | "completed" | "declined" | "discontinued";
+export type DentalPlanItemStatus = "proposed" | "accepted" | "declined" | "completed" | "cancelled";
+
+export interface DentalPlanItem {
+  id: string;
+  planId: string;
+  phase: number;
+  procedureTypeId: string;
+  procedure: { code: string; name: string; site: DentalProcedureSite } | null;
+  tooth: string | null;
+  surfaces: ToothSurface[];
+  note: string | null;
+  status: DentalPlanItemStatus;
+  procedureId: string | null;
+  version: number;
+}
+
+export interface DentalTreatmentPlan {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerName?: string | null;
+  title: string;
+  notes: string | null;
+  status: DentalPlanStatus;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  discontinuedReason: string | null;
+  createdAt: string;
+  version: number;
+  items: DentalPlanItem[];
+}
+
+export interface DentalProcedure {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  procedureTypeId: string;
+  procedure: { code: string; name: string };
+  label: string;
+  tooth: string | null;
+  surfaces: ToothSurface[];
+  notes: string | null;
+  planItemId: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  performedAt: string;
+}
+
+export type DentalImageKind = "periapical" | "bitewing" | "panoramic" | "cephalometric" | "occlusal" | "cbct" | "intraoral_photo" | "extraoral_photo" | "other";
+
+export interface DentalImage {
+  id: string;
+  patientId: string;
+  documentId: string;
+  encounterId: string | null;
+  kind: DentalImageKind;
+  teeth: string[];
+  takenOn: string;
+  notes: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+export interface DentalRecord {
+  patient: PatientBrief & { id: string };
+  notation: ToothNotation;
+  chart: DentalChartTooth[];
+  examinations: DentalExamination[];
+  plans: DentalTreatmentPlan[];
+  procedures: DentalProcedure[];
+  images: DentalImage[];
+}
+
+export interface DentalVisit {
+  encounterId: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerName: string;
+  status: "in_progress" | "completed" | "entered_in_error";
+  startedAt: string;
+  chiefComplaint: string | null;
+  patient: PatientBrief | null;
+  examinations: number;
+  procedures: number;
+}
+
+export interface DentalVisits {
+  date: string;
+  visits: DentalVisit[];
 }
 
 // ---- Billing: debit notes, payer credits, packages, online payment, tax profile (migrations 0036–0039) ----

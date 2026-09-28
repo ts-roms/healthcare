@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, localDate } from "@healthcare/core";
+import { DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import { allergyIntolerance, allergyReview, appointment, diagnosis, encounter, practitioner, visit, visitType, vitalSignSet } from "./clinic.schema";
@@ -290,6 +290,39 @@ export class ClinicQueries {
       )
       .orderBy(asc(diagnosis.recordedAt), asc(diagnosis.id))
       .limit(limit);
+  }
+
+  /**
+   * Encounters of practitioners of one profession (e.g. dentists) started at a facility on a local date, earliest
+   * first (the dental worklist). Encounters entered in error are left out.
+   */
+  async encountersOfProfession(organizationId: string, facilityId: string, date: string, profession: (typeof practitioner.$inferSelect)["profession"]) {
+    const [site] = await this.db.select({ timezone: facility.timezone }).from(facility).where(eq(facility.id, facilityId));
+    if (!site) return [];
+    const { start, end } = localDayBounds(date, site.timezone);
+    return this.db
+      .select({
+        encounterId: encounter.id,
+        patientId: encounter.patientId,
+        practitionerId: encounter.practitionerId,
+        practitionerName: practitioner.displayName,
+        status: encounter.status,
+        startedAt: encounter.startedAt,
+        chiefComplaint: encounter.chiefComplaint,
+      })
+      .from(encounter)
+      .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+      .where(
+        and(
+          eq(encounter.organizationId, organizationId),
+          eq(encounter.facilityId, facilityId),
+          eq(practitioner.profession, profession),
+          ne(encounter.status, "entered_in_error"),
+          gte(encounter.startedAt, start),
+          lt(encounter.startedAt, end),
+        ),
+      )
+      .orderBy(asc(encounter.startedAt));
   }
 
   /** Practitioner records by id (record exports). */
