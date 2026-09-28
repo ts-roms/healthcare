@@ -7,11 +7,21 @@ import { InvoiceBadge } from "@/components/invoice-badge";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { BillingCharge, BillingService, InvoiceSummary, PatientAccount, PatientDetail } from "@/lib/api/types";
+import type {
+  BillingCharge,
+  BillingPackage,
+  BillingService,
+  InvoiceSummary,
+  PackageEnrollment,
+  PatientAccount,
+  PatientDetail,
+  SharedAccount,
+} from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { BillingNav } from "../../billing-nav";
 import { PatientAccountPanel } from "./patient-account";
 import { PatientCharges } from "./patient-charges";
+import { PatientPackages } from "./patient-packages";
 
 export const metadata = { title: "Patient billing" };
 
@@ -30,11 +40,13 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
       </>
     );
   }
-  const [charges, invoices, services, account, patient] = await Promise.all([
+  const [charges, invoices, services, account, enrollments, packages, patient] = await Promise.all([
     api<BillingCharge[]>("/billing/charges", { query: { patientId } }),
     api<InvoiceSummary[]>("/billing/invoices", { query: { patientId } }),
     api<BillingService[]>("/billing/services"),
-    api<PatientAccount>(`/billing/patients/${patientId}/account`),
+    api<PatientAccount & SharedAccount>(`/billing/patients/${patientId}/account`),
+    api<PackageEnrollment[]>(`/billing/patients/${patientId}/packages`),
+    can(session, "billing.charge.capture") ? api<BillingPackage[]>("/billing/packages") : Promise.resolve([]),
     can(session, "patient.read") ? api<PatientDetail>(`/patients/${patientId}`).catch(() => null) : Promise.resolve(null),
   ]);
   const name = patient
@@ -48,7 +60,7 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
         <PatientCharges
           patientId={patientId}
           charges={charges.filter((c) => c.status === "pending")}
-          services={services.filter((s) => s.status === "active")}
+          services={services.filter((s) => s.status === "active" && !s.isPackage)}
           canCapture={can(session, "billing.charge.capture")}
           canInvoice={can(session, "billing.invoice.issue")}
         />
@@ -75,6 +87,7 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
               </ul>
             </CardContent>
           </Card>
+          <PatientPackages patientId={patientId} enrollments={enrollments} packages={packages} canSell={can(session, "billing.charge.capture")} />
           <PatientAccountPanel
             patientId={patientId}
             account={account}

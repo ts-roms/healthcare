@@ -51,6 +51,8 @@ export interface AppModuleOverrides {
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
   philhealthGateway?: Provider;
+  /** Replaces the payment provider adapter (tests; the default takes no payment). */
+  paymentGateway?: Provider;
   /** Replaces the PhilHealth eligibility adapter (tests; the default transmits nothing). */
   philhealthEligibilityGateway?: Provider;
   /** Replaces the PhilHealth YAKAP adapter (tests; the default transmits nothing). */
@@ -83,7 +85,12 @@ export class AppModule implements NestModule {
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
     const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule], context: AppDentalContext });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
-    const billing = BillingModule.forRoot({ imports: [PatientModule, laboratory, dental], sources: AppBillingSources, patients: AppPatientDirectory });
+    const billing = BillingModule.forRoot({
+      imports: [PatientModule, laboratory, dental],
+      sources: AppBillingSources,
+      patients: AppPatientDirectory,
+      paymentGateway: overrides.paymentGateway,
+    });
     // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
     const prescriptions = PrescriptionModule.forRoot({ prescribingContext: AppPrescribingContext });
     return {

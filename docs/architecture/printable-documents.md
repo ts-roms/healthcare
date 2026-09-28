@@ -1,6 +1,6 @@
 # Printable documents (PDF)
 
-Laboratory result reports, specimen tube labels, send-out manifests, invoices, payment and deposit receipts and credit notes are PDFs rendered by the API from the
+Laboratory result reports, specimen tube labels, send-out manifests, invoices, payment and deposit receipts, and credit and debit notes are PDFs rendered by the API from the
 platform's own records. Released laboratory reports are also archived in object storage.
 
 | Document                | Staff (API)                                       | Patient (MyHealth API)                           | Rules                                                                                                                                                                                                                                                                    |
@@ -12,6 +12,7 @@ platform's own records. Released laboratory reports are also archived in object 
 | Archived lab report     | `GET /laboratory/report-archive/:id/report.pdf`   | —                                                | The stored copy, byte for byte, of the report as a release left it ("Archived copy, version N"); listed per patient at `GET /laboratory/patients/:patientId/report-archive`.                                                                                             |
 | Deposit receipt         | `GET /billing/account-entries/:id/receipt.pdf`    | —                                                | Deposits only; amount in words; deposit and credit balance right after the deposit. "Not an official receipt".                                                                                                                                                           |
 | Credit note             | `GET /billing/credit-notes/:id/pdf`               | `GET /portal/billing/credit-notes/:id/pdf`       | Number, invoice, reason, credited lines, what was taken off the balance and what went to the patient's account; amount in words. BIR conformity subject to confirmation.                                                                                                 |
+| Debit note              | `GET /billing/debit-notes/:id/pdf`                | `GET /portal/billing/debit-notes/:id/pdf`        | Number, invoice, reason, added lines (quantity, unit price, amount); amount in words. BIR conformity subject to confirmation.                                                                                                                                            |
 
 **Send-out manifest** (`GET /laboratory/send-out-dispatches/:id/manifest.pdf`, `lab.specimen.receive`, selected facility): one
 dispatch to a reference laboratory — manifest number, reference laboratory (accreditation reference as recorded), courier
@@ -21,9 +22,10 @@ send-outs are left out); signature lines for the handover. On the laboratory rep
 laboratory are marked `*` with "Performed by … (reference laboratory)" (also in archived and patient copies).
 
 Every download is audited (`lab.send-out.manifest-print` per patient on a manifest, `lab.report.print`, `lab.specimen.label-print`, `lab.report.archive.download` with
-`document.download`, `billing.invoice.print`, `billing.receipt.print`, `billing.deposit-receipt.print`, `billing.credit-note.print`; patient
-downloads `portal.lab-report-download`, `portal.invoice-download`, `portal.credit-note-download` with actor type
-`patient`).
+`document.download`, `billing.invoice.print`, `billing.receipt.print`, `billing.deposit-receipt.print`, `billing.credit-note.print`,
+`billing.debit-note.print`; patient downloads `portal.lab-report-download`, `portal.invoice-download`,
+`portal.credit-note-download`, `portal.debit-note-download` with actor type `patient`). An issued invoice also prints the
+seller's details, VAT breakdown and document note the organization configured (its tax snapshot).
 
 ## How
 
@@ -40,8 +42,9 @@ downloads `portal.lab-report-download`, `portal.invoice-download`, `portal.credi
   also read back with an independent decoder (ZXing) at 203 and 300 dpi.
 - The web apps never hold tokens in the browser: `/files/...` route handlers in the staff app
   (`lab-reports/:orderId`, `invoices/:id`, `receipts/:paymentId`, `specimen-labels/:specimenId`,
-  `lab-report-archive/:archiveId`, `deposit-receipts/:entryId`, `credit-notes/:id`, `send-out-manifests/:dispatchId`) and MyHealth (`lab-reports/:orderId`,
-  `invoices/:id`, `credit-notes/:id`)
+  `lab-report-archive/:archiveId`, `deposit-receipts/:entryId`, `credit-notes/:id`, `debit-notes/:id`,
+  `send-out-manifests/:dispatchId`) and MyHealth (`lab-reports/:orderId`, `invoices/:id`, `credit-notes/:id`,
+  `debit-notes/:id`)
   fetch the PDF from the API with the user's session and stream it back. Only those paths are passed through
   (`lib/files.ts`).
 - pdfkit is loaded from `node_modules` at runtime, not bundled (`ExternalsPlugin` in `apps/api/webpack.config.js`): it

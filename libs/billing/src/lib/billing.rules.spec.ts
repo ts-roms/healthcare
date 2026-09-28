@@ -2,7 +2,12 @@ import {
   accountBalance,
   applicationProblem,
   computeInvoice,
+  creditAllocationProblem,
   creditNoteProblem,
+  debitNoteProblem,
+  onlinePaymentSplit,
+  packageCovers,
+  packageEndsOn,
   depositApplied,
   discountConflict,
   documentNumber,
@@ -11,6 +16,9 @@ import {
   patientBalance,
   refundable,
   splitCredit,
+  taxBreakdown,
+  transferPlan,
+  vatIncluded,
 } from "./billing.rules";
 import { formatPeso, percentOf } from "./money";
 
@@ -92,8 +100,10 @@ describe("ledger", () => {
 
 describe("settlement", () => {
   it("settles an invoice with payments, deposit applied and credit notes", () => {
-    expect(invoiceBalance(45_000, { paid: 20_000, depositApplied: 10_000, credited: 5_000 })).toBe(10_000);
-    expect(invoiceBalance(45_000, { paid: 0, depositApplied: 0, credited: 0 })).toBe(45_000);
+    expect(invoiceBalance(45_000, { paid: 20_000, depositApplied: 10_000, credited: 5_000, debited: 0 })).toBe(10_000);
+    expect(invoiceBalance(45_000, { paid: 0, depositApplied: 0, credited: 0, debited: 0 })).toBe(45_000);
+    // A debit note adds to what is owed.
+    expect(invoiceBalance(45_000, { paid: 45_000, depositApplied: 0, credited: 0, debited: 12_000 })).toBe(12_000);
   });
 });
 
@@ -132,41 +142,129 @@ describe("credit notes", () => {
     { id: "b", netAmount: 20_000, credited: 15_000 },
   ];
 
-  it("credits lines of the invoice within what is left of each line and of the patient's share", () => {
-    expect(creditNoteProblem([{ invoiceItemId: "a", amount: 40_000 }], items, 45_000)).toBeNull();
-    expect(creditNoteProblem([{ invoiceItemId: "b", amount: 5_000 }], items, 45_000)).toBeNull();
-    expect(creditNoteProblem([{ invoiceItemId: "b", amount: 5_001 }], items, 45_000)).toBe("credit_exceeds_line");
-    expect(
-      creditNoteProblem(
-        [
-          { invoiceItemId: "a", amount: 40_000 },
-          { invoiceItemId: "b", amount: 5_000 },
-        ],
-        items,
-        44_999,
-      ),
-    ).toBe("credit_exceeds_patient_share");
+  it("credits lines of the invoice or a debit note within what is left of each", () => {
+    expect(creditNoteProblem([{ targetId: "a", amount: 40_000 }], items)).toBeNull();
+    expect(creditNoteProblem([{ targetId: "b", amount: 5_000 }], items)).toBeNull();
+    expect(creditNoteProblem([{ targetId: "b", amount: 5_001 }], items)).toBe("credit_exceeds_line");
   });
 
   it("refuses empty, duplicate, unknown and non-integer lines", () => {
-    expect(creditNoteProblem([], items, 45_000)).toBe("credit_note_empty");
+    expect(creditNoteProblem([], items)).toBe("credit_note_empty");
     expect(
       creditNoteProblem(
         [
-          { invoiceItemId: "a", amount: 1 },
-          { invoiceItemId: "a", amount: 1 },
+          { targetId: "a", amount: 1 },
+          { targetId: "a", amount: 1 },
         ],
         items,
-        45_000,
       ),
     ).toBe("credit_note_duplicate_line");
-    expect(creditNoteProblem([{ invoiceItemId: "x", amount: 1 }], items, 45_000)).toBe("credit_note_line_not_on_invoice");
-    expect(creditNoteProblem([{ invoiceItemId: "a", amount: 0.5 }], items, 45_000)).toBe("amount_invalid");
+    expect(creditNoteProblem([{ targetId: "x", amount: 1 }], items)).toBe("credit_note_line_not_on_invoice");
+    expect(creditNoteProblem([{ targetId: "a", amount: 0.5 }], items)).toBe("amount_invalid");
+  });
+
+  it("divides a credit between payers (unsettled coverage) and the patient's share", () => {
+    const coverage = [
+      { id: "hmo", left: 30_000, status: "submitted" as const },
+      { id: "ph", left: 10_000, status: "settled" as const },
+    ];
+    expect(creditAllocationProblem(40_000, [{ invoicePayerId: "hmo", amount: 30_000 }], coverage, 10_000)).toBeNull();
+    expect(creditAllocationProblem(40_000, [{ invoicePayerId: "hmo", amount: 20_000 }], coverage, 10_000)).toBe("credit_exceeds_patient_share");
+    expect(creditAllocationProblem(40_000, [{ invoicePayerId: "hmo", amount: 30_001 }], coverage, 50_000)).toBe("credit_exceeds_coverage");
+    expect(creditAllocationProblem(40_000, [{ invoicePayerId: "ph", amount: 1_000 }], coverage, 50_000)).toBe("coverage_not_creditable");
+    expect(creditAllocationProblem(40_000, [{ invoicePayerId: "x", amount: 1_000 }], coverage, 50_000)).toBe("coverage_not_on_invoice");
+    expect(creditAllocationProblem(10_000, [{ invoicePayerId: "hmo", amount: 20_000 }], coverage, 50_000)).toBe("credit_allocation_exceeds_total");
+    expect(creditAllocationProblem(15_000, [], coverage, 15_000)).toBeNull();
+  });
+
+  it("checks debit note lines", () => {
+    expect(debitNoteProblem([{ quantity: 2, unitPrice: 15_000 }])).toBeNull();
+    expect(debitNoteProblem([])).toBe("debit_note_empty");
+    expect(debitNoteProblem([{ quantity: 0, unitPrice: 15_000 }])).toBe("quantity_invalid");
+    expect(debitNoteProblem([{ quantity: 1, unitPrice: 0 }])).toBe("amount_invalid");
   });
 
   it("reduces what is owed first; what was already paid becomes account credit", () => {
     expect(splitCredit(10_000, 25_000)).toEqual({ appliedAmount: 10_000, accountCredit: 0 });
     expect(splitCredit(10_000, 4_000)).toEqual({ appliedAmount: 4_000, accountCredit: 6_000 });
     expect(splitCredit(10_000, 0)).toEqual({ appliedAmount: 0, accountCredit: 10_000 });
+  });
+});
+
+describe("packages", () => {
+  const enrollment = { status: "active" as const, startsOn: "2026-01-01", endsOn: "2026-12-31" };
+
+  it("covers an included service while enough is left, in the package's dates", () => {
+    expect(packageCovers(enrollment, 2, 1, 1, "2026-06-01")).toBe(true);
+    expect(packageCovers(enrollment, 2, 2, 1, "2026-06-01")).toBe(false);
+    expect(packageCovers(enrollment, 2, 1, 2, "2026-06-01")).toBe(false);
+    expect(packageCovers(enrollment, 2, 0, 1, "2027-01-01")).toBe(false);
+    expect(packageCovers(enrollment, 2, 0, 1, "2025-12-31")).toBe(false);
+    expect(packageCovers({ ...enrollment, status: "cancelled" }, 2, 0, 1, "2026-06-01")).toBe(false);
+    expect(packageCovers({ ...enrollment, endsOn: null }, 1, 0, 1, "2030-01-01")).toBe(true);
+  });
+
+  it("ends a package after its validity in days, counting the day of sale", () => {
+    expect(packageEndsOn("2026-01-01", 365)).toBe("2026-12-31");
+    expect(packageEndsOn("2026-02-28", 2)).toBe("2026-03-01");
+    expect(packageEndsOn("2026-01-01", null)).toBeNull();
+  });
+});
+
+describe("online payment", () => {
+  it("settles the balance and keeps any excess as a deposit", () => {
+    expect(onlinePaymentSplit(45_000, 45_000)).toEqual({ payment: 45_000, deposit: 0 });
+    expect(onlinePaymentSplit(45_000, 20_000)).toEqual({ payment: 20_000, deposit: 25_000 });
+    expect(onlinePaymentSplit(45_000, 0)).toEqual({ payment: 0, deposit: 45_000 });
+  });
+});
+
+describe("tax breakdown (from the organization's settings)", () => {
+  it("takes VAT out of VAT-inclusive amounts, half up to the centavo", () => {
+    expect(vatIncluded(112_000, 1_200)).toBe(12_000); // ₱1,120 at 12% → ₱120
+    expect(vatIncluded(100, 1_200)).toBe(11); // 10.71 → 11
+    expect(vatIncluded(0, 1_200)).toBe(0);
+    expect(() => vatIncluded(100, 0)).toThrow(RangeError);
+  });
+
+  it("breaks an invoice down by class when VAT-registered, and not otherwise", () => {
+    const lines = [
+      { netAmount: 112_000, taxClass: "vatable" as const },
+      { netAmount: 50_000, taxClass: "vat_exempt" as const },
+      { netAmount: 10_000, taxClass: "zero_rated" as const },
+    ];
+    expect(taxBreakdown(lines, { vatStatus: "vat_registered", vatRateBp: 1_200 })).toEqual({
+      breakdown: { lineVat: [12_000, 0, 0], vatableSales: 100_000, vatAmount: 12_000, vatExemptSales: 50_000, zeroRatedSales: 10_000 },
+    });
+    expect(taxBreakdown(lines, { vatStatus: "non_vat", vatRateBp: null })).toEqual({
+      breakdown: { lineVat: [0, 0, 0], vatableSales: 0, vatAmount: 0, vatExemptSales: 0, zeroRatedSales: 0 },
+    });
+    expect(taxBreakdown([{ netAmount: 1, taxClass: null }], { vatStatus: "vat_registered", vatRateBp: 1_200 })).toEqual({ problem: "tax_class_required" });
+  });
+});
+
+describe("deposits across facilities", () => {
+  it("moves balance from the other facilities, largest first, never more than each has", () => {
+    const others = [
+      { facilityId: "b", balance: 10_000 },
+      { facilityId: "c", balance: 30_000 },
+      { facilityId: "d", balance: 0 },
+    ];
+    expect(transferPlan(35_000, others)).toEqual([
+      { facilityId: "c", amount: 30_000 },
+      { facilityId: "b", amount: 5_000 },
+    ]);
+    expect(transferPlan(50_000, others).reduce((a, p) => a + p.amount, 0)).toBe(40_000);
+    expect(transferPlan(0, others)).toEqual([]);
+  });
+
+  it("counts transfers in and out in the balance", () => {
+    expect(
+      accountBalance([
+        { kind: "deposit", amount: 10_000 },
+        { kind: "transfer_out", amount: 4_000 },
+        { kind: "transfer_in", amount: 1_000 },
+      ]),
+    ).toBe(7_000);
   });
 });

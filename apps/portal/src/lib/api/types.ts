@@ -225,7 +225,7 @@ export interface PortalAccount {
   facilityName: string;
   balance: number;
   entries: Array<{
-    kind: "deposit" | "credit" | "application" | "release" | "refund";
+    kind: "deposit" | "credit" | "application" | "release" | "refund" | "transfer_in" | "transfer_out";
     amount: number;
     method: string | null;
     receiptNumber: string | null;
@@ -233,4 +233,25 @@ export interface PortalAccount {
     creditNoteNumber: string | null;
     recordedAt: string;
   }>;
+}
+
+/** Debit notes and online payments on an invoice (migrations 0036, 0038). */
+export interface PortalInvoiceNotes {
+  debitedTotal: number;
+  debitNotes: Array<{
+    id: string;
+    debitNoteNumber: string;
+    issuedAt: string;
+    reason: string;
+    amount: number;
+    lines: Array<{ description: string; quantity: number; amount: number }>;
+  }>;
+  onlinePayments: Array<{ id: string; amount: number; status: "pending" | "succeeded" | "failed" | "cancelled" | "expired"; createdAt: string }>;
+}
+
+/** Whether online payment is offered (a payment provider is an integration dependency). */
+export interface PortalOnlinePayment {
+  available: boolean;
+  name: string;
+  note: string;
 }

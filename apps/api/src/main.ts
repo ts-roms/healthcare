@@ -14,6 +14,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
     logger: levelsFrom(config.LOG_LEVEL),
     bufferLogs: true,
+    // Payment provider notifications are verified against the exact bytes received.
+    rawBody: true,
   });
   configureApp(app, config);
   await app.listen(config.PORT);
