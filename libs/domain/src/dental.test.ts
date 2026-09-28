@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findingsCode, findingsText, surfaceName, toothLabel, toothName, toothSurfaces } from "./dental";
+import { findingsCode, findingsText, perioHasFurcation, perioSiteName, perioTeeth, surfaceName, toothLabel, toothName, toothSurfaces } from "./dental";
 
 describe("dental display helpers", () => {
   it("renders teeth in FDI, Universal and Palmer notation", () => {
@@ -29,5 +29,32 @@ describe("dental display helpers", () => {
     expect(findingsCode(findings)).toBe("C·MO RC");
     expect(findingsText("16", findings)).toBe("Caries (mesial, occlusal); Root canal");
     expect(findingsText("16", [])).toBe("Sound");
+  });
+});
+
+describe("periodontal helpers", () => {
+  it("names probing sites anatomically", () => {
+    expect(perioSiteName("16", "MB")).toBe("mesio-buccal");
+    expect(perioSiteName("16", "DL")).toBe("disto-palatal");
+    expect(perioSiteName("46", "L")).toBe("mid-lingual");
+    expect(perioSiteName("11", "B")).toBe("mid-labial");
+  });
+
+  it("knows where furcation is assessed", () => {
+    expect(["16", "26", "36", "47", "14", "24", "54", "85"].every(perioHasFurcation)).toBe(true);
+    expect(["11", "13", "15", "34", "44", "53"].some(perioHasFurcation)).toBe(false);
+  });
+
+  it("offers present permanent teeth in charting order", () => {
+    const teeth = perioTeeth([
+      { tooth: "18", findings: [{ condition: "missing" }] },
+      { tooth: "26", findings: [{ condition: "implant" }] },
+      { tooth: "38", findings: [{ condition: "impacted" }] },
+    ]);
+    expect(teeth).toHaveLength(30);
+    expect(teeth.slice(0, 2)).toEqual(["17", "16"]);
+    expect(teeth).toContain("26");
+    expect(teeth.slice(14, 17)).toEqual(["28", "37", "36"]);
+    expect(teeth.at(-1)).toBe("48");
   });
 });

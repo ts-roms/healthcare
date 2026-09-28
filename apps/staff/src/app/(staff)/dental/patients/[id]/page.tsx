@@ -13,6 +13,7 @@ import { openVisit } from "@/lib/dental-mapping";
 import { DentalChartPanel } from "./dental-chart-panel";
 import { DentalImages } from "./dental-images";
 import { Examinations } from "./examinations";
+import { Periodontal } from "./periodontal";
 import { Procedures } from "./procedures";
 import { StartVisit } from "./start-visit";
 import { TreatmentPlans } from "./treatment-plans";
@@ -105,6 +106,15 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
             canCorrect={canCorrect}
           />
           <Examinations patientId={id} examinations={record.examinations} notation={record.notation} canCorrect={canCorrect} />
+          <Periodontal
+            patientId={id}
+            charts={record.perioCharts ?? []}
+            chart={record.chart}
+            notation={record.notation}
+            encounterId={encounterId}
+            canChart={can(session, "dental.chart.write")}
+            canCorrect={canCorrect}
+          />
           <DentalImages
             patientId={id}
             images={record.images}

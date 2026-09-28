@@ -144,3 +144,40 @@ export function findingsText(tooth: ToothCode, findings: readonly { condition: T
     )
     .join("; ");
 }
+
+// ---- periodontal charting ---------------------------------------------------------------------------------
+
+/** Probing sites in recording order: mesio-, mid-, disto-buccal, then mesio-, mid-, disto-lingual (palatal above). */
+export const PERIO_SITES = ["MB", "B", "DB", "ML", "L", "DL"] as const;
+export type PerioSite = (typeof PERIO_SITES)[number];
+
+/** e.g. "mesio-buccal", "disto-palatal" on an upper tooth, "mid-labial" on an anterior one. */
+export function perioSiteName(tooth: ToothCode, site: PerioSite): string {
+  const { upper, anterior } = parts(tooth);
+  const side = site.endsWith("B") ? (anterior ? "labial" : "buccal") : upper ? "palatal" : "lingual";
+  const position = site.length === 1 ? "mid" : site[0] === "M" ? "mesio" : "disto";
+  return `${position}-${side}`;
+}
+
+/**
+ * Whether furcation is assessed on this tooth (permanent molars, upper first premolars, primary molars). A hint for
+ * the form; the API validates it.
+ */
+export function perioHasFurcation(tooth: ToothCode): boolean {
+  const { position, primary, upper } = parts(tooth);
+  if (primary) return position >= 4;
+  return position >= 6 || (upper && position === 4);
+}
+
+/** Conditions that leave no tooth to probe (implants are probed). */
+const NOT_PROBED: ReadonlySet<ToothCondition> = new Set(["missing", "pontic", "unerupted", "impacted"]);
+
+/**
+ * Teeth to offer for probing, in charting order (upper right to upper left, lower left to lower right): the permanent
+ * teeth, minus those the odontogram shows missing, replaced by a pontic, or not erupted.
+ */
+export function perioTeeth(chart: readonly { tooth: string; findings: readonly { condition: ToothCondition }[] }[]): ToothCode[] {
+  const absent = new Set(chart.filter((t) => t.findings.some((f) => NOT_PROBED.has(f.condition))).map((t) => t.tooth));
+  const order = [...PERMANENT_ROWS.upper[0], ...PERMANENT_ROWS.upper[1], ...[...PERMANENT_ROWS.lower[1]].reverse(), ...[...PERMANENT_ROWS.lower[0]].reverse()];
+  return order.filter((t) => !absent.has(t)) as ToothCode[];
+}

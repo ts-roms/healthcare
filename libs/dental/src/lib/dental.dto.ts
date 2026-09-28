@@ -1,7 +1,7 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 import { isTooth } from "./dental.rules";
-import { CHART_EFFECTS, IMAGE_KINDS, NOTATIONS, ORAL_HYGIENE, PROCEDURE_SITES, SURFACES, TOOTH_CONDITIONS } from "./dental.schema";
+import { CHART_EFFECTS, IMAGE_KINDS, NOTATIONS, ORAL_HYGIENE, PERIO_SITES, PROCEDURE_SITES, SURFACES, TOOTH_CONDITIONS } from "./dental.schema";
 
 const code = z
   .string()
@@ -119,3 +119,36 @@ export class AddImageDto extends createZodDto(addImageSchema) {}
 
 export const visitsQuerySchema = z.object({ date: isoDate.optional() });
 export class VisitsQueryDto extends createZodDto(visitsQuerySchema) {}
+
+// ---- periodontal charting ---------------------------------------------------------------------------
+
+const mm = (min: number, max: number) => z.number().int().min(min).max(max).nullable().optional();
+
+export const recordPerioChartSchema = z.object({
+  encounterId: z.uuid(),
+  notes: z.string().trim().max(4000).optional(),
+  /** Examined teeth (teeth not listed were not examined; missing teeth belong on the odontogram). */
+  teeth: z
+    .array(
+      z.object({
+        tooth,
+        mobility: mm(0, 3),
+        furcation: mm(0, 3),
+        sites: z
+          .array(
+            z.object({
+              site: z.enum(PERIO_SITES),
+              probingDepth: mm(0, 20),
+              gingivalMargin: mm(-10, 20),
+              bleeding: z.boolean().default(false),
+              suppuration: z.boolean().default(false),
+              plaque: z.boolean().default(false),
+            }),
+          )
+          .max(6),
+      }),
+    )
+    .min(1)
+    .max(52),
+});
+export class RecordPerioChartDto extends createZodDto(recordPerioChartSchema) {}
