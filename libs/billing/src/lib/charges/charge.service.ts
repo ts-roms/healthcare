@@ -15,9 +15,10 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { cancelChargeSchema, listChargesSchema, manualChargeSchema } from "../billing.dto";
-import { billingCharge, type BillingChargeRecord, billingService, type ChargeSourceType } from "../billing.schema";
+import { billingCharge, type BillingChargeRecord, billingService, type ChargeSourceType, type ServiceSourceKind } from "../billing.schema";
 import { assertVersion, found, publicView } from "../billing-support";
 import { BillingCatalogService } from "../catalog/billing-catalog.service";
+import { PackageService } from "../packages/package.service";
 import { BILLING_PATIENTS, BILLING_SOURCES, type BillingPatientDirectory, type BillingSources } from "../ports";
 
 interface CaptureInput {
@@ -27,7 +28,7 @@ interface CaptureInput {
   sourceType: Exclude<ChargeSourceType, "manual">;
   sourceId: string;
   sourceGroupId: string | null;
-  sourceKind: "visit_type" | "lab_test";
+  sourceKind: ServiceSourceKind;
   sourceCode: string;
   description: string;
   serviceDate: string;
@@ -38,7 +39,9 @@ interface CaptureInput {
  * from clinical events (a signed encounter, a laboratory order) for services
  * mapped to the visit type or test, or entered by staff. Capture never blocks
  * the clinical workflow: unmapped or unpriced sources are simply not charged
- * (staff can add a manual charge). Each clinical source is charged once.
+ * (staff can add a manual charge). Each clinical source is charged once. A
+ * package the patient bought at the facility covers included services: the
+ * charge is recorded at zero against the package (PackageService).
  */
 @Injectable()
 export class ChargeService {
@@ -50,6 +53,7 @@ export class ChargeService {
     private readonly events: DomainEventPublisher,
     private readonly catalog: BillingCatalogService,
     private readonly organizations: OrganizationService,
+    private readonly packages: PackageService,
     @Inject(BILLING_SOURCES) private readonly sources: BillingSources,
     @Inject(BILLING_PATIENTS) private readonly patients: BillingPatientDirectory,
   ) {}
@@ -92,14 +96,44 @@ export class ChargeService {
     }
   }
 
+  async captureDentalProcedure(organizationId: string, procedureId: string): Promise<void> {
+    const procedure = await this.sources.dentalProcedure(organizationId, procedureId);
+    if (!procedure) return;
+    await this.capture({
+      organizationId,
+      facilityId: procedure.facilityId,
+      patientId: procedure.patientId,
+      sourceType: "dental_procedure",
+      sourceId: procedure.id,
+      sourceGroupId: null,
+      sourceKind: "dental_procedure",
+      sourceCode: procedure.procedureCode,
+      description: procedure.description,
+      serviceDate: procedure.serviceDate,
+    });
+  }
+
   /** A cancelled laboratory order: its charges not yet on an invoice are cancelled (invoiced ones need a void). */
   async cancelLabOrder(organizationId: string, orderId: string): Promise<void> {
+    await this.cancelSourceCharges(organizationId, eq(billingCharge.sourceGroupId, orderId), "Laboratory order cancelled");
+  }
+
+  /** A dental procedure marked entered in error: its charge not yet on an invoice is cancelled (an invoiced one needs a void). */
+  async cancelDentalProcedure(organizationId: string, procedureId: string): Promise<void> {
+    await this.cancelSourceCharges(
+      organizationId,
+      and(eq(billingCharge.sourceType, "dental_procedure"), eq(billingCharge.sourceId, procedureId))!,
+      "Dental procedure entered in error",
+    );
+  }
+
+  private async cancelSourceCharges(organizationId: string, source: SQL, reason: string): Promise<void> {
     const actor = systemActor(organizationId, null, "billing-capture");
     await this.db.transaction(async (tx) => {
       const cancelled = await tx
         .update(billingCharge)
-        .set({ status: "cancelled", cancelReason: "Laboratory order cancelled", updatedAt: new Date(), version: sql`${billingCharge.version} + 1` })
-        .where(and(eq(billingCharge.organizationId, organizationId), eq(billingCharge.sourceGroupId, orderId), eq(billingCharge.status, "pending")))
+        .set({ status: "cancelled", cancelReason: reason, updatedAt: new Date(), version: sql`${billingCharge.version} + 1` })
+        .where(and(eq(billingCharge.organizationId, organizationId), source, eq(billingCharge.status, "pending")))
         .returning();
       for (const row of cancelled) {
         await this.audit.record(tx, actor, {
@@ -123,6 +157,15 @@ export class ChargeService {
         this.logger.warn(`No price for service ${service.code} on ${input.serviceDate}; charge not captured`);
         return;
       }
+      const cover = await this.packages.coverFor(tx, {
+        organizationId: input.organizationId,
+        facilityId: input.facilityId,
+        patientId: input.patientId,
+        serviceId: service.id,
+        quantity: 1,
+        onDate: input.serviceDate,
+      });
+      const description = input.description || service.name;
       const [row] = await tx
         .insert(billingCharge)
         .values({
@@ -133,9 +176,10 @@ export class ChargeService {
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           sourceGroupId: input.sourceGroupId,
-          description: input.description || service.name,
-          unitPrice: price.unitPrice,
-          priceId: price.id,
+          description: cover ? coveredDescription(description, cover.packageName) : description,
+          unitPrice: cover ? 0 : price.unitPrice,
+          priceId: cover ? null : price.id,
+          packageEnrollmentId: cover?.enrollmentId ?? null,
           serviceDate: input.serviceDate,
         })
         .onConflictDoNothing()
@@ -146,7 +190,12 @@ export class ChargeService {
         resourceType: "billing_charge",
         resourceId: row.id,
         patientId: row.patientId,
-        metadata: { source: `${row.sourceType}:${row.sourceId}`, serviceCode: service.code, unitPrice: row.unitPrice },
+        metadata: {
+          source: `${row.sourceType}:${row.sourceId}`,
+          serviceCode: service.code,
+          unitPrice: row.unitPrice,
+          packageEnrollmentId: row.packageEnrollmentId,
+        },
       });
       await this.events.record(tx, chargeEvent(row));
     });
@@ -203,6 +252,19 @@ export class ChargeService {
     return this.db.transaction(async (tx) => {
       const service = await this.catalog.requireService(tx, actor.organizationId, input.serviceId);
       if (service.status !== "active") throw new BusinessRuleError("This service is inactive", "service_inactive");
+      if (service.isPackage) throw new BusinessRuleError("Packages are sold from the patient's packages, not added as a charge", "package_sold_separately");
+      // A package the patient bought covers the service, unless staff give another price.
+      const cover =
+        input.usePackage && input.unitPrice === undefined
+          ? await this.packages.coverFor(tx, {
+              organizationId: actor.organizationId,
+              facilityId,
+              patientId: input.patientId,
+              serviceId: service.id,
+              quantity: input.quantity,
+              onDate: serviceDate,
+            })
+          : null;
       const price = await this.catalog.priceOn(tx, service.id, serviceDate);
       let unitPrice = price?.unitPrice;
       if (input.unitPrice !== undefined && input.unitPrice !== price?.unitPrice) {
@@ -211,6 +273,7 @@ export class ChargeService {
         }
         unitPrice = input.unitPrice;
       }
+      if (cover) unitPrice = 0;
       if (unitPrice === undefined) throw new BusinessRuleError("This service has no price for the date; enter one", "price_required");
       const [created] = await tx
         .insert(billingCharge)
@@ -220,10 +283,11 @@ export class ChargeService {
           patientId: input.patientId,
           serviceId: service.id,
           sourceType: "manual",
-          description: input.description ?? service.name,
+          description: cover ? coveredDescription(input.description ?? service.name, cover.packageName) : (input.description ?? service.name),
           quantity: input.quantity,
           unitPrice,
-          priceId: unitPrice === price?.unitPrice ? price.id : null,
+          priceId: !cover && unitPrice === price?.unitPrice ? price.id : null,
+          packageEnrollmentId: cover?.enrollmentId ?? null,
           serviceDate,
           capturedBy: actor.userId,
         })
@@ -235,7 +299,14 @@ export class ChargeService {
         resourceId: row.id,
         patientId: row.patientId,
         reason: input.priceOverrideReason,
-        metadata: { source: "manual", serviceCode: service.code, unitPrice, listedPrice: price?.unitPrice ?? null, quantity: row.quantity },
+        metadata: {
+          source: "manual",
+          serviceCode: service.code,
+          unitPrice,
+          listedPrice: price?.unitPrice ?? null,
+          quantity: row.quantity,
+          packageEnrollmentId: row.packageEnrollmentId,
+        },
       });
       await this.events.record(tx, chargeEvent(row));
       return chargeView(row);
@@ -293,6 +364,10 @@ export class ChargeService {
       .orderBy(billingCharge.serviceDate, billingCharge.capturedAt)
       .for("update");
   }
+}
+
+function coveredDescription(description: string, packageName: string): string {
+  return `${description} (covered by ${packageName})`.slice(0, 200);
 }
 
 export function chargeView(row: BillingChargeRecord) {

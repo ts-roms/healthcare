@@ -9,6 +9,7 @@ export * from "./lib/domain/queue-state";
 export * from "./lib/domain/vital-signs";
 export * from "./lib/online/online-visit.service";
 export * from "./lib/ports";
+export * from "./lib/external/external-records.service";
 export type { VitalsView } from "./lib/triage/triage.service";
 export type { VisitView, QueueEntryView } from "./lib/queue/visit.service";
 export type { EncounterView } from "./lib/encounters/encounter.service";

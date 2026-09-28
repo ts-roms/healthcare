@@ -20,13 +20,33 @@ import type {
   createServiceSchema,
   updateServiceSchema,
   updateSettingsSchema,
+  updateTaxProfileSchema,
 } from "../billing.dto";
-import { billingDiscountRule, billingPayer, billingSequence, billingService, billingServicePrice, type SequenceKind } from "../billing.schema";
+import {
+  billingDiscountRule,
+  billingOrganizationProfile,
+  billingPayer,
+  billingSequence,
+  billingService,
+  billingServicePrice,
+  type SequenceKind,
+  type ServiceSourceKind,
+} from "../billing.schema";
 import { assertVersion, found, previousDay, publicView } from "../billing-support";
 
-export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN" } as const;
+export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN", debit_note: "DN" } as const;
 
-const SERVICE_FIELDS = ["name", "status"] as const;
+const SERVICE_FIELDS = ["name", "status", "taxClass"] as const;
+const TAX_PROFILE_FIELDS = [
+  "registeredName",
+  "tin",
+  "businessAddress",
+  "vatStatus",
+  "vatRateBp",
+  "permitReference",
+  "documentNote",
+  "depositsAcrossFacilities",
+] as const;
 
 /** Billable services with versioned prices, payers (HMO, PhilHealth, insurers), discount rules and document numbering. */
 @Injectable()
@@ -154,7 +174,7 @@ export class BillingCatalogService {
   }
 
   /** The active service captured automatically for a visit type or laboratory test code. */
-  async serviceForSource(executor: DbExecutor, organizationId: string, sourceKind: "visit_type" | "lab_test", sourceCode: string) {
+  async serviceForSource(executor: DbExecutor, organizationId: string, sourceKind: ServiceSourceKind, sourceCode: string) {
     const [row] = await executor
       .select()
       .from(billingService)
@@ -267,7 +287,17 @@ export class BillingCatalogService {
   async settings(organizationId: string) {
     const rows = await this.db.select().from(billingSequence).where(eq(billingSequence.organizationId, organizationId));
     const prefix = (kind: SequenceKind) => rows.find((r) => r.kind === kind)?.prefix ?? DEFAULT_PREFIXES[kind];
-    return { invoicePrefix: prefix("invoice"), receiptPrefix: prefix("receipt"), creditNotePrefix: prefix("credit_note") };
+    return {
+      invoicePrefix: prefix("invoice"),
+      receiptPrefix: prefix("receipt"),
+      creditNotePrefix: prefix("credit_note"),
+      debitNotePrefix: prefix("debit_note"),
+      /** Each series: the next number and the last one authorized (null = no limit configured). */
+      series: (["invoice", "receipt", "credit_note", "debit_note"] as const).map((kind) => {
+        const row = rows.find((r) => r.kind === kind);
+        return { kind, prefix: prefix(kind), nextValue: row?.nextValue ?? 1, lastValue: row?.lastValue ?? null };
+      }),
+    };
   }
 
   async updateSettings(actor: Actor, input: z.infer<typeof updateSettingsSchema>) {
@@ -276,7 +306,24 @@ export class BillingCatalogService {
         ["invoice", input.invoicePrefix],
         ["receipt", input.receiptPrefix],
         ["credit_note", input.creditNotePrefix],
+        ["debit_note", input.debitNotePrefix],
       ];
+      for (const [kind, lastValue] of Object.entries(input.lastNumbers ?? {}) as Array<[SequenceKind, number | null | undefined]>) {
+        if (lastValue === undefined) continue;
+        await tx.insert(billingSequence).values({ organizationId: actor.organizationId, kind, prefix: DEFAULT_PREFIXES[kind] }).onConflictDoNothing();
+        const [current] = await tx
+          .select()
+          .from(billingSequence)
+          .where(and(eq(billingSequence.organizationId, actor.organizationId), eq(billingSequence.kind, kind)))
+          .for("update");
+        if (lastValue !== null && current && lastValue < current.nextValue - 1) {
+          throw new BusinessRuleError(`The last ${kind.replace("_", " ")} number cannot be below one already used`, "series_limit_below_used");
+        }
+        await tx
+          .update(billingSequence)
+          .set({ lastValue })
+          .where(and(eq(billingSequence.organizationId, actor.organizationId), eq(billingSequence.kind, kind)));
+      }
       for (const [kind, prefix] of series) {
         if (prefix === undefined) continue;
         await tx
@@ -296,8 +343,63 @@ export class BillingCatalogService {
       .update(billingSequence)
       .set({ nextValue: sql`${billingSequence.nextValue} + 1` })
       .where(and(eq(billingSequence.organizationId, organizationId), eq(billingSequence.kind, kind)))
-      .returning({ prefix: billingSequence.prefix, taken: sql<number>`${billingSequence.nextValue} - 1` });
+      .returning({ prefix: billingSequence.prefix, taken: sql<number>`${billingSequence.nextValue} - 1`, lastValue: billingSequence.lastValue });
     const taken = found(row, "Number series");
+    // The organization's authorized range is used up: no number is taken (the transaction rolls back).
+    if (taken.lastValue !== null && Number(taken.taken) > taken.lastValue) {
+      throw new BusinessRuleError(`The ${kind.replace("_", " ")} number series is used up; configure the next authorized range`, "number_series_exhausted", {
+        kind,
+        lastValue: taken.lastValue,
+      });
+    }
     return { prefix: taken.prefix, value: Number(taken.taken) };
+  }
+
+  // ---- tax profile (BIR as configuration) -----------------------------------------------------
+
+  /** The organization's tax and document settings; "not configured" until entered. */
+  async taxProfile(organizationId: string) {
+    const [row] = await this.db.select().from(billingOrganizationProfile).where(eq(billingOrganizationProfile.organizationId, organizationId));
+    if (row) return publicView(row);
+    return {
+      registeredName: null,
+      tin: null,
+      businessAddress: null,
+      vatStatus: "not_configured" as const,
+      vatRateBp: null,
+      permitReference: null,
+      documentNote: null,
+      depositsAcrossFacilities: false,
+      updatedBy: null,
+      updatedAt: null,
+      version: 0,
+    };
+  }
+
+  async updateTaxProfile(actor: Actor, input: z.infer<typeof updateTaxProfileSchema>) {
+    const { version, ...values } = input;
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(billingOrganizationProfile)
+        .where(eq(billingOrganizationProfile.organizationId, actor.organizationId))
+        .for("update");
+      assertVersion(current?.version ?? 0, version ?? 0, "Tax profile");
+      if (current) {
+        await tx
+          .update(billingOrganizationProfile)
+          .set({ ...values, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${billingOrganizationProfile.version} + 1` })
+          .where(eq(billingOrganizationProfile.organizationId, actor.organizationId));
+      } else {
+        await tx.insert(billingOrganizationProfile).values({ ...values, organizationId: actor.organizationId, updatedBy: actor.userId });
+      }
+      await this.audit.record(tx, actor, {
+        action: "billing.tax-profile.update",
+        resourceType: "billing_organization_profile",
+        resourceId: actor.organizationId,
+        changes: diffChanges(current ?? {}, values, TAX_PROFILE_FIELDS),
+      });
+    });
+    return this.taxProfile(actor.organizationId);
   }
 }

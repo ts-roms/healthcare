@@ -79,7 +79,7 @@ and expiry; the ledger is append-only; a partial unique index enforces one movem
 - Laboratory (`libs/laboratory/CLAUDE.md`, Phase 9): results now reference their instrument and QC run
   ([laboratory-quality.md](laboratory-quality.md)); reagent lots here are the lots they should reference next. Not
   wired yet.
-- Prescriptions/dispensing and dental procedures could consume stock through a port — not wired yet.
+- Prescriptions/dispensing and dental procedures ([dental.md](dental.md)) could consume stock through a port — not wired yet.
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 
 ## Open questions / assumptions

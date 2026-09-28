@@ -30,10 +30,10 @@ Authorization is always the API's: the staff app hides what the user can't do (n
 
 ## Data
 
-| Area                                                                                                                                                                     | Source                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory | API                                                        |
-| Dental, `/preview/patient-360`                                                                                                                                           | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                                             | Source                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
+| `/preview/patient-360` (including its dental tab)                                                                                                                                | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -56,7 +56,7 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Rules stay in the API.** `lib/clinic-mapping.ts` maps API rows to the design system's `QueueBoard` and `AppointmentCard` and decides which buttons to offer by mirroring `libs/clinic` (queue transitions; check-in only on the appointment's day; no-show only after the start time). The API enforces the rules either way.
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
-- **Live updates.** The queue page and the dashboard's clinic section subscribe to the API's Socket.IO `/realtime` gateway (`components/live-queue.tsx`). The browser never holds an access token: a server action (`realtimeTicket`) calls `POST /auth/realtime-tickets` and hands the browser a 60-second ticket bound to the session and the selected facility, plus the socket URL; each reconnection fetches a fresh one. On `queue.updated` (ids and status only) the page re-renders from the server (`router.refresh()`, debounced), so details are always re-read through the authorized API. While the socket is not live the page polls every 15 s (visible tabs only); while live it re-reads every 2 minutes as a safety net. The indicator next to the board says "Live", "Connecting…" or "Updates every 15 s".
+- **Live updates.** The queue page and the dashboard's clinic section subscribe to the API's Socket.IO `/realtime` gateway (`components/live-queue.tsx`). The browser never holds an access token: a server action (`realtimeTicket`) calls `POST /auth/realtime-tickets` and hands the browser a 60-second ticket bound to the session and the selected facility, plus the socket URL; each reconnection fetches a fresh one. On `queue.updated` (ids and status only) the page re-renders from the server (`router.refresh()`, debounced), so details are always re-read through the authorized API. While the socket is not live the page polls every 15 s (visible tabs only); while live it re-reads every 2 minutes as a safety net. The indicator next to the board says "Live", "Connecting…" or "Updates every 15 s". The laboratory workbench and the critical-results page do the same on `lab.updated` (`useLabUpdates`), and the dashboard listens for both on one socket.
 
 ## Dashboard
 
@@ -108,6 +108,7 @@ Laboratory staff work at the selected facility (`docs/domains/laboratory.md` has
 - **Enter results**: one field per test by result type (number with unit, a list for coded tests, text); several results save in one go and errors stay on their fields. The API flags values against the range for the patient's sex and age and snapshots it.
 - **Sign-off**: each result shows value, unit, flag (icon and text), the reference range snapshot, who entered, verified, approved and released it (self sign-offs are labelled), and version and correction reason. **Verify / Approve / Release** (and "… all N" for a specimen) follow the result's status; the API refuses a sign-off by the person who entered the result unless the facility policy allows it, and the refusal is shown as is. **Correct…** (value and reason; released results need `lab.result.amend`) adds a new version that is signed off again; **Cancel result…** is for unreleased results.
 - **Quality control** (`/laboratory/qc`, `lab.qc.read`): the QC board (each test on each instrument: latest run per control level in the facility's QC window, the decisive status, whether patient results are allowed), **Record a control** (`lab.qc.enter`; evaluated on save with the facility's Westgard rules), the Levey-Jennings chart (z-scores; shape shows accepted / warning / rejected) with run history and corrective actions, and control material / lot / target setup (`lab.qc.manage`). **Instruments** (`/laboratory/instruments`): register, status, last calibration (overdue flagged) and maintenance, and the log. Result entry and corrections on the workbench name the instrument; each result shows the QC state snapshotted at entry. See [laboratory-quality.md](../domains/laboratory-quality.md).
+- **Send-outs** (`/laboratory/send-outs`, `lab.order.read`; acting with `lab.specimen.receive`, rejections with `lab.specimen.reject`): _To dispatch_ groups prepared send-outs by reference laboratory with a dispatch form (courier, waybill; one `Idempotency-Key` per form) and opens the manifest PDF (`/files/send-out-manifests/:id`); _Awaiting results_ shows time out, expected-by and overdue (colour, icon and text), with **Results back** (the reference laboratory's accession number), **Rejected** (its reason) and **Cancel**; _Closed_ lists outcomes. Recent dispatches link their manifests and offer **Send electronically**, which the API refuses while the interface is an integration dependency. The workbench shows the send-out counts, each specimen's referred tests, **Send to a reference laboratory…** for received tests, and labels entry from a reference laboratory's report; results show **Performed by …** (also on the patient record). Reference laboratories and the facility's referred tests are managed in the catalog.
 - **Critical results** (`/laboratory/critical`): each alert shows the patient, test, value and range and the ordering practitioner. Laboratory staff (`lab.critical.manage`) document who was told, how, and whether the value was read back; the ordering side (`lab.result.read`) acknowledges. The ordering practitioner also gets an in-app notice.
 - **Catalog** (`/laboratory/catalog`; editing with `lab.catalog.manage`): tests with their current ranges, **+ Range** (a range for the same sex and ages replaces the current one from now on), activate/deactivate, new tests, departments, specimen types, panels, and the facility's laboratory policy (changes need a reason).
 - **Patient record**: _Laboratory results_ (with `lab.result.read`) lists the latest released result per test; **Trend** draws released values of one analyte over time with the latest range shaded, and a table keeps each value's own range. Mixed units are shown as a table only. Trends are labelled as a display aid. _Archived laboratory reports_ (`lab.order.read` + `lab.result.read`) lists each archived version of the patient's released reports (order, version, whether it includes a correction) and opens the stored PDF (`/files/lab-report-archive/:id`).
@@ -129,7 +130,9 @@ shown in pesos with `lib/billing-mapping.ts` (`parsePesos`, `peso`, invoice stat
 invoice each action returns, so quick successive changes use the latest version without waiting for the page refresh.
 Each payment, refund, deposit, deposit application and credit note form carries its own idempotency key (a retried
 submit is recorded once; a new key after success). The patient's billing page shows the deposit and credit balance
-(`patient-account.tsx`); the invoice workspace applies it and issues credit notes. The patient record links to the patient's billing page. The API recomputes and enforces every amount and
+(`patient-account.tsx`) and packages (`patient-packages.tsx`); the invoice workspace applies deposit, issues credit and
+debit notes and shows online payments and the VAT breakdown (`invoice-notes.tsx`); settings hold the tax profile,
+packages and number ranges (`billing-profile.tsx`). The patient record links to the patient's billing page. The API recomputes and enforces every amount and
 rule; see [billing.md](../domains/billing.md#screens).
 
 ## Disease reporting
@@ -161,3 +164,19 @@ resolve with a note. Labels for systems/operations and source links live in
 reorder status (filters: low or out, expiring), and a form to record a movement (receive, issue, transfer; count and
 write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/inventory/catalog`
 (`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels. See `docs/domains/inventory.md`.
+
+## Dental
+
+`/dental` (`dental.record.read`; a selected facility is required): today's dental patients — dentists' encounters at
+the facility with whether each has been charted and how many procedures were recorded. `/dental/patients/[id]` (also
+"Dental record" on the patient record): the odontogram in the facility's notation (permanent, mixed or primary
+dentition; each tooth shows glyph + chart code, never colour alone), a tooth's state, source and full history; with
+the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
+**Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
+record the patient's decision item by item, cancel items, discontinue); procedures (optionally from an accepted plan
+item); examinations; imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
+link). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
+visit's encounter workspace. `/dental/settings`: the procedure catalog and the facility's tooth notation
+(`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
+`libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
+`docs/domains/dental.md`.

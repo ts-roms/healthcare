@@ -1,3 +1,4 @@
+import { ALLOWED_CONTENT_TYPES, MAX_DOCUMENT_BYTES } from "@healthcare/documents";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 import { COMMUNICATION_METHODS, ORDER_PRIORITIES, ORDER_SOURCES, QC_REJECT_RULES, RESULT_TYPES } from "./laboratory.schema";
@@ -214,3 +215,21 @@ export type ResultValueInput = z.infer<typeof enterResultSchema>;
 
 export const labelQuerySchema = z.object({ copies: z.coerce.number().int().min(1).max(10).default(1) });
 export class LabelQueryDto extends createZodDto(labelQuerySchema) {}
+
+// ---- Result attachments ---------------------------------------------------------------------
+
+export const startAttachmentSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  fileName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine((name) => !/[\\/\0]/.test(name), "File name must not contain path separators"),
+  contentType: z.enum(ALLOWED_CONTENT_TYPES),
+  sizeBytes: z.number().int().positive().max(MAX_DOCUMENT_BYTES, "File is larger than 50 MB"),
+});
+export class StartAttachmentDto extends createZodDto(startAttachmentSchema) {}
+
+export const removeAttachmentSchema = z.object({ reason: z.string().trim().min(5).max(500) });
+export class RemoveAttachmentDto extends createZodDto(removeAttachmentSchema) {}

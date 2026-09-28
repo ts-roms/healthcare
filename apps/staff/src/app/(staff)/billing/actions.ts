@@ -11,10 +11,13 @@ import type {
   BillingService,
   ClaimExchange,
   CreditNote,
+  DebitNote,
   DiscountRule,
   InvoiceDetail,
   LedgerEntry,
+  PackageEnrollment,
   PhilHealthAccreditation,
+  TaxProfile,
 } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call
@@ -211,7 +214,7 @@ const serviceSchema = z.object({
   code,
   name: z.string().trim().min(1).max(200),
   category: categories,
-  sourceKind: z.enum(["visit_type", "lab_test"]).optional(),
+  sourceKind: z.enum(["visit_type", "lab_test", "dental_procedure"]).optional(),
   sourceCode: z.string().trim().min(1).max(60).optional(),
   unitPrice: centavos,
   effectiveFrom: date,
@@ -261,10 +264,13 @@ export async function deactivateDiscountRule(input: z.input<typeof ruleIdSchema>
   return run(ruleIdSchema, input, () => api<DiscountRule>(`/billing/discount-rules/${input.ruleId}/deactivate`, { method: "POST" }), ["/billing/settings"]);
 }
 
+const lastNumber = z.number().int().positive().nullable().optional();
 const prefixSchema = z.object({
   invoicePrefix: z.string().trim().min(1).max(12),
   receiptPrefix: z.string().trim().min(1).max(12),
   creditNotePrefix: z.string().trim().min(1).max(12),
+  debitNotePrefix: z.string().trim().min(1).max(12),
+  lastNumbers: z.object({ invoice: lastNumber, receipt: lastNumber, credit_note: lastNumber, debit_note: lastNumber }).optional(),
 });
 export async function updatePrefixes(input: z.input<typeof prefixSchema>) {
   return run(prefixSchema, input, () => api("/billing/settings", { method: "PUT", body: input }), ["/billing/settings"]);
@@ -314,10 +320,90 @@ export async function refundAccount(input: z.input<typeof accountRefundSchema>) 
 const creditNoteSchema = z.object({
   invoiceId: id,
   reason,
-  lines: z.array(z.object({ invoiceItemId: id, amount: centavos.min(1) })).min(1, "Credit at least one line."),
+  lines: z.array(z.object({ invoiceItemId: id.optional(), debitNoteLineId: id.optional(), amount: centavos.min(1) })).min(1, "Credit at least one line."),
+  payers: z.array(z.object({ invoicePayerId: id, amount: centavos.min(1) })).optional(),
   idempotencyKey,
 });
 export async function issueCreditNote(input: z.input<typeof creditNoteSchema>) {
   const { invoiceId, ...body } = input;
   return run(creditNoteSchema, input, () => api<CreditNote>(`/billing/invoices/${invoiceId}/credit-notes`, { method: "POST", body }), ["/billing"]);
+}
+
+// ---- debit notes ---------------------------------------------------------------------------------
+
+const debitNoteSchema = z.object({
+  invoiceId: id,
+  reason,
+  lines: z
+    .array(
+      z.object({
+        serviceId: id.optional(),
+        description: z.string().trim().min(1).max(200).optional(),
+        quantity: z.number().int().min(1).max(1000),
+        unitPrice: centavos.min(1).optional(),
+      }),
+    )
+    .min(1, "Add at least one line."),
+  idempotencyKey,
+});
+export async function issueDebitNote(input: z.input<typeof debitNoteSchema>) {
+  const { invoiceId, ...body } = input;
+  return run(debitNoteSchema, input, () => api<DebitNote>(`/billing/invoices/${invoiceId}/debit-notes`, { method: "POST", body }), ["/billing"]);
+}
+
+// ---- packages ------------------------------------------------------------------------------------
+
+const packageSchema = z.object({
+  code,
+  name: z.string().trim().min(1).max(200),
+  category: categories,
+  unitPrice: centavos,
+  effectiveFrom: date,
+  validityDays: z.number().int().min(1).max(3660).optional(),
+  taxClass: z.enum(["vatable", "vat_exempt", "zero_rated"]).optional(),
+  items: z.array(z.object({ serviceId: id, quantity: z.number().int().min(1).max(1000) })).min(1, "Include at least one service."),
+});
+export async function createPackage(input: z.input<typeof packageSchema>) {
+  return run(packageSchema, input, () => api<BillingService>("/billing/packages", { method: "POST", body: input }), ["/billing/settings"]);
+}
+
+const sellPackageSchema = z.object({ patientId: id, packageServiceId: id });
+export async function sellPackage(input: z.input<typeof sellPackageSchema>) {
+  const { patientId, ...body } = input;
+  return run(sellPackageSchema, input, () => api<PackageEnrollment>(`/billing/patients/${patientId}/packages`, { method: "POST", body }), [
+    `/billing/patients/${patientId}`,
+  ]);
+}
+
+const cancelPackageSchema = z.object({ enrollmentId: id, reason, version });
+export async function cancelPackage(input: z.input<typeof cancelPackageSchema>) {
+  const { enrollmentId, ...body } = input;
+  return run(cancelPackageSchema, input, () => api<PackageEnrollment>(`/billing/package-enrollments/${enrollmentId}/cancel`, { method: "POST", body }));
+}
+
+// ---- tax profile and service VAT class -----------------------------------------------------------
+
+const taxProfileSchema = z.object({
+  registeredName: z.string().trim().min(1).max(200).nullable(),
+  tin: z
+    .string()
+    .trim()
+    .regex(/^[0-9][0-9-]{7,19}$/, "Enter the TIN as registered: digits and hyphens.")
+    .nullable(),
+  businessAddress: z.string().trim().min(1).max(300).nullable(),
+  vatStatus: z.enum(["not_configured", "vat_registered", "non_vat"]),
+  vatRateBp: z.number().int().min(1).max(10_000).nullable(),
+  permitReference: z.string().trim().min(1).max(120).nullable(),
+  documentNote: z.string().trim().max(500).nullable(),
+  depositsAcrossFacilities: z.boolean(),
+  version: z.number().int().positive().optional(),
+});
+export async function updateTaxProfile(input: z.input<typeof taxProfileSchema>) {
+  return run(taxProfileSchema, input, () => api<TaxProfile>("/billing/tax-profile", { method: "PUT", body: input }), ["/billing/settings"]);
+}
+
+const serviceTaxSchema = z.object({ serviceId: id, taxClass: z.enum(["vatable", "vat_exempt", "zero_rated"]).nullable(), version });
+export async function setServiceTaxClass(input: z.input<typeof serviceTaxSchema>) {
+  const { serviceId, ...body } = input;
+  return run(serviceTaxSchema, input, () => api<BillingService>(`/billing/services/${serviceId}`, { method: "PATCH", body }), ["/billing/settings"]);
 }

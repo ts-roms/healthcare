@@ -63,6 +63,14 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Dental (migration 0027): `dental.record.read`, `dental.record.write`
+(corrections), `dental.chart.write`, `dental.treatment-plan.manage`,
+`dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`,
+`dental.settings.manage`; new system roles `dentist` (a physician's clinical
+permissions plus dental) and `dental_assistant` (a nurse's plus the dental
+record and imaging); recording also requires a practitioner with profession
+`dentist`. Audited `dental.*` (views, examinations, plans, procedures, images,
+corrections with the reason); image links are audited as `document.download`.
 Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
 (org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
 pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions
@@ -70,6 +78,18 @@ and the instrument log are append-only.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
+FHIR imports (migration 0048): `interop.fhir.import` (org_admin; grant it to an
+integration account's role to submit) and `interop.fhir.import.review`
+(org_admin, records_officer; clinicians are not granted it by default —
+reconciling external records is a records function, and an imported allergy is
+recorded unconfirmed for the clinician to confirm). Registering a new patient
+from an import also needs `patient.register`. Audited `fhir.import.receive`
+(resource types, counts, digest — never content), `.list`, `.view`,
+`.candidates` (plus the patient domain's `patient.duplicate-check`), `.match`,
+`.entry-accept`, `.entry-reject` and `.reject` (with the reason), `.complete`,
+`.purge` (system), and the domain's own `allergy.add` / `external-history.record`
+with the import reference. The received content is sealed with the integration
+payload key ring; no PHI is kept in clear.
 DOH case reporting (migration 0023): `doh.report.manage` (org_admin, physician,
 records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),
@@ -91,8 +111,10 @@ sub-records / consent / preferences, document create / upload / list / download
 - Logs never contain message bodies; destinations are masked.
 - Domain events and realtime messages carry identifiers and statuses only —
   never names or clinical text. Realtime clients are checked on connect with
-  the same session, account, facility and permission rules as the REST API
-  (`clinic.queue.read`). Browsers present a ticket from
+  the same session, account, facility and permission rules as the REST API:
+  a socket receives `queue.updated` only with `clinic.queue.read` and
+  `lab.updated` only with `lab.order.read` at that facility (and is refused
+  with neither). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
   versa). A ticket is not single-use: replayed within its minute it opens a

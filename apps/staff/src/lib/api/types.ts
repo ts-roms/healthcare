@@ -6,6 +6,8 @@
  * libraries (or generate them from the OpenAPI document) as domains grow.
  */
 
+import type { ToothFinding, ToothNotation, ToothSurface } from "@healthcare/domain";
+
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown; requestId?: string };
 }
@@ -750,6 +752,20 @@ export interface LabResult {
   releasedAt: string | null;
   releasedByName: string | null;
   cancellationReason: string | null;
+  /** Files on this version (pending uploads are shown to laboratory staff only). */
+  attachments: LabResultAttachment[];
+}
+
+export interface LabResultAttachment {
+  id: string;
+  resultId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  status: "pending" | "attached" | "removed";
+  createdAt: string;
+  attachedAt: string | null;
 }
 
 export interface LabSpecimen {
@@ -986,12 +1002,14 @@ export interface BillingService {
   code: string;
   name: string;
   category: BillingCategory;
-  sourceKind: "visit_type" | "lab_test" | null;
+  sourceKind: "visit_type" | "lab_test" | "dental_procedure" | null;
   sourceCode: string | null;
   status: "active" | "inactive";
   version: number;
   currentPrice: number | null;
   prices: BillingServicePrice[];
+  isPackage?: boolean;
+  taxClass?: "vatable" | "vat_exempt" | "zero_rated" | null;
 }
 
 export interface BillingPayer {
@@ -1318,7 +1336,7 @@ export interface LabReportArchiveEntry {
 // ---- Billing: patient deposits and credit notes (migration 0035) -----------------------------------
 
 /** deposit (+), credit from a credit note (+), application to an invoice (−), release by a void (+), refund (−). */
-export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund";
+export type AccountEntryKind = "deposit" | "credit" | "application" | "release" | "refund" | "transfer_in" | "transfer_out";
 
 export interface AccountEntry {
   id: string;
@@ -1350,7 +1368,8 @@ export interface PatientAccount {
 export interface CreditNoteLine {
   id: string;
   creditNoteId: string;
-  invoiceItemId: string;
+  invoiceItemId: string | null;
+  debitNoteLineId?: string | null;
   description: string;
   amount: number;
 }
@@ -1488,6 +1507,160 @@ export interface InventoryMovement {
   expiryDate: string | null;
 }
 
+// ---- Dental (libs/dental) ------------------------------------------------------------------------
+
+export type DentalProcedureSite = "mouth" | "tooth" | "surface";
+export type DentalChartEffect = "restoration" | "sealant" | "crown" | "root_canal" | "missing" | "implant" | "pontic";
+
+export interface DentalProcedureType {
+  id: string;
+  code: string;
+  name: string;
+  site: DentalProcedureSite;
+  chartEffect: DentalChartEffect | null;
+  status: "active" | "inactive";
+  version: number;
+}
+
+export interface DentalSettings {
+  notation: ToothNotation;
+  procedureTypes: DentalProcedureType[];
+}
+
+export interface DentalChartTooth {
+  tooth: string;
+  findings: ToothFinding[];
+  note: string | null;
+  source: { type: "examination" | "procedure"; id: string };
+  recordedAt: string;
+  recordedBy: string;
+  recordedByName: string | null;
+}
+
+export interface DentalToothHistoryEntry {
+  tooth: string;
+  findings: ToothFinding[];
+  note: string | null;
+  source: { type: "examination" | "procedure"; id: string; status: DentalRecordStatus };
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+export type DentalRecordStatus = "recorded" | "entered_in_error";
+
+export interface DentalExamination {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  oralHygiene: "good" | "fair" | "poor" | null;
+  notes: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+  teeth: Array<{ tooth: string; findings: ToothFinding[]; note: string | null }>;
+}
+
+export type DentalPlanStatus = "proposed" | "accepted" | "in_progress" | "completed" | "declined" | "discontinued";
+export type DentalPlanItemStatus = "proposed" | "accepted" | "declined" | "completed" | "cancelled";
+
+export interface DentalPlanItem {
+  id: string;
+  planId: string;
+  phase: number;
+  procedureTypeId: string;
+  procedure: { code: string; name: string; site: DentalProcedureSite } | null;
+  tooth: string | null;
+  surfaces: ToothSurface[];
+  note: string | null;
+  status: DentalPlanItemStatus;
+  procedureId: string | null;
+  version: number;
+}
+
+export interface DentalTreatmentPlan {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerName?: string | null;
+  title: string;
+  notes: string | null;
+  status: DentalPlanStatus;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  discontinuedReason: string | null;
+  createdAt: string;
+  version: number;
+  items: DentalPlanItem[];
+}
+
+export interface DentalProcedure {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  procedureTypeId: string;
+  procedure: { code: string; name: string };
+  label: string;
+  tooth: string | null;
+  surfaces: ToothSurface[];
+  notes: string | null;
+  planItemId: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  performedAt: string;
+}
+
+export type DentalImageKind = "periapical" | "bitewing" | "panoramic" | "cephalometric" | "occlusal" | "cbct" | "intraoral_photo" | "extraoral_photo" | "other";
+
+export interface DentalImage {
+  id: string;
+  patientId: string;
+  documentId: string;
+  encounterId: string | null;
+  kind: DentalImageKind;
+  teeth: string[];
+  takenOn: string;
+  notes: string | null;
+  status: DentalRecordStatus;
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+export interface DentalRecord {
+  patient: PatientBrief & { id: string };
+  notation: ToothNotation;
+  chart: DentalChartTooth[];
+  examinations: DentalExamination[];
+  plans: DentalTreatmentPlan[];
+  procedures: DentalProcedure[];
+  images: DentalImage[];
+}
+
+export interface DentalVisit {
+  encounterId: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerName: string;
+  status: "in_progress" | "completed" | "entered_in_error";
+  startedAt: string;
+  chiefComplaint: string | null;
+  patient: PatientBrief | null;
+  examinations: number;
+  procedures: number;
+}
+
+export interface DentalVisits {
+  date: string;
+  visits: DentalVisit[];
+}
+
 // ---- Laboratory quality control and instruments (Phase 9, /laboratory/qc, /laboratory/instruments) ----
 
 export type QcStatus = "accepted" | "warning" | "rejected";
@@ -1592,4 +1765,593 @@ export interface LabQcBoard {
     lots: Array<{ runId: string; qcLotId: string; status: QcStatus; runAt: string; violations: string[] }>;
     resultsAllowed: boolean;
   }>;
+}
+
+// ---- PhilHealth YAKAP (libs/philhealth/src/lib/yakap*.ts) --------------------------------------------
+
+/** PhilHealth's answer about a patient's YAKAP registration, in the platform's own neutral vocabulary (recorded, never decided). */
+export type YakapRegistrationStatus = "registered" | "not_registered" | "pending" | "unknown";
+
+export interface YakapParticipation {
+  id: string;
+  facilityId: string;
+  participationReference: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  updatedBy: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface YakapRegistration {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  status: YakapRegistrationStatus;
+  effectiveDate: string | null;
+  externalReference: string | null;
+  note: string | null;
+  recordedBy: string;
+  recordedAt: string;
+}
+
+export interface YakapRegistrationOverview {
+  integration: IntegrationSpecification;
+  /** The selected facility's participation reference (null when none is recorded or no facility is selected). */
+  participation: YakapParticipation | null;
+  registrations: YakapRegistration[];
+}
+
+export interface YakapConsultation {
+  encounterId: string;
+  facilityId: string;
+  facilityName: string;
+  date: string;
+  modality: string;
+  status: "in_progress" | "completed" | "entered_in_error";
+  visitTypeName: string | null;
+  clinicianName: string | null;
+  latestSubmission: ClaimExchange | null;
+}
+
+export interface YakapConsultationList {
+  integration: IntegrationSpecification;
+  consultations: YakapConsultation[];
+}
+
+/** The platform's format-neutral package of one consultation (not PhilHealth's format). */
+export interface YakapEncounterPackage {
+  model: "platform-yakap-1";
+  facility: { id: string; name: string; participationReference: string | null };
+  patient: {
+    patientNumber: string;
+    familyName: string;
+    givenName: string;
+    middleName: string | null;
+    sex: string;
+    birthDate: string;
+    philhealthPin: string | null;
+  };
+  registration: { status: YakapRegistrationStatus; effectiveDate: string | null; reference: string | null; recordedAt: string } | null;
+  encounter: {
+    id: string;
+    date: string;
+    startedAt: string;
+    completedAt: string | null;
+    modality: string;
+    visitType: string | null;
+    clinician: { name: string; profession: string; licenseNumber: string | null } | null;
+  };
+  diagnoses: Array<{ codeSystem: "icd-10"; code: string; display: string; primary: boolean; certainty: string }>;
+  prescriptions: Array<{
+    prescriptionNumber: string;
+    issuedAt: string;
+    items: Array<{ genericName: string; brandName: string | null; strength: string | null; dosageForm: string | null; quantity: number; quantityUnit: string }>;
+  }>;
+  labOrders: Array<{ orderNumber: string; orderedAt: string; tests: Array<{ code: string; name: string; loincCode: string | null }> }>;
+}
+
+export interface YakapPackagePreview {
+  integration: IntegrationSpecification;
+  encounterId: string;
+  patientId: string;
+  consultation: {
+    date: string;
+    modality: string;
+    status: "in_progress" | "completed" | "entered_in_error";
+    facilityId: string;
+    facilityName: string;
+    visitTypeName: string | null;
+    clinicianName: string | null;
+  };
+  registration: { status: YakapRegistrationStatus; effectiveDate: string | null; externalReference: string | null; recordedAt: string } | null;
+  ready: boolean;
+  checks: ClaimReadinessCheck[];
+  /** PIN masked. Null until the readiness checks pass. */
+  package: YakapEncounterPackage | null;
+  submissions: ClaimExchange[];
+}
+// ---- Laboratory send-outs to reference laboratories (Phase 8) -----------------------------------------
+// The declarations below extend LabResult, LabOrderItem and LabDashboard (interface merging).
+
+export type LabSendOutStatus = "prepared" | "dispatched" | "results_received" | "rejected" | "cancelled";
+
+export interface LabResult {
+  /** Performed by a reference laboratory (null: the facility's own laboratory); the name is a snapshot. */
+  sendOutId: string | null;
+  referenceLaboratoryId: string | null;
+  performingLaboratory: string | null;
+}
+
+/** The latest send-out of a test on its current specimen. */
+export interface LabItemSendOut {
+  id: string;
+  status: LabSendOutStatus;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  dispatchedAt: string | null;
+  referenceAccession: string | null;
+  resultsReceivedAt: string | null;
+  rejectionReason: string | null;
+}
+
+export interface LabOrderItem {
+  sendOut: LabItemSendOut | null;
+}
+
+export interface LabDashboard {
+  sendOutsToDispatch: number;
+  sendOutsAwaitingResults: number;
+  sendOutsOverdue: number;
+}
+
+/** GET /laboratory/reference-labs */
+export interface ReferenceLaboratory {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  /** As recorded by staff; not verified. */
+  accreditationReference: string | null;
+  notes: string | null;
+  status: "active" | "inactive";
+  version: number;
+}
+
+/** GET /laboratory/referrals (selected facility) */
+export interface LabTestReferral {
+  facilityId: string;
+  testId: string;
+  testCode: string;
+  testName: string;
+  testTurnaroundMinutes: number | null;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  referenceLaboratoryStatus: "active" | "inactive";
+  turnaroundMinutes: number | null;
+  updatedAt: string;
+  version: number;
+}
+
+/** GET /laboratory/send-outs row */
+export interface LabSendOut {
+  id: string;
+  status: LabSendOutStatus;
+  facilityId: string;
+  patientId: string;
+  orderId: string;
+  orderItemId: string;
+  specimenId: string;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  turnaroundMinutes: number | null;
+  preparedAt: string;
+  preparedByName: string | null;
+  dispatchId: string | null;
+  manifestNumber: string | null;
+  dispatchedAt: string | null;
+  referenceAccession: string | null;
+  resultsReceivedAt: string | null;
+  resultsReceivedByName: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  /** Turnaround counted from dispatch. */
+  dueAt: string | null;
+  minutesOut: number | null;
+  overdue: boolean;
+  orderNumber: string;
+  priority: LabPriority;
+  testCode: string;
+  testName: string;
+  itemStatus: LabItemStatus;
+  accessionNumber: string;
+  collectedAt: string;
+  specimenTypeName: string;
+  patient: PatientBrief | null;
+  version: number;
+}
+
+/** GET /laboratory/send-out-dispatches/:id (the list rows carry a count instead of the send-outs) */
+export interface LabSendOutDispatch {
+  id: string;
+  facilityId: string;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string | null;
+  manifestNumber: string;
+  courier: string;
+  courierReference: string | null;
+  dispatchedAt: string;
+  dispatchedByName: string | null;
+  electronicReference: string | null;
+  electronicAcknowledgedAt: string | null;
+}
+
+export interface LabSendOutDispatchSummary extends LabSendOutDispatch {
+  sendOuts: number;
+}
+
+export interface LabSendOutDispatchDetail extends LabSendOutDispatch {
+  sendOuts: LabSendOut[];
+}
+
+/** GET /integrations/reference-laboratories/dispatches/:id/submissions */
+export interface ReferenceLabSubmissionStatus {
+  integration: {
+    system: string;
+    name: string;
+    status: "dependency" | "stubbed" | "implemented" | "certified";
+    specificationVersion: string | null;
+    note: string;
+  };
+  dispatchId: string;
+  ready: boolean;
+  checks: Array<{ key: string; ok: boolean; message: string }>;
+  submissions: Array<{
+    id: string;
+    status: string;
+    attempts: number;
+    externalReference: string | null;
+    lastError: string | null;
+    requestedAt: string;
+    completedAt: string | null;
+  }>;
+}
+
+// ---- FHIR imports (GET/POST /fhir-imports; interop.fhir.import.review) and external history -----------
+
+/** Where an allergy came from (declaration merged into AllergyRecord above; migration 0048). */
+export interface AllergyRecord {
+  source?: "staff" | "external_import";
+  /** "fhir-import:<import id>#<entry index>" for an accepted import. */
+  sourceReference?: string | null;
+}
+
+export type FhirImportStatus = "pending_review" | "accepted" | "partially_accepted" | "rejected";
+export type FhirImportEntryOutcome = "pending" | "accepted" | "rejected" | "not_supported";
+export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "not_supported";
+
+export interface FhirImportSummary {
+  id: string;
+  status: FhirImportStatus;
+  sourceKind: "bundle" | "resource";
+  bundleType: "collection" | "document" | "searchset" | null;
+  declaredSource: string | null;
+  resourceCounts: Record<string, number>;
+  entryCount: number;
+  patientId: string | null;
+  matchedAt: string | null;
+  rejectionReason: string | null;
+  receivedAt: string;
+  completedAt: string | null;
+  contentPurged: boolean;
+  version: number;
+}
+
+export interface FhirImportListItem extends FhirImportSummary {
+  pendingEntries: number;
+  patient: { patientNumber: string; displayName: string } | null;
+}
+
+export interface ImportedCode {
+  system: string | null;
+  code: string | null;
+  display: string | null;
+}
+
+interface ImportedBase {
+  resourceType: string;
+  acceptable: boolean;
+  notes: string[];
+}
+export type SubjectMatch = "import_patient" | "other_patient" | "not_stated";
+
+export interface ImportedPatient extends ImportedBase {
+  kind: "patient";
+  familyName: string | null;
+  givenNames: string[];
+  nameText: string | null;
+  suffix: string | null;
+  sex: "male" | "female" | "unknown" | null;
+  gender: string | null;
+  birthDate: string | null;
+  deceased: boolean;
+  identifiers: Array<{ system: string | null; value: string; type: string | null }>;
+  telecom: Array<{ system: string | null; value: string; use: string | null }>;
+  addresses: Array<{
+    use: string | null;
+    lines: string[];
+    city: string | null;
+    district: string | null;
+    state: string | null;
+    postalCode: string | null;
+    country: string | null;
+    text: string | null;
+  }>;
+}
+
+export interface ImportedAllergyItem extends ImportedBase {
+  kind: "allergy";
+  subject: SubjectMatch;
+  substance: string | null;
+  codes: ImportedCode[];
+  category: string;
+  criticality: "low" | "high" | "unable_to_assess";
+  severity: "mild" | "moderate" | "severe" | null;
+  reaction: string | null;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  recordedDate: string | null;
+}
+
+export interface ImportedConditionItem extends ImportedBase {
+  kind: "condition";
+  subject: SubjectMatch;
+  display: string | null;
+  codes: ImportedCode[];
+  category: string | null;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  onset: string | null;
+  abatement: string | null;
+  recordedDate: string | null;
+}
+
+export interface ImportedObservationItem extends ImportedBase {
+  kind: "observation";
+  subject: SubjectMatch;
+  category: "laboratory" | "vital-signs" | "other";
+  display: string | null;
+  codes: ImportedCode[];
+  value: string | null;
+  interpretation: string | null;
+  referenceRange: string | null;
+  status: string;
+  effective: string | null;
+}
+
+export interface ImportedMedicationItem extends ImportedBase {
+  kind: "medication";
+  subject: SubjectMatch;
+  statement: "statement" | "request";
+  medication: string | null;
+  codes: ImportedCode[];
+  dosage: string | null;
+  status: string;
+  date: string | null;
+}
+
+export interface ImportedDocumentItem extends ImportedBase {
+  kind: "document";
+  subject: SubjectMatch;
+  type: string | null;
+  description: string | null;
+  status: string;
+  date: string | null;
+  attachments: Array<{ contentType: string | null; title: string | null; size: number | null; inline: boolean; url: string | null }>;
+}
+
+export type ImportedItem =
+  | ImportedPatient
+  | ImportedAllergyItem
+  | ImportedConditionItem
+  | ImportedObservationItem
+  | ImportedMedicationItem
+  | ImportedDocumentItem
+  | (ImportedBase & { kind: "not_supported" });
+
+export interface FhirImportEntry {
+  id: string;
+  index: number;
+  resourceType: string;
+  kind: FhirImportKind;
+  /** What accepting creates. */
+  becomes: "allergy" | "external_history" | "patient_match" | null;
+  outcome: FhirImportEntryOutcome;
+  reason: string | null;
+  resultType: "allergy_intolerance" | "external_history_entry" | "patient" | null;
+  resultId: string | null;
+  decidedAt: string | null;
+  /** Null once the received content was deleted by the retention rule. */
+  item: ImportedItem | null;
+}
+
+export interface ImportPatientBrief {
+  id: string;
+  patientNumber: string;
+  displayName: string;
+  sex: PatientSex;
+  birthDate: string;
+  status: string;
+}
+
+export interface FhirImportDetail extends FhirImportSummary {
+  patient: ImportPatientBrief | null;
+  importedPatient: ImportedPatient | null;
+  registration: {
+    possible: boolean;
+    draft: {
+      familyName: string;
+      givenName: string;
+      suffix?: string;
+      sex: string;
+      birthDate: string;
+      contacts: Array<{ system: string; value: string }>;
+      addresses: Array<{ line1?: string; cityMunicipality: string; province?: string; region?: string; postalCode?: string }>;
+      identifiers: Array<{ type: string; value: string }>;
+    } | null;
+  };
+  entries: FhirImportEntry[];
+}
+
+export interface FhirImportCandidates {
+  searchable: boolean;
+  candidates: Array<{ patient: ImportPatientBrief; level: "certain" | "high" | "possible"; reasons: string[] }>;
+}
+
+/** GET /patients/:id/external-history (clinical.read). */
+export interface ExternalHistoryEntry {
+  id: string;
+  patientId: string;
+  kind: "condition" | "observation" | "medication" | "document";
+  category: string | null;
+  display: string;
+  codeSystem: string | null;
+  code: string | null;
+  valueText: string | null;
+  statusText: string | null;
+  effectiveText: string | null;
+  source: "external_import";
+  sourceReference: string;
+  declaredSource: string | null;
+  status: "active" | "entered_in_error";
+  enteredInErrorReason: string | null;
+  recordedAt: string;
+}
+
+// ---- Billing: debit notes, payer credits, packages, online payment, tax profile (migrations 0036–0039) ----
+
+export type TaxClass = "vatable" | "vat_exempt" | "zero_rated";
+export type VatStatus = "not_configured" | "vat_registered" | "non_vat";
+
+export interface DebitNoteLine {
+  id: string;
+  debitNoteId: string;
+  serviceId: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface DebitNote {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  invoiceId: string;
+  debitNoteNumber: string;
+  reason: string;
+  amount: number;
+  issuedBy: string;
+  issuedAt: string;
+  lines: DebitNoteLine[];
+  invoiceNumber?: string | null;
+}
+
+/** A credit note's part that reduced a payer's coverage. */
+export interface CreditNotePayer {
+  id: string;
+  creditNoteId: string;
+  invoicePayerId: string;
+  amount: number;
+  payerName?: string;
+}
+
+export interface OnlinePayment {
+  id: string;
+  amount: number;
+  status: "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+  provider: string;
+  paidAmount: number | null;
+  failureCode: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** What `GET /billing/invoices/:id` adds for debit notes, payer credits, online payment and the tax snapshot. */
+export interface InvoiceFollowUps {
+  debitNotes: DebitNote[];
+  debitedTotal: number;
+  onlinePayments: OnlinePayment[];
+  creditNotes: Array<CreditNote & { payerAmount: number; payers: CreditNotePayer[] }>;
+  payers: Array<InvoiceCoverage & { creditedAmount: number }>;
+  items: Array<InvoiceLine & { taxClass: TaxClass | null; vatAmount: number }>;
+  taxStatus: VatStatus | null;
+  vatRateBp: number | null;
+  sellerRegisteredName: string | null;
+  sellerTin: string | null;
+  vatableSales: number;
+  vatAmount: number;
+  vatExemptSales: number;
+  zeroRatedSales: number;
+}
+
+export type InvoiceFull = Omit<InvoiceWithSettlement, "creditNotes" | "payers" | "items"> & InvoiceFollowUps;
+
+export interface BillingPackage extends BillingService {
+  isPackage: true;
+  packageValidityDays: number | null;
+  items: Array<{ serviceId: string; serviceCode: string; serviceName: string; quantity: number }>;
+}
+
+export interface PackageEnrollment {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  packageServiceId: string;
+  packageName: string;
+  packageCode: string;
+  status: "active" | "cancelled";
+  startsOn: string;
+  endsOn: string | null;
+  cancelReason: string | null;
+  version: number;
+  saleCharge: { id: string; status: BillingCharge["status"]; invoiceId: string | null } | null;
+  items: Array<{ serviceId: string; serviceName: string; included: number; used: number; left: number }>;
+}
+
+/** The organization's own tax and document settings (BIR as configuration). */
+export interface TaxProfile {
+  registeredName: string | null;
+  tin: string | null;
+  businessAddress: string | null;
+  vatStatus: VatStatus;
+  vatRateBp: number | null;
+  permitReference: string | null;
+  documentNote: string | null;
+  depositsAcrossFacilities: boolean;
+  version: number;
+}
+
+export type SequenceKind = "invoice" | "receipt" | "credit_note" | "debit_note";
+
+export interface BillingSettingsFull extends BillingPrefixes {
+  debitNotePrefix: string;
+  series: Array<{ kind: SequenceKind; prefix: string; nextValue: number; lastValue: number | null }>;
+}
+
+/** What the patient account view adds when deposits can be used across facilities. */
+export interface SharedAccount {
+  usableAcrossFacilities: boolean;
+  facilities: Array<{ facilityId: string; facilityName: string; balance: number }> | null;
+  organizationBalance: number | null;
+}
+
+export interface DailyNoteFigures {
+  debitNotes: { count: number; amount: number };
+  creditNotes: { count: number; amount: number; appliedAmount: number; accountCredit: number; payerAmount: number };
 }

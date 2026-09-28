@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { AlertOctagonIcon, ScanBarcodeIcon, ZapIcon } from "lucide-react";
+import { AlertOctagonIcon, ScanBarcodeIcon, TruckIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
+import { LiveIndicator, useLabUpdates } from "@/components/live-queue";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
 import { findByAccession } from "../actions";
 import { type LabPermissions, WorkbenchDetail } from "./workbench-detail";
@@ -21,6 +22,7 @@ export function LabWorkbench({
   departments,
   specimenTypes,
   instruments,
+  referenceLabs,
   permissions,
 }: {
   facilityName: string;
@@ -32,6 +34,7 @@ export function LabWorkbench({
   specimenTypes: LabSpecimenType[];
   /** Active instruments at the facility, for result entry. */
   instruments: LabInstrument[];
+  referenceLabs: ReferenceLaboratory[];
   permissions: LabPermissions;
 }) {
   const router = useRouter();
@@ -41,6 +44,8 @@ export function LabWorkbench({
   const [scanning, startScan] = React.useTransition();
   const scanRef = React.useRef<HTMLInputElement>(null);
   const selected = scanned ?? rows.find((r) => r.key === selectedKey) ?? null;
+  // Other benches' work (collection, receipt, sign-off) shows up without reloading; polling while the socket is down.
+  const live = useLabUpdates();
   const specimenTypeName = React.useMemo(() => new Map(specimenTypes.map((s) => [s.id, s.name])), [specimenTypes]);
 
   // F2 focuses the barcode field: scanners type the accession number and Enter.
@@ -87,17 +92,29 @@ export function LabWorkbench({
     <LaboratoryLayout
       title={`Laboratory · ${facilityName}`}
       status={
-        dashboard ? (
-          <>
-            <span className="tabular">{dashboard.statOpen} STAT open</span>
-            {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
-            {dashboard.criticalUnacknowledged ? (
-              <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
-                <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
-              </Link>
-            ) : null}
-          </>
-        ) : null
+        <>
+          <LiveIndicator status={live} />
+          {dashboard ? (
+            <>
+              <span className="tabular">{dashboard.statOpen} STAT open</span>
+              {dashboard.overdue ? <span className="tabular text-warning-foreground">{dashboard.overdue} past turnaround</span> : null}
+              {dashboard.sendOutsToDispatch || dashboard.sendOutsAwaitingResults ? (
+                <Link href="/laboratory/send-outs" className="inline-flex items-center gap-1 hover:underline">
+                  <TruckIcon className="size-4" aria-hidden />
+                  <span className="tabular">
+                    {dashboard.sendOutsToDispatch} to dispatch · {dashboard.sendOutsAwaitingResults} at reference labs
+                    {dashboard.sendOutsOverdue ? ` (${dashboard.sendOutsOverdue} overdue)` : ""}
+                  </span>
+                </Link>
+              ) : null}
+              {dashboard.criticalUnacknowledged ? (
+                <Link href="/laboratory/critical" className="inline-flex items-center gap-1 font-semibold text-critical hover:underline">
+                  <AlertOctagonIcon className="size-4" aria-hidden /> {dashboard.criticalUnacknowledged} critical unacknowledged
+                </Link>
+              ) : null}
+            </>
+          ) : null}
+        </>
       }
       toolbar={
         <>
@@ -204,6 +221,7 @@ export function LabWorkbench({
             permissions={permissions}
             specimenTypeName={specimenTypeName}
             instruments={instruments}
+            referenceLabs={referenceLabs}
             onChanged={afterChange}
           />
         ) : (

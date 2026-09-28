@@ -59,6 +59,12 @@
     },
     {
       "path": "./libs/inventory"
+    },
+    {
+      "path": "./libs/dental"
+    },
+    {
+      "path": "./libs/philhealth"
     }
   ],
   "compilerOptions": {}

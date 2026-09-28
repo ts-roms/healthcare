@@ -10,6 +10,7 @@ import {
   FlaskConicalIcon,
   LogInIcon,
   EyeOffIcon,
+  FileInputIcon,
   PhoneIcon,
   PillIcon,
   ShieldAlertIcon,
@@ -17,6 +18,7 @@ import {
   SmartphoneIcon,
   UsersIcon,
   ReceiptIcon,
+  SmileIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -24,12 +26,24 @@ import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { EligibilityOverview, LabReportArchiveEntry, PatientDetail, PatientLabResult, PatientSummaryResponse, PortalAccountStatus } from "@/lib/api/types";
+import type {
+  EligibilityOverview,
+  ExternalHistoryEntry,
+  LabReportArchiveEntry,
+  PatientDetail,
+  PatientLabResult,
+  PatientSummaryResponse,
+  PortalAccountStatus,
+  YakapConsultationList,
+  YakapRegistrationOverview,
+} from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
+import { ExternalHistory } from "./external-history";
 import { PatientLabResults } from "./lab-results";
 import { PhilHealthEligibility } from "./philhealth-eligibility";
+import { PhilHealthYakap } from "./philhealth-yakap";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
 import { SendPortalMessage } from "./send-portal-message";
@@ -87,6 +101,18 @@ async function loadArchivedLabReports(id: string): Promise<LabReportArchiveEntry
   }
 }
 
+/** History other providers recorded, accepted from FHIR imports (audited by the API); null without clinical access. */
+async function loadExternalHistory(id: string): Promise<ExternalHistoryEntry[] | null> {
+  const session = await getSession();
+  if (!can(session, "clinical.read")) return null;
+  try {
+    return await api<ExternalHistoryEntry[]>(`/patients/${id}/external-history`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -109,20 +135,42 @@ async function loadEligibility(id: string): Promise<EligibilityOverview | null> 
   }
 }
 
+/** PhilHealth YAKAP registration answers and the patient's consultations (each audited by the API); each part null without its permission. */
+async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverview | null; consultations: YakapConsultationList | null } | null> {
+  const session = await getSession();
+  const tolerate = <T,>(call: () => Promise<T>) =>
+    call().catch((e: unknown) => {
+      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+      throw e;
+    });
+  const [overview, consultations] = await Promise.all([
+    can(session, "philhealth.eligibility.manage")
+      ? tolerate(() => api<YakapRegistrationOverview>("/philhealth/yakap/registrations", { query: { patientId: id } }))
+      : Promise.resolve(null),
+    can(session, "philhealth.claim.submit")
+      ? tolerate(() => api<YakapConsultationList>(`/philhealth/yakap/patients/${id}/consultations`))
+      : Promise.resolve(null),
+  ]);
+  return overview || consultations ? { overview, consultations } : null;
+}
+
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
     loadLabResults(id),
     loadArchivedLabReports(id),
     loadEligibility(id),
+    loadYakap(id),
+    loadExternalHistory(id),
     getSelectedFacility(),
     getSession(),
   ]);
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBill = can(session, "billing.charge.read");
+  const canDental = can(session, "dental.record.read");
   const canBook = can(session, "appointment.manage");
   const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
   const canViewDocuments = can(session, "document.read");
@@ -151,7 +199,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         </p>
       ) : null}
 
-      {(p.status === "active" && (canCheckIn || canBook)) || canBill ? (
+      {(p.status === "active" && (canCheckIn || canBook)) || canBill || canDental ? (
         <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
           {canCheckIn ? (
             <Button asChild size="sm">
@@ -171,6 +219,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <Button asChild size="sm" variant="outline">
               <Link href={`/billing/patients/${p.id}`}>
                 <ReceiptIcon /> Billing
+              </Link>
+            </Button>
+          ) : null}
+          {canDental ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/dental/patients/${p.id}`}>
+                <SmileIcon /> Dental record
               </Link>
             </Button>
           ) : null}
@@ -289,6 +344,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </Card>
         ) : null}
 
+        {yakap ? (
+          <Card>
+            <CardHeader>
+              <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>PhilHealth YAKAP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PhilHealthYakap patientId={p.id} overview={yakap.overview} consultations={yakap.consultations} facilityId={facility?.id ?? null} />
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <UsersIcon className="size-4 text-muted-foreground" aria-hidden />
@@ -359,6 +426,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <ArchivedLabReports archives={labArchives} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {externalHistory?.length ? (
+          <Card className="lg:col-span-2" id="external-history">
+            <CardHeader>
+              <FileInputIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>External history (imported)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ExternalHistory patientId={p.id} entries={externalHistory} canCorrect={can(session, "interop.fhir.import.review")} />
             </CardContent>
           </Card>
         ) : null}

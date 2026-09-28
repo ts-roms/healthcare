@@ -234,6 +234,9 @@ importers:
       '@healthcare/core':
         specifier: workspace:*
         version: link:../../libs/core
+      '@healthcare/dental':
+        specifier: workspace:*
+        version: link:../../libs/dental
       '@healthcare/documents':
         specifier: workspace:*
         version: link:../../libs/documents
@@ -258,6 +261,9 @@ importers:
       '@healthcare/pdf':
         specifier: workspace:*
         version: link:../../libs/pdf
+      '@healthcare/philhealth':
+        specifier: workspace:*
+        version: link:../../libs/philhealth
       '@healthcare/prescription':
         specifier: workspace:*
         version: link:../../libs/prescription
@@ -304,6 +310,9 @@ importers:
       '@healthcare/interoperability':
         specifier: workspace:*
         version: link:../../libs/interoperability
+      '@healthcare/philhealth':
+        specifier: workspace:*
+        version: link:../../libs/philhealth
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -548,6 +557,21 @@ importers:
 
   libs/core: {}
 
+  libs/dental:
+    dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
+      '@healthcare/documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@healthcare/organization':
+        specifier: workspace:*
+        version: link:../organization
+
   libs/documents:
     dependencies:
       '@healthcare/audit':
@@ -657,6 +681,18 @@ importers:
       '@types/pdfkit':
         specifier: '*'
         version: 0.17.6
+
+  libs/philhealth:
+    dependencies:
+      '@healthcare/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@healthcare/core':
+        specifier: workspace:*
+        version: link:../core
+      '@healthcare/interoperability':
+        specifier: workspace:*
+        version: link:../interoperability
 
   libs/prescription:
     dependencies:

@@ -13,9 +13,14 @@ import { LabQualityController } from "./quality/lab-quality.controller";
 import { LabQualityService } from "./quality/lab-quality.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
+import { LabResultAttachments } from "./results/lab-result-attachments";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./results/lab-report-archive";
 import { bullMqLabReportArchiveQueue, LabReportArchiveWorker } from "./results/lab-report-archive-queue";
 import { LabResultService } from "./results/lab-result.service";
+import { ReferenceLabService } from "./send-outs/reference-lab.service";
+import { ReferenceLabController, SendOutController } from "./send-outs/send-out.controller";
+import { SendOutManifestService } from "./send-outs/send-out-manifest";
+import { SendOutService } from "./send-outs/send-out.service";
 
 export interface LaboratoryModuleOptions {
   /** Modules providing what the context adapter depends on. */
@@ -26,14 +31,14 @@ export interface LaboratoryModuleOptions {
   archiveQueue?: Provider;
 }
 
-/** Laboratory Information System: catalog, orders, specimens, results, critical values, worklists. */
+/** Laboratory Information System: catalog, orders, specimens, results, critical values, worklists, send-outs to reference laboratories. */
 @Module({})
 export class LaboratoryModule {
   static forRoot(options: LaboratoryModuleOptions): DynamicModule {
     return {
       module: LaboratoryModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [LabCatalogController, LabOrderController, LabResultController, LabQualityController],
+      controllers: [LabCatalogController, LabOrderController, LabResultController, ReferenceLabController, SendOutController, LabQualityController],
       providers: [
         LabCatalogService,
         LabLabelService,
@@ -45,7 +50,11 @@ export class LaboratoryModule {
         LabReportService,
         LabReportArchive,
         LabResultService,
+        LabResultAttachments,
         LabWorklistService,
+        ReferenceLabService,
+        SendOutService,
+        SendOutManifestService,
         { provide: LABORATORY_CONTEXT, useClass: options.context },
         options.archiveQueue ?? bullMqLabReportArchiveQueue,
         {
@@ -55,7 +64,16 @@ export class LaboratoryModule {
             new LabReportArchiveWorker(config.REDIS_URL, archive, queue),
         },
       ],
-      exports: [LabOrderService, LabPatientAccess, LabRecordQueries, LabReportService, LabReportArchive, LabReportArchiveWorker, LabResultService],
+      exports: [
+        LabOrderService,
+        LabPatientAccess,
+        LabRecordQueries,
+        LabReportService,
+        LabReportArchive,
+        LabReportArchiveWorker,
+        LabResultService,
+        SendOutService,
+      ],
     };
   }
 }

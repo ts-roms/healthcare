@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { LabTrend, PatientLabResult } from "./api/types";
+import type { LabSendOut, LabTrend, PatientLabResult } from "./api/types";
 import {
+  byReferenceLaboratory,
   bySpecimenType,
+  formatDuration,
   groupResultsByTest,
   mixedUnits,
   overdueMinutes,
   parseResultInput,
   referenceText,
   resultValue,
+  sendOutTone,
   trendPoints,
   uiFlag,
 } from "./lab-mapping";
@@ -98,4 +101,31 @@ it("computes overdue minutes against the turnaround time", () => {
   expect(overdueMinutes({ turnaroundMinutes: 60, status: "received" }, "2026-09-27T10:00:00Z", now)).toBe(60);
   expect(overdueMinutes({ turnaroundMinutes: 180, status: "received" }, "2026-09-27T10:00:00Z", now)).toBeNull();
   expect(overdueMinutes({ turnaroundMinutes: 60, status: "released" }, "2026-09-27T10:00:00Z", now)).toBeNull();
+});
+
+describe("send-outs", () => {
+  const row = (referenceLaboratoryId: string, name: string, id: string) => ({ id, referenceLaboratoryId, referenceLaboratoryName: name }) as LabSendOut;
+
+  it("formats turnaround durations", () => {
+    expect(formatDuration(45)).toBe("45 min");
+    expect(formatDuration(6 * 60 + 10)).toBe("6 h");
+    expect(formatDuration(48 * 60)).toBe("2 d");
+    expect(formatDuration(51 * 60)).toBe("2 d 3 h");
+  });
+
+  it("marks overdue send-outs critical and answered ones as done", () => {
+    expect(sendOutTone({ status: "dispatched", overdue: true })).toBe("critical");
+    expect(sendOutTone({ status: "dispatched", overdue: false })).toBe("info");
+    expect(sendOutTone({ status: "prepared", overdue: false })).toBe("warning");
+    expect(sendOutTone({ status: "results_received", overdue: false })).toBe("success");
+    expect(sendOutTone({ status: "cancelled", overdue: false })).toBe("neutral");
+  });
+
+  it("groups prepared send-outs by reference laboratory (one manifest each)", () => {
+    const groups = byReferenceLaboratory([row("b", "Beta Lab", "1"), row("a", "Alpha Lab", "2"), row("b", "Beta Lab", "3")]);
+    expect(groups.map((g) => [g.name, g.rows.map((r) => r.id)])).toEqual([
+      ["Alpha Lab", ["2"]],
+      ["Beta Lab", ["1", "3"]],
+    ]);
+  });
 });

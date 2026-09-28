@@ -13,6 +13,20 @@ import {
 } from "./laboratory.schema";
 import { publicView } from "./laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext, type LabPatientBrief } from "./ports";
+import { attachmentsOf, type AttachmentView } from "./results/lab-result-attachments";
+import { labReferenceLaboratory, labSendOut, type SendOutStatus } from "./send-outs/send-out.schema";
+
+/** The latest send-out of a test on its current specimen (null: performed in-house, or not decided yet). */
+export interface ItemSendOutView {
+  id: string;
+  status: SendOutStatus;
+  referenceLaboratoryId: string;
+  referenceLaboratoryName: string;
+  dispatchedAt: Date | null;
+  referenceAccession: string | null;
+  resultsReceivedAt: Date | null;
+  rejectionReason: string | null;
+}
 
 /** Holders of these may see results before release (the laboratory's own workflow). */
 const LAB_WORKFLOW_PERMISSIONS = ["lab.result.enter", "lab.result.verify", "lab.result.approve", "lab.result.release", "lab.result.amend"];
@@ -26,6 +40,8 @@ export type ResultView = Omit<LabResultRecord, "organizationId"> & {
   verifiedByName: string | null;
   approvedByName: string | null;
   releasedByName: string | null;
+  /** Files attached to this version (pending uploads only for laboratory staff). */
+  attachments: AttachmentView[];
 };
 
 export type SpecimenView = Omit<LabSpecimenRecord, "organizationId"> & { collectedByName: string | null; receivedByName: string | null };
@@ -37,6 +53,7 @@ export type OrderItemView = Omit<LabOrderItemRecord, "organizationId"> & {
   unit: string | null;
   codedValues: string[];
   turnaroundMinutes: number | null;
+  sendOut: ItemSendOutView | null;
   /** The current result. Before release it is shown only to laboratory staff. */
   result: ResultView | null;
 };
@@ -57,7 +74,7 @@ export class LabReadModel {
   async orders(executor: DbExecutor, actor: Actor, orders: LabOrderRecord[]): Promise<OrderView[]> {
     if (orders.length === 0) return [];
     const orderIds = orders.map((o) => o.id);
-    const [items, specimens, results] = await Promise.all([
+    const [items, specimens, results, sendOuts] = await Promise.all([
       executor
         .select({
           item: labOrderItem,
@@ -74,7 +91,27 @@ export class LabReadModel {
         .orderBy(asc(labTest.name)),
       executor.select().from(labSpecimen).where(inArray(labSpecimen.orderId, orderIds)).orderBy(asc(labSpecimen.collectedAt)),
       this.currentResults(executor, actor, orderIds),
+      executor
+        .select({ sendOut: labSendOut, name: labReferenceLaboratory.name })
+        .from(labSendOut)
+        .innerJoin(labReferenceLaboratory, eq(labReferenceLaboratory.id, labSendOut.referenceLaboratoryId))
+        .where(inArray(labSendOut.orderId, orderIds))
+        .orderBy(asc(labSendOut.preparedAt)),
     ]);
+    // Latest send-out per test and specimen (later rows win).
+    const sendOutByItem = new Map<string, ItemSendOutView>();
+    for (const { sendOut: so, name } of sendOuts) {
+      sendOutByItem.set(`${so.orderItemId}:${so.specimenId}`, {
+        id: so.id,
+        status: so.status,
+        referenceLaboratoryId: so.referenceLaboratoryId,
+        referenceLaboratoryName: name,
+        dispatchedAt: so.dispatchedAt,
+        referenceAccession: so.referenceAccession,
+        resultsReceivedAt: so.resultsReceivedAt,
+        rejectionReason: so.rejectionReason,
+      });
+    }
     const organizationId = actor.organizationId;
     const [patients, practitioners, staff] = await Promise.all([
       this.context.patientBriefs(organizationId, [...new Set(orders.map((o) => o.patientId))]),
@@ -90,7 +127,12 @@ export class LabReadModel {
         ].filter((id): id is string => !!id),
       ),
     ]);
-    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff)]));
+    const attachments = await attachmentsOf(
+      executor,
+      actor,
+      results.map((r) => r.id),
+    );
+    const resultByItem = new Map(results.map((r) => [r.orderItemId, this.resultView(r, staff, attachments.get(r.id))]));
     return orders.map((order) => ({
       ...publicView(order),
       orderingPractitionerName: order.orderingPractitionerId ? (practitioners.get(order.orderingPractitionerId) ?? null) : null,
@@ -98,19 +140,29 @@ export class LabReadModel {
       patient: patients.get(order.patientId) ?? null,
       items: items
         .filter((i) => i.item.orderId === order.id)
-        .map(({ item, ...test }) => ({ ...publicView(item), ...test, result: resultByItem.get(item.id) ?? null })),
+        .map(({ item, ...test }) => {
+          const sendOut = item.specimenId ? (sendOutByItem.get(`${item.id}:${item.specimenId}`) ?? null) : null;
+          return { ...publicView(item), ...test, sendOut, result: resultByItem.get(item.id) ?? null };
+        }),
       specimens: specimens.filter((s) => s.orderId === order.id).map((s) => this.specimenView(s, staff)),
     }));
   }
 
-  async results(organizationId: string, rows: LabResultRecord[]): Promise<ResultView[]> {
-    const staff = await this.context.staffNames(organizationId, [
-      ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
+  async results(executor: DbExecutor, actor: Actor, rows: LabResultRecord[]): Promise<ResultView[]> {
+    const [staff, attachments] = await Promise.all([
+      this.context.staffNames(actor.organizationId, [
+        ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
+      ]),
+      attachmentsOf(
+        executor,
+        actor,
+        rows.map((r) => r.id),
+      ),
     ]);
-    return rows.map((r) => this.resultView(r, staff));
+    return rows.map((r) => this.resultView(r, staff, attachments.get(r.id)));
   }
 
-  resultView(r: LabResultRecord, staff: Map<string, string>): ResultView {
+  resultView(r: LabResultRecord, staff: Map<string, string>, attachments: AttachmentView[] = []): ResultView {
     const name = (id: string | null) => (id ? (staff.get(id) ?? null) : null);
     return {
       ...publicView(r),
@@ -118,6 +170,7 @@ export class LabReadModel {
       verifiedByName: name(r.verifiedBy),
       approvedByName: name(r.approvedBy),
       releasedByName: name(r.releasedBy),
+      attachments,
     };
   }
 

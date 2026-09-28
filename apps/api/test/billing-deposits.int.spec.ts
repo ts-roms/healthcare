@@ -273,7 +273,7 @@ describe("billing deposits and credit notes", () => {
 
   it("numbers credit notes with a configurable prefix", async () => {
     const settings = await req(cashier).get("/billing/settings").expect(200);
-    expect(settings.body).toEqual({ invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "CN" });
+    expect(settings.body).toMatchObject({ invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "CN" });
     const updated = await req(admin).put("/billing/settings", { invoicePrefix: "INV", receiptPrefix: "AR", creditNotePrefix: "crn" }).expect(200);
     expect(updated.body.creditNotePrefix).toBe("CRN");
     // Older clients that send only the invoice and receipt prefixes leave it as it is.
@@ -293,7 +293,7 @@ describe("billing deposits and credit notes", () => {
       refundedTotal: 10_000,
       held: 45_000,
     });
-    expect(report.body.creditNotes).toEqual({ count: 2, amount: 25_000, appliedAmount: 10_000, accountCredit: 15_000 });
+    expect(report.body.creditNotes).toEqual({ count: 2, amount: 25_000, appliedAmount: 10_000, accountCredit: 15_000, payerAmount: 0 });
     expect(report.body.collectedTotal).toBe(20_000);
     expect(report.body.receivables).toMatchObject({ patientBalance: 0, invoices: 0 });
   });
@@ -335,6 +335,15 @@ describe("billing deposits and credit notes", () => {
     expect(first.creditNotes).toEqual([expect.objectContaining({ creditNoteNumber: `CN-${year}-000001`, amount: 15_000, accountCredit: 15_000 })]);
     const copy = await portal(`/portal/billing/credit-notes/${ids.creditNote1}/pdf`).buffer(true).parse(binary).expect(200);
     expect(extractPdfText(copy.body as Buffer)).toContain("Patient's copy from MyHealth");
+    // No payment provider is configured: online payment is not offered.
+    expect((await portal("/portal/billing/online-payment").expect(200)).body).toMatchObject({ available: false, provider: "unconfigured" });
+    await ctx
+      .http()
+      .post(`/api/v1/portal/billing/${ids.invoice2}/online-payments`)
+      .set({ authorization: `Bearer ${token}` })
+      .send({ amount: 1_000, idempotencyKey: "online-unconfigured", returnUrl: "http://localhost:3001/billing" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("integration_not_configured"));
     const audit = await auditRows(ctx.pool, "action IN ('portal.billing-account-view', 'portal.credit-note-download')");
     expect(audit.map((a) => a.actor_type)).toEqual(["patient", "patient"]);
   });

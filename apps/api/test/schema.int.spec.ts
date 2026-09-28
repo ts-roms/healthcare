@@ -4,6 +4,7 @@ import * as billing from "@healthcare/billing";
 import * as carePlan from "@healthcare/care-plan";
 import * as clinic from "@healthcare/clinic";
 import * as core from "@healthcare/core";
+import * as dental from "@healthcare/dental";
 import * as documents from "@healthcare/documents";
 import * as interoperability from "@healthcare/interoperability";
 import * as inventory from "@healthcare/inventory";
@@ -11,6 +12,7 @@ import * as laboratory from "@healthcare/laboratory";
 import * as notification from "@healthcare/notification";
 import * as organization from "@healthcare/organization";
 import * as patient from "@healthcare/patient";
+import * as philhealth from "@healthcare/philhealth";
 import * as prescription from "@healthcare/prescription";
 import * as telemedicine from "@healthcare/telemedicine";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
@@ -30,6 +32,7 @@ describe("Drizzle schema matches migrations", () => {
     carePlan,
     clinic,
     core,
+    dental,
     documents,
     interoperability,
     inventory,
@@ -37,6 +40,7 @@ describe("Drizzle schema matches migrations", () => {
     notification,
     organization,
     patient,
+    philhealth,
     prescription,
     telemedicine,
   ]

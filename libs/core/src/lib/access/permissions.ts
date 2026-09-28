@@ -84,15 +84,30 @@ export const PERMISSIONS = [
   // Refunds of deposit or credit balance use billing.refund.issue.
   "billing.deposit.record",
   "billing.credit-note.issue",
+  // Billing follow-ups — debit notes (migration 0036).
+  "billing.debit-note.issue",
   // Phase 9 — inventory (migration 0026)
   "inventory.read",
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 6 — dental (migration 0027)
+  "dental.record.read",
+  "dental.record.write",
+  "dental.chart.write",
+  "dental.treatment-plan.manage",
+  "dental.procedure.record",
+  "dental.imaging.read",
+  "dental.imaging.upload",
+  "dental.settings.manage",
   // Phase 9 — laboratory quality control and instruments (migration 0050)
   "lab.qc.read",
   "lab.qc.enter",
   "lab.qc.manage",
+  // Phase 8 — FHIR R4 inbound imports into a review queue (migration 0048). Submitting never writes the record;
+  // reviewers match the patient and accept or reject each entry.
+  "interop.fhir.import",
+  "interop.fhir.import.review",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

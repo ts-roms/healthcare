@@ -29,6 +29,7 @@ Appointment (or walk-in) → check-in → queue (visit) → triage + vitals → 
 | `triage_assessment`, `vital_sign_set`               | Corrections mark entered-in-error; never deleted                                                                                                                                                                                                   |
 | `allergy_intolerance`, `allergy_review`             | Active allergies; "no known allergies" is a recorded review, distinct from "not reviewed". It holds only if asserted after the last change to the allergy list (a later allergy, even resolved or entered in error, makes it "not reviewed" again) |
 | `encounter`, `encounter_note_revision`, `diagnosis` | Note revisions are append-only (trigger): drafts, the signed revision, amendments with reason                                                                                                                                                      |
+| `external_history_entry`                            | External history accepted from a FHIR import (conditions, observations, medications, document descriptions); labelled external, never a diagnosis, result, vital sign or prescription                                                              |
 
 All references use composite keys so a record can only point at the same organization's — and where relevant the same
 patient's — rows.
@@ -74,7 +75,7 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
 `/queue` (+ `walk-ins`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
-Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
+Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
 
@@ -92,6 +93,13 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 - Patient names for queue boards and schedules via the `PatientDirectory` port (adapter in `apps/api`).
 - `ClinicQueries` (exported) serves the prescribing context and Patient 360.
 - Reminders through `NotificationService`; templates carry no clinical detail.
+- **FHIR imports** (`docs/interoperability/fhir.md`, "Inbound"): `ExternalRecordsService` (exported) is the command the
+  interoperability layer reaches through a port. An accepted `AllergyIntolerance` goes through the staff allergy command
+  (same validation, duplicate check and `allergy.add` audit) as `source = 'external_import'`, always `unconfirmed`, with
+  `source_reference` `fhir-import:<import id>#<entry index>`; other accepted entries become `external_history_entry`
+  rows (append-only except entered in error, migration 0048). `GET /patients/:id/external-history` (`clinical.read`,
+  audited `external-history.view`); `POST /patients/:id/external-history/:entryId/entered-in-error`
+  (`interop.fhir.import.review`, with a reason).
 
 ## Open questions / assumptions
 

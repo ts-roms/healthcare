@@ -75,7 +75,10 @@ export async function resetDatabase(pool: Pool): Promise<void> {
 }
 
 export async function createTestApp(
-  overrides: Pick<AppModuleOverrides, "philhealthGateway" | "philhealthEligibilityGateway" | "dohGateway"> = {},
+  overrides: Pick<
+    AppModuleOverrides,
+    "philhealthGateway" | "philhealthEligibilityGateway" | "philhealthYakapGateway" | "dohGateway" | "referenceLabGateway" | "paymentGateway"
+  > = {},
   env: Record<string, string> = {},
 ): Promise<TestContext> {
   const integrations = new RecordingIntegrationQueue();
@@ -97,7 +100,7 @@ export async function createTestApp(
       }),
     ],
   }).compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, rawBody: true });
   configureApp(app, config);
   await app.init();
   return {

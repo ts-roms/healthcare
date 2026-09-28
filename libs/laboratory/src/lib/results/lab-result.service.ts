@@ -38,6 +38,7 @@ import {
   type LabOrderRecord,
   labReferenceRange,
   labResult,
+  labResultAttachment,
   type LabResultRecord,
   type LabTestRecord,
   labSpecimen,
@@ -49,6 +50,7 @@ import { LabCatalogService } from "../catalog/lab-catalog.service";
 import { LabOrderService } from "../orders/lab-order.service";
 import { LabQualityService } from "../quality/lab-quality.service";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
+import { type ResultAttribution, SendOutService } from "../send-outs/send-out.service";
 
 export interface TrendPoint {
   resultId: string;
@@ -86,6 +88,7 @@ export class LabResultService {
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
+    private readonly sendOuts: SendOutService,
   ) {}
 
   /** First result for a received specimen's test. */
@@ -98,11 +101,14 @@ export class LabResultService {
         throw new ConflictError("This test already has a result; enter a correction instead", undefined, "result_exists");
       }
       if (item.status !== "received") throw new BusinessRuleError("Results are entered once the specimen has been received", "specimen_not_received");
+      // A referred test is entered once the reference laboratory's results are back, and attributed to it.
+      const attribution = await this.sendOuts.attributionForEntry(tx, item);
       const [previous] = await tx.select().from(labResult).where(eq(labResult.orderItemId, itemId)).orderBy(desc(labResult.versionNumber)).limit(1);
       const created = await this.insertVersion(tx, actor, item, order, input, {
         previous: previous ?? null,
         // Re-testing after a cancelled result links to it, so the history reads in order.
         reason: previous ? `Re-tested after cancellation: ${previous.cancellationReason ?? "cancelled"}` : null,
+        attribution,
       });
       await this.setItemStatus(tx, item.id, "resulted");
       await this.audit.record(tx, actor, {
@@ -110,7 +116,16 @@ export class LabResultService {
         resourceType: "lab_result",
         resourceId: created.id,
         patientId: created.patientId,
-        metadata: { orderId: order.id, itemId, testCode: item.testCode, version: created.versionNumber, flag: created.flag, critical: created.critical },
+        metadata: {
+          orderId: order.id,
+          itemId,
+          testCode: item.testCode,
+          version: created.versionNumber,
+          flag: created.flag,
+          critical: created.critical,
+          referenceLaboratoryId: created.referenceLaboratoryId,
+          sendOutId: created.sendOutId,
+        },
       });
       await this.events.record(tx, resultEvent("LaboratoryResultEntered", created));
       return this.view(tx, actor, created);
@@ -153,7 +168,7 @@ export class LabResultService {
         released.push(await this.releaseLocked(tx, actor, row));
       }
       await this.recordReportReleased(tx, orderId);
-      return this.readModel.results(actor.organizationId, released);
+      return this.readModel.results(tx, actor, released);
     });
   }
 
@@ -173,7 +188,8 @@ export class LabResultService {
       if (!actor.permissions.has(needed)) throw new ForbiddenError(`Correcting a ${current.status} result requires ${needed}`);
       const { item, order } = await this.lockItem(tx, actor.organizationId, current.orderItemId);
       await tx.update(labResult).set({ status: "superseded", supersededAt: new Date() }).where(eq(labResult.id, current.id));
-      const created = await this.insertVersion(tx, actor, item, order, input, { previous: current, reason: input.reason });
+      // A correction keeps the performing laboratory of the version it corrects (e.g. a reference laboratory's amended report).
+      const created = await this.insertVersion(tx, actor, item, order, input, { previous: current, reason: input.reason, attribution: attributionOf(current) });
       await this.setItemStatus(tx, item.id, "resulted");
       // A completed order is open again until the corrected version is released.
       await this.orders.refreshOrderStatus(tx, actor, order);
@@ -239,7 +255,7 @@ export class LabResultService {
       resourceId: current.orderId,
       patientId: current.patientId,
     });
-    return this.readModel.results(actor.organizationId, rows);
+    return this.readModel.results(this.db, actor, rows);
   }
 
   /** A patient's released results (current versions), newest first — for Patient 360 and the encounter workspace. */
@@ -261,7 +277,8 @@ export class LabResultService {
       .limit(200);
     await this.audit.recordStandalone(actor, { action: "lab.result.list", resourceType: "lab_result", patientId });
     const views = await this.readModel.results(
-      actor.organizationId,
+      this.db,
+      actor,
       rows.map((r) => r.result),
     );
     return rows.map((r, index) => ({ ...views[index]!, testCode: r.testCode, testName: r.testName, orderNumber: r.orderNumber, collectedAt: r.collectedAt }));
@@ -433,6 +450,15 @@ export class LabResultService {
       if (current.status !== (kind === "verify" ? "entered" : "verified")) {
         throw new ConflictError(`The result is ${current.status}; it cannot be ${target} now`, undefined, "invalid_result_status");
       }
+      if (kind === "verify") {
+        // What is verified is frozen, attachments included: an upload still in progress must finish or be removed first.
+        const [pending] = await tx
+          .select({ id: labResultAttachment.id })
+          .from(labResultAttachment)
+          .where(and(eq(labResultAttachment.resultId, current.id), eq(labResultAttachment.status, "pending")))
+          .limit(1);
+        if (pending) throw new BusinessRuleError("An attachment of this result is still uploading: finish or remove it before verifying", "attachment_pending");
+      }
       const policy = await this.catalog.policy(tx, current.facilityId);
       const decision = signOffDecision(kind, current, actor.userId, policy);
       if (!decision.allowed) {
@@ -541,7 +567,7 @@ export class LabResultService {
     item: LabOrderItemRecord,
     order: LabOrderRecord,
     input: ResultValueInput,
-    options: { previous: LabResultRecord | null; reason: string | null },
+    options: { previous: LabResultRecord | null; reason: string | null; attribution: ResultAttribution | null },
   ): Promise<LabResultRecord> {
     const [test] = await tx.select().from(labTest).where(eq(labTest.id, item.testId));
     const definition = found(test, "Laboratory test");
@@ -579,6 +605,9 @@ export class LabResultService {
         qcStatus: qc?.qcStatus ?? null,
         patientReleasable: definition.patientReleasable,
         enteredBy: actor.userId,
+        sendOutId: options.attribution?.sendOutId ?? null,
+        referenceLaboratoryId: options.attribution?.referenceLaboratoryId ?? null,
+        performingLaboratory: options.attribution?.performingLaboratory ?? null,
       })
       .returning();
     return found(row, "Laboratory result");
@@ -638,8 +667,7 @@ export class LabResultService {
   }
 
   private async view(executor: DbExecutor, actor: Actor, row: LabResultRecord): Promise<ResultView> {
-    void executor;
-    const [view] = await this.readModel.results(actor.organizationId, [row]);
+    const [view] = await this.readModel.results(executor, actor, [row]);
     return view!;
   }
 
@@ -687,6 +715,11 @@ export class LabResultService {
       .for("update");
     return found(row, "Critical result");
   }
+}
+
+function attributionOf(result: LabResultRecord): ResultAttribution | null {
+  if (!result.referenceLaboratoryId || !result.performingLaboratory) return null;
+  return { sendOutId: result.sendOutId, referenceLaboratoryId: result.referenceLaboratoryId, performingLaboratory: result.performingLaboratory };
 }
 
 function resultEvent(type: string, result: LabResultRecord, extra: Record<string, unknown> = {}) {

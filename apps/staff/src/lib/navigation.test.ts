@@ -13,10 +13,11 @@ describe("navigationForPermissions", () => {
     expect(hrefs(["audit.read"])).not.toContain("/patients");
   });
 
-  it("shows clinical demo modules, badged, to users who can read patient records", () => {
-    const nav = navigationForPermissions(["patient.search", "patient.read"]);
-    expect(nav.find((i) => i.href === "/dental")?.badge).toBe("Demo");
-    expect(nav.find((i) => i.href === "/patients")?.badge).toBeUndefined();
+  it("shows the API-backed dental module by dental permission, without a demo badge", () => {
+    expect(hrefs(["patient.search", "patient.read"])).not.toContain("/dental");
+    const dental = navigationForPermissions(["dental.record.read"]).find((i) => i.href === "/dental");
+    expect(dental?.badge).toBeUndefined();
+    expect(dental?.children?.map((c) => c.href)).toEqual(["/dental", "/dental/settings"]);
   });
 
   it("shows the API-backed laboratory by laboratory permission, without a demo badge", () => {
@@ -41,6 +42,12 @@ describe("navigationForPermissions", () => {
     expect(hrefs(["user.manage"])).toContain("/admin");
   });
 
+  it("shows record imports only to import reviewers", () => {
+    expect(hrefs(["patient.search", "clinical.read"])).not.toContain("/records");
+    const records = navigationForPermissions(["interop.fhir.import.review"]).find((i) => i.href === "/records");
+    expect(records?.children?.map((c) => c.href)).toEqual(["/records/imports"]);
+  });
+
   it("drops demo role filters from items and children", () => {
     const clinic = navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);
@@ -51,7 +58,7 @@ describe("navigationForPermissions", () => {
 
 describe("isDemoPath", () => {
   it("flags fixture-backed modules and previews, not API-backed pages", () => {
-    expect(isDemoPath("/dental")).toBe(true);
+    expect(isDemoPath("/dental")).toBe(false);
     expect(isDemoPath("/laboratory/worklist")).toBe(false);
     expect(isDemoPath("/preview/patient-360")).toBe(true);
     expect(isDemoPath("/patients/abc")).toBe(false);
