@@ -7,7 +7,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { DentalRecord, DentalSettings, DentalVisits } from "@/lib/api/types";
+import type { DentalRecord, DentalRecordSupplies, DentalSettings, DentalSupplyOptions, DentalVisits } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { openVisit } from "@/lib/dental-mapping";
 import { DentalChartPanel } from "./dental-chart-panel";
@@ -31,16 +31,18 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
   if (!UUID.test(id)) notFound();
   const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
   if (!can(session, "dental.record.read")) redirect("/");
-  let record: DentalRecord;
+  let record: DentalRecord & DentalRecordSupplies;
   try {
-    record = await api<DentalRecord>(`/dental/patients/${id}`);
+    record = await api<DentalRecord & DentalRecordSupplies>(`/dental/patients/${id}`);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
   }
-  const [settings, visits] = await Promise.all([
+  const canRecordProcedure = can(session, "dental.procedure.record");
+  const [settings, visits, supplyOptions] = await Promise.all([
     api<DentalSettings>("/dental/settings"),
     facility ? api<DentalVisits>("/dental/visits").then((v) => v.visits) : Promise.resolve([]),
+    facility && canRecordProcedure ? api<DentalSupplyOptions>("/dental/supplies/options") : Promise.resolve(null),
   ]);
   const visit = openVisit(visits, id);
   const encounterId = visit?.encounterId ?? null;
@@ -102,8 +104,10 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
             plans={record.plans}
             notation={record.notation}
             encounterId={encounterId}
-            canRecord={can(session, "dental.procedure.record")}
+            canRecord={canRecordProcedure}
             canCorrect={canCorrect}
+            supplyUses={record.supplyUses ?? []}
+            supplyOptions={supplyOptions}
           />
           <Examinations patientId={id} examinations={record.examinations} notation={record.notation} canCorrect={canCorrect} />
           <Periodontal

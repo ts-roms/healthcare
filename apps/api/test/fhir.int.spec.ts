@@ -298,8 +298,10 @@ describe("FHIR R4 interface", () => {
     const everything = (await get(`/Patient/${patientId}/$everything`, integration).expect(200)).body as Bundle;
     expect(schemaErrors(everything)).toEqual([]);
     expect(everything.entry.some((e) => e.resource.resourceType === "DocumentReference")).toBe(false);
+    // This account may read neither documents nor the dental record: one notice for each.
     expect(everything.entry.filter((e) => e.search.mode === "outcome").map((e) => e.resource.issue)).toEqual([
-      [expect.objectContaining({ severity: "information", code: "suppressed" })],
+      [expect.objectContaining({ severity: "information", code: "suppressed", diagnostics: expect.stringContaining("document.read") })],
+      [expect.objectContaining({ severity: "information", code: "suppressed", diagnostics: expect.stringContaining("dental.record.read") })],
     ]);
     const outcome = (body: { issue: Array<{ code: string }> }) => body.issue[0]!.code;
     expect(outcome((await get(`/DocumentReference?patient=${patientId}`, integration).expect(403)).body)).toBe("forbidden");

@@ -18,14 +18,17 @@ const KIND: Record<InventoryMovement["kind"], string> = {
   transfer_in: "Transferred in",
   adjustment: "Count adjustment",
   write_off: "Written off",
-  return: "Returned",
+  return: "Returned unused",
 };
 
 const SOURCE: Record<NonNullable<InventoryMovement["sourceType"]>, string> = {
   prescription_dispense: "Pharmacy dispense",
   lab_reagent_load: "Loaded on a laboratory instrument",
   purchase_order_line: "Purchase order delivery",
+  dental_procedure: "Dental procedure",
 };
+
+/** Records of other domains that stock is issued to or returned from. */
 
 /** The ledger: every movement at this facility's locations, newest first (append-only). */
 export default async function MovementsPage() {

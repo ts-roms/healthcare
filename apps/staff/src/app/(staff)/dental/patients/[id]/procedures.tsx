@@ -2,17 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { PackageIcon } from "lucide-react";
 import type { ToothNotation } from "@healthcare/domain";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import type { DentalProcedure, DentalProcedureType, DentalTreatmentPlan } from "@/lib/api/types";
+import type { DentalProcedure, DentalProcedureType, DentalSupplyOptions, DentalSupplyUse, DentalTreatmentPlan } from "@/lib/api/types";
 import { markProcedureEnteredInError, recordProcedure } from "../../actions";
 import { EnteredInError } from "./entered-in-error";
 import { emptySelection, itemLabel, ProcedureFields, type ProcedureSelection, selectionComplete, selectionPayload } from "./procedure-fields";
+import { ProcedureSupplies } from "./procedure-supplies";
 
 /**
  * Procedures performed during the dental visit. A procedure that changes a tooth updates the chart; one carried out
- * from a plan completes the plan item; billing charges it from its code (dentistry sets no price).
+ * from a plan completes the plan item; billing charges it from its code (dentistry sets no price). The supplies it used
+ * are confirmed right after (prefilled from the procedure's template) and issued from stock.
  */
 export function Procedures({
   patientId,
@@ -23,6 +26,8 @@ export function Procedures({
   encounterId,
   canRecord,
   canCorrect,
+  supplyUses = [],
+  supplyOptions = null,
 }: {
   patientId: string;
   procedures: DentalProcedure[];
@@ -32,6 +37,8 @@ export function Procedures({
   encounterId: string | null;
   canRecord: boolean;
   canCorrect: boolean;
+  supplyUses?: DentalSupplyUse[];
+  supplyOptions?: DentalSupplyOptions | null;
 }) {
   const router = useRouter();
   const [selection, setSelection] = React.useState<ProcedureSelection>(emptySelection);
@@ -39,6 +46,7 @@ export function Procedures({
   const [notes, setNotes] = React.useState("");
   const [key, setKey] = React.useState(() => crypto.randomUUID());
   const [pending, startTransition] = React.useTransition();
+  const [suppliesOf, setSuppliesOf] = React.useState<string | null>(null);
   const planned = plans
     .filter((p) => p.status === "accepted" || p.status === "in_progress")
     .flatMap((p) => p.items.filter((i) => i.status === "accepted").map((i) => ({ plan: p, item: i })));
@@ -59,7 +67,8 @@ export function Procedures({
         key,
       );
       if (result.ok) {
-        toast.success(`${result.data.label} recorded`);
+        toast.success(`${result.data.label} recorded — confirm the supplies used`);
+        setSuppliesOf(result.data.id);
         setSelection(emptySelection);
         setPlanItemId("");
         setNotes("");
@@ -115,21 +124,30 @@ export function Procedures({
         <ul className="divide-y text-table" aria-label="Procedures performed">
           {procedures.map((p) => {
             const error = p.status === "entered_in_error";
+            const supplyCount = supplyUses.filter((u) => u.procedureId === p.id && u.kind === "issue").length;
             return (
-              <li key={p.id} className="flex flex-wrap items-center gap-2 py-1.5">
-                <span className="tabular w-36 text-meta text-muted-foreground">{clinicalDateTime(p.performedAt)}</span>
-                <span className={error ? "min-w-0 flex-1 text-muted-foreground line-through" : "min-w-0 flex-1"}>
-                  {itemLabel(p.procedure.name, p.tooth, p.surfaces, notation)}
-                  {p.notes ? <span className="text-muted-foreground"> · {p.notes}</span> : null}
-                  {p.planItemId ? <span className="text-muted-foreground"> · from plan</span> : null}
-                </span>
-                <span className="text-meta text-muted-foreground">{p.practitionerName}</span>
-                {error ? (
-                  <Badge variant="neutral" title={p.enteredInErrorReason ?? undefined}>
-                    Entered in error
-                  </Badge>
-                ) : canCorrect ? (
-                  <EnteredInError what="Procedure" onConfirm={(reason) => markProcedureEnteredInError(patientId, p.id, reason)} />
+              <li key={p.id} className="flex flex-col gap-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="tabular w-36 text-meta text-muted-foreground">{clinicalDateTime(p.performedAt)}</span>
+                  <span className={error ? "min-w-0 flex-1 text-muted-foreground line-through" : "min-w-0 flex-1"}>
+                    {itemLabel(p.procedure.name, p.tooth, p.surfaces, notation)}
+                    {p.notes ? <span className="text-muted-foreground"> · {p.notes}</span> : null}
+                    {p.planItemId ? <span className="text-muted-foreground"> · from plan</span> : null}
+                  </span>
+                  <span className="text-meta text-muted-foreground">{p.practitionerName}</span>
+                  {error ? (
+                    <Badge variant="neutral" title={p.enteredInErrorReason ?? undefined}>
+                      Entered in error
+                    </Badge>
+                  ) : canCorrect ? (
+                    <EnteredInError what="Procedure" onConfirm={(reason) => markProcedureEnteredInError(patientId, p.id, reason)} />
+                  ) : null}
+                  <Button size="xs" variant="ghost" aria-expanded={suppliesOf === p.id} onClick={() => setSuppliesOf(suppliesOf === p.id ? null : p.id)}>
+                    <PackageIcon /> Supplies{supplyCount ? ` (${supplyCount})` : ""}
+                  </Button>
+                </div>
+                {suppliesOf === p.id ? (
+                  <ProcedureSupplies patientId={patientId} procedure={p} uses={supplyUses} options={supplyOptions} canRecord={canRecord} />
                 ) : null}
               </li>
             );

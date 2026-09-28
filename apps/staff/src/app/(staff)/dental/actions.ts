@@ -8,9 +8,11 @@ import { uploadPatientDocument } from "@/lib/api/documents";
 import type {
   DentalExamination,
   DentalPerioChartDetail,
+  DentalPortalSetting,
   DentalImage,
   DentalProcedure,
   DentalProcedureType,
+  DentalSupplyUse,
   DentalToothHistoryEntry,
   DentalTreatmentPlan,
 } from "@/lib/api/types";
@@ -206,6 +208,48 @@ export async function markProcedureEnteredInError(patientId: string, procedureId
   return run(z.object({ reason }), { reason: why }, `/dental/procedures/${procedureId}/entered-in-error`, { revalidate: record(patientId) });
 }
 
+// ---- supplies used (inventory) ----------------------------------------------------------------------
+
+const supplyQuantity = z.number().int("Whole units only.").min(1, "Quantity of at least 1.").max(1000);
+const supplyReference = z.string().trim().min(1).max(80);
+const suppliesSchema = z.object({
+  locationId: z.uuid("Choose the stock location."),
+  lines: z
+    .array(
+      z.object({
+        itemId: id,
+        quantity: supplyQuantity,
+        reason: z.string().trim().min(3, "A reason needs at least 3 characters.").max(500).optional(),
+        reference: supplyReference.optional(),
+      }),
+    )
+    .min(1, "Add at least one supply.")
+    .max(30),
+  idempotencyKey: key,
+});
+
+/** Confirms the supplies a procedure used; the API issues them from stock (FEFO, never expired lots) or refuses all. */
+export async function recordSupplies(patientId: string, procedureId: string, input: z.input<typeof suppliesSchema>): Promise<ActionResult<DentalSupplyUse>> {
+  if (!id.safeParse(procedureId).success) return { ok: false, message: "Unknown procedure." };
+  return run(suppliesSchema, input, `/dental/procedures/${procedureId}/supplies`, { revalidate: record(patientId) });
+}
+
+const returnSchema = z.object({
+  lines: z
+    .array(z.object({ lineId: id, quantity: supplyQuantity }))
+    .min(1, "Choose what comes back.")
+    .max(60),
+  reason: z.string().trim().min(3, "Give a reason (at least 3 characters).").max(500),
+  reference: supplyReference.optional(),
+  idempotencyKey: key,
+});
+
+/** Returns unused supplies of a procedure to the lots they came from. */
+export async function returnSupplies(patientId: string, procedureId: string, input: z.input<typeof returnSchema>): Promise<ActionResult<DentalSupplyUse>> {
+  if (!id.safeParse(procedureId).success) return { ok: false, message: "Unknown procedure." };
+  return run(returnSchema, input, `/dental/procedures/${procedureId}/supplies/returns`, { revalidate: record(patientId) });
+}
+
 // ---- imaging ----------------------------------------------------------------------------------------
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/tiff", "application/dicom"]);
@@ -307,5 +351,32 @@ export async function setNotation(facilityId: string, notation: "fdi" | "univers
   return run(z.object({ notation: z.enum(["fdi", "universal", "palmer"]) }), { notation }, `/dental/facilities/${facilityId}/notation`, {
     method: "PUT",
     revalidate: ["/dental/settings", "/dental"],
+  });
+}
+
+/** Turns MyHealth dental records on or off for the organization (`dental.settings.manage`; the API audits the change). */
+export async function setPortalDentalRecords(portalDentalRecords: boolean, settingVersion: number) {
+  return run<DentalPortalSetting>(
+    z.object({ portalDentalRecords: z.boolean(), version: z.number().int().min(0) }),
+    { portalDentalRecords, version: settingVersion },
+    "/dental/settings/portal",
+    { method: "PUT", revalidate: ["/dental/settings"] },
+  );
+}
+
+const templateSchema = z.object({ items: z.array(z.object({ itemId: id, quantity: supplyQuantity })).max(30) });
+
+/** The supplies a procedure usually uses (an empty list clears the template). */
+export async function setSupplyTemplate(procedureTypeId: string, items: Array<{ itemId: string; quantity: number }>) {
+  if (!id.safeParse(procedureTypeId).success) return { ok: false as const, message: "Unknown procedure." };
+  return run(templateSchema, { items }, `/dental/procedure-types/${procedureTypeId}/supplies`, { method: "PUT", revalidate: ["/dental/settings"] });
+}
+
+/** The stock location of the facility dental supplies are taken from by default. */
+export async function setSupplyLocation(facilityId: string, locationId: string | null) {
+  if (!id.safeParse(facilityId).success) return { ok: false as const, message: "Select your facility first." };
+  return run(z.object({ locationId: id.nullable() }), { locationId }, `/dental/facilities/${facilityId}/supply-location`, {
+    method: "PUT",
+    revalidate: ["/dental/settings"],
   });
 }

@@ -1,6 +1,6 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0026_inventory.sql and 0052_inventory_procurement.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0026_inventory.sql and 0052_inventory_procurement.sql (and 0057 for the dental_procedure source; the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -9,7 +9,7 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off", "return"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 /** Workflows that move stock through the inventory contract (the movement names its source). */
-export const MOVEMENT_SOURCES = ["prescription_dispense", "lab_reagent_load", "purchase_order_line"] as const;
+export const MOVEMENT_SOURCES = ["prescription_dispense", "lab_reagent_load", "purchase_order_line", "dental_procedure"] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 export const PURCHASE_ORDER_STATUSES = ["draft", "submitted", "approved", "partially_received", "received", "cancelled", "closed"] as const;
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];

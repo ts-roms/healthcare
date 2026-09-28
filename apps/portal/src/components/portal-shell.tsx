@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, UserIcon } from "lucide-react";
+import { CalendarIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, SmileIcon, UserIcon } from "lucide-react";
 import { PatientLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { Button } from "@healthcare/ui/primitives";
 
@@ -13,6 +13,7 @@ const NAV = [
   { label: "Home", href: "/", icon: HomeIcon },
   { label: "Visits", href: "/appointments", icon: CalendarIcon },
   { label: "Results", href: "/results", icon: FlaskConicalIcon },
+  { label: "Dental", href: "/dental", icon: SmileIcon },
   { label: "Messages", href: "/messages", icon: MessageSquareIcon },
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];
@@ -20,15 +21,18 @@ const NAV = [
 export function PortalShell({
   givenName,
   unreadMessages,
+  dental,
   signOut,
   children,
 }: {
   givenName: string;
   unreadMessages: number;
+  /** The clinic shares dental records and there is something to show. */
+  dental: boolean;
   signOut: () => Promise<void>;
   children: React.ReactNode;
 }) {
-  const nav = NAV.map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
+  const nav = NAV.filter((n) => dental || n.href !== "/dental").map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
   return (
     <PatientLayout
       nav={nav}

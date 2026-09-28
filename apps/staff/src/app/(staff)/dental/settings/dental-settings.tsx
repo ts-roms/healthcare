@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon } from "lucide-react";
+import { EyeOffIcon, PlusIcon, SmartphoneIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
+import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import type { DentalChartEffect, DentalProcedureSite, DentalSettings } from "@/lib/api/types";
+import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
-import { createProcedureType, setNotation, setProcedureTypeStatus } from "../actions";
+import { createProcedureType, setNotation, setPortalDentalRecords, setProcedureTypeStatus } from "../actions";
 
 const EFFECTS: Record<DentalChartEffect, string> = {
   restoration: "Restoration (on the treated surfaces)",
@@ -24,10 +25,12 @@ const NOTATIONS: Record<ToothNotation, string> = { fdi: "FDI (ISO 3950)", univer
 
 export function DentalSettingsForm({
   settings,
+  portal,
   facility,
   canManage,
 }: {
   settings: DentalSettings;
+  portal: DentalPortalSetting;
   facility: { id: string; name: string } | null;
   canManage: boolean;
 }) {
@@ -152,34 +155,84 @@ export function DentalSettingsForm({
         </CardContent>
       </Card>
 
-      <Card className="self-start">
-        <CardHeader>
-          <CardTitle>Tooth notation</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-body">
-          <p className="text-meta text-muted-foreground">
-            How teeth are numbered on screen{facility ? ` at ${facility.name}` : ""}. Records are always stored in FDI.
-          </p>
-          {facility && canManage ? (
-            <NativeSelect
-              aria-label="Tooth notation"
-              value={settings.notation}
-              disabled={pending}
-              onChange={(e) => act(() => setNotation(facility.id, e.target.value as ToothNotation), "Notation changed")}
-            >
-              {(Object.keys(NOTATIONS) as ToothNotation[]).map((n) => (
-                <option key={n} value={n}>
-                  {NOTATIONS[n]} — upper right first molar {toothLabel("16", n)}
-                </option>
-              ))}
-            </NativeSelect>
-          ) : (
-            <p>
-              {NOTATIONS[settings.notation]} — upper right first molar {toothLabel("16", settings.notation)}
+      <div className="flex flex-col gap-4 self-start">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tooth notation</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-body">
+            <p className="text-meta text-muted-foreground">
+              How teeth are numbered on screen{facility ? ` at ${facility.name}` : ""}. Records are always stored in FDI.
             </p>
-          )}
-        </CardContent>
-      </Card>
+            {facility && canManage ? (
+              <NativeSelect
+                aria-label="Tooth notation"
+                value={settings.notation}
+                disabled={pending}
+                onChange={(e) => act(() => setNotation(facility.id, e.target.value as ToothNotation), "Notation changed")}
+              >
+                {(Object.keys(NOTATIONS) as ToothNotation[]).map((n) => (
+                  <option key={n} value={n}>
+                    {NOTATIONS[n]} — upper right first molar {toothLabel("16", n)}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : (
+              <p>
+                {NOTATIONS[settings.notation]} — upper right first molar {toothLabel("16", settings.notation)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Dental records in MyHealth</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-body">
+            {portal.portalDentalRecords ? (
+              <Badge variant="info" className="w-fit">
+                <SmartphoneIcon aria-hidden /> Shown to patients
+              </Badge>
+            ) : (
+              <Badge variant="neutral" className="w-fit">
+                <EyeOffIcon aria-hidden /> Not shown to patients
+              </Badge>
+            )}
+            <p className="text-meta text-muted-foreground">
+              For the whole organization. When on, patients with MyHealth access see their treatment plans (each item with the tooth, the procedure name, their
+              decision and its status), the procedures done (date, tooth and surfaces, dentist, facility) and a plain-language summary of their current tooth
+              chart.
+            </p>
+            <p className="text-meta text-muted-foreground">
+              Never shown: examination and plan notes, tooth notes, decision notes, periodontal charts, radiographs and photos, procedure codes, and anything
+              entered in error. Plans carry no fees; patients are told to ask the clinic.
+            </p>
+            {portal.updatedAt ? (
+              <p className="text-meta text-muted-foreground">
+                Last changed {clinicalDateTime(portal.updatedAt)}
+                {portal.updatedByName ? ` by ${portal.updatedByName}` : ""}
+              </p>
+            ) : null}
+            {canManage ? (
+              <Button
+                size="sm"
+                variant={portal.portalDentalRecords ? "outline" : "default"}
+                className="self-start"
+                disabled={pending}
+                onClick={() =>
+                  act(
+                    () => setPortalDentalRecords(!portal.portalDentalRecords, portal.version),
+                    portal.portalDentalRecords ? "Dental records hidden from MyHealth" : "Dental records shown in MyHealth",
+                  )
+                }
+              >
+                {portal.portalDentalRecords ? "Stop showing in MyHealth" : "Show in MyHealth"}
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

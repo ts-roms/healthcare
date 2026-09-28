@@ -1513,8 +1513,8 @@ export interface InventoryMovement {
   reference: string | null;
   issuedTo: string | null;
   reason: string | null;
-  /** The workflow that moved the stock (a dispense, a reagent load, a purchase order line). */
-  sourceType: "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | null;
+  /** The workflow that moved the stock (a dispense, a reagent load, a purchase order line, a dental procedure). */
+  sourceType: "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | "dental_procedure" | null;
   sourceId: string | null;
   recordedBy: string;
   recordedAt: string;
@@ -2722,4 +2722,68 @@ export interface LabCompetencyOverview {
       state: "competent" | "due" | "not_yet_competent";
     }>;
   }>;
+
+// ---- MyHealth dental records (libs/dental/src/lib/portal/dental-portal-settings.service.ts; GET/PUT /dental/settings/portal) ----
+
+export interface DentalPortalSetting {
+  /** Patients see their treatment plans, completed procedures and tooth chart in MyHealth (off by default). */
+  portalDentalRecords: boolean;
+  /** 0 until first set. */
+  version: number;
+  updatedAt: string | null;
+  updatedByName: string | null;
+}
+
+// ---- Dental supplies from inventory (libs/dental/src/lib/supplies; migration 0057) ----
+
+/** GET /dental/supplies/options */
+export interface DentalSupplyOptions {
+  facilityId: string | null;
+  defaultLocationId: string | null;
+  locations: Array<{ id: string; code: string; name: string }>;
+  items: Array<{
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    stockUnit: string;
+    controlled: boolean;
+    status: "active" | "inactive";
+    /** Usable (not expired) stock per location id of the selected facility. */
+    usable: Record<string, number>;
+  }>;
+  templates: Array<{ procedureTypeId: string; items: Array<{ itemId: string; quantity: number }> }>;
+}
+
+export interface DentalSupplyUseLine {
+  id: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+  returnsLineId: string | null;
+  /** Issued lines: how much is still out (not returned). Null on return lines. */
+  outstanding: number | null;
+}
+
+export interface DentalSupplyUse {
+  id: string;
+  procedureId: string;
+  kind: "issue" | "return";
+  locationId: string;
+  locationName: string | null;
+  reason: string | null;
+  recordedBy: string;
+  recordedByName?: string | null;
+  recordedAt: string;
+  lines: DentalSupplyUseLine[];
+}
+
+/** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
+export interface DentalRecordSupplies {
+  supplyUses?: DentalSupplyUse[];
 }
