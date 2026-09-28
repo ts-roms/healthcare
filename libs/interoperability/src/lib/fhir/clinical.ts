@@ -1,6 +1,6 @@
 import type { AllergyIntolerance, Appointment, Condition, Encounter, Observation, ObservationComponent, Quantity } from "fhir/r4";
 import type { AllergyReviewSource, AllergySource, AppointmentSource, DiagnosisSource, EncounterSource, FhirContext, VitalsSource } from "./sources";
-import { codeSystem, compact, concept, ref, text } from "./support";
+import { codeSystem, compact, concept, externalMeta, ref, text } from "./support";
 import { NO_KNOWN_ALLERGY, SYSTEMS, VITAL_SIGNS } from "./terminology";
 
 const ENCOUNTER_STATUS = { in_progress: "in-progress", completed: "finished", entered_in_error: "entered-in-error" } as const;
@@ -56,15 +56,21 @@ const ALLERGY_CATEGORY: Record<string, "food" | "medication" | "environment" | "
   biologic: "biologic",
 };
 
-export function toAllergyIntolerance(patientId: string, a: AllergySource): AllergyIntolerance {
+/**
+ * An allergy. One accepted from an import (`source = external_import`) carries the external-source tag and is always
+ * `unconfirmed`: nobody in this organization verified it.
+ */
+export function toAllergyIntolerance(ctx: FhirContext, patientId: string, a: AllergySource): AllergyIntolerance {
   const inError = a.status === "entered_in_error";
+  const imported = a.source === "external_import";
   const category = ALLERGY_CATEGORY[a.category];
   return compact<AllergyIntolerance>({
     resourceType: "AllergyIntolerance",
     id: a.id,
+    meta: imported ? externalMeta(ctx) : undefined,
     // ait-2: no clinical status when entered in error.
     clinicalStatus: inError ? undefined : concept({ system: SYSTEMS.allergyClinical, code: ALLERGY_CLINICAL[a.status] ?? "active" }),
-    verificationStatus: concept({ system: SYSTEMS.allergyVerification, code: inError ? "entered-in-error" : a.verification }),
+    verificationStatus: concept({ system: SYSTEMS.allergyVerification, code: inError ? "entered-in-error" : imported ? "unconfirmed" : a.verification }),
     category: category ? [category] : undefined,
     criticality: a.criticality === "unable_to_assess" ? "unable-to-assess" : a.criticality,
     code: text(a.substance),

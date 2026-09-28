@@ -2,6 +2,7 @@ import type { Bundle, BundleEntry, BundleLink, CapabilityStatement, FhirResource
 import { toLocation, toOrganization, toPatient, toPractitioner } from "./administrative";
 import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnownAllergies, toVitalSignObservations } from "./clinical";
 import { toDocumentReference } from "./documents";
+import { toExternalHistoryResource } from "./external";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
 import { compact } from "./support";
 import { DEFAULT_PAGING, matchesLastUpdated, PAGE_SIZE, type Paging, type SearchParameters } from "./search";
@@ -18,6 +19,7 @@ export const PATIENT_COMPARTMENT_TYPES = [
   "ServiceRequest",
   "DiagnosticReport",
   "MedicationRequest",
+  "MedicationStatement",
   "CarePlan",
   "DocumentReference",
 ] as const;
@@ -25,11 +27,13 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 
 /**
  * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
- * immutable once issued (cancel/replace records its time) and exported documents never change after upload. The
- * other records are updated in place without a trustworthy change time for everything their resource shows (see
- * docs/interoperability/fhir.md), so `_lastUpdated` is refused for them rather than answered approximately.
+ * immutable once issued (cancel/replace records its time), exported documents never change after upload, and external
+ * history entries (the only MedicationStatements, and imported document descriptions) change only when marked entered
+ * in error (database triggers). The other records are updated in place without a trustworthy change time for
+ * everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for them rather
+ * than answered approximately.
  */
-export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "DocumentReference"];
+export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference"];
 
 /** Every resource of one patient's record, the patient first; shared resources (organization, facilities, practitioners) after. */
 export function patientResources(ctx: FhirContext, src: PatientRecordSource): { patient: FhirResource; clinical: FhirResource[]; supporting: FhirResource[] } {
@@ -37,7 +41,7 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   const clinical: FhirResource[] = [];
   for (const e of src.encounters) clinical.push(toEncounter(ctx, patientId, e, src.diagnoses));
   for (const d of src.diagnoses) clinical.push(toCondition(ctx, patientId, d));
-  for (const a of src.allergies) clinical.push(toAllergyIntolerance(patientId, a));
+  for (const a of src.allergies) clinical.push(toAllergyIntolerance(ctx, patientId, a));
   if (src.allergyReview?.noKnownAllergies && !src.allergies.some((a) => a.status === "active")) {
     clinical.push(toNoKnownAllergies(patientId, src.allergyReview));
   }
@@ -52,6 +56,8 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
   for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
+  // External history (tagged as imported); document descriptions are withheld with the documents.
+  for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
 
   const supporting: FhirResource[] = [
     toOrganization(ctx),
@@ -159,6 +165,15 @@ export function searchByPatient(
   return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, []);
 }
 
+const IMPORTED = "Resources received from other systems (accepted FHIR imports) carry meta.tag record-source#external-import.";
+const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
+  Condition: `Diagnoses recorded in encounters, and conditions from other systems (always unconfirmed). ${IMPORTED}`,
+  AllergyIntolerance: `${IMPORTED} Imported allergies are always unconfirmed.`,
+  Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), and observations from other systems. ${IMPORTED}`,
+  MedicationStatement: `Medication history from other systems only (never a prescription of this organization). ${IMPORTED}`,
+  DocumentReference: `Available documents only (not archived ones), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
+};
+
 /** What this read-only endpoint supports (GET /metadata). */
 export function capabilityStatement(ctx: FhirContext, now = new Date()): CapabilityStatement {
   return {
@@ -190,7 +205,7 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
           ...PATIENT_COMPARTMENT_TYPES.map((type) => ({
             type,
             interaction: [{ code: "search-type" as const }],
-            ...(type === "DocumentReference" ? { documentation: "Available documents only (not archived ones); requires document.read." } : {}),
+            ...(TYPE_DOCUMENTATION[type] ? { documentation: TYPE_DOCUMENTATION[type] } : {}),
             searchParam: [
               { name: "patient", type: "reference" as const, documentation: "Required: the patient's id" },
               ...(LAST_UPDATED_TYPES.includes(type)

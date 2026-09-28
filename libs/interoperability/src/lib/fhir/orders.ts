@@ -1,5 +1,16 @@
-import type { CarePlan, CarePlanActivity, CodeableConcept, DiagnosticReport, Dosage, MedicationRequest, Observation, ServiceRequest } from "fhir/r4";
-import type { CarePlanSource, FhirContext, LabItemSource, LabOrderSource, LabResultSource, PrescriptionSource } from "./sources";
+import type {
+  CarePlan,
+  CarePlanActivity,
+  CodeableConcept,
+  DiagnosticReport,
+  Dosage,
+  MedicationRequest,
+  Observation,
+  Organization,
+  Reference,
+  ServiceRequest,
+} from "fhir/r4";
+import type { CarePlanSource, FhirContext, LabItemSource, LabOrderSource, LabResultSource, PrescriptionSource, ReferenceLaboratorySource } from "./sources";
 import { compact, concept, identifier, localSystem, ref, text } from "./support";
 import { LAB_REPORT_CODE, SYSTEMS } from "./terminology";
 
@@ -46,7 +57,42 @@ const INTERPRETATION: Record<NonNullable<LabResultSource["flag"]>, { code: strin
   abnormal: { code: "A", display: "Abnormal" },
 };
 
-/** A released laboratory result as an Observation (a corrected version is "corrected"). */
+/**
+ * Identifier system for a reference laboratory's accreditation / licence reference: only a configured one
+ * (`FHIR_IDENTIFIER_SYSTEMS.reference_laboratory_accreditation`). Without one the reference is not exported — no
+ * official URI is on record, and a local namespace would suggest the platform issued or verified it.
+ */
+export const REFERENCE_LAB_ACCREDITATION = "reference_laboratory_accreditation";
+
+/** The contained resource id of a reference laboratory (local to the resource that contains it). */
+function referenceLabId(lab: ReferenceLaboratorySource): string {
+  return `reference-lab-${lab.id}`;
+}
+
+/**
+ * A reference laboratory that performed a send-out test, as a contained Organization: it is not a resource of this
+ * server (nothing about it is verified), so it travels inside the result that names it.
+ */
+export function toReferenceLaboratory(ctx: FhirContext, lab: ReferenceLaboratorySource): Organization {
+  const system = ctx.identifierSystems?.[REFERENCE_LAB_ACCREDITATION];
+  return compact<Organization>({
+    resourceType: "Organization",
+    id: referenceLabId(lab),
+    identifier:
+      system && lab.accreditationReference ? [identifier(system, lab.accreditationReference, { type: text("Accreditation / licence reference") })] : undefined,
+    type: [text("Reference laboratory")],
+    name: lab.name,
+  });
+}
+
+function referenceLabRef(lab: ReferenceLaboratorySource): Reference {
+  return { reference: `#${referenceLabId(lab)}`, display: lab.name };
+}
+
+/**
+ * A released laboratory result as an Observation (a corrected version is "corrected"). The performer is the
+ * organization's laboratory, or — for a send-out — the reference laboratory that performed it (contained).
+ */
 export function toLabObservation(ctx: FhirContext, patientId: string, order: LabOrderSource, item: LabItemSource, r: LabResultSource): Observation {
   const unit = r.unit ?? undefined;
   return compact<Observation>({
@@ -60,7 +106,8 @@ export function toLabObservation(ctx: FhirContext, patientId: string, order: Lab
     encounter: order.encounterId ? ref("Encounter", order.encounterId) : undefined,
     effectiveDateTime: r.collectedAt ?? undefined,
     issued: r.releasedAt ?? undefined,
-    performer: [ref("Organization", ctx.organization.id)],
+    contained: r.performer ? [toReferenceLaboratory(ctx, r.performer)] : undefined,
+    performer: r.performer ? [referenceLabRef(r.performer)] : [ref("Organization", ctx.organization.id)],
     valueQuantity: r.resultType === "numeric" && r.valueNumeric !== null ? compact({ value: r.valueNumeric, unit }) : undefined,
     valueString: r.resultType === "text" && r.valueText ? r.valueText : undefined,
     valueCodeableConcept: r.resultType === "coded" && r.valueCoded ? text(r.valueCoded) : undefined,
@@ -79,7 +126,11 @@ export function toLabObservation(ctx: FhirContext, patientId: string, order: Lab
   });
 }
 
-/** The released results of an order as a DiagnosticReport ("partial" while some tests are still pending). */
+/**
+ * The released results of an order as a DiagnosticReport ("partial" while some tests are still pending). The
+ * organization, which releases the report, is its performer; reference laboratories that performed any of its results
+ * follow (contained).
+ */
 export function toDiagnosticReport(ctx: FhirContext, patientId: string, order: LabOrderSource): DiagnosticReport | null {
   const released = order.items.filter((i) => i.result);
   if (released.length === 0) return null;
@@ -92,6 +143,9 @@ export function toDiagnosticReport(ctx: FhirContext, patientId: string, order: L
     .map((i) => i.result?.releasedAt)
     .filter((d): d is string => Boolean(d))
     .sort();
+  const referenceLabs = new Map<string, ReferenceLaboratorySource>();
+  for (const i of released) if (i.result?.performer) referenceLabs.set(referenceLabId(i.result.performer), i.result.performer);
+  const performingLabs = [...referenceLabs.values()];
   return compact<DiagnosticReport>({
     resourceType: "DiagnosticReport",
     id: order.id,
@@ -104,7 +158,8 @@ export function toDiagnosticReport(ctx: FhirContext, patientId: string, order: L
     encounter: order.encounterId ? ref("Encounter", order.encounterId) : undefined,
     effectiveDateTime: collected[0],
     issued: issued[issued.length - 1],
-    performer: [ref("Organization", ctx.organization.id)],
+    contained: performingLabs.length ? performingLabs.map((lab) => toReferenceLaboratory(ctx, lab)) : undefined,
+    performer: [ref("Organization", ctx.organization.id), ...performingLabs.map(referenceLabRef)],
     result: released.map((i) => ref("Observation", i.result?.id ?? "", i.testName)),
   });
 }
