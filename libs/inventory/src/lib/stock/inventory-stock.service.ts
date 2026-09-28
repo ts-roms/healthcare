@@ -25,11 +25,13 @@ import {
   inventoryMovement,
   inventoryStockLevel,
   inventorySupplier,
+  type ItemCategory,
   type ItemRecord,
   type LocationRecord,
   type LotRecord,
   type MovementKind,
   type MovementRecord,
+  type MovementSource,
 } from "../inventory.schema";
 import { found, strip } from "../inventory-support";
 
@@ -45,6 +47,44 @@ interface Posting {
   reference?: string | null;
   issuedTo?: string | null;
   reason?: string | null;
+  source?: StockSource;
+}
+
+/** The workflow a movement belongs to (a dispense, a reagent load, a purchase order line). */
+export interface StockSource {
+  type: MovementSource;
+  id: string;
+}
+
+/** Stock another workflow takes from a location of the actor's facility (the inventory contract). */
+export interface StockUse {
+  locationId: string;
+  itemId: string;
+  quantity: number;
+  /** A specific lot; otherwise first-expiry-first-out. Never an expired lot. */
+  lotId?: string;
+  source: StockSource;
+  /** A department or purpose — never a patient identifier. */
+  issuedTo: string;
+  /** A document number (e.g. a prescription number); required with the reason for controlled items. */
+  reference?: string;
+  reason?: string;
+}
+
+export interface StockUseResult {
+  movementGroupId: string;
+  item: { id: string; code: string; name: string; stockUnit: string; controlled: boolean };
+  lots: Array<{ lotId: string; lotNumber: string | null; expiryDate: string | null; quantity: number }>;
+}
+
+/** One line of a delivery received for a source (a purchase order line). */
+export interface StockReceiptLine {
+  itemId: string;
+  quantity: number;
+  lotNumber?: string;
+  expiryDate?: string;
+  unitCost?: number | null;
+  source: StockSource;
 }
 
 /**
@@ -195,6 +235,175 @@ export class InventoryStockService {
     ]);
   }
 
+  // ---- the inventory contract: other workflows move stock inside their own transaction ------------------
+
+  /**
+   * Takes stock for another workflow (dispensing, a reagent load) inside the caller's transaction, so the workflow's
+   * record and the stock movement commit together. A source takes stock once (database constraint).
+   */
+  async consume(tx: DbExecutor, actor: Actor, input: StockUse): Promise<StockUseResult> {
+    const { location, item, today } = await this.context(actor, input.locationId, input.itemId, tx);
+    this.requireControlledDetails(item, input);
+    const allocations = await this.allocate(tx, location.id, item, input.quantity, today, input.lotId);
+    const groupId = await this.post(
+      tx,
+      actor,
+      "inventory.issue",
+      null,
+      today,
+      allocations.map((a) => ({
+        kind: "issue" as const,
+        locationId: location.id,
+        itemId: item.id,
+        lotId: a.lotId,
+        delta: -a.quantity,
+        issuedTo: input.issuedTo,
+        reference: input.reference ?? null,
+        reason: input.reason ?? null,
+        source: input.source,
+      })),
+    );
+    return this.useResult(tx, groupId, item);
+  }
+
+  /**
+   * Gives back everything a source took (a reversed dispense), to the same locations and lots, inside the caller's
+   * transaction. Once per source (database constraint). Returned stock of a lot that has since expired stays expired.
+   */
+  async restore(tx: DbExecutor, actor: Actor, input: { source: StockSource; reason: string }): Promise<StockUseResult> {
+    const issued = await tx
+      .select()
+      .from(inventoryMovement)
+      .where(
+        and(
+          eq(inventoryMovement.organizationId, actor.organizationId),
+          eq(inventoryMovement.sourceType, input.source.type),
+          eq(inventoryMovement.sourceId, input.source.id),
+        ),
+      );
+    if (issued.some((m) => m.kind === "return")) throw new BusinessRuleError("This stock was already returned", "stock_already_returned");
+    const issues = issued.filter((m) => m.kind === "issue");
+    if (issues.length === 0) throw new NotFoundError("Stock movement");
+    const [item] = await tx.select().from(inventoryItem).where(eq(inventoryItem.id, issues[0]!.itemId));
+    const location = await this.location(actor.organizationId, issues[0]!.locationId, tx);
+    const facility = await this.organizations.getFacility(actor.organizationId, location.facilityId);
+    const groupId = await this.post(
+      tx,
+      actor,
+      "inventory.return",
+      null,
+      localDate(new Date(), facility.timezone),
+      issues.map((m) => ({
+        kind: "return" as const,
+        locationId: m.locationId,
+        itemId: m.itemId,
+        lotId: m.lotId,
+        delta: -m.quantity,
+        reference: m.reference,
+        reason: input.reason,
+        source: input.source,
+      })),
+    );
+    return this.useResult(tx, groupId, found(item, "Item"));
+  }
+
+  /**
+   * Receives a delivery (one or more lines, e.g. of a purchase order) into a location of the actor's facility inside
+   * the caller's transaction, as one movement group carrying the idempotency key.
+   */
+  async receiveFor(
+    tx: DbExecutor,
+    actor: Actor,
+    input: { locationId: string; supplierId: string; reference: string; reason?: string; idempotencyKey: string; lines: StockReceiptLine[] },
+  ): Promise<string> {
+    const postings: Posting[] = [];
+    let today = "";
+    for (const line of input.lines) {
+      const context = await this.context(actor, input.locationId, line.itemId, tx);
+      today = context.today;
+      const item = context.item;
+      this.requireControlledDetails(item, input);
+      if (item.tracksLots && !line.lotNumber) throw new BusinessRuleError(`${item.name} is tracked by lot: give the lot number (and expiry)`, "lot_required");
+      const lot = await this.lotFor(
+        tx,
+        actor.organizationId,
+        item,
+        item.tracksLots ? (line.lotNumber ?? null) : null,
+        item.tracksLots ? (line.expiryDate ?? null) : null,
+      );
+      postings.push({
+        kind: "receipt",
+        locationId: input.locationId,
+        itemId: item.id,
+        lotId: lot.id,
+        delta: line.quantity,
+        supplierId: input.supplierId,
+        unitCost: line.unitCost ?? null,
+        reference: input.reference,
+        reason: input.reason ?? null,
+        source: line.source,
+      });
+    }
+    return this.post(tx, actor, "inventory.receive", input.idempotencyKey, today, postings);
+  }
+
+  /** The movement group an idempotency key already produced (a replayed request), if any. */
+  async replayed(organizationId: string, idempotencyKey: string): Promise<string | null> {
+    const [first] = await this.db
+      .select({ groupId: inventoryMovement.movementGroupId })
+      .from(inventoryMovement)
+      .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.idempotencyKey, idempotencyKey)));
+    return first?.groupId ?? null;
+  }
+
+  /** Items of these categories with usable stock at a facility's active locations, per location (for choosing what to take). */
+  async usableAt(organizationId: string, facilityId: string, categories: ItemCategory[]) {
+    const facility = await this.organizations.getFacility(organizationId, facilityId);
+    const today = localDate(new Date(), facility.timezone);
+    const rows = await this.db
+      .select({
+        locationId: inventoryLocation.id,
+        locationName: inventoryLocation.name,
+        itemId: inventoryItem.id,
+        itemCode: inventoryItem.code,
+        itemName: inventoryItem.name,
+        stockUnit: inventoryItem.stockUnit,
+        controlled: inventoryItem.controlled,
+        quantity: sql<number>`sum(${inventoryBalance.quantity})::int`,
+      })
+      .from(inventoryBalance)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryBalance.locationId))
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryBalance.itemId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryBalance.lotId))
+      .where(
+        and(
+          eq(inventoryLocation.organizationId, organizationId),
+          eq(inventoryLocation.facilityId, facilityId),
+          eq(inventoryLocation.status, "active"),
+          eq(inventoryItem.status, "active"),
+          inArray(inventoryItem.category, categories),
+          gt(inventoryBalance.quantity, 0),
+          or(isNull(inventoryLot.expiryDate), gte(inventoryLot.expiryDate, today)),
+        ),
+      )
+      .groupBy(inventoryLocation.id, inventoryItem.id)
+      .orderBy(asc(inventoryItem.name), asc(inventoryLocation.name));
+    return rows;
+  }
+
+  private async useResult(executor: DbExecutor, groupId: string, item: ItemRecord): Promise<StockUseResult> {
+    const rows = await executor
+      .select({ lotId: inventoryLot.id, lotNumber: inventoryLot.lotNumber, expiryDate: inventoryLot.expiryDate, quantity: inventoryMovement.quantity })
+      .from(inventoryMovement)
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryMovement.lotId))
+      .where(eq(inventoryMovement.movementGroupId, groupId));
+    return {
+      movementGroupId: groupId,
+      item: { id: item.id, code: item.code, name: item.name, stockUnit: item.stockUnit, controlled: item.controlled },
+      lots: rows.map((r) => ({ ...r, quantity: Math.abs(r.quantity) })),
+    };
+  }
+
   // ---- views ---------------------------------------------------------------------------------
 
   /**
@@ -305,78 +514,88 @@ export class InventoryStockService {
 
   /** Posts the movements of one operation atomically, audits it, and announces reorder-level crossings. */
   private async transaction(actor: Actor, action: string, idempotencyKey: string, today: string, build: (tx: DbExecutor) => Promise<Posting[]>) {
+    const groupId = await this.db.transaction(async (tx) => this.post(tx, actor, action, idempotencyKey, today, await build(tx)));
+    return this.group(this.db, actor.organizationId, groupId);
+  }
+
+  /**
+   * Posts movements inside the caller's transaction: ledger rows and balances (locked, never negative), the audit
+   * event, and InventoryStockLow when a location's usable stock crosses its reorder level. Returns the movement group.
+   */
+  private async post(tx: DbExecutor, actor: Actor, action: string, idempotencyKey: string | null, today: string, postings: Posting[]): Promise<string> {
     const groupId = randomUUID();
     const low: Array<{ itemId: string; locationId: string; onHand: number; reorderLevel: number }> = [];
-    await this.db.transaction(async (tx) => {
-      const postings = await build(tx);
-      const before = new Map<string, number>();
-      for (const p of postings) {
-        const key = `${p.locationId}|${p.itemId}`;
-        if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
-      }
-      let first = true;
-      for (const p of postings) {
-        const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
-        const next = current + p.delta;
-        if (next < 0) throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock");
-        await tx
-          .update(inventoryBalance)
-          .set({ quantity: next, updatedAt: new Date() })
-          .where(and(eq(inventoryBalance.locationId, p.locationId), eq(inventoryBalance.lotId, p.lotId)));
-        await tx.insert(inventoryMovement).values({
-          organizationId: actor.organizationId,
-          movementGroupId: groupId,
-          kind: p.kind,
-          locationId: p.locationId,
-          itemId: p.itemId,
-          lotId: p.lotId,
-          quantity: p.delta,
-          balanceAfter: next,
-          supplierId: p.supplierId ?? null,
-          unitCost: p.unitCost ?? null,
-          reference: p.reference ?? null,
-          issuedTo: p.issuedTo ?? null,
-          reason: p.reason ?? null,
-          idempotencyKey: first ? idempotencyKey : null,
-          recordedBy: actor.userId,
-        });
-        first = false;
-      }
-      for (const [key, total] of before) {
-        const [locationId, itemId] = key.split("|") as [string, string];
-        const after = await this.usableTotal(tx, locationId, itemId, today);
-        const [level] = await tx
-          .select({ reorderLevel: inventoryStockLevel.reorderLevel })
-          .from(inventoryStockLevel)
-          .where(and(eq(inventoryStockLevel.locationId, locationId), eq(inventoryStockLevel.itemId, itemId)));
-        if (level && crossedReorderLevel(total, after, level.reorderLevel)) low.push({ itemId, locationId, onHand: after, reorderLevel: level.reorderLevel });
-      }
-      await this.audit.record(tx, actor, {
-        action,
-        resourceType: "inventory_item",
-        resourceId: postings[0]!.itemId,
-        reason: postings.find((p) => p.reason)?.reason ?? undefined,
-        metadata: {
-          movementGroupId: groupId,
-          movements: postings.map((p) => ({ kind: p.kind, locationId: p.locationId, lotId: p.lotId, quantity: p.delta })),
-          reference: postings[0]!.reference ?? null,
-        },
+    const before = new Map<string, number>();
+    for (const p of postings) {
+      const key = `${p.locationId}|${p.itemId}`;
+      if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
+    }
+    let first = true;
+    for (const p of postings) {
+      const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
+      const next = current + p.delta;
+      if (next < 0) throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock");
+      await tx
+        .update(inventoryBalance)
+        .set({ quantity: next, updatedAt: new Date() })
+        .where(and(eq(inventoryBalance.locationId, p.locationId), eq(inventoryBalance.lotId, p.lotId)));
+      await tx.insert(inventoryMovement).values({
+        organizationId: actor.organizationId,
+        movementGroupId: groupId,
+        kind: p.kind,
+        locationId: p.locationId,
+        itemId: p.itemId,
+        lotId: p.lotId,
+        quantity: p.delta,
+        balanceAfter: next,
+        supplierId: p.supplierId ?? null,
+        unitCost: p.unitCost ?? null,
+        reference: p.reference ?? null,
+        issuedTo: p.issuedTo ?? null,
+        reason: p.reason ?? null,
+        idempotencyKey: first ? idempotencyKey : null,
+        sourceType: p.source?.type ?? null,
+        sourceId: p.source?.id ?? null,
+        recordedBy: actor.userId,
       });
-      if (low.length) {
-        await this.events.record(
-          tx,
-          ...low.map((l) => ({
-            type: "InventoryStockLow",
-            organizationId: actor.organizationId,
-            aggregateType: "inventory_item",
-            aggregateId: l.itemId,
-            facilityId: actor.facilityId ?? null,
-            payload: { locationId: l.locationId, onHand: l.onHand, reorderLevel: l.reorderLevel },
-          })),
-        );
-      }
+      first = false;
+    }
+    for (const [key, total] of before) {
+      const [locationId, itemId] = key.split("|") as [string, string];
+      const after = await this.usableTotal(tx, locationId, itemId, today);
+      const [level] = await tx
+        .select({ reorderLevel: inventoryStockLevel.reorderLevel })
+        .from(inventoryStockLevel)
+        .where(and(eq(inventoryStockLevel.locationId, locationId), eq(inventoryStockLevel.itemId, itemId)));
+      if (level && crossedReorderLevel(total, after, level.reorderLevel)) low.push({ itemId, locationId, onHand: after, reorderLevel: level.reorderLevel });
+    }
+    const sources = [...new Map(postings.flatMap((p) => (p.source ? [[p.source.id, p.source] as const] : []))).values()];
+    await this.audit.record(tx, actor, {
+      action,
+      resourceType: "inventory_item",
+      resourceId: postings[0]!.itemId,
+      reason: postings.find((p) => p.reason)?.reason ?? undefined,
+      metadata: {
+        movementGroupId: groupId,
+        movements: postings.map((p) => ({ kind: p.kind, locationId: p.locationId, lotId: p.lotId, quantity: p.delta })),
+        reference: postings[0]!.reference ?? null,
+        ...(sources.length ? { sources } : {}),
+      },
     });
-    return this.group(actor.organizationId, groupId);
+    if (low.length) {
+      await this.events.record(
+        tx,
+        ...low.map((l) => ({
+          type: "InventoryStockLow",
+          organizationId: actor.organizationId,
+          aggregateType: "inventory_item",
+          aggregateId: l.itemId,
+          facilityId: actor.facilityId ?? null,
+          payload: { locationId: l.locationId, onHand: l.onHand, reorderLevel: l.reorderLevel },
+        })),
+      );
+    }
+    return groupId;
   }
 
   /** The same idempotency key returns the movements it already produced. */
@@ -385,11 +604,11 @@ export class InventoryStockService {
       .select({ groupId: inventoryMovement.movementGroupId })
       .from(inventoryMovement)
       .where(and(eq(inventoryMovement.organizationId, actor.organizationId), eq(inventoryMovement.idempotencyKey, idempotencyKey)));
-    return first ? this.group(actor.organizationId, first.groupId) : null;
+    return first ? this.group(this.db, actor.organizationId, first.groupId) : null;
   }
 
-  private async group(organizationId: string, groupId: string) {
-    const rows = await this.db
+  private async group(executor: DbExecutor, organizationId: string, groupId: string) {
+    const rows = await executor
       .select()
       .from(inventoryMovement)
       .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.movementGroupId, groupId)))
@@ -398,12 +617,12 @@ export class InventoryStockService {
   }
 
   /** The location (of the actor's facility, active) and the item (of the organization, active). */
-  private async context(actor: Actor, locationId: string, itemId: string) {
+  private async context(actor: Actor, locationId: string, itemId: string, executor: DbExecutor = this.db) {
     const facilityId = requireFacilityId(actor);
-    const location = await this.location(actor.organizationId, locationId);
+    const location = await this.location(actor.organizationId, locationId, executor);
     if (location.facilityId !== facilityId) throw new BusinessRuleError("The location belongs to another facility", "location_other_facility");
     if (location.status !== "active") throw new BusinessRuleError("The location is inactive", "location_inactive");
-    const [item] = await this.db
+    const [item] = await executor
       .select()
       .from(inventoryItem)
       .where(and(eq(inventoryItem.organizationId, actor.organizationId), eq(inventoryItem.id, itemId)));
@@ -413,8 +632,8 @@ export class InventoryStockService {
     return { location, item, today: localDate(new Date(), facility.timezone) };
   }
 
-  private async location(organizationId: string, locationId: string): Promise<LocationRecord> {
-    const [row] = await this.db
+  private async location(organizationId: string, locationId: string, executor: DbExecutor = this.db): Promise<LocationRecord> {
+    const [row] = await executor
       .select()
       .from(inventoryLocation)
       .where(and(eq(inventoryLocation.organizationId, organizationId), eq(inventoryLocation.id, locationId)));

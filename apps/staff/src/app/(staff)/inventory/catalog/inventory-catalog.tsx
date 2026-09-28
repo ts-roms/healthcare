@@ -171,7 +171,7 @@ function Items({ items }: { items: InventoryItem[] }) {
 
 function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations: InventoryLocation[] }) {
   const { pending, submit } = useSubmit();
-  const [f, setF] = React.useState({ locationId: locations[0]?.id ?? "", itemId: "", level: "" });
+  const [f, setF] = React.useState({ locationId: locations[0]?.id ?? "", itemId: "", level: "", quantity: "" });
   return (
     <Card>
       <CardHeader>
@@ -179,10 +179,19 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
       </CardHeader>
       <CardContent>
         <form
-          className="grid gap-2 sm:grid-cols-4 sm:items-end"
+          className="grid gap-2 sm:grid-cols-5 sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(() => setReorderLevel({ locationId: f.locationId, itemId: f.itemId, reorderLevel: Number.parseInt(f.level, 10) }), "Reorder level saved");
+            submit(
+              () =>
+                setReorderLevel({
+                  locationId: f.locationId,
+                  itemId: f.itemId,
+                  reorderLevel: Number.parseInt(f.level, 10),
+                  reorderQuantity: f.quantity ? Number.parseInt(f.quantity, 10) : null,
+                }),
+              "Reorder level saved",
+            );
           }}
         >
           <Field id="rl-location" label="Location">
@@ -206,6 +215,9 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
           </Field>
           <Field id="rl-level" label="Reorder at (usable units)">
             <Input id="rl-level" inputMode="numeric" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value.replace(/\D/g, "") })} />
+          </Field>
+          <Field id="rl-quantity" label="Usually order (optional)">
+            <Input id="rl-quantity" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value.replace(/\D/g, "") })} />
           </Field>
           <Button type="submit" size="sm" disabled={pending || !f.itemId || !f.level || !f.locationId}>
             Save

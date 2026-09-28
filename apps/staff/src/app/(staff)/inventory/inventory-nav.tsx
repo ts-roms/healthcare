@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BoxesIcon, HistoryIcon, SettingsIcon } from "lucide-react";
+import { BoxesIcon, HistoryIcon, SettingsIcon, TruckIcon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
 
 export function InventoryNav({ canConfigure }: { canConfigure: boolean }) {
@@ -13,6 +13,11 @@ export function InventoryNav({ canConfigure }: { canConfigure: boolean }) {
       <Button asChild variant="outline" size="sm">
         <Link href="/inventory/movements">
           <HistoryIcon /> Movements
+        </Link>
+      </Button>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/inventory/purchase-orders">
+          <TruckIcon /> Purchase orders
         </Link>
       </Button>
       {canConfigure ? (

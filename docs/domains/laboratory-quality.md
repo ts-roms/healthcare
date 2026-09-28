@@ -15,7 +15,8 @@ Code: `libs/laboratory/src/lib/quality` (`LabQualityService`, `LabReagentService
 
 Not yet: temperature logs, incidents and nonconformance, proficiency testing (EQA), staff competency, and instrument
 interfaces (results and QC values arriving from analyzers through `libs/interoperability`). QC is for numeric tests.
-Loading a lot does not move inventory stock (issuing reagents to the laboratory stays an inventory movement).
+Loading a lot can take that lot's stock from a storage location of the facility in the same transaction (migration
+`0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
 No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, and whether patient
 results need QC are **facility configuration**; confirm them against the laboratory's QC plan and the applicable DOH
@@ -88,7 +89,9 @@ results entered while QC was rejected.
 
 ## Commands
 
-Load a reagent lot on an instrument (replacing the lot of the same reagent in use); unload a lot (reason);
+Load a reagent lot on an instrument (replacing the lot of the same reagent in use), optionally taking a quantity of that
+lot from a storage location (`takeFromStock: { locationId, quantity }`; needs `inventory.move` too; an inventory issue
+with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short); unload a lot (reason);
 register/update instruments; record log entries (retiring needs `lab.qc.manage`); create materials and lots; retire a
 lot; set a target; record a QC run; record a corrective action; change the facility QC policy (with the laboratory
 policy, reason required, audited).

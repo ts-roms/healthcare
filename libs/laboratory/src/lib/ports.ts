@@ -1,3 +1,5 @@
+import type { Actor, DbExecutor } from "@healthcare/core";
+
 /**
  * What the laboratory needs from other domains, implemented by the app's
  * composition root (the laboratory library imports neither patient nor clinic).
@@ -14,6 +16,15 @@ export interface LaboratoryContext {
   staffNames(organizationId: string, userIds: string[]): Promise<Map<string, string>>;
   /** An inventory lot (reagents are inventory items), to record which lot is loaded on an instrument. */
   inventoryLot(organizationId: string, lotId: string): Promise<LabInventoryLot | undefined>;
+  /**
+   * Takes a quantity of a reagent lot from a storage location of the actor's facility for a load, inside the load's
+   * transaction (an inventory issue whose source is the load).
+   */
+  takeReagentStock(
+    tx: DbExecutor,
+    actor: Actor,
+    input: { loadId: string; locationId: string; itemId: string; lotId: string; quantity: number; instrumentCode: string },
+  ): Promise<{ movementGroupId: string }>;
   /** Reagent lots with stock at the facility (what can be loaded), earliest expiry first. */
   reagentLotsInStock(organizationId: string, facilityId: string): Promise<Array<LabInventoryLot & { quantity: number; stockUnit: string }>>;
   encounter(
