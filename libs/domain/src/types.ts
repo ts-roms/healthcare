@@ -212,21 +212,32 @@ export interface PrescriptionItem {
 
 // ---- Dental -----------------------------------------------------------------
 
-/** FDI two-digit tooth number, e.g. 11–18, 21–28, 31–38, 41–48. */
-export type ToothNumber = number;
+/** FDI / ISO 3950 two-digit tooth code: permanent 11–48, primary 51–85 (the API's storage format). */
+export type ToothCode = string;
 
-export type ToothCondition = "healthy" | "caries" | "filled" | "missing" | "extraction" | "root-canal" | "crown";
+/** Canonical surfaces: mesial, distal, occlusal (posterior), incisal (anterior), buccal/facial/labial, lingual/palatal. */
+export type ToothSurface = "M" | "D" | "O" | "I" | "B" | "L";
 
-export type ToothSurface = "mesial" | "distal" | "buccal" | "lingual" | "occlusal";
+export type ToothCondition =
+  "caries" | "restoration" | "sealant" | "fracture" | "crown" | "root_canal" | "missing" | "implant" | "pontic" | "impacted" | "unerupted" | "watch";
 
-export interface ToothRecord {
-  tooth: ToothNumber;
+export interface ToothFinding {
   condition: ToothCondition;
   surfaces: ToothSurface[];
-  notes?: string;
 }
 
-export type DentalChart = Record<ToothNumber, ToothRecord>;
+/** One tooth as charted. No findings means the tooth was examined and is sound. */
+export interface ToothState {
+  tooth: ToothCode;
+  findings: ToothFinding[];
+  note?: string | null;
+}
+
+/** The charted teeth; teeth never charted are absent. */
+export type DentalChart = Record<ToothCode, ToothState>;
+
+/** How a facility displays teeth (storage is always FDI). */
+export type ToothNotation = "fdi" | "universal" | "palmer";
 
 // ---- Audit ------------------------------------------------------------------
 

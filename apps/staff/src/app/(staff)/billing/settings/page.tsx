@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { BillingPayer, BillingPrefixes, BillingService, DiscountRule, LabTest, PhilHealthAccreditation, VisitType } from "@/lib/api/types";
+import type { BillingPayer, BillingPrefixes, BillingService, DentalSettings, DiscountRule, LabTest, PhilHealthAccreditation, VisitType } from "@/lib/api/types";
 import { BillingNav } from "../billing-nav";
 import { BillingSettings } from "./billing-settings";
 
@@ -13,7 +13,7 @@ export default async function BillingSettingsPage() {
   if (!can(session, "billing.charge.read")) redirect("/");
   const facility = await getSelectedFacility();
   const canAccredit = can(session, "philhealth.settings.manage") && facility !== null;
-  const [services, payers, rules, prefixes, visitTypes, labTests, accreditation] = await Promise.all([
+  const [services, payers, rules, prefixes, visitTypes, labTests, dental, accreditation] = await Promise.all([
     api<BillingService[]>("/billing/services"),
     api<BillingPayer[]>("/billing/payers"),
     api<DiscountRule[]>("/billing/discount-rules"),
@@ -21,6 +21,7 @@ export default async function BillingSettingsPage() {
     // Sources for automatic capture; staff without access to them can still type the code.
     can(session, "appointment.read") ? api<VisitType[]>("/clinic/visit-types").catch(() => []) : Promise.resolve([]),
     can(session, "lab.order.read") ? api<LabTest[]>("/laboratory/tests").catch(() => []) : Promise.resolve([]),
+    can(session, "dental.record.read") ? api<DentalSettings>("/dental/settings").catch(() => null) : Promise.resolve(null),
     canAccredit
       ? api<{ accreditation: PhilHealthAccreditation | null }>(`/philhealth/facilities/${facility.id}/accreditation`).then((r) => r.accreditation)
       : Promise.resolve(null),
@@ -39,6 +40,7 @@ export default async function BillingSettingsPage() {
         prefixes={prefixes}
         visitTypes={visitTypes.map((v) => ({ code: v.code, name: v.name }))}
         labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
+        dentalProcedures={(dental?.procedureTypes ?? []).map((t) => ({ code: t.code, name: t.name }))}
         canManage={can(session, "billing.pricelist.manage")}
         philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}
       />
