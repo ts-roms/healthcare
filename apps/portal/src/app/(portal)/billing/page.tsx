@@ -1,31 +1,42 @@
 import { BanIcon, CheckCircle2Icon, CircleDollarSignIcon, FileDownIcon, PiggyBankIcon, ReceiptIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
-import type { PortalAccount, PortalInvoice, PortalInvoiceCredits } from "@/lib/api/types";
+import type { PortalAccount, PortalInvoice, PortalInvoiceCredits, PortalInvoiceNotes, PortalOnlinePayment } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
-import { ACCOUNT_ENTRY, invoiceStatus, PAYER_STATUS, peso, totalDue } from "@/lib/billing";
+import { ACCOUNT_ENTRY, invoiceStatus, ONLINE_PAYMENT_STATUS, PAYER_STATUS, peso, totalDue } from "@/lib/billing";
 import { resultDate } from "@/lib/records";
+import { PayOnline } from "./pay-online";
 
 export const metadata = { title: "Bills" };
 
 const ICON = { due: CircleDollarSignIcon, paid: CheckCircle2Icon, void: BanIcon } as const;
 const TONE = { due: "text-warning-foreground", paid: "text-success-foreground", void: "text-muted-foreground" } as const;
 
-export default async function BillsPage() {
-  const [invoices, accounts] = await Promise.all([
-    portalApi<Array<PortalInvoice & PortalInvoiceCredits>>("/portal/billing"),
+export default async function BillsPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
+  const [invoices, accounts, online, params] = await Promise.all([
+    portalApi<Array<PortalInvoice & PortalInvoiceCredits & PortalInvoiceNotes>>("/portal/billing"),
     portalApi<PortalAccount[]>("/portal/billing/account"),
+    portalApi<PortalOnlinePayment>("/portal/billing/online-payment"),
+    searchParams,
   ]);
+  const confirming = invoices.some((i) => i.onlinePayments.some((o) => o.status === "pending"));
   const due = totalDue(invoices);
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-page-lg font-semibold">Bills</h1>
         <p className="text-body text-muted-foreground">
-          Your invoices from the clinic, what your HMO or PhilHealth covers, and what you have paid. Pay at the clinic&apos;s cashier; paying online is not
-          available yet.
+          Your invoices from the clinic, what your HMO or PhilHealth covers, and what you have paid.{" "}
+          {online.available ? "Pay at the clinic's cashier or online." : "Pay at the clinic's cashier; paying online is not available yet."}
         </p>
       </div>
+      {params.payment === "returned" || confirming ? (
+        <p role="status" className="rounded-xl border bg-card p-4 text-body">
+          {confirming
+            ? "We are waiting for the payment provider to confirm your online payment. Your bill updates once it does."
+            : "Thank you. Your bill below shows the payment once the provider confirms it."}
+        </p>
+      ) : null}
       {invoices.length ? (
         <p className="rounded-xl border bg-card p-4">
           <span className="block text-meta text-muted-foreground">Still to pay</span>
@@ -123,11 +134,35 @@ export default async function BillsPage() {
                           value={d.kind === "release" ? `+${peso(d.amount)}` : `−${peso(d.amount)}`}
                         />
                       ))}
+                      {inv.debitNotes.map((d) => (
+                        <Row key={d.id} label={`Added: debit note ${d.debitNoteNumber} · ${d.reason}`} value={`+${peso(d.amount)}`} />
+                      ))}
                       {inv.creditNotes.map((c) => (
                         <Row key={c.id} label={`Credit note ${c.creditNoteNumber} · ${c.reason}`} value={`−${peso(c.amount)}`} />
                       ))}
+                      {inv.onlinePayments
+                        .filter((o) => o.status !== "succeeded")
+                        .map((o) => (
+                          <Row key={o.id} label={`Online payment ${resultDate(o.createdAt)}: ${ONLINE_PAYMENT_STATUS[o.status]}`} value={peso(o.amount)} />
+                        ))}
                       {inv.status === "issued" ? <Row label="Balance" value={peso(inv.balance)} strong /> : null}
                     </dl>
+                    {inv.debitNotes.length ? (
+                      <ul className="flex flex-col gap-1">
+                        {inv.debitNotes.map((d) => (
+                          <li key={d.id}>
+                            <a
+                              href={fileHref.debitNote(d.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-meta font-medium text-primary hover:underline"
+                            >
+                              <FileDownIcon className="size-3.5" aria-hidden /> Debit note {d.debitNoteNumber} (PDF)
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {inv.creditNotes.length ? (
                       <ul className="flex flex-col gap-1">
                         {inv.creditNotes.map((c) => (
@@ -151,6 +186,9 @@ export default async function BillsPage() {
                     ) : null}
                   </div>
                 </details>
+                {online.available && inv.status === "issued" && inv.balance > 0 && !inv.onlinePayments.some((o) => o.status === "pending") ? (
+                  <PayOnline invoiceId={inv.id} balance={inv.balance} />
+                ) : null}
               </li>
             );
           })}

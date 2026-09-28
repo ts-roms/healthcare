@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { PiggyBankIcon, PlusIcon, PrinterIcon, RotateCcwIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import type { AccountEntry, PatientAccount, PaymentMethod } from "@/lib/api/types";
+import type { AccountEntry, PatientAccount, PaymentMethod, SharedAccount } from "@/lib/api/types";
 import { ACCOUNT_ENTRY_LABEL, addsToAccount, METHOD_LABEL, parsePesos, peso, pesoInput } from "@/lib/billing-mapping";
 import { fileHref } from "@/lib/files";
 import { recordDeposit, refundAccount } from "../../actions";
@@ -24,11 +24,13 @@ export function PatientAccountPanel({
   canRefund,
 }: {
   patientId: string;
-  account: PatientAccount;
+  account: PatientAccount & Partial<SharedAccount>;
   canDeposit: boolean;
   canRefund: boolean;
 }) {
   const entries = [...account.entries].reverse();
+  // With deposits usable across facilities, what the other facilities hold can be applied or refunded here too.
+  const usable = account.organizationBalance ?? account.balance;
   return (
     <Card className="py-0">
       <CardHeader className="pt-4">
@@ -37,17 +39,29 @@ export function PatientAccountPanel({
         <span className="ml-auto text-body font-semibold tabular-nums">{peso(account.balance)}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 px-0 pb-4">
+        {account.facilities && account.facilities.some((f) => f.facilityId !== account.facilityId && f.balance > 0) ? (
+          <div className="mx-4 rounded-md border bg-muted/40 p-2 text-table">
+            <span className="font-medium">Usable at any facility: {peso(account.organizationBalance ?? 0)}</span>
+            <ul>
+              {account.facilities.map((f) => (
+                <li key={f.facilityId} className="flex justify-between gap-2 text-muted-foreground">
+                  <span>{f.facilityName}</span>
+                  <span className="tabular-nums">{peso(f.balance)}</span>
+                </li>
+              ))}
+            </ul>
+            <span className="text-meta text-muted-foreground">Balance at another facility is moved here when applied or refunded.</span>
+          </div>
+        ) : null}
         {entries.length === 0 ? <p className="px-4 text-body text-muted-foreground">No deposits or credit at this facility.</p> : null}
         <ul className="divide-y">
           {entries.map((e) => (
             <Entry key={e.id} entry={e} />
           ))}
         </ul>
-        {account.balance > 0 ? (
-          <p className="px-4 text-meta text-muted-foreground">Apply the balance to an issued invoice from the invoice&apos;s payments.</p>
-        ) : null}
+        {usable > 0 ? <p className="px-4 text-meta text-muted-foreground">Apply the balance to an issued invoice from the invoice&apos;s payments.</p> : null}
         {canDeposit ? <DepositForm patientId={patientId} /> : null}
-        {canRefund && account.balance > 0 ? <RefundForm patientId={patientId} balance={account.balance} /> : null}
+        {canRefund && usable > 0 ? <RefundForm patientId={patientId} balance={usable} /> : null}
       </CardContent>
     </Card>
   );

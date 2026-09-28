@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addsToAccount, creditableLeft, invoiceState, parsePesos, percent, peso, pesoInput, refundableAmount } from "./billing-mapping";
+import { addsToAccount, coverageCreditable, creditableLeft, invoiceState, parsePesos, percent, peso, pesoInput, refundableAmount } from "./billing-mapping";
 
 describe("money display and input", () => {
   it("formats centavos as pesos", () => {
@@ -52,6 +52,8 @@ describe("deposits and credit notes", () => {
     expect(addsToAccount("release")).toBe(true);
     expect(addsToAccount("application")).toBe(false);
     expect(addsToAccount("refund")).toBe(false);
+    expect(addsToAccount("transfer_in")).toBe(true);
+    expect(addsToAccount("transfer_out")).toBe(false);
   });
 
   it("limits a credit to what is left of the invoice line", () => {
@@ -59,7 +61,15 @@ describe("deposits and credit notes", () => {
       { lines: [{ id: "l1", creditNoteId: "c1", invoiceItemId: "a", description: "Consult", amount: 10_000 }] },
       { lines: [{ id: "l2", creditNoteId: "c2", invoiceItemId: "b", description: "FBS", amount: 5_000 }] },
     ];
-    expect(creditableLeft({ id: "a", netAmount: 40_000 }, notes)).toBe(30_000);
-    expect(creditableLeft({ id: "c", netAmount: 15_000 }, notes)).toBe(15_000);
+    expect(creditableLeft({ id: "a", amount: 40_000 }, notes)).toBe(30_000);
+    expect(creditableLeft({ id: "c", amount: 15_000 }, notes)).toBe(15_000);
+    // A debit note line is creditable the same way.
+    const debitCredits = [{ lines: [{ invoiceItemId: null, debitNoteLineId: "d1", amount: 4_000 }] }];
+    expect(creditableLeft({ id: "d1", amount: 10_000 }, debitCredits)).toBe(6_000);
+  });
+
+  it("credits payer coverage only while the claim is open", () => {
+    expect(coverageCreditable({ amount: 30_000, status: "submitted", creditedAmount: 10_000 })).toBe(20_000);
+    expect(coverageCreditable({ amount: 30_000, status: "settled", creditedAmount: 0 })).toBe(0);
   });
 });

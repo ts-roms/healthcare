@@ -23,8 +23,18 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { BillingCategory, BillingPayer, BillingPrefixes, BillingService, DiscountRule, PhilHealthAccreditation } from "@/lib/api/types";
-import { CATEGORY_LABEL, parsePesos, percent, peso } from "@/lib/billing-mapping";
+import type {
+  BillingCategory,
+  BillingPackage,
+  BillingPayer,
+  BillingService,
+  BillingSettingsFull,
+  DiscountRule,
+  PhilHealthAccreditation,
+  TaxClass,
+  TaxProfile,
+} from "@/lib/api/types";
+import { CATEGORY_LABEL, parsePesos, percent, peso, TAX_CLASS_LABEL } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import {
   addPrice,
@@ -34,8 +44,9 @@ import {
   deactivateDiscountRule,
   recordAccreditation,
   setServiceStatus,
-  updatePrefixes,
+  setServiceTaxClass,
 } from "../actions";
+import { DocumentNumbers, Packages, TaxProfileCard } from "./billing-profile";
 
 type Source = { code: string; name: string };
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as BillingCategory[];
@@ -73,7 +84,9 @@ export function BillingSettings({
   services,
   payers,
   rules,
-  prefixes,
+  settings,
+  taxProfile,
+  packages,
   visitTypes,
   labTests,
   canManage,
@@ -82,7 +95,9 @@ export function BillingSettings({
   services: BillingService[];
   payers: BillingPayer[];
   rules: DiscountRule[];
-  prefixes: BillingPrefixes;
+  settings: BillingSettingsFull;
+  taxProfile: TaxProfile;
+  packages: BillingPackage[];
   visitTypes: Source[];
   labTests: Source[];
   canManage: boolean;
@@ -92,19 +107,39 @@ export function BillingSettings({
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
       <div className="flex flex-col gap-4">
-        <Services services={services} visitTypes={visitTypes} labTests={labTests} canManage={canManage} />
+        <Services
+          services={services}
+          visitTypes={visitTypes}
+          labTests={labTests}
+          canManage={canManage}
+          vatRegistered={taxProfile.vatStatus === "vat_registered"}
+        />
+        <Packages packages={packages} services={services} canManage={canManage} />
         <Rules rules={rules} canManage={canManage} />
       </div>
       <div className="flex flex-col gap-4">
         <Payers payers={payers} canManage={canManage} />
-        <Prefixes prefixes={prefixes} canManage={canManage} />
+        <TaxProfileCard profile={taxProfile} canManage={canManage} />
+        <DocumentNumbers settings={settings} canManage={canManage} />
         {philhealth ? <Accreditation {...philhealth} /> : null}
       </div>
     </div>
   );
 }
 
-function Services({ services, visitTypes, labTests, canManage }: { services: BillingService[]; visitTypes: Source[]; labTests: Source[]; canManage: boolean }) {
+function Services({
+  services,
+  visitTypes,
+  labTests,
+  canManage,
+  vatRegistered,
+}: {
+  services: BillingService[];
+  visitTypes: Source[];
+  labTests: Source[];
+  canManage: boolean;
+  vatRegistered: boolean;
+}) {
   const { pending, submit } = useSubmit();
   const sourceName = (s: BillingService) => {
     if (!s.sourceKind) return "Added by staff";
@@ -130,6 +165,7 @@ function Services({ services, visitTypes, labTests, canManage }: { services: Bil
                 <TableHead>Charged on</TableHead>
                 <TableHead className="text-right">Price today</TableHead>
                 <TableHead>Upcoming</TableHead>
+                <TableHead>VAT class</TableHead>
                 {canManage ? <TableHead /> : null}
               </TableRow>
             </TableHeader>
@@ -153,6 +189,34 @@ function Services({ services, visitTypes, labTests, canManage }: { services: Bil
                           {peso(p.unitPrice)} from {clinicalDate(p.effectiveFrom)}
                         </span>
                       ))}
+                    </TableCell>
+                    <TableCell className="text-table">
+                      {canManage ? (
+                        <NativeSelect
+                          aria-label={`VAT class of ${s.name}`}
+                          className="h-7"
+                          value={s.taxClass ?? ""}
+                          disabled={pending}
+                          onChange={(e) =>
+                            submit(
+                              () => setServiceTaxClass({ serviceId: s.id, taxClass: (e.target.value || null) as TaxClass | null, version: s.version }),
+                              "VAT class saved",
+                            )
+                          }
+                        >
+                          <option value="">Not classified</option>
+                          {(Object.keys(TAX_CLASS_LABEL) as TaxClass[]).map((c) => (
+                            <option key={c} value={c}>
+                              {TAX_CLASS_LABEL[c]}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      ) : s.taxClass ? (
+                        TAX_CLASS_LABEL[s.taxClass]
+                      ) : (
+                        "—"
+                      )}
+                      {vatRegistered && !s.taxClass ? <span className="block text-meta text-warning-foreground">Needed to issue invoices</span> : null}
                     </TableCell>
                     {canManage ? (
                       <TableCell className="text-right">
@@ -522,50 +586,6 @@ function Payers({ payers, canManage }: { payers: BillingPayer[]; canManage: bool
             />
             <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
               Add payer
-            </Button>
-          </form>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Prefixes({ prefixes, canManage }: { prefixes: BillingPrefixes; canManage: boolean }) {
-  const { pending, submit } = useSubmit();
-  const [f, setF] = React.useState(prefixes);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Document numbers</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2 text-body">
-        <p className="text-meta text-muted-foreground">
-          Invoices are numbered {prefixes.invoicePrefix}-YYYY-000001, payment and deposit receipts {prefixes.receiptPrefix}-YYYY-000001 and credit notes{" "}
-          {prefixes.creditNotePrefix}-YYYY-000001. The format BIR requires for your facility must be confirmed before production use.
-        </p>
-        {canManage ? (
-          <form
-            className="grid grid-cols-2 gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit(() => updatePrefixes(f), "Prefixes saved");
-            }}
-          >
-            <Label htmlFor="invoice-prefix">Invoice prefix</Label>
-            <Label htmlFor="receipt-prefix">Receipt prefix</Label>
-            <Input id="invoice-prefix" value={f.invoicePrefix} maxLength={12} onChange={(e) => setF({ ...f, invoicePrefix: e.target.value.toUpperCase() })} />
-            <Input id="receipt-prefix" value={f.receiptPrefix} maxLength={12} onChange={(e) => setF({ ...f, receiptPrefix: e.target.value.toUpperCase() })} />
-            <Label htmlFor="credit-note-prefix" className="col-span-2">
-              Credit note prefix
-            </Label>
-            <Input
-              id="credit-note-prefix"
-              value={f.creditNotePrefix}
-              maxLength={12}
-              onChange={(e) => setF({ ...f, creditNotePrefix: e.target.value.toUpperCase() })}
-            />
-            <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
-              Save
             </Button>
           </form>
         ) : null}

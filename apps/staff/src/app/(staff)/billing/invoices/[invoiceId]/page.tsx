@@ -3,7 +3,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { BillingPayer, DiscountRule, InvoiceWithSettlement, PatientAccount, PhilHealthClaimPreview } from "@/lib/api/types";
+import type { BillingPayer, BillingService, DiscountRule, InvoiceFull, PatientAccount, PhilHealthClaimPreview, SharedAccount } from "@/lib/api/types";
 import { BillingNav } from "../../billing-nav";
 import { InvoiceWorkspace } from "./invoice-workspace";
 import { PhilHealthClaim } from "./philhealth-claim";
@@ -16,17 +16,18 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
   const [{ invoiceId }, session] = await Promise.all([params, getSession()]);
   if (!can(session, "billing.charge.read")) redirect("/");
   if (!UUID.test(invoiceId)) notFound();
-  const invoice = await api<InvoiceWithSettlement>(`/billing/invoices/${invoiceId}`).catch((error: unknown) => {
+  const invoice = await api<InvoiceFull>(`/billing/invoices/${invoiceId}`).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
   const claimable = invoice.status === "issued" && invoice.payers.some((p) => p.payerType === "philhealth");
-  const [rules, payers, account, philhealth] = await Promise.all([
+  const [rules, payers, services, account, philhealth] = await Promise.all([
     api<DiscountRule[]>("/billing/discount-rules"),
     api<BillingPayer[]>("/billing/payers"),
+    invoice.status === "issued" && can(session, "billing.debit-note.issue") ? api<BillingService[]>("/billing/services") : Promise.resolve([]),
     // Deposit and credit that can be applied to what is still owed.
     invoice.status === "issued" && invoice.balance > 0 && can(session, "billing.deposit.record")
-      ? api<PatientAccount>(`/billing/patients/${invoice.patientId}/account`)
+      ? api<PatientAccount & SharedAccount>(`/billing/patients/${invoice.patientId}/account`)
       : Promise.resolve(null),
     claimable && can(session, "philhealth.claim.submit") ? api<PhilHealthClaimPreview>(`/philhealth/claims/invoices/${invoiceId}`) : Promise.resolve(null),
   ]);
@@ -41,7 +42,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
         invoice={invoice}
         rules={rules.filter((r) => r.status === "active")}
         payers={payers.filter((p) => p.status === "active")}
-        accountBalance={account?.balance ?? null}
+        accountBalance={account ? (account.organizationBalance ?? account.balance) : null}
+        services={services}
         can={{
           issue: can(session, "billing.invoice.issue"),
           discount: can(session, "billing.discount.apply"),
@@ -50,6 +52,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
           void: can(session, "billing.invoice.void"),
           deposit: can(session, "billing.deposit.record"),
           creditNote: can(session, "billing.credit-note.issue"),
+          debitNote: can(session, "billing.debit-note.issue"),
         }}
         aside={philhealth ? <PhilHealthClaim preview={philhealth} canSubmit /> : null}
       />
