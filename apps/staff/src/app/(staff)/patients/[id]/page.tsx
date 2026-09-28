@@ -19,6 +19,7 @@ import {
   UsersIcon,
   ReceiptIcon,
   SmileIcon,
+  HistoryIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -33,6 +34,7 @@ import type {
   PatientDetail,
   PatientLabResult,
   PatientSummaryResponse,
+  PatientTimelinePage,
   PortalAccountStatus,
   YakapConsultationList,
   YakapRegistrationOverview,
@@ -49,6 +51,7 @@ import { PortalAccess } from "./portal-access";
 import { SendPortalMessage } from "./send-portal-message";
 import { RecordConsent } from "./record-consent";
 import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,6 +116,16 @@ async function loadExternalHistory(id: string): Promise<ExternalHistoryEntry[] |
   }
 }
 
+/** The latest few timeline entries the user may see (audited by the API); null when they cannot be shown. */
+async function loadRecentActivity(id: string): Promise<PatientTimelinePage | null> {
+  try {
+    return await api<PatientTimelinePage>(`/patients/${id}/timeline`, { query: { limit: 5 } });
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -156,7 +169,7 @@ async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverv
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, recent, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
@@ -165,6 +178,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     loadEligibility(id),
     loadYakap(id),
     loadExternalHistory(id),
+    loadRecentActivity(id),
     getSelectedFacility(),
     getSession(),
   ]);
@@ -199,38 +213,41 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         </p>
       ) : null}
 
-      {(p.status === "active" && (canCheckIn || canBook)) || canBill || canDental ? (
-        <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
-          {canCheckIn ? (
-            <Button asChild size="sm">
-              <Link href={`/queue/walk-in?patientId=${p.id}`}>
-                <LogInIcon /> Check in (walk-in)
-              </Link>
-            </Button>
-          ) : null}
-          {canBook ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/appointments/new?patientId=${p.id}`}>
-                <CalendarPlusIcon /> Book appointment
-              </Link>
-            </Button>
-          ) : null}
-          {canBill ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/billing/patients/${p.id}`}>
-                <ReceiptIcon /> Billing
-              </Link>
-            </Button>
-          ) : null}
-          {canDental ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/dental/patients/${p.id}`}>
-                <SmileIcon /> Dental record
-              </Link>
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/patients/${p.id}/timeline`}>
+            <HistoryIcon /> Timeline
+          </Link>
+        </Button>
+        {canCheckIn && p.status === "active" ? (
+          <Button asChild size="sm">
+            <Link href={`/queue/walk-in?patientId=${p.id}`}>
+              <LogInIcon /> Check in (walk-in)
+            </Link>
+          </Button>
+        ) : null}
+        {canBook && p.status === "active" ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/appointments/new?patientId=${p.id}`}>
+              <CalendarPlusIcon /> Book appointment
+            </Link>
+          </Button>
+        ) : null}
+        {canBill ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/billing/patients/${p.id}`}>
+              <ReceiptIcon /> Billing
+            </Link>
+          </Button>
+        ) : null}
+        {canDental ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/dental/patients/${p.id}`}>
+              <SmileIcon /> Dental record
+            </Link>
+          </Button>
+        ) : null}
+      </div>
 
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_20rem]">
         <Card>
@@ -405,6 +422,26 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             )}
           </CardContent>
         </Card>
+
+        {recent ? (
+          <Card className="lg:col-span-2" id="recent-activity">
+            <CardHeader>
+              <HistoryIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Recent activity</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/timeline`}>Open timeline</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {recent.items.length ? (
+                <PatientTimelineView entries={recent.items} patientId={p.id} timeZone={recent.timeZone} />
+              ) : recent.withheld.length ? null : (
+                <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
+              )}
+              <WithheldNote withheld={recent.withheld} />
+            </CardContent>
+          </Card>
+        ) : null}
 
         {labResults ? (
           <Card className="lg:col-span-2" id="laboratory">
