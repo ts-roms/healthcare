@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { COMMUNICATION_METHODS, ORDER_PRIORITIES, ORDER_SOURCES, RESULT_TYPES } from "./laboratory.schema";
+import { COMMUNICATION_METHODS, ORDER_PRIORITIES, ORDER_SOURCES, QC_REJECT_RULES, RESULT_TYPES } from "./laboratory.schema";
 
 const code = z
   .string()
@@ -107,6 +107,16 @@ export const facilityPolicySchema = z.object({
   allowSelfVerification: z.boolean(),
   allowSelfApproval: z.boolean(),
   releaseOnApproval: z.boolean(),
+  /** Quality control (left out: unchanged). Which Westgard rules reject a run; 1_2s is always a warning. */
+  qcRejectRules: z
+    .array(z.enum(QC_REJECT_RULES))
+    .max(QC_REJECT_RULES.length)
+    .transform((rules) => [...new Set(rules)])
+    .optional(),
+  /** How long a QC run covers patient results on its instrument and test. */
+  qcValidHours: z.number().int().min(1).max(168).optional(),
+  /** Results entered on an instrument need QC within the window whose latest run is not rejected. */
+  qcRequired: z.boolean().optional(),
   /** Why the policy changes (audited). */
   reason,
 });
@@ -174,6 +184,8 @@ const resultValue = {
   comment: text(2000).optional(),
   method: text(120).optional(),
   instrument: text(120).optional(),
+  /** The registered instrument that produced the value: links the QC in force (and may be refused by the QC policy). */
+  instrumentId: z.uuid().optional(),
 };
 
 export const enterResultSchema = z.object({ ...resultValue });

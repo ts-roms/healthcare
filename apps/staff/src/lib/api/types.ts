@@ -700,6 +700,10 @@ export interface LabPolicy {
   allowSelfVerification: boolean;
   allowSelfApproval: boolean;
   releaseOnApproval: boolean;
+  /** Quality control (Phase 9): Westgard rules that reject a run, QC window, whether results need accepted QC. */
+  qcRejectRules: QcRejectRule[];
+  qcValidHours: number;
+  qcRequired: boolean;
   version: number;
 }
 
@@ -729,6 +733,10 @@ export interface LabResult {
   comment: string | null;
   method: string | null;
   instrument: string | null;
+  /** The registered instrument and the QC in force when the result was entered (snapshot). */
+  instrumentId: string | null;
+  qcRunId: string | null;
+  qcStatus: QcStatus | "none" | null;
   patientReleasable: boolean;
   enteredAt: string;
   enteredBy: string;
@@ -1478,4 +1486,110 @@ export interface InventoryMovement {
   locationName: string;
   lotNumber: string | null;
   expiryDate: string | null;
+}
+
+// ---- Laboratory quality control and instruments (Phase 9, /laboratory/qc, /laboratory/instruments) ----
+
+export type QcStatus = "accepted" | "warning" | "rejected";
+export type QcRejectRule = "1_3s" | "2_2s" | "R_4s" | "4_1s" | "10_x";
+export type LabInstrumentStatus = "active" | "out_of_service" | "retired";
+export type LabInstrumentEventKind = "maintenance" | "calibration" | "repair" | "verification" | "out_of_service" | "returned_to_service" | "retired";
+
+export interface LabInstrument {
+  id: string;
+  facilityId: string;
+  departmentId: string | null;
+  code: string;
+  name: string;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  status: LabInstrumentStatus;
+  version: number;
+  lastCalibration: { performedAt: string; outcome: "pass" | "fail" | null; nextDueOn: string | null } | null;
+  lastMaintenance: { performedAt: string; nextDueOn: string | null } | null;
+  calibrationOverdue: boolean;
+}
+
+export interface LabInstrumentLogEntry {
+  id: string;
+  instrumentId: string;
+  kind: LabInstrumentEventKind;
+  outcome: "pass" | "fail" | null;
+  performedAt: string;
+  nextDueOn: string | null;
+  notes: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+export interface LabQcTarget {
+  id: string;
+  qcLotId: string;
+  testId: string;
+  instrumentId: string;
+  mean: number;
+  sd: number;
+  source: string | null;
+  effectiveFrom: string;
+  testCode: string;
+  testName: string;
+  unit: string | null;
+  instrumentName: string;
+}
+
+export interface LabQcLot {
+  id: string;
+  materialId: string;
+  lotNumber: string;
+  expiresOn: string;
+  status: "active" | "retired";
+  targets: LabQcTarget[];
+}
+
+export interface LabQcMaterial {
+  id: string;
+  code: string;
+  name: string;
+  level: string;
+  manufacturer: string | null;
+  status: "active" | "inactive";
+  lots: LabQcLot[];
+}
+
+export interface LabQcRun {
+  id: string;
+  facilityId: string;
+  instrumentId: string;
+  testId: string;
+  qcLotId: string;
+  value: number;
+  targetMean: number;
+  targetSd: number;
+  zScore: number;
+  status: QcStatus;
+  violations: string[];
+  comment: string | null;
+  runAt: string;
+  enteredByName: string | null;
+  lotNumber: string;
+  materialName: string;
+  level: string;
+  actions: Array<{ id: string; action: string; recordedAt: string; recordedByName: string | null }>;
+}
+
+export interface LabQcBoard {
+  policy: { qcRequired: boolean; qcValidHours: number; qcRejectRules: QcRejectRule[] };
+  rows: Array<{
+    instrumentId: string;
+    instrumentName: string;
+    instrumentStatus: LabInstrumentStatus;
+    testId: string;
+    testCode: string;
+    testName: string;
+    unit: string | null;
+    decisiveRun: { id: string; status: QcStatus; runAt: string; qcLotId: string; violations: string[] } | null;
+    lots: Array<{ runId: string; qcLotId: string; status: QcStatus; runAt: string; violations: string[] }>;
+    resultsAllowed: boolean;
+  }>;
 }

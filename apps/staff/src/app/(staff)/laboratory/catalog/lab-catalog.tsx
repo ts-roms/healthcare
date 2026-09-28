@@ -22,8 +22,16 @@ import {
   TableRow,
   toast,
 } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabPanel, LabPolicy, LabReferenceRange, LabResultType, LabSpecimenType, LabTest } from "@/lib/api/types";
+import type { LabCatalogEntry, LabPanel, LabPolicy, LabReferenceRange, LabResultType, LabSpecimenType, LabTest, QcRejectRule } from "@/lib/api/types";
 import { addReferenceRange, createCatalogEntry, createLabPanel, createLabTest, setLabPolicy, setLabTestStatus } from "../actions";
+
+const QC_RULES: Array<[QcRejectRule, string]> = [
+  ["1_3s", "1-3s"],
+  ["2_2s", "2-2s"],
+  ["R_4s", "R-4s"],
+  ["4_1s", "4-1s"],
+  ["10_x", "10-x"],
+];
 
 type Run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) => void;
 
@@ -538,12 +546,17 @@ function NewPanelForm({ tests }: { tests: LabTest[] }) {
 
 function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; facilityName: string; canManage: boolean }) {
   const { pending, run } = useRun();
-  const [f, setF] = React.useState({ ...policy, reason: "" });
+  const [f, setF] = React.useState({ ...policy, qcValidHours: String(policy.qcValidHours), reason: "" });
   const changed =
     f.allowSelfVerification !== policy.allowSelfVerification ||
     f.allowSelfApproval !== policy.allowSelfApproval ||
-    f.releaseOnApproval !== policy.releaseOnApproval;
-  const toggle = (key: "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval", label: string) => (
+    f.releaseOnApproval !== policy.releaseOnApproval ||
+    f.qcRequired !== policy.qcRequired ||
+    f.qcValidHours !== String(policy.qcValidHours) ||
+    [...f.qcRejectRules].sort().join() !== [...policy.qcRejectRules].sort().join();
+  const toggleRule = (rule: QcRejectRule, on: boolean) =>
+    setF((s) => ({ ...s, qcRejectRules: on ? [...new Set([...s.qcRejectRules, rule])] : s.qcRejectRules.filter((r) => r !== rule) }));
+  const toggle = (key: "allowSelfVerification" | "allowSelfApproval" | "releaseOnApproval" | "qcRequired", label: string) => (
     <label className="flex items-center gap-2 text-table">
       <Checkbox disabled={!canManage} checked={f[key]} onCheckedChange={(c) => setF({ ...f, [key]: c === true })} /> {label}
     </label>
@@ -564,6 +577,9 @@ function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; fa
                   allowSelfVerification: f.allowSelfVerification,
                   allowSelfApproval: f.allowSelfApproval,
                   releaseOnApproval: f.releaseOnApproval,
+                  qcRejectRules: f.qcRejectRules,
+                  qcValidHours: Number(f.qcValidHours),
+                  qcRequired: f.qcRequired,
                   reason: f.reason,
                 }),
               "Laboratory policy updated",
@@ -580,6 +596,34 @@ function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; fa
           {toggle("allowSelfApproval", "Allow the person who entered a result to approve it")}
           {toggle("releaseOnApproval", "Release results automatically when approved")}
           {policy.allowSelfVerification || policy.allowSelfApproval ? <Badge variant="warning">Separation of duties relaxed at this facility</Badge> : null}
+          <fieldset className="mt-2 flex flex-col gap-2 border-t pt-2">
+            <legend className="text-table font-medium">Quality control</legend>
+            <p className="text-meta text-muted-foreground">
+              Rules that reject a QC run (a 1-2s result is always a warning). Choose them with your laboratory&apos;s QC plan; they are not prescribed here.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {QC_RULES.map(([rule, label]) => (
+                <label key={rule} className="flex items-center gap-1.5 text-table">
+                  <Checkbox disabled={!canManage} checked={f.qcRejectRules.includes(rule)} onCheckedChange={(c) => toggleRule(rule, c === true)} /> {label}
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-table">
+              <Label htmlFor="qc-window">A QC run covers patient results for</Label>
+              <Input
+                id="qc-window"
+                className="w-20"
+                type="number"
+                min={1}
+                max={168}
+                disabled={!canManage}
+                value={f.qcValidHours}
+                onChange={(e) => setF({ ...f, qcValidHours: e.target.value })}
+              />
+              hours
+            </div>
+            {toggle("qcRequired", "Refuse results on an instrument without QC in that window, or while a control level is rejected")}
+          </fieldset>
           {canManage && changed ? (
             <div className="flex flex-wrap items-end gap-2">
               <div className="grid min-w-64 flex-1 gap-1">

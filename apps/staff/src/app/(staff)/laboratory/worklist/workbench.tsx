@@ -7,7 +7,7 @@ import { AlertOctagonIcon, ScanBarcodeIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
-import type { LabCatalogEntry, LabDashboard, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
+import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage } from "@/lib/api/types";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
 import { findByAccession } from "../actions";
 import { type LabPermissions, WorkbenchDetail } from "./workbench-detail";
@@ -20,6 +20,7 @@ export function LabWorkbench({
   dashboard,
   departments,
   specimenTypes,
+  instruments,
   permissions,
 }: {
   facilityName: string;
@@ -29,6 +30,8 @@ export function LabWorkbench({
   dashboard: LabDashboard | null;
   departments: LabCatalogEntry[];
   specimenTypes: LabSpecimenType[];
+  /** Active instruments at the facility, for result entry. */
+  instruments: LabInstrument[];
   permissions: LabPermissions;
 }) {
   const router = useRouter();
@@ -200,6 +203,7 @@ export function LabWorkbench({
             stage={scanned ? null : stage}
             permissions={permissions}
             specimenTypeName={specimenTypeName}
+            instruments={instruments}
             onChanged={afterChange}
           />
         ) : (

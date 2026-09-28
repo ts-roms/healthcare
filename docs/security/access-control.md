@@ -63,6 +63,10 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
+(org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
+pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions
+and the instrument log are append-only.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

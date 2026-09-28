@@ -101,12 +101,14 @@ const valueSchema = z.union([
   z.object({ valueText: z.string().trim().min(1).max(4000) }),
   z.object({ valueCoded: z.string().trim().min(1).max(60) }),
 ]);
-const enterSchema = z.object({ itemId: id, value: valueSchema, comment: z.string().trim().max(2000).optional() });
+const enterSchema = z.object({ itemId: id, value: valueSchema, comment: z.string().trim().max(2000).optional(), instrumentId: id.optional() });
 export async function enterResult(input: z.input<typeof enterSchema>): Promise<ActionResult<LabResult>> {
   const parsed = enterSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { itemId, value, comment } = parsed.data;
-  return actionResult(() => api<LabResult>(`/laboratory/order-items/${itemId}/results`, { method: "POST", body: { ...value, comment: comment || undefined } }));
+  const { itemId, value, comment, instrumentId } = parsed.data;
+  return actionResult(() =>
+    api<LabResult>(`/laboratory/order-items/${itemId}/results`, { method: "POST", body: { ...value, comment: comment || undefined, instrumentId } }),
+  );
 }
 
 const signSchema = z.object({ resultId: id, step: z.enum(["verify", "approve", "release"]) });
@@ -121,14 +123,14 @@ export async function releaseOrder(orderId: string): Promise<ActionResult<LabRes
   return actionResult(() => api<LabResult[]>(`/laboratory/orders/${orderId}/release`, { method: "POST" }));
 }
 
-const correctSchema = z.object({ resultId: id, value: valueSchema, reason, comment: z.string().trim().max(2000).optional() });
+const correctSchema = z.object({ resultId: id, value: valueSchema, reason, comment: z.string().trim().max(2000).optional(), instrumentId: id.optional() });
 /** A corrected version supersedes the result; the old version stays in the history. */
 export async function correctResult(input: z.input<typeof correctSchema>): Promise<ActionResult<LabResult>> {
   const parsed = correctSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { resultId, value, reason: why, comment } = parsed.data;
+  const { resultId, value, reason: why, comment, instrumentId } = parsed.data;
   return actionResult(() =>
-    api<LabResult>(`/laboratory/results/${resultId}/correct`, { method: "POST", body: { ...value, reason: why, comment: comment || undefined } }),
+    api<LabResult>(`/laboratory/results/${resultId}/correct`, { method: "POST", body: { ...value, reason: why, comment: comment || undefined, instrumentId } }),
   );
 }
 
@@ -255,7 +257,15 @@ export async function setLabTestStatus(input: z.input<typeof testStatusSchema>):
   return actionResult(() => api<LabTest>(`/laboratory/tests/${testId}`, { method: "PATCH", body }));
 }
 
-const policySchema = z.object({ allowSelfVerification: z.boolean(), allowSelfApproval: z.boolean(), releaseOnApproval: z.boolean(), reason });
+const policySchema = z.object({
+  allowSelfVerification: z.boolean(),
+  allowSelfApproval: z.boolean(),
+  releaseOnApproval: z.boolean(),
+  qcRejectRules: z.array(z.enum(["1_3s", "2_2s", "R_4s", "4_1s", "10_x"])).optional(),
+  qcValidHours: z.number().int().min(1, "The QC window is 1 to 168 hours.").max(168, "The QC window is 1 to 168 hours.").optional(),
+  qcRequired: z.boolean().optional(),
+  reason,
+});
 export async function setLabPolicy(input: z.input<typeof policySchema>): Promise<ActionResult<LabPolicy>> {
   const parsed = policySchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);

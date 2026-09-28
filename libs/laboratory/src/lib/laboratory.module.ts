@@ -9,6 +9,8 @@ import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
+import { LabQualityController } from "./quality/lab-quality.controller";
+import { LabQualityService } from "./quality/lab-quality.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./results/lab-report-archive";
@@ -31,12 +33,13 @@ export class LaboratoryModule {
     return {
       module: LaboratoryModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [LabCatalogController, LabOrderController, LabResultController],
+      controllers: [LabCatalogController, LabOrderController, LabResultController, LabQualityController],
       providers: [
         LabCatalogService,
         LabLabelService,
         LabOrderService,
         LabPatientAccess,
+        LabQualityService,
         LabRecordQueries,
         LabReadModel,
         LabReportService,

@@ -8,8 +8,11 @@ laboratory dashboard. Rules for this domain are in `libs/laboratory/CLAUDE.md`.
 
 Also: printable reports (PDF), specimen tube labels, and an archive of each released report in object storage.
 
-Not in scope yet: result attachments, instrument and outsourced-lab interfaces (`libs/interoperability`), QC, reagent
-lots and inventory (Phase 9). Billing charges are billing's (the LIS emits events and never computes invoices).
+Quality management — instruments with their maintenance and calibration log, internal QC with Westgard rules, and the
+QC link on results — is in [laboratory-quality.md](laboratory-quality.md) (Phase 9).
+
+Not in scope yet: result attachments, instrument and outsourced-lab interfaces (`libs/interoperability`), reagent lots
+on results, temperature logs, incidents, proficiency testing and competency. Billing charges are billing's (the LIS emits events and never computes invoices).
 
 ## Entities
 

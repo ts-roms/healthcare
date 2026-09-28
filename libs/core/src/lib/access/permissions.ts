@@ -89,6 +89,10 @@ export const PERMISSIONS = [
   "inventory.move",
   "inventory.adjust",
   "inventory.catalog.manage",
+  // Phase 9 — laboratory quality control and instruments (migration 0050)
+  "lab.qc.read",
+  "lab.qc.enter",
+  "lab.qc.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
