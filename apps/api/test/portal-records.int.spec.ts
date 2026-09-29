@@ -252,8 +252,12 @@ describe("patient portal records", () => {
     );
     expect(JSON.stringify(sent.rows)).not.toMatch(/7\.2|FBS|potassium/i);
 
-    // The ordering doctor acknowledges the critical potassium; now the patient sees it too.
+    // The laboratory documents the call, then the ordering doctor acknowledges the critical potassium; now the patient sees it too.
     const alerts = await staff(admin).get("/api/v1/laboratory/critical-results").expect(200);
+    await staff(admin)
+      .post(`/api/v1/laboratory/critical-results/${alerts.body[0].id}/communicate`)
+      .send({ communicatedTo: "Dr. Santos", method: "phone", readBackConfirmed: true })
+      .expect(200);
     await staff(doctor).post(`/api/v1/laboratory/critical-results/${alerts.body[0].id}/acknowledge`).expect(200);
     await drainEvents(ctx);
     const after = await portal("/results").expect(200);

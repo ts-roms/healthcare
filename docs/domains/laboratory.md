@@ -63,7 +63,8 @@ billing's (the LIS emits events and never computes invoices).
   Results performed by a reference laboratory carry `send_out_id`, `reference_laboratory_id` and a snapshot of its name
   (`performing_laboratory`), immutable like the values.
 - `lab_critical_alert` — raised when a critical result is verified; `open → communicated` (to whom, how, read-back
-  confirmed, note) `→ acknowledged` (by the ordering side).
+  confirmed, note) `→ acknowledged` (by the ordering side). Acknowledging an alert that is still `open` is refused
+  (`alert_not_communicated`; constraint `lab_critical_alert_communicated_before_acknowledged`, migration `0061`).
 
 ## Rules
 
