@@ -1,7 +1,20 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { type Actor, actorUserId, asPgError, BusinessRuleError, DATABASE, type Database, type DbExecutor, NotFoundError, PgErrorCode } from "@healthcare/core";
-import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import {
+  type Actor,
+  actorUserId,
+  asPgError,
+  BusinessRuleError,
+  DATABASE,
+  type Database,
+  type DbExecutor,
+  NotFoundError,
+  isFiledAs,
+  PatientMergedError,
+  PgErrorCode,
+  filedAsPatient,
+} from "@healthcare/core";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
 import { document, type DocumentCategory, type DocumentManager, type DocumentRecord } from "./document.schema";
@@ -61,6 +74,13 @@ export class DocumentsService {
     let created: DocumentRecord | undefined;
     try {
       created = await this.db.transaction(async (tx) => {
+        // Staff uploads go to the surviving record of a merged patient (ADR-0009); domain-managed files of earlier work
+        // (e.g. corrections) stay with the record they belong to.
+        if (input.patientId && !scope.managedBy) {
+          const { rows } = await tx.execute<{ survivor: string | null }>(sql`SELECT patient_canonical_id(${input.patientId}::uuid) AS survivor`);
+          const survivor = rows[0]?.survivor;
+          if (survivor && survivor !== input.patientId) throw new PatientMergedError(survivor);
+        }
         const [row] = await tx
           .insert(document)
           .values({
@@ -132,7 +152,7 @@ export class DocumentsService {
   async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
     const conditions = [
       eq(document.organizationId, actor.organizationId),
-      eq(document.patientId, patientId),
+      filedAsPatient(document.patientId, patientId),
       ne(document.status, "pending_upload"),
       // Documents a domain manages are listed by that domain (e.g. attachments of results not yet released).
       isNull(document.managedBy),
@@ -172,14 +192,14 @@ export class DocumentsService {
    */
   async downloadUrlForPatient(context: PatientAuditContext, documentId: string): Promise<{ url: string; expiresAt: string }> {
     const record = await this.find(context.organizationId, documentId, {});
-    if (record.patientId !== context.patientId) throw new NotFoundError("Document");
+    if (!(await isFiledAs(this.db, record.patientId, context.patientId))) throw new NotFoundError("Document");
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
     await this.audit.recordStandalone(context, {
       action: "document.download",
       resourceType: "document",
       resourceId: documentId,
-      patientId: record.patientId,
+      patientId: record.patientId ?? undefined,
     });
     return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString() };
   }

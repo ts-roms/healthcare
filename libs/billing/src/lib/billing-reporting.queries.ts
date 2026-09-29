@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
+import { canonicalPatientId, DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { billingCreditNote, billingDebitNote, billingInvoice, billingInvoiceItem, billingPayment, billingService } from "./billing.schema";
 
@@ -100,7 +100,7 @@ export class BillingReportingQueries {
           quantity: sql<number>`sum(${billingInvoiceItem.quantity})::int`,
           net: centavos(sql`sum(${billingInvoiceItem.netAmount})`),
           /** Distinct patients invoiced for the service (the API suppresses small counts). */
-          patients: sql<number>`count(distinct ${billingInvoice.patientId})::int`,
+          patients: sql<number>`count(distinct ${canonicalPatientId(billingInvoice.patientId)})::int`,
         })
         .from(billingInvoiceItem)
         .innerJoin(billingInvoice, eq(billingInvoice.id, billingInvoiceItem.invoiceId))

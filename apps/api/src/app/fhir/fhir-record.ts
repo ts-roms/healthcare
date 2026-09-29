@@ -108,6 +108,7 @@ export class FhirRecordComposer {
         status: patient.status,
         deceasedAt: patient.deceasedAt,
         mergedIntoPatientId: patient.mergedIntoPatientId,
+        mergedRecordIds: patient.mergedRecords.map((r) => r.id),
         updatedAt: patient.updatedAt,
         identifiers: patient.identifiers,
         contacts: patient.contacts,

@@ -1,5 +1,15 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, localDate, localDayBounds, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import {
+  DATABASE,
+  type Database,
+  localDate,
+  localDayBounds,
+  timelineFacility,
+  timelineInstant,
+  timelineRange,
+  type TimelineWindow,
+  filedAsPatient,
+} from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import {
@@ -68,7 +78,7 @@ export class ClinicQueries {
       .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
       .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
       .innerJoin(facility, eq(facility.id, appointment.facilityId))
-      .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId), gte(appointment.startsAt, since)))
+      .where(and(eq(appointment.organizationId, organizationId), filedAsPatient(appointment.patientId, patientId), gte(appointment.startsAt, since)))
       .orderBy(asc(appointment.startsAt))
       .limit(200);
     const changeable = (r: { status: (typeof rows)[number]["status"]; startsAt: Date }) => canApply("cancel", r.status) && patientMayChange(r.startsAt, now);
@@ -155,7 +165,7 @@ export class ClinicQueries {
         .where(
           and(
             eq(diagnosis.organizationId, organizationId),
-            eq(diagnosis.patientId, patientId),
+            filedAsPatient(diagnosis.patientId, patientId),
             eq(diagnosis.status, "active"),
             or(eq(diagnosis.isChronic, true), gte(diagnosis.recordedAt, new Date(Date.now() - 90 * 86_400_000))),
           ),
@@ -165,13 +175,19 @@ export class ClinicQueries {
       this.db
         .select()
         .from(encounter)
-        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId), inArray(encounter.status, ["in_progress", "completed"])))
+        .where(
+          and(
+            eq(encounter.organizationId, organizationId),
+            filedAsPatient(encounter.patientId, patientId),
+            inArray(encounter.status, ["in_progress", "completed"]),
+          ),
+        )
         .orderBy(desc(encounter.startedAt))
         .limit(5),
       this.db
         .select()
         .from(vitalSignSet)
-        .where(and(eq(vitalSignSet.organizationId, organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
+        .where(and(eq(vitalSignSet.organizationId, organizationId), filedAsPatient(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
         .orderBy(desc(vitalSignSet.measuredAt))
         .limit(3),
       this.db
@@ -180,7 +196,7 @@ export class ClinicQueries {
         .where(
           and(
             eq(appointment.organizationId, organizationId),
-            eq(appointment.patientId, patientId),
+            filedAsPatient(appointment.patientId, patientId),
             inArray(appointment.status, ["booked", "confirmed"]),
             gte(appointment.startsAt, new Date()),
           ),
@@ -209,35 +225,35 @@ export class ClinicQueries {
         .from(encounter)
         .leftJoin(visit, eq(visit.id, encounter.visitId))
         .leftJoin(visitType, eq(visitType.id, visit.visitTypeId))
-        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId)))
+        .where(and(eq(encounter.organizationId, organizationId), filedAsPatient(encounter.patientId, patientId)))
         .orderBy(asc(encounter.startedAt)),
       this.db
         .select()
         .from(diagnosis)
-        .where(and(eq(diagnosis.organizationId, organizationId), eq(diagnosis.patientId, patientId)))
+        .where(and(eq(diagnosis.organizationId, organizationId), filedAsPatient(diagnosis.patientId, patientId)))
         .orderBy(asc(diagnosis.recordedAt)),
       this.db
         .select()
         .from(allergyIntolerance)
-        .where(and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId)))
+        .where(and(eq(allergyIntolerance.organizationId, organizationId), filedAsPatient(allergyIntolerance.patientId, patientId)))
         .orderBy(asc(allergyIntolerance.recordedAt)),
       this.db
         .select()
         .from(allergyReview)
-        .where(and(eq(allergyReview.organizationId, organizationId), eq(allergyReview.patientId, patientId)))
+        .where(and(eq(allergyReview.organizationId, organizationId), filedAsPatient(allergyReview.patientId, patientId)))
         .orderBy(desc(allergyReview.reviewedAt))
         .limit(1),
       this.db
         .select()
         .from(vitalSignSet)
-        .where(and(eq(vitalSignSet.organizationId, organizationId), eq(vitalSignSet.patientId, patientId)))
+        .where(and(eq(vitalSignSet.organizationId, organizationId), filedAsPatient(vitalSignSet.patientId, patientId)))
         .orderBy(asc(vitalSignSet.measuredAt)),
       this.db
         .select({ appointment, visitTypeName: visitType.name, modality: visitType.modality, practitionerName: practitioner.displayName })
         .from(appointment)
         .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
         .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
-        .where(and(eq(appointment.organizationId, organizationId), eq(appointment.patientId, patientId)))
+        .where(and(eq(appointment.organizationId, organizationId), filedAsPatient(appointment.patientId, patientId)))
         .orderBy(asc(appointment.startsAt)),
       this.db
         .select({
@@ -256,7 +272,7 @@ export class ClinicQueries {
           enteredInErrorAt: externalHistoryEntry.enteredInErrorAt,
         })
         .from(externalHistoryEntry)
-        .where(and(eq(externalHistoryEntry.organizationId, organizationId), eq(externalHistoryEntry.patientId, patientId)))
+        .where(and(eq(externalHistoryEntry.organizationId, organizationId), filedAsPatient(externalHistoryEntry.patientId, patientId)))
         .orderBy(asc(externalHistoryEntry.recordedAt)),
     ]);
     return {
@@ -369,6 +385,7 @@ export class ClinicQueries {
     return this.db
       .select({
         id: appointment.id,
+        patientId: appointment.patientId,
         at: timelineInstant(at),
         facilityId: appointment.facilityId,
         status: appointment.status,
@@ -384,7 +401,7 @@ export class ClinicQueries {
       .where(
         and(
           eq(appointment.organizationId, organizationId),
-          eq(appointment.patientId, patientId),
+          filedAsPatient(appointment.patientId, patientId),
           timelineFacility(appointment.facilityId, window),
           timelineRange("appointment", at, appointment.id, window),
         ),
@@ -402,6 +419,7 @@ export class ClinicQueries {
     return this.db
       .select({
         id: encounter.id,
+        patientId: encounter.patientId,
         at: timelineInstant(at),
         facilityId: encounter.facilityId,
         status: encounter.status,
@@ -422,7 +440,7 @@ export class ClinicQueries {
       .where(
         and(
           eq(encounter.organizationId, organizationId),
-          eq(encounter.patientId, patientId),
+          filedAsPatient(encounter.patientId, patientId),
           timelineFacility(encounter.facilityId, window),
           timelineRange("encounter", at, encounter.id, window),
         ),
@@ -437,6 +455,7 @@ export class ClinicQueries {
     return this.db
       .select({
         id: vitalSignSet.id,
+        patientId: vitalSignSet.patientId,
         at: timelineInstant(at),
         facilityId: vitalSignSet.facilityId,
         status: vitalSignSet.status,
@@ -447,7 +466,7 @@ export class ClinicQueries {
       .where(
         and(
           eq(vitalSignSet.organizationId, organizationId),
-          eq(vitalSignSet.patientId, patientId),
+          filedAsPatient(vitalSignSet.patientId, patientId),
           timelineFacility(vitalSignSet.facilityId, window),
           timelineRange("vitals", at, vitalSignSet.id, window),
         ),
@@ -466,6 +485,7 @@ export class ClinicQueries {
     return this.db
       .select({
         id: externalHistoryEntry.id,
+        patientId: externalHistoryEntry.patientId,
         at: timelineInstant(at),
         kind: externalHistoryEntry.kind,
         codeSystem: externalHistoryEntry.codeSystem,
@@ -477,7 +497,7 @@ export class ClinicQueries {
       .where(
         and(
           eq(externalHistoryEntry.organizationId, organizationId),
-          eq(externalHistoryEntry.patientId, patientId),
+          filedAsPatient(externalHistoryEntry.patientId, patientId),
           timelineRange("external_history", at, externalHistoryEntry.id, window),
         ),
       )
@@ -497,6 +517,7 @@ export class ClinicQueries {
   async workspaceEncounters(organizationId: string, patientId: string, limits: { open: number; recent: number }) {
     const columns = {
       id: encounter.id,
+      patientId: encounter.patientId,
       facilityId: encounter.facilityId,
       status: encounter.status,
       modality: encounter.modality,
@@ -517,7 +538,7 @@ export class ClinicQueries {
         .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
         .leftJoin(visit, eq(visit.id, encounter.visitId))
         .leftJoin(visitType, eq(visitType.id, visit.visitTypeId));
-    const scope = and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId));
+    const scope = and(eq(encounter.organizationId, organizationId), filedAsPatient(encounter.patientId, patientId));
     const [open, recent] = await Promise.all([
       base()
         .where(and(scope, eq(encounter.status, "in_progress")))
@@ -575,7 +596,7 @@ export class ClinicQueries {
       .where(
         and(
           eq(visit.organizationId, organizationId),
-          eq(visit.patientId, patientId),
+          filedAsPatient(visit.patientId, patientId),
           eq(visit.facilityId, facilityId),
           eq(visit.queueDate, localDate(new Date(), site.timezone)),
           inArray(visit.status, ["waiting", "in_triage", "awaiting_consultation", "in_consultation"]),
@@ -584,6 +605,49 @@ export class ClinicQueries {
       .orderBy(desc(visit.checkedInAt))
       .limit(1);
     return row ?? null;
+  }
+
+  // ---- Patient merge (composed in apps/api) --------------------------------------------------------------------
+
+  /**
+   * Work in progress filed under exactly this record id that a merge would strand: consultations in progress, queue
+   * visits not ended, and booked or confirmed appointments that have not ended (reminders are never sent to a merged
+   * record). Short display fields only.
+   */
+  async mergeWorkInProgress(organizationId: string, patientId: string) {
+    const [encounters, visits, appointments] = await Promise.all([
+      this.db
+        .select({ id: encounter.id, modality: encounter.modality, startedAt: encounter.startedAt, practitionerName: practitioner.displayName })
+        .from(encounter)
+        .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+        .where(and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId), eq(encounter.status, "in_progress")))
+        .orderBy(asc(encounter.startedAt)),
+      this.db
+        .select({ id: visit.id, queueDate: visit.queueDate, queueNumber: visit.queueNumber, status: visit.status, checkedInAt: visit.checkedInAt })
+        .from(visit)
+        .where(
+          and(
+            eq(visit.organizationId, organizationId),
+            eq(visit.patientId, patientId),
+            inArray(visit.status, ["waiting", "in_triage", "awaiting_consultation", "in_consultation"]),
+          ),
+        )
+        .orderBy(asc(visit.checkedInAt)),
+      this.db
+        .select({ id: appointment.id, startsAt: appointment.startsAt, status: appointment.status, visitTypeName: visitType.name })
+        .from(appointment)
+        .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+        .where(
+          and(
+            eq(appointment.organizationId, organizationId),
+            eq(appointment.patientId, patientId),
+            inArray(appointment.status, ["booked", "confirmed"]),
+            gte(appointment.endsAt, new Date()),
+          ),
+        )
+        .orderBy(asc(appointment.startsAt)),
+    ]);
+    return { encounters, visits, appointments };
   }
 
   /** Practitioner records by id (record exports). */

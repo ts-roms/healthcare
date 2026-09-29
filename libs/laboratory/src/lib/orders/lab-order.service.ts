@@ -12,6 +12,7 @@ import {
   localDate,
   NotFoundError,
   requireFacilityId,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
@@ -163,7 +164,7 @@ export class LabOrderService {
 
   async list(actor: Actor, query: { patientId?: string; encounterId?: string; status?: LabOrderRecord["status"] }): Promise<OrderView[]> {
     const filters: SQL[] = [eq(labOrder.organizationId, actor.organizationId)];
-    if (query.patientId) filters.push(eq(labOrder.patientId, query.patientId));
+    if (query.patientId) filters.push(filedAsPatient(labOrder.patientId, query.patientId));
     if (query.encounterId) filters.push(eq(labOrder.encounterId, query.encounterId));
     if (query.status) filters.push(eq(labOrder.status, query.status));
     const rows = await this.db

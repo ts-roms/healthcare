@@ -61,7 +61,14 @@ export class PatientRegistrationService {
     const swapped = transposeDayMonth(input.birthDate);
     const birthYear = Number(input.birthDate.slice(0, 4));
 
-    const identifierMatches = await this.identifierMatches(executor, organizationId, input.identifiers ?? []);
+    // An identifier or contact still held by a merged (retired) record points to its survivor.
+    const resolvedFrom = new Map<string, { id: string; patientNumber: string }>();
+    const identifierMatches = await this.toSurvivors(
+      executor,
+      organizationId,
+      await this.identifierMatches(executor, organizationId, input.identifiers ?? []),
+      resolvedFrom,
+    );
     const contactValues = (input.contacts ?? []).flatMap((c) => {
       try {
         return [normalizeContact(c.system, c.value)];
@@ -70,18 +77,23 @@ export class PatientRegistrationService {
       }
     });
     const contactMatches = contactValues.length
-      ? (
-          await executor
-            .selectDistinct({ patientId: patientContactPoint.patientId })
-            .from(patientContactPoint)
-            .where(
-              and(
-                eq(patientContactPoint.organizationId, organizationId),
-                eq(patientContactPoint.status, "active"),
-                inArray(patientContactPoint.valueNormalized, contactValues),
-              ),
-            )
-        ).map((r) => r.patientId)
+      ? await this.toSurvivors(
+          executor,
+          organizationId,
+          (
+            await executor
+              .selectDistinct({ patientId: patientContactPoint.patientId })
+              .from(patientContactPoint)
+              .where(
+                and(
+                  eq(patientContactPoint.organizationId, organizationId),
+                  eq(patientContactPoint.status, "active"),
+                  inArray(patientContactPoint.valueNormalized, contactValues),
+                ),
+              )
+          ).map((r) => r.patientId),
+          resolvedFrom,
+        )
       : [];
     const linkedIds = [...new Set([...identifierMatches, ...contactMatches])];
 
@@ -141,7 +153,8 @@ export class PatientRegistrationService {
         identifierMatch: identifierMatches.includes(row.id),
         contactMatch: contactMatches.includes(row.id),
       });
-      if (assessment) candidates.push({ ...assessment, patient: toSummary(row, primaryMobiles.get(row.id)) });
+      if (assessment)
+        candidates.push({ ...assessment, patient: { ...toSummary(row, primaryMobiles.get(row.id)), resolvedFrom: resolvedFrom.get(row.id) ?? null } });
     }
     const rank = { certain: 0, high: 1, possible: 2 } as const;
     return candidates.sort((a, b) => rank[a.level] - rank[b.level]).slice(0, 10);
@@ -278,6 +291,31 @@ export class PatientRegistrationService {
         ),
       );
     return matches.map((m) => m.patientId);
+  }
+
+  /** Patient ids with every merged (retired) record replaced by its survivor; `resolvedFrom` notes the retired record. */
+  private async toSurvivors(
+    executor: DbExecutor,
+    organizationId: string,
+    patientIds: string[],
+    resolvedFrom: Map<string, { id: string; patientNumber: string }>,
+  ): Promise<string[]> {
+    if (patientIds.length === 0) return [];
+    const rows = await executor
+      .select({ id: patient.id, patientNumber: patient.patientNumber, mergedInto: patient.mergedIntoPatientId })
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), inArray(patient.id, patientIds)));
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (!row.mergedInto) {
+        ids.add(row.id);
+        continue;
+      }
+      ids.add(row.mergedInto);
+      if (!patientIds.includes(row.mergedInto) && !resolvedFrom.has(row.mergedInto))
+        resolvedFrom.set(row.mergedInto, { id: row.id, patientNumber: row.patientNumber });
+    }
+    return [...ids];
   }
 
   private async primaryMobiles(executor: DbExecutor, patientIds: string[]): Promise<Map<string, string>> {

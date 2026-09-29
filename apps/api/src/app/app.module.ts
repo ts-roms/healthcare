@@ -14,7 +14,7 @@ import { BillingModule, BillingPricesModule } from "@healthcare/billing";
 import { DohReportingModule, FhirImportModule, IntegrationModule, ReferenceLabIntegrationModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
-import { PatientModule } from "@healthcare/patient";
+import { PatientMergeModule, PatientModule } from "@healthcare/patient";
 import { PhilHealthModule } from "@healthcare/philhealth";
 import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
@@ -29,6 +29,7 @@ import { AppExchangePatients } from "./adapters/integration-adapters";
 import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources, AppPhilHealthYakapSources } from "./adapters/philhealth-adapters";
 import { AppReferenceLabSink, AppReferenceLabSources } from "./adapters/reference-lab-adapters";
+import { AppPatientMergeContext } from "./adapters/patient-merge-adapters";
 import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
 import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
@@ -115,6 +116,7 @@ export class AppModule implements NestModule {
       prescribingContext: AppPrescribingContext,
       dispensingStock: AppDispensingStock,
     });
+    const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
     return {
       module: AppModule,
       imports: [
@@ -139,7 +141,7 @@ export class AppModule implements NestModule {
         // Phase 2 — clinic. Cross-domain needs are satisfied by adapters defined here.
         ClinicModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
         prescriptions,
-        CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
+        carePlans,
         // Phase 3 — laboratory.
         laboratory,
         // Phase 5 — telemedicine.
@@ -171,6 +173,11 @@ export class AppModule implements NestModule {
         FhirImportModule.forRoot({ imports: [PatientModule], targets: AppFhirImportTargets }),
         // Phase 9 — inventory: stock ledger, lots and expiry, reorder levels.
         InventoryModule,
+        // Patient merge (link, don't move): work in progress under the record to retire comes from the domains.
+        PatientMergeModule.forRoot({
+          imports: [PatientModule, AuthModule, OrganizationModule, laboratory, billing, carePlans],
+          context: AppPatientMergeContext,
+        }),
         // Outbound exchanges are sealed here and sent by apps/integration-worker.
         IntegrationModule.forRoot({ imports: [PatientModule], patients: AppExchangePatients, queue: overrides.integrationQueue }),
       ],

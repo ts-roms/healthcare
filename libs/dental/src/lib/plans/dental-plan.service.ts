@@ -12,6 +12,7 @@ import {
   NotFoundError,
   PgErrorCode,
   requireFacilityId,
+  filedAsPatient,
 } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -103,7 +104,7 @@ export class DentalPlanService {
     const plans = await this.db
       .select()
       .from(dentalTreatmentPlan)
-      .where(and(eq(dentalTreatmentPlan.organizationId, organizationId), eq(dentalTreatmentPlan.patientId, patientId)))
+      .where(and(eq(dentalTreatmentPlan.organizationId, organizationId), filedAsPatient(dentalTreatmentPlan.patientId, patientId)))
       .orderBy(desc(dentalTreatmentPlan.createdAt));
     const items = plans.length
       ? await this.db
