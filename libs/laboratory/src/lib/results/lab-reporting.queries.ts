@@ -1,12 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
-import { labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { labInstrument, labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
 
 /**
  * Laboratory figures for management reporting over a window: orders and tests ordered, first releases with the
  * collection-to-release turnaround (and how many met the test's own target), corrections released, specimens
- * rejected, and the most ordered tests. Counts only: no patient or value.
+ * rejected, the rejection rate of specimens collected in the window, first result versions entered per instrument, and
+ * the most ordered tests. Counts only: no patient or value.
  */
 @Injectable()
 export class LabReportingQueries {
@@ -23,7 +24,7 @@ export class LabReportingQueries {
       reportingRange(labResult.releasedAt, window),
       reportingFacility(labResult.facilityId, window),
     );
-    const [orders, tests, releases, rejected, topTests, daily] = await Promise.all([
+    const [orders, tests, releases, rejected, topTests, daily, collected, instruments] = await Promise.all([
       this.db
         .select({
           orders: sql<number>`count(*)::int`,
@@ -76,7 +77,40 @@ export class LabReportingQueries {
         .from(labResult)
         .where(and(releasedWhere, eq(labResult.versionNumber, 1)))
         .groupBy(sql`1`),
+      // Specimens collected in the window, and how many of those were rejected (whenever).
+      this.db
+        .select({
+          collected: sql<number>`count(*)::int`,
+          rejected: sql<number>`count(*) filter (where ${labSpecimen.rejectedAt} is not null)::int`,
+        })
+        .from(labSpecimen)
+        .where(
+          and(
+            eq(labSpecimen.organizationId, organizationId),
+            reportingRange(labSpecimen.collectedAt, window),
+            reportingFacility(labSpecimen.facilityId, window),
+          ),
+        ),
+      // First result versions entered in the window, by the instrument recorded on them (null: none recorded).
+      this.db
+        .select({
+          instrumentId: labResult.instrumentId,
+          name: sql<string | null>`max(${labInstrument.name})`,
+          results: sql<number>`count(*)::int`,
+        })
+        .from(labResult)
+        .leftJoin(labInstrument, eq(labInstrument.id, labResult.instrumentId))
+        .where(
+          and(
+            eq(labResult.organizationId, organizationId),
+            eq(labResult.versionNumber, 1),
+            reportingRange(labResult.enteredAt, window),
+            reportingFacility(labResult.facilityId, window),
+          ),
+        )
+        .groupBy(labResult.instrumentId),
     ]);
+    const specimens = collected[0] ?? { collected: 0, rejected: 0 };
     const r = releases[0] ?? { released: 0, corrections: 0, averageTurnaroundMinutes: null, withTarget: 0, withinTarget: 0 };
     return {
       orders: orders[0] ?? { orders: 0, stat: 0, cancelled: 0 },
@@ -87,6 +121,14 @@ export class LabReportingQueries {
       /** Share of first releases with a turnaround target that met it (null when none had a target). */
       withinTargetRate: r.withTarget ? Math.round((r.withinTarget / r.withTarget) * 1000) / 1000 : null,
       specimensRejected: rejected[0]?.count ?? 0,
+      /** Specimens collected in the window and, of those, how many were rejected; rejection rate = rejected ÷ collected. */
+      specimens: {
+        collected: specimens.collected,
+        rejected: specimens.rejected,
+        rejectionRate: specimens.collected ? Math.round((specimens.rejected / specimens.collected) * 1000) / 1000 : null,
+      },
+      /** First result versions entered in the window per instrument (instrumentId null: no instrument recorded); most first. */
+      byInstrument: instruments.sort((a, b) => b.results - a.results || (a.name ?? "~").localeCompare(b.name ?? "~")),
       topTests: topTests,
       daily: daily.sort((a, b) => a.date.localeCompare(b.date)),
     };
