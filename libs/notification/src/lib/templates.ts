@@ -169,6 +169,33 @@ export const TEMPLATES = [
           },
   }),
   defineTemplate({
+    key: "dental.record-update",
+    version: 1,
+    category: "clinical",
+    // Leaves the platform (SMS/email): no tooth, procedure, image type or finding — only a pointer to MyHealth.
+    channels: ["sms", "email", "in_app"],
+    variables: z.object({ kind: z.enum(["image-shared", "plan-to-review", "plan-to-decide"]), organizationName: shortText }),
+    render: (v) => {
+      switch (v.kind) {
+        case "image-shared":
+          return {
+            subject: `Your dentist shared an image with you`,
+            text: `${v.organizationName}: your dentist shared an X-ray or photo with you in MyHealth. Sign in to see it, and ask your dentist to explain it.`,
+          };
+        case "plan-to-review":
+          return {
+            subject: `A dental treatment plan from ${v.organizationName}`,
+            text: `${v.organizationName}: your dentist prepared a dental treatment plan for you. Sign in to MyHealth to read it, then tell your dentist or the clinic what you decide.`,
+          };
+        case "plan-to-decide":
+          return {
+            subject: `A dental treatment plan is waiting for your decision`,
+            text: `${v.organizationName}: a dental treatment plan is waiting for your decision in MyHealth. Sign in to review it; you can also talk to your dentist first.`,
+          };
+      }
+    },
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",

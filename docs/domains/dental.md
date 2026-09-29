@@ -266,6 +266,22 @@ error"). The patient sees a released image only while the organization shows den
 record marks shared images ("Shared in MyHealth", "(records off)" while the organization does not show them). Audited
 `dental.image.release`, `dental.image.withdraw`.
 
+### Notices
+
+While dental records are shown in MyHealth, a patient who uses MyHealth is told (`apps/api/src/app/portal/patient-dental-notices.ts`,
+outbox handlers) with template `dental.record-update` — an in-app copy plus SMS, or email when SMS is not possible;
+consent and communication preferences apply (`NotificationService`). The message names no tooth, procedure, image type
+or finding: only the clinic and where to look (MyHealth links it to `/dental`).
+
+| Event                                                        | Sent when, at handling time                                         | Kind                                                          | Once per     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------- | ------------ |
+| `DentalImageReleased` (release id)                           | records shown, release not withdrawn, image not entered in error    | `image-shared`                                                | release      |
+| `DentalTreatmentPlanCreated`, `DentalTreatmentPlanItemAdded` | records shown, plan open with items awaiting the patient's decision | `plan-to-decide` (online decisions on), else `plan-to-review` | plan and day |
+
+What is announced is checked when the event is handled, so a release withdrawn or a plan decided in the meantime sends
+nothing; an image released while records were off is not announced later. A patient without an active MyHealth account
+(or without `portal_access` consent) is not told.
+
 ### Treatment plan decisions in MyHealth
 
 **Also opt-in and off by default** (`portalPlanDecisions`, needs dental records shown; turning records off turns it
@@ -333,9 +349,8 @@ The supplies a procedure used are taken from inventory stock (`libs/dental/src/l
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
 - MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
-  status; confirm with the clinics. Fee estimates are a follow-up (plans carry no prices). Patients are not notified
-  when an image is shared or a plan awaits their decision (a notification template is a follow-up); a DICOM file opens
-  as a download (no viewer in MyHealth).
+  status; confirm with the clinics. Fee estimates are a follow-up (plans carry no prices); a DICOM file opens as a
+  download (no viewer in MyHealth).
 - Supplies: dental assistants cannot record supply use (they lack `dental.procedure.record`); a narrower permission
   for them is a follow-up if clinics want it. Charging supplies separately and a recall search screen by lot are
   follow-ups.
