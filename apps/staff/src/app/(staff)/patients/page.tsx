@@ -16,6 +16,7 @@ const PAGE_SIZE = 25;
 export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ q?: string; birthDate?: string; page?: string }> }) {
   const { q = "", birthDate = "", page: pageParam } = await searchParams;
   const session = await getSession();
+  const canOpenWorkspace = can(session, "patient.read");
   const page = Math.max(1, Number(pageParam) || 1);
   const query = q.trim();
   const hasCriteria = query.length >= 2 || Boolean(birthDate);
@@ -102,6 +103,15 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
                     <Link href={`/patients/${p.id}`} className="font-medium text-primary hover:underline">
                       {p.displayName}
                     </Link>
+                    {canOpenWorkspace ? (
+                      <Link
+                        href={`/patients/${p.id}/360`}
+                        className="ml-2 text-meta text-primary hover:underline"
+                        aria-label={`Patient 360 for ${p.displayName}`}
+                      >
+                        360
+                      </Link>
+                    ) : null}
                   </TableCell>
                   <TableCell className="font-mono">{p.patientNumber}</TableCell>
                   <TableCell>{clinicalDate(p.birthDate)}</TableCell>

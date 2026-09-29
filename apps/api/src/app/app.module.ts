@@ -42,6 +42,8 @@ import { ManagementDashboardController } from "./management-dashboard/management
 import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
+import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
+import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
@@ -178,6 +180,7 @@ export class AppModule implements NestModule {
         HealthController,
         PatientSummaryController,
         PatientTimelineController,
+        PatientWorkspaceController,
         ManagementDashboardController,
         PortalBillingController,
         PortalBookingController,
@@ -189,6 +192,7 @@ export class AppModule implements NestModule {
       providers: [
         FhirRecordComposer,
         PatientTimelineService,
+        PatientWorkspaceService,
         ManagementDashboardService,
         RealtimeGateway,
         LaboratoryNotifications,

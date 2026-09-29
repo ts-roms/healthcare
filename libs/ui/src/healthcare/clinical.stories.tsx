@@ -177,8 +177,16 @@ export const Documents: StoryObj = {
       <MedicalDocument title="Medical certificate" kind="certificate" date="2026-09-27" author="Dr. Elena Reyes" signed />
       <MedicalDocument title="Referral to Ophthalmology" kind="referral" date="2026-09-27" author="Dr. Elena Reyes" signed={false} />
       <MedicalDocument title="Chest X-ray PA" kind="imaging" date="2026-06-02" author="Central Imaging" />
+      {/* Sample: a private document opened through a short-lived signed link (the app fetches it on click). */}
+      <MedicalDocument title="Periapical 36 (sample)" kind="imaging" date="2026-09-27" onOpen={() => alert("Would open a signed link")} />
     </div>
   ),
+};
+
+/** Sample encounters as links (the Patient 360 workspace opens each in the encounter workspace). */
+export const EncounterLinks: StoryObj = {
+  name: "Encounter history — links",
+  render: () => <EncounterTimeline className="max-w-sm" encounters={encounters} href={(e) => `#encounter-${e.id}`} />,
 };
 
 export const Audit: StoryObj = { render: () => <AuditHistory entries={auditHistory} className="max-w-xl" /> };

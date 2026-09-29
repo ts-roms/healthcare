@@ -48,7 +48,7 @@ If a patient already has a consultation, select **Open** instead. Online consult
 ## The encounter workspace at a glance
 
 - **Top banner** — the patient, allergies, the encounter status (**In progress**, **Signed** or **Entered in error**), start time, practitioner,
-  and **Online** for a teleconsultation.
+  **Online** for a teleconsultation, and **Patient 360** (the patient's one-screen workspace — see [Patients](02-patients.md)).
 - **Encounters** (left) — the patient's previous encounters by date and status. Select one to open it.
 - **Current encounter** (centre) — chief complaint, the SOAP note, **Diagnoses**, **Prescriptions**, **Laboratory**, **Care plans**, and
   **This visit** (the triage and vital signs recorded for this visit).

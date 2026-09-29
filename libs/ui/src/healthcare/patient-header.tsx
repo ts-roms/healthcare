@@ -21,6 +21,8 @@ export interface PatientHeaderProps {
   allergiesRecorded?: boolean;
   /** True when the viewer may not see clinical data: shows "Allergies: no access" instead of any allergy statement. */
   allergiesHidden?: boolean;
+  /** Extra facts on the banner's detail line (full variant), e.g. a masked PhilHealth PIN or alert badges. */
+  details?: React.ReactNode;
   className?: string;
 }
 
@@ -28,7 +30,7 @@ export interface PatientHeaderProps {
  * The patient banner. Identity + allergies are always visible together at the
  * top of any patient-context screen (a core patient-safety pattern).
  */
-export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, allergiesHidden = false, className }: PatientHeaderProps) {
+export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, allergiesHidden = false, details, className }: PatientHeaderProps) {
   const age = ageFrom(patient.birthDate);
   const name = fullName(patient);
 
@@ -91,6 +93,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
               <dd className="tabular">{patient.phone}</dd>
             </div>
           ) : null}
+          {details}
         </dl>
       </div>
       {aside ? <div className="flex items-center gap-2">{aside}</div> : null}

@@ -252,6 +252,9 @@ export function EncounterWorkspace({
                   <span className="tabular text-muted-foreground">{clinicalDateTime(encounter.startedAt)}</span>
                   {practitionerName ? <span className="text-muted-foreground">{practitionerName}</span> : null}
                   {encounter.modality === "telemedicine" ? <Badge>Online</Badge> : null}
+                  <Link href={`/patients/${encounter.patientId}/360`} className="text-primary hover:underline">
+                    Patient 360
+                  </Link>
                 </span>
               }
             />

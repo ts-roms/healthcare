@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { labCriticalAlert, labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
 import { labReferenceLaboratory } from "../send-outs/send-out.schema";
 
 /**
@@ -76,6 +76,68 @@ export class LabRecordQueries {
     return rows.flatMap((r) =>
       r.documentId && r.storedAt ? [{ orderId: r.orderId, documentId: r.documentId, archiveVersion: r.archiveVersion, storedAt: r.storedAt }] : [],
     );
+  }
+
+  // ---- Patient 360 workspace (composed in apps/api) ------------------------------------------------------------
+
+  /**
+   * Critical results of the patient not yet acknowledged by the care team (open or communicated), oldest first, at
+   * any facility: test, order and when raised — never the value (the laboratory's critical-results screen shows it).
+   */
+  unacknowledgedCriticalAlerts(organizationId: string, patientId: string, limit: number) {
+    return this.db
+      .select({
+        id: labCriticalAlert.id,
+        facilityId: labCriticalAlert.facilityId,
+        status: labCriticalAlert.status,
+        raisedAt: labCriticalAlert.raisedAt,
+        orderId: labResult.orderId,
+        orderNumber: labOrder.orderNumber,
+        testName: labOrderItem.testName,
+      })
+      .from(labCriticalAlert)
+      .innerJoin(labResult, eq(labResult.id, labCriticalAlert.resultId))
+      .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
+      .innerJoin(labOrder, eq(labOrder.id, labResult.orderId))
+      .where(and(eq(labCriticalAlert.organizationId, organizationId), eq(labCriticalAlert.patientId, patientId), ne(labCriticalAlert.status, "acknowledged")))
+      .orderBy(asc(labCriticalAlert.raisedAt), asc(labCriticalAlert.id))
+      .limit(limit);
+  }
+
+  /**
+   * The patient's open laboratory orders (not completed or cancelled), latest first: number, priority, when ordered,
+   * the encounter and each test's name and status — no clinical indication or notes.
+   */
+  async openOrders(organizationId: string, patientId: string, limit: number) {
+    const orders = await this.db
+      .select({
+        id: labOrder.id,
+        facilityId: labOrder.facilityId,
+        orderNumber: labOrder.orderNumber,
+        priority: labOrder.priority,
+        status: labOrder.status,
+        orderedAt: labOrder.orderedAt,
+        encounterId: labOrder.encounterId,
+      })
+      .from(labOrder)
+      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.patientId, patientId), eq(labOrder.status, "active")))
+      .orderBy(desc(labOrder.orderedAt), desc(labOrder.id))
+      .limit(limit);
+    if (orders.length === 0) return [];
+    const items = await this.db
+      .select({ id: labOrderItem.id, orderId: labOrderItem.orderId, testName: labOrderItem.testName, status: labOrderItem.status })
+      .from(labOrderItem)
+      .where(
+        and(
+          eq(labOrderItem.organizationId, organizationId),
+          inArray(
+            labOrderItem.orderId,
+            orders.map((o) => o.id),
+          ),
+        ),
+      )
+      .orderBy(asc(labOrderItem.testName));
+    return orders.map((o) => ({ ...o, tests: items.filter((i) => i.orderId === o.id).map(({ orderId: _orderId, ...i }) => i) }));
   }
 
   // ---- Patient timeline (composed in apps/api) ----------------------------------------------------------------

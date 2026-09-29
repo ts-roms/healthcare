@@ -82,6 +82,13 @@ test.describe("registration to laboratory result in MyHealth", () => {
 
     await doctor.getByRole("button", { name: "Sign encounter" }).click();
     await toast(doctor, "Encounter signed");
+
+    // The Patient 360 workspace: the signed consultation with its diagnosis, the open order, nothing in progress.
+    await doctor.getByRole("link", { name: "Patient 360" }).click();
+    await doctor.waitForURL(/\/patients\/[0-9a-f-]{36}\/360$/);
+    await expect(doctor.getByText("No consultation in progress.")).toBeVisible();
+    await expect(doctor.getByText(/E11\.9 Type 2 diabetes mellitus without complications/).first()).toBeVisible();
+    await expect(doctor.getByText(/Fasting blood sugar: To collect/)).toBeVisible();
     await doctor.context().close();
   });
 
