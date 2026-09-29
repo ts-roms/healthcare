@@ -28,6 +28,7 @@ import {
 } from "../dental.schema";
 import { assertVersion, found, rejectIssues, requireDentist, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
+import { DentalFeeLookup } from "./dental-fee-lookup";
 
 type PlanItemInput = { phase: number; procedureTypeId: string; tooth?: string; surfaces: Surface[]; note?: string };
 
@@ -36,7 +37,8 @@ const OPEN: ReadonlySet<DentalTreatmentPlanRecord["status"]> = new Set(["propose
 /**
  * Dental treatment plans: phased items (procedure, tooth, surfaces) proposed by a dentist, accepted or declined by the
  * patient item by item, and completed by performed procedures. Fees come from billing when the procedure is charged;
- * the plan itself carries no prices.
+ * the plan carries no prices of its own, only the estimate (billing's listed price) each item had when the patient
+ * decided it (`DentalFeeEstimates`).
  */
 @Injectable()
 export class DentalPlanService {
@@ -46,6 +48,7 @@ export class DentalPlanService {
     private readonly events: DomainEventPublisher,
     private readonly catalog: DentalCatalogService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
+    private readonly fees: DentalFeeLookup,
   ) {}
 
   async create(actor: Actor, input: z.infer<typeof createPlanSchema>) {
@@ -215,10 +218,23 @@ export class DentalPlanService {
     const accepted = new Set(input.acceptedItemIds);
     const unknown = input.acceptedItemIds.filter((id) => !awaiting.some((i) => i.id === id));
     if (unknown.length) throw new BusinessRuleError("Only items awaiting a decision can be accepted", "item_not_proposed", { itemIds: unknown });
+    // The estimate each item carries with the decision: billing's listed price today at the plan's facility.
+    const priced = await this.fees.price(
+      plan.organizationId,
+      awaiting.map((i) => i.procedureTypeId),
+      await this.fees.today(plan.organizationId, plan.facilityId),
+      tx,
+    );
     for (const item of awaiting) {
       await tx
         .update(dentalTreatmentPlanItem)
-        .set({ status: accepted.has(item.id) ? "accepted" : "declined", updatedAt: new Date(), version: sql`${dentalTreatmentPlanItem.version} + 1` })
+        .set({
+          status: accepted.has(item.id) ? "accepted" : "declined",
+          decisionEstimate: priced.byType.get(item.procedureTypeId)?.unitPrice ?? null,
+          decisionEstimateOn: priced.pricedOn,
+          updatedAt: new Date(),
+          version: sql`${dentalTreatmentPlanItem.version} + 1`,
+        })
         .where(eq(dentalTreatmentPlanItem.id, item.id));
     }
     const statuses = items.map((i) => (i.status === "proposed" ? (accepted.has(i.id) ? "accepted" : "declined") : i.status));
@@ -237,7 +253,12 @@ export class DentalPlanService {
       patientId: plan.patientId,
       reason: input.note,
       changes: { status: { from: plan.status, to: updated.status } },
-      metadata: { accepted: [...accepted], declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id), channel: by.channel },
+      metadata: {
+        accepted: [...accepted],
+        declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id),
+        channel: by.channel,
+        estimatePricedOn: priced.pricedOn,
+      },
     });
     if (accepted.size) {
       await this.events.record(tx, {

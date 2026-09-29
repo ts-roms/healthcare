@@ -9,4 +9,6 @@ export * from "./lib/procedures/dental-procedure.service";
 export * from "./lib/portal/dental-patient-access";
 export * from "./lib/portal/dental-portal-settings.service";
 export * from "./lib/supplies.rules";
+export * from "./lib/plans/fee-estimate.rules";
+export * from "./lib/plans/dental-fee-estimates";
 export { PatientPlanDecisionDto } from "./lib/dental.dto";

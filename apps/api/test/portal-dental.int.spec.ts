@@ -259,6 +259,7 @@ describe("patient portal dental records", () => {
       "decidedIn",
       "decidedOn",
       "dentistName",
+      "estimate",
       "facilityName",
       "id",
       "items",
@@ -266,6 +267,8 @@ describe("patient portal dental records", () => {
       "status",
       "title",
     ]);
+    // Fee estimates are off by default.
+    expect(decided.estimate).toBeNull();
     expect(decided).toMatchObject({
       title: "JUAN restorative plan",
       status: "completed",

@@ -292,7 +292,22 @@ export interface PortalDentalPlan {
     status: PortalDentalItemStatus;
     /** Null for an item that is no longer planned. */
     decision: "awaiting" | "accepted" | "declined" | null;
+    /** With an estimate: the listed price (centavos) of work still ahead; null: no listed price or not ahead. */
+    estimatedFee?: number | null;
   }>;
+  /** Only when the clinic shows fee estimates in MyHealth and something on the plan is still ahead. */
+  estimate: PortalPlanEstimate | null;
+}
+
+/** The fee estimate of the work still ahead on a plan, at the clinic's listed prices (centavos). */
+export interface PortalPlanEstimate {
+  pricedOn: string;
+  awaitingDecision: number;
+  accepted: number;
+  remaining: number;
+  unpricedItems: number;
+  disclaimer: string;
+  note: string | null;
 }
 
 export interface PortalDentalProcedure {

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PatientAuditContext } from "@healthcare/audit";
-import { DATABASE, type Database, ForbiddenError, localDate, NotFoundError } from "@healthcare/core";
+import { ConflictError, DATABASE, type Database, ForbiddenError, localDate, NotFoundError } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -24,7 +24,9 @@ import {
   type Surface,
   type ToothCondition,
 } from "../dental.schema";
+import { DentalFeeLookup } from "../plans/dental-fee-lookup";
 import { DentalPlanService } from "../plans/dental-plan.service";
+import { ESTIMATE_DISCLAIMER, estimatePart, estimateTotals } from "../plans/fee-estimate.rules";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
 import { DentalPortalSettings } from "./dental-portal-settings.service";
 
@@ -46,6 +48,22 @@ export interface PatientDentalPlanItem {
   procedureName: string;
   status: PlanItemStatus;
   decision: PatientPlanItemDecision;
+  /**
+   * With a plan estimate: the listed price (centavos) of an item awaiting the patient's decision or accepted and not
+   * yet done; null for an item without a listed price or not part of the estimate. Absent without an estimate.
+   */
+  estimatedFee?: number | null;
+}
+
+/** The fee estimate on a plan, when the organization shows estimates in MyHealth (docs/domains/dental.md). */
+export interface PatientPlanEstimate {
+  pricedOn: string;
+  awaitingDecision: number;
+  accepted: number;
+  remaining: number;
+  unpricedItems: number;
+  disclaimer: string;
+  note: string | null;
 }
 
 export interface PatientDentalPlan {
@@ -62,6 +80,8 @@ export interface PatientDentalPlan {
   facilityName: string | null;
   dentistName: string | null;
   items: PatientDentalPlanItem[];
+  /** Null unless the organization shows fee estimates in MyHealth and something on the plan is still ahead. */
+  estimate: PatientPlanEstimate | null;
 }
 
 export interface PatientDentalProcedure {
@@ -122,7 +142,17 @@ export function planItemDecision(status: PlanItemStatus): PatientPlanItemDecisio
   }
 }
 
-/** A plan as the patient sees it: title, status, dates, who and where, and each item's procedure, site and decision. */
+/** Listed prices for a plan's estimate in MyHealth: by procedure type id, priced on a date, with the organization's note. */
+export interface PatientEstimatePrices {
+  pricedOn: string;
+  byType: ReadonlyMap<string, { unitPrice: number }>;
+  note: string | null;
+}
+
+/**
+ * A plan as the patient sees it: title, status, dates, who and where, each item's procedure, site and decision, and —
+ * when prices are passed (the organization shows estimates) — the estimate of the work still ahead.
+ */
 export function toPatientPlan(
   plan: DentalTreatmentPlanRecord,
   items: readonly DentalTreatmentPlanItemRecord[],
@@ -130,9 +160,13 @@ export function toPatientPlan(
   facility: Facility | undefined,
   dentistName: string | null,
   decisionsEnabled = false,
+  prices?: PatientEstimatePrices,
 ): PatientDentalPlan {
   const timezone = facility?.timezone ?? DEFAULT_TIMEZONE;
   const open = plan.status === "proposed" || plan.status === "accepted" || plan.status === "in_progress";
+  const fee = (i: DentalTreatmentPlanItemRecord) => (open && estimatePart(i.status) ? (prices?.byType.get(i.procedureTypeId)?.unitPrice ?? null) : null);
+  const withEstimate = prices !== undefined && open && items.some((i) => estimatePart(i.status));
+  const totals = withEstimate ? estimateTotals(items.map((i) => ({ status: i.status, listedPrice: fee(i) }))) : undefined;
   return {
     id: plan.id,
     title: plan.title,
@@ -151,7 +185,20 @@ export function toPatientPlan(
       procedureName: procedureNames.get(i.procedureTypeId) ?? "Dental procedure",
       status: i.status,
       decision: planItemDecision(i.status),
+      ...(withEstimate ? { estimatedFee: fee(i) } : {}),
     })),
+    estimate:
+      totals && prices
+        ? {
+            pricedOn: prices.pricedOn,
+            awaitingDecision: totals.awaitingDecision,
+            accepted: totals.accepted,
+            remaining: totals.remaining,
+            unpricedItems: totals.unpricedItems,
+            disclaimer: ESTIMATE_DISCLAIMER,
+            note: prices.note,
+          }
+        : null,
   };
 }
 
@@ -198,6 +245,7 @@ export class DentalPatientAccess {
     private readonly organizations: OrganizationService,
     private readonly plans: DentalPlanService,
     private readonly documents: DocumentsService,
+    private readonly fees: DentalFeeLookup,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
   ) {}
 
@@ -237,7 +285,7 @@ export class DentalPatientAccess {
   /** The patient's plans, procedures and chart; undefined while the organization does not share dental records. */
   async record(organizationId: string, patientId: string): Promise<PatientDentalRecord | undefined> {
     if (!(await this.settings.enabled(organizationId))) return undefined;
-    const [plans, procedures, chart, latestExamination, facilityRows, decisions, images] = await Promise.all([
+    const [plans, procedures, chart, latestExamination, facilityRows, decisions, images, estimates] = await Promise.all([
       this.db
         .select()
         .from(dentalTreatmentPlan)
@@ -259,6 +307,7 @@ export class DentalPatientAccess {
       this.organizations.listFacilities(organizationId),
       this.settings.decisions(organizationId),
       this.releasedImages(organizationId, patientId),
+      this.settings.estimates(organizationId),
     ]);
     const items = plans.length
       ? await this.db
@@ -281,6 +330,7 @@ export class DentalPatientAccess {
     ]);
     const facilities = new Map<string, Facility>(facilityRows.map((f) => [f.id, { name: f.name, timezone: f.timezone }]));
     const names = new Map([...types].map(([id, t]) => [id, t.name]));
+    const prices = estimates.inPortal ? await this.estimatePrices(organizationId, plans, items, facilities, estimates.note) : undefined;
 
     // One notation for the whole record, so a tooth reads the same everywhere: that of the latest care's facility.
     const latest = [
@@ -302,6 +352,7 @@ export class DentalPatientAccess {
           facilities.get(p.facilityId),
           dentists.get(p.practitionerId) ?? null,
           decisions !== undefined,
+          prices?.get(p.facilityId),
         ),
       ),
       procedures: procedures.flatMap(
@@ -379,12 +430,48 @@ export class DentalPatientAccess {
    * The patient accepts the listed items awaiting their decision and declines the others, after confirming the
    * organization's acknowledgement (kept as the decision note). Only while the organization allows online decisions.
    */
-  async decidePlan(context: PatientAuditContext, planId: string, input: { acceptedItemIds: string[]; awaitingItemIds: string[] }) {
+  async decidePlan(
+    context: PatientAuditContext,
+    planId: string,
+    input: { acceptedItemIds: string[]; awaitingItemIds: string[]; estimateAwaitingDecision?: number | null },
+  ) {
     const decisions = await this.settings.decisions(context.organizationId);
     if (!decisions) throw new ForbiddenError("Your clinic takes treatment plan decisions in person");
-    await this.db.transaction((tx) => this.plans.decideByPatient(tx, context, planId, { ...input, acknowledgement: decisions.acknowledgement }));
+    // With estimates shown, the patient decides on the estimate they saw: if the listed prices changed since, they look again.
+    const before = await this.record(context.organizationId, context.patientId);
+    const shown = before?.plans.find((p) => p.id === planId)?.estimate;
+    if (shown && shown.awaitingDecision !== input.estimateAwaitingDecision) {
+      throw new ConflictError("The fee estimate for this plan changed since you opened it. Please review it again.", undefined, "estimate_changed");
+    }
+    const { acceptedItemIds, awaitingItemIds } = input;
+    await this.db.transaction((tx) =>
+      this.plans.decideByPatient(tx, context, planId, { acceptedItemIds, awaitingItemIds, acknowledgement: decisions.acknowledgement }),
+    );
     const record = await this.record(context.organizationId, context.patientId);
     return found(record?.plans.find((p) => p.id === planId));
+  }
+
+  /** Today's listed prices for the open plans' items, per facility (each priced on its own local date). */
+  private async estimatePrices(
+    organizationId: string,
+    plans: readonly DentalTreatmentPlanRecord[],
+    items: readonly DentalTreatmentPlanItemRecord[],
+    facilities: ReadonlyMap<string, Facility>,
+    note: string | null,
+  ): Promise<Map<string, PatientEstimatePrices>> {
+    const byFacility = new Map<string, Set<string>>();
+    for (const item of items) {
+      const plan = plans.find((p) => p.id === item.planId);
+      if (!plan || !estimatePart(item.status)) continue;
+      byFacility.set(plan.facilityId, (byFacility.get(plan.facilityId) ?? new Set()).add(item.procedureTypeId));
+    }
+    const result = new Map<string, PatientEstimatePrices>();
+    for (const [facilityId, typeIds] of byFacility) {
+      const pricedOn = localDate(new Date(), facilities.get(facilityId)?.timezone ?? DEFAULT_TIMEZONE);
+      const priced = await this.fees.price(organizationId, [...typeIds], pricedOn);
+      result.set(facilityId, { pricedOn, byType: priced.byType, note });
+    }
+    return result;
   }
 
   private releasedImages(organizationId: string, patientId: string) {

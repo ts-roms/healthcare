@@ -375,6 +375,22 @@ export async function setPortalPlanDecisions(input: z.input<typeof decisionsSche
   return run<DentalPortalSetting>(decisionsSchema, input, "/dental/settings/portal", { method: "PUT", revalidate: ["/dental/settings"] });
 }
 
+const estimatesSchema = z.object({
+  portalDentalRecords: z.boolean(),
+  portalPlanEstimates: z.boolean().optional(),
+  feeEstimateNote: z
+    .string()
+    .trim()
+    .max(500)
+    .nullable()
+    .refine((v) => !v || v.length >= 10, "Write at least 10 characters, or leave it empty."),
+  version: z.number().int().min(0),
+});
+/** The organization's note under fee estimates, and whether MyHealth shows estimates on plans. */
+export async function setFeeEstimates(input: z.input<typeof estimatesSchema>) {
+  return run<DentalPortalSetting>(estimatesSchema, input, "/dental/settings/portal", { method: "PUT", revalidate: ["/dental/settings"] });
+}
+
 /** Shares an image with the patient in MyHealth (`dental.imaging.release`). */
 export async function releaseDentalImage(patientId: string, imageId: string) {
   if (!id.safeParse(imageId).success) return { ok: false as const, message: "Unknown image." };

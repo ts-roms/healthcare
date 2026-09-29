@@ -223,17 +223,21 @@ your communication preferences.
    **Missing**, **Not charted**) and a list of teeth with something noted. You face the chart: your right side is on the left.
 5. **X-rays and photos** — only images your dentist chose to share with you. Choose **Open** to view one. The clinic can see that you opened it.
 
-Your dentist's notes and fees are not shown here. Ask the clinic about costs.
+Your dentist's notes are not shown here. If your clinic shows fee estimates, a plan shows the **Estimated fee** of each treatment still ahead and
+the **Estimated cost of the treatment still ahead**, with the date of the prices. It is an estimate, not a bill: discounts and HMO or PhilHealth
+coverage are not included, and a treatment without a listed price says "ask the clinic". Otherwise, ask the clinic about costs.
 
 **Deciding on a treatment plan online.** Some clinics let you decide in MyHealth. If yours does, a plan waiting for your decision shows **Your
 decision**:
 
 1. Tick the treatments you want to go ahead with. Anything you leave unticked is declined.
-2. Read the summary (for example "You accept … and decline …").
+2. Read the summary (for example "You accept … and decline …"). If your clinic shows estimates, you also see the estimated fee of what you
+   accept.
 3. Tick the clinic's statement to confirm it.
 4. Choose **Send my decision**.
 
-If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
+If the clinic's prices changed while you were deciding, you see "The clinic's prices changed since you opened this plan" and the new estimate;
+decide again. If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
 
 ## How to check your profile
 
