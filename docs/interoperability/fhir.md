@@ -108,9 +108,15 @@ a parameter of `$everything`.
 | Care plan                              | `CarePlan` with activities                                                                                     |
 | Stored document (libs/documents)       | `DocumentReference` (see below)                                                                                |
 | Result performed by a reference lab    | `Observation.performer` → contained `Organization` (see "Performing laboratory")                               |
-| Allergy accepted from an import        | `AllergyIntolerance`, tagged external, always `unconfirmed` (see "Records from other systems")                 |
-| External history (accepted imports)    | `Condition` / `Observation` / `MedicationStatement` / `DocumentReference`, tagged external (see below)         |
-| Dental record (libs/dental)            | `Procedure`, `CarePlan`, `Observation`, `DocumentReference` (see "Dental record")                              |
+| Merged records (patient merge)         | Retired `Patient`: `active: false`, `link` `replaced-by` the survivor; survivor: `link` `replaces` each        |
+
+**Patient merge (ADR-0009).** `Patient/{survivor}/$everything` and `{Type}?patient={survivor}` include the resources
+filed under every record merged into it, all with `subject`/`patient` referencing the survivor (nothing was moved in
+the platform; the export presents one patient). `Patient/{retired}` stays readable (inactive, `replaced-by`) and its
+`$everything` holds only what is filed under it.
+| Allergy accepted from an import | `AllergyIntolerance`, tagged external, always `unconfirmed` (see "Records from other systems") |
+| External history (accepted imports) | `Condition` / `Observation` / `MedicationStatement` / `DocumentReference`, tagged external (see below) |
+| Dental record (libs/dental) | `Procedure`, `CarePlan`, `Observation`, `DocumentReference` (see "Dental record") |
 
 **Laboratory results:** only the current **released** version of each result is exported. Unreleased, superseded and
 cancelled results never leave the laboratory through this interface. (Unlike the patient portal, the `patient_releasable`

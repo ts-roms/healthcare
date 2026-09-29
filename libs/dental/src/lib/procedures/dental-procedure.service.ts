@@ -1,6 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, asPgError, BusinessRuleError, ConflictError, DATABASE, type Database, DomainEventPublisher, localDate } from "@healthcare/core";
+import {
+  type Actor,
+  asPgError,
+  BusinessRuleError,
+  ConflictError,
+  DATABASE,
+  type Database,
+  DomainEventPublisher,
+  localDate,
+  filedAsPatient,
+} from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, desc, eq } from "drizzle-orm";
 import type { z } from "zod";
@@ -167,7 +177,7 @@ export class DentalProcedureService {
       .select({ procedure: dentalProcedure, code: dentalProcedureType.code, name: dentalProcedureType.name })
       .from(dentalProcedure)
       .innerJoin(dentalProcedureType, eq(dentalProcedureType.id, dentalProcedure.procedureTypeId))
-      .where(and(eq(dentalProcedure.organizationId, organizationId), eq(dentalProcedure.patientId, patientId)))
+      .where(and(eq(dentalProcedure.organizationId, organizationId), filedAsPatient(dentalProcedure.patientId, patientId)))
       .orderBy(desc(dentalProcedure.performedAt))
       .limit(limit);
     return rows.map((r) => ({

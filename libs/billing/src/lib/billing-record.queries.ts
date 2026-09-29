@@ -1,7 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
-import { billingInvoice, billingPayment } from "./billing.schema";
+import { accountBalance } from "./billing.rules";
+import { billingAccountEntry, billingCharge, billingInvoice, billingPayment } from "./billing.schema";
 
 /**
  * Billing read queries for the patient timeline (composed in apps/api): issued invoices and recorded payments and
@@ -12,12 +13,39 @@ import { billingInvoice, billingPayment } from "./billing.schema";
 export class BillingRecordQueries {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
+  /**
+   * Billing work filed under exactly this record id that a patient merge would strand (composed in apps/api): draft
+   * invoices, charges not yet invoiced, and a deposit or credit balance at any facility. Numbers and amounts only.
+   */
+  async mergeWorkInProgress(organizationId: string, patientId: string) {
+    const [drafts, pending, entries] = await Promise.all([
+      this.db
+        .select({ id: billingInvoice.id, createdAt: billingInvoice.createdAt, facilityId: billingInvoice.facilityId })
+        .from(billingInvoice)
+        .where(and(eq(billingInvoice.organizationId, organizationId), eq(billingInvoice.patientId, patientId), eq(billingInvoice.status, "draft"))),
+      this.db
+        .select({ id: billingCharge.id, description: billingCharge.description, capturedAt: billingCharge.capturedAt })
+        .from(billingCharge)
+        .where(and(eq(billingCharge.organizationId, organizationId), eq(billingCharge.patientId, patientId), eq(billingCharge.status, "pending"))),
+      this.db
+        .select({ facilityId: billingAccountEntry.facilityId, kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
+        .from(billingAccountEntry)
+        .where(and(eq(billingAccountEntry.organizationId, organizationId), eq(billingAccountEntry.patientId, patientId))),
+    ]);
+    const facilities = [...new Set(entries.map((e) => e.facilityId))];
+    const balances = facilities
+      .map((facilityId) => ({ facilityId, balance: accountBalance(entries.filter((e) => e.facilityId === facilityId)) }))
+      .filter((b) => b.balance !== 0);
+    return { drafts, pending, balances };
+  }
+
   /** Invoices when issued, with their current status (a voided invoice stays in the history, marked void). */
   timelineInvoices(organizationId: string, patientId: string, window: TimelineWindow) {
     const at = billingInvoice.issuedAt;
     return this.db
       .select({
         id: billingInvoice.id,
+        patientId: billingInvoice.patientId,
         at: timelineInstant(at),
         facilityId: billingInvoice.facilityId,
         invoiceNumber: billingInvoice.invoiceNumber,
@@ -28,7 +56,7 @@ export class BillingRecordQueries {
       .where(
         and(
           eq(billingInvoice.organizationId, organizationId),
-          eq(billingInvoice.patientId, patientId),
+          filedAsPatient(billingInvoice.patientId, patientId),
           isNotNull(at),
           timelineFacility(billingInvoice.facilityId, window),
           timelineRange("invoice", at, billingInvoice.id, window),
@@ -44,6 +72,7 @@ export class BillingRecordQueries {
     return this.db
       .select({
         id: billingPayment.id,
+        patientId: billingPayment.patientId,
         at: timelineInstant(at),
         facilityId: billingPayment.facilityId,
         invoiceId: billingPayment.invoiceId,
@@ -58,7 +87,7 @@ export class BillingRecordQueries {
       .where(
         and(
           eq(billingPayment.organizationId, organizationId),
-          eq(billingPayment.patientId, patientId),
+          filedAsPatient(billingPayment.patientId, patientId),
           timelineFacility(billingPayment.facilityId, window),
           timelineRange("payment", at, billingPayment.id, window),
         ),

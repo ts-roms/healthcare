@@ -11,6 +11,7 @@ import {
   ForbiddenError,
   localDate,
   requireFacilityId,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, inArray, isNotNull, notInArray, or, sql } from "drizzle-orm";
@@ -274,7 +275,7 @@ export class LabResultService {
       .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
       .innerJoin(labOrder, eq(labOrder.id, labResult.orderId))
       .leftJoin(labSpecimen, eq(labSpecimen.id, labOrderItem.specimenId))
-      .where(and(eq(labResult.organizationId, actor.organizationId), eq(labResult.patientId, patientId), eq(labResult.status, "released")))
+      .where(and(eq(labResult.organizationId, actor.organizationId), filedAsPatient(labResult.patientId, patientId), eq(labResult.status, "released")))
       .orderBy(desc(labResult.releasedAt))
       .limit(200);
     await this.audit.recordStandalone(actor, { action: "lab.result.list", resourceType: "lab_result", patientId });
@@ -283,7 +284,14 @@ export class LabResultService {
       actor,
       rows.map((r) => r.result),
     );
-    return rows.map((r, index) => ({ ...views[index]!, testCode: r.testCode, testName: r.testName, orderNumber: r.orderNumber, collectedAt: r.collectedAt }));
+    return rows.map((r, index) => ({
+      ...views[index]!,
+      patientId: r.result.patientId,
+      testCode: r.testCode,
+      testName: r.testName,
+      orderNumber: r.orderNumber,
+      collectedAt: r.collectedAt,
+    }));
   }
 
   /**
@@ -311,7 +319,7 @@ export class LabResultService {
       .where(
         and(
           eq(labResult.organizationId, actor.organizationId),
-          eq(labResult.patientId, patientId),
+          filedAsPatient(labResult.patientId, patientId),
           eq(labResult.status, "released"),
           inArray(
             labResult.testId,

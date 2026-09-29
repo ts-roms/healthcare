@@ -16,6 +16,7 @@ import {
   PgErrorCode,
   requireFacilityId,
   toPage,
+  filedAsPatient,
 } from "@healthcare/core";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -207,7 +208,7 @@ export class EncounterService {
     const rows = await this.db
       .select()
       .from(encounter)
-      .where(and(eq(encounter.organizationId, actor.organizationId), eq(encounter.patientId, patientId)))
+      .where(and(eq(encounter.organizationId, actor.organizationId), filedAsPatient(encounter.patientId, patientId)))
       .orderBy(desc(encounter.startedAt))
       .limit(query.pageSize + 1)
       .offset(pageOffset(query));

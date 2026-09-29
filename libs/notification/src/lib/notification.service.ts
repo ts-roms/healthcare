@@ -6,6 +6,7 @@ import {
   BusinessRuleError,
   DATABASE,
   type Database,
+  filedAsPatient,
   maskEmail,
   maskPhone,
   NotFoundError,
@@ -162,7 +163,7 @@ export class NotificationService {
     const rows = await this.db
       .select()
       .from(notification)
-      .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.recipientPatientId, patientId)))
+      .where(and(eq(notification.organizationId, actor.organizationId), filedAsPatient(notification.recipientPatientId, patientId)))
       .orderBy(desc(notification.createdAt))
       .limit(200);
     await this.audit.recordStandalone(actor, { action: "notification.list", resourceType: "notification", patientId });
@@ -181,6 +182,7 @@ export class NotificationService {
     return this.db
       .select({
         id: notification.id,
+        patientId: notification.recipientPatientId,
         at: timelineInstant(at),
         channel: notification.channel,
         category: notification.category,
@@ -191,7 +193,7 @@ export class NotificationService {
       .where(
         and(
           eq(notification.organizationId, organizationId),
-          eq(notification.recipientPatientId, patientId),
+          filedAsPatient(notification.recipientPatientId, patientId),
           timelineRange("communication", at, notification.id, window),
         ),
       )
@@ -257,7 +259,7 @@ export class NotificationService {
       .where(
         and(
           eq(notification.organizationId, organizationId),
-          eq(notification.recipientPatientId, patientId),
+          filedAsPatient(notification.recipientPatientId, patientId),
           eq(notification.channel, "in_app"),
           eq(notification.status, "delivered"),
         ),
@@ -284,7 +286,7 @@ export class NotificationService {
       .where(
         and(
           eq(notification.organizationId, organizationId),
-          eq(notification.recipientPatientId, patientId),
+          filedAsPatient(notification.recipientPatientId, patientId),
           eq(notification.channel, "in_app"),
           eq(notification.status, "delivered"),
           isNull(notification.readAt),
@@ -298,7 +300,7 @@ export class NotificationService {
     const own = and(
       eq(notification.id, notificationId),
       eq(notification.organizationId, organizationId),
-      eq(notification.recipientPatientId, patientId),
+      filedAsPatient(notification.recipientPatientId, patientId),
       eq(notification.channel, "in_app"),
       eq(notification.status, "delivered"),
     );

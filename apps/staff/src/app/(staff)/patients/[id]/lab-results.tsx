@@ -6,6 +6,7 @@ import { clinicalDate, LabFlagBadge, LabTrendChart } from "@healthcare/ui/health
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabTrend, PatientLabResult } from "@/lib/api/types";
 import { PerformedBy } from "@/components/send-out-badge";
+import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { fileHref } from "@/lib/files";
 import { groupResultsByTest, latestRange, mixedUnits, referenceText, resultValue, trendPoints, uiFlag } from "@/lib/lab-mapping";
 import { loadLabTrend, resultAttachmentUrl } from "../../laboratory/actions";
@@ -15,7 +16,17 @@ import { loadLabTrend, resultAttachmentUrl } from "../../laboratory/actions";
  * per analyte. Trends are a display aid; each value keeps the reference range
  * it was read against.
  */
-export function PatientLabResults({ patientId, results }: { patientId: string; results: PatientLabResult[] }) {
+export function PatientLabResults({
+  patientId,
+  results,
+  linkedRecords,
+}: {
+  patientId: string;
+  results: PatientLabResult[];
+  /** Records merged into this patient: a result filed under one of them says so. */
+  linkedRecords?: ReadonlyArray<{ id: string; patientNumber: string }>;
+}) {
+  const filedUnder = filedUnderLookup(linkedRecords);
   const [trend, setTrend] = React.useState<{ testId: string; data: LabTrend } | null>(null);
   const [pending, start] = React.useTransition();
   const groups = groupResultsByTest(results);
@@ -56,6 +67,9 @@ export function PatientLabResults({ patientId, results }: { patientId: string; r
               <TableRow key={testId} data-state={trend?.testId === testId ? "selected" : undefined}>
                 <TableCell>
                   {testName}
+                  {filedUnder(latest.patientId) ? (
+                    <span className="block text-meta text-muted-foreground">{filedUnderText(filedUnder(latest.patientId))}</span>
+                  ) : null}
                   {latest.versionNumber > 1 ? <span className="block text-meta text-warning-foreground">Corrected: {latest.correctionReason}</span> : null}
                   <PerformedBy laboratory={latest.performingLaboratory} />
                   {(latest.attachments ?? []).map((a) => (

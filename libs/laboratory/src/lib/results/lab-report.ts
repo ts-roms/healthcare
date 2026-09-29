@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { type Actor, DATABASE, type Database, NotFoundError, systemActor } from "@healthcare/core";
+import { type Actor, DATABASE, type Database, NotFoundError, systemActor, filedAsPatient } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -137,7 +137,7 @@ export class LabReportService {
     const [order] = await this.db
       .select()
       .from(labOrder)
-      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.id, orderId), eq(labOrder.patientId, patientId)));
+      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.id, orderId), filedAsPatient(labOrder.patientId, patientId)));
     if (!order) throw new NotFoundError("Laboratory order");
     const visible = await this.patientAccess.orderResults(organizationId, patientId, orderId);
     if (visible.length === 0) throw new NotFoundError("Laboratory report");

@@ -9,6 +9,7 @@ import {
   NotFoundError,
   requireFacilityId,
   VersionConflictError,
+  filedAsPatient,
 } from "@healthcare/core";
 import { integrationExchange, type IntegrationExchangeRecord, IntegrationExchanges } from "@healthcare/interoperability";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -111,7 +112,7 @@ export class PhilHealthYakapService {
     const rows = await this.db
       .select()
       .from(philhealthYakapRegistration)
-      .where(and(eq(philhealthYakapRegistration.organizationId, actor.organizationId), eq(philhealthYakapRegistration.patientId, patientId)))
+      .where(and(eq(philhealthYakapRegistration.organizationId, actor.organizationId), filedAsPatient(philhealthYakapRegistration.patientId, patientId)))
       .orderBy(desc(philhealthYakapRegistration.recordedAt))
       .limit(50);
     const participation = actor.facilityId ? await this.participation(actor.organizationId, actor.facilityId) : null;
@@ -329,7 +330,7 @@ export class PhilHealthYakapService {
       .where(
         and(
           eq(philhealthYakapRegistration.organizationId, organizationId),
-          eq(philhealthYakapRegistration.patientId, patientId),
+          filedAsPatient(philhealthYakapRegistration.patientId, patientId),
           eq(philhealthYakapRegistration.facilityId, facilityId),
         ),
       )

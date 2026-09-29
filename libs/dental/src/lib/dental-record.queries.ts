@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { type ChartTooth, DentalChartService } from "./chart/dental-chart.service";
 import {
@@ -30,7 +30,7 @@ export class DentalRecordQueries {
 
   async patientRecord(organizationId: string, patientId: string) {
     const byPatient = (t: typeof dentalExamination | typeof dentalProcedure | typeof dentalTreatmentPlan | typeof dentalPerioChart) =>
-      and(eq(t.organizationId, organizationId), eq(t.patientId, patientId));
+      and(eq(t.organizationId, organizationId), filedAsPatient(t.patientId, patientId));
     const [examinations, procedureRows, plans, perioCharts, chart] = await Promise.all([
       this.db.select().from(dentalExamination).where(byPatient(dentalExamination)).orderBy(asc(dentalExamination.recordedAt)),
       this.db
@@ -146,6 +146,7 @@ export class DentalRecordQueries {
     return this.db
       .select({
         id: dentalImage.id,
+        patientId: dentalImage.patientId,
         facilityId: dentalImage.facilityId,
         documentId: dentalImage.documentId,
         kind: dentalImage.kind,
@@ -153,7 +154,7 @@ export class DentalRecordQueries {
         teeth: dentalImage.teeth,
       })
       .from(dentalImage)
-      .where(and(eq(dentalImage.organizationId, organizationId), eq(dentalImage.patientId, patientId), ne(dentalImage.status, "entered_in_error")))
+      .where(and(eq(dentalImage.organizationId, organizationId), filedAsPatient(dentalImage.patientId, patientId), ne(dentalImage.status, "entered_in_error")))
       .orderBy(desc(dentalImage.takenOn), desc(dentalImage.recordedAt), desc(dentalImage.id))
       .limit(limit);
   }
@@ -166,6 +167,7 @@ export class DentalRecordQueries {
     return this.db
       .select({
         id: dentalExamination.id,
+        patientId: dentalExamination.patientId,
         at: timelineInstant(at),
         facilityId: dentalExamination.facilityId,
         encounterId: dentalExamination.encounterId,
@@ -175,7 +177,7 @@ export class DentalRecordQueries {
       .where(
         and(
           eq(dentalExamination.organizationId, organizationId),
-          eq(dentalExamination.patientId, patientId),
+          filedAsPatient(dentalExamination.patientId, patientId),
           timelineFacility(dentalExamination.facilityId, window),
           timelineRange("dental_exam", at, dentalExamination.id, window),
         ),
@@ -190,6 +192,7 @@ export class DentalRecordQueries {
     return this.db
       .select({
         id: dentalProcedure.id,
+        patientId: dentalProcedure.patientId,
         at: timelineInstant(at),
         facilityId: dentalProcedure.facilityId,
         encounterId: dentalProcedure.encounterId,
@@ -202,7 +205,7 @@ export class DentalRecordQueries {
       .where(
         and(
           eq(dentalProcedure.organizationId, organizationId),
-          eq(dentalProcedure.patientId, patientId),
+          filedAsPatient(dentalProcedure.patientId, patientId),
           timelineFacility(dentalProcedure.facilityId, window),
           timelineRange("dental_procedure", at, dentalProcedure.id, window),
         ),
@@ -217,6 +220,7 @@ export class DentalRecordQueries {
     return this.db
       .select({
         id: dentalTreatmentPlan.id,
+        patientId: dentalTreatmentPlan.patientId,
         at: timelineInstant(at),
         facilityId: dentalTreatmentPlan.facilityId,
         title: dentalTreatmentPlan.title,
@@ -226,7 +230,7 @@ export class DentalRecordQueries {
       .where(
         and(
           eq(dentalTreatmentPlan.organizationId, organizationId),
-          eq(dentalTreatmentPlan.patientId, patientId),
+          filedAsPatient(dentalTreatmentPlan.patientId, patientId),
           isNotNull(at),
           timelineFacility(dentalTreatmentPlan.facilityId, window),
           timelineRange("dental_plan", at, dentalTreatmentPlan.id, window),
@@ -241,7 +245,7 @@ export class DentalRecordQueries {
     const rows = await this.db
       .select()
       .from(dentalImage)
-      .where(and(eq(dentalImage.organizationId, organizationId), eq(dentalImage.patientId, patientId)))
+      .where(and(eq(dentalImage.organizationId, organizationId), filedAsPatient(dentalImage.patientId, patientId)))
       .orderBy(asc(dentalImage.recordedAt));
     return rows.map((i) => ({
       id: i.id,

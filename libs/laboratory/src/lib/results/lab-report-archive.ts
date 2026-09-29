@@ -11,6 +11,7 @@ import {
   NotFoundError,
   PgErrorCode,
   systemActor,
+  filedAsPatient,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
@@ -196,7 +197,7 @@ export class LabReportArchive implements OnModuleInit {
       .select({ archive: labReportArchive, orderNumber: labOrder.orderNumber })
       .from(labReportArchive)
       .innerJoin(labOrder, eq(labOrder.id, labReportArchive.orderId))
-      .where(and(eq(labReportArchive.organizationId, actor.organizationId), eq(labReportArchive.patientId, patientId)))
+      .where(and(eq(labReportArchive.organizationId, actor.organizationId), filedAsPatient(labReportArchive.patientId, patientId)))
       .orderBy(desc(labReportArchive.createdAt), desc(labReportArchive.archiveVersion))
       .limit(200);
     await this.audit.recordStandalone(actor, {

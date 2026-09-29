@@ -62,6 +62,8 @@ export interface PatientSource {
   status: "active" | "inactive" | "deceased" | "merged" | string;
   deceasedAt: string | null;
   mergedIntoPatientId: string | null;
+  /** Records merged into this one (their records are exported with it, under this Patient). */
+  mergedRecordIds?: string[];
   updatedAt: string;
   identifiers: Array<{ type: string; value: string; issuer: string | null; validFrom: string | null; validUntil: string | null }>;
   contacts: Array<{ system: "mobile" | "phone" | "email" | string; value: string; use: string; isPrimary: boolean }>;

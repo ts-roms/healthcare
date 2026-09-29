@@ -10,6 +10,7 @@ import {
   NotFoundError,
   requireFacilityId,
   systemActor,
+  filedAsPatient,
 } from "@healthcare/core";
 import { type ExchangeCompletedPayload, INTEGRATION_EXCHANGE_COMPLETED, integrationExchange, IntegrationExchanges } from "@healthcare/interoperability";
 import { and, desc, eq, gte, lte, ne } from "drizzle-orm";
@@ -61,7 +62,7 @@ export class PhilHealthEligibilityService implements OnModuleInit {
     const rows = await this.db
       .select()
       .from(philhealthEligibilityCheck)
-      .where(and(eq(philhealthEligibilityCheck.organizationId, actor.organizationId), eq(philhealthEligibilityCheck.patientId, patientId)))
+      .where(and(eq(philhealthEligibilityCheck.organizationId, actor.organizationId), filedAsPatient(philhealthEligibilityCheck.patientId, patientId)))
       .orderBy(desc(philhealthEligibilityCheck.serviceDate), desc(philhealthEligibilityCheck.createdAt))
       .limit(50);
     const accreditation = actor.facilityId ? await this.settings.accreditation(actor.organizationId, actor.facilityId) : null;
@@ -183,7 +184,7 @@ export class PhilHealthEligibilityService implements OnModuleInit {
       .where(
         and(
           eq(philhealthEligibilityCheck.organizationId, organizationId),
-          eq(philhealthEligibilityCheck.patientId, patientId),
+          filedAsPatient(philhealthEligibilityCheck.patientId, patientId),
           gte(philhealthEligibilityCheck.serviceDate, from),
           lte(philhealthEligibilityCheck.serviceDate, to),
           ne(philhealthEligibilityCheck.status, "queued"),

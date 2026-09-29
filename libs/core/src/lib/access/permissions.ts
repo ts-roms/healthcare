@@ -14,6 +14,8 @@ export const PERMISSIONS = [
   "patient.update",
   "patient.consent.manage",
   "patient.portal.manage",
+  // Patient merge (migration 0068)
+  "patient.merge",
   "document.read",
   "document.upload",
   "document.archive",

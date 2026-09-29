@@ -4,6 +4,12 @@ The platform runs on Railway as five services from this one repository, plus Rai
 service has a config-as-code file next to its app. In each service's **Settings → Config-as-code**, set the file path.
 Keep **Root Directory** empty (the build needs the whole workspace).
 
+The repository root also has a `railway.json` that is a copy of `apps/api/railway.json`. Railway reads it when a service
+has no config-as-code path, so a service that misses its path builds and starts the `api` instead of failing in Railpack
+on the workspace's two Next.js apps. It is a safety net only: still set the path on every service, and keep the root file
+identical to the API's when either changes. `staff`, `portal` and the workers must have their own path (or
+`RAILPACK_NX_APP`), because they would otherwise get the API's commands.
+
 | Service               | Config file                              | Public domain | Notes                                                                    |
 | --------------------- | ---------------------------------------- | ------------- | ------------------------------------------------------------------------ |
 | `api`                 | `/apps/api/railway.json`                 | yes           | Runs migrations before each deploy; health check `/api/v1/health/ready`. |

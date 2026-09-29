@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, CheckIcon, FilterXIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button, Input, Label } from "@healthcare/ui/primitives";
@@ -34,6 +34,8 @@ export default async function PatientTimelinePage({ params, searchParams }: { pa
     api<PatientDetail>(`/patients/${id}`).catch(tolerate404),
     api<PatientTimelinePage>(`/patients/${id}/timeline`, { query: timelineApiQuery(filters) }).catch(tolerate404),
   ]);
+  // A retired (merged) record's timeline is part of its surviving record's.
+  if (patient.mergedIntoPatientId) redirect(`/patients/${patient.mergedIntoPatientId}/timeline`);
   const filtered = filters.groups.length > 0 || filters.from !== null || filters.to !== null;
 
   return (
@@ -43,6 +45,7 @@ export default async function PatientTimelinePage({ params, searchParams }: { pa
         description={
           <>
             {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span> · newest first, times in the facility&apos;s time zone
+            {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
           </>
         }
         actions={

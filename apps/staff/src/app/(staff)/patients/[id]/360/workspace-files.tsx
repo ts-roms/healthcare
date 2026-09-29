@@ -5,6 +5,7 @@ import { MedicalDocument, type MedicalDocumentProps } from "@healthcare/ui/healt
 import { toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { PatientWorkspace } from "@/lib/api/types";
+import { filedUnderText } from "@/lib/patient-merge";
 import { label } from "@/lib/patient-mapping";
 import { dentalImageLink } from "@/app/(staff)/dental/actions";
 import { workspaceDocumentLink } from "./actions";
@@ -54,7 +55,7 @@ export function WorkspaceFiles({
           kind="imaging"
           title={`${label(i.kind)}${i.teeth.length ? ` · tooth ${i.teeth.join(", ")}` : ""}`}
           date={i.takenOn}
-          author={i.facility?.name}
+          author={[i.facility?.name, filedUnderText(i.filedUnder)].filter(Boolean).join(" · ") || undefined}
           pending={pending === `image:${i.id}`}
           onOpen={open(`image:${i.id}`, () => dentalImageLink(i.id))}
         />
@@ -65,7 +66,7 @@ export function WorkspaceFiles({
           kind={DOCUMENT_KIND[d.category] ?? "other"}
           title={d.title}
           date={d.uploadedAt}
-          author={label(d.category)}
+          author={[label(d.category), filedUnderText(d.filedUnder)].filter(Boolean).join(" · ")}
           pending={pending === `document:${d.id}`}
           onOpen={open(`document:${d.id}`, () => workspaceDocumentLink(d.id))}
         />

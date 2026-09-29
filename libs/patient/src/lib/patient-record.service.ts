@@ -13,14 +13,16 @@ import {
   type DbExecutor,
   normalizeIdentifier,
   NotFoundError,
+  PatientMergedError,
   PgErrorCode,
   todayInPhilippines,
   VersionConflictError,
 } from "@healthcare/core";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { type ContactResolution, resolvePatientContact } from "./communication-policy";
 import { normalizeContact } from "./contact-normalization";
+import { patientMerge } from "./merge/patient-merge.schema";
 import type {
   addressInput,
   changeStatusSchema,
@@ -45,7 +47,7 @@ import {
   type PatientRecord,
   patientRelationship,
 } from "./patient.schema";
-import { type ConsentView, displayName, type PatientDetail, toConsentView } from "./patient.views";
+import { type ConsentView, displayName, type MergeLink, type PatientDetail, toConsentView } from "./patient.views";
 
 const DEMOGRAPHIC_FIELDS = [
   "familyName",
@@ -74,7 +76,7 @@ export class PatientRecordService {
   /** Full registration record. Viewing is audited. */
   async getDetail(actor: Actor, patientId: string): Promise<PatientDetail> {
     const record = await this.findPatient(this.db, actor.organizationId, patientId);
-    const [contacts, addresses, identifiers, relationships, consents, preferences] = await Promise.all([
+    const [contacts, addresses, identifiers, relationships, consents, preferences, merges] = await Promise.all([
       this.db
         .select()
         .from(patientContactPoint)
@@ -93,6 +95,7 @@ export class PatientRecordService {
         .where(and(eq(patientRelationship.patientId, patientId), eq(patientRelationship.status, "active"))),
       this.currentConsents(patientId),
       this.db.select().from(patientCommunicationPreference).where(eq(patientCommunicationPreference.patientId, patientId)),
+      this.mergeLinks(actor.organizationId, record),
     ]);
     await this.audit.recordStandalone(actor, { action: "patient.view", resourceType: "patient", resourceId: patientId, patientId });
     return {
@@ -114,6 +117,8 @@ export class PatientRecordService {
       status: record.status,
       deceasedAt: record.deceasedAt?.toISOString() ?? null,
       mergedIntoPatientId: record.mergedIntoPatientId,
+      mergedInto: merges.mergedInto,
+      mergedRecords: merges.mergedRecords,
       registeredFacilityId: record.registeredFacilityId,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
@@ -506,6 +511,57 @@ export class PatientRecordService {
     };
   }
 
+  /**
+   * Records merged into this patient (ADR-0009) by id → patient number: every patient view reads them with the
+   * survivor's own records and marks rows filed under another number. Empty for a record nothing was merged into.
+   */
+  async filedUnderNumbers(organizationId: string, patientId: string): Promise<Map<string, string>> {
+    const rows = await this.db
+      .select({ id: patient.id, patientNumber: patient.patientNumber })
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.mergedIntoPatientId, patientId)));
+    return new Map(rows.map((r) => [r.id, r.patientNumber]));
+  }
+
+  private async mergeLinks(organizationId: string, record: PatientRecord): Promise<{ mergedInto: MergeLink | null; mergedRecords: MergeLink[] }> {
+    const [survivors, merged] = await Promise.all([
+      record.mergedIntoPatientId
+        ? this.db
+            .select()
+            .from(patient)
+            .where(and(eq(patient.organizationId, organizationId), eq(patient.id, record.mergedIntoPatientId)))
+        : Promise.resolve([]),
+      this.db
+        .select()
+        .from(patient)
+        .where(and(eq(patient.organizationId, organizationId), eq(patient.mergedIntoPatientId, record.id)))
+        .orderBy(asc(patient.patientNumber)),
+    ]);
+    // When each link was made: the latest merge or re-point of each retired record.
+    const retiredIds = [...(record.mergedIntoPatientId ? [record.id] : []), ...merged.map((m) => m.id)];
+    const history = retiredIds.length
+      ? await this.db
+          .selectDistinctOn([patientMerge.retiredPatientId], {
+            retiredPatientId: patientMerge.retiredPatientId,
+            performedAt: patientMerge.performedAt,
+            performedBy: patientMerge.performedBy,
+          })
+          .from(patientMerge)
+          .where(and(eq(patientMerge.organizationId, organizationId), inArray(patientMerge.retiredPatientId, retiredIds)))
+          .orderBy(patientMerge.retiredPatientId, desc(patientMerge.performedAt), desc(patientMerge.id))
+      : [];
+    const at = new Map(history.map((h) => [h.retiredPatientId, h]));
+    const link = (p: PatientRecord, retiredId: string): MergeLink => ({
+      id: p.id,
+      patientNumber: p.patientNumber,
+      displayName: displayName(p),
+      mergedAt: at.get(retiredId)?.performedAt.toISOString() ?? null,
+      mergedBy: at.get(retiredId)?.performedBy ?? null,
+    });
+    const survivor = survivors[0];
+    return { mergedInto: survivor ? link(survivor, record.id) : null, mergedRecords: merged.map((m) => link(m, m.id)) };
+  }
+
   /** Destination and permission for contacting a patient (used by notifications). */
   async resolveContact(
     organizationId: string,
@@ -570,8 +626,8 @@ export class PatientRecordService {
       .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId), ne(patient.status, "merged")))
       .for("update");
     if (!row) {
-      await this.findPatient(tx, organizationId, patientId);
-      throw new BusinessRuleError("This record was merged into another patient; update the surviving record instead", "patient_merged");
+      const merged = await this.findPatient(tx, organizationId, patientId);
+      throw new PatientMergedError(merged.mergedIntoPatientId);
     }
     return row;
   }

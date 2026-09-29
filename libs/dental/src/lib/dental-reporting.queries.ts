@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
+import { canonicalPatientId, DATABASE, type Database, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { dentalProcedure, dentalProcedureType } from "./dental.schema";
 
@@ -26,7 +26,7 @@ export class DentalReportingQueries {
     );
     const [totals, byProcedure] = await Promise.all([
       this.db
-        .select({ procedures: sql<number>`count(*)::int`, patients: sql<number>`count(distinct ${dentalProcedure.patientId})::int` })
+        .select({ procedures: sql<number>`count(*)::int`, patients: sql<number>`count(distinct ${canonicalPatientId(dentalProcedure.patientId)})::int` })
         .from(dentalProcedure)
         .where(where),
       this.db
@@ -34,7 +34,7 @@ export class DentalReportingQueries {
           code: dentalProcedureType.code,
           name: dentalProcedureType.name,
           procedures: sql<number>`count(*)::int`,
-          patients: sql<number>`count(distinct ${dentalProcedure.patientId})::int`,
+          patients: sql<number>`count(distinct ${canonicalPatientId(dentalProcedure.patientId)})::int`,
         })
         .from(dentalProcedure)
         .innerJoin(dentalProcedureType, eq(dentalProcedureType.id, dentalProcedure.procedureTypeId))

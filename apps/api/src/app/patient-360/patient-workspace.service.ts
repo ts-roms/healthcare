@@ -24,6 +24,8 @@ export interface WorkspaceDiagnosis {
 
 export interface WorkspaceEncounter {
   id: string;
+  /** The patient number of a merged record it is filed under (ADR-0009); null when filed under this patient. */
+  filedUnder: string | null;
   facility: Facility;
   status: "in_progress" | "completed" | "entered_in_error";
   modality: string;
@@ -71,6 +73,7 @@ export interface PatientWorkspace {
   encounterHistory: WorkspaceEncounter[] | null;
   criticalResults: Array<{
     id: string;
+    filedUnder: string | null;
     facility: Facility;
     status: "open" | "communicated";
     raisedAt: string;
@@ -80,6 +83,7 @@ export interface PatientWorkspace {
   }> | null;
   labOrders: Array<{
     id: string;
+    filedUnder: string | null;
     facility: Facility;
     orderNumber: string;
     priority: string;
@@ -88,8 +92,10 @@ export interface PatientWorkspace {
     encounterId: string | null;
     tests: Array<{ id: string; testName: string; status: string }>;
   }> | null;
-  dentalImages: Array<{ id: string; facility: Facility; kind: string; takenOn: string; teeth: string[] }> | null;
-  documents: Array<{ id: string; facility: Facility; category: string; title: string; uploadedAt: string }> | null;
+  dentalImages: Array<{ id: string; filedUnder: string | null; facility: Facility; kind: string; takenOn: string; teeth: string[] }> | null;
+  documents: Array<{ id: string; filedUnder: string | null; facility: Facility; category: string; title: string; uploadedAt: string }> | null;
+  /** Records merged into this patient, read with it (ADR-0009). */
+  linkedRecords: Array<{ id: string; patientNumber: string }>;
   withheld: WorkspacePanel[];
 }
 
@@ -128,6 +134,8 @@ export class PatientWorkspaceService {
     const has = (panel: WorkspacePanel) => included.has(panel);
     const none = Promise.resolve(null);
 
+    const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
+    const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
     const [encounters, visit, critical, orders, images, documents] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
@@ -146,6 +154,7 @@ export class PatientWorkspaceService {
     type EncounterRow = NonNullable<typeof encounters>["recent"][number];
     const toEncounter = (e: EncounterRow): WorkspaceEncounter => ({
       id: e.id,
+      filedUnder: filedUnder(e.patientId),
       facility: facilityOf(e.facilityId),
       status: e.status,
       modality: e.modality,
@@ -191,6 +200,7 @@ export class PatientWorkspaceService {
       criticalResults: critical
         ? critical.map((c) => ({
             id: c.id,
+            filedUnder: filedUnder(c.patientId),
             facility: facilityOf(c.facilityId),
             status: c.status === "communicated" ? "communicated" : "open",
             raisedAt: iso(c.raisedAt),
@@ -202,6 +212,7 @@ export class PatientWorkspaceService {
       labOrders: orders
         ? orders.map((o) => ({
             id: o.id,
+            filedUnder: filedUnder(o.patientId),
             facility: facilityOf(o.facilityId),
             orderNumber: o.orderNumber,
             priority: o.priority,
@@ -211,15 +222,36 @@ export class PatientWorkspaceService {
             tests: o.tests,
           }))
         : null,
-      dentalImages: images ? images.map((i) => ({ id: i.id, facility: facilityOf(i.facilityId), kind: i.kind, takenOn: i.takenOn, teeth: i.teeth })) : null,
+      dentalImages: images
+        ? images.map((i) => ({
+            id: i.id,
+            filedUnder: filedUnder(i.patientId),
+            facility: facilityOf(i.facilityId),
+            kind: i.kind,
+            takenOn: i.takenOn,
+            teeth: i.teeth,
+          }))
+        : null,
       documents: documents
         ? documents
             .filter((d) => !imageDocuments.has(d.id))
             .slice(0, WORKSPACE_LIMITS.documents)
             .flatMap((d) =>
-              d.uploadedAt ? [{ id: d.id, facility: facilityOf(d.facilityId), category: d.category, title: d.title, uploadedAt: iso(d.uploadedAt) }] : [],
+              d.uploadedAt
+                ? [
+                    {
+                      id: d.id,
+                      filedUnder: filedUnder(d.patientId),
+                      facility: facilityOf(d.facilityId),
+                      category: d.category,
+                      title: d.title,
+                      uploadedAt: iso(d.uploadedAt),
+                    },
+                  ]
+                : [],
             )
         : null,
+      linkedRecords: [...linked].map(([id, patientNumber]) => ({ id, patientNumber })),
       withheld,
     };
 

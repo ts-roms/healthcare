@@ -112,6 +112,11 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
                         360
                       </Link>
                     ) : null}
+                    {p.resolvedFrom ? (
+                      <span className="block text-meta text-muted-foreground">
+                        Found through <span className="font-mono">{p.resolvedFrom.patientNumber}</span>, merged into this record
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="font-mono">{p.patientNumber}</TableCell>
                   <TableCell>{clinicalDate(p.birthDate)}</TableCell>

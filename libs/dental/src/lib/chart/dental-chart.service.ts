@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, DomainEventPublisher } from "@healthcare/core";
+import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, DomainEventPublisher, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { recordExaminationSchema } from "../dental.dto";
@@ -156,7 +156,7 @@ export class DentalChartService {
       .where(
         and(
           eq(dentalToothState.organizationId, organizationId),
-          eq(dentalToothState.patientId, patientId),
+          filedAsPatient(dentalToothState.patientId, patientId),
           sql`coalesce(${dentalExamination.status}, ${dentalProcedure.status}) = 'recorded'`,
           teeth ? inArray(dentalToothState.tooth, teeth) : undefined,
         ),
@@ -187,7 +187,7 @@ export class DentalChartService {
       .from(dentalToothState)
       .leftJoin(dentalExamination, eq(dentalExamination.id, dentalToothState.examinationId))
       .leftJoin(dentalProcedure, eq(dentalProcedure.id, dentalToothState.procedureId))
-      .where(and(eq(dentalToothState.organizationId, organizationId), eq(dentalToothState.patientId, patientId), eq(dentalToothState.tooth, tooth)))
+      .where(and(eq(dentalToothState.organizationId, organizationId), filedAsPatient(dentalToothState.patientId, patientId), eq(dentalToothState.tooth, tooth)))
       .orderBy(desc(dentalToothState.sequence));
     const findings = await this.findingsOf(
       this.db,
@@ -208,7 +208,7 @@ export class DentalChartService {
     const exams = await this.db
       .select()
       .from(dentalExamination)
-      .where(and(eq(dentalExamination.organizationId, organizationId), eq(dentalExamination.patientId, patientId)))
+      .where(and(eq(dentalExamination.organizationId, organizationId), filedAsPatient(dentalExamination.patientId, patientId)))
       .orderBy(desc(dentalExamination.recordedAt))
       .limit(limit);
     const states = await this.statesOf(this.db, organizationId, { examinationIds: exams.map((e) => e.id) });

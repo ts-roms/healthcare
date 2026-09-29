@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
+import { type Actor, BusinessRuleError, DATABASE, type Database, isFiledAs, NotFoundError } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, pdfMoney, pesoWords, renderPdf } from "@healthcare/pdf";
 import { and, asc, eq, sql } from "drizzle-orm";
@@ -50,7 +50,7 @@ export class BillingDocuments {
   /** The patient's copy from MyHealth: their own issued (or void) invoice. */
   async patientInvoicePdf(organizationId: string, patientId: string, invoiceId: string, auditContext: PatientAuditContext) {
     const invoice = await this.invoices.detail(organizationId, invoiceId).catch(() => undefined);
-    if (!invoice || invoice.patientId !== patientId || invoice.status === "draft") throw new NotFoundError("Invoice");
+    if (!invoice || invoice.status === "draft" || !(await isFiledAs(this.db, invoice.patientId, patientId))) throw new NotFoundError("Invoice");
     const pdf = await this.renderInvoice(organizationId, invoice, "patient");
     await this.audit.recordStandalone(auditContext, { action: "portal.invoice-download", resourceType: "billing_invoice", resourceId: invoiceId, patientId });
     return { filename: `${invoice.invoiceNumber}.pdf`, pdf };
@@ -206,7 +206,7 @@ export class BillingDocuments {
   /** The patient's copy of a credit note from MyHealth. */
   async patientCreditNotePdf(organizationId: string, patientId: string, creditNoteId: string, auditContext: PatientAuditContext) {
     const note = await this.creditNotes.detail(organizationId, creditNoteId).catch(() => undefined);
-    if (!note || note.patientId !== patientId) throw new NotFoundError("Credit note");
+    if (!note || !(await isFiledAs(this.db, note.patientId, patientId))) throw new NotFoundError("Credit note");
     const pdf = await this.renderCreditNote(organizationId, note, "patient");
     await this.audit.recordStandalone(auditContext, {
       action: "portal.credit-note-download",
@@ -233,7 +233,7 @@ export class BillingDocuments {
   /** The patient's copy of a debit note from MyHealth. */
   async patientDebitNotePdf(organizationId: string, patientId: string, debitNoteId: string, auditContext: PatientAuditContext) {
     const note = await this.debitNotes.detail(organizationId, debitNoteId).catch(() => undefined);
-    if (!note || note.patientId !== patientId) throw new NotFoundError("Debit note");
+    if (!note || !(await isFiledAs(this.db, note.patientId, patientId))) throw new NotFoundError("Debit note");
     const pdf = await this.renderDebitNote(organizationId, note, "patient");
     await this.audit.recordStandalone(auditContext, {
       action: "portal.debit-note-download",

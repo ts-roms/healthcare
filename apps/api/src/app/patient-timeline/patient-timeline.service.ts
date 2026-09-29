@@ -55,6 +55,8 @@ export interface TimelineEntry {
   /** Laboratory releases only: whether any released result was flagged. */
   flag: "abnormal" | "critical" | null;
   link: { type: TimelineLinkType; id: string } | null;
+  /** The patient number of a merged record the row is filed under (ADR-0009); null when filed under this patient. */
+  filedUnder: string | null;
   sourceIds: Record<string, string>;
 }
 
@@ -76,13 +78,15 @@ export interface TimelineQuery {
   limit?: number;
 }
 
-type Draft = Omit<TimelineEntry, "id" | "kind" | "occurredAt" | "facility" | "marker" | "flag" | "sourceIds"> &
+type Draft = Omit<TimelineEntry, "id" | "kind" | "occurredAt" | "facility" | "marker" | "flag" | "filedUnder" | "sourceIds"> &
   Partial<Pick<TimelineEntry, "marker" | "flag">> & { sourceIds?: Record<string, string> };
 
 interface Row extends TimelinePosition {
   source: TimelineSource;
   kind: TimelineKind;
   facilityId: string | null;
+  /** The record the row is filed under (the patient, or a record merged into it). */
+  patientId: string | null;
   draft: Draft;
 }
 
@@ -134,7 +138,11 @@ export class PatientTimelineService {
     };
 
     const { included, withheld } = visibleKinds(actor.permissions, query.kinds);
-    const sources = await Promise.all(included.map((kind) => this.load(kind, organizationId, patientId, window)));
+    // Rows of records merged into this patient are included (ADR-0009) and carry the number they were filed under.
+    const [sources, filedUnder] = await Promise.all([
+      Promise.all(included.map((kind) => this.load(kind, organizationId, patientId, window))),
+      this.patients.filedUnderNumbers(organizationId, patientId),
+    ]);
     const { items, next } = mergePage(sources, limit);
 
     const entries = items.map((row): TimelineEntry => {
@@ -148,6 +156,7 @@ export class PatientTimelineService {
         ...draft,
         marker: marker ?? markerFor(draft.status),
         flag: flag ?? null,
+        filedUnder: row.patientId && row.patientId !== patientId ? (filedUnder.get(row.patientId) ?? null) : null,
         sourceIds: sourceIds ?? {},
       };
     });
@@ -175,12 +184,13 @@ export class PatientTimelineService {
 
   /** One kind's rows for the window, as positioned drafts. */
   private async load(kind: TimelineKind, organizationId: string, patientId: string, window: TimelineWindow): Promise<Row[]> {
-    const row = (source: TimelineSource, r: { id: string; at: string; facilityId?: string | null }, draft: Draft): Row => ({
+    const row = (source: TimelineSource, r: { id: string; at: string; facilityId?: string | null; patientId?: string | null }, draft: Draft): Row => ({
       source,
       kind,
       id: r.id,
       at: r.at,
       facilityId: r.facilityId ?? null,
+      patientId: r.patientId ?? null,
       draft,
     });
     switch (kind) {

@@ -50,6 +50,12 @@ consultation** button); an online visit opens Telemedicine instead.
 
 Each returns short display fields only and is not audited itself; the endpoint audits the view.
 
+**Patient merge (ADR-0009).** Every read above includes the records merged into the patient (`filedAsPatient`). The
+summary returns `linkedRecords` (id and number of each merged record) and its rows keep their `patientId`; the
+workspace's panels carry `filedUnder` (the retired number, null for the patient's own) and `linkedRecords`. The staff
+page says "Includes the records of P…" and marks rows "Filed under P…" in text; the 360 page of a retired record
+redirects to its survivor's.
+
 ## Events
 
 None published or consumed.

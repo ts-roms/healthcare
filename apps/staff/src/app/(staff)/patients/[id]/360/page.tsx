@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   ActivityIcon,
   AlertOctagonIcon,
@@ -30,6 +30,7 @@ import { canStartConsultation, todayIn, visitStatusLabel } from "@/lib/clinic-ma
 import { ENCOUNTER_STATUS_LABEL } from "@/lib/encounter-mapping";
 import { ITEM_STATUS_LABEL, latestRange, mixedUnits, PRIORITY_LABEL, trendPoints } from "@/lib/lab-mapping";
 import { label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import {
   deriveAlerts,
   isWithheld,
@@ -86,6 +87,9 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
     optional<PatientTimelinePage>(`/patients/${id}/timeline`, { limit: TIMELINE_ENTRIES }),
   ]);
 
+  // A retired (merged) record's care is read with its surviving record.
+  if (patient.mergedIntoPatientId) redirect(`/patients/${patient.mergedIntoPatientId}/360`);
+  const filedUnder = filedUnderLookup(summary?.linkedRecords ?? workspace?.linkedRecords ?? patient.mergedRecords);
   const pin = maskedPhilHealthPin(patient);
   const alerts = deriveAlerts({ patient, problems: summary?.problemList ?? null, criticalResults: workspace?.criticalResults ?? null });
   const current = workspace?.currentEncounter ?? null;
@@ -136,6 +140,13 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
         }
       />
       <Alerts alerts={alerts} canOpenCritical={can(session, "lab.result.read")} />
+      {patient.mergedRecords?.length ? (
+        <p className="flex items-center gap-2 border-b bg-info-subtle px-4 py-2 text-table text-info-foreground">
+          <InfoIcon className="size-4 shrink-0" aria-hidden />
+          Includes the records of {patient.mergedRecords.map((r) => r.patientNumber).join(", ")} (merged into this patient). Rows filed under another number say
+          so.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
         {/* Column 1: now and history */}
@@ -271,7 +282,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
                     abnormal first). Flags are the laboratory&apos;s, against the range recorded with each result.
                   </p>
                 ) : null}
-                <PatientLabResults patientId={id} results={labResults.filter((r) => topTests.includes(r.testId))} />
+                <PatientLabResults patientId={id} results={labResults.filter((r) => topTests.includes(r.testId))} linkedRecords={patient.mergedRecords} />
                 {trends.slice(0, TRENDS).map((t) => {
                   const range = latestRange(t);
                   return (
@@ -310,6 +321,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
                         </Badge>
                       ) : null}
                       <span className="tabular text-meta text-muted-foreground">ordered {clinicalDateTime(o.orderedAt)}</span>
+                      {o.filedUnder ? <Badge variant="outline">{filedUnderText(o.filedUnder)}</Badge> : null}
                       {o.encounterId && can(session, "encounter.read") ? (
                         <Link href={`/clinic/encounters/${o.encounterId}`} className="text-meta text-primary hover:underline">
                           Consultation
@@ -357,11 +369,11 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
         {/* Column 3: clinical summary */}
         <div className="flex flex-col gap-4">
           <Panel title="Problem list" icon={ActivityIcon}>
-            {summary ? <ProblemList problems={toProblems(summary.problemList)} /> : <Withheld />}
+            {summary ? <ProblemList problems={toProblems(summary.problemList, filedUnder)} /> : <Withheld />}
           </Panel>
 
           <Panel title="Active medications" icon={PillIcon}>
-            {summary?.activePrescriptions ? <MedicationList medications={toMedications(summary.activePrescriptions)} /> : <Withheld />}
+            {summary?.activePrescriptions ? <MedicationList medications={toMedications(summary.activePrescriptions, filedUnder)} /> : <Withheld />}
           </Panel>
 
           <Panel title="Care plans" icon={ClipboardListIcon}>
