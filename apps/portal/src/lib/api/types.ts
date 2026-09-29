@@ -394,3 +394,25 @@ export interface PortalDocuments {
   certificates: PortalCertificate[];
   requests: PortalRecordsRequest[];
 }
+
+// ---- consents (/portal/consents) ----
+
+export type ConsentType =
+  "data_processing" | "treatment_general" | "telemedicine" | "data_sharing_hmo" | "data_sharing_philhealth" | "portal_access" | "research";
+
+export interface PortalConsentDecision {
+  id: string;
+  decision: "granted" | "refused" | "withdrawn";
+  effectiveAt: string;
+  expiresAt: string | null;
+  recordedAt: string;
+  recordedVia: "clinic" | "myhealth";
+}
+
+export interface PortalConsent {
+  consentType: ConsentType;
+  current: PortalConsentDecision | null;
+  inEffect: boolean;
+  canWithdraw: boolean;
+  history: PortalConsentDecision[];
+}

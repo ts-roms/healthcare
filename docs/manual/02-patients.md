@@ -118,6 +118,12 @@ Allergies from another provider's records (imported) show **External record**, a
 
 If you don't see **Record allergy**, you need the `allergy.manage` permission (nurses, physicians, dentists and dental assistants by default).
 
+## Consents the patient withdrew in MyHealth
+
+A patient may withdraw some consents in MyHealth (online consultations, sharing with their HMO or PhilHealth, research, MyHealth itself). The
+decision appears in **Consent & communication** and in the history marked **by the patient in MyHealth**. Withdrawing MyHealth signs the patient
+out; to restore access, record a new grant and, if needed, issue a new code.
+
 ## How to record consent
 
 Consent decisions are kept per type. A new decision replaces the current one for that type, and the earlier ones stay in the history.

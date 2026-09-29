@@ -66,9 +66,17 @@ merging can be added without schema changes.
 administrative messages are allowed and outreach requires opt-in; deceased and
 merged records are never contacted; inactive patients get no outreach.
 
+## Consents recorded by the patient (migration 0069)
+
+A `patient_consent` decision is recorded by exactly one of a staff user (`recorded_by`) or the patient's MyHealth account
+(`recorded_by_portal_account`); a patient's account records only electronic withdrawals (CHECK constraints). MyHealth
+(`GET /portal/consents`, `POST /portal/consents/:type/withdraw`; `libs/patient/src/lib/consents`) lists each consent with its
+history and withdraws those in `PATIENT_WITHDRAWABLE_CONSENTS` while in effect; withdrawing `portal_access` revokes the account's
+sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `myhealth`).
+
 ## Events
 
-None published yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`,
+`PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). Planned: `PatientRegistered`, `PatientDemographicsChanged`,
 `PatientMerged` (via outbox).
 
 ## Permissions
@@ -94,3 +102,6 @@ disable portal accounts; org admin, receptionist, records officer).
 - Portal: no self-service password reset, email verification, patient MFA, or
   guardian/dependent proxy access yet. One portal deployment serves one
   organization (`PORTAL_ORGANIZATION_CODE`).
+- MyHealth offers withdrawal of telemedicine, HMO and PhilHealth data sharing, research and portal access consents only; data processing and
+  general treatment consent are withdrawn at the clinic (assumption to confirm with the organization's data protection officer). Granting
+  consent online is not offered (needs the organization's consent wording).
