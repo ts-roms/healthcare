@@ -8,6 +8,7 @@ import {
   appointment,
   diagnosis,
   encounter,
+  encounterNoteRevision,
   externalHistoryEntry,
   practitioner,
   visit,
@@ -482,6 +483,107 @@ export class ClinicQueries {
       )
       .orderBy(desc(at), desc(externalHistoryEntry.id))
       .limit(window.limit);
+  }
+
+  // ---- Patient 360 workspace (composed in apps/api) ------------------------------------------------------------
+  // Short display fields only: never notes, complaints, reasons or diagnosis notes. Not audited here: the caller audits.
+
+  /**
+   * The patient's consultations in progress (any facility, at most `limit`, latest first) and recent consultations
+   * (in progress or signed; entered-in-error ones left out), each with its visit type, clinician (and the clinician's
+   * staff account, so the caller can tell "mine" without exposing it) and whether a note draft exists; recent ones
+   * carry their diagnoses (code and display, none entered in error).
+   */
+  async workspaceEncounters(organizationId: string, patientId: string, limits: { open: number; recent: number }) {
+    const columns = {
+      id: encounter.id,
+      facilityId: encounter.facilityId,
+      status: encounter.status,
+      modality: encounter.modality,
+      appointmentId: encounter.appointmentId,
+      startedAt: encounter.startedAt,
+      completedAt: encounter.completedAt,
+      practitionerId: encounter.practitionerId,
+      practitionerName: practitioner.displayName,
+      practitionerUserId: practitioner.userId,
+      visitTypeName: visitType.name,
+      // The outer table is named literally (Drizzle leaves columns unqualified in some selects).
+      hasNoteDraft: sql<boolean>`EXISTS (SELECT 1 FROM ${encounterNoteRevision} r WHERE r.encounter_id = ${encounter.id} AND r.kind = 'draft')`,
+    };
+    const base = () =>
+      this.db
+        .select(columns)
+        .from(encounter)
+        .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+        .leftJoin(visit, eq(visit.id, encounter.visitId))
+        .leftJoin(visitType, eq(visitType.id, visit.visitTypeId));
+    const scope = and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId));
+    const [open, recent] = await Promise.all([
+      base()
+        .where(and(scope, eq(encounter.status, "in_progress")))
+        .orderBy(desc(encounter.startedAt), desc(encounter.id))
+        .limit(limits.open),
+      base()
+        .where(and(scope, ne(encounter.status, "entered_in_error")))
+        .orderBy(desc(encounter.startedAt), desc(encounter.id))
+        .limit(limits.recent),
+    ]);
+    const ids = [...new Set([...open, ...recent].map((e) => e.id))];
+    const diagnoses = ids.length
+      ? await this.db
+          .select({
+            id: diagnosis.id,
+            encounterId: diagnosis.encounterId,
+            codeSystemKey: diagnosis.codeSystemKey,
+            code: diagnosis.code,
+            display: diagnosis.display,
+            rank: diagnosis.rank,
+            certainty: diagnosis.certainty,
+            isChronic: diagnosis.isChronic,
+            status: diagnosis.status,
+          })
+          .from(diagnosis)
+          .where(and(eq(diagnosis.organizationId, organizationId), inArray(diagnosis.encounterId, ids), ne(diagnosis.status, "entered_in_error")))
+          .orderBy(sql`${diagnosis.rank} = 'primary' DESC`, asc(diagnosis.recordedAt))
+      : [];
+    const withDiagnoses = <T extends { id: string }>(e: T) => ({ ...e, diagnoses: diagnoses.filter((d) => d.encounterId === e.id) });
+    return { open: open.map(withDiagnoses), recent: recent.map(withDiagnoses) };
+  }
+
+  /**
+   * The patient's visit in today's queue at a facility that has not ended yet (waiting, in triage, awaiting or in
+   * consultation), if any: what a consultation can be started from. No complaint or notes.
+   */
+  async workspaceActiveVisit(organizationId: string, patientId: string, facilityId: string) {
+    const [site] = await this.db.select({ timezone: facility.timezone }).from(facility).where(eq(facility.id, facilityId));
+    if (!site) return null;
+    const [row] = await this.db
+      .select({
+        id: visit.id,
+        facilityId: visit.facilityId,
+        status: visit.status,
+        queueNumber: visit.queueNumber,
+        queueDate: visit.queueDate,
+        priority: visit.priority,
+        appointmentId: visit.appointmentId,
+        checkedInAt: visit.checkedInAt,
+        modality: visitType.modality,
+        visitTypeName: visitType.name,
+      })
+      .from(visit)
+      .innerJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(
+        and(
+          eq(visit.organizationId, organizationId),
+          eq(visit.patientId, patientId),
+          eq(visit.facilityId, facilityId),
+          eq(visit.queueDate, localDate(new Date(), site.timezone)),
+          inArray(visit.status, ["waiting", "in_triage", "awaiting_consultation", "in_consultation"]),
+        ),
+      )
+      .orderBy(desc(visit.checkedInAt))
+      .limit(1);
+    return row ?? null;
   }
 
   /** Practitioner records by id (record exports). */
