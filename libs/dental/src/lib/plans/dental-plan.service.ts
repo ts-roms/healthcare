@@ -145,6 +145,15 @@ export class DentalPlanService {
         patientId: plan.patientId,
         metadata: { itemId: item!.id },
       });
+      await this.events.record(tx, {
+        type: "DentalTreatmentPlanItemAdded",
+        organizationId: actor.organizationId,
+        aggregateType: "dental_treatment_plan",
+        aggregateId: plan.id,
+        facilityId: plan.facilityId,
+        patientId: plan.patientId,
+        payload: { itemId: item!.id },
+      });
       return this.view(tx, updated);
     });
   }

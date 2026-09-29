@@ -7,6 +7,7 @@ import {
   DATABASE,
   type Database,
   type DbExecutor,
+  DomainEventPublisher,
   NotFoundError,
   requireFacilityId,
   asPgError,
@@ -33,6 +34,7 @@ export class DentalImagingService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly events: DomainEventPublisher,
     private readonly documents: DocumentsService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
   ) {}
@@ -135,6 +137,15 @@ export class DentalImagingService {
         resourceId: imageId,
         patientId: image.patientId,
         metadata: { releaseId: release!.id },
+      });
+      await this.events.record(tx, {
+        type: "DentalImageReleased",
+        organizationId: actor.organizationId,
+        aggregateType: "dental_image",
+        aggregateId: imageId,
+        facilityId: image.facilityId,
+        patientId: image.patientId,
+        payload: { releaseId: release!.id },
       });
       return { imageId, releasedAt: release!.releasedAt };
     });

@@ -209,6 +209,10 @@ export function DentalSettingsForm({
               Radiographs and photos are shown only when a dentist shares them one by one from the patient&apos;s dental record. Plans carry no fees; patients
               are told to ask the clinic.
             </p>
+            <p className="text-meta text-muted-foreground">
+              While this is on, patients who use MyHealth get a message in MyHealth and by SMS (or email) when a dentist shares an image or a plan awaits their
+              decision — naming no tooth, treatment or finding, only where to look. Their consent and communication preferences apply.
+            </p>
             {portal.updatedAt ? (
               <p className="text-meta text-muted-foreground">
                 Last changed {clinicalDateTime(portal.updatedAt)}
