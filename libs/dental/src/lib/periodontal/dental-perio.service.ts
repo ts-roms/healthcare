@@ -152,20 +152,6 @@ export class DentalPerioService {
     return charts.map((c) => ({ ...strip(c), summary: perioSummary(teeth.get(c.id) ?? []) }));
   }
 
-  /** Every chart of the patient with its measurements, oldest first (record exports; not audited here). */
-  async withMeasurements(organizationId: string, patientId: string) {
-    const charts = await this.db
-      .select()
-      .from(dentalPerioChart)
-      .where(and(eq(dentalPerioChart.organizationId, organizationId), eq(dentalPerioChart.patientId, patientId)))
-      .orderBy(asc(dentalPerioChart.recordedAt));
-    const teeth = await this.teethOf(
-      this.db,
-      charts.map((c) => c.id),
-    );
-    return charts.map((c) => ({ ...strip(c), teeth: teeth.get(c.id) ?? [] }));
-  }
-
   /**
    * One chart with its measurements, summary, and the changes since the patient's previous recorded chart (sites whose
    * probing depth changed by 2 mm or more). Viewing is audited.

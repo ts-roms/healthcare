@@ -473,7 +473,7 @@ export class LabQualityService {
         })
         .returning();
       const run = found(row, "QC run");
-      await this.reagents.recordOnQcRun(tx, actor.organizationId, run.id, reagents.loadIds);
+      await this.reagents.recordOnQcRun(tx, actor.organizationId, run, reagents.loadIds);
       await this.audit.record(tx, actor, {
         action: "lab.qc.run.record",
         resourceType: "lab_qc_run",
@@ -494,12 +494,23 @@ export class LabQualityService {
           aggregateType: "lab_qc_run",
           aggregateId: run.id,
           facilityId,
-          payload: { instrumentId: run.instrumentId, testId: run.testId, qcLotId: run.qcLotId, violations: run.violations },
+          payload: { instrumentId: run.instrumentId, testId: run.testId, qcLotId: run.qcLotId, violations: run.violations, enteredBy: run.enteredBy },
         });
       }
       const [view] = await this.runViews(tx, actor.organizationId, [run]);
       return view!;
     });
+  }
+
+  /** What a notice about a QC run names: the instrument and the test (no control values). */
+  async runSummary(organizationId: string, runId: string): Promise<{ instrumentCode: string; testName: string } | null> {
+    const [row] = await this.db
+      .select({ instrumentCode: labInstrument.code, testName: labTest.name })
+      .from(labQcRun)
+      .innerJoin(labInstrument, and(eq(labInstrument.organizationId, labQcRun.organizationId), eq(labInstrument.id, labQcRun.instrumentId)))
+      .innerJoin(labTest, and(eq(labTest.organizationId, labQcRun.organizationId), eq(labTest.id, labQcRun.testId)))
+      .where(and(eq(labQcRun.organizationId, organizationId), eq(labQcRun.id, runId)));
+    return row ?? null;
   }
 
   /** A series for the Levey-Jennings chart: runs of a test on an instrument (optionally one lot), oldest first. */
@@ -654,8 +665,13 @@ export class LabQualityService {
   }
 
   /** Records the reagent lots in use on a result entered on an instrument (with qcForResult, in the same transaction). */
-  recordResultReagents(tx: DbExecutor, organizationId: string, resultId: string, loadIds: string[]): Promise<void> {
-    return this.reagents.recordOnResult(tx, organizationId, resultId, loadIds);
+  recordResultReagents(
+    tx: DbExecutor,
+    organizationId: string,
+    result: { id: string; orderId: string; testId: string; versionNumber: number; enteredBy: string },
+    loadIds: string[],
+  ): Promise<void> {
+    return this.reagents.recordOnResult(tx, organizationId, result, loadIds);
   }
 
   // ---- internals ------------------------------------------------------------------------

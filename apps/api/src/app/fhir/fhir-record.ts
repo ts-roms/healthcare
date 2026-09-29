@@ -4,7 +4,7 @@ import { ClinicQueries } from "@healthcare/clinic";
 import { type Actor, APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
-import type { FhirContext, PatientRecordSource } from "@healthcare/interoperability";
+import type { DentalImageSource, FhirContext, PatientRecordSource } from "@healthcare/interoperability";
 import { LabRecordQueries } from "@healthcare/laboratory";
 import { OrganizationService } from "@healthcare/organization";
 import { PatientRecordService } from "@healthcare/patient";
@@ -15,13 +15,18 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 /** Documents (and their content) are for callers who may read documents, as on the documents API. */
 export const canReadDocuments = (actor: Actor) => actor.permissions.has("document.read");
 
+/** The dental record (procedures, treatment plans, chart, examinations, periodontal charts) is for callers who may read it, as on the dental API. */
+export const canReadDental = (actor: Actor) => actor.permissions.has("dental.record.read");
+
 /**
  * Composes one patient's record from the domains' read queries into the
  * interoperability layer's source model (libs/interoperability maps it to FHIR).
  * Laboratory results are the current released versions only (with the
  * reference laboratory that performed a send-out). Documents — and imported
- * document descriptions — are included only for a caller who may read
- * documents (`document.read`). External history comes from the clinic.
+ * document descriptions, and dental images' descriptions — are included only
+ * for a caller who may read documents (`document.read`); the dental record only
+ * for one who may read it (`dental.record.read`). External history comes from
+ * the clinic.
  */
 @Injectable()
 export class FhirRecordComposer {
@@ -54,7 +59,8 @@ export class FhirRecordComposer {
     const organizationId = actor.organizationId;
     const patient = await this.patients.getDetail(actor, patientId);
     const withDocuments = canReadDocuments(actor);
-    const [clinic, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental] = await Promise.all([
+    const withDental = canReadDental(actor);
+    const [clinic, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages] = await Promise.all([
       this.clinic.patientRecord(organizationId, patientId),
       this.lab.patientRecord(organizationId, patientId),
       this.prescriptions.allForPatient(organizationId, patientId),
@@ -62,9 +68,12 @@ export class FhirRecordComposer {
       this.organizations.listFacilities(organizationId),
       withDocuments ? this.documents.patientRecord(organizationId, patientId) : null,
       withDocuments ? this.lab.reportArchives(organizationId, patientId) : [],
-      this.dental.patientRecord(organizationId, patientId),
+      withDental ? this.dental.patientRecord(organizationId, patientId) : null,
+      // Dental images are documents: their descriptions go with the documents (document.read), like any document's metadata.
+      withDocuments ? this.dental.images(organizationId, patientId) : [],
     ]);
     const reports = reportVersions(reportArchives, new Set(documents?.map((d) => d.id)));
+    const images = new Map(dentalImages.map((i) => [i.documentId, i]));
 
     const practitionerIds = new Set<string>();
     const facilityIds = new Set<string>();
@@ -75,11 +84,14 @@ export class FhirRecordComposer {
     for (const o of labOrders) if (o.orderingPractitionerId) practitionerIds.add(o.orderingPractitionerId);
     for (const p of prescriptions) practitionerIds.add(p.prescriberPractitionerId);
     for (const c of carePlans) if (c.authorPractitionerId) practitionerIds.add(c.authorPractitionerId);
-    for (const p of dental.procedures) {
-      practitionerIds.add(p.practitionerId);
-      facilityIds.add(p.facilityId);
+    if (dental) {
+      for (const r of [...dental.examinations, ...dental.procedures, ...dental.perioCharts]) {
+        practitionerIds.add(r.practitionerId);
+        facilityIds.add(r.facilityId);
+      }
+      for (const p of dental.plans) practitionerIds.add(p.practitionerId);
+      for (const t of dental.chart) practitionerIds.add(t.practitionerId);
     }
-    for (const c of dental.perioCharts) practitionerIds.add(c.practitionerId);
     const practitioners = await this.clinic.practitioners(organizationId, [...practitionerIds]);
 
     return {
@@ -208,37 +220,22 @@ export class FhirRecordComposer {
           supersededAt: iso(reports.get(d.id)?.supersededAt),
           replaces: reports.get(d.id)?.replaces ?? [],
           related: reports.has(d.id) ? [{ type: "DiagnosticReport", id: reports.get(d.id)!.orderId }] : [],
+          dentalImage: dentalImage(images.get(d.id)),
         })) ?? null,
       externalHistory: clinic.externalHistory.map((e) => ({
         ...e,
         recordedAt: e.recordedAt.toISOString(),
         enteredInErrorAt: iso(e.enteredInErrorAt),
       })),
-      dental: {
-        procedures: dental.procedures.map((p) => ({
-          id: p.id,
-          facilityId: p.facilityId,
-          encounterId: p.encounterId,
-          practitionerId: p.practitionerId,
-          code: p.procedure.code,
-          name: p.procedure.name,
-          tooth: p.tooth,
-          surfaces: p.surfaces,
-          notes: p.notes,
-          status: p.status,
-          performedAt: p.performedAt.toISOString(),
-          enteredInErrorAt: iso(p.enteredInErrorAt),
-        })),
-        chart: dental.chart.map((t) => ({ tooth: t.tooth, findings: t.findings, source: t.source, recordedAt: t.recordedAt.toISOString() })),
-        perioCharts: dental.perioCharts.map((c) => ({
-          id: c.id,
-          encounterId: c.encounterId,
-          practitionerId: c.practitionerId,
-          status: c.status,
-          recordedAt: c.recordedAt.toISOString(),
-          teeth: c.teeth,
-        })),
-      },
+      dental: dental
+        ? {
+            examinations: dental.examinations.map((e) => ({ ...e, recordedAt: e.recordedAt.toISOString(), enteredInErrorAt: iso(e.enteredInErrorAt) })),
+            procedures: dental.procedures.map((p) => ({ ...p, performedAt: p.performedAt.toISOString(), enteredInErrorAt: iso(p.enteredInErrorAt) })),
+            plans: dental.plans.map((p) => ({ ...p, decidedAt: iso(p.decidedAt), createdAt: p.createdAt.toISOString() })),
+            chart: dental.chart.map((t) => ({ ...t, recordedAt: t.recordedAt.toISOString() })),
+            perioCharts: dental.perioCharts.map((c) => ({ ...c, recordedAt: c.recordedAt.toISOString(), enteredInErrorAt: iso(c.enteredInErrorAt) })),
+          }
+        : null,
     };
   }
 }
@@ -263,4 +260,32 @@ function reportVersions(
     });
   });
   return out;
+}
+
+/** A dental image's description of its document, in the interoperability layer's terms. */
+function dentalImage(
+  image:
+    | {
+        id: string;
+        kind: string;
+        teeth: string[];
+        takenOn: string;
+        encounterId: string | null;
+        status: DentalImageSource["status"];
+        recordedAt: Date;
+        enteredInErrorAt: Date | null;
+      }
+    | undefined,
+): DentalImageSource | null {
+  if (!image) return null;
+  return {
+    id: image.id,
+    kind: image.kind,
+    teeth: image.teeth,
+    takenOn: image.takenOn,
+    encounterId: image.encounterId,
+    status: image.status,
+    recordedAt: image.recordedAt.toISOString(),
+    enteredInErrorAt: iso(image.enteredInErrorAt),
+  };
 }

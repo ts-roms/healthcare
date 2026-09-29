@@ -80,6 +80,14 @@ describe("patient portal sign-in", () => {
     const unknownOrg = await activate({ ...activation(), organizationCode: "nope" }).expect(401);
     expect(new Set([wrongBirth.body.error.message, wrongCode.body.error.message, unknownOrg.body.error.message]).size).toBe(1);
     expect(wrongBirth.body.error.code).toBe("invalid_activation");
+    // Staff see the specific reason of the latest attempt against the invitation (an unknown organization reaches none).
+    expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
+      lastActivationFailure: { reason: "code_mismatch" },
+      failedActivationAttempts: 2,
+      maxActivationAttempts: 5,
+    });
+    const reasons = await auditRows(ctx.pool, `action = 'portal.activate' AND outcome = 'failure' AND patient_id = $1`, [patientId]);
+    expect(reasons.map((row) => row.reason).sort()).toEqual(["birth_date_mismatch", "code_mismatch"]);
   });
 
   it("destroys the code after 5 wrong attempts; a new invitation is needed", async () => {
@@ -94,6 +102,8 @@ describe("patient portal sign-in", () => {
     expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
       status: "invited",
       invitationExpired: false,
+      lastActivationFailure: null,
+      failedActivationAttempts: 0,
     });
   });
 
@@ -119,9 +129,21 @@ describe("patient portal sign-in", () => {
       patient: { patientNumber: "P00000001", givenName: juan.givenName, birthDate: juan.birthDate },
       organization: { name: "Org portal-org" },
       account: { email: "juan@example.ph" },
+      timeZone: "Asia/Manila",
     });
     const [event] = await auditRows(ctx.pool, `action = 'portal.profile-view'`);
     expect(event).toMatchObject({ actor_type: "patient", patient_id: patientId });
+  });
+
+  it("gives the time zone of the patient's clinic, for showing dates and times", async () => {
+    const zone = (tz: string) =>
+      ctx.pool.query(`UPDATE facility SET timezone = $2 WHERE id = (SELECT registered_facility_id FROM patient WHERE id = $1)`, [patientId, tz]);
+    await zone("Asia/Tokyo");
+    try {
+      expect((await ctx.http().get("/api/v1/portal/me").set(as(accessToken)).expect(200)).body.timeZone).toBe("Asia/Tokyo");
+    } finally {
+      await zone("Asia/Manila");
+    }
   });
 
   it("keeps patient and staff tokens apart", async () => {

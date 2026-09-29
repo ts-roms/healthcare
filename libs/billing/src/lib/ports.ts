@@ -31,6 +31,8 @@ export interface BillableDentalProcedure {
   procedureCode: string;
   description: string;
   serviceDate: string;
+  /** Surfaces treated (0 for a whole-tooth or whole-mouth procedure): the quantity of a service charged per surface. */
+  surfaceCount: number;
 }
 
 export interface BillingSources {

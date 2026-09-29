@@ -5,6 +5,12 @@
   "nx": {
     "name": "api",
     "targets": {
+      "build": {
+        "dependsOn": [
+          "^build",
+          "typecheck"
+        ]
+      },
       "prune-lockfile": {
         "dependsOn": [
           "build"

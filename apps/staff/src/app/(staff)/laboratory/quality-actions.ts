@@ -3,7 +3,18 @@
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { LabInstrument, LabInstrumentLogEntry, LabQcLot, LabQcMaterial, LabQcRun, LabQcTarget, LabReagentLoad } from "@/lib/api/types";
+import type {
+  LabInstrument,
+  LabInstrumentLogEntry,
+  LabQcLot,
+  LabQcMaterial,
+  LabQcRun,
+  LabQcTarget,
+  LabReagentLoad,
+  LabReagentUse,
+  LabReagentTestsPerRun,
+  LabReagentYield,
+} from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
@@ -67,6 +78,7 @@ const loadSchema = z.object({
   inventoryLotId: id,
   testId: id.optional(),
   takeFromStock: z.object({ locationId: id, quantity: z.number().int().positive("Enter how much is taken.") }).optional(),
+  capacityTests: z.number().int().positive("Enter how many tests the lot holds.").optional(),
 });
 export async function loadReagentLot(input: z.input<typeof loadSchema>): Promise<ActionResult<LabReagentLoad>> {
   const parsed = loadSchema.safeParse(input);
@@ -85,6 +97,44 @@ export async function unloadReagentLot(input: z.input<typeof unloadSchema>): Pro
 export async function loadReagentHistory(instrumentId: string): Promise<ActionResult<LabReagentLoad[]>> {
   if (!id.safeParse(instrumentId).success) return { ok: false, message: "Invalid request." };
   return actionResult(() => api<LabReagentLoad[]>(`/laboratory/instruments/${instrumentId}/reagents`));
+}
+
+// ---- Reagent use per test run ------------------------------------------------------------------
+
+const useSchema = z.object({
+  loadId: id,
+  kind: z.enum(["repeat", "calibration", "priming", "waste", "other"]),
+  tests: z.number().int().positive("Enter how many tests were used.").max(100_000),
+  reason: z.string().trim().min(3, "Say what the reagent was used for.").max(500),
+});
+export async function recordReagentUse(input: z.input<typeof useSchema>): Promise<ActionResult<LabReagentLoad>> {
+  const parsed = useSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { loadId, ...body } = parsed.data;
+  return actionResult(() => api<LabReagentLoad>(`/laboratory/reagents/${loadId}/uses`, { method: "POST", body }));
+}
+
+export async function loadReagentUses(loadId: string): Promise<ActionResult<LabReagentUse[]>> {
+  if (!id.safeParse(loadId).success) return { ok: false, message: "Invalid request." };
+  return actionResult(() => api<LabReagentUse[]>(`/laboratory/reagents/${loadId}/uses`));
+}
+
+const yieldSchema = z.object({ itemId: id, testsPerUnit: z.number().int().positive("Enter the tests one unit holds.").max(1_000_000) });
+export async function setReagentYield(input: z.input<typeof yieldSchema>): Promise<ActionResult<LabReagentYield>> {
+  const parsed = yieldSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return actionResult(() =>
+    api<LabReagentYield>(`/laboratory/reagents/yields/${parsed.data.itemId}`, { method: "PUT", body: { testsPerUnit: parsed.data.testsPerUnit } }),
+  );
+}
+
+const testsPerRunSchema = z.object({ itemId: id, testId: id, testsPerRun: z.number().int().min(1, "At least 1.").max(100, "At most 100.") });
+/** Sets how many tests one run of a test uses from a reagent; 1 (the default) removes the setting. */
+export async function setReagentTestsPerRun(input: z.input<typeof testsPerRunSchema>): Promise<ActionResult<LabReagentTestsPerRun[]>> {
+  const parsed = testsPerRunSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { itemId, testId, testsPerRun } = parsed.data;
+  return actionResult(() => api<LabReagentTestsPerRun[]>(`/laboratory/reagents/yields/${itemId}/tests/${testId}`, { method: "PUT", body: { testsPerRun } }));
 }
 
 // ---- QC setup ----------------------------------------------------------------------------------

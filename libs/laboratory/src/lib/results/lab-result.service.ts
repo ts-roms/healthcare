@@ -48,6 +48,7 @@ import {
 import { found, publicView } from "../laboratory-support";
 import { LabCatalogService } from "../catalog/lab-catalog.service";
 import { LabOrderService } from "../orders/lab-order.service";
+import { LabCompetencyService } from "../quality/lab-competency.service";
 import { LabQualityService } from "../quality/lab-quality.service";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
 import { type ResultAttribution, SendOutService } from "../send-outs/send-out.service";
@@ -85,6 +86,7 @@ export class LabResultService {
     private readonly catalog: LabCatalogService,
     private readonly orders: LabOrderService,
     private readonly quality: LabQualityService,
+    private readonly competency: LabCompetencyService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
@@ -412,11 +414,18 @@ export class LabResultService {
     });
   }
 
-  /** The ordering side confirms it has seen the critical result. */
+  /** The ordering side confirms it has seen the critical result, after the laboratory documented telling them. */
   async acknowledgeCritical(actor: Actor, alertId: string) {
     return this.db.transaction(async (tx) => {
       const alert = await this.lockAlert(tx, actor.organizationId, alertId);
       if (alert.status === "acknowledged") throw new ConflictError("The critical result was already acknowledged", undefined, "alert_acknowledged");
+      if (alert.status !== "communicated") {
+        throw new ConflictError(
+          "The laboratory has not yet documented telling the care team about this critical result; it can be acknowledged after that",
+          undefined,
+          "alert_not_communicated",
+        );
+      }
       const [row] = await tx
         .update(labCriticalAlert)
         .set({ status: "acknowledged", acknowledgedAt: new Date(), acknowledgedBy: actor.userId })
@@ -571,6 +580,7 @@ export class LabResultService {
   ): Promise<LabResultRecord> {
     const [test] = await tx.select().from(labTest).where(eq(labTest.id, item.testId));
     const definition = found(test, "Laboratory test");
+    await this.competency.assertCompetent(tx, actor, order.facilityId, definition);
     const value = this.validateValue(definition, input);
     const interpretation = await this.interpret(tx, actor, order, definition, value);
     const qc = input.instrumentId ? await this.quality.qcForResult(tx, actor.organizationId, order.facilityId, input.instrumentId, definition.id) : null;
@@ -611,7 +621,7 @@ export class LabResultService {
       })
       .returning();
     const created = found(row, "Laboratory result");
-    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created.id, qc.reagentLoadIds);
+    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created, qc.reagentLoadIds);
     return created;
   }
 

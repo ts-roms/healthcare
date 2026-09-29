@@ -13,6 +13,8 @@ export interface OnlineAppointment {
   reason: string | null;
   modality: "in_person" | "telemedicine";
   visitTypeName: string;
+  /** The facility's time zone, for showing the patient the consultation's times. */
+  timeZone: string;
 }
 
 export interface TelemedicinePatientBrief {

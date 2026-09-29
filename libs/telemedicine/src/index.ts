@@ -2,6 +2,7 @@ export * from "./lib/ports";
 export * from "./lib/questionnaire";
 export * from "./lib/telemedicine.dto";
 export * from "./lib/telemedicine.module";
+export * from "./lib/telemedicine-reporting.queries";
 export * from "./lib/telemedicine.rules";
 export * from "./lib/telemedicine.schema";
 export * from "./lib/telemedicine.service";

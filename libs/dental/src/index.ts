@@ -1,7 +1,14 @@
-export * from "./lib/dental-record.queries";
 export * from "./lib/dental.module";
+export * from "./lib/dental-record.queries";
+export * from "./lib/dental-reporting.queries";
 export * from "./lib/dental.rules";
 export * from "./lib/periodontal.rules";
 export * from "./lib/dental.schema";
 export * from "./lib/ports";
 export * from "./lib/procedures/dental-procedure.service";
+export * from "./lib/portal/dental-patient-access";
+export * from "./lib/portal/dental-portal-settings.service";
+export * from "./lib/supplies.rules";
+export * from "./lib/plans/fee-estimate.rules";
+export * from "./lib/plans/dental-fee-estimates";
+export { PatientPlanDecisionDto } from "./lib/dental.dto";

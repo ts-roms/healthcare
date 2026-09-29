@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingDays, bookingMessage, dayChip, longDate, type Slot, slotsByPartOfDay, slotTime } from "./booking";
+import { bookingDays, bookingMessage, dayChip, dayPages, longDate, type Slot, slotsByPartOfDay, slotTime } from "./booking";
 
 const rules = { minLeadMinutes: 120, maxAdvanceDays: 60 };
 
@@ -16,9 +16,24 @@ describe("bookingDays", () => {
     expect(days).toEqual(["2026-09-29", "2026-09-30"]);
   });
 
+  it("offers every day up to the clinic's horizon, not only the next two weeks", () => {
+    const days = bookingDays(new Date("2026-09-28T01:00:00Z"), rules, "Asia/Manila");
+    expect(days[0]).toBe("2026-09-28");
+    expect(days.at(-1)).toBe("2026-11-27");
+    expect(days).toHaveLength(61);
+  });
+
   it("stops at the booking horizon", () => {
     const days = bookingDays(new Date("2026-09-28T01:00:00Z"), { minLeadMinutes: 120, maxAdvanceDays: 2 }, "Asia/Manila", 14);
     expect(days).toEqual(["2026-09-28", "2026-09-29", "2026-09-30"]);
+  });
+});
+
+describe("dayPages", () => {
+  it("splits the days into weeks for the day picker", () => {
+    const days = Array.from({ length: 16 }, (_, i) => `d${i}`);
+    expect(dayPages(days).map((p) => p.length)).toEqual([7, 7, 2]);
+    expect(dayPages([])).toEqual([]);
   });
 });
 

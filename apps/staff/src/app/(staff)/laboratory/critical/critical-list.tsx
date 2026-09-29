@@ -133,7 +133,10 @@ function AlertCard({ alert, canCommunicate }: { alert: LabCriticalAlert; canComm
             </Button>
           </form>
         ) : null}
-        {alert.status !== "acknowledged" ? (
+        {alert.status === "open" ? (
+          <p className="text-meta text-muted-foreground">Acknowledgement opens once the laboratory has documented telling the care team.</p>
+        ) : null}
+        {alert.status === "communicated" ? (
           <Button
             size="sm"
             variant="outline"

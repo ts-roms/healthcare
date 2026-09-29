@@ -3,7 +3,7 @@ import { UsersService } from "@healthcare/auth";
 import { ClinicQueries } from "@healthcare/clinic";
 import type { Actor, DbExecutor } from "@healthcare/core";
 import { InventoryQueries, InventoryStockService } from "@healthcare/inventory";
-import type { LaboratoryContext, LabPatientBrief } from "@healthcare/laboratory";
+import { type LaboratoryContext, type LabPatientBrief, REAGENT_CATEGORY } from "@healthcare/laboratory";
 import { PatientRecordService } from "@healthcare/patient";
 
 /**
@@ -20,6 +20,10 @@ export class AppLaboratoryContext implements LaboratoryContext {
     private readonly stock: InventoryStockService,
   ) {}
 
+  laboratoryStaff(organizationId: string, facilityId: string) {
+    return this.users.holdersOf(organizationId, "lab.result.enter", facilityId);
+  }
+
   async takeReagentStock(
     tx: DbExecutor,
     actor: Actor,
@@ -32,6 +36,7 @@ export class AppLaboratoryContext implements LaboratoryContext {
       quantity: input.quantity,
       source: { type: "lab_reagent_load", id: input.loadId },
       issuedTo: `Laboratory instrument ${input.instrumentCode}`,
+      categories: [REAGENT_CATEGORY],
       reference: input.instrumentCode,
       reason: "Loaded on a laboratory instrument",
     });
@@ -42,8 +47,17 @@ export class AppLaboratoryContext implements LaboratoryContext {
     return this.inventory.lot(organizationId, lotId);
   }
 
+  async inventoryItem(organizationId: string, itemId: string) {
+    const [item] = await this.inventory.items(organizationId, [itemId]);
+    return item ? { itemId: item.id, code: item.code, name: item.name, category: item.category, stockUnit: item.stockUnit, status: item.status } : undefined;
+  }
+
+  reagentStockCosts(organizationId: string, movementGroupIds: string[]) {
+    return this.inventory.issuedCost(organizationId, movementGroupIds);
+  }
+
   reagentLotsInStock(organizationId: string, facilityId: string) {
-    return this.inventory.lotsInStock(organizationId, facilityId, ["reagent"]);
+    return this.inventory.lotsInStock(organizationId, facilityId, [REAGENT_CATEGORY]);
   }
 
   patientBriefs(organizationId: string, patientIds: string[]): Promise<Map<string, LabPatientBrief>> {

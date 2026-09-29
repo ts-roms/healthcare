@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
+import { DATABASE, type Database, localDate, localDayBounds, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { facility } from "@healthcare/organization";
 import {
@@ -8,6 +8,7 @@ import {
   appointment,
   diagnosis,
   encounter,
+  encounterNoteRevision,
   externalHistoryEntry,
   practitioner,
   visit,
@@ -356,6 +357,233 @@ export class ClinicQueries {
         ),
       )
       .orderBy(asc(encounter.startedAt));
+  }
+
+  // ---- Patient timeline (composed in apps/api) ----------------------------------------------------------------
+  // Each returns at most `window.limit` rows of one source, newest first, with ids, times, statuses and short display
+  // fields only: no notes, reasons, complaints or other free text. Not audited here: the caller audits.
+
+  /** Appointments at their scheduled start (cancelled and no-show ones included, with their status). */
+  timelineAppointments(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = appointment.startsAt;
+    return this.db
+      .select({
+        id: appointment.id,
+        at: timelineInstant(at),
+        facilityId: appointment.facilityId,
+        status: appointment.status,
+        modality: visitType.modality,
+        visitTypeName: visitType.name,
+        practitionerId: appointment.practitionerId,
+        practitionerName: practitioner.displayName,
+        bookedByPatient: appointment.bookedByPatient,
+      })
+      .from(appointment)
+      .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+      .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId))
+      .where(
+        and(
+          eq(appointment.organizationId, organizationId),
+          eq(appointment.patientId, patientId),
+          timelineFacility(appointment.facilityId, window),
+          timelineRange("appointment", at, appointment.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(appointment.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Encounters (in person or online) at their start, with the codes of their diagnoses (never the diagnosis text or
+   * notes). Entered-in-error encounters are included with their status; diagnoses entered in error are left out.
+   */
+  timelineEncounters(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = encounter.startedAt;
+    return this.db
+      .select({
+        id: encounter.id,
+        at: timelineInstant(at),
+        facilityId: encounter.facilityId,
+        status: encounter.status,
+        modality: encounter.modality,
+        visitTypeName: visitType.name,
+        practitionerName: practitioner.displayName,
+        appointmentId: encounter.appointmentId,
+        completedAt: encounter.completedAt,
+        // The outer table is named literally (Drizzle leaves columns unqualified when a select has no joins).
+        diagnosisCount: sql<number>`(SELECT count(*)::int FROM ${diagnosis} d WHERE d.encounter_id = encounter.id AND d.status <> 'entered_in_error')`,
+        diagnosisCodes: sql<string[]>`coalesce((SELECT array_agg(d.code ORDER BY d.rank = 'primary' DESC, d.recorded_at) FROM ${diagnosis} d
+          WHERE d.encounter_id = encounter.id AND d.status <> 'entered_in_error' AND d.code IS NOT NULL), '{}')`,
+      })
+      .from(encounter)
+      .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+      .leftJoin(visit, eq(visit.id, encounter.visitId))
+      .leftJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(
+        and(
+          eq(encounter.organizationId, organizationId),
+          eq(encounter.patientId, patientId),
+          timelineFacility(encounter.facilityId, window),
+          timelineRange("encounter", at, encounter.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(encounter.id))
+      .limit(window.limit);
+  }
+
+  /** Vital sign sets at the time measured (no values: the record shows them). */
+  timelineVitals(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = vitalSignSet.measuredAt;
+    return this.db
+      .select({
+        id: vitalSignSet.id,
+        at: timelineInstant(at),
+        facilityId: vitalSignSet.facilityId,
+        status: vitalSignSet.status,
+        encounterId: vitalSignSet.encounterId,
+        visitId: vitalSignSet.visitId,
+      })
+      .from(vitalSignSet)
+      .where(
+        and(
+          eq(vitalSignSet.organizationId, organizationId),
+          eq(vitalSignSet.patientId, patientId),
+          timelineFacility(vitalSignSet.facilityId, window),
+          timelineRange("vitals", at, vitalSignSet.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(vitalSignSet.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * External history accepted from imports, when it was accepted (the other provider's dates are free text). Kind,
+   * code and declared source only. Entries have no facility, so a facility filter leaves them out.
+   */
+  timelineExternalHistory(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return Promise.resolve([]);
+    const at = externalHistoryEntry.recordedAt;
+    return this.db
+      .select({
+        id: externalHistoryEntry.id,
+        at: timelineInstant(at),
+        kind: externalHistoryEntry.kind,
+        codeSystem: externalHistoryEntry.codeSystem,
+        code: externalHistoryEntry.code,
+        declaredSource: externalHistoryEntry.declaredSource,
+        status: externalHistoryEntry.status,
+      })
+      .from(externalHistoryEntry)
+      .where(
+        and(
+          eq(externalHistoryEntry.organizationId, organizationId),
+          eq(externalHistoryEntry.patientId, patientId),
+          timelineRange("external_history", at, externalHistoryEntry.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(externalHistoryEntry.id))
+      .limit(window.limit);
+  }
+
+  // ---- Patient 360 workspace (composed in apps/api) ------------------------------------------------------------
+  // Short display fields only: never notes, complaints, reasons or diagnosis notes. Not audited here: the caller audits.
+
+  /**
+   * The patient's consultations in progress (any facility, at most `limit`, latest first) and recent consultations
+   * (in progress or signed; entered-in-error ones left out), each with its visit type, clinician (and the clinician's
+   * staff account, so the caller can tell "mine" without exposing it) and whether a note draft exists; recent ones
+   * carry their diagnoses (code and display, none entered in error).
+   */
+  async workspaceEncounters(organizationId: string, patientId: string, limits: { open: number; recent: number }) {
+    const columns = {
+      id: encounter.id,
+      facilityId: encounter.facilityId,
+      status: encounter.status,
+      modality: encounter.modality,
+      appointmentId: encounter.appointmentId,
+      startedAt: encounter.startedAt,
+      completedAt: encounter.completedAt,
+      practitionerId: encounter.practitionerId,
+      practitionerName: practitioner.displayName,
+      practitionerUserId: practitioner.userId,
+      visitTypeName: visitType.name,
+      // The outer table is named literally (Drizzle leaves columns unqualified in some selects).
+      hasNoteDraft: sql<boolean>`EXISTS (SELECT 1 FROM ${encounterNoteRevision} r WHERE r.encounter_id = ${encounter.id} AND r.kind = 'draft')`,
+    };
+    const base = () =>
+      this.db
+        .select(columns)
+        .from(encounter)
+        .innerJoin(practitioner, eq(practitioner.id, encounter.practitionerId))
+        .leftJoin(visit, eq(visit.id, encounter.visitId))
+        .leftJoin(visitType, eq(visitType.id, visit.visitTypeId));
+    const scope = and(eq(encounter.organizationId, organizationId), eq(encounter.patientId, patientId));
+    const [open, recent] = await Promise.all([
+      base()
+        .where(and(scope, eq(encounter.status, "in_progress")))
+        .orderBy(desc(encounter.startedAt), desc(encounter.id))
+        .limit(limits.open),
+      base()
+        .where(and(scope, ne(encounter.status, "entered_in_error")))
+        .orderBy(desc(encounter.startedAt), desc(encounter.id))
+        .limit(limits.recent),
+    ]);
+    const ids = [...new Set([...open, ...recent].map((e) => e.id))];
+    const diagnoses = ids.length
+      ? await this.db
+          .select({
+            id: diagnosis.id,
+            encounterId: diagnosis.encounterId,
+            codeSystemKey: diagnosis.codeSystemKey,
+            code: diagnosis.code,
+            display: diagnosis.display,
+            rank: diagnosis.rank,
+            certainty: diagnosis.certainty,
+            isChronic: diagnosis.isChronic,
+            status: diagnosis.status,
+          })
+          .from(diagnosis)
+          .where(and(eq(diagnosis.organizationId, organizationId), inArray(diagnosis.encounterId, ids), ne(diagnosis.status, "entered_in_error")))
+          .orderBy(sql`${diagnosis.rank} = 'primary' DESC`, asc(diagnosis.recordedAt))
+      : [];
+    const withDiagnoses = <T extends { id: string }>(e: T) => ({ ...e, diagnoses: diagnoses.filter((d) => d.encounterId === e.id) });
+    return { open: open.map(withDiagnoses), recent: recent.map(withDiagnoses) };
+  }
+
+  /**
+   * The patient's visit in today's queue at a facility that has not ended yet (waiting, in triage, awaiting or in
+   * consultation), if any: what a consultation can be started from. No complaint or notes.
+   */
+  async workspaceActiveVisit(organizationId: string, patientId: string, facilityId: string) {
+    const [site] = await this.db.select({ timezone: facility.timezone }).from(facility).where(eq(facility.id, facilityId));
+    if (!site) return null;
+    const [row] = await this.db
+      .select({
+        id: visit.id,
+        facilityId: visit.facilityId,
+        status: visit.status,
+        queueNumber: visit.queueNumber,
+        queueDate: visit.queueDate,
+        priority: visit.priority,
+        appointmentId: visit.appointmentId,
+        checkedInAt: visit.checkedInAt,
+        modality: visitType.modality,
+        visitTypeName: visitType.name,
+      })
+      .from(visit)
+      .innerJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(
+        and(
+          eq(visit.organizationId, organizationId),
+          eq(visit.patientId, patientId),
+          eq(visit.facilityId, facilityId),
+          eq(visit.queueDate, localDate(new Date(), site.timezone)),
+          inArray(visit.status, ["waiting", "in_triage", "awaiting_consultation", "in_consultation"]),
+        ),
+      )
+      .orderBy(desc(visit.checkedInAt))
+      .limit(1);
+    return row ?? null;
   }
 
   /** Practitioner records by id (record exports). */

@@ -4,6 +4,8 @@ import type {
   LabItemStatus,
   LabOrderItem,
   LabPriority,
+  LabReagentUseKind,
+  LabReagentUseSummary,
   LabResult,
   LabResultFlag,
   LabResultStatus,
@@ -193,4 +195,33 @@ export function byReferenceLaboratory(rows: LabSendOut[]): Array<{ referenceLabo
     groups.set(row.referenceLaboratoryId, group);
   }
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export const REAGENT_USE_KIND_LABEL: Record<LabReagentUseKind, string> = {
+  patient: "Patient run",
+  qc: "QC run",
+  repeat: "Repeat",
+  calibration: "Calibration",
+  priming: "Priming",
+  waste: "Waste",
+  other: "Other",
+};
+
+/** "12 of 100 tests used · 88 left", or "12 tests used" when the capacity is not known. */
+export function reagentUseText(use: LabReagentUseSummary): string {
+  const used = `${use.total} ${use.total === 1 ? "test" : "tests"}`;
+  if (use.capacity === null || use.remaining === null) return `${used} used`;
+  const left = use.remaining < 0 ? `${-use.remaining} beyond the stated capacity` : `${use.remaining} left`;
+  return `${use.total} of ${use.capacity} tests used · ${left}`;
+}
+
+/** "2 runs", or "2 runs (3 tests)" when the runs used more than one test each. */
+export function runsText(runs: number, tests: number): string {
+  const label = `${runs} ${runs === 1 ? "run" : "runs"}`;
+  return tests === runs ? label : `${label} (${tests} tests)`;
+}
+
+/** "86%" (whole percent), or "—". */
+export function percent(share: number | null): string {
+  return share === null ? "—" : `${Math.round(share * 100)}%`;
 }

@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Ty
 import { OrganizationModule } from "@healthcare/organization";
 import { TELEMEDICINE_CLINIC, type TelemedicineClinic } from "./ports";
 import { TelemedicineController } from "./telemedicine.controller";
+import { TelemedicineReportingQueries } from "./telemedicine-reporting.queries";
 import { TelemedicineService } from "./telemedicine.service";
 import { LiveKitVideoProvider, VIDEO_PROVIDER } from "./video";
 
@@ -22,10 +23,11 @@ export class TelemedicineModule {
       controllers: [TelemedicineController],
       providers: [
         TelemedicineService,
+        TelemedicineReportingQueries,
         { provide: TELEMEDICINE_CLINIC, useClass: options.clinic },
         options.video ?? { provide: VIDEO_PROVIDER, useClass: LiveKitVideoProvider },
       ],
-      exports: [TelemedicineService],
+      exports: [TelemedicineService, TelemedicineReportingQueries],
     };
   }
 }

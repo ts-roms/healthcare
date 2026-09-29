@@ -295,10 +295,12 @@ export interface QueueVisit {
   patient: PatientBrief | null;
   /** The visit's consultation once started. */
   encounterId: string | null;
+  /** From the visit type; an online visit is started from Telemedicine. */
+  modality: "in_person" | "telemedicine";
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 
@@ -357,6 +359,10 @@ export interface PortalAccountStatus {
   activationExpiresAt: string | null;
   /** The invitation code can no longer be used (expired or too many wrong attempts). */
   invitationExpired: boolean;
+  /** Why the patient's latest activation attempt failed (staff only; the patient sees a generic message). */
+  lastActivationFailure: { reason: "expired" | "birth_date_mismatch" | "code_mismatch"; at: string } | null;
+  failedActivationAttempts: number;
+  maxActivationAttempts: number;
   activatedAt: string | null;
   lastLoginAt: string | null;
   disabledAt: string | null;
@@ -708,6 +714,8 @@ export interface LabPolicy {
   qcRequired: boolean;
   /** A new reagent lot for a test starts its QC window again. */
   qcAfterReagentChange: boolean;
+  /** Result entry needs a current "competent" assessment of the person for the test or its department. */
+  competencyRequired: boolean;
   version: number;
 }
 
@@ -1014,6 +1022,8 @@ export interface BillingService {
   prices: BillingServicePrice[];
   isPackage?: boolean;
   taxClass?: "vatable" | "vat_exempt" | "zero_rated" | null;
+  /** What the price is for: one item, or each surface treated (a service charged for a dental procedure; migration 0067). */
+  chargeUnit?: "each" | "surface";
 }
 
 export interface BillingPayer {
@@ -1045,7 +1055,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "manual";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
   description: string;
   quantity: number;
   unitPrice: number;
@@ -1511,8 +1521,8 @@ export interface InventoryMovement {
   reference: string | null;
   issuedTo: string | null;
   reason: string | null;
-  /** The workflow that moved the stock (a dispense, a reagent load, a purchase order line). */
-  sourceType: "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | null;
+  /** The workflow that moved the stock (a dispense, a reagent load, a purchase order line, a dental procedure). */
+  sourceType: "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | "dental_procedure" | null;
   sourceId: string | null;
   recordedBy: string;
   recordedAt: string;
@@ -1645,6 +1655,8 @@ export interface DentalProcedureType {
   chartEffect: DentalChartEffect | null;
   status: "active" | "inactive";
   version: number;
+  /** The procedures this one may turn out to be (fee ranges on estimates; migration 0066). */
+  alternativeIds: string[];
 }
 
 export interface DentalSettings {
@@ -1703,6 +1715,53 @@ export interface DentalPlanItem {
   status: DentalPlanItemStatus;
   procedureId: string | null;
   version: number;
+  /** The listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on. */
+  decisionEstimate?: number | null;
+  decisionEstimateOn?: string | null;
+  /** The high end when the item had a fee range at the decision (decisionEstimate is then the low end). */
+  decisionEstimateHigh?: number | null;
+}
+
+/** GET /dental/treatment-plans/:id/estimate (libs/dental/src/lib/plans/dental-fee-estimates.ts). Amounts in centavos. */
+export interface DentalPlanEstimate {
+  planId: string;
+  planStatus: DentalPlanStatus;
+  pricedOn: string;
+  currency: "PHP";
+  items: Array<{
+    itemId: string;
+    phase: number;
+    tooth: string | null;
+    surfaces: ToothSurface[];
+    procedure: { code: string; name: string } | null;
+    status: DentalPlanItemStatus;
+    /** In the estimate: awaiting the patient's decision, or accepted and not yet done; null: not part of it. */
+    part: "awaiting" | "accepted" | null;
+    listed: { serviceCode: string; serviceName: string; unitPrice: number; perSurface: boolean } | null;
+    /** Surfaces charged when priced per surface (at least one), else 1; null without a listed price. */
+    quantity: number | null;
+    /** The listed price times the quantity; null without a listed price. */
+    amount: number | null;
+    /** With procedures it may turn out to be: the range of listed prices and each of them (null: a single price). */
+    range: {
+      low: number;
+      high: number;
+      unpricedAlternatives: number;
+      alternatives: Array<{ code: string; name: string; unitPrice: number | null; amount: number | null }>;
+    } | null;
+    atDecision: { amount: number | null; high: number | null; pricedOn: string } | null;
+  }>;
+  totals: {
+    awaitingDecision: number;
+    accepted: number;
+    remaining: number;
+    awaitingDecisionHigh: number;
+    acceptedHigh: number;
+    remainingHigh: number;
+    unpricedItems: number;
+  };
+  disclaimer: string;
+  note: string | null;
 }
 
 export interface DentalTreatmentPlan {
@@ -1716,6 +1775,8 @@ export interface DentalTreatmentPlan {
   status: DentalPlanStatus;
   decisionNote: string | null;
   decidedAt: string | null;
+  /** Where the latest decision was taken: told to staff, or by the patient in MyHealth. */
+  decisionChannel: "in_person" | "portal" | null;
   discontinuedReason: string | null;
   createdAt: string;
   version: number;
@@ -1756,6 +1817,8 @@ export interface DentalImage {
   enteredInErrorReason: string | null;
   recordedAt: string;
   recordedByName: string | null;
+  /** Shared with the patient in MyHealth (null when not). */
+  release: { releasedAt: string; releasedBy: string } | null;
 }
 
 export interface DentalRecord {
@@ -2567,7 +2630,11 @@ export interface LabReagentLoad {
   /** Stock taken from inventory when the lot was loaded. */
   stockLocationId: string | null;
   stockQuantity: number | null;
+  /** Tests the load holds (stock taken × yield, or stated at the load); null when not known (migration 0064). */
+  capacityTests: number | null;
   expired: boolean;
+  /** Runs counted against the load and what is left. */
+  use: LabReagentUseSummary;
 }
 
 /** GET /laboratory/reagents/available */
@@ -2596,4 +2663,742 @@ export interface PayloadKeyUsage {
 export interface PayloadKeyOverview {
   currentKeyId: string;
   keys: PayloadKeyUsage[];
+}
+
+// ---- Laboratory quality management (Phase 9): temperatures, nonconformance, EQA, competency ----------------
+
+export type StorageUnitKind = "refrigerator" | "freezer" | "incubator" | "water_bath" | "room" | "other";
+
+export interface LabStorageUnit {
+  id: string;
+  facilityId: string;
+  departmentId: string | null;
+  code: string;
+  name: string;
+  kind: StorageUnitKind;
+  minCelsius: number;
+  maxCelsius: number;
+  readingIntervalHours: number | null;
+  status: "active" | "retired";
+  version: number;
+  lastReading: { celsius: number; readAt: string; outOfRange: boolean } | null;
+  readingDue: boolean;
+  excursionsLast7Days: number;
+}
+
+export interface LabTemperatureReading {
+  id: string;
+  storageUnitId: string;
+  celsius: number;
+  minCelsius: number;
+  maxCelsius: number;
+  outOfRange: boolean;
+  readAt: string;
+  note: string | null;
+  recordedByName: string | null;
+  nonconformanceId: string | null;
+}
+
+export type NonconformanceCategory =
+  "pre_analytical" | "analytical" | "post_analytical" | "equipment" | "temperature_excursion" | "qc_failure" | "eqa_failure" | "safety" | "complaint" | "other";
+export type NonconformanceSeverity = "minor" | "major" | "critical";
+export type NonconformanceEntryKind = "note" | "correction" | "root_cause" | "corrective_action" | "preventive_action" | "effectiveness_check";
+
+export interface LabNonconformance {
+  id: string;
+  facilityId: string;
+  number: string;
+  category: NonconformanceCategory;
+  severity: NonconformanceSeverity;
+  title: string;
+  description: string;
+  occurredAt: string;
+  instrumentId: string | null;
+  instrumentName: string | null;
+  qcRunId: string | null;
+  temperatureReadingId: string | null;
+  eqaResultId: string | null;
+  specimenId: string | null;
+  specimenAccession: string | null;
+  status: "open" | "investigating" | "closed";
+  reportedAt: string;
+  reportedByName: string | null;
+  closedAt: string | null;
+  version: number;
+}
+
+export interface LabNonconformanceDetail extends LabNonconformance {
+  entries: Array<{ id: string; kind: NonconformanceEntryKind | "reclassified" | "closed"; body: string; recordedAt: string; recordedByName: string | null }>;
+  missingToClose: string[];
+}
+
+export interface LabEqaScheme {
+  id: string;
+  code: string;
+  provider: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+export type EqaEvaluation = "acceptable" | "unacceptable" | "not_graded";
+
+export interface LabEqaSurvey {
+  id: string;
+  facilityId: string;
+  schemeId: string;
+  roundCode: string;
+  receivedOn: string;
+  dueOn: string | null;
+  scheme: { id: string; code: string; provider: string; name: string };
+  status: "received" | "reported" | "evaluated";
+  results: Array<{
+    id: string;
+    testId: string;
+    testName: string;
+    sampleCode: string;
+    reportedValue: string;
+    reportedByName: string | null;
+    evaluation: EqaEvaluation | null;
+    targetValue: string | null;
+    providerScore: string | null;
+    evaluationNote: string | null;
+    evaluatedByName: string | null;
+    nonconformance: { id: string; number: string } | null;
+  }>;
+}
+
+export type CompetencyMethod = "direct_observation" | "blind_sample" | "record_review" | "written_assessment" | "other";
+
+export interface LabCompetencyOverview {
+  competencyRequired: boolean;
+  staff: Array<{
+    userId: string;
+    displayName: string;
+    areas: Array<{
+      id: string;
+      testId: string | null;
+      departmentId: string | null;
+      method: CompetencyMethod;
+      outcome: "competent" | "not_yet_competent";
+      assessedOn: string;
+      nextDueOn: string | null;
+      notes: string | null;
+      assessedByName: string | null;
+      state: "competent" | "due" | "not_yet_competent";
+    }>;
+  }>;
+}
+
+// ---- MyHealth dental records (libs/dental/src/lib/portal/dental-portal-settings.service.ts; GET/PUT /dental/settings/portal) ----
+
+export interface DentalPortalSetting {
+  /** Patients see their treatment plans, completed procedures and tooth chart in MyHealth (off by default). */
+  portalDentalRecords: boolean;
+  /** Patients accept or decline plan items in MyHealth (needs dental records shown). */
+  portalPlanDecisions: boolean;
+  /** The organization's own text patients confirm before deciding online. */
+  portalPlanAcknowledgement: string | null;
+  /** MyHealth shows fee estimates on plans (needs dental records shown). */
+  portalPlanEstimates: boolean;
+  /** The organization's own note under every fee estimate (printed and in MyHealth). */
+  feeEstimateNote: string | null;
+  /** 0 until first set. */
+  version: number;
+  updatedAt: string | null;
+  updatedByName: string | null;
+}
+
+// ---- Dental supplies from inventory (libs/dental/src/lib/supplies; migration 0057) ----
+
+/** GET /dental/supplies/options */
+export interface DentalSupplyOptions {
+  facilityId: string | null;
+  defaultLocationId: string | null;
+  locations: Array<{ id: string; code: string; name: string }>;
+  items: Array<{
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    stockUnit: string;
+    controlled: boolean;
+    status: "active" | "inactive";
+    /** Usable (not expired) stock per location id of the selected facility. */
+    usable: Record<string, number>;
+  }>;
+  templates: Array<{ procedureTypeId: string; items: Array<{ itemId: string; quantity: number }> }>;
+}
+
+export interface DentalSupplyUseLine {
+  id: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+  returnsLineId: string | null;
+  /** Issued lines: how much is still out (not returned). Null on return lines. */
+  outstanding: number | null;
+}
+
+export interface DentalSupplyUse {
+  id: string;
+  procedureId: string;
+  kind: "issue" | "return";
+  locationId: string;
+  locationName: string | null;
+  reason: string | null;
+  recordedBy: string;
+  recordedByName?: string | null;
+  recordedAt: string;
+  lines: DentalSupplyUseLine[];
+}
+
+/** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
+export interface DentalRecordSupplies {
+  supplyUses?: DentalSupplyUse[];
+}
+
+// ---- Staff in-app inbox (GET /me/notifications, GET /me/notifications/unread-count) ----------------------------
+
+export interface StaffNotice {
+  id: string;
+  templateKey: string;
+  subject: string | null;
+  text: string;
+  /** The staff page the message is about, when there is one. */
+  href: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+// ---- Laboratory quality summary (GET /laboratory/quality/summary, lab.qc.read) ----------------------------------
+
+export interface LabQualitySummary {
+  facilityId: string;
+  date: string;
+  nonconformances: { open: number; investigating: number; critical: number; major: number };
+  qc: { rejected: number; missing: number; resultsBlocked: number };
+  instruments: { outOfService: number; calibrationOverdue: number };
+  /** Loaded reagent lots with a tenth of their tests or less left (migration 0065). */
+  reagents: { low: number };
+  temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
+  eqa: { overdue: number; awaitingEvaluation: number };
+  competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
+}
+
+// ---- Patient timeline (GET /patients/:id/timeline) ----------------------------------------------------------------
+
+export type PatientTimelineKind =
+  | "appointment"
+  | "encounter"
+  | "vitals"
+  | "prescription"
+  | "lab_order"
+  | "lab_result_release"
+  | "dental"
+  | "care_plan"
+  | "invoice"
+  | "payment"
+  | "communication"
+  | "external_history"
+  | "document";
+
+export type PatientTimelineLinkType =
+  | "appointment"
+  | "telemedicine"
+  | "encounter"
+  | "patient_laboratory"
+  | "dental_record"
+  | "care_plan"
+  | "invoice"
+  | "patient_external_history"
+  | "patient_record";
+
+/** One timeline row: short display text only (no notes, values or message content); the link opens the record. */
+export interface PatientTimelineEntry {
+  id: string;
+  kind: PatientTimelineKind;
+  occurredAt: string;
+  facility: { id: string; name: string } | null;
+  title: string;
+  detail: string | null;
+  status: string | null;
+  marker: "entered_in_error" | "cancelled" | "void" | null;
+  flag: "abnormal" | "critical" | null;
+  link: { type: PatientTimelineLinkType; id: string } | null;
+  sourceIds: Record<string, string>;
+}
+
+export interface PatientTimelinePage {
+  items: PatientTimelineEntry[];
+  nextCursor: string | null;
+  /** Kinds the user may not see (no counts). */
+  withheld: PatientTimelineKind[];
+  timeZone: string;
+}
+
+// ---- Management dashboard (GET /management/dashboard, management.dashboard.read; amounts in centavos) ------------
+
+export interface ManagementDashboard {
+  from: string;
+  to: string;
+  timeZone: string;
+  /** Facilities covered (null: the whole organization). */
+  facilityIds: string[] | null;
+  facilities: Array<{ id: string; name: string }>;
+  wholeOrganization: boolean;
+  /** Patient counts from 1 to this − 1 are shown as "<5". */
+  suppressionThreshold: number;
+  /** Sections left out for lack of permission ("billing": needs billing.report.read on every facility in scope). */
+  withheld: Array<"billing">;
+  keyFigures: ManagementKeyFigures;
+  /** The period of the same length just before the range, with each key figure's change. */
+  previous: { from: string; to: string; keyFigures: ManagementKeyFigures; changes: Record<keyof ManagementKeyFigures, ManagementFigureChange> };
+  patients: {
+    registered: ManagementPatientCount;
+    seen: ManagementPatientCount;
+    returning: ManagementPatientCount;
+    firstTime: ManagementPatientCount;
+    returningRate: number | null;
+    returningRateSuppressed: boolean;
+  };
+  clinic: {
+    appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
+    visits: { checkedIn: number; walkIns: number; leftWithoutBeingSeen: number; averageWaitMinutes: number | null };
+    encounters: { completed: number; telemedicine: number; patientsSeen: ManagementPatientCount; returningPatients: ManagementPatientCount };
+    providers: Array<{
+      practitionerId: string;
+      displayName: string;
+      encounters: number;
+      patients: ManagementPatientCount;
+      appointments: number;
+      noShows: number;
+      bookedMinutes: number;
+      availableMinutes: number;
+      /** Booked ÷ available minutes; may exceed 1. */
+      utilization: number | null;
+    }>;
+    utilization: { bookedMinutes: number; availableMinutes: number; rate: number | null };
+  };
+  laboratory: {
+    orders: { orders: number; stat: number; cancelled: number };
+    testsOrdered: number;
+    released: number;
+    corrections: number;
+    averageTurnaroundMinutes: number | null;
+    withinTargetRate: number | null;
+    specimensRejected: number;
+    specimens: { collected: number; rejected: number; rejectionRate: number | null };
+    byInstrument: Array<{ instrumentId: string | null; name: string | null; results: number }>;
+    topTests: Array<{ testId: string; name: string; ordered: number }>;
+  };
+  dental: {
+    procedures: number;
+    patients: ManagementPatientCount;
+    byProcedure: Array<{ code: string; name: string; procedures: number; patients: ManagementPatientCount }>;
+  };
+  telemedicine: { started: number; ended: number; escalated: number; inProgress: number; escalationRate: number | null };
+  retention: {
+    lookbackMonths: number;
+    returnWindowDays: number;
+    seen: ManagementPatientCount;
+    retained: ManagementPatientCount;
+    retentionRate: number | null;
+    retentionRateSuppressed: boolean;
+    returnCohort: ManagementPatientCount;
+    returned: ManagementPatientCount;
+    returnRate: number | null;
+    returnRateSuppressed: boolean;
+  };
+  /** Null when withheld (see `withheld`). */
+  billing: {
+    invoices: { issued: number; grossTotal: number; discountTotal: number; netTotal: number; payerTotal: number; patientTotal: number; voided: number };
+    creditNotesTotal: number;
+    debitNotesTotal: number;
+    collectedTotal: number;
+    refundedTotal: number;
+    netCollected: number;
+    collections: Array<{ method: PaymentMethod; collected: number; refunded: number; payments: number }>;
+    byCategory: Array<{ category: BillingCategory; net: number; quantity: number }>;
+    topServices: Array<{
+      serviceId: string;
+      code: string;
+      name: string;
+      category: BillingCategory;
+      quantity: number;
+      net: number;
+      patients: ManagementPatientCount;
+    }>;
+  } | null;
+  daily: Array<{
+    date: string;
+    registered: ManagementPatientCount;
+    patientsSeen: ManagementPatientCount;
+    encounters: number;
+    labReleased: number;
+    /** Null when billing is withheld. */
+    invoiced: number | null;
+    collected: number | null;
+  }>;
+  /** "How is this calculated?" text per figure. */
+  definitions: Record<ManagementMetricKey, string>;
+}
+
+// ---- Management dashboard extras (suppression, comparison, definitions) ----------------------------------------
+
+/** A patient count as disclosed: exact from 5 up (and 0), otherwise "<5". */
+export type ManagementPatientCount = number | "<5";
+
+export type ManagementMetricKey =
+  | "patientsSeen"
+  | "newPatients"
+  | "returningPatients"
+  | "consultations"
+  | "noShowRate"
+  | "averageWait"
+  | "utilization"
+  | "invoicedNet"
+  | "collected"
+  | "labReleased"
+  | "labTurnaround"
+  | "labWithinTarget"
+  | "specimenRejectionRate"
+  | "resultsPerInstrument"
+  | "dentalProcedures"
+  | "telemedicine"
+  | "retentionRate"
+  | "returnRate"
+  | "comparison"
+  | "suppression";
+
+/** A key figure's change against the previous period, and which direction is an improvement. */
+export interface ManagementFigureChange {
+  unit: "count" | "patients" | "rate" | "minutes" | "centavos";
+  better: "up" | "down" | "neither";
+  /** Null when either value is unknown, withheld or suppressed. */
+  change: {
+    /** For a rate a fraction (0.05 = 5 percentage points). */
+    absolute: number;
+    relative: number | null;
+    direction: "up" | "down" | "flat";
+    assessment: "better" | "worse" | "unchanged" | "neutral";
+  } | null;
+}
+
+/** Headline figures of the management dashboard (amounts in centavos; null when billing is withheld). */
+export interface ManagementKeyFigures {
+  patientsSeen: ManagementPatientCount;
+  newPatients: ManagementPatientCount;
+  consultations: number;
+  noShowRate: number | null;
+  averageWaitMinutes: number | null;
+  netInvoiced: number | null;
+  netCollected: number | null;
+  labTestsReleased: number;
+  labTurnaroundMinutes: number | null;
+  dentalProcedures: number;
+  specimenRejectionRate: number | null;
+  retentionRate: number | null;
+}
+
+// ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------
+
+/** GET /inventory/valuation */
+export interface InventoryValuation {
+  totalValue: number;
+  unvaluedLines: number;
+  byCategory: Array<{ category: InventoryCategory; value: number; lines: number }>;
+  byLocation: Array<{ locationId: string; name: string; value: number; lines: number }>;
+  lines: Array<{
+    itemId: string;
+    code: string;
+    name: string;
+    category: InventoryCategory;
+    stockUnit: string;
+    locationId: string;
+    locationName: string;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    averageUnitCost: number | null;
+  }>;
+}
+
+export type InventoryMovementKind = "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off" | "return";
+export type InventoryMovementSource = "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | "dental_procedure";
+
+/** GET /inventory/valuation/usage — signed quantities and values (receipts positive, uses negative). */
+export interface InventoryUsage {
+  from: string;
+  to: string;
+  timeZone: string;
+  rows: Array<{
+    kind: InventoryMovementKind;
+    sourceType: InventoryMovementSource | null;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    movements: number;
+  }>;
+  topItems: Array<{ itemId: string; name: string; stockUnit: string; quantity: number; value: number }>;
+}
+
+export type SupplierInvoiceStatus = "recorded" | "approved" | "paid" | "void";
+
+export interface SupplierInvoice {
+  id: string;
+  facilityId: string;
+  purchaseOrderId: string;
+  poNumber: string | null;
+  supplierId: string;
+  supplier: { id: string; code: string; name: string } | null;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string | null;
+  linesTotal: number;
+  vatAmount: number;
+  total: number;
+  notes: string | null;
+  status: SupplierInvoiceStatus;
+  recordedAt: string;
+  recordedByYou: boolean;
+  approvedAt: string | null;
+  approvalNote: string | null;
+  paidOn: string | null;
+  paymentReference: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  overdue: boolean;
+  version: number;
+}
+
+export interface SupplierInvoiceDetail extends SupplierInvoice {
+  lines: Array<{
+    id: string;
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemName: string;
+    stockUnit: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    /** Invoiced less ordered price per stock unit; null when the order had no price. */
+    variance: number | null;
+  }>;
+}
+
+/** GET /inventory/purchase-orders/:id/invoicing */
+export interface PurchaseOrderInvoicing {
+  purchaseOrderId: string;
+  poNumber: string;
+  supplierId: string;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemId: string;
+    itemName: string;
+    stockUnit: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    quantityInvoiced: number;
+    invoiceable: number;
+  }>;
+}
+
+// ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
+
+export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents";
+
+export interface WorkspaceFacilityRef {
+  id: string;
+  name: string;
+}
+
+export interface WorkspaceDiagnosis {
+  id: string;
+  codeSystemKey: string | null;
+  code: string | null;
+  display: string;
+  rank: "primary" | "secondary";
+  certainty: "provisional" | "confirmed" | "refuted";
+  isChronic: boolean;
+  status: "active" | "resolved" | "entered_in_error";
+}
+
+export interface WorkspaceEncounter {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  status: "in_progress" | "completed" | "entered_in_error";
+  modality: string;
+  appointmentId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  practitionerName: string;
+  visitTypeName: string | null;
+  diagnoses: WorkspaceDiagnosis[];
+}
+
+export interface WorkspaceCurrentEncounter extends WorkspaceEncounter {
+  /** The viewer is the responsible clinician. */
+  mine: boolean;
+  atSelectedFacility: boolean;
+  /** A note draft has been saved (never its content). */
+  hasNoteDraft: boolean;
+}
+
+export interface WorkspaceVisit {
+  id: string;
+  status: VisitStatus;
+  queueNumber: number;
+  priority: string;
+  modality: "in_person" | "telemedicine";
+  visitTypeName: string;
+  appointmentId: string | null;
+  checkedInAt: string;
+}
+
+export interface WorkspaceCriticalResult {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  status: "open" | "communicated";
+  raisedAt: string;
+  orderId: string;
+  orderNumber: string;
+  testName: string;
+}
+
+export interface WorkspaceLabOrder {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  orderNumber: string;
+  priority: LabPriority;
+  status: string;
+  orderedAt: string;
+  encounterId: string | null;
+  tests: Array<{ id: string; testName: string; status: LabItemStatus }>;
+}
+
+export interface PatientWorkspace {
+  patientId: string;
+  facility: WorkspaceFacilityRef | null;
+  timeZone: string;
+  currentEncounter: { encounters: WorkspaceCurrentEncounter[]; visit: WorkspaceVisit | null } | null;
+  encounterHistory: WorkspaceEncounter[] | null;
+  criticalResults: WorkspaceCriticalResult[] | null;
+  labOrders: WorkspaceLabOrder[] | null;
+  dentalImages: Array<{ id: string; facility: WorkspaceFacilityRef | null; kind: string; takenOn: string; teeth: string[] }> | null;
+  documents: Array<{ id: string; facility: WorkspaceFacilityRef | null; category: string; title: string; uploadedAt: string }> | null;
+  withheld: PatientWorkspacePanel[];
+}
+
+/** GET /patients/:id/summary as the workspace reads it: active prescriptions carry number, encounter and prescriber. */
+export interface WorkspacePrescription extends PrescriptionSummaryView {
+  prescriptionNumber: string;
+  encounterId: string;
+  prescriberName: string | null;
+}
+
+export interface WorkspaceCarePlan extends Omit<CarePlanSummaryView, "openActivities"> {
+  openActivities: Array<{ id: string; kind: string; description: string; dueDate: string | null; status: string }>;
+}
+
+export interface PatientWorkspaceSummary extends Omit<PatientSummaryResponse, "activePrescriptions" | "openCarePlans"> {
+  activePrescriptions: WorkspacePrescription[] | null;
+  openCarePlans: WorkspaceCarePlan[] | null;
+}
+
+// ---- Laboratory reagent use per test run (migration 0064; amounts in centavos) --------------------------------------
+
+export interface LabReagentUseSummary {
+  patientRuns: number;
+  /** Tests the patient runs used (more than the runs when a test uses several per run; migration 0065). */
+  patientTests: number;
+  qcRuns: number;
+  qcTests: number;
+  otherRuns: number;
+  wasted: number;
+  total: number;
+  capacity: number | null;
+  remaining: number | null;
+  usedShare: number | null;
+  low: boolean;
+}
+
+export type LabReagentUseKind = "patient" | "qc" | "repeat" | "calibration" | "priming" | "waste" | "other";
+export type LabManualReagentUseKind = Exclude<LabReagentUseKind, "patient" | "qc">;
+
+/** GET /laboratory/reagents/:loadId/uses */
+export interface LabReagentUse {
+  id: string;
+  kind: LabReagentUseKind;
+  tests: number;
+  orderId: string | null;
+  resultId: string | null;
+  runNumber: number | null;
+  qcRunId: string | null;
+  reason: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** GET /laboratory/reagents/yields */
+export interface LabReagentYield {
+  inventoryItemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  testsPerUnit: number;
+  updatedAt: string;
+  updatedByName: string | null;
+}
+
+/** GET /laboratory/reagents/tests-per-run (settings above 1; 1 is the default) */
+export interface LabReagentTestsPerRun {
+  inventoryItemId: string;
+  itemName: string;
+  itemCode: string;
+  testId: string;
+  testName: string;
+  testCode: string;
+  testsPerRun: number;
+  updatedAt: string;
+  updatedByName: string | null;
+}
+
+/** GET /laboratory/reagents/usage */
+export interface LabReagentUsage {
+  from: string;
+  to: string;
+  timeZone: string;
+  loads: Array<
+    LabReagentLoad & {
+      period: Pick<LabReagentUseSummary, "patientRuns" | "patientTests" | "qcRuns" | "qcTests" | "otherRuns" | "wasted" | "total">;
+      stockMovementGroupId: string | null;
+      stockCost: number | null;
+      costPerPatientRun: number | null;
+      unusedAtUnload: number | null;
+    }
+  >;
+  reagents: Array<{
+    inventoryItemId: string;
+    itemCode: string;
+    itemName: string;
+    loads: number;
+    patientRuns: number;
+    patientTests: number;
+    qcRuns: number;
+    qcTests: number;
+    otherRuns: number;
+    wasted: number;
+    total: number;
+    nonPatientShare: number | null;
+  }>;
 }

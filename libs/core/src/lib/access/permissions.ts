@@ -105,6 +105,8 @@ export const PERMISSIONS = [
   "dental.imaging.read",
   "dental.imaging.upload",
   "dental.settings.manage",
+  // MyHealth dental images: a dentist releases each one explicitly (migration 0058)
+  "dental.imaging.release",
   // Phase 9 — laboratory quality control and instruments (migration 0050)
   "lab.qc.read",
   "lab.qc.enter",
@@ -113,6 +115,10 @@ export const PERMISSIONS = [
   // reviewers match the patient and accept or reject each entry.
   "interop.fhir.import",
   "interop.fhir.import.review",
+  // Management dashboard: cross-domain operational figures, counts and amounts only (migration 0059).
+  "management.dashboard.read",
+  // Inventory valuation: stock values and the cost of stock received, used and written off (migration 0061).
+  "inventory.valuation.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

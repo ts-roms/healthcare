@@ -27,6 +27,8 @@ export const STAFF = {
   teleDoctor: "dr.ramos@e2e.ph",
   medtech: "medtech@e2e.ph",
   pathologist: "patho@e2e.ph",
+  /** Cashier role only (no organization.read): must still be able to choose the clinic. */
+  cashier: "cashier@e2e.ph",
 } as const;
 
 export const DOCTOR_NAME = "Dr. Maria Santos";

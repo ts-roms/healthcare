@@ -1,9 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { type AuditActor, AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
   BusinessRuleError,
+  ConflictError,
   DATABASE,
   type Database,
   type DbExecutor,
@@ -27,6 +28,7 @@ import {
 } from "../dental.schema";
 import { assertVersion, found, rejectIssues, requireDentist, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
+import { DentalFeeLookup, type ItemFee, itemFee } from "./dental-fee-lookup";
 
 type PlanItemInput = { phase: number; procedureTypeId: string; tooth?: string; surfaces: Surface[]; note?: string };
 
@@ -35,7 +37,8 @@ const OPEN: ReadonlySet<DentalTreatmentPlanRecord["status"]> = new Set(["propose
 /**
  * Dental treatment plans: phased items (procedure, tooth, surfaces) proposed by a dentist, accepted or declined by the
  * patient item by item, and completed by performed procedures. Fees come from billing when the procedure is charged;
- * the plan itself carries no prices.
+ * the plan carries no prices of its own, only the estimate (billing's listed price) each item had when the patient
+ * decided it (`DentalFeeEstimates`).
  */
 @Injectable()
 export class DentalPlanService {
@@ -45,6 +48,7 @@ export class DentalPlanService {
     private readonly events: DomainEventPublisher,
     private readonly catalog: DentalCatalogService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
+    private readonly fees: DentalFeeLookup,
   ) {}
 
   async create(actor: Actor, input: z.infer<typeof createPlanSchema>) {
@@ -144,60 +148,132 @@ export class DentalPlanService {
         patientId: plan.patientId,
         metadata: { itemId: item!.id },
       });
+      await this.events.record(tx, {
+        type: "DentalTreatmentPlanItemAdded",
+        organizationId: actor.organizationId,
+        aggregateType: "dental_treatment_plan",
+        aggregateId: plan.id,
+        facilityId: plan.facilityId,
+        patientId: plan.patientId,
+        payload: { itemId: item!.id },
+      });
       return this.view(tx, updated);
     });
   }
 
   /**
-   * Records the patient's decision on every item awaiting one: the listed items are accepted, the others declined.
-   * A proposed plan becomes accepted (or declined when nothing was accepted).
+   * Records the patient's decision on every item awaiting one, as told to staff: the listed items are accepted, the
+   * others declined. A proposed plan becomes accepted (or declined when nothing was accepted).
    */
   async decide(actor: Actor, planId: string, input: z.infer<typeof decidePlanSchema>) {
     return this.db.transaction(async (tx) => {
       const plan = await this.lock(tx, actor.organizationId, planId);
-      assertVersion(plan.version, input.version, "Treatment plan");
-      if (!OPEN.has(plan.status)) throw new BusinessRuleError("The plan is closed", "plan_closed");
-      const items = await this.items(tx, plan.id);
-      const awaiting = items.filter((i) => i.status === "proposed");
-      if (!awaiting.length) throw new BusinessRuleError("No items are awaiting the patient's decision", "nothing_to_decide");
-      const accepted = new Set(input.acceptedItemIds);
-      const unknown = input.acceptedItemIds.filter((id) => !awaiting.some((i) => i.id === id));
-      if (unknown.length) throw new BusinessRuleError("Only items awaiting a decision can be accepted", "item_not_proposed", { itemIds: unknown });
-      for (const item of awaiting) {
-        await tx
-          .update(dentalTreatmentPlanItem)
-          .set({ status: accepted.has(item.id) ? "accepted" : "declined", updatedAt: new Date(), version: sql`${dentalTreatmentPlanItem.version} + 1` })
-          .where(eq(dentalTreatmentPlanItem.id, item.id));
-      }
-      const statuses = items.map((i) => (i.status === "proposed" ? (accepted.has(i.id) ? "accepted" : "declined") : i.status));
-      const updated = await this.touch(tx, plan, {
-        status: planStatusFromItems(statuses),
-        decisionNote: input.note,
-        decidedAt: new Date(),
-        decidedBy: actor.userId,
-      });
-      await this.audit.record(tx, actor, {
-        action: "dental.plan.decide",
-        resourceType: "dental_treatment_plan",
-        resourceId: plan.id,
-        patientId: plan.patientId,
-        reason: input.note,
-        changes: { status: { from: plan.status, to: updated.status } },
-        metadata: { accepted: [...accepted], declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id) },
-      });
-      if (accepted.size) {
-        await this.events.record(tx, {
-          type: "DentalTreatmentPlanAccepted",
-          organizationId: actor.organizationId,
-          aggregateType: "dental_treatment_plan",
-          aggregateId: plan.id,
-          facilityId: plan.facilityId,
-          patientId: plan.patientId,
-          payload: { acceptedItems: accepted.size },
-        });
-      }
+      const updated = await this.applyDecision(tx, actor, plan, input, { channel: "in_person", decidedBy: actor.userId, decidedByPortalAccount: null });
       return this.view(tx, updated);
     });
+  }
+
+  /**
+   * The patient's own decision in MyHealth, when the organization allows it (checked by the caller, which also passes
+   * the organization's acknowledgement the patient confirmed — kept as the decision note). The same rules as a decision
+   * recorded by staff; the plan must be the patient's own. Instead of the plan's version, the patient sends the items
+   * that were awaiting their decision when they looked: if the dentist changed them since, nothing is decided.
+   * Audited with the patient as the actor.
+   */
+  async decideByPatient(
+    tx: DbExecutor,
+    context: PatientAuditContext,
+    planId: string,
+    input: { acceptedItemIds: string[]; awaitingItemIds: string[]; acknowledgement: string },
+  ): Promise<DentalTreatmentPlanRecord> {
+    const plan = await this.lock(tx, context.organizationId, planId);
+    if (plan.patientId !== context.patientId) throw new NotFoundError("Treatment plan");
+    const awaiting = (await this.items(tx, plan.id)).filter((i) => i.status === "proposed").map((i) => i.id);
+    const seen = new Set(input.awaitingItemIds);
+    if (awaiting.length !== seen.size || awaiting.some((id) => !seen.has(id))) {
+      throw new ConflictError("Your dentist changed this plan since you opened it. Please review it again.", undefined, "plan_changed");
+    }
+    return this.applyDecision(
+      tx,
+      context,
+      plan,
+      { acceptedItemIds: input.acceptedItemIds, note: input.acknowledgement, version: plan.version },
+      { channel: "portal", decidedBy: null, decidedByPortalAccount: context.accountId },
+    );
+  }
+
+  /** Accepts the listed items awaiting a decision and declines the others, then updates, audits and announces the plan. */
+  private async applyDecision(
+    tx: DbExecutor,
+    actor: AuditActor,
+    plan: DentalTreatmentPlanRecord,
+    input: { acceptedItemIds: string[]; note: string; version: number },
+    by: { channel: "in_person" | "portal"; decidedBy: string | null; decidedByPortalAccount: string | null },
+  ): Promise<DentalTreatmentPlanRecord> {
+    assertVersion(plan.version, input.version, "Treatment plan");
+    if (!OPEN.has(plan.status)) throw new BusinessRuleError("The plan is closed", "plan_closed");
+    const items = await this.items(tx, plan.id);
+    const awaiting = items.filter((i) => i.status === "proposed");
+    if (!awaiting.length) throw new BusinessRuleError("No items are awaiting the patient's decision", "nothing_to_decide");
+    const accepted = new Set(input.acceptedItemIds);
+    const unknown = input.acceptedItemIds.filter((id) => !awaiting.some((i) => i.id === id));
+    if (unknown.length) throw new BusinessRuleError("Only items awaiting a decision can be accepted", "item_not_proposed", { itemIds: unknown });
+    // The estimate each item carries with the decision: billing's listed price today at the plan's facility.
+    const priced = await this.fees.price(
+      plan.organizationId,
+      awaiting.map((i) => i.procedureTypeId),
+      await this.fees.today(plan.organizationId, plan.facilityId),
+      tx,
+    );
+    for (const item of awaiting) {
+      await tx
+        .update(dentalTreatmentPlanItem)
+        .set({
+          status: accepted.has(item.id) ? "accepted" : "declined",
+          // The low end of the item's range (the listed price without one) and, with a range, its high end.
+          decisionEstimate: decisionLow(itemFee(priced, item.procedureTypeId, item.surfaces.length)),
+          decisionEstimateHigh: rangeHigh(itemFee(priced, item.procedureTypeId, item.surfaces.length)),
+          decisionEstimateOn: priced.pricedOn,
+          updatedAt: new Date(),
+          version: sql`${dentalTreatmentPlanItem.version} + 1`,
+        })
+        .where(eq(dentalTreatmentPlanItem.id, item.id));
+    }
+    const statuses = items.map((i) => (i.status === "proposed" ? (accepted.has(i.id) ? "accepted" : "declined") : i.status));
+    const updated = await this.touch(tx, plan, {
+      status: planStatusFromItems(statuses),
+      decisionNote: input.note,
+      decidedAt: new Date(),
+      decidedBy: by.decidedBy,
+      decisionChannel: by.channel,
+      decidedByPortalAccount: by.decidedByPortalAccount,
+    });
+    await this.audit.record(tx, actor, {
+      action: "dental.plan.decide",
+      resourceType: "dental_treatment_plan",
+      resourceId: plan.id,
+      patientId: plan.patientId,
+      reason: input.note,
+      changes: { status: { from: plan.status, to: updated.status } },
+      metadata: {
+        accepted: [...accepted],
+        declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id),
+        channel: by.channel,
+        estimatePricedOn: priced.pricedOn,
+      },
+    });
+    if (accepted.size) {
+      await this.events.record(tx, {
+        type: "DentalTreatmentPlanAccepted",
+        organizationId: plan.organizationId,
+        aggregateType: "dental_treatment_plan",
+        aggregateId: plan.id,
+        facilityId: plan.facilityId,
+        patientId: plan.patientId,
+        payload: { acceptedItems: accepted.size, channel: by.channel },
+      });
+    }
+    return updated;
   }
 
   /** Withdraws an item not yet carried out (proposed or accepted). */
@@ -275,8 +351,14 @@ export class DentalPlanService {
     if (item.status !== "accepted" || (plan.status !== "accepted" && plan.status !== "in_progress")) {
       throw new BusinessRuleError("Only an accepted item of an active plan can be carried out", "plan_item_not_accepted");
     }
-    if (item.procedureTypeId !== procedure.procedureTypeId || (item.tooth ?? null) !== (procedure.tooth ?? null)) {
-      throw new BusinessRuleError("The procedure does not match the planned item (procedure and tooth)", "plan_item_mismatch");
+    // The planned procedure or one it may turn out to be (the catalog's alternatives, as configured now).
+    const sameProcedure =
+      item.procedureTypeId === procedure.procedureTypeId ||
+      ((await this.catalog.alternativesOf(tx, procedure.organizationId, [item.procedureTypeId])).get(item.procedureTypeId) ?? []).some(
+        (a) => a.id === procedure.procedureTypeId,
+      );
+    if (!sameProcedure || (item.tooth ?? null) !== (procedure.tooth ?? null)) {
+      throw new BusinessRuleError("The procedure does not match the planned item (procedure — or one it may turn out to be — and tooth)", "plan_item_mismatch");
     }
     await tx
       .update(dentalTreatmentPlanItem)
@@ -385,4 +467,14 @@ function itemView(item: DentalTreatmentPlanItemRecord, types: Map<string, { code
   const type = types.get(item.procedureTypeId);
   const { organizationId: _o, ...rest } = item;
   return { ...rest, procedure: type ? { code: type.code, name: type.name, site: type.site } : null };
+}
+
+/** The estimate an item records with a decision: the low end of its range, or its amount; null without a listed price. */
+function decisionLow(fee: ItemFee | null): number | null {
+  return fee ? (fee.range?.low ?? fee.amount) : null;
+}
+
+/** The high end of an item's fee range to record with a decision; null without a range (a single price or none). */
+function rangeHigh(fee: ItemFee | null): number | null {
+  return fee?.range && fee.range.high > fee.range.low ? fee.range.high : null;
 }

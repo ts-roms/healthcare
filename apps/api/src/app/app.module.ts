@@ -10,7 +10,7 @@ import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor
 import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
-import { BillingModule } from "@healthcare/billing";
+import { BillingModule, BillingPricesModule } from "@healthcare/billing";
 import { DohReportingModule, FhirImportModule, IntegrationModule, ReferenceLabIntegrationModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
@@ -22,7 +22,7 @@ import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
-import { AppDentalContext } from "./adapters/dental-adapters";
+import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppFhirImportTargets } from "./adapters/fhir-import-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
@@ -35,10 +35,20 @@ import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
+import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
+import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
+import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
+import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
+import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
+import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
+import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
+import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
+import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
+import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
 import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
@@ -84,7 +94,14 @@ export class AppModule implements NestModule {
       archiveQueue: overrides.labReportArchiveQueue,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
-    const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule], context: AppDentalContext });
+    // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction; fee estimates read
+    // billing's listed prices through another (only the price read: billing imports dentistry).
+    const dental = DentalModule.forRoot({
+      imports: [PatientModule, AuthModule, InventoryModule, BillingPricesModule],
+      context: AppDentalContext,
+      supplies: AppDentalSupplies,
+      fees: AppDentalFees,
+    });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
     const billing = BillingModule.forRoot({
       imports: [PatientModule, laboratory, dental],
@@ -162,17 +179,27 @@ export class AppModule implements NestModule {
         FhirImportReceiveController,
         HealthController,
         PatientSummaryController,
+        PatientTimelineController,
+        PatientWorkspaceController,
+        ManagementDashboardController,
         PortalBillingController,
         PortalBookingController,
+        PortalDentalController,
         PortalMessagesController,
         PortalRecordsController,
         PortalTeleconsultController,
       ],
       providers: [
         FhirRecordComposer,
+        PatientTimelineService,
+        PatientWorkspaceService,
+        ManagementDashboardService,
         RealtimeGateway,
         LaboratoryNotifications,
+        LaboratoryQualityNotifications,
+        LaboratoryQualityReminders,
         PatientResultNotices,
+        PatientDentalNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

@@ -1,0 +1,364 @@
+# 2. Patients
+
+**What this is for.** Every patient has exactly one record in your organization, shared by the clinic, laboratory, dental, telemedicine, pharmacy and billing.
+This chapter shows how to find a patient, register a new one without creating a duplicate, read the patient record, record allergies and consent, give the
+patient access to MyHealth (the patient portal), send them a MyHealth message, use the Patient 360 workspace and the timeline. It also covers the PhilHealth
+eligibility and YAKAP answers kept on the record, and the laboratory reports archived there.
+
+**Who uses it.** Receptionists and records officers (search, registration, consent, MyHealth access), nurses and physicians (allergies, clinical summary,
+timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and anyone who needs to look up a patient.
+
+## How to find a patient
+
+1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there).
+2. In **Name, patient no. or mobile**, type at least 2 characters. Examples: `dela cruz juan`, a patient number such as `P00001234`, or a mobile number in any
+   Philippine format. Accents don't matter: "pena" finds "Peña".
+3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.
+4. Select **Search**.
+5. Select the patient's name to open their record, or **360** next to it to open the Patient 360 workspace. Use **Previous** and **Next** when there is more
+   than one page (25 per page).
+
+The results show only what you need to pick the right person: name, **Patient no.**, **Birth date**, **Age / Sex**, a masked **Mobile** number and
+**Status**. Inactive and merged records are not listed.
+
+If nothing matches, the page says "No patients match. Check the spelling, or try the birth date or mobile number." If you may register patients, a **Register
+a new patient** button appears.
+
+If you don't see **Patients** in the sidebar, you need the `patient.search` permission.
+
+## How to register a new patient
+
+Always search first. Registration also checks for existing records, but searching saves time.
+
+1. Select your facility in the top bar. Patients are registered at a facility.
+2. Select **Register patient** (on the **Patients** page or the dashboard).
+3. Fill in **Identity**: **Family name \***, **Given name \***, **Middle name**, **Suffix** (e.g. "Jr., III"), **Sex \*** (Female, Male, Intersex, Unknown)
+   and **Birth date \***. If the exact date is unknown, tick **Estimated (exact date unknown)**.
+4. Fill in **Contact & identifiers** if you have them: **Mobile** (e.g. `0917 123 4567`), **Email**, **PhilHealth PIN** (12 digits, e.g. `12-345678901-2`),
+   **City / municipality**, **Barangay** and **Province**.
+5. Select **Register patient**.
+6. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
+
+If you don't see **Register patient**, you need the `patient.register` permission (receptionists, nurses, physicians, dentists and dental assistants have it by
+default).
+
+> An address needs its **City / municipality**. If you enter a barangay or province without one, the form asks for it ("Enter the city or
+> municipality to save the address") instead of registering the patient without the address.
+
+## How to review possible duplicates
+
+If the system finds records that may be the same person, the form locks and a **Possible existing records** panel opens. Each candidate shows the name,
+patient number, a match level (**Certain match**, **High match** or **Possible match**) and why it matched, for example "Same name and birth date", "Same
+mobile/email and birth date" or "Similar name, day/month swapped".
+
+1. Select **Open record** on each candidate. It opens in a new tab. Compare the details with the patient in front of you.
+2. If one of them is the patient, stop. Close the form (**Edit details**, then **Cancel**) and use the existing record.
+3. If you are sure none of them is the patient:
+   1. Tick **I checked this record and it is a different person** for every candidate.
+   2. In **Why is this a different person? \***, write the reason (at least 5 characters), for example "Twins; confirmed different mother's name".
+   3. Select **Register as a new patient**.
+4. To correct what you typed instead, select **Edit details**.
+
+A **Certain match** means the same identifier (for example the same PhilHealth PIN) is already on another record. You cannot register over it: "A record with
+the same identifier exists. Use that record instead of registering a new one."
+
+Your reason and the records you reviewed are kept in the audit trail. A duplicate record splits the patient's history, so take care here.
+
+## How to read the patient record
+
+Open a patient from the search results. The record (`/patients/[id]`) shows:
+
+- **Patient banner** at the top: name, patient number, age, sex and the allergy statement.
+- A yellow **Record status** line if the patient is not active (for example deceased, with the date, or merged, with **Open the surviving record**).
+- **Action buttons** (each only if you have the permission):
+  - **Patient 360** — the doctor's one-screen workspace (see below).
+  - **Timeline** — the whole record in date order (see below).
+  - **Check in (walk-in)** — put the patient in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
+  - **Book appointment** (`appointment.manage`).
+  - **Billing** — the patient's charges and invoices (`billing.charge.read`). See [Billing](10-billing.md).
+  - **Dental record** (`dental.record.read`). See [Dental](08-dental.md).
+- **Demographics**, **Contact & address**, **Identifiers** (PhilHealth PIN, PhilSys, SC/PWD ID, HMO) and **Emergency contacts & guardians**.
+- **Clinical summary** (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**, **Recent encounters**, **Upcoming
+  visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
+  decision.
+- **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
+- **Consent & communication**, **Recent activity**, **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient
+  portal (MyHealth)**.
+
+The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
+
+> There is no screen yet to edit demographics, contacts, addresses or identifiers after registration, to add emergency contacts or relationships, to change a
+> patient's status (inactive, deceased), to set communication preferences, or to merge two records. Ask your administrator how your organization handles these
+> requests.
+
+## How to record allergies
+
+Allergies can be recorded on the patient record, at triage and in the encounter workspace. The panel is the same everywhere.
+
+**To record an allergy:**
+
+1. In **Clinical summary → Allergies**, select **Record allergy**.
+2. Enter the **Substance \*** (e.g. "Penicillin, shrimp, latex") and choose the **Category** (Medication, Food, Environment, Biologic / vaccine, Other).
+3. Optionally describe the **Reaction** (e.g. "Hives, throat swelling").
+4. Choose **Severity** (Not known, Mild, Moderate, Severe), **Criticality** (Unable to assess, Low, High (risk of a life-threatening reaction)) and
+   **Verification** (Reported, unconfirmed, or Confirmed).
+5. Select **Record allergy**.
+
+**To record that the patient has no known allergies:** when nothing is recorded, select **Patient reports no known allergies**. The banner then says "No known
+allergies (reviewed)".
+
+**To record a review** when allergies are already listed: after going through them with the patient, select **Reviewed with patient**. "Last reviewed" shows
+the date.
+
+**To take an allergy off the active list:** select **Resolved…**, **No longer relevant…** or **Entered in error…** next to it, write the reason (at least 3
+characters) and select **Confirm**. Select **Keep** to cancel. Allergies are never edited in place: if one was recorded wrongly, mark it **Entered in error**
+and record it again.
+
+Allergies from another provider's records (imported) show **External record**, and are **Unconfirmed** until a clinician confirms them.
+
+If you don't see **Record allergy**, you need the `allergy.manage` permission (nurses, physicians, dentists and dental assistants by default).
+
+## How to record consent
+
+Consent decisions are kept per type. A new decision replaces the current one for that type, and the earlier ones stay in the history.
+
+1. In **Consent & communication**, select **Record consent**.
+2. Choose the **Consent**:
+   - Processing of personal data
+   - General consent to treatment
+   - Telemedicine consultations
+   - Sharing data with HMO
+   - Sharing data with PhilHealth
+   - Patient portal access (MyHealth) — needed before a MyHealth invitation
+   - Use of data for research
+3. Choose the **Patient's decision**: **Granted**, **Refused** or **Withdrawn**.
+4. Choose **How it was given**: **Signed paper form**, **Electronic signature** or **Verbal (witnessed by staff)**.
+5. Optionally set **Ends on (optional)** — only for granted consent, and after today.
+6. Optionally attach the **Signed form (optional)**: a PDF, JPEG, PNG or HEIC file of up to 10 MB. You need `document.upload` to see this field.
+7. Optionally add **Notes (optional)**, for example who signed for the patient.
+8. Select **Save consent**.
+
+Record only what the patient, or their authorized representative, decided. The decision takes effect immediately.
+
+- The list shows the current decision per type with a badge: **Granted**, **Expired**, **Not yet in effect**, **Refused** or **Withdrawn**.
+- Select **Show consent history** to see every decision ever recorded. Select **Hide** to close it.
+- Select **Signed form** to open an attached form in a new tab (needs `document.read`; allow pop-ups). The link is short-lived and each opening is audited.
+- Communication preferences (for example SMS reminders opted in or out) are listed next to consent. They cannot be changed from this screen yet.
+
+If you don't see **Record consent**, you need the `patient.consent.manage` permission. Consent cannot be recorded on a merged record.
+
+## How to give a patient access to MyHealth
+
+MyHealth is the patient portal. The patient activates their account with a one-time code you give them.
+
+1. Record the **Patient portal access (MyHealth)** consent as **Granted** (see above). Without it, the MyHealth card says "Record the patient's portal access
+   consent (under Consent & communication) before inviting them."
+2. In **Patient portal (MyHealth)**, select **Invite to portal**.
+3. The **Activation code — shown only once** appears. Give it to the patient in person after checking their identity.
+4. Tell the patient to set up their account in MyHealth with their patient number, their date of birth and this code. The code expires after 72 hours.
+5. Select **Done — hide code**.
+
+The card shows the account's status:
+
+| Status                 | Meaning                                                        |
+| ---------------------- | -------------------------------------------------------------- |
+| No portal account.     | The patient was never invited.                                 |
+| **Invited**            | A code was issued and is still valid ("Code expires …").       |
+| **Invitation expired** | The code can no longer be used. Select **Issue new code**.     |
+| **Active**             | The patient has signed up. Shows their email and last sign-in. |
+| **Disabled**           | Access was disabled. Shows when and why.                       |
+
+If the patient's last sign-up attempt failed, the card tells you why, for example "the date of birth did not match the patient record" or "the activation code
+was wrong (only the latest code issued works)", with the number of wrong attempts (up to 5). The patient only sees a general message, so help them from here.
+Issuing a new code replaces any earlier unused code.
+
+**To disable access:** select **Disable access**, write the **Reason for disabling** (at least 5 characters, e.g. "Patient request; lost phone") and select
+**Disable portal access**. The patient is signed out everywhere.
+
+Recording the portal consent as **Refused** or **Withdrawn** also ends access: the patient is signed out at their next action and cannot be invited again until
+they grant consent.
+
+If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).
+Invitations are only possible for active patients.
+
+## How to send a patient a message in MyHealth
+
+For a patient with an **Active** MyHealth account:
+
+1. In **Patient portal (MyHealth)**, select **Message in MyHealth**.
+2. Enter a **Subject** (up to 80 characters) and the **Message** (up to 2,000 characters), e.g. "Please bring your previous results."
+3. Select **Send**.
+
+The patient reads it after signing in to MyHealth and cannot reply. The text never goes out by SMS or email. Do not use it for urgent or sensitive results —
+call the patient.
+
+If you don't see **Message in MyHealth**, you need the `notification.send` permission (receptionists by default), and the patient needs an active account.
+
+## How to use the Patient 360 workspace
+
+Patient 360 (`/patients/[id]/360`) puts what a clinician needs before and during a consultation on one screen. Open it with **Patient 360** on the patient
+record, **360** in the search results, **Patient 360** on a queue ticket, or **Patient 360** in the encounter workspace's banner.
+
+- **Banner** — name, patient number, age, sex, the allergy statement and the PhilHealth PIN masked to its last four digits. **Open consultation** appears when a
+  consultation is in progress; **Patient record** and **Timeline** go to those screens.
+- **Alerts** under the banner, each with an icon and words (never colour alone): critical results not yet acknowledged by the care team (select one to open
+  **Critical results**), chronic problems, a refused or withdrawn treatment, data-processing or telemedicine consent, no MyHealth consent, and the record's
+  status when it is not active.
+- **Current consultation** — the consultation in progress (yours at your facility first), with its note state (draft saved or not started), diagnoses, open
+  laboratory orders and active prescriptions. Select **Open in the encounter workspace** to write the note, add diagnoses, order tests or prescribe. When none
+  is in progress and the patient is in today's queue at your facility, you can **Start consultation** (or open Telemedicine for an online visit); otherwise it
+  says "No consultation in progress."
+- **Recent consultations** — the last five, with their diagnoses. Select one to open it.
+- **Recent activity** — the latest timeline entries; **Full timeline** opens the timeline.
+- **Laboratory results** — the latest released value of the patient's most relevant tests (critical and abnormal first, then tests with earlier results), with
+  **Trend** for each and a small chart for up to two tests. **All results** goes to the record's laboratory section.
+- **Open laboratory orders** — each order's priority, when it was ordered and each test's stage (for example "To collect").
+- **Images and documents** — dental radiographs and photos and the documents uploaded for the patient. Select one to open it (a link valid for a few minutes;
+  each opening is recorded).
+- **Problem list**, **Active medications** (with prescriber, prescription number and date), **Care plans** (with the next due activity and **Overdue** when it
+  is past) and **Latest vitals**.
+
+Every panel shows only what your role may read. A panel you may not see says "Not available to you." — it never means "none". Nothing is edited here: each
+panel links to the screen where the work is done. Opening Patient 360 is recorded in the audit trail.
+
+## How to use the timeline
+
+The timeline puts the patient's whole record in one list, newest first, grouped by day.
+
+1. On the patient record, select **Timeline** (or **Open timeline** in **Recent activity**).
+2. Use the chips to show only some kinds: **Visits**, **Prescriptions**, **Laboratory**, **Dental**, **Care plans**, **Billing**, **Messages**, **Imported
+   history** and **Documents**. Select a chip again to turn it off.
+3. To limit the dates, fill in **From** and **To** and select **Apply dates**.
+4. Select **Clear filters** to see everything again.
+5. Select **Load more** at the bottom for older entries.
+6. Select an entry to open the full record it summarizes (for example the encounter or the laboratory results).
+
+Each entry is a short summary: codes, names, numbers and statuses, never notes, result values or message text. Records entered in error, cancelled or voided
+stay listed and are marked. Times are in the facility's time zone.
+
+You see only the kinds your role allows. For example, a cashier sees invoices and payments only, and a physician sees everything except billing. When some
+kinds are hidden, the timeline says "Some records are not shown to you because your role does not include access to them."
+
+The **Recent activity** card on the patient record shows the latest five entries. Viewing the timeline is recorded in the audit trail.
+
+## How to record PhilHealth eligibility answers
+
+The platform records what PhilHealth answered. It does not decide eligibility, and it is not connected to PhilHealth: the card says "Not connected to
+PhilHealth. Check through PhilHealth's own channel, then record its answer and reference here."
+
+1. Select your facility in the top bar.
+2. Check the patient's eligibility through PhilHealth's own channel.
+3. In **PhilHealth eligibility**, enter the **Date of service**, **PhilHealth's answer** (**Eligible**, **Not eligible** or **Undetermined**), the
+   **Reference** PhilHealth gave, and an optional **Note (optional)**.
+4. Select **Record answer**.
+
+Recorded answers never change. The card lists the latest five, each marked "PhilHealth's channel". To correct one, record a new answer. The PhilHealth claim
+panel on an invoice shows the latest answer for the dates of service, as information only (see [Billing](10-billing.md)).
+
+An **Ask PhilHealth** button appears only if your organization has connected a PhilHealth eligibility adapter. None is connected by default.
+
+If you don't see this card, you need the `philhealth.eligibility.manage` permission (receptionists and cashiers by default).
+
+## How to record the patient's YAKAP registration
+
+The platform records PhilHealth's answer about the patient's YAKAP registration. It encodes no YAKAP rules and sends nothing to PhilHealth ("Not connected to
+PhilHealth YAKAP (no official specification yet).").
+
+1. Select your facility in the top bar. The card shows the **Latest answer for this facility** and the facility's YAKAP reference (set in billing settings).
+2. Ask through PhilHealth's own channel.
+3. Choose **PhilHealth's answer**: **Registered**, **Not registered**, **Pending** or **Unknown (no clear answer)**.
+4. Enter the **Effective date (if given)**, the **Reference** (optional only for Unknown) and an optional **Note (optional)**.
+5. Select **Record answer**.
+
+Open **History** to see earlier answers, including those of other facilities. Answers are never changed; record a new one instead.
+
+Users with `philhealth.claim.submit` (cashiers by default) also see **Encounter packages** — the patient's consultations. Select **Package** to open the
+**YAKAP encounter package** for a consultation. It is prepared from this platform's records and is not a PhilHealth form. A checklist shows what is recorded and
+what is missing. Nothing is sent from here: "The official PhilHealth specification has not been obtained, so nothing is sent from here. Use PhilHealth's own
+channel for this consultation."
+
+If you don't see the YAKAP card, you need `philhealth.eligibility.manage` or `philhealth.claim.submit`.
+
+## How to find laboratory results and reports on the record
+
+- **Laboratory results** lists released results by test: **Latest** value, **Reference** range and **Collected** time. A critical result has a critical icon.
+  A corrected result shows "Corrected:" with the reason, and a result from a reference laboratory shows who performed it. Select **Trend (n)** to see earlier
+  values of a test (no chart is drawn when units differ). Paperclip links open result attachments. Under **Printable reports**, select an order number to
+  open its current report.
+- **Archived laboratory reports** lists the copy of each report as it was released: **Order**, **Version**, number of **Results** and **Archived** time. A
+  correction adds a new version ("includes a correction") and earlier versions stay available. Select **Open PDF** to read one. A report may show **Being
+  archived** for a short time after release, or **Archiving failed** (tell the laboratory or your administrator).
+
+You need `lab.result.read` to see results, and also `lab.order.read` for archived reports. Opening results and reports is audited. See
+[Laboratory](06-laboratory.md).
+
+## Documents on the record
+
+There is no general document upload or document list on the patient record yet. Documents appear where they belong:
+
+- Signed consent forms — in **Consent & communication** (**Signed form**).
+- Laboratory reports and result attachments — in the laboratory sections above.
+- Dental radiographs and photos — in the dental record ([Dental](08-dental.md)).
+- Uploaded documents appear in the timeline under **Documents**, by category only.
+
+Document links are short-lived and each opening is recorded in the audit trail.
+
+## External history (imported)
+
+If records from another provider were imported and accepted, **External history (imported)** lists them, each marked **External** with its kind (Condition,
+Observation, Medication, Document), where it came from and when it was accepted. These are not this clinic's own diagnoses, results or prescriptions.
+
+Users with `interop.fhir.import.review` can mark an entry **Entered in error…** with a reason. See
+[Records, reporting and integrations](11-records-reporting-and-integrations.md).
+
+## Rules the system enforces
+
+- One patient, one record: registration is refused when an identifier is already used by another patient, and possible duplicates must be reviewed one by one
+  with a reason.
+- A patient is registered at a facility; a facility must be selected.
+- Birth date cannot be in the future. The mobile number must be a Philippine mobile number. The PhilHealth PIN must have 12 digits (its check digit is not
+  verified).
+- Search needs at least 2 characters or a birth date, and shows only minimal details with a masked mobile number.
+- Allergies are never edited or deleted: they are resolved, marked no longer relevant, or marked entered in error, always with a reason.
+- "No known allergies" cannot be recorded while an active allergy is listed.
+- Consent is append-only. An end date is allowed only for granted consent.
+- A MyHealth invitation needs an active patient and granted portal consent. Only the latest code works, for 72 hours.
+- PhilHealth eligibility and YAKAP answers are immutable history and need PhilHealth's reference (except a YAKAP "Unknown").
+- Every view of a record, timeline, consent history, result or document is recorded in the audit trail.
+
+## Troubleshooting / common messages
+
+| Message                                                                                      | Meaning                                              | What to do                                                                    |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Enter at least 2 characters.                                                                 | The search text is too short.                        | Type more, or add a birth date.                                               |
+| You don't have permission to search patients.                                                | Your role lacks `patient.search`.                    | Ask your administrator.                                                       |
+| Select your facility in the top bar first. Patients are registered at a facility.            | No facility selected.                                | Choose your facility in the top bar.                                          |
+| Check the highlighted fields.                                                                | A field is missing or invalid.                       | Correct the fields marked in red.                                             |
+| Enter a PH mobile number, e.g. 0917 123 4567                                                 | The mobile number is not a Philippine mobile number. | Enter it as 09XX XXX XXXX or +639XXXXXXXXX.                                   |
+| PhilHealth PIN has 12 digits                                                                 | The PIN is incomplete.                               | Check the member's PhilHealth ID.                                             |
+| Possible duplicate patients found. Review them before registering.                           | Similar records exist.                               | Review each candidate as described above.                                     |
+| An identifier is already assigned to another patient                                         | Another record has the same identifier.              | Use the existing record.                                                      |
+| This allergy is already recorded                                                             | The same substance is already active.                | Review the existing entry instead.                                            |
+| Resolve or correct the recorded allergies before recording "no known allergies"              | An active allergy is still listed.                   | Resolve or mark it entered in error first, if appropriate.                    |
+| The end date must be after today. / Only a granted consent can have an end date.             | Invalid consent end date.                            | Change or clear **Ends on**.                                                  |
+| Attach a PDF or a photo (JPEG, PNG or HEIC). / The file is larger than 10 MB.                | The signed form cannot be uploaded.                  | Scan as PDF or at a lower resolution.                                         |
+| The signed form was saved, but the consent was not recorded: …                               | The upload worked; saving the decision failed.       | Select **Save consent** again; the form is linked without uploading it again. |
+| Allow pop-ups to view the signed form.                                                       | The browser blocked the new tab.                     | Allow pop-ups for the staff app.                                              |
+| Record the patient's portal access consent before inviting them                              | Portal consent is not granted.                       | Record the consent first.                                                     |
+| This patient already has an active portal account                                            | The patient has already signed up.                   | No invitation needed.                                                         |
+| Not delivered: the patient has no active MyHealth account or has turned off in-app messages. | The message was not delivered.                       | Contact the patient another way.                                              |
+| Enter the reference PhilHealth's channel gave.                                               | The PhilHealth reference is missing.                 | Enter the reference number from PhilHealth.                                   |
+| Patient was modified by someone else (expected version …). Reload and try again.             | Someone changed the record at the same time.         | Reload the page and repeat your change.                                       |
+| Some records are not shown to you because your role does not include access to them.         | Your role cannot see some kinds on the timeline.     | This is expected. Ask a colleague with access if you need that information.   |
+
+## Related chapters
+
+- [Getting started](01-getting-started.md)
+- [Appointments and queue](03-appointments-and-queue.md)
+- [Consultations and care plans](04-consultations-and-care-plans.md)
+- [Laboratory](06-laboratory.md)
+- [Dental](08-dental.md)
+- [Billing](10-billing.md)
+- [Records, reporting and integrations](11-records-reporting-and-integrations.md)
+- [Patient portal (MyHealth)](12-patient-portal.md)
+- [Administration](13-administration.md)

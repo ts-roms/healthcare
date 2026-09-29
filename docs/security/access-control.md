@@ -63,6 +63,10 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Inventory valuation (migration 0061): `inventory.valuation.read` (org_admin,
+inventory_officer). Supplier invoices use the procurement permissions (approval
+never by the recorder — database constraint); audited
+`inventory.supplier-invoice.record | approve | pay | void`.
 Dental (migration 0027): `dental.record.read`, `dental.record.write`
 (corrections), `dental.chart.write`, `dental.treatment-plan.manage`,
 `dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`,
@@ -74,7 +78,19 @@ corrections with the reason); image links are audited as `document.download`.
 Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
 (org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
 pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions
-and the instrument log are append-only.
+and the instrument log are append-only. Quality management (migration 0055)
+uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record`,
+`lab.nonconformance.*`, `lab.eqa.*`, `lab.competency.record`; competency is never
+self-assessed.
+Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
+a facility-scoped grant limits the figures to that facility; revenue, collections
+and service revenue (JSON sections and the `services`, `categories`, `revenue` and
+`collections` exports) additionally need the existing `billing.report.read` on
+**every** facility in scope — otherwise `billing` is `null`, listed in `withheld`,
+billing is not queried, and a revenue export is refused (403) and audited as a
+denial. Audited `management.dashboard.view` (range, facilities, withheld) and
+`management.dashboard.export` (table, range, facilities, withheld, rows). Counts
+and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

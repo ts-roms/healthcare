@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PrinterIcon, Trash2Icon } from "lucide-react";
 import type { ToothNotation } from "@healthcare/domain";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import type { DentalProcedureType, DentalTreatmentPlan } from "@/lib/api/types";
-import { PLAN_ITEM_STATUS, PLAN_STATUS } from "@/lib/dental-mapping";
+import type { DentalPlanEstimate, DentalProcedureType, DentalTreatmentPlan } from "@/lib/api/types";
+import { peso } from "@/lib/billing-mapping";
+import { PLAN_ITEM_STATUS, PLAN_STATUS, pesoRange } from "@/lib/dental-mapping";
+import { fileHref } from "@/lib/files";
 import { cancelPlanItem, createTreatmentPlan, decideTreatmentPlan, discontinueTreatmentPlan } from "../../actions";
 import { emptySelection, itemLabel, ProcedureFields, type ProcedureSelection, selectionComplete, selectionPayload } from "./procedure-fields";
 
@@ -15,7 +17,8 @@ type Draft = ProcedureSelection & { phase: number; note: string };
 
 /**
  * Treatment plans: phased items proposed by the dentist, accepted or declined by the patient item by item, and done
- * when a procedure carries them out. Fees are billing's; the plan lists no prices.
+ * when a procedure carries them out. Fees are billing's: an open plan shows a fee estimate of the work still ahead at
+ * today's listed prices (and each decided item the estimate recorded with the decision), printable for the patient.
  */
 export function TreatmentPlans({
   patientId,
@@ -23,12 +26,15 @@ export function TreatmentPlans({
   types,
   notation,
   canManage,
+  estimates = {},
 }: {
   patientId: string;
   plans: DentalTreatmentPlan[];
   types: DentalProcedureType[];
   notation: ToothNotation;
   canManage: boolean;
+  /** By plan id, for plans with work still ahead. */
+  estimates?: Record<string, DentalPlanEstimate>;
 }) {
   const [creating, setCreating] = React.useState(false);
   return (
@@ -45,7 +51,7 @@ export function TreatmentPlans({
         {creating ? <NewPlan patientId={patientId} types={types} notation={notation} onDone={() => setCreating(false)} /> : null}
         {plans.length === 0 && !creating ? <p className="text-body text-muted-foreground">No treatment plans.</p> : null}
         {plans.map((plan) => (
-          <PlanCard key={plan.id} patientId={patientId} plan={plan} notation={notation} canManage={canManage} />
+          <PlanCard key={plan.id} patientId={patientId} plan={plan} notation={notation} canManage={canManage} estimate={estimates[plan.id]} />
         ))}
       </CardContent>
     </Card>
@@ -149,7 +155,19 @@ function NewPlan({ patientId, types, notation, onDone }: { patientId: string; ty
   );
 }
 
-function PlanCard({ patientId, plan, notation, canManage }: { patientId: string; plan: DentalTreatmentPlan; notation: ToothNotation; canManage: boolean }) {
+function PlanCard({
+  patientId,
+  plan,
+  notation,
+  canManage,
+  estimate,
+}: {
+  patientId: string;
+  plan: DentalTreatmentPlan;
+  notation: ToothNotation;
+  canManage: boolean;
+  estimate?: DentalPlanEstimate;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const awaiting = plan.items.filter((i) => i.status === "proposed");
@@ -181,6 +199,7 @@ function PlanCard({ patientId, plan, notation, canManage }: { patientId: string;
       <ul className="divide-y text-table">
         {plan.items.map((item) => {
           const itemStatus = PLAN_ITEM_STATUS[item.status];
+          const line = estimate?.items.find((e) => e.itemId === item.id);
           return (
             <li key={item.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5">
               {canManage && awaiting.length && item.status === "proposed" ? (
@@ -201,7 +220,36 @@ function PlanCard({ patientId, plan, notation, canManage }: { patientId: string;
               <span className="min-w-0 flex-1">
                 {itemLabel(item.procedure?.name ?? "Procedure", item.tooth, item.surfaces, notation)}
                 {item.note ? <span className="text-muted-foreground"> · {item.note}</span> : null}
+                {item.decisionEstimateOn ? (
+                  <span className="block text-meta text-muted-foreground">
+                    Estimate at decision: {item.decisionEstimate == null ? "no listed price" : pesoRange(item.decisionEstimate, item.decisionEstimateHigh)} (
+                    {clinicalDate(item.decisionEstimateOn)})
+                  </span>
+                ) : null}
               </span>
+              {line?.part ? (
+                <span className="text-right tabular-nums" title={line.listed ? `${line.listed.serviceCode} · ${line.listed.serviceName}` : undefined}>
+                  {line.range ? (
+                    <span className="flex flex-col">
+                      <span>{pesoRange(line.range.low, line.range.high)}</span>
+                      <span className="text-meta text-muted-foreground">
+                        may become {line.range.alternatives.map((a) => `${a.name}${a.unitPrice === null ? " (no listed price)" : ""}`).join(" or ")}
+                      </span>
+                    </span>
+                  ) : line.listed && line.amount !== null ? (
+                    <span className="flex flex-col">
+                      <span>{peso(line.amount)}</span>
+                      {line.listed.perSurface ? (
+                        <span className="text-meta text-muted-foreground">
+                          {line.quantity} {line.quantity === 1 ? "surface" : "surfaces"} × {peso(line.listed.unitPrice)}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="text-meta text-warning-foreground">No listed price</span>
+                  )}
+                </span>
+              ) : null}
               <Badge variant={itemStatus.variant}>{itemStatus.label}</Badge>
               {canManage && open && (item.status === "proposed" || item.status === "accepted") ? (
                 <Button
@@ -217,9 +265,12 @@ function PlanCard({ patientId, plan, notation, canManage }: { patientId: string;
           );
         })}
       </ul>
+      {estimate ? <EstimateSummary planId={plan.id} estimate={estimate} /> : null}
       {plan.decisionNote ? (
         <p className="border-t px-3 py-1.5 text-meta text-muted-foreground">
-          Patient&apos;s decision{plan.decidedAt ? ` (${clinicalDate(plan.decidedAt)})` : ""}: {plan.decisionNote}
+          {plan.decisionChannel === "portal" ? "Decided by the patient in MyHealth" : "Patient's decision"}
+          {plan.decidedAt ? ` (${clinicalDate(plan.decidedAt)})` : ""}
+          {plan.decisionChannel === "portal" ? `, confirming: “${plan.decisionNote}”` : `: ${plan.decisionNote}`}
         </p>
       ) : null}
       {plan.discontinuedReason ? <p className="border-t px-3 py-1.5 text-meta text-muted-foreground">Discontinued: {plan.discontinuedReason}</p> : null}
@@ -280,5 +331,37 @@ function PlanCard({ patientId, plan, notation, canManage }: { patientId: string;
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** The fee estimate of the work still ahead: totals at today's listed prices, what it is not, and the printable copy. */
+function EstimateSummary({ planId, estimate }: { planId: string; estimate: DentalPlanEstimate }) {
+  const { totals } = estimate;
+  return (
+    <div className="flex flex-col gap-1 border-t bg-muted/40 px-3 py-2" aria-label="Fee estimate">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="font-medium">Fee estimate</span>
+        {totals.awaitingDecisionHigh ? (
+          <span className="text-meta">Awaiting decision {pesoRange(totals.awaitingDecision, totals.awaitingDecisionHigh)}</span>
+        ) : null}
+        {totals.acceptedHigh ? <span className="text-meta">Accepted, not yet done {pesoRange(totals.accepted, totals.acceptedHigh)}</span> : null}
+        <span className="font-semibold tabular-nums">Total {pesoRange(totals.remaining, totals.remainingHigh)}</span>
+        <Button asChild size="xs" variant="outline" className="ml-auto">
+          <a href={fileHref.dentalEstimate(planId)} target="_blank" rel="noreferrer">
+            <PrinterIcon /> Print estimate
+          </a>
+        </Button>
+      </div>
+      {totals.unpricedItems ? (
+        <p className="text-meta text-warning-foreground">
+          {totals.unpricedItems} item{totals.unpricedItems === 1 ? " has" : "s have"} no listed price and {totals.unpricedItems === 1 ? "is" : "are"} not in the
+          total — map the procedure code to a billing service with a price (billing settings).
+        </p>
+      ) : null}
+      <p className="text-meta text-muted-foreground">
+        Listed prices on {clinicalDate(estimate.pricedOn)}. {estimate.disclaimer}
+      </p>
+      {estimate.note ? <p className="text-meta text-muted-foreground">{estimate.note}</p> : null}
+    </div>
   );
 }

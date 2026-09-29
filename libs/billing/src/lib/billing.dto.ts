@@ -1,6 +1,15 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { DISCOUNT_KINDS, PAYER_STATUSES, PAYER_TYPES, PAYMENT_METHODS, SERVICE_CATEGORIES, SERVICE_SOURCE_KINDS, TAX_CLASSES } from "./billing.schema";
+import {
+  CHARGE_UNITS,
+  DISCOUNT_KINDS,
+  PAYER_STATUSES,
+  PAYER_TYPES,
+  PAYMENT_METHODS,
+  SERVICE_CATEGORIES,
+  SERVICE_SOURCE_KINDS,
+  TAX_CLASSES,
+} from "./billing.schema";
 
 const code = z
   .string()
@@ -27,10 +36,16 @@ export const createServiceSchema = z
     effectiveFrom: z.iso.date(),
     /** VAT class, for a VAT-registered organization (configuration; see the tax profile). */
     taxClass: z.enum(TAX_CLASSES).optional(),
+    /** Per item (default), or per surface treated for a service mapped to a dental procedure. */
+    chargeUnit: z.enum(CHARGE_UNITS).default("each"),
   })
   .refine((v) => (v.sourceKind === undefined) === (v.sourceCode === undefined), {
     message: "Give both the source kind and its code, or neither",
     path: ["sourceCode"],
+  })
+  .refine((v) => v.chargeUnit === "each" || v.sourceKind === "dental_procedure", {
+    message: "Only a service charged for a dental procedure can be priced per surface",
+    path: ["chargeUnit"],
   });
 export class CreateServiceDto extends createZodDto(createServiceSchema) {}
 
@@ -39,6 +54,8 @@ export const updateServiceSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
   /** null clears the class. */
   taxClass: z.enum(TAX_CLASSES).nullable().optional(),
+  /** From the next charge on; per surface only for a service mapped to a dental procedure. */
+  chargeUnit: z.enum(CHARGE_UNITS).optional(),
   version,
 });
 export class UpdateServiceDto extends createZodDto(updateServiceSchema) {}

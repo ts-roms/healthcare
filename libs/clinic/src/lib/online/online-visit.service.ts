@@ -88,7 +88,7 @@ export class OnlineVisitService {
 
   /** Starts the telemedicine encounter for a checked-in online visit (the clinician's permission and identity are checked by the encounter service). */
   startEncounter(actor: Actor, visitId: string) {
-    return this.encounters.start(actor, { visitId, modality: "telemedicine" });
+    return this.encounters.startOnline(actor, visitId);
   }
 
   async encounterStatus(organizationId: string, encounterId: string) {
@@ -114,9 +114,11 @@ export class OnlineVisitService {
         reason: appointment.reason,
         modality: visitType.modality,
         visitTypeName: visitType.name,
+        timeZone: facility.timezone,
       })
       .from(appointment)
       .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+      .innerJoin(facility, eq(facility.id, appointment.facilityId))
       .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId));
   }
 }

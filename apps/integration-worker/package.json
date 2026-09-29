@@ -5,6 +5,12 @@
   "nx": {
     "name": "integration-worker",
     "targets": {
+      "build": {
+        "dependsOn": [
+          "^build",
+          "typecheck"
+        ]
+      },
       "prune-lockfile": {
         "dependsOn": [
           "build"

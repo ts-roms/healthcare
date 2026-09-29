@@ -23,17 +23,8 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import type { InventoryCategory, InventoryItem, InventoryLocation, InventorySupplier } from "@/lib/api/types";
+import { INVENTORY_CATEGORY_LABEL as CATEGORY } from "@/lib/inventory-mapping";
 import { createItem, createLocation, createSupplier, setReorderLevel } from "../actions";
-
-const CATEGORY: Record<InventoryCategory, string> = {
-  medicine: "Medicine",
-  medical_supply: "Medical supply",
-  reagent: "Reagent",
-  laboratory_consumable: "Laboratory consumable",
-  dental_supply: "Dental supply",
-  ppe: "PPE",
-  other: "Other",
-};
 
 function useSubmit() {
   const router = useRouter();

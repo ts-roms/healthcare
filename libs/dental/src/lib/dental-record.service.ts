@@ -11,6 +11,7 @@ import { DentalPerioService } from "./periodontal/dental-perio.service";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DENTAL_CONTEXT, type DentalContext } from "./ports";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
+import { DentalSuppliesService } from "./supplies/dental-supplies.service";
 
 /** Read models: a patient's dental record in one call, one tooth's history, and the day's dental visits. */
 @Injectable()
@@ -25,6 +26,7 @@ export class DentalRecordService {
     private readonly procedures: DentalProcedureService,
     private readonly imaging: DentalImagingService,
     private readonly perio: DentalPerioService,
+    private readonly supplies: DentalSuppliesService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
   ) {}
 
@@ -33,7 +35,7 @@ export class DentalRecordService {
     const org = actor.organizationId;
     const patient = (await this.context.patientBriefs(org, [patientId])).get(patientId);
     if (!patient) throw new NotFoundError("Patient");
-    const [notation, chart, examinations, plans, procedures, images, perioCharts] = await Promise.all([
+    const [notation, chart, examinations, plans, procedures, images, perioCharts, supplyUses] = await Promise.all([
       this.catalog.notation(org, actor.facilityId),
       this.chart.chart(org, patientId),
       this.chart.examinations(org, patientId),
@@ -41,9 +43,10 @@ export class DentalRecordService {
       this.procedures.forPatient(org, patientId),
       this.imaging.forPatient(org, patientId),
       this.perio.forPatient(org, patientId),
+      this.supplies.forPatient(org, patientId),
     ]);
     const practitionerIds = [...examinations, ...plans, ...procedures, ...perioCharts].map((r) => r.practitionerId);
-    const userIds = [...chart.map((t) => t.recordedBy), ...images.map((i) => i.recordedBy)];
+    const userIds = [...chart.map((t) => t.recordedBy), ...images.map((i) => i.recordedBy), ...supplyUses.map((u) => u.recordedBy)];
     const [practitioners, staff] = await Promise.all([
       this.context.practitionerNames(org, [...new Set(practitionerIds)]),
       this.context.staffNames(org, [...new Set(userIds)]),
@@ -59,6 +62,8 @@ export class DentalRecordService {
       procedures: procedures.map(named),
       images: images.map((i) => ({ ...i, recordedByName: staff.get(i.recordedBy) ?? null })),
       perioCharts: perioCharts.map(named),
+      /** Supplies used by the procedures (issues with their lots, returns), newest first. */
+      supplyUses: supplyUses.map((u) => ({ ...u, recordedByName: staff.get(u.recordedBy) ?? null })),
     };
   }
 

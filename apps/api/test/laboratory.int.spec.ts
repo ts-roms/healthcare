@@ -290,6 +290,10 @@ describe("laboratory journey", () => {
     expect(open.body[0]).toMatchObject({ status: "open", testName: "Potassium", orderingPractitionerName: "Dr. santos" });
     alertId = open.body[0].id;
 
+    // Acknowledgement closes the loop only after the laboratory documented the call.
+    const early = await post(`/critical-results/${alertId}/acknowledge`, doctor).expect(409);
+    expect(early.body.error.code).toBe("alert_not_communicated");
+    expect((await get("/critical-results", medtech).expect(200)).body[0]).toMatchObject({ status: "open" });
     await post(`/critical-results/${alertId}/communicate`, doctor, { communicatedTo: "Dr. Santos", method: "phone", readBackConfirmed: true }).expect(403);
     const told = await post(`/critical-results/${alertId}/communicate`, medtech, {
       communicatedTo: "Dr. Santos (attending)",

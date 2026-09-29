@@ -116,16 +116,17 @@ export type AppointmentAction = "confirm" | "check_in" | "cancel" | "no_show";
 
 /**
  * Actions to offer on a schedule row (`libs/clinic` appointment-state):
- * check-in only on the appointment's own day, a no-show only after it started.
+ * check-in only on the appointment's own day (never at the desk for an online one), a no-show only after it started.
  */
 export function appointmentActions(
   a: Pick<AppointmentItem, "status" | "startsAt">,
-  context: { now: Date; isToday: boolean; canManage: boolean; canCheckIn: boolean },
+  context: { now: Date; isToday: boolean; canManage: boolean; canCheckIn: boolean; online?: boolean },
 ): AppointmentAction[] {
   const open = a.status === "booked" || a.status === "confirmed";
   if (!open) return [];
   const actions: AppointmentAction[] = [];
-  if (context.canCheckIn && context.isToday) actions.push("check_in");
+  // An online appointment is checked in by the patient entering the MyHealth waiting room, not at the front desk.
+  if (context.canCheckIn && context.isToday && !context.online) actions.push("check_in");
   if (context.canManage && a.status === "booked") actions.push("confirm");
   if (context.canManage && context.now >= new Date(a.startsAt)) actions.push("no_show");
   if (context.canManage) actions.push("cancel");

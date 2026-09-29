@@ -1,0 +1,79 @@
+import { describe, expect, it } from "vitest";
+import type { PortalDentalTooth, PortalToothCondition, PortalToothSurface } from "./api/types";
+import { chartRows, conditionsText, decisionSummary, feeText, planItemState, selectionEstimate, surfacesText, toothText, toothTone } from "./dental";
+
+const tooth = (t: string, conditions: Array<[PortalToothCondition, PortalToothSurface[]]>): PortalDentalTooth => ({
+  tooth: t,
+  conditions: conditions.map(([condition, surfaces]) => ({ condition, surfaces })),
+  updatedOn: "2026-09-28",
+});
+
+describe("dental wording", () => {
+  it("reads a tooth at a glance", () => {
+    expect(toothTone(tooth("16", []))).toBe("healthy");
+    expect(toothTone(tooth("16", [["restoration", ["M", "O"]]]))).toBe("treated");
+    expect(
+      toothTone(
+        tooth("16", [
+          ["restoration", ["M"]],
+          ["caries", ["O"]],
+        ]),
+      ),
+    ).toBe("attention");
+    expect(toothTone(tooth("48", [["impacted", []]]))).toBe("watch");
+    expect(toothTone(tooth("36", [["missing", []]]))).toBe("missing");
+  });
+
+  it("names teeth and sides in plain words, in the clinic's notation", () => {
+    expect(toothText("16", "fdi")).toBe("16 · upper right first molar");
+    expect(toothText("16", "universal")).toBe("3 · upper right first molar");
+    expect(surfacesText("16", ["M", "O"])).toBe("mesial and occlusal sides");
+    expect(surfacesText("11", ["B"])).toBe("labial side");
+    expect(surfacesText("16", [])).toBeNull();
+    expect(conditionsText(tooth("16", [["restoration", ["M", "O"]]]))).toBe("Filling (mesial and occlusal sides)");
+    expect(conditionsText(tooth("21", []))).toBe("No problems noted");
+  });
+
+  it("words the patient's decision per plan item", () => {
+    expect(planItemState("proposed")).toEqual({ tone: "awaiting", text: "Waiting for your decision" });
+    expect(planItemState("completed").text).toBe("Done");
+    expect(planItemState("cancelled").text).toBe("No longer planned");
+  });
+
+  it("draws baby teeth only when some were charted", () => {
+    expect(chartRows([tooth("16", [])]).map((r) => r.label)).toEqual(["Upper teeth", "Lower teeth"]);
+    expect(chartRows([tooth("55", [])]).map((r) => r.label)).toEqual(["Upper teeth", "Upper baby teeth", "Lower teeth", "Lower baby teeth"]);
+    expect(chartRows([]).every((r) => r.teeth.length === 16)).toBe(true);
+  });
+});
+
+describe("plan decision summary", () => {
+  const items = [
+    { id: "a", procedureName: "Composite restoration" },
+    { id: "b", procedureName: "Extraction" },
+  ];
+  it("says what will be accepted and declined", () => {
+    expect(decisionSummary(items, new Set(["a"]))).toBe("You accept Composite restoration and decline Extraction.");
+    expect(decisionSummary(items, new Set(["a", "b"]))).toBe("You accept all 2 treatments.");
+    expect(decisionSummary(items, new Set())).toBe("You decline all 2 treatments.");
+    expect(decisionSummary(items.slice(0, 1), new Set(["a"]))).toBe("You accept this treatment.");
+  });
+
+  it("adds up the estimate of the ticked treatments, counting those without a listed price", () => {
+    const priced = [
+      { id: "a", estimatedFee: 150_000 },
+      { id: "b", estimatedFee: 80_000 },
+      { id: "c", estimatedFee: null },
+    ];
+    expect(selectionEstimate(priced, new Set(["a", "c"]))).toEqual({ total: 150_000, totalHigh: 150_000, unpriced: 1 });
+    expect(selectionEstimate(priced, new Set())).toEqual({ total: 0, totalHigh: 0, unpriced: 0 });
+    // A treatment that may turn out to be another adds its range.
+    const ranged = [...priced, { id: "d", estimatedFee: 80_000, estimatedFeeHigh: 300_000 }];
+    expect(selectionEstimate(ranged, new Set(["a", "d"]))).toEqual({ total: 230_000, totalHigh: 450_000, unpriced: 0 });
+  });
+
+  it("writes a fee as a price or a range", () => {
+    expect(feeText(80_000, null)).toBe("₱800.00");
+    expect(feeText(80_000, 300_000)).toBe("₱800.00 to ₱3,000.00");
+  });
+});

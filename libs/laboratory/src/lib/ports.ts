@@ -14,6 +14,8 @@ export interface LaboratoryContext {
   practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>>;
   /** Display names of staff users (who collected, entered, verified, approved). */
   staffNames(organizationId: string, userIds: string[]): Promise<Map<string, string>>;
+  /** Staff who enter results at the facility (holders of lab.result.enter), for competency records. */
+  laboratoryStaff(organizationId: string, facilityId: string): Promise<Array<{ id: string; displayName: string }>>;
   /** An inventory lot (reagents are inventory items), to record which lot is loaded on an instrument. */
   inventoryLot(organizationId: string, lotId: string): Promise<LabInventoryLot | undefined>;
   /**
@@ -25,6 +27,13 @@ export interface LaboratoryContext {
     actor: Actor,
     input: { loadId: string; locationId: string; itemId: string; lotId: string; quantity: number; instrumentCode: string },
   ): Promise<{ movementGroupId: string }>;
+  /** An inventory item, to configure a reagent's yield (tests per stock unit). */
+  inventoryItem(
+    organizationId: string,
+    itemId: string,
+  ): Promise<{ itemId: string; code: string; name: string; category: string; stockUnit: string; status: "active" | "inactive" } | undefined>;
+  /** What the stock taken by reagent loads cost (by stock movement group; centavos; null when a lot has no cost). */
+  reagentStockCosts(organizationId: string, movementGroupIds: string[]): Promise<Map<string, number | null>>;
   /** Reagent lots with stock at the facility (what can be loaded), earliest expiry first. */
   reagentLotsInStock(organizationId: string, facilityId: string): Promise<Array<LabInventoryLot & { quantity: number; stockUnit: string }>>;
   encounter(

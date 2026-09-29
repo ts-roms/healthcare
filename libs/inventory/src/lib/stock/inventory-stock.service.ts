@@ -43,6 +43,7 @@ interface Posting {
   /** Signed change at the location. */
   delta: number;
   supplierId?: string | null;
+  /** Receipts: the purchase price. Other movements take the lot's cost when posted (see lotUnitCost). */
   unitCost?: number | null;
   reference?: string | null;
   issuedTo?: string | null;
@@ -69,12 +70,47 @@ export interface StockUse {
   /** A document number (e.g. a prescription number); required with the reason for controlled items. */
   reference?: string;
   reason?: string;
+  /** The item categories this workflow may take (e.g. dispensing: medicines and medical supplies); left out: any. */
+  categories?: readonly ItemCategory[];
 }
 
 export interface StockUseResult {
   movementGroupId: string;
   item: { id: string; code: string; name: string; stockUnit: string; controlled: boolean };
   lots: Array<{ lotId: string; lotNumber: string | null; expiryDate: string | null; quantity: number }>;
+}
+
+/** Several items issued to one record (e.g. the supplies a dental procedure used) from one location of the actor's facility. */
+export interface SourcedIssueInput {
+  locationId: string;
+  source: StockSource;
+  /** Shown on the ledger: a department or purpose — never a patient identifier. */
+  issuedTo: string;
+  lines: Array<{ itemId: string; quantity: number; reason?: string; reference?: string }>;
+  idempotencyKey: string;
+  /** The item categories this workflow may take; left out: any. */
+  categories?: readonly ItemCategory[];
+}
+
+/** Part of what a record was issued, returned unused to the lots it came from. */
+export interface SourcedReturnInput {
+  locationId: string;
+  source: StockSource;
+  lines: Array<{ itemId: string; lotId: string; quantity: number; reason: string; reference?: string }>;
+  idempotencyKey: string;
+}
+
+/** One ledger row of a sourced issue or return, with what identifies the item and lot. Quantity is positive. */
+export interface SourcedMovement {
+  movementId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
 }
 
 /** One line of a delivery received for a source (a purchase order line). */
@@ -243,6 +279,7 @@ export class InventoryStockService {
    */
   async consume(tx: DbExecutor, actor: Actor, input: StockUse): Promise<StockUseResult> {
     const { location, item, today } = await this.context(actor, input.locationId, input.itemId, tx);
+    this.requireCategory(item, input.categories);
     this.requireControlledDetails(item, input);
     const allocations = await this.allocate(tx, location.id, item, input.quantity, today, input.lotId);
     const groupId = await this.post(
@@ -345,6 +382,137 @@ export class InventoryStockService {
       });
     }
     return this.post(tx, actor, "inventory.receive", input.idempotencyKey, today, postings);
+  }
+
+  /**
+   * Issues several items to a record of another domain (the supplies a dental procedure used) inside the caller's
+   * transaction, as one movement group carrying the idempotency key (a replay returns what it produced). The same
+   * rules as `consume` for each line. Unlike `consume`, a record may take from the same lot again later (a further use)
+   * and give back part of it (`returnPart`): such sources are excluded from the once-per-lot index (migration 0057).
+   */
+  async issueForSource(tx: DbExecutor, actor: Actor, input: SourcedIssueInput): Promise<{ movementGroupId: string; movements: SourcedMovement[] }> {
+    const replay = await this.sourcedReplay(tx, actor.organizationId, input.idempotencyKey);
+    if (replay) return replay;
+    if (input.lines.length === 0) throw new BusinessRuleError("Nothing to issue", "nothing_to_issue");
+    if (new Set(input.lines.map((l) => l.itemId)).size !== input.lines.length) throw new BusinessRuleError("Each item once per issue", "duplicate_item");
+    const postings: Posting[] = [];
+    let today = "";
+    for (const line of input.lines) {
+      const context = await this.context(actor, input.locationId, line.itemId, tx);
+      today = context.today;
+      this.requireCategory(context.item, input.categories);
+      this.requireControlledDetails(context.item, line);
+      const allocations = await this.allocate(tx, context.location.id, context.item, line.quantity, today);
+      postings.push(
+        ...allocations.map((a) => ({
+          kind: "issue" as const,
+          locationId: context.location.id,
+          itemId: context.item.id,
+          lotId: a.lotId,
+          delta: -a.quantity,
+          issuedTo: input.issuedTo,
+          reference: line.reference ?? null,
+          reason: line.reason ?? null,
+          source: input.source,
+        })),
+      );
+    }
+    const groupId = await this.post(tx, actor, "inventory.issue", input.idempotencyKey, today, postings);
+    return { movementGroupId: groupId, movements: await this.sourcedView(tx, actor.organizationId, groupId) };
+  }
+
+  /**
+   * Returns part of what a record was issued (`issueForSource`) to the same lots at the same location, inside the
+   * caller's transaction (kind `return`, with a reason). A lot never takes back more than the record still holds from
+   * it (issued net of earlier returns), checked with the lot's balance row locked.
+   */
+  async returnForSource(tx: DbExecutor, actor: Actor, input: SourcedReturnInput): Promise<{ movementGroupId: string; movements: SourcedMovement[] }> {
+    const replay = await this.sourcedReplay(tx, actor.organizationId, input.idempotencyKey);
+    if (replay) return replay;
+    if (input.lines.length === 0) throw new BusinessRuleError("Nothing to return", "nothing_to_return");
+    if (new Set(input.lines.map((l) => l.lotId)).size !== input.lines.length) throw new BusinessRuleError("Each lot once per return", "duplicate_lot");
+    const location = await this.location(actor.organizationId, input.locationId, tx);
+    if (location.facilityId !== requireFacilityId(actor)) throw new BusinessRuleError("The location belongs to another facility", "location_other_facility");
+    const facility = await this.organizations.getFacility(actor.organizationId, location.facilityId);
+    const postings: Posting[] = [];
+    for (const line of input.lines) {
+      const [item] = await tx
+        .select()
+        .from(inventoryItem)
+        .where(and(eq(inventoryItem.organizationId, actor.organizationId), eq(inventoryItem.id, line.itemId)));
+      if (!item) throw new NotFoundError("Item");
+      this.requireControlledDetails(item, line);
+      const [lot] = await tx
+        .select()
+        .from(inventoryLot)
+        .where(and(eq(inventoryLot.organizationId, actor.organizationId), eq(inventoryLot.id, line.lotId), eq(inventoryLot.itemId, item.id)));
+      if (!lot) throw new NotFoundError("Lot");
+      // Serialize returns of this lot at this location before counting what is still out.
+      await this.lockBalance(tx, actor.organizationId, location.id, item.id, lot.id);
+      const [held] = await tx
+        .select({ net: sql<number>`coalesce(-sum(${inventoryMovement.quantity}), 0)`.mapWith(Number) })
+        .from(inventoryMovement)
+        .where(
+          and(
+            eq(inventoryMovement.organizationId, actor.organizationId),
+            eq(inventoryMovement.sourceType, input.source.type),
+            eq(inventoryMovement.sourceId, input.source.id),
+            eq(inventoryMovement.locationId, location.id),
+            eq(inventoryMovement.lotId, lot.id),
+            inArray(inventoryMovement.kind, ["issue", "return"]),
+          ),
+        );
+      const outstanding = held?.net ?? 0;
+      if (line.quantity > outstanding) {
+        throw new BusinessRuleError(
+          `Only ${outstanding} ${item.stockUnit} of ${item.name} lot ${lot.lotNumber ?? "(no lot)"} can be returned here`,
+          "return_exceeds_issued",
+          { itemId: item.id, lotId: lot.id, outstanding },
+        );
+      }
+      postings.push({
+        kind: "return",
+        locationId: location.id,
+        itemId: item.id,
+        lotId: lot.id,
+        delta: line.quantity,
+        reason: line.reason,
+        reference: line.reference ?? null,
+        source: input.source,
+      });
+    }
+    const groupId = await this.post(tx, actor, "inventory.return", input.idempotencyKey, localDate(new Date(), facility.timezone), postings);
+    return { movementGroupId: groupId, movements: await this.sourcedView(tx, actor.organizationId, groupId) };
+  }
+
+  private async sourcedReplay(tx: DbExecutor, organizationId: string, idempotencyKey: string) {
+    const [first] = await tx
+      .select({ groupId: inventoryMovement.movementGroupId })
+      .from(inventoryMovement)
+      .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.idempotencyKey, idempotencyKey)));
+    if (!first) return null;
+    return { movementGroupId: first.groupId, movements: await this.sourcedView(tx, organizationId, first.groupId) };
+  }
+
+  private async sourcedView(tx: DbExecutor, organizationId: string, groupId: string): Promise<SourcedMovement[]> {
+    const rows = await tx
+      .select({ movement: inventoryMovement, item: inventoryItem, lot: inventoryLot })
+      .from(inventoryMovement)
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryMovement.itemId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryMovement.lotId))
+      .where(and(eq(inventoryMovement.organizationId, organizationId), eq(inventoryMovement.movementGroupId, groupId)))
+      .orderBy(asc(inventoryMovement.recordedAt), asc(inventoryMovement.id));
+    return rows.map(({ movement, item, lot }) => ({
+      movementId: movement.id,
+      itemId: item.id,
+      itemCode: item.code,
+      itemName: item.name,
+      stockUnit: item.stockUnit,
+      lotId: lot.id,
+      lotNumber: lot.lotNumber,
+      expiryDate: lot.expiryDate,
+      quantity: Math.abs(movement.quantity),
+    }));
   }
 
   /** The movement group an idempotency key already produced (a replayed request), if any. */
@@ -531,7 +699,14 @@ export class InventoryStockService {
       if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
     }
     let first = true;
+    const lotCosts = new Map<string, number | null>();
     for (const p of postings) {
+      // Every movement other than a receipt records the lot's cost now, so the value of what was used never shifts.
+      let unitCost = p.unitCost ?? null;
+      if (p.kind !== "receipt" && p.unitCost === undefined) {
+        if (!lotCosts.has(p.lotId)) lotCosts.set(p.lotId, await lotUnitCost(tx, p.lotId));
+        unitCost = lotCosts.get(p.lotId) ?? null;
+      }
       const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
       const next = current + p.delta;
       if (next < 0) throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock");
@@ -549,7 +724,7 @@ export class InventoryStockService {
         quantity: p.delta,
         balanceAfter: next,
         supplierId: p.supplierId ?? null,
-        unitCost: p.unitCost ?? null,
+        unitCost,
         reference: p.reference ?? null,
         issuedTo: p.issuedTo ?? null,
         reason: p.reason ?? null,
@@ -720,11 +895,29 @@ export class InventoryStockService {
         `Not enough usable ${item.name} here: ${result.available} ${item.stockUnit} available (expired lots excluded)`,
         "insufficient_stock",
         {
+          itemId: item.id,
           available: result.available,
+          // Stock the location still holds in expired lots (never issued; to be written off).
+          expired: lots.filter((l) => isExpired(l.expiryDate, today)).reduce((sum, l) => sum + l.quantity, 0),
         },
       );
     }
     return result.allocations;
+  }
+
+  /** A workflow takes only the kinds of items it uses (dispensing never hands over a reagent). */
+  private requireCategory(item: ItemRecord, categories: readonly ItemCategory[] | undefined): void {
+    if (categories && !categories.includes(item.category)) {
+      throw new BusinessRuleError(
+        `${item.name} (${item.category.replace("_", " ")}) is not an item this workflow takes from stock`,
+        "item_category_not_allowed",
+        {
+          itemId: item.id,
+          category: item.category,
+          allowed: categories,
+        },
+      );
+    }
   }
 
   private requireControlledDetails(item: ItemRecord, input: { reason?: string; reference?: string }): void {
@@ -736,4 +929,20 @@ export class InventoryStockService {
 
 function movementView(row: MovementRecord) {
   return { ...strip(row), recordedAt: row.recordedAt.toISOString() };
+}
+
+/**
+ * A lot's cost per stock unit (centavos): the weighted average of its priced receipts, rounded to the centavo; null when
+ * no receipt of the lot carried a cost. The same rule values stock on hand (InventoryValuationService).
+ */
+export async function lotUnitCost(executor: DbExecutor, lotId: string): Promise<number | null> {
+  const [row] = await executor
+    .select({
+      cost: sql<
+        number | null
+      >`round(sum(${inventoryMovement.quantity}::numeric * ${inventoryMovement.unitCost}) / nullif(sum(${inventoryMovement.quantity}), 0))::float8`,
+    })
+    .from(inventoryMovement)
+    .where(and(eq(inventoryMovement.lotId, lotId), eq(inventoryMovement.kind, "receipt"), sql`${inventoryMovement.unitCost} is not null`));
+  return row?.cost ?? null;
 }

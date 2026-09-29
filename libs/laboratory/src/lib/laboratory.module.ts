@@ -9,11 +9,19 @@ import { LabOrderService } from "./orders/lab-order.service";
 import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
+import { LabCompetencyService } from "./quality/lab-competency.service";
+import { LabQualitySummaryService } from "./quality/lab-quality-summary.service";
+import { LabQualityDue } from "./quality/lab-quality-due";
+import { LabEqaService } from "./quality/lab-eqa.service";
+import { LabNonconformanceService } from "./quality/lab-nonconformance.service";
 import { LabQualityController } from "./quality/lab-quality.controller";
+import { LabQualityManagementController } from "./quality/lab-quality-management.controller";
+import { LabTemperatureService } from "./quality/lab-temperature.service";
 import { LabQualityService } from "./quality/lab-quality.service";
 import { LabReagentService } from "./quality/lab-reagent.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
+import { LabReportingQueries } from "./results/lab-reporting.queries";
 import { LabResultAttachments } from "./results/lab-result-attachments";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./results/lab-report-archive";
 import { bullMqLabReportArchiveQueue, LabReportArchiveWorker } from "./results/lab-report-archive-queue";
@@ -39,7 +47,15 @@ export class LaboratoryModule {
     return {
       module: LaboratoryModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [LabCatalogController, LabOrderController, LabResultController, ReferenceLabController, SendOutController, LabQualityController],
+      controllers: [
+        LabCatalogController,
+        LabOrderController,
+        LabResultController,
+        ReferenceLabController,
+        SendOutController,
+        LabQualityController,
+        LabQualityManagementController,
+      ],
       providers: [
         LabCatalogService,
         LabLabelService,
@@ -47,7 +63,15 @@ export class LaboratoryModule {
         LabPatientAccess,
         LabQualityService,
         LabReagentService,
+        LabNonconformanceService,
+        LabTemperatureService,
+        LabEqaService,
+        LabCompetencyService,
+        LabQualitySummaryService,
+        LabQualityDue,
+        LabReagentService,
         LabRecordQueries,
+        LabReportingQueries,
         LabReadModel,
         LabReportService,
         LabReportArchive,
@@ -68,8 +92,12 @@ export class LaboratoryModule {
       ],
       exports: [
         LabOrderService,
+        LabQualityService,
+        LabQualityDue,
+        LabReagentService,
         LabPatientAccess,
         LabRecordQueries,
+        LabReportingQueries,
         LabReportService,
         LabReportArchive,
         LabReportArchiveWorker,

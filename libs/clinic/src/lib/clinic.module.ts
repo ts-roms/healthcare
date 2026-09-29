@@ -14,6 +14,7 @@ import {
   QueueController,
 } from "./clinic.controllers";
 import { ClinicQueries } from "./clinic-queries.service";
+import { ClinicReportingQueries } from "./dashboard/clinic-reporting.queries";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
@@ -53,6 +54,7 @@ export class ClinicModule {
         ClinicConfigService,
         ClinicDashboardService,
         ClinicQueries,
+        ClinicReportingQueries,
         EncounterService,
         ExternalRecordsService,
         NoShowFollowUp,
@@ -63,7 +65,7 @@ export class ClinicModule {
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries, ExternalRecordsService, OnlineVisitService, PatientBookingService],
+      exports: [ClinicQueries, ClinicReportingQueries, ExternalRecordsService, OnlineVisitService, PatientBookingService],
     };
   }
 }

@@ -19,6 +19,8 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
 export interface RenderedMessage {
   subject?: string;
   text: string;
+  /** Staff in-app only: the page in the staff app the message is about. */
+  href?: string;
 }
 
 function defineTemplate<V extends z.ZodType>(template: NotificationTemplate<V>): NotificationTemplate<V> {
@@ -26,6 +28,20 @@ function defineTemplate<V extends z.ZodType>(template: NotificationTemplate<V>):
 }
 
 const shortText = z.string().trim().min(1).max(80);
+
+/** Labels of the laboratory's nonconformance categories (libs/laboratory quality-management.schema.ts). */
+const NONCONFORMANCE_CATEGORY_LABEL = {
+  pre_analytical: "Pre-analytical",
+  analytical: "Analytical",
+  post_analytical: "Post-analytical",
+  equipment: "Equipment",
+  temperature_excursion: "Temperature excursion",
+  qc_failure: "QC failure",
+  eqa_failure: "EQA failure",
+  safety: "Safety",
+  complaint: "Complaint",
+  other: "Other",
+} as const;
 
 export const TEMPLATES = [
   defineTemplate({
@@ -153,6 +169,33 @@ export const TEMPLATES = [
           },
   }),
   defineTemplate({
+    key: "dental.record-update",
+    version: 1,
+    category: "clinical",
+    // Leaves the platform (SMS/email): no tooth, procedure, image type or finding — only a pointer to MyHealth.
+    channels: ["sms", "email", "in_app"],
+    variables: z.object({ kind: z.enum(["image-shared", "plan-to-review", "plan-to-decide"]), organizationName: shortText }),
+    render: (v) => {
+      switch (v.kind) {
+        case "image-shared":
+          return {
+            subject: `Your dentist shared an image with you`,
+            text: `${v.organizationName}: your dentist shared an X-ray or photo with you in MyHealth. Sign in to see it, and ask your dentist to explain it.`,
+          };
+        case "plan-to-review":
+          return {
+            subject: `A dental treatment plan from ${v.organizationName}`,
+            text: `${v.organizationName}: your dentist prepared a dental treatment plan for you. Sign in to MyHealth to read it, then tell your dentist or the clinic what you decide.`,
+          };
+        case "plan-to-decide":
+          return {
+            subject: `A dental treatment plan is waiting for your decision`,
+            text: `${v.organizationName}: a dental treatment plan is waiting for your decision in MyHealth. Sign in to review it; you can also talk to your dentist first.`,
+          };
+      }
+    },
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",
@@ -173,6 +216,84 @@ export const TEMPLATES = [
             subject: `Corrected laboratory result — ${v.patientNumber}`,
             text: `A released result on laboratory order ${v.orderNumber} for patient ${v.patientNumber} was corrected. Open the order to see the new version and its reason.`,
           },
+  }),
+  defineTemplate({
+    key: "lab.quality-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to the facility's quality managers. No patient, specimen or control values — the record is read behind access control.
+    channels: ["in_app"],
+    variables: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("nonconformance"),
+        nonconformanceId: z.uuid(),
+        number: z.string().regex(/^NC\d{8}$/),
+        category: z.enum(Object.keys(NONCONFORMANCE_CATEGORY_LABEL) as [keyof typeof NONCONFORMANCE_CATEGORY_LABEL]),
+        severity: z.enum(["minor", "major", "critical"]),
+      }),
+      z.object({
+        kind: z.literal("qc_rejected"),
+        instrumentCode: shortText,
+        testName: shortText,
+        rules: z.array(z.string().regex(/^[0-9A-Za-z_]{2,8}$/)).max(6),
+      }),
+      z.object({ kind: z.literal("temperature_due"), storageUnitCode: shortText, storageUnitName: shortText }),
+      z.object({
+        kind: z.literal("reagent_low"),
+        instrumentCode: shortText,
+        itemName: shortText,
+        lotNumber: shortText.nullable(),
+        remaining: z.number().int(),
+        capacity: z.number().int().positive(),
+      }),
+      z.object({
+        kind: z.literal("competency_due"),
+        staffName: shortText,
+        areaName: shortText,
+        dueOn: z.iso.date(),
+        /** The message goes to the person to be reassessed (otherwise to a quality manager). */
+        forSelf: z.boolean(),
+      }),
+    ]),
+    render: (v) => {
+      switch (v.kind) {
+        case "nonconformance":
+          return {
+            subject: `${v.severity === "minor" ? "Nonconformance" : `${v.severity === "critical" ? "Critical" : "Major"} nonconformance`} ${v.number}`,
+            text: `${NONCONFORMANCE_CATEGORY_LABEL[v.category]} nonconformance ${v.number} (${v.severity}) was opened. Open it to investigate and record the corrective action.`,
+            href: `/laboratory/nonconformances/${v.nonconformanceId}`,
+          };
+        case "qc_rejected":
+          return {
+            subject: `QC rejected — ${v.testName} on ${v.instrumentCode}`,
+            text: `A QC run for ${v.testName} on instrument ${v.instrumentCode} was rejected${v.rules.length ? ` (${v.rules.join(", ")})` : ""}. Review the run and record a corrective action.`,
+            href: "/laboratory/qc",
+          };
+        case "reagent_low":
+          return {
+            subject: `Reagent running low — ${v.itemName} on ${v.instrumentCode}`,
+            text:
+              v.remaining > 0
+                ? `${v.itemName} lot ${v.lotNumber ?? "(no lot number)"} on instrument ${v.instrumentCode} has about ${v.remaining} of ${v.capacity} tests left. Prepare the next lot.`
+                : `${v.itemName} lot ${v.lotNumber ?? "(no lot number)"} on instrument ${v.instrumentCode} has used all ${v.capacity} tests it was said to hold. Load the next lot or check the stated capacity.`,
+            href: "/laboratory/instruments",
+          };
+        case "temperature_due":
+          return {
+            subject: `Temperature reading due — ${v.storageUnitName}`,
+            text: `The temperature of ${v.storageUnitName} (${v.storageUnitCode}) has not been recorded within its reading interval. Record a reading.`,
+            href: "/laboratory/temperatures",
+          };
+        case "competency_due":
+          return {
+            subject: v.forSelf ? `Your competency reassessment is due — ${v.areaName}` : `Competency reassessment due — ${v.staffName}`,
+            text: v.forSelf
+              ? `Your competency assessment for ${v.areaName} was due for reassessment on ${v.dueOn}. Ask your section head to reassess you.`
+              : `${v.staffName}'s competency assessment for ${v.areaName} was due for reassessment on ${v.dueOn}.`,
+            href: "/laboratory/competency",
+          };
+      }
+    },
   }),
 ] as const;
 

@@ -32,11 +32,16 @@ export class PatientSummaryController {
     if (!patient) throw new NotFoundError("Patient");
     const canSeePrescriptions = actor.permissions.has("prescription.read");
     const canSeeCarePlans = actor.permissions.has("care-plan.read");
-    const [clinical, medications, carePlans] = await Promise.all([
+    const [clinical, active, carePlans] = await Promise.all([
       this.clinic.clinicalSummary(actor.organizationId, patientId),
       canSeePrescriptions ? this.prescriptions.activeForPatient(actor.organizationId, patientId) : Promise.resolve(null),
       canSeeCarePlans ? this.carePlans.openPlansSummary(actor.organizationId, patientId) : Promise.resolve(null),
     ]);
+    // The prescriber's display name (the Patient 360 workspace shows who prescribed what).
+    const prescribers = active?.length
+      ? await this.clinic.practitionerNames(actor.organizationId, [...new Set(active.map((p) => p.prescriberPractitionerId))])
+      : null;
+    const medications = active ? active.map((p) => ({ ...p, prescriberName: prescribers?.get(p.prescriberPractitionerId) ?? null })) : null;
     await this.audit.recordStandalone(actor, {
       action: "patient.summary-view",
       resourceType: "patient",

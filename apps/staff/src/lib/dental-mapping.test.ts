@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { DentalVisit } from "./api/types";
-import { changedTeeth, draftProblems, examinationTeeth, openVisit, toChart } from "./dental-mapping";
+import type { DentalSupplyUse, DentalVisit } from "./api/types";
+import {
+  changedTeeth,
+  pesoRange,
+  draftProblems,
+  examinationTeeth,
+  openVisit,
+  plansWithEstimate,
+  procedureSupplies,
+  supplyDraft,
+  supplyErrors,
+  supplyLineState,
+  supplyRequestLines,
+  toChart,
+} from "./dental-mapping";
 
 describe("dental mapping", () => {
   const current = toChart([
@@ -36,5 +49,65 @@ describe("dental mapping", () => {
     const visit = (patientId: string, status: DentalVisit["status"]) => ({ patientId, status, encounterId: `${patientId}-${status}` }) as DentalVisit;
     expect(openVisit([visit("a", "completed"), visit("a", "in_progress"), visit("b", "in_progress")], "a")?.encounterId).toBe("a-in_progress");
     expect(openVisit([visit("a", "completed")], "a")).toBeUndefined();
+  });
+
+  it("prefills supplies from the procedure's template, leaving out inactive items", () => {
+    const options = {
+      templates: [
+        {
+          procedureTypeId: "p",
+          items: [
+            { itemId: "lido", quantity: 1 },
+            { itemId: "gone", quantity: 2 },
+          ],
+        },
+      ],
+      items: [{ id: "lido" }] as never,
+    };
+    expect(supplyDraft(options, "p")).toEqual([{ itemId: "lido", quantity: 1, reason: "", reference: "" }]);
+    expect(supplyDraft(options, "other")).toEqual([]);
+    expect(supplyRequestLines([{ itemId: "m", quantity: 1, reason: " Sedation ", reference: "" }])).toEqual([{ itemId: "m", quantity: 1, reason: "Sedation" }]);
+  });
+
+  it("lists a procedure's supply uses and what can still be returned", () => {
+    const line = (id: string, quantity: number, outstanding: number | null) => ({ id, quantity, outstanding }) as DentalSupplyUse["lines"][number];
+    const uses = [
+      { id: "r", procedureId: "p", kind: "return", locationId: "loc", recordedAt: "2026-09-02T00:00:00Z", lines: [line("x", 1, null)] },
+      { id: "i", procedureId: "p", kind: "issue", locationId: "loc", recordedAt: "2026-09-01T00:00:00Z", lines: [line("a", 2, 1), line("b", 1, 0)] },
+      { id: "o", procedureId: "q", kind: "issue", locationId: "loc", recordedAt: "2026-09-01T00:00:00Z", lines: [line("c", 1, 1)] },
+    ] as DentalSupplyUse[];
+    const { uses: mine, returnable } = procedureSupplies(uses, "p");
+    expect(mine.map((u) => u.id)).toEqual(["i", "r"]);
+    expect(returnable.map((l) => [l.id, l.useId])).toEqual([["a", "i"]]);
+    expect(supplyLineState({ quantity: 2, outstanding: 2 }).label).toBe("Used");
+    expect(supplyLineState({ quantity: 2, outstanding: 1 }).label).toBe("1 returned");
+    expect(supplyLineState({ quantity: 2, outstanding: 0 }).kind).toBe("returned");
+  });
+
+  it("places API refusals next to the supply they concern", () => {
+    expect(supplyErrors("insufficient_stock", "Not enough", { itemId: "a", available: 1 })).toEqual({ a: "Not enough" });
+    expect(supplyErrors("invalid_supplies", "Invalid", { a: ["listed more than once"], _: ["x"] })).toEqual({ a: "listed more than once", _: "x" });
+    expect(supplyErrors("location_inactive", "Inactive", undefined)).toEqual({});
+  });
+
+  it("estimates only open plans with work still ahead", () => {
+    const item = (status: "proposed" | "accepted" | "completed" | "declined") => ({ status }) as never;
+    expect(
+      plansWithEstimate([
+        { id: "a", status: "proposed", items: [item("proposed")] },
+        { id: "b", status: "in_progress", items: [item("completed"), item("accepted")] },
+        { id: "c", status: "completed", items: [item("completed")] },
+        { id: "d", status: "discontinued", items: [item("accepted")] },
+        { id: "e", status: "accepted", items: [item("completed"), item("declined")] },
+      ]),
+    ).toEqual(["a", "b"]);
+  });
+});
+
+describe("pesoRange", () => {
+  it("shows a single price or a range", () => {
+    expect(pesoRange(80_000, null)).toBe("₱800.00");
+    expect(pesoRange(80_000, 80_000)).toBe("₱800.00");
+    expect(pesoRange(80_000, 300_000)).toBe("₱800.00 – ₱3,000.00");
   });
 });

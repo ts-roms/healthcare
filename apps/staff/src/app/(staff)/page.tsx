@@ -21,9 +21,19 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { AppointmentItem, ClinicDashboard, DueCareActivity, LabCriticalAlert, LabDashboard, Me, Page, QueueVisit } from "@/lib/api/types";
+import type {
+  AppointmentItem,
+  ClinicDashboard,
+  DueCareActivity,
+  LabCriticalAlert,
+  LabDashboard,
+  LabQualitySummary,
+  Me,
+  Page,
+  QueueVisit,
+} from "@/lib/api/types";
 import { QUEUE_BOARD_STATUSES, toAppointment, todayIn, toQueueEntry, upcomingAppointments } from "@/lib/clinic-mapping";
-import { attentionItems, minutesLabel } from "@/lib/dashboard-mapping";
+import { attentionItems, minutesLabel, qualityAttentionItems } from "@/lib/dashboard-mapping";
 
 export const metadata = { title: "Dashboard" };
 
@@ -180,13 +190,17 @@ async function NextPatients({ session, facility }: { session: Me; facility: { id
   );
 }
 
-/** The facility laboratory today (GET /laboratory/dashboard) and critical results waiting for acknowledgement. */
+/**
+ * The facility laboratory today (GET /laboratory/dashboard), critical results waiting for acknowledgement, and for
+ * quality staff what the quality system needs (GET /laboratory/quality/summary).
+ */
 async function LaboratoryToday({ session }: { session: Me }) {
-  const [dashboard, criticals] = await Promise.all([
+  const [dashboard, criticals, quality] = await Promise.all([
     can(session, "lab.dashboard.read") ? api<LabDashboard>("/laboratory/dashboard") : Promise.resolve(null),
     can(session, "lab.result.read") ? api<LabCriticalAlert[]>("/laboratory/critical-results") : Promise.resolve([]),
+    can(session, "lab.qc.read") ? api<LabQualitySummary>("/laboratory/quality/summary") : Promise.resolve(null),
   ]);
-  if (!dashboard && criticals.length === 0) return null;
+  if (!dashboard && criticals.length === 0 && !quality) return null;
   const workbench = can(session, "lab.order.read") ? "/laboratory/worklist" : undefined;
   return (
     <section className="p-4 pt-0" aria-labelledby="lab-heading">
@@ -217,37 +231,40 @@ async function LaboratoryToday({ session }: { session: Me }) {
         ) : (
           <div />
         )}
-        <AttentionList
-          title="Laboratory"
-          items={[
-            ...(criticals.length
-              ? [
-                  {
-                    id: "lab-critical",
-                    severity: "critical" as const,
-                    count: criticals.length,
-                    title: "Critical results not yet acknowledged",
-                    detail: criticals
-                      .slice(0, 3)
-                      .map((c) => `${c.testName} — ${c.patient?.patientNumber ?? "patient"}`)
-                      .join(", "),
-                    href: "/laboratory/critical",
-                  },
-                ]
-              : []),
-            ...(dashboard?.overdue
-              ? [
-                  {
-                    id: "lab-overdue",
-                    severity: "warning" as const,
-                    count: dashboard.overdue,
-                    title: "Tests past their turnaround time",
-                    href: workbench,
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <div className="flex min-w-0 flex-col gap-4">
+          <AttentionList
+            title="Laboratory"
+            items={[
+              ...(criticals.length
+                ? [
+                    {
+                      id: "lab-critical",
+                      severity: "critical" as const,
+                      count: criticals.length,
+                      title: "Critical results not yet acknowledged",
+                      detail: criticals
+                        .slice(0, 3)
+                        .map((c) => `${c.testName} — ${c.patient?.patientNumber ?? "patient"}`)
+                        .join(", "),
+                      href: "/laboratory/critical",
+                    },
+                  ]
+                : []),
+              ...(dashboard?.overdue
+                ? [
+                    {
+                      id: "lab-overdue",
+                      severity: "warning" as const,
+                      count: dashboard.overdue,
+                      title: "Tests past their turnaround time",
+                      href: workbench,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          {quality ? <AttentionList title="Laboratory quality" items={qualityAttentionItems(quality)} /> : null}
+        </div>
       </div>
     </section>
   );

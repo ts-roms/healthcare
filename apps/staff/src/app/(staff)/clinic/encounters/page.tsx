@@ -62,7 +62,7 @@ export default async function EncountersPage() {
                     <Link href={`/clinic/encounters/${v.encounterId}`}>Open</Link>
                   </Button>
                 ) : canStart && canStartConsultation(v.status) ? (
-                  <StartConsultationButton visitId={v.id} />
+                  <StartConsultationButton visit={v} />
                 ) : null}
               </li>
             ))}

@@ -1,7 +1,8 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql,
-// 0047_reference_laboratory.sql, 0050_lab_quality.sql and 0051_lab_reagent_lots.sql (the migrations are the source of
+// 0047_reference_laboratory.sql, 0050_lab_quality.sql, 0051_lab_reagent_lots.sql, 0064_lab_reagent_use.sql,
+// 0065_lab_reagent_low_alert.sql and 0067_lab_reagent_tests_per_run.sql (the migrations are the source of
 // truth). Send-out tables (0047) are in send-outs/send-out.schema.ts.
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
@@ -119,6 +120,7 @@ export const labFacilityPolicy = pgTable("lab_facility_policy", {
   qcValidHours: integer("qc_valid_hours").notNull().default(24),
   qcRequired: boolean("qc_required").notNull().default(false),
   qcAfterReagentChange: boolean("qc_after_reagent_change").notNull().default(true),
+  competencyRequired: boolean("competency_required").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid("updated_by").notNull(),
   version: integer("version").notNull().default(1),
@@ -412,6 +414,8 @@ export const labReagentLoad = pgTable("lab_reagent_load", {
   stockLocationId: uuid("stock_location_id"),
   stockQuantity: integer("stock_quantity"),
   stockMovementGroupId: uuid("stock_movement_group_id"),
+  // 0064: tests the load holds (stock taken × the reagent's yield, or stated at the load); null when not known.
+  capacityTests: integer("capacity_tests"),
 });
 
 export const labResultReagent = pgTable(
@@ -434,7 +438,71 @@ export const labQcRunReagent = pgTable(
   (t) => [primaryKey({ columns: [t.qcRunId, t.reagentLoadId] })],
 );
 
+// ---- Reagent use per test run (0064) ---------------------------------------------------------
+
+export const REAGENT_USE_KINDS = ["patient", "qc", "repeat", "calibration", "priming", "waste", "other"] as const;
+export type ReagentUseKind = (typeof REAGENT_USE_KINDS)[number];
+/** Use recorded by staff (the others are recorded with results and QC runs). */
+export const MANUAL_REAGENT_USE_KINDS = ["repeat", "calibration", "priming", "waste", "other"] as const satisfies readonly ReagentUseKind[];
+
+/** 0067: tests one run of a test uses from a reagent (default 1 without a row). */
+export const labReagentTestUsage = pgTable(
+  "lab_reagent_test_usage",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    inventoryItemId: uuid("inventory_item_id").notNull(),
+    testId: uuid("test_id").notNull(),
+    testsPerRun: smallint("tests_per_run").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.inventoryItemId, t.testId] })],
+);
+
+export const labReagentYield = pgTable(
+  "lab_reagent_yield",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    inventoryItemId: uuid("inventory_item_id").notNull(),
+    itemCode: text("item_code").notNull(),
+    itemName: text("item_name").notNull(),
+    stockUnit: text("stock_unit").notNull(),
+    testsPerUnit: integer("tests_per_unit").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.inventoryItemId] })],
+);
+
+export const labReagentUse = pgTable("lab_reagent_use", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  reagentLoadId: uuid("reagent_load_id").notNull(),
+  kind: text("kind").$type<ReagentUseKind>().notNull(),
+  tests: integer("tests").notNull(),
+  orderId: uuid("order_id"),
+  resultId: uuid("result_id"),
+  runNumber: integer("run_number"),
+  qcRunId: uuid("qc_run_id"),
+  reason: text("reason"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  recordedBy: uuid("recorded_by").notNull(),
+});
+
+// 0065: one low-reagent alert per load.
+export const labReagentLowAlert = pgTable("lab_reagent_low_alert", {
+  reagentLoadId: uuid("reagent_load_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  capacityTests: integer("capacity_tests").notNull(),
+  remainingTests: integer("remaining_tests").notNull(),
+  raisedAt: timestamp("raised_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type LabReagentLoadRecord = typeof labReagentLoad.$inferSelect;
+export type LabReagentUseRecord = typeof labReagentUse.$inferSelect;
+export type LabReagentYieldRecord = typeof labReagentYield.$inferSelect;
 export type LabInstrumentRecord = typeof labInstrument.$inferSelect;
 export type LabInstrumentEventRecord = typeof labInstrumentEvent.$inferSelect;
 export type LabQcMaterialRecord = typeof labQcMaterial.$inferSelect;

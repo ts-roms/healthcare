@@ -5,6 +5,7 @@ import { ApiError } from "@healthcare/web-session";
 import { LabTrendChart } from "@healthcare/ui/healthcare";
 import { ResultMeaning } from "@/components/result-meaning";
 import { portalApi } from "@/lib/api/client";
+import { getMe } from "@/lib/api/session";
 import type { PortalTrend } from "@/lib/api/types";
 import { resultDate, resultValue, usualRange } from "@/lib/records";
 
@@ -13,6 +14,8 @@ export const metadata = { title: "Result" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function ResultPage({ params }: { params: Promise<{ testId: string }> }) {
+  // Dates and times are shown in the patient\'s clinic\'s time zone.
+  const { timeZone } = await getMe();
   const { testId } = await params;
   if (!UUID.test(testId)) notFound();
   let trend: PortalTrend;
@@ -39,7 +42,7 @@ export default async function ResultPage({ params }: { params: Promise<{ testId:
         </p>
         <ResultMeaning result={latest} />
         <p className="text-meta text-muted-foreground">
-          {usualRange(latest) ?? ""} · {resultDate(latest.collectedAt ?? latest.releasedAt)}
+          {usualRange(latest) ?? ""} · {resultDate(latest.collectedAt ?? latest.releasedAt, timeZone)}
           {latest.corrected ? " · updated by the laboratory" : ""}
           {latest.performingLaboratory ? ` · tested at ${latest.performingLaboratory}` : ""}
         </p>
@@ -70,7 +73,7 @@ export default async function ResultPage({ params }: { params: Promise<{ testId:
                 <span className="tabular font-semibold">
                   {resultValue(p)} {p.unit ?? ""}
                 </span>
-                <span className="text-meta text-muted-foreground">{resultDate(p.collectedAt ?? p.releasedAt)}</span>
+                <span className="text-meta text-muted-foreground">{resultDate(p.collectedAt ?? p.releasedAt, timeZone)}</span>
               </p>
               <ResultMeaning result={p} />
               {usualRange(p) ? <p className="text-meta text-muted-foreground">{usualRange(p)} (at the time)</p> : null}

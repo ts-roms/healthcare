@@ -18,6 +18,8 @@ export interface PortalMe {
   };
   organization: { name: string };
   account: { email: string };
+  /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
+  timeZone: string;
 }
 
 /** `GET /portal/appointments` row */
@@ -122,6 +124,8 @@ export interface PortalTeleconsult {
   appointmentId: string;
   startsAt: string;
   endsAt: string;
+  /** The facility's time zone. */
+  timeZone: string;
   appointmentStatus: string;
   practitionerName: string;
   visitType: string;
@@ -254,4 +258,103 @@ export interface PortalOnlinePayment {
   available: boolean;
   name: string;
   note: string;
+}
+
+// ---- Dental records (GET /portal/dental/*; only when the clinic shares them — libs/dental/src/lib/portal/dental-patient-access.ts) ----
+
+/** For the navigation: the clinic shares dental records in MyHealth and there is something to show. */
+export interface PortalDentalAvailability {
+  available: boolean;
+}
+
+export type PortalToothCondition =
+  "caries" | "restoration" | "sealant" | "fracture" | "crown" | "root_canal" | "missing" | "implant" | "pontic" | "impacted" | "unerupted" | "watch";
+export type PortalToothSurface = "M" | "D" | "O" | "I" | "B" | "L";
+export type PortalDentalPlanStatus = "proposed" | "accepted" | "in_progress" | "completed" | "declined" | "discontinued";
+export type PortalDentalItemStatus = "proposed" | "accepted" | "declined" | "completed" | "cancelled";
+
+export interface PortalDentalPlan {
+  id: string;
+  title: string;
+  status: PortalDentalPlanStatus;
+  /** Where the latest decision was taken. */
+  decidedIn: "clinic" | "myhealth" | null;
+  /** The patient can accept or decline items awaiting their decision here. */
+  canDecide: boolean;
+  /** Calendar dates (YYYY-MM-DD). */
+  proposedOn: string;
+  decidedOn: string | null;
+  facilityName: string | null;
+  dentistName: string | null;
+  items: Array<{
+    id: string;
+    phase: number;
+    /** FDI code, shown in the record's notation; null: the whole mouth. */
+    tooth: string | null;
+    surfaces: PortalToothSurface[];
+    procedureName: string;
+    status: PortalDentalItemStatus;
+    /** Null for an item that is no longer planned. */
+    decision: "awaiting" | "accepted" | "declined" | null;
+    /** With an estimate: the listed price (centavos) of work still ahead; null: no listed price or not ahead. */
+    estimatedFee?: number | null;
+    /** The high end when the treatment may turn out to be another (its fee is a range); null: a single price. */
+    estimatedFeeHigh?: number | null;
+    /** With a range: what the treatment may turn out to be. */
+    mayBecome?: string[];
+  }>;
+  /** Only when the clinic shows fee estimates in MyHealth and something on the plan is still ahead. */
+  estimate: PortalPlanEstimate | null;
+}
+
+/** The fee estimate of the work still ahead on a plan, at the clinic's listed prices (centavos). */
+export interface PortalPlanEstimate {
+  pricedOn: string;
+  awaitingDecision: number;
+  accepted: number;
+  remaining: number;
+  /** High ends of the totals (the same as the above when no treatment has a fee range). */
+  awaitingDecisionHigh: number;
+  acceptedHigh: number;
+  remainingHigh: number;
+  unpricedItems: number;
+  disclaimer: string;
+  note: string | null;
+}
+
+export interface PortalDentalProcedure {
+  id: string;
+  performedOn: string;
+  tooth: string | null;
+  surfaces: PortalToothSurface[];
+  procedureName: string;
+  facilityName: string | null;
+  dentistName: string | null;
+}
+
+export interface PortalDentalTooth {
+  tooth: string;
+  /** Empty: checked, nothing noted. */
+  conditions: Array<{ condition: PortalToothCondition; surfaces: PortalToothSurface[] }>;
+  updatedOn: string;
+}
+
+/** An X-ray or photo the dentist shared (opened through a short-lived link). */
+export interface PortalDentalImage {
+  id: string;
+  kind: "periapical" | "bitewing" | "panoramic" | "cephalometric" | "occlusal" | "cbct" | "intraoral_photo" | "extraoral_photo" | "other";
+  teeth: string[];
+  takenOn: string;
+  sharedOn: string;
+  facilityName: string | null;
+}
+
+export interface PortalDentalRecord {
+  notation: "fdi" | "universal" | "palmer";
+  chart: PortalDentalTooth[];
+  plans: PortalDentalPlan[];
+  procedures: PortalDentalProcedure[];
+  images: PortalDentalImage[];
+  /** Online plan decisions: allowed or not, and the clinic's text the patient confirms. */
+  decisions: { enabled: boolean; acknowledgement: string | null };
 }

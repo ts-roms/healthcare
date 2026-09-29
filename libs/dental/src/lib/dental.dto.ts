@@ -18,6 +18,27 @@ const reason = z.string().trim().min(5).max(500);
 export const notationSchema = z.object({ notation: z.enum(NOTATIONS) });
 export class NotationDto extends createZodDto(notationSchema) {}
 
+/** Whether patients see their dental records in MyHealth; `version` is the current setting's (0 when never set). */
+export const portalSettingSchema = z.object({
+  portalDentalRecords: z.boolean(),
+  /** Patients decide plan items in MyHealth (left out: unchanged). */
+  portalPlanDecisions: z.boolean().optional(),
+  /** The organization's own text patients confirm before deciding online (left out: unchanged). */
+  portalPlanAcknowledgement: z.string().trim().min(20).max(1000).nullable().optional(),
+  /** MyHealth shows fee estimates on plans (left out: unchanged). */
+  portalPlanEstimates: z.boolean().optional(),
+  /** The organization's own note under fee estimates (left out: unchanged; empty or null removes it). */
+  feeEstimateNote: z
+    .string()
+    .trim()
+    .max(500)
+    .nullable()
+    .optional()
+    .refine((v) => !v || v.length >= 10, "Write at least 10 characters, or leave it empty"),
+  version: z.number().int().min(0),
+});
+export class PortalSettingDto extends createZodDto(portalSettingSchema) {}
+
 export const createProcedureTypeSchema = z.object({
   code,
   name: z.string().trim().min(1).max(160),
@@ -152,3 +173,78 @@ export const recordPerioChartSchema = z.object({
     .max(52),
 });
 export class RecordPerioChartDto extends createZodDto(recordPerioChartSchema) {}
+
+// ---- supplies used (inventory) ------------------------------------------------------------------------
+
+const supplyQuantity = z.number().int().min(1).max(1000);
+const idempotencyKey = z.string().trim().min(8).max(100);
+const supplyReference = z.string().trim().min(1).max(80);
+
+export const supplyTemplateSchema = z.object({
+  /** The supplies this procedure usually uses, in order; an empty list clears the template. */
+  items: z.array(z.object({ itemId: z.uuid(), quantity: supplyQuantity })).max(30),
+});
+export class SupplyTemplateDto extends createZodDto(supplyTemplateSchema) {}
+
+export const supplyLocationSchema = z.object({ locationId: z.uuid().nullable() });
+export class SupplyLocationDto extends createZodDto(supplyLocationSchema) {}
+
+export const recordSuppliesSchema = z.object({
+  /** A stock location of the procedure's facility (the selected facility). */
+  locationId: z.uuid(),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.uuid(),
+        quantity: supplyQuantity,
+        /** Required with the reference for a controlled item (inventory enforces it). */
+        reason: z.string().trim().min(3).max(500).optional(),
+        reference: supplyReference.optional(),
+      }),
+    )
+    .min(1)
+    .max(30),
+  idempotencyKey,
+});
+export class RecordSuppliesDto extends createZodDto(recordSuppliesSchema) {}
+
+export const returnSuppliesSchema = z.object({
+  /** Issued lines of this procedure and how much of each comes back unused. */
+  lines: z
+    .array(z.object({ lineId: z.uuid(), quantity: supplyQuantity }))
+    .min(1)
+    .max(60),
+  reason: z.string().trim().min(3).max(500),
+  /** Required for a controlled item (inventory enforces it). */
+  reference: supplyReference.optional(),
+  idempotencyKey,
+});
+export class ReturnSuppliesDto extends createZodDto(returnSuppliesSchema) {}
+
+// ---- MyHealth ---------------------------------------------------------------------------------------
+
+export const withdrawImageSchema = z.object({ reason });
+export class WithdrawImageDto extends createZodDto(withdrawImageSchema) {}
+
+export const patientPlanDecisionSchema = z.object({
+  /** Items the patient accepts; every other item awaiting a decision is declined. */
+  acceptedItemIds: z.array(z.uuid()).max(60),
+  /** The items that were awaiting a decision when the patient looked (the plan must not have changed since). */
+  awaitingItemIds: z.array(z.uuid()).min(1).max(60),
+  /** The patient confirmed the organization's acknowledgement. */
+  acknowledged: z.literal(true, { message: "Confirm the acknowledgement to continue" }),
+  /**
+   * The estimate (centavos) of the items awaiting a decision the patient was shown, when the clinic shows estimates;
+   * a different current estimate means the prices changed since and nothing is decided.
+   */
+  estimateAwaitingDecision: z.number().int().min(0).nullable().optional(),
+  /** The high end of that total when items have fee ranges (left out: the same as the low end). */
+  estimateAwaitingDecisionHigh: z.number().int().min(0).nullable().optional(),
+});
+export class PatientPlanDecisionDto extends createZodDto(patientPlanDecisionSchema) {}
+
+export const procedureAlternativesSchema = z.object({
+  /** The procedures this one may turn out to be (replaces the list; at most 10). */
+  alternativeIds: z.array(z.uuid()).max(10),
+});
+export class ProcedureAlternativesDto extends createZodDto(procedureAlternativesSchema) {}

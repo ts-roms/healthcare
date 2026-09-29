@@ -1,9 +1,11 @@
 import {
   BuildingIcon,
+  ChartColumnIcon,
   ClipboardListIcon,
   CalendarDaysIcon,
   FileInputIcon,
   FlaskConicalIcon,
+  CircleHelpIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
   MessageSquareIcon,
@@ -65,6 +67,11 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Catalog", href: "/laboratory/catalog", roles: ["lab-tech", "admin"] },
       { label: "Quality control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
       { label: "Instruments", href: "/laboratory/instruments", roles: ["lab-tech", "admin"] },
+      { label: "Reagent use", href: "/laboratory/reagents", roles: ["lab-tech", "admin"] },
+      { label: "Temperatures", href: "/laboratory/temperatures", roles: ["lab-tech", "admin"] },
+      { label: "Nonconformances", href: "/laboratory/nonconformances", roles: ["lab-tech", "admin"] },
+      { label: "Proficiency testing", href: "/laboratory/eqa", roles: ["lab-tech", "admin"] },
+      { label: "Competency", href: "/laboratory/competency", roles: ["lab-tech", "admin"] },
     ],
   },
   {
@@ -82,6 +89,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Pharmacy", href: "/pharmacy", icon: PillIcon, roles: ["nurse", "admin"] },
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
+  { label: "Management", href: "/management", icon: ChartColumnIcon, roles: ["admin"] },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
   {
     label: "Records",
@@ -97,6 +105,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     roles: ["admin"],
     children: [{ label: "Integrations", href: "/admin/integrations" }],
   },
+  { label: "Help", href: "/help", icon: CircleHelpIcon },
 ];
 
 export function navigationForRole(role: StaffRole, items: NavItem[] = STAFF_NAVIGATION): NavItem[] {

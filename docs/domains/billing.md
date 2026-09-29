@@ -26,7 +26,10 @@ organization `vatable + VAT + exempt + zero-rated = net`).
 - `billing_service` — billable service (code, name, category: consultation, procedure, laboratory, dental,
   telemedicine, supply, other), optionally mapped to a clinical source for automatic capture: a **visit type code**
   (charged when an encounter of that visit type is signed), a **laboratory test code** (charged when ordered) or a
-  **dental procedure code** (charged when performed; see [dental.md](dental.md)). Its optional **VAT class**
+  **dental procedure code** (charged when performed; the same mapping and the price on a date give dental treatment
+  plans their fee estimates through `BillingPriceQueries`, read-only — see [dental.md](dental.md#fee-estimates)). A
+  service mapped to a dental procedure has a **charge unit** (`charge_unit`, migration `0067`): `each` (default — the
+  price is per procedure) or `surface` (the price is per surface treated); every other service is `each` (CHECK). Its optional **VAT class**
   (`vatable`, `vat_exempt`, `zero_rated`) is configuration. A **package** is a service with `is_package`, an optional
   validity in days and its contents in `billing_package_item` (services and quantities, fixed once created).
 - `billing_service_price` — versioned prices with effective dates (no overlaps: exclusion constraint). Adding a price
@@ -75,8 +78,11 @@ organization `vatable + VAT + exempt + zero-rated = net`).
 
 - **Capture** (`ChargeCapture`, outbox handlers): `EncounterCompleted` → the visit type's service (signed encounters
   only); `LaboratoryOrderCreated` → one charge per non-cancelled item with a mapped test; `LaboratoryOrderCancelled` →
-  its pending charges are cancelled (invoiced ones need a void). Unmapped or unpriced sources are not charged and do not
-  fail the clinical workflow; staff add a manual charge.
+  its pending charges are cancelled (invoiced ones need a void); `DentalProcedurePerformed` → the procedure's service,
+  with **quantity** = the surfaces treated (at least one) when its charge unit is `surface`, else 1, at the listed unit
+  price (`chargeQuantity`; a package covers it only when enough is left for the whole quantity). Unmapped or unpriced
+  sources are not charged and do not fail the clinical workflow; staff add a manual charge. A changed charge unit
+  applies to charges captured afterwards (audited with the service update).
 - **Manual charges** use the listed price; another price needs a reason (audited with both prices). A package is sold,
   not added as a charge (`package_sold_separately`).
 - **Packages**: selling one (`billing.charge.capture`) records an enrollment and a charge for the package at today's

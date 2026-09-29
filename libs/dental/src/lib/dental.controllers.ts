@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, type StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, BadRequestError, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, BadRequestError, CurrentActor, pdfFile, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { DentalCatalogService } from "./catalog/dental-catalog.service";
 import { DentalChartService } from "./chart/dental-chart.service";
 import {
@@ -13,18 +13,28 @@ import {
   DiscontinuePlanDto,
   EnteredInErrorDto,
   NotationDto,
+  PortalSettingDto,
   RecordExaminationDto,
   RecordPerioChartDto,
   RecordProcedureDto,
+  RecordSuppliesDto,
+  ReturnSuppliesDto,
+  SupplyLocationDto,
+  SupplyTemplateDto,
   UpdateProcedureTypeDto,
+  ProcedureAlternativesDto,
+  WithdrawImageDto,
   VisitsQueryDto,
 } from "./dental.dto";
 import { isTooth } from "./dental.rules";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
+import { DentalFeeEstimates } from "./plans/dental-fee-estimates";
 import { DentalPlanService } from "./plans/dental-plan.service";
+import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
+import { DentalSuppliesService } from "./supplies/dental-supplies.service";
 
 @ApiTags("dental")
 @ApiBearerAuth()
@@ -128,6 +138,21 @@ export class DentalRecordController {
     return this.imaging.link(actor, id);
   }
 
+  @Post("images/:imageId/release")
+  @RequirePermissions("dental.imaging.release")
+  @ApiOperation({ summary: "Share an image with the patient in MyHealth (seen only while the organization shares dental records)" })
+  releaseImage(@CurrentActor() actor: Actor, @Param("imageId", ParseUUIDPipe) id: string) {
+    return this.imaging.release(actor, id);
+  }
+
+  @Post("images/:imageId/withdraw")
+  @HttpCode(200)
+  @RequirePermissions("dental.imaging.release")
+  @ApiOperation({ summary: "Stop sharing an image in MyHealth (with a reason)" })
+  withdrawImage(@CurrentActor() actor: Actor, @Param("imageId", ParseUUIDPipe) id: string, @Body() body: WithdrawImageDto) {
+    return this.imaging.withdraw(actor, id, body.reason);
+  }
+
   @Post("images/:imageId/entered-in-error")
   @HttpCode(200)
   @RequirePermissions("dental.record.write")
@@ -140,7 +165,10 @@ export class DentalRecordController {
 @ApiBearerAuth()
 @Controller({ path: "dental/treatment-plans", version: "1" })
 export class DentalPlanController {
-  constructor(private readonly plans: DentalPlanService) {}
+  constructor(
+    private readonly plans: DentalPlanService,
+    private readonly estimates: DentalFeeEstimates,
+  ) {}
 
   @Post()
   @RequireFacility()
@@ -154,6 +182,23 @@ export class DentalPlanController {
   @RequirePermissions("dental.record.read")
   get(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string) {
     return this.plans.get(actor.organizationId, id);
+  }
+
+  @Get(":planId/estimate")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({
+    summary: "Fee estimate of the work still ahead on a plan, at billing's listed prices today (no discounts, packages or coverage)",
+  })
+  estimate(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string) {
+    return this.estimates.forPlan(actor.organizationId, id);
+  }
+
+  @Get(":planId/estimate.pdf")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({ summary: "Printable fee estimate for the patient (audited)" })
+  async estimatePdf(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.estimates.pdf(actor, id);
+    return pdfFile(pdf, filename);
   }
 
   @Post(":planId/items")
@@ -194,7 +239,10 @@ export class DentalPlanController {
 @ApiBearerAuth()
 @Controller({ path: "dental", version: "1" })
 export class DentalSettingsController {
-  constructor(private readonly catalog: DentalCatalogService) {}
+  constructor(
+    private readonly catalog: DentalCatalogService,
+    private readonly portal: DentalPortalSettings,
+  ) {}
 
   @Get("settings")
   @RequirePermissions("dental.record.read")
@@ -205,6 +253,20 @@ export class DentalSettingsController {
       this.catalog.procedureTypes(actor.organizationId),
     ]);
     return { notation, procedureTypes };
+  }
+
+  @Get("settings/portal")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({ summary: "Whether patients see their dental records (plans, completed procedures, chart) in MyHealth" })
+  portalSetting(@CurrentActor() actor: Actor) {
+    return this.portal.get(actor.organizationId);
+  }
+
+  @Put("settings/portal")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Turn MyHealth dental records on or off for the organization (audited; optimistic version)" })
+  setPortalSetting(@CurrentActor() actor: Actor, @Body() body: PortalSettingDto) {
+    return this.portal.set(actor, body);
   }
 
   @Put("facilities/:facilityId/notation")
@@ -224,5 +286,60 @@ export class DentalSettingsController {
   @RequirePermissions("dental.settings.manage")
   updateProcedureType(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: UpdateProcedureTypeDto) {
     return this.catalog.updateProcedureType(actor, id, body);
+  }
+
+  @Put("procedure-types/:procedureTypeId/alternatives")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Set the procedures this procedure may turn out to be (fee ranges on estimates; a plan item may be carried out as any of them)" })
+  setAlternatives(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: ProcedureAlternativesDto) {
+    return this.catalog.setAlternatives(actor, id, body.alternativeIds);
+  }
+}
+
+@ApiTags("dental")
+@ApiBearerAuth()
+@Controller({ path: "dental", version: "1" })
+export class DentalSuppliesController {
+  constructor(private readonly supplies: DentalSuppliesService) {}
+
+  @Get("supplies/options")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({
+    summary: "Supply templates per procedure type, active inventory items and, for the selected facility, stock locations, usable stock and the default",
+  })
+  options(@CurrentActor() actor: Actor) {
+    return this.supplies.options(actor);
+  }
+
+  @Put("procedure-types/:procedureTypeId/supplies")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Set the supplies a procedure usually uses (inventory items and quantities; staff confirm each time)" })
+  setTemplate(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: SupplyTemplateDto) {
+    return this.supplies.setTemplate(actor, id, body);
+  }
+
+  @Put("facilities/:facilityId/supply-location")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "The stock location of the facility dental supplies are taken from by default (null: none)" })
+  setLocation(@CurrentActor() actor: Actor, @Param("facilityId", ParseUUIDPipe) facilityId: string, @Body() body: SupplyLocationDto) {
+    return this.supplies.setLocation(actor, facilityId, body.locationId);
+  }
+
+  @Post("procedures/:procedureId/supplies")
+  @RequireFacility()
+  @RequirePermissions("dental.procedure.record")
+  @ApiOperation({
+    summary: "Record the supplies a procedure used and issue them from stock (FEFO, never expired lots; all lines or nothing; idempotent by key)",
+  })
+  record(@CurrentActor() actor: Actor, @Param("procedureId", ParseUUIDPipe) procedureId: string, @Body() body: RecordSuppliesDto) {
+    return this.supplies.record(actor, procedureId, body);
+  }
+
+  @Post("procedures/:procedureId/supplies/returns")
+  @RequireFacility()
+  @RequirePermissions("dental.procedure.record")
+  @ApiOperation({ summary: "Return unused supplies of a procedure to the lots they were issued from (with a reason)" })
+  returnUnused(@CurrentActor() actor: Actor, @Param("procedureId", ParseUUIDPipe) procedureId: string, @Body() body: ReturnSuppliesDto) {
+    return this.supplies.returnUnused(actor, procedureId, body);
   }
 }

@@ -1,5 +1,7 @@
 export * from "./lib/billing.dto";
 export * from "./lib/billing.module";
+export * from "./lib/billing-record.queries";
+export * from "./lib/billing-reporting.queries";
 export * from "./lib/billing.rules";
 export * from "./lib/billing.schema";
 export * from "./lib/charges/charge.service";
@@ -14,3 +16,4 @@ export * from "./lib/payments/online-payment.service";
 export * from "./lib/payments/payment-gateway";
 export * from "./lib/payments/payment.service";
 export * from "./lib/ports";
+export * from "./lib/catalog/billing-price.queries";

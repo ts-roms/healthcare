@@ -30,6 +30,12 @@ export class NotificationController {
     return this.notifications.inbox(actor);
   }
 
+  @Get("me/notifications/unread-count")
+  @ApiOperation({ summary: "Number of unread in-app messages of the signed-in user" })
+  async unreadCount(@CurrentActor() actor: Actor): Promise<{ unread: number }> {
+    return { unread: await this.notifications.unreadCount(actor) };
+  }
+
   @Post("me/notifications/:notificationId/read")
   @HttpCode(204)
   async markRead(@CurrentActor() actor: Actor, @Param("notificationId", ParseUUIDPipe) notificationId: string): Promise<void> {

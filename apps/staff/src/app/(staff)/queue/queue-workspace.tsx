@@ -166,9 +166,14 @@ function VisitPanel({
             </p>
           ) : null}
           {canOpenRecord ? (
-            <Link href={`/patients/${visit.patientId}`} className="inline-flex items-center gap-1 text-table text-primary hover:underline">
-              Open patient record <ExternalLinkIcon className="size-3.5" aria-hidden />
-            </Link>
+            <span className="flex flex-wrap gap-x-3">
+              <Link href={`/patients/${visit.patientId}/360`} className="inline-flex items-center gap-1 text-table text-primary hover:underline">
+                Patient 360 <ExternalLinkIcon className="size-3.5" aria-hidden />
+              </Link>
+              <Link href={`/patients/${visit.patientId}`} className="inline-flex items-center gap-1 text-table text-primary hover:underline">
+                Open patient record <ExternalLinkIcon className="size-3.5" aria-hidden />
+              </Link>
+            </span>
           ) : null}
         </div>
         <dl className="grid grid-cols-[7rem_1fr] gap-x-2 gap-y-1 text-table">
@@ -202,7 +207,7 @@ function VisitPanel({
             </Link>
           </Button>
         ) : canConsult && canStartConsultation(visit.status) ? (
-          <StartConsultationButton visitId={visit.id} />
+          <StartConsultationButton visit={visit} />
         ) : null}
         {mayTriage && canTriage(visit.status) ? (
           <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>

@@ -1,5 +1,9 @@
 import {
   addDays,
+  invoiceableQuantity,
+  invoiceOverdue,
+  priceVariance,
+  supplierInvoiceAllows,
   allocateFefo,
   crossedReorderLevel,
   expiryStatus,
@@ -90,5 +94,29 @@ describe("purchase order rules", () => {
     expect(reorderSuggestion(5, 0, 10, 50)).toEqual({ needed: true, suggestedQuantity: 50 });
     expect(reorderSuggestion(5, 20, 10, 50)).toEqual({ needed: false, suggestedQuantity: null });
     expect(reorderSuggestion(10, 0, 10, null)).toEqual({ needed: true, suggestedQuantity: null });
+  });
+});
+
+describe("supplier invoices", () => {
+  it("moves recorded → approved → paid, and voids only unpaid invoices", () => {
+    expect(supplierInvoiceAllows("recorded", "approve")).toBe(true);
+    expect(supplierInvoiceAllows("recorded", "pay")).toBe(false);
+    expect(supplierInvoiceAllows("approved", "pay")).toBe(true);
+    expect(supplierInvoiceAllows("approved", "void")).toBe(true);
+    expect(supplierInvoiceAllows("paid", "void")).toBe(false);
+    expect(supplierInvoiceAllows("void", "approve")).toBe(false);
+  });
+
+  it("invoices only what was received and not yet invoiced", () => {
+    expect(invoiceableQuantity({ quantityReceived: 100, quantityInvoiced: 60 })).toBe(40);
+    expect(invoiceableQuantity({ quantityReceived: 50, quantityInvoiced: 60 })).toBe(0);
+  });
+
+  it("shows price differences from the order, and overdue open invoices", () => {
+    expect(priceVariance(850, 900)).toBe(50);
+    expect(priceVariance(null, 900)).toBeNull();
+    expect(invoiceOverdue({ status: "approved", dueDate: "2026-09-01" }, "2026-09-02")).toBe(true);
+    expect(invoiceOverdue({ status: "paid", dueDate: "2026-09-01" }, "2026-09-02")).toBe(false);
+    expect(invoiceOverdue({ status: "recorded", dueDate: null }, "2026-09-02")).toBe(false);
   });
 });

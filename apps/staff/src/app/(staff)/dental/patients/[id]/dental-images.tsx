@@ -2,18 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, UploadIcon } from "lucide-react";
+import { ExternalLinkIcon, SmartphoneIcon, UploadIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { DentalImage, DentalImageKind } from "@/lib/api/types";
 import { IMAGE_KINDS } from "@/lib/dental-mapping";
-import { addDentalImage, dentalImageLink, markImageEnteredInError } from "../../actions";
+import { addDentalImage, dentalImageLink, markImageEnteredInError, releaseDentalImage, withdrawDentalImage } from "../../actions";
 import { EnteredInError } from "./entered-in-error";
 
 /**
  * Radiographs and photos. Files are private documents in object storage; opening one asks the API for a short-lived
- * signed link (audited). Only metadata lives in the dental record.
+ * signed link (audited). Only metadata lives in the dental record. A dentist can share an image with the patient in
+ * MyHealth (seen only while the organization shows dental records there) and stop sharing it with a reason.
  */
 export function DentalImages({
   patientId,
@@ -24,6 +25,8 @@ export function DentalImages({
   canRead,
   canUpload,
   canCorrect,
+  canRelease = false,
+  portalOn = false,
 }: {
   patientId: string;
   images: DentalImage[];
@@ -33,6 +36,10 @@ export function DentalImages({
   canRead: boolean;
   canUpload: boolean;
   canCorrect: boolean;
+  /** `dental.imaging.release` */
+  canRelease?: boolean;
+  /** The organization shows dental records in MyHealth (otherwise shared images stay hidden from the patient). */
+  portalOn?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -133,6 +140,33 @@ export function DentalImages({
                         <ExternalLinkIcon /> Open
                       </Button>
                     ) : null}
+                    {image.release ? (
+                      <Badge variant="info" title={portalOn ? undefined : "MyHealth dental records are off: the patient does not see it yet"}>
+                        <SmartphoneIcon aria-hidden /> Shared in MyHealth{portalOn ? "" : " (records off)"}
+                      </Badge>
+                    ) : null}
+                    {canRelease ? (
+                      image.release ? (
+                        <StopSharing onConfirm={(reason) => withdrawDentalImage(patientId, image.id, reason)} />
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          disabled={pending}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const result = await releaseDentalImage(patientId, image.id);
+                              if (result.ok) {
+                                toast.success("Shared with the patient in MyHealth");
+                                router.refresh();
+                              } else toast.error(result.message);
+                            })
+                          }
+                        >
+                          <SmartphoneIcon /> Share in MyHealth
+                        </Button>
+                      )
+                    ) : null}
                     {canCorrect ? <EnteredInError what="Image" onConfirm={(reason) => markImageEnteredInError(patientId, image.id, reason)} /> : null}
                   </>
                 )}
@@ -142,5 +176,52 @@ export function DentalImages({
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+/** Stops sharing an image in MyHealth, with the reason (kept in the release history). */
+function StopSharing({ onConfirm }: { onConfirm: (reason: string) => Promise<{ ok: true } | { ok: false; message: string }> }) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [reason, setReason] = React.useState("");
+  const [pending, startTransition] = React.useTransition();
+  if (!open) {
+    return (
+      <Button size="xs" variant="ghost" onClick={() => setOpen(true)}>
+        Stop sharing…
+      </Button>
+    );
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <Input
+        aria-label="Why stop sharing this image?"
+        placeholder="Reason (e.g. shared the wrong image)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        className="h-7 w-56"
+        autoFocus
+      />
+      <Button
+        size="xs"
+        variant="outline"
+        disabled={pending || reason.trim().length < 5}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await onConfirm(reason);
+            if (result.ok) {
+              toast.success("No longer shared in MyHealth");
+              setOpen(false);
+              router.refresh();
+            } else toast.error(result.message);
+          })
+        }
+      >
+        Stop sharing
+      </Button>
+      <Button size="xs" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+        Cancel
+      </Button>
+    </span>
   );
 }

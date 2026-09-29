@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FlaskConicalIcon, LogOutIcon } from "lucide-react";
+import { BellIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
@@ -18,10 +19,16 @@ export interface StaffShellProps {
   organizationName: string;
   facilities: { id: string; name: string }[];
   facilityId: string | null;
+  /** The selected facility's time zone; clinical times in the page are shown in it (Asia/Manila when none). */
+  timeZone: string | null;
+  /** Unread in-app messages of the signed-in user. */
+  unreadNotices: number;
   children: React.ReactNode;
 }
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, children }: StaffShellProps) {
+export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, children }: StaffShellProps) {
+  // Set during render, before the page below renders, so every client component formats times in the facility's zone.
+  setClinicTimeZone(timeZone);
   const pathname = usePathname();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -65,6 +72,20 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               ))}
             </NativeSelect>
           ) : null}
+          <Button asChild variant="ghost" size="icon" className="relative">
+            <Link
+              href="/notifications"
+              aria-label={unreadNotices ? `Notifications, ${unreadNotices} unread` : "Notifications"}
+              title={unreadNotices ? `${unreadNotices} unread` : "Notifications"}
+            >
+              <BellIcon />
+              {unreadNotices ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
+                  {unreadNotices > 99 ? "99+" : unreadNotices}
+                </span>
+              ) : null}
+            </Link>
+          </Button>
           <div className="hidden text-right leading-tight lg:block">
             <p className="text-table font-medium">{user.displayName}</p>
             <p className="text-meta text-muted-foreground">{organizationName}</p>

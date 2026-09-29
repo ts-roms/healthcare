@@ -1,7 +1,7 @@
 import type { Bundle, BundleEntry, BundleLink, CapabilityStatement, FhirResource, OperationOutcome } from "fhir/r4";
 import { toLocation, toOrganization, toPatient, toPractitioner } from "./administrative";
 import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnownAllergies, toVitalSignObservations } from "./clinical";
-import { toDentalFindingObservations, toDentalProcedure, toPerioObservations } from "./dental";
+import { dentalResources } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
@@ -29,14 +29,17 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 
 /**
  * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
- * immutable once issued (cancel/replace records its time), exported documents never change after upload, and external
- * history entries (the only MedicationStatements, and imported document descriptions) change only when marked entered
- * in error (database triggers), and dental procedures are immutable except for being marked entered in error (with its
- * time). The other records are updated in place without a trustworthy change time for
- * everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for them rather
- * than answered approximately.
+ * immutable once issued (cancel/replace records its time), exported documents never change after upload (a dental
+ * image's description only when added or marked entered in error), external history entries (the only
+ * MedicationStatements, and imported document descriptions) and dental procedures (the only Procedures) change only
+ * when marked entered in error (database triggers). The other records are updated in place without a trustworthy
+ * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
+ * them rather than answered approximately.
  */
 export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference", "Procedure"];
+
+/** Types that include dental records (withheld from callers who may not read the dental record). */
+export const DENTAL_TYPES: readonly CompartmentType[] = ["Observation", "CarePlan", "Procedure"];
 
 /** Every resource of one patient's record, the patient first; shared resources (organization, facilities, practitioners) after. */
 export function patientResources(ctx: FhirContext, src: PatientRecordSource): { patient: FhirResource; clinical: FhirResource[]; supporting: FhirResource[] } {
@@ -59,11 +62,10 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
   for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
-  for (const p of src.dental?.procedures ?? []) clinical.push(toDentalProcedure(ctx, patientId, p));
-  for (const t of src.dental?.chart ?? []) clinical.push(...toDentalFindingObservations(ctx, patientId, t));
-  for (const c of src.dental?.perioCharts ?? []) clinical.push(...toPerioObservations(ctx, patientId, c));
   // External history (tagged as imported); document descriptions are withheld with the documents.
   for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
+  // Dental record (withheld, with a notice, from callers who may not read it); dental images are documents, above.
+  if (src.dental) clinical.push(...dentalResources(ctx, patientId, src.dental));
 
   const supporting: FhirResource[] = [
     toOrganization(ctx),
@@ -146,13 +148,16 @@ function searchset(
 }
 
 const DOCUMENTS_WITHHELD = "DocumentReference resources are not included: this account may not read documents (document.read).";
+const DENTAL_WITHHELD =
+  "Dental records (Procedure resources, and dental CarePlan and Observation resources) are not included: this account may not read the dental record (dental.record.read).";
 
 /** Patient/$everything: the patient's whole record as a searchset Bundle, paged (the Patient comes first). */
 export function patientEverything(ctx: FhirContext, src: PatientRecordSource, paging: Paging = DEFAULT_PAGING, now = new Date()): Bundle {
   const { patient, clinical, supporting } = patientResources(ctx, src);
   const matches = [patient, ...clinical];
   const path = `${ctx.baseUrl}/Patient/${src.patient.id}/$everything`;
-  return searchset(ctx, matches, supporting, paging, links(path, [], paging, matches.length), now, src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []);
+  const notices = [...(src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []), ...(src.dental === null ? [notice(DENTAL_WITHHELD)] : [])];
+  return searchset(ctx, matches, supporting, paging, links(path, [], paging, matches.length), now, notices);
 }
 
 /** A search by patient for one resource type (e.g. Observation?patient=…), paged and optionally filtered by `_lastUpdated`. */
@@ -168,16 +173,20 @@ export function searchByPatient(
   const query: Array<[string, string]> = [["patient", src.patient.id]];
   if (params.lastUpdated.ge !== undefined) query.push(["_lastUpdated", `ge${params.lastUpdated.ge}`]);
   if (params.lastUpdated.le !== undefined) query.push(["_lastUpdated", `le${params.lastUpdated.le}`]);
-  return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, []);
+  const notices = src.dental === null && DENTAL_TYPES.includes(type) ? [notice(DENTAL_WITHHELD)] : [];
+  return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, notices);
 }
 
 const IMPORTED = "Resources received from other systems (accepted FHIR imports) carry meta.tag record-source#external-import.";
+const DENTAL = "Dental resources require dental.record.read (withheld otherwise, with an OperationOutcome notice); dental codes are local code systems.";
 const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
   Condition: `Diagnoses recorded in encounters, and conditions from other systems (always unconfirmed). ${IMPORTED}`,
   AllergyIntolerance: `${IMPORTED} Imported allergies are always unconfirmed.`,
-  Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), and observations from other systems. ${IMPORTED}`,
+  Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), observations from other systems, and dental observations (category exam: examinations, the current tooth chart, periodontal charts). ${IMPORTED} ${DENTAL}`,
   MedicationStatement: `Medication history from other systems only (never a prescription of this organization). ${IMPORTED}`,
-  DocumentReference: `Available documents only (not archived ones), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
+  CarePlan: `Care plans, and dental treatment plans (category dental; the patient's decision per item as the activity's status reason). ${DENTAL}`,
+  DocumentReference: `Available documents only (not archived ones; dental images with their kind, teeth and visit), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
+  Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces). ${DENTAL}`,
 };
 
 /** What this read-only endpoint supports (GET /metadata). */
@@ -197,7 +206,8 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
         mode: "server",
         security: {
           cors: false,
-          description: "Bearer token of a staff account holding interop.fhir.read, with the organization selected. Every access is audited.",
+          description:
+            "Bearer token of a staff account holding interop.fhir.read, with the organization selected; documents also need document.read, the dental record dental.record.read. Every access is audited.",
         },
         documentation:
           `Searches and Patient/$everything are paged: _count (default ${PAGE_SIZE.default}, at most ${PAGE_SIZE.max}; 0 returns only the total) ` +

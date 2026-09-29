@@ -15,6 +15,8 @@ export const COOKIES = {
   refresh: "hc_rt",
   mfaChallenge: "hc_mfa",
   facility: "hc_fac",
+  /** The selected facility's time zone (not a secret; display only), so server rendering can show its times. */
+  timeZone: "hc_tz",
 } as const;
 
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";

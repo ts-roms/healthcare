@@ -15,6 +15,16 @@ describe("registrationFormSchema", () => {
       expect(registrationFormSchema.safeParse({ ...base, mobile }).success).toBe(true);
     expect(registrationFormSchema.safeParse({ ...base, mobile: "12345" }).success).toBe(false);
   });
+
+  it("asks for the city when a barangay or province is entered, instead of dropping them", () => {
+    for (const address of [{ barangay: "Bagong Silang" }, { province: "Cavite" }, { barangay: " ", province: "Cavite", cityMunicipality: " " }]) {
+      const result = registrationFormSchema.safeParse({ ...base, ...address });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]).toMatchObject({ path: ["cityMunicipality"], message: "Enter the city or municipality to save the address" });
+    }
+    expect(registrationFormSchema.safeParse({ ...base, barangay: "Bagong Silang", cityMunicipality: "Caloocan" }).success).toBe(true);
+    expect(registrationFormSchema.safeParse({ ...base, barangay: "", province: "" }).success).toBe(true);
+  });
 });
 
 describe("toRegisterPayload", () => {
