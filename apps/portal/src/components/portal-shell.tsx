@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, SmileIcon, UserIcon } from "lucide-react";
+import { CalendarIcon, CircleHelpIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, SmileIcon, UserIcon } from "lucide-react";
 import { PatientLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { Button } from "@healthcare/ui/primitives";
 
@@ -49,6 +49,11 @@ export function PortalShell({
       headerEnd={
         <>
           <span className="hidden text-body text-muted-foreground sm:inline">{givenName}</span>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/help">
+              <CircleHelpIcon aria-hidden /> Help
+            </Link>
+          </Button>
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="sm">
               <LogOutIcon aria-hidden /> Sign out

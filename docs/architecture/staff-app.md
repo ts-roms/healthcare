@@ -28,6 +28,13 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 
 Authorization is always the API's: the staff app hides what the user can't do (navigation from `GET /auth/me` permissions, buttons via `can()`), but every request is checked server-side by the API.
 
+## Help (user manual)
+
+`/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
+`lib/manual-content.ts` (walks up from the working directory to `docs/manual`; cached per process), with the design system's
+`Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
+links to developer documentation are shown as text. The menu shows **Help** to every signed-in user.
+
 ## Notifications
 
 The top bar's bell shows the signed-in user's unread in-app messages (`GET /me/notifications/unread-count`, read by the
