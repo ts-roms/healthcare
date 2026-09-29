@@ -27,6 +27,19 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
 - `pnpm db:migrate` runs as the API's pre-deploy command. It needs dev dependencies (`@swc-node/register`), so do not
   enable `RAILPACK_PRUNE_DEPS`.
 
+## Deploy triggers
+
+Automatic deploys on push are turned off. Railway keeps this setting in the dashboard, not in `railway.json`
+(`watchPatterns` only narrows which changes count). For each of the five app services, in **Settings → Source**, remove
+the branch trigger (or disconnect the repository) so pushes do not deploy. To keep automatic deploys but only after
+GitHub checks pass, enable **Wait for CI** there instead.
+
+Deploy by hand, from the dashboard (**Deploy** / **Redeploy**) or with `railway up --service <name>`.
+
+- `api` runs `pnpm db:migrate` as its pre-deploy step, so migrations are applied only when you deploy `api`. Deploy `api`
+  before the workers, `staff` and `portal` when a release includes a new migration.
+- The workers and the Next.js apps do not deploy together with `api`. Deploy each service you changed.
+
 ## Variables
 
 Put the settings every backend process reads in **Project → Shared Variables**, then share them with `api`,
