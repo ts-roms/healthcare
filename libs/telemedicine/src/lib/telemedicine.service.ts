@@ -463,6 +463,7 @@ export class TelemedicineService {
       appointmentId: appointment.id,
       startsAt: appointment.startsAt,
       endsAt: appointment.endsAt,
+      timeZone: appointment.timeZone,
       appointmentStatus: appointment.status,
       practitionerName: appointment.practitionerName,
       visitType: appointment.visitTypeName,

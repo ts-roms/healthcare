@@ -5,6 +5,7 @@ import { BLANK_QUESTIONNAIRE, consultStage, questionnairePayload } from "./telec
 const base: PortalTeleconsult = {
   appointmentId: "a",
   startsAt: "2026-10-01T02:00:00Z",
+  timeZone: "Asia/Manila",
   endsAt: "2026-10-01T02:20:00Z",
   appointmentStatus: "booked",
   practitionerName: "Dr. Reyes",

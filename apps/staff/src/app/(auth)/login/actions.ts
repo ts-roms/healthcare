@@ -37,8 +37,14 @@ async function startSession(tokens: TokenResponse): Promise<void> {
     });
     if (response.ok) {
       const active = (await response.json()) as Facility[];
-      if (active.length === 1) jar.set(COOKIES.facility, active[0]!.id, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
-      else jar.delete(COOKIES.facility);
+      const [only] = active;
+      if (active.length === 1 && only) {
+        jar.set(COOKIES.facility, only.id, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
+        jar.set(COOKIES.timeZone, only.timezone, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
+      } else {
+        jar.delete(COOKIES.facility);
+        jar.delete(COOKIES.timeZone);
+      }
     }
   } catch {
     // Facility can be chosen later from the top bar.

@@ -118,7 +118,8 @@ The small indicator next to **Clinic today** tells you how the figures update:
   word, not just the colour.
 - **Allergy statements are precise.** "No known allergies" appears only after someone recorded that review with the patient. A patient never asked shows
   "Allergies not recorded". If you may not see clinical data, you see "Allergies: no access". Never read a missing allergy badge as "no allergies".
-- **Dates** are written like `27 Sep 2026`. **Times** use the 24-hour clock (`14:05`) in Philippine time (Asia/Manila). Birth dates and due dates are calendar
+- **Dates** are written like `27 Sep 2026`. **Times** use the 24-hour clock (`14:05`) in the time zone of the facility you selected (Asia/Manila unless your organization set another for that facility; also Asia/Manila
+  before you select one). Birth dates and due dates are calendar
   dates and do not shift.
 - **Money** is in Philippine pesos (₱).
 - **Demo data.** A screen marked **Demo** with a yellow "Demo data." banner shows sample patients only. It is a design preview, is not connected to the patient
