@@ -1,6 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, type DbExecutor, DomainEventPublisher, NotFoundError } from "@healthcare/core";
+import {
+  type Actor,
+  BusinessRuleError,
+  ConflictError,
+  DATABASE,
+  type Database,
+  type DbExecutor,
+  DomainEventPublisher,
+  NotFoundError,
+  filedAsPatient,
+  isFiledAs,
+} from "@healthcare/core";
 import { DocumentsService, type DocumentView } from "@healthcare/documents";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -123,7 +134,7 @@ export class RecordsRequestService {
     const rows = await this.db
       .select()
       .from(recordsRequest)
-      .where(and(eq(recordsRequest.organizationId, organizationId), eq(recordsRequest.patientId, patientId)))
+      .where(and(eq(recordsRequest.organizationId, organizationId), filedAsPatient(recordsRequest.patientId, patientId)))
       .orderBy(desc(recordsRequest.submittedAt));
     const shared = await this.shared(
       organizationId,
@@ -155,7 +166,7 @@ export class RecordsRequestService {
       .where(
         and(
           eq(recordsRequestDocument.organizationId, context.organizationId),
-          eq(recordsRequestDocument.patientId, context.patientId),
+          filedAsPatient(recordsRequestDocument.patientId, context.patientId),
           eq(recordsRequestDocument.documentId, documentId),
           eq(recordsRequest.status, "fulfilled"),
         ),
@@ -286,7 +297,8 @@ export class RecordsRequestService {
         for (const documentId of documentIds) {
           // Ordinary documents only (a domain that manages its documents shares them itself), of this patient, available.
           const doc = await this.documents.get(actor, documentId).catch(() => undefined);
-          if (!doc || doc.patientId !== current.patientId || doc.status !== "available") {
+          // A document filed under a record merged into this patient is part of their record too (ADR-0009).
+          if (!doc || doc.status !== "available" || !(await isFiledAs(tx, doc.patientId, current.patientId))) {
             throw new BusinessRuleError("Share only available documents from this patient's record", "document_not_shareable", { documentId });
           }
         }

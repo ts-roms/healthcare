@@ -21,6 +21,7 @@ import {
   SmileIcon,
   HistoryIcon,
   LayoutDashboardIcon,
+  GitMergeIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -32,6 +33,7 @@ import type {
   EligibilityOverview,
   ExternalHistoryEntry,
   LabReportArchiveEntry,
+  MergeHistoryEntry,
   PatientDetail,
   PatientLabResult,
   PatientSummaryResponse,
@@ -53,6 +55,8 @@ import { SendPortalMessage } from "./send-portal-message";
 import { RecordConsent } from "./record-consent";
 import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
+import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
+import { MergedRecords } from "./merged-records";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,6 +131,17 @@ async function loadRecentActivity(id: string): Promise<PatientTimelinePage | nul
   }
 }
 
+/** Merge history (as the retired record and as the survivor); null when there is none or it cannot be shown. */
+async function loadMergeHistory(p: PatientDetail): Promise<MergeHistoryEntry[] | null> {
+  if (!p.mergedInto && !p.mergedRecords?.length) return null;
+  try {
+    return await api<MergeHistoryEntry[]>(`/patients/${p.id}/merges`);
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -183,6 +198,9 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getSelectedFacility(),
     getSession(),
   ]);
+  const mergeHistory = await loadMergeHistory(p);
+  const merged = p.status === "merged";
+  const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBill = can(session, "billing.charge.read");
   const canDental = can(session, "dental.record.read");
@@ -198,7 +216,20 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         allergiesHidden={!summary}
         allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
       />
-      {p.status !== "active" ? (
+      {merged && p.mergedInto ? (
+        <p
+          role="alert"
+          className="flex flex-wrap items-center gap-2 border-b border-warning/40 bg-warning-subtle px-4 py-2 text-table font-medium text-warning-foreground"
+        >
+          <GitMergeIcon className="size-4" aria-hidden />
+          Merged into <span className="font-mono">{p.mergedInto.patientNumber}</span> ({p.mergedInto.displayName})
+          {p.mergedInto.mergedAt ? ` on ${clinicalDateTime(p.mergedInto.mergedAt)}` : ""}
+          {lastMerge?.performedBy.name ? ` by ${lastMerge.performedBy.name}` : ""}. This record is read only; its care is shown on the surviving record.
+          <Link href={`/patients/${p.mergedInto.id}`} className="underline">
+            Open {p.mergedInto.patientNumber}
+          </Link>
+        </p>
+      ) : p.status !== "active" ? (
         <p
           role="alert"
           className="flex items-center gap-2 border-b border-warning/40 bg-warning-subtle px-4 py-2 text-table font-medium text-warning-foreground"
@@ -250,6 +281,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <Button asChild size="sm" variant="outline">
             <Link href={`/dental/patients/${p.id}`}>
               <SmileIcon /> Dental record
+            </Link>
+          </Button>
+        ) : null}
+        {can(session, "patient.merge") && !merged ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/patients/${p.id}/merge`}>
+              <GitMergeIcon /> Merge duplicate…
             </Link>
           </Button>
         ) : null}
@@ -322,7 +360,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                 patientId={p.id}
                 canOpenEncounters={can(session, "encounter.read")}
                 canOpenCarePlans={can(session, "care-plan.read")}
-                canManageAllergies={can(session, "allergy.manage")}
+                canManageAllergies={can(session, "allergy.manage") && !merged}
               />
             ) : (
               <NoClinicalAccess />
@@ -429,6 +467,18 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
+        {p.mergedRecords?.length || (merged && mergeHistory?.length) ? (
+          <Card className="lg:col-span-2" id="merged-records">
+            <CardHeader>
+              <GitMergeIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>{merged ? "Merge history" : "Merged records"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MergedRecords survivorId={p.id} records={p.mergedRecords ?? []} history={mergeHistory} canUnmerge={can(session, "patient.merge")} />
+            </CardContent>
+          </Card>
+        ) : null}
+
         {recent ? (
           <Card className="lg:col-span-2" id="recent-activity">
             <CardHeader>
@@ -456,7 +506,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
               <CardTitle>Laboratory results</CardTitle>
             </CardHeader>
             <CardContent>
-              <PatientLabResults patientId={p.id} results={labResults} />
+              <PatientLabResults patientId={p.id} results={labResults} linkedRecords={p.mergedRecords} />
             </CardContent>
           </Card>
         ) : null}
@@ -544,10 +594,16 @@ function ClinicalPanel({
 }) {
   const { allergies } = summary;
   const vitals = summary.latestVitals[0];
+  // Rows of records merged into this patient say which number they were filed under (text, not colour).
+  const filedUnder = filedUnderLookup(summary.linkedRecords);
+  const where = (patientId?: string) => {
+    const text = filedUnderText(filedUnder(patientId));
+    return text ? <span className="text-meta text-muted-foreground">· {text}</span> : null;
+  };
   return (
     <div className="flex flex-col gap-4">
       <SummarySection title="Allergies" icon={ShieldAlertIcon}>
-        <AllergiesPanel patientId={patientId} summary={allergies} canManage={canManageAllergies} />
+        <AllergiesPanel patientId={patientId} summary={allergies} canManage={canManageAllergies} linkedRecords={summary.linkedRecords} />
       </SummarySection>
 
       <SummarySection title="Problems" icon={ActivityIcon}>
@@ -559,6 +615,7 @@ function ClinicalPanel({
                 <span>{d.display}</span>
                 {d.isChronic ? <Badge>Chronic</Badge> : null}
                 {d.certainty === "provisional" ? <Badge variant="outline">Provisional</Badge> : null}
+                {where(d.patientId)}
               </li>
             ))}
           </ul>
@@ -575,7 +632,7 @@ function ClinicalPanel({
                 rx.items.map((i) => (
                   <li key={i.id} className="text-body">
                     <span className="font-medium">{i.genericName}</span>
-                    {i.strength ? ` ${i.strength}` : ""} <span className="text-muted-foreground">· {i.instructions}</span>
+                    {i.strength ? ` ${i.strength}` : ""} <span className="text-muted-foreground">· {i.instructions}</span> {where(rx.patientId)}
                   </li>
                 )),
               )}
@@ -603,6 +660,7 @@ function ClinicalPanel({
                   <span className="tabular">{e.startedAt ? clinicalDateTime(e.startedAt) : "Encounter"}</span>
                 )}
                 <span className="text-meta text-muted-foreground">{e.status === "completed" ? "Signed" : label(e.status)}</span>
+                {where(e.patientId)}
               </li>
             ))}
           </ul>

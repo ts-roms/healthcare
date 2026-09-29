@@ -1,4 +1,5 @@
-import { ShieldCheckIcon } from "lucide-react";
+import Link from "next/link";
+import { ChevronRightIcon, LockIcon, ShieldCheckIcon } from "lucide-react";
 import { getMe } from "@/lib/api/session";
 import { formatCalendarDate } from "@/lib/greeting";
 
@@ -27,6 +28,14 @@ export default async function ProfilePage() {
           </div>
         ))}
       </dl>
+      <Link href="/privacy" className="flex items-center gap-3 rounded-xl border bg-card p-4">
+        <LockIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-medium">Privacy and consents</span>
+          <span className="text-meta text-muted-foreground">See the consents you gave, and withdraw some of them</span>
+        </span>
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
       <p className="flex gap-2 text-body text-muted-foreground">
         <ShieldCheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
         Something wrong? Ask the clinic to correct your record — changes are made by clinic staff so your record stays accurate.

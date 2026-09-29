@@ -19,7 +19,8 @@ timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and any
    than one page (25 per page).
 
 The results show only what you need to pick the right person: name, **Patient no.**, **Birth date**, **Age / Sex**, a masked **Mobile** number and
-**Status**. Inactive and merged records are not listed.
+**Status**. Inactive and merged records are not listed. If you search for the patient number, mobile number or an identifier of a record that was merged
+into another, the surviving record is listed with the note "Found through P… , merged into this record".
 
 If nothing matches, the page says "No patients match. Check the spelling, or try the birth date or mobile number." If you may register patients, a **Register
 a new patient** button appears.
@@ -64,12 +65,19 @@ the same identifier exists. Use that record instead of registering a new one."
 
 Your reason and the records you reviewed are kept in the audit trail. A duplicate record splits the patient's history, so take care here.
 
+If you find that the same person is **already** registered twice, don't register a third record: use one of the existing records and tell a records
+officer, who can merge the two (see [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records)).
+Registration never merges records by itself.
+
 ## How to read the patient record
 
 Open a patient from the search results. The record (`/patients/[id]`) shows:
 
 - **Patient banner** at the top: name, patient number, age, sex and the allergy statement.
-- A yellow **Record status** line if the patient is not active (for example deceased, with the date, or merged, with **Open the surviving record**).
+- A yellow **Record status** line if the patient is not active (for example deceased, with the date). A merged (retired) record instead says **Merged into
+  P… on … by …** with a link to the surviving record; it is read only.
+- **Merged records** (on a surviving record): the patient numbers merged into this record, when, and the merge history. Everything filed under those
+  numbers — allergies, problems, prescriptions, consultations, results, dental work, bills — is shown on this record, each row marked **Filed under P…**.
 - **Action buttons** (each only if you have the permission):
   - **Patient 360** — the doctor's one-screen workspace (see below).
   - **Timeline** — the whole record in date order (see below).
@@ -77,6 +85,8 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
   - **Book appointment** (`appointment.manage`).
   - **Billing** — the patient's charges and invoices (`billing.charge.read`). See [Billing](10-billing.md).
   - **Dental record** (`dental.record.read`). See [Dental](08-dental.md).
+  - **Merge duplicate…** (`patient.merge`, records officers and organization administrators). See
+    [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records).
 - **Demographics**, **Contact & address**, **Identifiers** (PhilHealth PIN, PhilSys, SC/PWD ID, HMO) and **Emergency contacts & guardians**.
 - **Clinical summary** (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**, **Recent encounters**, **Upcoming
   visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
@@ -88,8 +98,8 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 
 > There is no screen yet to edit demographics, contacts, addresses or identifiers after registration, to add emergency contacts or relationships, to change a
-> patient's status (inactive, deceased), to set communication preferences, or to merge two records. Ask your administrator how your organization handles these
-> requests.
+> patient's status (inactive, deceased) or to set communication preferences. Ask your administrator how your organization handles these requests. Duplicate
+> records are merged by records officers (**Merge duplicate…**).
 
 ## How to record allergies
 
@@ -117,6 +127,12 @@ and record it again.
 Allergies from another provider's records (imported) show **External record**, and are **Unconfirmed** until a clinician confirms them.
 
 If you don't see **Record allergy**, you need the `allergy.manage` permission (nurses, physicians, dentists and dental assistants by default).
+
+## Consents the patient withdrew in MyHealth
+
+A patient may withdraw some consents in MyHealth (online consultations, sharing with their HMO or PhilHealth, research, MyHealth itself). The
+decision appears in **Consent & communication** and in the history marked **by the patient in MyHealth**. Withdrawing MyHealth signs the patient
+out; to restore access, record a new grant and, if needed, issue a new code.
 
 ## How to record consent
 
@@ -221,6 +237,10 @@ record, **360** in the search results, **Patient 360** on a queue ticket, or **P
 Every panel shows only what your role may read. A panel you may not see says "Not available to you." — it never means "none". Nothing is edited here: each
 panel links to the screen where the work is done. Opening Patient 360 is recorded in the audit trail.
 
+When other records were merged into this patient, a line under the alerts says "Includes the records of P…", and every row filed under one of those numbers
+says **Filed under P…** (consultations, orders, results, problems, medicines, images and documents). Opening Patient 360 of a merged (retired) record opens
+the surviving record's workspace.
+
 ## How to use the timeline
 
 The timeline puts the patient's whole record in one list, newest first, grouped by day.
@@ -303,6 +323,9 @@ There is no general document upload or document list on the patient record yet. 
 
 Document links are short-lived and each opening is recorded in the audit trail.
 
+The timeline includes the entries of every record merged into this patient; each says **Filed under P…** after its details. The timeline of a merged
+(retired) record opens the surviving record's timeline.
+
 ## External history (imported)
 
 If records from another provider were imported and accepted, **External history (imported)** lists them, each marked **External** with its kind (Condition,
@@ -325,6 +348,8 @@ Users with `interop.fhir.import.review` can mark an entry **Entered in error…*
 - A MyHealth invitation needs an active patient and granted portal consent. Only the latest code works, for 72 hours.
 - PhilHealth eligibility and YAKAP answers are immutable history and need PhilHealth's reference (except a YAKAP "Unknown").
 - Every view of a record, timeline, consent history, result or document is recorded in the audit trail.
+- A merged (retired) record is read only: new appointments, visits, allergies, consultations, orders, prescriptions, care plans, dental records and uploads go
+  to the surviving record. Corrections to what is already filed under it stay possible.
 
 ## Troubleshooting / common messages
 
@@ -344,6 +369,7 @@ Users with `interop.fhir.import.review` can mark an entry **Entered in error…*
 | Attach a PDF or a photo (JPEG, PNG or HEIC). / The file is larger than 10 MB.                | The signed form cannot be uploaded.                  | Scan as PDF or at a lower resolution.                                         |
 | The signed form was saved, but the consent was not recorded: …                               | The upload worked; saving the decision failed.       | Select **Save consent** again; the form is linked without uploading it again. |
 | Allow pop-ups to view the signed form.                                                       | The browser blocked the new tab.                     | Allow pop-ups for the staff app.                                              |
+| This record was merged into another patient; use the surviving record instead                | You opened a merged (retired) record.                | Open the surviving record from the banner and work there.                     |
 | Record the patient's portal access consent before inviting them                              | Portal consent is not granted.                       | Record the consent first.                                                     |
 | This patient already has an active portal account                                            | The patient has already signed up.                   | No invitation needed.                                                         |
 | Not delivered: the patient has no active MyHealth account or has turned off in-app messages. | The message was not delivered.                       | Contact the patient another way.                                              |

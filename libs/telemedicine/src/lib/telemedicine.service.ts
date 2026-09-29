@@ -6,6 +6,7 @@ import {
   BusinessRuleError,
   ConflictError,
   DATABASE,
+  isFiledAs,
   type Database,
   type DbExecutor,
   DomainError,
@@ -436,7 +437,8 @@ export class TelemedicineService {
 
   private async requireOwn(patient: PatientContext, appointmentId: string) {
     const appointment = await this.requireOnline(patient.organizationId, appointmentId);
-    if (appointment.patientId !== patient.patientId) throw new NotFoundError("Online consultation");
+    // The patient's own, or one filed under a record merged into theirs (ADR-0009).
+    if (!(await isFiledAs(this.db, appointment.patientId, patient.patientId))) throw new NotFoundError("Online consultation");
     return appointment;
   }
 

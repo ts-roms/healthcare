@@ -12,6 +12,7 @@ import {
   localDate,
   NotFoundError,
   requireFacilityId,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq } from "drizzle-orm";
@@ -65,7 +66,8 @@ export class DepositService {
       metadata: { facilityId, count: entries.length },
     });
     const shared = (await this.catalog.taxProfile(actor.organizationId)).depositsAcrossFacilities;
-    const facilities = shared ? await this.facilityBalances(this.db, actor.organizationId, patientId) : null;
+    // Shown across the ledgers of records merged into this patient (ADR-0009); applying and refunding use this record's own.
+    const facilities = shared ? await this.facilityBalances(this.db, actor.organizationId, patientId, true) : null;
     return {
       patientId,
       facilityId,
@@ -210,7 +212,7 @@ export class DepositService {
       .from(billingAccountEntry)
       .leftJoin(billingInvoice, eq(billingInvoice.id, billingAccountEntry.invoiceId))
       .leftJoin(billingCreditNote, eq(billingCreditNote.id, billingAccountEntry.creditNoteId))
-      .where(and(eq(billingAccountEntry.organizationId, organizationId), eq(billingAccountEntry.patientId, patientId)))
+      .where(and(eq(billingAccountEntry.organizationId, organizationId), filedAsPatient(billingAccountEntry.patientId, patientId)))
       .orderBy(asc(billingAccountEntry.recordedAt));
     const facilityIds = [...new Set(rows.map((r) => r.entry.facilityId))];
     return Promise.all(
@@ -245,7 +247,7 @@ export class DepositService {
       .where(
         and(
           eq(billingAccountEntry.organizationId, organizationId),
-          eq(billingAccountEntry.patientId, patientId),
+          filedAsPatient(billingAccountEntry.patientId, patientId),
           eq(billingAccountEntry.facilityId, facilityId),
         ),
       )
@@ -294,12 +296,17 @@ export class DepositService {
     }
   }
 
-  /** The patient's balance at each facility where they have an account. */
-  private async facilityBalances(executor: DbExecutor, organizationId: string, patientId: string) {
+  /** The patient's balance at each facility where they have an account (with `linked`, also of records merged into it). */
+  private async facilityBalances(executor: DbExecutor, organizationId: string, patientId: string, linked = false) {
     const rows = await executor
       .select({ facilityId: billingAccountEntry.facilityId, kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
       .from(billingAccountEntry)
-      .where(and(eq(billingAccountEntry.organizationId, organizationId), eq(billingAccountEntry.patientId, patientId)));
+      .where(
+        and(
+          eq(billingAccountEntry.organizationId, organizationId),
+          linked ? filedAsPatient(billingAccountEntry.patientId, patientId) : eq(billingAccountEntry.patientId, patientId),
+        ),
+      );
     const ids = [...new Set(rows.map((r) => r.facilityId))];
     return Promise.all(
       ids.map(async (id) => ({

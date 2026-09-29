@@ -12,6 +12,7 @@ import {
   requireFacilityId,
   asPgError,
   PgErrorCode,
+  filedAsPatient,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -90,7 +91,7 @@ export class DentalImagingService {
     const rows = await this.db
       .select()
       .from(dentalImage)
-      .where(and(eq(dentalImage.organizationId, organizationId), eq(dentalImage.patientId, patientId)))
+      .where(and(eq(dentalImage.organizationId, organizationId), filedAsPatient(dentalImage.patientId, patientId)))
       .orderBy(desc(dentalImage.takenOn), desc(dentalImage.recordedAt));
     const releases = await this.activeReleases(
       organizationId,

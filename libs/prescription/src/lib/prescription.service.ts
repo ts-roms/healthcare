@@ -14,6 +14,7 @@ import {
   timelineInstant,
   timelineRange,
   type TimelineWindow,
+  filedAsPatient,
 } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
@@ -165,7 +166,7 @@ export class PrescriptionService {
 
   async list(actor: Actor, query: { patientId?: string; encounterId?: string; activeOnly?: boolean }): Promise<PrescriptionView[]> {
     const filters: SQL[] = [eq(prescription.organizationId, actor.organizationId)];
-    if (query.patientId) filters.push(eq(prescription.patientId, query.patientId));
+    if (query.patientId) filters.push(filedAsPatient(prescription.patientId, query.patientId));
     if (query.encounterId) filters.push(eq(prescription.encounterId, query.encounterId));
     if (query.activeOnly) filters.push(eq(prescription.status, "active"));
     const rows = await this.db
@@ -186,7 +187,7 @@ export class PrescriptionService {
     const rows = await this.db
       .select()
       .from(prescription)
-      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId), eq(prescription.status, "active")))
+      .where(and(eq(prescription.organizationId, organizationId), filedAsPatient(prescription.patientId, patientId), eq(prescription.status, "active")))
       .orderBy(desc(prescription.issuedAt))
       .limit(20);
     return this.views(this.db, rows);
@@ -217,7 +218,7 @@ export class PrescriptionService {
     const rows = await this.db
       .select()
       .from(prescription)
-      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.patientId, patientId)))
+      .where(and(eq(prescription.organizationId, organizationId), filedAsPatient(prescription.patientId, patientId)))
       .orderBy(asc(prescription.issuedAt));
     return this.views(this.db, rows);
   }
@@ -232,6 +233,7 @@ export class PrescriptionService {
     return this.db
       .select({
         id: prescription.id,
+        patientId: prescription.patientId,
         at: timelineInstant(at),
         facilityId: prescription.facilityId,
         encounterId: prescription.encounterId,
@@ -245,7 +247,7 @@ export class PrescriptionService {
       .where(
         and(
           eq(prescription.organizationId, organizationId),
-          eq(prescription.patientId, patientId),
+          filedAsPatient(prescription.patientId, patientId),
           timelineFacility(prescription.facilityId, window),
           timelineRange("prescription", at, prescription.id, window),
         ),

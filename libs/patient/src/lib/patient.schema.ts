@@ -44,6 +44,7 @@ export const CONSENT_TYPES = [
 ] as const;
 export const CONSENT_DECISIONS = ["granted", "refused", "withdrawn"] as const;
 export const CONSENT_CAPTURE = ["paper", "electronic", "verbal"] as const;
+export type ConsentType = (typeof CONSENT_TYPES)[number];
 export const COMMUNICATION_CHANNELS = ["sms", "email", "push", "in_app"] as const;
 export const COMMUNICATION_CATEGORIES = ["clinical", "administrative", "outreach"] as const;
 
@@ -173,8 +174,11 @@ export const patientConsent = pgTable("patient_consent", {
   capturedVia: text("captured_via").$type<(typeof CONSENT_CAPTURE)[number]>().notNull(),
   documentId: uuid("document_id"),
   notes: text("notes"),
-  recordedBy: uuid("recorded_by").notNull(),
+  /** The staff user who recorded it; null when the patient recorded it in MyHealth (0069). */
+  recordedBy: uuid("recorded_by"),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  /** 0069: the patient's MyHealth account, for a withdrawal the patient recorded themself. */
+  recordedByPortalAccount: uuid("recorded_by_portal_account"),
 });
 
 export const patientCommunicationPreference = pgTable(

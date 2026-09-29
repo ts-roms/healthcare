@@ -12,6 +12,7 @@ import {
   normalizeName,
   NotFoundError,
   PgErrorCode,
+  filedAsPatient,
 } from "@healthcare/core";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -116,7 +117,7 @@ export class TriageService {
     const rows = await this.db
       .select()
       .from(vitalSignSet)
-      .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
+      .where(and(eq(vitalSignSet.organizationId, actor.organizationId), filedAsPatient(vitalSignSet.patientId, patientId), eq(vitalSignSet.status, "final")))
       .orderBy(desc(vitalSignSet.measuredAt))
       .limit(limit);
     await this.audit.recordStandalone(actor, { action: "vitals.view", resourceType: "vital_sign_set", patientId });
@@ -158,7 +159,7 @@ export class TriageService {
    * older assertion no longer describes the patient and the history must be taken again.
    */
   async allergySummary(organizationId: string, patientId: string) {
-    const ofPatient = and(eq(allergyIntolerance.organizationId, organizationId), eq(allergyIntolerance.patientId, patientId));
+    const ofPatient = and(eq(allergyIntolerance.organizationId, organizationId), filedAsPatient(allergyIntolerance.patientId, patientId));
     const [active, [review], [lastChange]] = await Promise.all([
       this.db
         .select()
@@ -168,7 +169,7 @@ export class TriageService {
       this.db
         .select()
         .from(allergyReview)
-        .where(and(eq(allergyReview.organizationId, organizationId), eq(allergyReview.patientId, patientId)))
+        .where(and(eq(allergyReview.organizationId, organizationId), filedAsPatient(allergyReview.patientId, patientId)))
         .orderBy(desc(allergyReview.reviewedAt))
         .limit(1),
       this.db
@@ -208,7 +209,7 @@ export class TriageService {
       .where(
         and(
           eq(allergyIntolerance.organizationId, actor.organizationId),
-          eq(allergyIntolerance.patientId, patientId),
+          filedAsPatient(allergyIntolerance.patientId, patientId),
           eq(allergyIntolerance.substanceNormalized, substanceNormalized),
           eq(allergyIntolerance.status, "active"),
         ),
@@ -244,7 +245,11 @@ export class TriageService {
         .select()
         .from(allergyIntolerance)
         .where(
-          and(eq(allergyIntolerance.organizationId, actor.organizationId), eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.id, allergyId)),
+          and(
+            eq(allergyIntolerance.organizationId, actor.organizationId),
+            filedAsPatient(allergyIntolerance.patientId, patientId),
+            eq(allergyIntolerance.id, allergyId),
+          ),
         )
         .for("update");
       const current = found(before, "Allergy");
@@ -278,7 +283,7 @@ export class TriageService {
         const [active] = await tx
           .select({ id: allergyIntolerance.id })
           .from(allergyIntolerance)
-          .where(and(eq(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, "active")))
+          .where(and(filedAsPatient(allergyIntolerance.patientId, patientId), eq(allergyIntolerance.status, "active")))
           .limit(1);
         if (active) throw new BusinessRuleError('Resolve or correct the recorded allergies before recording "no known allergies"', "allergies_recorded");
       }

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PatientAuditContext } from "@healthcare/audit";
-import { ConflictError, DATABASE, type Database, ForbiddenError, localDate, NotFoundError } from "@healthcare/core";
+import { ConflictError, DATABASE, type Database, ForbiddenError, localDate, NotFoundError, filedAsPatient } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -291,19 +291,19 @@ export class DentalPatientAccess {
         sql`
       SELECT EXISTS (
           SELECT 1 FROM ${dentalTreatmentPlan}
-          WHERE ${dentalTreatmentPlan.organizationId} = ${organizationId} AND ${dentalTreatmentPlan.patientId} = ${patientId}
+          WHERE ${dentalTreatmentPlan.organizationId} = ${organizationId} AND ${filedAsPatient(dentalTreatmentPlan.patientId, patientId)}
         ) OR EXISTS (
           SELECT 1 FROM ${dentalToothState}
           LEFT JOIN ${dentalExamination} ON ${dentalExamination.id} = ${dentalToothState.examinationId}
           LEFT JOIN ${dentalProcedure} ON ${dentalProcedure.id} = ${dentalToothState.procedureId}
-          WHERE ${dentalToothState.organizationId} = ${organizationId} AND ${dentalToothState.patientId} = ${patientId} AND ${recordedSource}
+          WHERE ${dentalToothState.organizationId} = ${organizationId} AND ${filedAsPatient(dentalToothState.patientId, patientId)} AND ${recordedSource}
         ) OR EXISTS (
           SELECT 1 FROM ${dentalProcedure}
-          WHERE ${dentalProcedure.organizationId} = ${organizationId} AND ${dentalProcedure.patientId} = ${patientId} AND ${dentalProcedure.status} = 'recorded'
+          WHERE ${dentalProcedure.organizationId} = ${organizationId} AND ${filedAsPatient(dentalProcedure.patientId, patientId)} AND ${dentalProcedure.status} = 'recorded'
         ) OR EXISTS (
           SELECT 1 FROM ${dentalImageRelease}
           JOIN ${dentalImage} ON ${dentalImage.id} = ${dentalImageRelease.imageId}
-          WHERE ${dentalImage.organizationId} = ${organizationId} AND ${dentalImage.patientId} = ${patientId}
+          WHERE ${dentalImage.organizationId} = ${organizationId} AND ${filedAsPatient(dentalImage.patientId, patientId)}
             AND ${dentalImage.status} = 'recorded' AND ${dentalImageRelease.withdrawnAt} IS NULL
         ) AS available`,
       )
@@ -318,19 +318,27 @@ export class DentalPatientAccess {
       this.db
         .select()
         .from(dentalTreatmentPlan)
-        .where(and(eq(dentalTreatmentPlan.organizationId, organizationId), eq(dentalTreatmentPlan.patientId, patientId)))
+        .where(and(eq(dentalTreatmentPlan.organizationId, organizationId), filedAsPatient(dentalTreatmentPlan.patientId, patientId)))
         .orderBy(desc(dentalTreatmentPlan.createdAt)),
       this.db
         .select()
         .from(dentalProcedure)
-        .where(and(eq(dentalProcedure.organizationId, organizationId), eq(dentalProcedure.patientId, patientId), eq(dentalProcedure.status, "recorded")))
+        .where(
+          and(eq(dentalProcedure.organizationId, organizationId), filedAsPatient(dentalProcedure.patientId, patientId), eq(dentalProcedure.status, "recorded")),
+        )
         .orderBy(desc(dentalProcedure.performedAt))
         .limit(200),
       this.chart.chart(organizationId, patientId),
       this.db
         .select({ facilityId: dentalExamination.facilityId, at: dentalExamination.recordedAt })
         .from(dentalExamination)
-        .where(and(eq(dentalExamination.organizationId, organizationId), eq(dentalExamination.patientId, patientId), eq(dentalExamination.status, "recorded")))
+        .where(
+          and(
+            eq(dentalExamination.organizationId, organizationId),
+            filedAsPatient(dentalExamination.patientId, patientId),
+            eq(dentalExamination.status, "recorded"),
+          ),
+        )
         .orderBy(desc(dentalExamination.recordedAt))
         .limit(1),
       this.organizations.listFacilities(organizationId),
@@ -516,7 +524,7 @@ export class DentalPatientAccess {
       .where(
         and(
           eq(dentalImage.organizationId, organizationId),
-          eq(dentalImage.patientId, patientId),
+          filedAsPatient(dentalImage.patientId, patientId),
           eq(dentalImage.status, "recorded"),
           isNull(dentalImageRelease.withdrawnAt),
         ),

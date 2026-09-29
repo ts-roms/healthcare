@@ -5,7 +5,7 @@
 A patient asks, in MyHealth, for copies of their records; the organization's records office reviews the request and
 shares documents from the patient's record, or declines with a reason the patient reads. Code:
 `libs/patient/src/lib/records-requests`, migrations `0068_medical_certificates_records_requests.sql` and
-`0069_record_export.sql` (copies of the record, composed in `apps/api/src/app/record-copy`), staff
+`0070_record_export.sql` (copies of the record, composed in `apps/api/src/app/record-copy`), staff
 `/records/requests`, MyHealth `/documents`.
 
 Not responsible for: deciding what may be disclosed, to whom or by when. The Data Privacy Act gives data subjects a right

@@ -24,6 +24,7 @@ import {
 import { clinicalDate, clinicalTime, RecordTimeline, type RecordTimelineItem } from "@healthcare/ui/healthcare";
 import type { PatientTimelineEntry, PatientTimelineKind } from "@/lib/api/types";
 import { entryHref, entryStatus, groupByDay, KIND_LABELS, markerLabel, type StatusTone, withheldNote } from "@/lib/timeline-mapping";
+import { filedUnderText } from "@/lib/patient-merge";
 
 const KIND_ICONS: Record<PatientTimelineKind, LucideIcon> = {
   appointment: CalendarIcon,
@@ -64,7 +65,8 @@ export function toTimelineItems(
       icon: KIND_ICONS[e.kind],
       kindLabel: KIND_LABELS[e.kind],
       title: e.title,
-      detail: e.detail,
+      // Entries of a record merged into this patient say which number they were filed under (text, not colour).
+      detail: [e.detail, filedUnderText(e.filedUnder)].filter(Boolean).join(" · ") || null,
       dateTime: e.occurredAt,
       time: clinicalTime(e.occurredAt),
       facility: e.facility?.name ?? null,

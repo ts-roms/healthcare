@@ -28,16 +28,38 @@ export class PatientSearchService {
    * trigrams), birth date and identifiers. Returns minimal summaries only.
    */
   async search(actor: Actor, query: PatientSearchInput): Promise<Page<PatientSummary>> {
+    const includeInactive = query.includeInactive === "true";
     const filters: SQL[] = [eq(patient.organizationId, actor.organizationId)];
-    if (query.includeInactive !== "true") filters.push(notInArray(patient.status, ["inactive", "merged"]));
+    if (!includeInactive) filters.push(notInArray(patient.status, ["inactive", "merged"]));
     let order: SQL[] = [asc(patient.familyNameNormalized), asc(patient.givenNameNormalized)];
+    // A merged (retired) record found by its number, phone or identifier resolves to its survivor, with a note.
+    const resolvedFrom = new Map<string, { id: string; patientNumber: string }>();
+    const holders = async (condition: SQL) => {
+      const rows = await this.db
+        .select({ id: patient.id, patientNumber: patient.patientNumber, mergedInto: patient.mergedIntoPatientId })
+        .from(patient)
+        .where(and(eq(patient.organizationId, actor.organizationId), condition));
+      const ids = new Set<string>();
+      for (const row of rows) {
+        if (row.mergedInto && !includeInactive) {
+          ids.add(row.mergedInto);
+          if (!rows.some((r) => r.id === row.mergedInto)) resolvedFrom.set(row.mergedInto, { id: row.id, patientNumber: row.patientNumber });
+        } else ids.add(row.id);
+      }
+      return [...ids];
+    };
+    const matchIds = (ids: string[]) => (ids.length ? inArray(patient.id, ids) : sql`false`);
 
     const interpreted = query.q ? classifyQuery(query.q) : undefined;
     if (interpreted?.kind === "patient_number") {
-      filters.push(eq(patient.patientNumber, interpreted.value));
+      filters.push(matchIds(await holders(eq(patient.patientNumber, interpreted.value))));
     } else if (interpreted?.kind === "phone") {
-      filters.push(sql`EXISTS (SELECT 1 FROM ${patientContactPoint} c
-        WHERE c.patient_id = ${patient.id} AND c.status = 'active' AND c.value_normalized = ${interpreted.value})`);
+      filters.push(
+        matchIds(
+          await holders(sql`EXISTS (SELECT 1 FROM ${patientContactPoint} c
+            WHERE c.patient_id = ${patient.id} AND c.status = 'active' AND c.value_normalized = ${interpreted.value})`),
+        ),
+      );
     } else if (interpreted?.kind === "name") {
       const q = interpreted.value;
       filters.push(
@@ -47,9 +69,13 @@ export class PatientSearchService {
     }
     if (query.birthDate) filters.push(eq(patient.birthDate, query.birthDate));
     if (query.identifierType && query.identifierValue) {
-      filters.push(sql`EXISTS (SELECT 1 FROM ${patientIdentifier} i
-        WHERE i.patient_id = ${patient.id} AND i.status = 'active'
-          AND i.type = ${query.identifierType} AND i.value_normalized = ${normalizeIdentifier(query.identifierValue)})`);
+      filters.push(
+        matchIds(
+          await holders(sql`EXISTS (SELECT 1 FROM ${patientIdentifier} i
+            WHERE i.patient_id = ${patient.id} AND i.status = 'active'
+              AND i.type = ${query.identifierType} AND i.value_normalized = ${normalizeIdentifier(query.identifierValue)})`),
+        ),
+      );
     }
 
     const rows = await this.db
@@ -90,9 +116,10 @@ export class PatientSearchService {
           hasIdentifierValue: Boolean(query.identifierValue),
         },
         resultCount: page.items.length,
+        resolvedFromMerged: resolvedFrom.size > 0 ? [...resolvedFrom.values()].map((r) => r.id) : undefined,
       },
     });
-    return { ...page, items: page.items.map((p) => toSummary(p, mobileByPatient.get(p.id))) };
+    return { ...page, items: page.items.map((p) => ({ ...toSummary(p, mobileByPatient.get(p.id)), resolvedFrom: resolvedFrom.get(p.id) ?? null })) };
   }
 }
 

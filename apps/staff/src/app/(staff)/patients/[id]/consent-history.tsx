@@ -53,7 +53,8 @@ export function ConsentHistory({ patientId, canViewDocuments }: { patientId: str
             <span className="font-medium">{CONSENT_DECISIONS[c.decision as keyof typeof CONSENT_DECISIONS] ?? c.decision}</span>
             <span className="text-muted-foreground">
               {" "}
-              · {CONSENT_CAPTURE[c.capturedVia as keyof typeof CONSENT_CAPTURE] ?? c.capturedVia}
+              ·{" "}
+              {c.recordedVia === "myhealth" ? "by the patient in MyHealth" : (CONSENT_CAPTURE[c.capturedVia as keyof typeof CONSENT_CAPTURE] ?? c.capturedVia)}
               {c.expiresAt ? ` · until ${clinicalDate(c.expiresAt)}` : ""}
             </span>
             {c.documentId && canViewDocuments ? (

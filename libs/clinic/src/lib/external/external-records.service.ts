@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, NotFoundError } from "@healthcare/core";
+import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, NotFoundError, filedAsPatient } from "@healthcare/core";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createAllergySchema } from "../clinic.dto";
@@ -103,7 +103,7 @@ export class ExternalRecordsService {
     const rows = await this.db
       .select()
       .from(externalHistoryEntry)
-      .where(and(eq(externalHistoryEntry.organizationId, actor.organizationId), eq(externalHistoryEntry.patientId, patientId)))
+      .where(and(eq(externalHistoryEntry.organizationId, actor.organizationId), filedAsPatient(externalHistoryEntry.patientId, patientId)))
       .orderBy(desc(externalHistoryEntry.recordedAt))
       .limit(500);
     await this.audit.recordStandalone(actor, {
@@ -123,7 +123,7 @@ export class ExternalRecordsService {
         .where(
           and(
             eq(externalHistoryEntry.organizationId, actor.organizationId),
-            eq(externalHistoryEntry.patientId, patientId),
+            filedAsPatient(externalHistoryEntry.patientId, patientId),
             eq(externalHistoryEntry.id, entryId),
           ),
         )

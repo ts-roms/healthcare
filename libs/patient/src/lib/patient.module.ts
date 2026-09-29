@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import { PortalConsentsController } from "./consents/portal-consents.controller";
+import { PortalConsentService } from "./consents/portal-consents.service";
 import { PatientController } from "./patient.controller";
 import { PatientRecordService } from "./patient-record.service";
 import { PatientReportingQueries } from "./patient-reporting.queries";
@@ -14,7 +16,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [PatientController, PortalController, PatientPortalAccountController, RecordsRequestController],
+  controllers: [PatientController, PortalController, PatientPortalAccountController, RecordsRequestController, PortalConsentsController],
   providers: [
     PatientRecordService,
     PatientReportingQueries,
@@ -24,6 +26,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalTokenService,
     PatientAccessGuard,
     RecordsRequestService,
+    PortalConsentService,
   ],
   exports: [PatientRecordService, PatientReportingQueries, PatientRegistrationService, PortalAccountService, PatientAccessGuard, RecordsRequestService],
 })

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, NotFoundError } from "@healthcare/core";
+import { DATABASE, type Database, NotFoundError, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, or, type SQL, sql } from "drizzle-orm";
 import { analyteKey } from "../laboratory.rules";
 import { labCriticalAlert, labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
@@ -40,7 +40,7 @@ export class LabPatientAccess {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   async results(organizationId: string, patientId: string): Promise<PatientResultView[]> {
-    return this.query(and(eq(labResult.organizationId, organizationId), eq(labResult.patientId, patientId)), 200);
+    return this.query(and(eq(labResult.organizationId, organizationId), filedAsPatient(labResult.patientId, patientId)), 200);
   }
 
   /** Released values of one analyte over time (tests sharing the LOINC code line up). */
@@ -59,7 +59,7 @@ export class LabPatientAccess {
     const points = await this.query(
       and(
         eq(labResult.organizationId, organizationId),
-        eq(labResult.patientId, patientId),
+        filedAsPatient(labResult.patientId, patientId),
         inArray(
           labResult.testId,
           equivalent.map((t) => t.id),
@@ -73,7 +73,11 @@ export class LabPatientAccess {
 
   /** The visible results of one of the patient's orders (for the patient's printed report). */
   async orderResults(organizationId: string, patientId: string, orderId: string): Promise<PatientResultView[]> {
-    return this.query(and(eq(labResult.organizationId, organizationId), eq(labResult.patientId, patientId), eq(labResult.orderId, orderId)), 200, "oldest");
+    return this.query(
+      and(eq(labResult.organizationId, organizationId), filedAsPatient(labResult.patientId, patientId), eq(labResult.orderId, orderId)),
+      200,
+      "oldest",
+    );
   }
 
   /** Whether any result of this order is now visible to the patient (for "results ready" notices). */

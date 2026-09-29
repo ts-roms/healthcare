@@ -28,6 +28,7 @@ export function ConsentList({ consents, canViewDocuments }: { consents: PatientC
             <span className="text-meta text-muted-foreground">
               {clinicalDate(c.effectiveAt)}
               {c.expiresAt ? ` · until ${clinicalDate(c.expiresAt)}` : ""}
+              {c.recordedVia === "myhealth" ? " · by the patient in MyHealth" : ""}
             </span>
             {c.documentId && canViewDocuments ? <SignedFormLink documentId={c.documentId} /> : null}
           </li>

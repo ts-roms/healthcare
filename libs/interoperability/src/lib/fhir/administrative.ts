@@ -64,7 +64,12 @@ export function toPatient(ctx: FhirContext, p: PatientSource): Patient {
         }),
       ),
     managingOrganization: ref("Organization", ctx.organization.id, ctx.organization.name),
-    link: p.mergedIntoPatientId ? [{ other: ref("Patient", p.mergedIntoPatientId), type: "replaced-by" }] : undefined,
+    // Patient merge (link, don't move): a retired record is replaced by its survivor; the survivor replaces each.
+    link: p.mergedIntoPatientId
+      ? [{ other: ref("Patient", p.mergedIntoPatientId), type: "replaced-by" as const }]
+      : p.mergedRecordIds?.length
+        ? p.mergedRecordIds.map((id) => ({ other: ref("Patient", id), type: "replaces" as const }))
+        : undefined,
   });
 }
 

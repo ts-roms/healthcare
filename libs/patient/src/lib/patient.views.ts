@@ -28,6 +28,8 @@ export interface PatientSummary {
   status: string;
   mergedIntoPatientId: string | null;
   primaryMobileMasked: string | null;
+  /** Found through a record merged into this one (its number or identifier matched): that record. */
+  resolvedFrom?: { id: string; patientNumber: string } | null;
 }
 
 export function toSummary(p: PatientRecord, primaryMobile?: string | null): PatientSummary {
@@ -63,6 +65,10 @@ export interface PatientDetail {
   status: string;
   deceasedAt: string | null;
   mergedIntoPatientId: string | null;
+  /** A retired record: the surviving record it was merged into (read only; the staff app redirects there). */
+  mergedInto: MergeLink | null;
+  /** Records merged into this one: their records are shown here, marked with the number they were filed under. */
+  mergedRecords: MergeLink[];
   registeredFacilityId: string;
   createdAt: string;
   updatedAt: string;
@@ -77,6 +83,17 @@ export interface PatientDetail {
   communicationPreferences: Array<{ channel: string; category: string; optedIn: boolean }>;
 }
 
+/** A merge link between two records (ADR-0009). */
+export interface MergeLink {
+  id: string;
+  patientNumber: string;
+  displayName: string;
+  /** When the link was made (the latest merge or re-point); null for links older than the merge history. */
+  mergedAt: string | null;
+  /** Staff user who made it. */
+  mergedBy: string | null;
+}
+
 export interface ConsentView {
   id: string;
   consentType: string;
@@ -86,8 +103,11 @@ export interface ConsentView {
   capturedVia: string;
   documentId: string | null;
   notes: string | null;
-  recordedBy: string;
+  /** The staff user who recorded it; null when the patient recorded it in MyHealth. */
+  recordedBy: string | null;
   recordedAt: string;
+  /** Recorded by staff at the clinic, or by the patient in MyHealth (a withdrawal). */
+  recordedVia: "staff" | "myhealth";
 }
 
 export function toConsentView(c: PatientConsentRecord): ConsentView {
@@ -102,5 +122,6 @@ export function toConsentView(c: PatientConsentRecord): ConsentView {
     notes: c.notes,
     recordedBy: c.recordedBy,
     recordedAt: c.recordedAt.toISOString(),
+    recordedVia: c.recordedByPortalAccount ? "myhealth" : "staff",
   };
 }

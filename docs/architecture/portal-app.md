@@ -48,6 +48,14 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                                                                                                  |
 | Dental (when shared)          | `GET /portal/dental/availability`, `GET /portal/dental/record`, `GET /portal/dental/images/:id/link`, `POST /portal/dental/plans/:id/decision`                                                 |
 | Documents                     | `GET /portal/documents`, `GET /portal/certificates/:id/link`, `POST /portal/records-requests`, `POST /portal/records-requests/:id/withdraw`, `GET /portal/records-requests/documents/:id/link` |
+| Privacy and consents          | `GET /portal/consents`, `POST /portal/consents/:type/withdraw`                                                                                                                                 |
+
+**Patient merge.** After a merge the MyHealth account belongs to the surviving record (moved when only the retired
+record had one; otherwise the retired record's account is disabled with reason `merged`; its sessions are revoked, so
+the patient signs in again). Every `/portal/*` read (visits, results and trends, medicines, care plans, bills and
+account, messages, dental) includes the records merged into the patient (`filedAsPatient`, ADR-0009), and printable
+invoices, notes and documents of those records open for the survivor's account. An unmerge moves an account that was
+moved at the merge back.
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`, `portal.dental-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
@@ -76,6 +84,18 @@ the unread count. Each message links to where to act (results, visits, booking; 
 one-way: the page tells patients to call the clinic, or 911 in an emergency.
 
 **Documents** (`/documents`, a **Documents** button on Home; `portal-documents.controller.ts`, audited `portal.documents-view`): the patient's issued medical certificates (purpose, visit date, practitioner, rest days — never the findings) and their records requests with the records office's note or reason and the documents shared, each opened through a short-lived audited link; a form to ask for copies (what, period, details, purpose; at most 3 open) and **Withdraw this request**. The `records.update` message links here.
+
+**Privacy and consents** (`/privacy`, linked from Profile; `libs/patient/src/lib/consents`, migration `0069`): each consent recorded
+for the patient — what it covers in plain words, given / withdrawn / not given / expired, and its history ("at the clinic" or "by you in
+MyHealth"; never staff names or notes; audited `portal.consent-view`). After confirming what it means, the patient may withdraw consent to online
+consultations, sharing with their HMO, sharing with PhilHealth, research and MyHealth itself (`PATIENT_WITHDRAWABLE_CONSENTS`, only while given);
+data processing and general treatment consent are withdrawn with the clinic, which explains what it means for care (assumption to confirm with
+the organization's data protection officer). A withdrawal is a new, append-only consent decision recorded by the MyHealth account
+(`recorded_by_portal_account`, electronic, effective at once; audited `portal.consent-withdraw`; event `PatientConsentWithdrawn`); the database
+allows a patient's account to record only electronic withdrawals and every decision exactly one recorder. Withdrawing MyHealth revokes every
+session of the account in the same transaction and signs the patient out (`/login?reason=access_withdrawn`); signing in is refused until the clinic
+records a new grant. Staff see the decision on the patient record marked "by the patient in MyHealth". Granting consent online is not offered: it
+needs the organization's own consent wording. Wording: `lib/consents.ts`.
 
 **Dental.** Off unless the organization turns on "Dental records in MyHealth" (`/dental/settings`, `dental.settings.manage`;
 off by default). The navigation shows **Dental** only when `GET /portal/dental/availability` says records are shared and
@@ -120,4 +140,4 @@ and the header (**Help**).
 
 ## Not yet
 
-Password reset (today: ask the clinic for a new code), email verification, MFA for patients, proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, replying to messages (two-way messaging), patients managing their own communication preferences, push notifications (needs the mobile app).
+Password reset (today: ask the clinic for a new code), giving consents online (needs the organization's consent wording), email verification, MFA for patients, proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, replying to messages (two-way messaging), patients managing their own communication preferences, push notifications (needs the mobile app).

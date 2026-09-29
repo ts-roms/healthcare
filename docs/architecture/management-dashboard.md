@@ -114,6 +114,8 @@ true`). Consultation, test and procedure counts and money are not patient counts
   `null`, the key figures `netInvoiced`/`netCollected` are `null` (no change), revenue rows are left out of the summary
   and daily exports, and the revenue tables (`services`, `categories`, `revenue`, `collections`) are refused (403).
   org_admin holds it.
+- **Merged patients:** distinct-patient counts (patients seen, returning, retention, dental and invoiced patients)
+  count a merged pair once (`canonicalPatientId`, ADR-0009); registrations leave merged (retired) records out.
 - **Audit:** every view is recorded (`management.dashboard.view`, with the range, facilities and `withheld`), every
   export too (`management.dashboard.export`, with the table, range, facilities, `withheld` and number of rows); a refused
   revenue export is recorded as a denial (`outcome = denied`, with the reason).
