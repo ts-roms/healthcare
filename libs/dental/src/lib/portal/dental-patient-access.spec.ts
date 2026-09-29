@@ -43,6 +43,8 @@ const item = (id: string, status: DentalTreatmentPlanItemRecord["status"], tooth
   createdAt: late,
   updatedAt: late,
   version: 1,
+  decisionEstimate: status === "proposed" ? null : 123_456,
+  decisionEstimateOn: status === "proposed" ? null : "2026-03-02",
 });
 
 const procedure = (status: DentalProcedureRecord["status"]): DentalProcedureRecord => ({
@@ -90,9 +92,39 @@ describe("dental patient access (what MyHealth shows)", () => {
         { id: "i1", phase: 1, tooth: "16", surfaces: ["M", "O"], procedureName: "Composite restoration", status: "completed", decision: "accepted" },
         { id: "i2", phase: 1, tooth: null, surfaces: [], procedureName: "Composite restoration", status: "declined", decision: "declined" },
       ],
+      estimate: null,
     });
     const text = JSON.stringify(view);
-    for (const secret of ["anxious", "fees explained", "symptoms persist", org, "u1", "pr1", "t1", "version"]) expect(text).not.toContain(secret);
+    for (const secret of ["anxious", "fees explained", "symptoms persist", org, "u1", "pr1", "t1", "version", "123456"]) expect(text).not.toContain(secret);
+  });
+
+  it("estimates the work still ahead at listed prices, only when prices are passed and the plan is open", () => {
+    const names = new Map([["t1", "Composite restoration"]]);
+    const prices = { pricedOn: "2026-03-02", byType: new Map([["t1", { unitPrice: 150_000 }]]), note: "Estimates hold for 30 days." };
+    const items = [
+      item("i1", "proposed"),
+      item("i2", "accepted"),
+      { ...item("i3", "proposed"), procedureTypeId: "t2" },
+      item("i4", "completed"),
+      item("i5", "declined"),
+    ];
+    const view = toPatientPlan({ ...plan, status: "in_progress" }, items, names, facility, null, true, prices);
+    expect(view.items.map((i) => i.estimatedFee)).toEqual([150_000, 150_000, null, null, null]);
+    expect(view.estimate).toMatchObject({
+      pricedOn: "2026-03-02",
+      awaitingDecision: 150_000,
+      accepted: 150_000,
+      remaining: 300_000,
+      unpricedItems: 1,
+      note: "Estimates hold for 30 days.",
+    });
+    expect(view.estimate?.disclaimer).toMatch(/not an invoice/);
+
+    // Without prices (the organization does not show estimates), on a closed plan, or with nothing ahead: none.
+    expect(toPatientPlan(plan, items, names, facility, null, true).estimate).toBeNull();
+    expect(toPatientPlan(plan, items, names, facility, null, true).items[0]).not.toHaveProperty("estimatedFee");
+    expect(toPatientPlan({ ...plan, status: "discontinued" }, items, names, facility, null, true, prices).estimate).toBeNull();
+    expect(toPatientPlan({ ...plan, status: "completed" }, [item("i4", "completed")], names, facility, null, true, prices).estimate).toBeNull();
   });
 
   it("offers an online decision only when allowed, on an open plan with items awaiting one", () => {

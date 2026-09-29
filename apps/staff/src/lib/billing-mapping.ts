@@ -1,4 +1,4 @@
-import type { AccountEntryKind, BillingCategory, InvoiceCoverage, InvoiceSummary, PaymentMethod, TaxClass } from "./api/types";
+import type { AccountEntryKind, BillingCategory, BillingCharge, InvoiceCoverage, InvoiceSummary, PaymentMethod, TaxClass } from "./api/types";
 
 /**
  * Display helpers for billing. Amounts are integer centavos from the API;
@@ -30,6 +30,15 @@ export function pesoInput(centavos: number): string {
 export function percent(rateBp: number): string {
   return `${(rateBp / 100).toLocaleString("en-PH", { maximumFractionDigits: 2 })}%`;
 }
+
+/** Where a charge came from, as shown on the patient's charges (mirrors the API's charge source types). */
+export const CHARGE_SOURCE_LABEL: Record<BillingCharge["sourceType"], string> = {
+  encounter: "Consultation",
+  lab_order_item: "Laboratory order",
+  dental_procedure: "Dental procedure",
+  manual: "Added by staff",
+  package: "Package sale",
+};
 
 export const CATEGORY_LABEL: Record<BillingCategory, string> = {
   consultation: "Consultation",

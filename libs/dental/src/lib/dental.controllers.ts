@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, type StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, BadRequestError, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, BadRequestError, CurrentActor, pdfFile, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { DentalCatalogService } from "./catalog/dental-catalog.service";
 import { DentalChartService } from "./chart/dental-chart.service";
 import {
@@ -29,6 +29,7 @@ import { isTooth } from "./dental.rules";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
+import { DentalFeeEstimates } from "./plans/dental-fee-estimates";
 import { DentalPlanService } from "./plans/dental-plan.service";
 import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
@@ -163,7 +164,10 @@ export class DentalRecordController {
 @ApiBearerAuth()
 @Controller({ path: "dental/treatment-plans", version: "1" })
 export class DentalPlanController {
-  constructor(private readonly plans: DentalPlanService) {}
+  constructor(
+    private readonly plans: DentalPlanService,
+    private readonly estimates: DentalFeeEstimates,
+  ) {}
 
   @Post()
   @RequireFacility()
@@ -177,6 +181,23 @@ export class DentalPlanController {
   @RequirePermissions("dental.record.read")
   get(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string) {
     return this.plans.get(actor.organizationId, id);
+  }
+
+  @Get(":planId/estimate")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({
+    summary: "Fee estimate of the work still ahead on a plan, at billing's listed prices today (no discounts, packages or coverage)",
+  })
+  estimate(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string) {
+    return this.estimates.forPlan(actor.organizationId, id);
+  }
+
+  @Get(":planId/estimate.pdf")
+  @RequirePermissions("dental.record.read")
+  @ApiOperation({ summary: "Printable fee estimate for the patient (audited)" })
+  async estimatePdf(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
+    const { filename, pdf } = await this.estimates.pdf(actor, id);
+    return pdfFile(pdf, filename);
   }
 
   @Post(":planId/items")

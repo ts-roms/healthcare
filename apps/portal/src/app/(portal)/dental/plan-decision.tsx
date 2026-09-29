@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckIcon } from "lucide-react";
 import type { PortalDentalPlan } from "@/lib/api/types";
-import { decisionSummary } from "@/lib/dental";
+import { peso } from "@/lib/billing";
+import { decisionSummary, selectionEstimate } from "@/lib/dental";
 import { decideDentalPlan } from "./actions";
 
 /**
@@ -27,13 +28,22 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
         e.preventDefault();
         startTransition(async () => {
           setError(null);
-          const result = await decideDentalPlan({ planId: plan.id, acceptedItemIds: [...accepted], awaitingItemIds: awaiting.map((i) => i.id) });
+          const result = await decideDentalPlan({
+            planId: plan.id,
+            acceptedItemIds: [...accepted],
+            awaitingItemIds: awaiting.map((i) => i.id),
+            estimateAwaitingDecision: plan.estimate?.awaitingDecision ?? null,
+          });
           if (result.ok) router.refresh();
           else
             setError(
-              result.code === "plan_changed" ? "Your dentist changed this plan since you opened it. The page shows the latest version." : result.message,
+              result.code === "plan_changed"
+                ? "Your dentist changed this plan since you opened it. The page shows the latest version."
+                : result.code === "estimate_changed"
+                  ? "The clinic's prices changed since you opened this plan. The page shows the new estimate."
+                  : result.message,
             );
-          if (!result.ok && result.code === "plan_changed") router.refresh();
+          if (!result.ok && (result.code === "plan_changed" || result.code === "estimate_changed")) router.refresh();
         });
       }}
     >
@@ -43,11 +53,17 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
         {awaiting.map((item) => (
           <label key={item.id} className="flex items-start gap-2 text-body">
             <input type="checkbox" className="mt-1 size-4" checked={accepted.has(item.id)} onChange={() => toggle(item.id)} />
-            <span>{item.procedureName}</span>
+            <span>
+              {item.procedureName}
+              {plan.estimate ? (
+                <span className="text-muted-foreground"> · {item.estimatedFee == null ? "price: ask the clinic" : `about ${peso(item.estimatedFee)}`}</span>
+              ) : null}
+            </span>
           </label>
         ))}
       </fieldset>
       <p className="text-body font-medium">{decisionSummary(awaiting, accepted)}</p>
+      {plan.estimate && accepted.size ? <SelectionEstimate {...selectionEstimate(awaiting, accepted)} /> : null}
       <label className="flex items-start gap-2 rounded-md bg-card p-2 text-body">
         <input type="checkbox" className="mt-1 size-4" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         <span>{acknowledgement}</span>
@@ -66,5 +82,16 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
       </button>
       <p className="text-meta text-muted-foreground">You can still talk to your dentist before deciding. Your decision is shared with your clinic.</p>
     </form>
+  );
+}
+
+function SelectionEstimate({ total, unpriced }: { total: number; unpriced: number }) {
+  return (
+    <p className="text-body">
+      Estimated fee of what you accept: <span className="font-semibold">{peso(total)}</span>
+      {unpriced ? (
+        <span className="text-muted-foreground"> plus {unpriced === 1 ? "one treatment" : `${unpriced} treatments`} without a listed price</span>
+      ) : null}
+    </p>
   );
 }

@@ -1,8 +1,16 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { InventoryValuationService } from "../stock/inventory-valuation.service";
 import {
+  ApproveSupplierInvoiceDto,
   CreatePurchaseOrderDto,
+  PaySupplierInvoiceDto,
+  RecordSupplierInvoiceDto,
+  SupplierInvoiceQueryDto,
+  UsageQueryDto,
+  ValuationQueryDto,
+  VoidSupplierInvoiceDto,
   EndPurchaseOrderDto,
   PurchaseOrderQueryDto,
   PurchaseOrderVersionDto,
@@ -11,6 +19,7 @@ import {
   UpdatePurchaseOrderDto,
 } from "./procurement.dto";
 import { PurchaseOrderService } from "./purchase-order.service";
+import { SupplierInvoiceService } from "./supplier-invoice.service";
 
 @ApiTags("inventory")
 @ApiBearerAuth()
@@ -89,5 +98,85 @@ export class ProcurementController {
   @ApiOperation({ summary: "Close an order short: no more deliveries expected (with a reason)" })
   close(@CurrentActor() actor: Actor, @Param("purchaseOrderId", ParseUUIDPipe) id: string, @Body() body: EndPurchaseOrderDto) {
     return this.orders.close(actor, id, body);
+  }
+}
+
+@ApiTags("inventory")
+@ApiBearerAuth()
+@RequireFacility()
+@Controller({ path: "inventory", version: "1" })
+export class SupplierInvoiceController {
+  constructor(private readonly invoices: SupplierInvoiceService) {}
+
+  @Get("purchase-orders/:purchaseOrderId/invoicing")
+  @RequirePermissions("inventory.read")
+  @ApiOperation({ summary: "An order's lines with what was ordered, received and already invoiced (what the next invoice may cover)" })
+  invoicing(@CurrentActor() actor: Actor, @Param("purchaseOrderId", ParseUUIDPipe) id: string) {
+    return this.invoices.invoicing(actor, id);
+  }
+
+  @Post("purchase-orders/:purchaseOrderId/invoices")
+  @RequirePermissions("inventory.procurement.manage")
+  @ApiOperation({ summary: "Record a supplier invoice against an order: never more than received and not yet invoiced; price differences are shown" })
+  record(@CurrentActor() actor: Actor, @Param("purchaseOrderId", ParseUUIDPipe) id: string, @Body() body: RecordSupplierInvoiceDto) {
+    return this.invoices.record(actor, id, body);
+  }
+
+  @Get("supplier-invoices")
+  @RequirePermissions("inventory.read")
+  list(@CurrentActor() actor: Actor, @Query() query: SupplierInvoiceQueryDto) {
+    return this.invoices.list(actor, query);
+  }
+
+  @Get("supplier-invoices/:invoiceId")
+  @RequirePermissions("inventory.read")
+  get(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string) {
+    return this.invoices.get(actor, id);
+  }
+
+  @Post("supplier-invoices/:invoiceId/approve")
+  @HttpCode(200)
+  @RequirePermissions("inventory.procurement.approve")
+  @ApiOperation({ summary: "Approve for payment (not by the recorder; a price different from the order needs a note)" })
+  approve(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: ApproveSupplierInvoiceDto) {
+    return this.invoices.approve(actor, id, body);
+  }
+
+  @Post("supplier-invoices/:invoiceId/payment")
+  @HttpCode(200)
+  @RequirePermissions("inventory.procurement.manage")
+  @ApiOperation({ summary: "Mark an approved invoice paid (date and payment reference)" })
+  pay(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: PaySupplierInvoiceDto) {
+    return this.invoices.pay(actor, id, body);
+  }
+
+  @Post("supplier-invoices/:invoiceId/void")
+  @HttpCode(200)
+  @RequirePermissions("inventory.procurement.manage")
+  @ApiOperation({ summary: "Void an unpaid invoice (reason required); it can then be recorded again" })
+  void(@CurrentActor() actor: Actor, @Param("invoiceId", ParseUUIDPipe) id: string, @Body() body: VoidSupplierInvoiceDto) {
+    return this.invoices.void(actor, id, body);
+  }
+}
+
+@ApiTags("inventory")
+@ApiBearerAuth()
+@RequireFacility()
+@Controller({ path: "inventory", version: "1" })
+export class InventoryValuationController {
+  constructor(private readonly valuations: InventoryValuationService) {}
+
+  @Get("valuation")
+  @RequirePermissions("inventory.valuation.read")
+  @ApiOperation({ summary: "Stock on hand at the selected facility at cost (lot cost = weighted average of its priced receipts); unvalued stock listed" })
+  valuation(@CurrentActor() actor: Actor, @Query() query: ValuationQueryDto) {
+    return this.valuations.valuation(actor, query);
+  }
+
+  @Get("valuation/usage")
+  @RequirePermissions("inventory.valuation.read")
+  @ApiOperation({ summary: "What was received, used and written off in a period of local days (≤ 366), at the cost each movement recorded" })
+  usage(@CurrentActor() actor: Actor, @Query() query: UsageQueryDto) {
+    return this.valuations.usage(actor, query);
   }
 }

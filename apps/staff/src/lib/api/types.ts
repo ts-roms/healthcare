@@ -295,10 +295,12 @@ export interface QueueVisit {
   patient: PatientBrief | null;
   /** The visit's consultation once started. */
   encounterId: string | null;
+  /** From the visit type; an online visit is started from Telemedicine. */
+  modality: "in_person" | "telemedicine";
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 
@@ -1051,7 +1053,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "manual";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
   description: string;
   quantity: number;
   unitPrice: number;
@@ -1709,6 +1711,32 @@ export interface DentalPlanItem {
   status: DentalPlanItemStatus;
   procedureId: string | null;
   version: number;
+  /** The listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on. */
+  decisionEstimate?: number | null;
+  decisionEstimateOn?: string | null;
+}
+
+/** GET /dental/treatment-plans/:id/estimate (libs/dental/src/lib/plans/dental-fee-estimates.ts). Amounts in centavos. */
+export interface DentalPlanEstimate {
+  planId: string;
+  planStatus: DentalPlanStatus;
+  pricedOn: string;
+  currency: "PHP";
+  items: Array<{
+    itemId: string;
+    phase: number;
+    tooth: string | null;
+    surfaces: ToothSurface[];
+    procedure: { code: string; name: string } | null;
+    status: DentalPlanItemStatus;
+    /** In the estimate: awaiting the patient's decision, or accepted and not yet done; null: not part of it. */
+    part: "awaiting" | "accepted" | null;
+    listed: { serviceCode: string; serviceName: string; unitPrice: number } | null;
+    atDecision: { amount: number | null; pricedOn: string } | null;
+  }>;
+  totals: { awaitingDecision: number; accepted: number; remaining: number; unpricedItems: number };
+  disclaimer: string;
+  note: string | null;
 }
 
 export interface DentalTreatmentPlan {
@@ -2741,6 +2769,10 @@ export interface DentalPortalSetting {
   portalPlanDecisions: boolean;
   /** The organization's own text patients confirm before deciding online. */
   portalPlanAcknowledgement: string | null;
+  /** MyHealth shows fee estimates on plans (needs dental records shown). */
+  portalPlanEstimates: boolean;
+  /** The organization's own note under every fee estimate (printed and in MyHealth). */
+  feeEstimateNote: string | null;
   /** 0 until first set. */
   version: number;
   updatedAt: string | null;
@@ -3040,4 +3072,112 @@ export interface ManagementKeyFigures {
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;
+}
+
+// ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------
+
+/** GET /inventory/valuation */
+export interface InventoryValuation {
+  totalValue: number;
+  unvaluedLines: number;
+  byCategory: Array<{ category: InventoryCategory; value: number; lines: number }>;
+  byLocation: Array<{ locationId: string; name: string; value: number; lines: number }>;
+  lines: Array<{
+    itemId: string;
+    code: string;
+    name: string;
+    category: InventoryCategory;
+    stockUnit: string;
+    locationId: string;
+    locationName: string;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    averageUnitCost: number | null;
+  }>;
+}
+
+export type InventoryMovementKind = "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off" | "return";
+export type InventoryMovementSource = "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | "dental_procedure";
+
+/** GET /inventory/valuation/usage — signed quantities and values (receipts positive, uses negative). */
+export interface InventoryUsage {
+  from: string;
+  to: string;
+  timeZone: string;
+  rows: Array<{
+    kind: InventoryMovementKind;
+    sourceType: InventoryMovementSource | null;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    movements: number;
+  }>;
+  topItems: Array<{ itemId: string; name: string; stockUnit: string; quantity: number; value: number }>;
+}
+
+export type SupplierInvoiceStatus = "recorded" | "approved" | "paid" | "void";
+
+export interface SupplierInvoice {
+  id: string;
+  facilityId: string;
+  purchaseOrderId: string;
+  poNumber: string | null;
+  supplierId: string;
+  supplier: { id: string; code: string; name: string } | null;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string | null;
+  linesTotal: number;
+  vatAmount: number;
+  total: number;
+  notes: string | null;
+  status: SupplierInvoiceStatus;
+  recordedAt: string;
+  recordedByYou: boolean;
+  approvedAt: string | null;
+  approvalNote: string | null;
+  paidOn: string | null;
+  paymentReference: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  overdue: boolean;
+  version: number;
+}
+
+export interface SupplierInvoiceDetail extends SupplierInvoice {
+  lines: Array<{
+    id: string;
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemName: string;
+    stockUnit: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    /** Invoiced less ordered price per stock unit; null when the order had no price. */
+    variance: number | null;
+  }>;
+}
+
+/** GET /inventory/purchase-orders/:id/invoicing */
+export interface PurchaseOrderInvoicing {
+  purchaseOrderId: string;
+  poNumber: string;
+  supplierId: string;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemId: string;
+    itemName: string;
+    stockUnit: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    quantityInvoiced: number;
+    invoiceable: number;
+  }>;
 }

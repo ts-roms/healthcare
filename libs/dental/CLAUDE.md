@@ -15,6 +15,7 @@ Dental history, examination, odontogram / tooth chart, tooth surfaces, dental di
 - **Odontogram history:** each examination produces a new chart snapshot / set of condition entries with timestamp and author. Never mutate a previous chart; the current chart is derived from history.
 - Treatment plans have phases/items with status (proposed, accepted, in progress, completed, declined) and link to performed procedures.
 - Procedures are recorded against tooth + surfaces and produce charge events for billing — dental does not compute invoices.
+- Fee estimates read billing's listed prices through the `DentalFees` port; dentistry stores no prices of its own, only the estimate each item carried when the patient decided it (set once).
 - Dental prescriptions reuse the shared prescription contract (`libs/prescription`).
 - Dental imaging (X-rays, intraoral photos) lives in object storage via `libs/documents`; only metadata and references in PostgreSQL. Access through signed URLs, audited.
 - Lab orders from dental go through the laboratory order contract.

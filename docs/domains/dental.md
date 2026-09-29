@@ -47,7 +47,9 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
   surfaces, note). Plan status `proposed → accepted → in_progress → completed`, or `declined`, or `discontinued`
   (reason); item status `proposed → accepted | declined → completed` (linked to the procedure) or `cancelled`. The
   patient's decision is recorded per item with a note on how they decided (e.g. options and fees explained, consent
-  form signed). Plans carry **no prices**: fees are billing's.
+  form signed). Plans carry **no prices of their own**: fees are billing's. Each decided item keeps the estimate it
+  carried when the patient decided (`decision_estimate`, `decision_estimate_on`; migration `0060`) — see
+  [fee estimates](#fee-estimates).
 - `dental_procedure` — performed during the patient's encounter in progress: procedure type, tooth and surfaces as
   its site requires, notes, optional accepted plan item it carries out. Immutable except entered in error. One
   recorded procedure per plan item (partial unique index).
@@ -56,7 +58,9 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
   cephalometric, occlusal, CBCT, intraoral/extraoral photo, other), teeth shown, date taken, notes and optional
   encounter. Immutable except entered in error.
 - `dental_organization_setting` — the organization's choice to show patients their dental records in MyHealth
-  (`portal_dental_records`, off by default; optimistic `version`; migration `0056`).
+  (`portal_dental_records`, off by default; optimistic `version`; migration `0056`), online plan decisions (`0058`),
+  and fee estimates in MyHealth with the organization's own note under every estimate (`portal_plan_estimates`,
+  `fee_estimate_note`; `0060`).
 
 ## Commands
 
@@ -95,6 +99,9 @@ leaves the tooth missing; an implant or pontic replaces whatever was charted.
 - `GET /dental/visits?date=` — dentists' encounters at the selected facility on a local day (default today), with
   examination and procedure counts (the dental worklist). Audited.
 - `GET /dental/treatment-plans/:id`, `GET /dental/settings`.
+- `GET /dental/treatment-plans/:id/estimate` (`dental.record.read`) — the fee estimate of the work still ahead at
+  billing's listed prices today; `GET /dental/treatment-plans/:id/estimate.pdf` — the printable estimate, audited
+  `dental.plan.estimate.print`. See [fee estimates](#fee-estimates).
 - `GET /dental/perio-charts/:id` — one periodontal chart with its measurements, summary and the changes since the
   patient's previous recorded chart. Audited `dental.perio.view`. The dental record lists every chart with its summary.
 - `GET /dental/images/:id/link` — a 5-minute signed URL, audited by the documents service as `document.download`.
@@ -149,11 +156,11 @@ Endpoints above under `/api/v1/dental` (OpenAPI tag `dental`). Errors: `invalid_
 `invalid_plan_item` / `invalid_procedure_site` (details), `encounter_not_in_progress`, `plan_item_not_accepted`,
 `plan_item_mismatch`, `plan_item_completed` (409), `nothing_to_decide`, `last_item`, `plan_closed`,
 `plan_not_active`, `not_an_image`, `document_unavailable`, `image_exists` (409), `already_entered_in_error`,
-`procedure_code_exists` (409), `invalid_chart_effect`.
+`procedure_code_exists` (409), `invalid_chart_effect`; MyHealth decisions: `plan_changed`, `estimate_changed` (409).
 
 ## Database relationships
 
-Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
+Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions, `0060` fee estimates). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
 `practitioner`, `encounter (patient_id, id)` and `document`; tooth states reference their examination or procedure
 by `(patient_id, id)`, so a state cannot belong to another patient's record. Triggers: `dental_record_guard`
 (examinations, procedures, images: only `recorded → entered_in_error` with reason, author and time; no deletes),
@@ -173,7 +180,10 @@ stock unit, lot number and expiry, quantity; a return line names the issued line
 - **Clinic** (port `DentalContext`, adapter `apps/api/src/app/adapters/dental-adapters.ts`): the encounter (patient,
   facility, status), the actor's practitioner and profession, practitioner and staff names, patient briefs, and
   dentists' encounters per day (`ClinicQueries.encountersOfProfession`).
-- **Billing**: `BillingSources.dentalProcedure` (adapter over `DentalProcedureService.billable`), events above.
+- **Billing**: `BillingSources.dentalProcedure` (adapter over `DentalProcedureService.billable`), events above. Fee
+  estimates read billing's listed prices through the `DentalFees` port (adapter `AppDentalFees` over
+  `BillingPriceQueries.listedPrices`, provided by `BillingPricesModule` so dentistry does not import the billing module,
+  which imports dentistry).
 - **Inventory** (port `DentalSupplies`, adapter `AppDentalSupplies` in `dental-adapters.ts` over `InventoryQueries` and
   `InventoryStockService.issueForSource` / `returnForSource`): items, locations, usable stock, and issues and returns
   inside dentistry's transaction.
@@ -236,8 +246,9 @@ dedicated read model — staff shapes are never reused):
 
 Never shown: examination notes and oral hygiene, tooth notes, plan and item notes, decision notes (except the
 organization's own acknowledgement), discontinuation and correction reasons, periodontal charts, image notes and
-unreleased images, procedure codes, staff users, and anything entered in error. **Plans carry no prices** (fees are billing's), so no
-estimate is shown; MyHealth tells the patient to ask the clinic. Dates are the facility's local calendar dates.
+unreleased images, procedure codes, staff users, and anything entered in error. **Plans carry no prices** of their own (fees are
+billing's); an estimate is shown only when the organization turns on [fee estimates](#fee-estimates) in MyHealth,
+otherwise MyHealth tells the patient to ask the clinic. Dates are the facility's local calendar dates.
 Teeth are stored in FDI and shown in **one notation for the whole record** — that of the facility of the patient's
 latest dental care (plan, procedure or examination) — so a tooth reads the same in every section.
 
@@ -339,6 +350,44 @@ The supplies a procedure used are taken from inventory stock (`libs/dental/src/l
   movement whatever the user's inventory permissions: the dental permission authorizes the clinical action, the
   inventory command enforces the stock rules.
 
+## Fee estimates
+
+An open treatment plan shows an **estimate of the work still ahead**: each item awaiting the patient's decision or
+accepted and not yet done, at **billing's listed price** for its procedure code on the plan facility's local date
+(`libs/dental/src/lib/plans/dental-fee-estimates.ts`, rules in `fee-estimate.rules.ts`). Dentistry keeps no prices: the
+`DentalFees` port reads the active billing service mapped to the procedure code (`source_kind = 'dental_procedure'`, the
+mapping charge capture uses) and its price on that date. Done items are charged by billing when performed; declined
+and withdrawn items are not part of the estimate. An item whose code has no mapped service or price that day is
+listed as **no listed price** and counted apart (`unpricedItems`): the totals never guess. Discounts, packages and
+HMO/PhilHealth coverage are billing's and are **not applied**; every estimate carries that statement
+(`ESTIMATE_DISCLAIMER`) and the organization's own note (`fee_estimate_note`, 10–500 characters, e.g. how long it
+holds), set in dental settings.
+
+| Totals             | What                                         |
+| ------------------ | -------------------------------------------- |
+| `awaitingDecision` | listed prices of items awaiting the decision |
+| `accepted`         | listed prices of accepted items not yet done |
+| `remaining`        | both                                         |
+| `unpricedItems`    | items in the estimate without a listed price |
+
+- **At the decision.** When the patient decides (told to staff or in MyHealth), each decided item records the listed
+  price it had that day (`decision_estimate`, centavos, null when none) and the date (`decision_estimate_on`); set
+  once with the decision, never changed (trigger `dental_plan_item_estimate_once`; an item awaiting a decision cannot
+  carry one). The decision's audit event names the date priced. Items decided before migration `0060` have none. The
+  live estimate follows the price list; the staff plan shows both.
+- **Printed.** Staff print a "Treatment Plan Fee Estimate" (PDF, facility letterhead): patient, plan, dentist, dates,
+  the items ahead with tooth (in the facility's notation), procedure, status and listed price, totals, what is not
+  priced, the statement, the organization's note, and signature lines for dentist and patient. Audited
+  `dental.plan.estimate.print` (totals and date priced). Not an invoice or official receipt.
+- **In MyHealth** (opt-in, off by default, `portal_plan_estimates`; needs dental records shown and is turned off with
+  them): open plans show the estimated fee per item ahead, the totals, the date priced, the statement and the note —
+  never billing codes or service names. With online decisions, the patient sees the estimate of what they tick, and
+  the decision carries the estimate of the items awaiting it they were shown (`estimateAwaitingDecision`): if the
+  current estimate differs (prices changed since), nothing is decided (`estimate_changed`, 409) and the page reloads.
+- **Permissions**: no new ones — the estimate is part of the plan (`dental.record.read`); the note and the MyHealth
+  option use `dental.settings.manage` (`PUT /dental/settings/portal`, fields `portalPlanEstimates`,
+  `feeEstimateNote`). Billing staff without dental access do not read estimates.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.
@@ -349,8 +398,12 @@ The supplies a procedure used are taken from inventory stock (`libs/dental/src/l
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
 - MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
-  status; confirm with the clinics. Fee estimates are a follow-up (plans carry no prices); a DICOM file opens as a
-  download (no viewer in MyHealth).
+  status; confirm with the clinics. A DICOM file opens as a download (no viewer in MyHealth).
+- Fee estimates use the organization's price list as it stands: one listed price per procedure code (no fee ranges,
+  per-surface or per-canal pricing unless the organization defines separate procedure codes), VAT-inclusive as billing
+  stores prices, without discounts, packages or HMO/PhilHealth coverage. Whether an estimate or its validity must be
+  given in writing for particular treatments, and any consumer or DOH requirement on its content, is a **compliance
+  dependency** each organization validates; the platform supplies only the statement of what an estimate is not.
 - Supplies: dental assistants cannot record supply use (they lack `dental.procedure.record`); a narrower permission
   for them is a follow-up if clinics want it. Charging supplies separately and a recall search screen by lot are
   follow-ups.

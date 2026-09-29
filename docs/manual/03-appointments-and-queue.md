@@ -87,7 +87,8 @@ no-show withdraws a reminder that has not yet been sent.
 2. A message confirms the check-in and gives the queue ticket, for example "Checked in … — ticket A-001".
 3. The patient now appears on the **Queue** board under **Waiting**, and the appointment shows **Arrived**.
 
-**Check in** appears only for today's appointments and needs `clinic.queue.manage`. Patients checked in from an appointment start with routine
+**Check in** appears only for today's in-person appointments and needs `clinic.queue.manage`. Online appointments have no **Check in**: the
+patient checks in by entering the MyHealth waiting room. Patients checked in from an appointment start with routine
 priority; the nurse can change the priority at triage.
 
 ## How to check in a walk-in patient
@@ -145,8 +146,8 @@ it.
 Once the patient is **With provider**, the panel says "With the provider. The encounter closes the visit." The visit moves to **Done** when the
 physician signs the encounter.
 
-Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Start
-their consultation from **Telemedicine**, not from the queue; see [Telemedicine](05-telemedicine.md).
+Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
+panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
 
 ## How to record triage and vital signs
 

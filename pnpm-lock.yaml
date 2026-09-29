@@ -592,6 +592,9 @@ importers:
       '@healthcare/organization':
         specifier: workspace:*
         version: link:../organization
+      '@healthcare/pdf':
+        specifier: workspace:*
+        version: link:../pdf
 
   libs/documents:
     dependencies:

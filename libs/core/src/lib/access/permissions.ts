@@ -117,6 +117,8 @@ export const PERMISSIONS = [
   "interop.fhir.import.review",
   // Management dashboard: cross-domain operational figures, counts and amounts only (migration 0059).
   "management.dashboard.read",
+  // Inventory valuation: stock values and the cost of stock received, used and written off (migration 0061).
+  "inventory.valuation.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

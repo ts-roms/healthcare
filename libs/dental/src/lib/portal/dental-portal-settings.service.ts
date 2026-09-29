@@ -13,6 +13,10 @@ export interface DentalPortalSettingView {
   portalPlanDecisions: boolean;
   /** The organization's own text the patient confirms before deciding online (the platform supplies none). */
   portalPlanAcknowledgement: string | null;
+  /** MyHealth shows fee estimates on plans (off by default; needs dental records shared). */
+  portalPlanEstimates: boolean;
+  /** The organization's own note under every fee estimate (printed and in MyHealth), e.g. how long it holds. */
+  feeEstimateNote: string | null;
   /** 0 until the organization first sets it. */
   version: number;
   updatedAt: Date | null;
@@ -25,13 +29,18 @@ export interface DentalPortalSettingInput {
   portalPlanDecisions?: boolean;
   /** Left out: unchanged. Required (20–1000 characters) for plan decisions. */
   portalPlanAcknowledgement?: string | null;
+  /** Left out: unchanged. Turned off whenever dental records are not shared. */
+  portalPlanEstimates?: boolean;
+  /** Left out: unchanged; empty or null removes it (10–500 characters). */
+  feeEstimateNote?: string | null;
   version: number;
 }
 
 /**
  * The organization's choice to show patients their dental records in MyHealth. Off by default: releasing dental
  * records to patients is a decision each organization makes (docs/domains/dental.md). What patients then see is fixed
- * in code (`DentalPatientAccess`), not configurable here.
+ * in code (`DentalPatientAccess`), not configurable here. Also the organization's own note under fee estimates, and
+ * whether MyHealth shows them.
  */
 @Injectable()
 export class DentalPortalSettings {
@@ -53,15 +62,32 @@ export class DentalPortalSettings {
       : undefined;
   }
 
+  /** The organization's note under fee estimates, and whether MyHealth shows estimates (only while records are shared). */
+  async estimates(organizationId: string, executor: DbExecutor = this.db): Promise<{ inPortal: boolean; note: string | null }> {
+    const row = await this.row(executor, organizationId);
+    return { inPortal: (row?.portalDentalRecords && row.portalPlanEstimates) ?? false, note: row?.feeEstimateNote ?? null };
+  }
+
   async get(organizationId: string): Promise<DentalPortalSettingView> {
     const row = await this.row(this.db, organizationId);
     if (!row)
-      return { portalDentalRecords: false, portalPlanDecisions: false, portalPlanAcknowledgement: null, version: 0, updatedAt: null, updatedByName: null };
+      return {
+        portalDentalRecords: false,
+        portalPlanDecisions: false,
+        portalPlanAcknowledgement: null,
+        portalPlanEstimates: false,
+        feeEstimateNote: null,
+        version: 0,
+        updatedAt: null,
+        updatedByName: null,
+      };
     const names = await this.context.staffNames(organizationId, [row.updatedBy]);
     return {
       portalDentalRecords: row.portalDentalRecords,
       portalPlanDecisions: row.portalPlanDecisions,
       portalPlanAcknowledgement: row.portalPlanAcknowledgement,
+      portalPlanEstimates: row.portalPlanEstimates,
+      feeEstimateNote: row.feeEstimateNote,
       version: row.version,
       updatedAt: row.updatedAt,
       updatedByName: names.get(row.updatedBy) ?? null,
@@ -69,8 +95,8 @@ export class DentalPortalSettings {
   }
 
   /**
-   * Turns MyHealth dental records (and online plan decisions, with the organization's acknowledgement text) on or off
-   * (optimistic `version`; audited with before and after).
+   * Turns MyHealth dental records (and online plan decisions, with the organization's acknowledgement text, and fee
+   * estimates) on or off, and sets the note under fee estimates (optimistic `version`; audited with before and after).
    */
   async set(actor: Actor, input: DentalPortalSettingInput): Promise<DentalPortalSettingView> {
     await this.db.transaction(async (tx) => {
@@ -82,10 +108,14 @@ export class DentalPortalSettings {
       if (decisions && !acknowledgement) {
         throw new BusinessRuleError("Write the acknowledgement patients confirm before deciding a plan online", "acknowledgement_required");
       }
+      const estimates = input.portalDentalRecords && (input.portalPlanEstimates ?? current?.portalPlanEstimates ?? false);
+      const note = input.feeEstimateNote === undefined ? (current?.feeEstimateNote ?? null) : input.feeEstimateNote?.trim() || null;
       const values = {
         portalDentalRecords: input.portalDentalRecords,
         portalPlanDecisions: decisions,
         portalPlanAcknowledgement: acknowledgement,
+        portalPlanEstimates: estimates,
+        feeEstimateNote: note,
         updatedBy: actor.userId,
         updatedAt: new Date(),
       };
@@ -108,6 +138,8 @@ export class DentalPortalSettings {
         portalDentalRecords: current?.portalDentalRecords ?? false,
         portalPlanDecisions: current?.portalPlanDecisions ?? false,
         portalPlanAcknowledgement: current?.portalPlanAcknowledgement ?? null,
+        portalPlanEstimates: current?.portalPlanEstimates ?? false,
+        feeEstimateNote: current?.feeEstimateNote ?? null,
       };
       for (const key of Object.keys(before) as Array<keyof typeof before>) {
         if (before[key] !== values[key]) changes[key] = { from: before[key], to: values[key] };

@@ -8,8 +8,10 @@ import { DentalReportingQueries } from "./dental-reporting.queries";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
+import { DentalFeeEstimates } from "./plans/dental-fee-estimates";
+import { DentalFeeLookup } from "./plans/dental-fee-lookup";
 import { DentalPlanService } from "./plans/dental-plan.service";
-import { DENTAL_CONTEXT, DENTAL_SUPPLIES, type DentalContext, type DentalSupplies } from "./ports";
+import { DENTAL_CONTEXT, DENTAL_FEES, DENTAL_SUPPLIES, type DentalContext, type DentalFees, type DentalSupplies } from "./ports";
 import { DentalPatientAccess } from "./portal/dental-patient-access";
 import { DentalPortalSettings } from "./portal/dental-portal-settings.service";
 import { DentalProcedureService } from "./procedures/dental-procedure.service";
@@ -20,6 +22,8 @@ export interface DentalModuleOptions {
   context: Type<DentalContext>;
   /** Stock of dental supplies (inventory), used inside dentistry's transactions. */
   supplies: Type<DentalSupplies>;
+  /** Listed prices from billing, for fee estimates. */
+  fees: Type<DentalFees>;
 }
 
 /**
@@ -37,6 +41,8 @@ export class DentalModule {
         DentalCatalogService,
         DentalChartService,
         DentalPlanService,
+        DentalFeeLookup,
+        DentalFeeEstimates,
         DentalProcedureService,
         DentalImagingService,
         DentalPerioService,
@@ -48,6 +54,7 @@ export class DentalModule {
         DentalReportingQueries,
         { provide: DENTAL_CONTEXT, useClass: options.context },
         { provide: DENTAL_SUPPLIES, useClass: options.supplies },
+        { provide: DENTAL_FEES, useClass: options.fees },
       ],
       exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries, DentalReportingQueries],
     };

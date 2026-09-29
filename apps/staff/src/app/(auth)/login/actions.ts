@@ -25,18 +25,18 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Stores the session and, when the organization has exactly one facility, selects it. */
+/** Stores the session and, when the user can work in exactly one facility, selects it. */
 async function startSession(tokens: TokenResponse): Promise<void> {
   const jar = await cookies();
   writeTokenCookies(jar, tokens);
   jar.delete(COOKIES.mfaChallenge);
   try {
-    const response = await fetch(`${API_BASE_URL}/facilities`, {
+    const response = await fetch(`${API_BASE_URL}/auth/me/facilities`, {
       headers: { ...forwardedHeaders(await requestHeaders()), authorization: `Bearer ${tokens.accessToken}`, accept: "application/json" },
       cache: "no-store",
     });
     if (response.ok) {
-      const active = ((await response.json()) as Facility[]).filter((f) => f.status === "active");
+      const active = (await response.json()) as Facility[];
       if (active.length === 1) jar.set(COOKIES.facility, active[0]!.id, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
       else jar.delete(COOKIES.facility);
     }

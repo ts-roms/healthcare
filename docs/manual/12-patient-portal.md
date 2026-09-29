@@ -80,7 +80,8 @@ available" — please call the clinic.
 2. **What kind of visit?** — choose one. Each shows whether it is **At the clinic** or **Online, by video**, and about how long it takes.
 3. **Where?** — choose the clinic branch (only asked if there is more than one).
 4. **Which doctor?** — choose **Any available doctor** or a doctor by name.
-5. **When?** — choose a day, then an open time under **Morning** or **Afternoon**. If you chose "any doctor", each time shows the doctor's name. If a
+5. **When?** — choose a day, then an open time under **Morning** or **Afternoon**. Days are shown a week at a time; use the arrows beside them to see
+   earlier or later weeks, up to the furthest day the clinic allows. If you chose "any doctor", each time shows the doctor's name. If a
    day is full you see "No open times on this day. Try another day."
 6. **Confirm** — check the date, time, visit and place. You may add a **Reason for the visit (optional)**. Only the clinic sees this. Do not use it
    for emergencies.
@@ -96,7 +97,7 @@ Below an upcoming visit you can change, choose **Change or cancel** (or **Cancel
 
 **To move it to another time** (same doctor):
 
-1. Under **Choose a new time**, choose a day and an open time.
+1. Under **Choose a new time**, choose a day (the arrows show other weeks) and an open time.
 2. Choose the button **Move to …** with the new time.
 
 You see "Your visit was moved." To see a different doctor, cancel and book again.
@@ -223,17 +224,21 @@ your communication preferences.
    **Missing**, **Not charted**) and a list of teeth with something noted. You face the chart: your right side is on the left.
 5. **X-rays and photos** — only images your dentist chose to share with you. Choose **Open** to view one. The clinic can see that you opened it.
 
-Your dentist's notes and fees are not shown here. Ask the clinic about costs.
+Your dentist's notes are not shown here. If your clinic shows fee estimates, a plan shows the **Estimated fee** of each treatment still ahead and
+the **Estimated cost of the treatment still ahead**, with the date of the prices. It is an estimate, not a bill: discounts and HMO or PhilHealth
+coverage are not included, and a treatment without a listed price says "ask the clinic". Otherwise, ask the clinic about costs.
 
 **Deciding on a treatment plan online.** Some clinics let you decide in MyHealth. If yours does, a plan waiting for your decision shows **Your
 decision**:
 
 1. Tick the treatments you want to go ahead with. Anything you leave unticked is declined.
-2. Read the summary (for example "You accept … and decline …").
+2. Read the summary (for example "You accept … and decline …"). If your clinic shows estimates, you also see the estimated fee of what you
+   accept.
 3. Tick the clinic's statement to confirm it.
 4. Choose **Send my decision**.
 
-If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
+If the clinic's prices changed while you were deciding, you see "The clinic's prices changed since you opened this plan" and the new estimate;
+decide again. If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
 
 ## How to check your profile
 

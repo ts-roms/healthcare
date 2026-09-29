@@ -113,7 +113,13 @@ export function AppointmentsDay({
             </CardHeader>
             <ul className="divide-y px-3">
               {g.items.map((a) => {
-                const actions = appointmentActions(a, { now, isToday, canManage, canCheckIn });
+                const actions = appointmentActions(a, {
+                  now,
+                  isToday,
+                  canManage,
+                  canCheckIn,
+                  online: visitTypeMap.get(a.visitTypeId)?.modality === "telemedicine",
+                });
                 return (
                   <li key={a.id} className="py-0.5">
                     <AppointmentCard

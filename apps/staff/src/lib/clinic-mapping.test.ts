@@ -33,6 +33,7 @@ const visit: QueueVisit = {
   version: 3,
   waitingMinutes: 12,
   encounterId: null,
+  modality: "in_person",
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
 };
 
@@ -147,6 +148,11 @@ describe("appointmentActions", () => {
     expect(appointmentActions(booked, context)).toEqual(["check_in", "confirm", "cancel"]);
     expect(appointmentActions(booked, { ...context, now: new Date("2026-09-27T01:05:00Z") })).toEqual(["check_in", "confirm", "no_show", "cancel"]);
     expect(appointmentActions(booked, { ...context, isToday: false })).toEqual(["confirm", "cancel"]);
+  });
+
+  it("leaves check-in of an online appointment to the patient's waiting room", () => {
+    const booked = { status: "booked" as const, startsAt: "2026-09-27T01:00:00Z" };
+    expect(appointmentActions(booked, { ...context, online: true })).toEqual(["confirm", "cancel"]);
   });
 
   it("offers nothing on closed appointments or without permission", () => {

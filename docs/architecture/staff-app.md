@@ -18,7 +18,7 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 | `hc_mfa` | MFA challenge token (between steps) | httpOnly, SameSite=Strict                 | 5 minutes, cleared on success           |
 | `hc_fac` | Selected facility id (not a secret) | httpOnly, SameSite=Lax                    | Session                                 |
 
-- **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). With exactly one active facility it is selected automatically.
+- **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). The facility selector lists `GET /auth/me/facilities` (active facilities where the user holds a role, every one for an organization-wide role; no `organization.read` needed); when that is exactly one facility it is selected at sign-in.
 - **Public pages** (`PUBLIC_PATHS` in `src/proxy.ts`): only the landing page `/welcome` (`app/(public)/welcome`) renders without a session. It is static, never calls the API, and describes the platform from `components/platform-highlights.tsx`, which the split sign-in page (`app/(auth)/layout.tsx`) shares.
 - **Gate and refresh** (`src/proxy.ts`): no refresh token → `/login?next=…` (same-origin paths only). No access token (its cookie expired) → `POST /auth/refresh`, and the new tokens go to both the current render and the browser.
 - **Single-flight refresh** (`createRefresher` in `libs/web-session`, wired in `lib/api/tokens.ts`): the API rotates refresh tokens and **revokes the session when a rotated token is reused**. Parallel requests from one browser can all carry the same expired token, so concurrent refreshes of one token share a single API call, and the result is reused for 30 s. This is per process: running several staff-app instances needs sticky sessions or a shared store (e.g. Redis) for the same guarantee.
@@ -201,7 +201,13 @@ write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/invent
 (`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels and reorder quantities.
 `/inventory/purchase-orders`: open and past orders, what to reorder, a new order (`inventory.procurement.manage`, lines
 can be filled from the reorder list); `/inventory/purchase-orders/[id]`: lines and totals, submit, approve (someone
-else), receive a delivery (lots, expiry, delivery reference), cancel or close short. See `docs/domains/inventory.md`.
+else), receive a delivery (lots, expiry, delivery reference), cancel or close short, invoiced quantities per line, the
+order's supplier invoices and **Record a supplier invoice** (`inventory.procurement.manage`; lines prefilled with what was
+received and not yet invoiced, at the order's price). `/inventory/supplier-invoices` (open, overdue, paid, void, all) and
+`/inventory/supplier-invoices/[id]`: lines with order and invoiced prices (differences marked with ▲/▼ and text), VAT as
+stated, total, history, **Approve** (someone else; a note when prices differ), **Mark paid**, **Void**.
+`/inventory/valuation` (`inventory.valuation.read`): stock value, unvalued stock, value by category and location, stock at
+cost per item, and received and used in a period. See `docs/domains/inventory.md`.
 
 ## Pharmacy
 
@@ -218,7 +224,8 @@ the facility with whether each has been charted and how many procedures were rec
 dentition; each tooth shows glyph + chart code, never colour alone), a tooth's state, source and full history; with
 the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
 **Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
-record the patient's decision item by item, cancel items, discontinue); procedures (optionally from an accepted plan
+record the patient's decision item by item, cancel items, discontinue; an open plan shows its fee estimate — listed
+price per item ahead, "No listed price", totals, the estimate each decided item carried — and **Print estimate**); procedures (optionally from an accepted plan
 item), each with a **Supplies used** panel (opened after recording: prefilled from the procedure's template, stock
 location, issued from inventory with the lots shown, refusals inline next to the supply; return unused supplies);
 examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,
@@ -226,7 +233,8 @@ suppuration, mobility, furcation where the tooth has one; view a chart with the 
 imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; open via a signed
 link; share with the patient in MyHealth and stop sharing — `dental.imaging.release`); plans decided by the patient
 in MyHealth are marked as such. `/dental/settings` also holds "Dental records in MyHealth" and, when on, "Treatment plan
-decisions in MyHealth" with the organization's acknowledgement text. Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
+decisions in MyHealth" with the organization's acknowledgement text, and "Fee estimates" (the organization's note
+under every estimate; whether MyHealth shows them). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
 visit's encounter workspace. `/dental/settings`: the procedure catalog, supply templates per procedure, the facility's tooth notation and
 default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See

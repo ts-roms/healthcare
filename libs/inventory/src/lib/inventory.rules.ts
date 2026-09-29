@@ -113,3 +113,29 @@ export function reorderSuggestion(
   const needed = usable + onOrder <= reorderLevel;
   return { needed, suggestedQuantity: needed ? reorderQuantity : null };
 }
+
+// ---- Supplier invoices ----------------------------------------------------------------------------------------------
+
+export type SupplierInvoiceAction = "approve" | "pay" | "void";
+
+/** recorded → approved → paid; recorded or approved → void. Paid and voided invoices do not change. */
+export function supplierInvoiceAllows(status: "recorded" | "approved" | "paid" | "void", action: SupplierInvoiceAction): boolean {
+  if (action === "approve") return status === "recorded";
+  if (action === "pay") return status === "approved";
+  return status === "recorded" || status === "approved";
+}
+
+/** What an order line may still be invoiced for: received and not already on a valid invoice. */
+export function invoiceableQuantity(line: { quantityReceived: number; quantityInvoiced: number }): number {
+  return Math.max(0, line.quantityReceived - line.quantityInvoiced);
+}
+
+/** Invoiced price less the order's price, per stock unit (centavos); null when the order had no price. */
+export function priceVariance(orderUnitCost: number | null, invoicedUnitPrice: number): number | null {
+  return orderUnitCost === null ? null : invoicedUnitPrice - orderUnitCost;
+}
+
+/** An open invoice is overdue after its due date (local day of the facility). */
+export function invoiceOverdue(invoice: { status: string; dueDate: string | null }, today: string): boolean {
+  return (invoice.status === "recorded" || invoice.status === "approved") && invoice.dueDate !== null && invoice.dueDate < today;
+}

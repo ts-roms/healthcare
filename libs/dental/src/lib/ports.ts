@@ -121,3 +121,25 @@ export const DENTAL_SUPPLIES = Symbol("DENTAL_SUPPLIES");
 
 /** How the stock ledger names where dental supplies went: the procedure as source, never a patient identifier. */
 export const DENTAL_SUPPLY_SOURCE = { type: "dental_procedure", issuedTo: "Dental procedure" } as const;
+
+// ---- fees (billing's price list) --------------------------------------------------------------------
+
+/** A procedure's listed price as billing would charge it on a date (the service mapped to the procedure code). */
+export interface DentalListedFee {
+  serviceCode: string;
+  serviceName: string;
+  /** Centavos, as on the price list (VAT-inclusive where VAT applies). */
+  unitPrice: number;
+}
+
+/**
+ * Listed prices for fee estimates, read from billing's price list by the app (apps/api/src/app/adapters/
+ * dental-adapters.ts) with the mapping charge capture uses (service source `dental_procedure`, the procedure code).
+ * Dentistry keeps no prices of its own; discounts, packages and payer coverage are billing's and are not applied.
+ */
+export interface DentalFees {
+  /** By lower-cased procedure code; codes with no active mapped service or no price on the date are left out. */
+  listedFees(organizationId: string, procedureCodes: readonly string[], onDate: string): Promise<Map<string, DentalListedFee>>;
+}
+
+export const DENTAL_FEES = Symbol("DENTAL_FEES");

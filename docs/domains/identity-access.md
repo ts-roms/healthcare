@@ -20,7 +20,7 @@ account if new), suspend/reactivate membership, grant/revoke role, create role.
 
 ## Queries
 
-`GET /auth/me`, users with role assignments, roles with permissions, permission catalog.
+`GET /auth/me`, `GET /auth/me/facilities` (active facilities where the user holds a role — all of them for an organization-wide role; the staff app's facility selector, so it needs no `organization.read`), users with role assignments, roles with permissions, permission catalog.
 
 ## Events
 

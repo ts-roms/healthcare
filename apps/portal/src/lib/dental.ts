@@ -127,6 +127,15 @@ export const IMAGE_KIND_TEXT: Record<PortalDentalImage["kind"], string> = {
   other: "Dental image",
 };
 
+/** The estimate of the treatments a patient ticks: the sum of their listed prices, and how many have none. */
+export function selectionEstimate(items: ReadonlyArray<{ id: string; estimatedFee?: number | null }>, accepted: ReadonlySet<string>) {
+  const chosen = items.filter((i) => accepted.has(i.id));
+  return {
+    total: chosen.reduce((sum, i) => sum + (i.estimatedFee ?? 0), 0),
+    unpriced: chosen.filter((i) => i.estimatedFee == null).length,
+  };
+}
+
 /** What a decision will record, in words: which items are accepted and which declined. */
 export function decisionSummary(items: ReadonlyArray<{ id: string; procedureName: string }>, accepted: ReadonlySet<string>): string {
   const yes = items.filter((i) => accepted.has(i.id)).map((i) => i.procedureName);
