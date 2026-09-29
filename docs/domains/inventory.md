@@ -9,7 +9,7 @@ migrations `0026_inventory.sql`, `0052_inventory_procurement.sql` and `0061_inve
 staff `/inventory`, `/inventory/purchase-orders`, `/inventory/supplier-invoices`, `/inventory/valuation`. It also values
 stock at cost and records supplier invoices against purchase orders.
 
-Not (yet) responsible for: reagent use per test run, accounting (general ledger, accounts payable ageing, withholding
+Not (yet) responsible for: accounting (general ledger, accounts payable ageing, withholding
 tax, input VAT claims), government procurement rules (e.g. RA 9184 for public facilities), or the official
 register formats for dangerous drugs and other regulated products (compliance dependencies — see below).
 
