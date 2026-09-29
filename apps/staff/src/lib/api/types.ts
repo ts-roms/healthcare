@@ -137,6 +137,8 @@ export interface PatientConsent {
   documentId: string | null;
   notes: string | null;
   recordedAt: string;
+  /** Recorded by staff, or by the patient in MyHealth (a withdrawal). */
+  recordedVia: "staff" | "myhealth";
 }
 
 export interface PatientDetail {

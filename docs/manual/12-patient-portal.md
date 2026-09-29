@@ -263,15 +263,29 @@ decision**:
 If the clinic's prices changed while you were deciding, you see "The clinic's prices changed since you opened this plan" and the new estimate;
 decide again. If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
 
+## How to see and withdraw your consents
+
+1. Choose **Profile**, then **Privacy and consents**.
+2. Each consent shows what it covers and whether it is **Given**, **Withdrawn**, **Not given** or **Expired**. Choose **History** to see every
+   decision, and whether it was recorded at the clinic or by you in MyHealth.
+3. To withdraw a consent, choose **Withdraw consent**, read what it means, then choose **Yes, withdraw my consent**. It applies from now on; it does
+   not undo what was done before.
+
+You can withdraw here your consent to **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth**, **Research** and
+**MyHealth** itself. Withdrawing **MyHealth** signs you out at once, and you cannot sign in again until you give your consent at the clinic. Consent
+to the use of your information and to general treatment is changed with the clinic, which explains what it means for your care. To give a consent,
+talk to the clinic.
+
 ## How to check your profile
 
 Choose **Profile** to see your **Name**, **Patient number**, **Date of birth**, **Sex**, **Clinic** and **Sign-in email**. If something is wrong,
-ask the clinic to correct your record.
+ask the clinic to correct your record. **Privacy and consents** is linked from here too.
 
 ## Rules the system enforces
 
 - You can only set up an account with a valid, unused activation code, your patient number and your date of birth. The code expires after 3 days.
 - Your clinic must have your consent on file. If it is withdrawn, you are signed out and cannot sign in.
+- You can withdraw only the consents MyHealth offers, and only while they are given. Giving a consent is done at the clinic.
 - After 5 wrong passwords in a row, sign-in is locked for about 15 minutes.
 - You can book only kinds of visit the clinic opened for online booking, only in open times of the doctor's schedule.
 - You must book at least 2 hours ahead, and not more than 60 days ahead.
@@ -306,6 +320,8 @@ ask the clinic to correct your record.
 | Please answer the questions before the consultation first                                 | You tried to enter the waiting room before sending your answers         | Send your answers first                                           |
 | Your doctor has not started the consultation yet                                          | The video opens when the doctor starts                                  | Stay in the waiting room                                          |
 | Your dentist changed this plan since you opened it. The page shows the latest version.    | The plan changed while you were deciding                                | Review the updated plan and decide again                          |
+| This consent is withdrawn at the clinic, which can explain what it means for your care.   | MyHealth does not offer withdrawing it                                  | Talk to the clinic                                                |
+| You withdrew your consent to MyHealth and were signed out.                                | You withdrew MyHealth                                                   | Give your consent at the clinic to use it again                   |
 | Online payment is not available yet; please pay at the clinic                             | No payment provider is connected                                        | Pay at the cashier                                                |
 | Something went wrong on our side. Try again in a few minutes. (ref …)                     | A system error                                                          | Try again later; give the "ref" code to the clinic if it persists |
 
@@ -318,6 +334,8 @@ ask the clinic to correct your record.
 - Dental sharing and online plan decisions are organization settings under `/dental/settings`. See [Dental](08-dental.md).
 - Patients' records requests are answered under **Records** → **Requests**; medical certificates are issued from the signed consultation. See
   [Records, reporting and integrations](11-records-reporting-and-integrations.md) and [Consultations](04-consultations-and-care-plans.md).
+- A consent a patient withdrew in MyHealth shows on the patient record as "by the patient in MyHealth". To restore MyHealth after a patient
+  withdrew it, record a new `portal_access` grant.
 - Which tests patients may see is set per test in the laboratory catalog ("Released results may be shown to the patient"). See
   [Laboratory](06-laboratory.md).
 

@@ -168,3 +168,6 @@ disable portal accounts; org admin, receptionist, records officer), `patient.mer
 - Portal: no self-service password reset, email verification, patient MFA, or
   guardian/dependent proxy access yet. One portal deployment serves one
   organization (`PORTAL_ORGANIZATION_CODE`).
+- MyHealth offers withdrawal of telemedicine, HMO and PhilHealth data sharing, research and portal access consents only; data processing and
+  general treatment consent are withdrawn at the clinic (assumption to confirm with the organization's data protection officer). Granting
+  consent online is not offered (needs the organization's consent wording).

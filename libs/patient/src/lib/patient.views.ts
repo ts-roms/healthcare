@@ -103,8 +103,11 @@ export interface ConsentView {
   capturedVia: string;
   documentId: string | null;
   notes: string | null;
-  recordedBy: string;
+  /** The staff user who recorded it; null when the patient recorded it in MyHealth. */
+  recordedBy: string | null;
   recordedAt: string;
+  /** Recorded by staff at the clinic, or by the patient in MyHealth (a withdrawal). */
+  recordedVia: "staff" | "myhealth";
 }
 
 export function toConsentView(c: PatientConsentRecord): ConsentView {
@@ -119,5 +122,6 @@ export function toConsentView(c: PatientConsentRecord): ConsentView {
     notes: c.notes,
     recordedBy: c.recordedBy,
     recordedAt: c.recordedAt.toISOString(),
+    recordedVia: c.recordedByPortalAccount ? "myhealth" : "staff",
   };
 }

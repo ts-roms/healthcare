@@ -7,6 +7,7 @@ export const metadata = { title: "Sign in" };
 const NOTICES: Record<string, string> = {
   session: "You were signed out. Sign in again to continue.",
   signed_out: "You have signed out.",
+  access_withdrawn: "You withdrew your consent to MyHealth and were signed out. To use MyHealth again, give your consent at the clinic.",
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
