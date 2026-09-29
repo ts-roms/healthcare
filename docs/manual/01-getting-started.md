@@ -72,7 +72,7 @@ buttons you may not use are hidden, and the server checks every action again. Th
 
 From left to right:
 
-- **Search box** ("Search patient name, MRN, accession…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
+- **Search box** ("Search patients: name, patient no. or mobile…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).

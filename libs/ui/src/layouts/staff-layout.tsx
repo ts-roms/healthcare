@@ -88,7 +88,7 @@ export function StaffLayout({
                 ref={searchRef}
                 type="search"
                 aria-label="Search patients"
-                placeholder="Search patient name, MRN, accession…"
+                placeholder="Search patients: name, patient no. or mobile…"
                 className="h-8 w-full rounded-md border border-input bg-background pr-9 pl-8 text-body outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
               />
               <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">/</Kbd>
