@@ -5,6 +5,7 @@ describe("messages", () => {
   it("points each kind of message to the right place", () => {
     expect(messageAction({ templateKey: "lab.results-available" })).toEqual({ href: "/results", label: "See your results" });
     expect(messageAction({ templateKey: "dental.record-update" })).toEqual({ href: "/dental", label: "See your dental record" });
+    expect(messageAction({ templateKey: "records.update" })).toEqual({ href: "/documents", label: "See your documents" });
     expect(messageAction({ templateKey: "care-plan.follow-up-due" })?.href).toBe("/appointments/book");
     expect(messageAction({ templateKey: "appointment.no-show" })?.href).toBe("/appointments/book");
     expect(messageAction({ templateKey: "clinic.message" })).toBeNull();
@@ -13,6 +14,7 @@ describe("messages", () => {
   it("names the source", () => {
     expect(messageSource({ templateKey: "clinic.message" })).toBe("From your clinic");
     expect(messageSource({ templateKey: "care-plan.follow-up-due" })).toBe("Your care plan");
+    expect(messageSource({ templateKey: "records.update" })).toBe("Records office");
   });
 
   it("formats times relative to today in Manila", () => {

@@ -13,6 +13,8 @@ import {
   EncounterController,
   QueueController,
 } from "./clinic.controllers";
+import { MedicalCertificateController } from "./certificates/medical-certificate.controller";
+import { MedicalCertificateService } from "./certificates/medical-certificate.service";
 import { ClinicQueries } from "./clinic-queries.service";
 import { ClinicReportingQueries } from "./dashboard/clinic-reporting.queries";
 import { ClinicConfigService } from "./config/clinic-config.service";
@@ -47,6 +49,7 @@ export class ClinicModule {
         EncounterController,
         ClinicDashboardController,
         ExternalHistoryController,
+        MedicalCertificateController,
       ],
       providers: [
         AppointmentReminders,
@@ -57,6 +60,7 @@ export class ClinicModule {
         ClinicReportingQueries,
         EncounterService,
         ExternalRecordsService,
+        MedicalCertificateService,
         NoShowFollowUp,
         OnlineVisitService,
         PatientBookingNotices,
@@ -65,7 +69,7 @@ export class ClinicModule {
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries, ClinicReportingQueries, ExternalRecordsService, OnlineVisitService, PatientBookingService],
+      exports: [ClinicQueries, ClinicReportingQueries, ExternalRecordsService, MedicalCertificateService, OnlineVisitService, PatientBookingService],
     };
   }
 }

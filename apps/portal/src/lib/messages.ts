@@ -7,6 +7,8 @@ export function messageAction(message: Pick<PortalMessage, "templateKey">): { hr
       return { href: "/results", label: "See your results" };
     case "dental.record-update":
       return { href: "/dental", label: "See your dental record" };
+    case "records.update":
+      return { href: "/documents", label: "See your documents" };
     case "appointment.self-service":
     case "appointment.reminder":
       return { href: "/appointments", label: "See your visits" };
@@ -23,6 +25,7 @@ export function messageSource(message: Pick<PortalMessage, "templateKey">): stri
   if (message.templateKey === "clinic.message") return "From your clinic";
   if (message.templateKey.startsWith("lab.")) return "Laboratory";
   if (message.templateKey.startsWith("care-plan.")) return "Your care plan";
+  if (message.templateKey.startsWith("records.")) return "Records office";
   return "Visits";
 }
 

@@ -21,6 +21,8 @@ describe("file routes", () => {
     expect(fileHref.sendOutManifest(id)).toBe(`/files/send-out-manifests/${id}`);
     expect(fileApiPath(["dental-estimates", id])).toBe(`/dental/treatment-plans/${id}/estimate.pdf`);
     expect(fileHref.dentalEstimate(id)).toBe(`/files/dental-estimates/${id}`);
+    expect(fileApiPath(["medical-certificates", id])).toBe(`/medical-certificates/${id}/certificate.pdf`);
+    expect(fileHref.medicalCertificate(id)).toBe(`/files/medical-certificates/${id}`);
   });
 
   it("passes nothing else through", () => {

@@ -72,7 +72,8 @@ export class UsersService {
    * Active staff who hold a permission at a facility (through an organization-wide or that facility's role), e.g. the
    * laboratory's result-entering staff for competency records. Names only; not audited.
    */
-  async holdersOf(organizationId: string, permission: string, facilityId: string): Promise<Array<{ id: string; displayName: string }>> {
+  /** Active staff holding a permission at a facility (organization-wide or that facility's roles); null: any role in the organization. */
+  async holdersOf(organizationId: string, permission: string, facilityId: string | null): Promise<Array<{ id: string; displayName: string }>> {
     return this.db
       .selectDistinct({ id: appUser.id, displayName: appUser.displayName })
       .from(roleAssignment)
@@ -89,7 +90,7 @@ export class UsersService {
           eq(rolePermission.permissionKey, permission),
           eq(organizationMembership.status, "active"),
           eq(appUser.status, "active"),
-          or(isNull(roleAssignment.facilityId), eq(roleAssignment.facilityId, facilityId)),
+          facilityId === null ? undefined : or(isNull(roleAssignment.facilityId), eq(roleAssignment.facilityId, facilityId)),
         ),
       )
       .orderBy(asc(appUser.displayName));

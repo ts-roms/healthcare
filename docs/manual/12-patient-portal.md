@@ -56,7 +56,7 @@ The menu has:
 | **Messages** | Notices and messages from the clinic. A number shows how many are new            |
 | **Profile**  | Your name, patient number, date of birth, sex, clinic and sign-in email          |
 
-On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions** and **Bills**. Your care plan, medicines
+On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills** and **Documents**. Your care plan, medicines
 and bills are opened from these buttons. **See all** next to **Upcoming** or **Recent results** opens the full list.
 
 Times of visits are shown in the clinic's local time (Philippine time for most clinics).
@@ -217,6 +217,22 @@ and messages from clinic staff.
 You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by SMS or email, ask the clinic to update
 your communication preferences.
 
+## How to get your medical certificates and copies of your records
+
+Choose **Documents** on **Home**.
+
+- **Medical certificates** — certificates your doctor issued after a visit. Choose **Download** to open one. You get a message when a new one is
+  ready. A certificate the clinic cancelled is no longer listed.
+- **Copies of your records** — to ask the clinic's records office for copies:
+  1. Choose **Ask for copies of my records**.
+  2. Tick what you need (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical certificates or
+     something else — then say what in **Details**), and optionally the period and what you need them for.
+  3. Choose **Send request**. It gets a number (`RR########`).
+
+The records office checks your request and either shares the copies — they appear under the request with **Download** — or tells you why it cannot.
+You get a message either way. You can **Withdraw this request** while it is waiting. You can have up to 3 requests waiting at once. Results,
+prescriptions and care plans already in MyHealth do not need a request.
+
 ## How to see your dental record
 
 **Dental** appears in the menu only if your clinic shares dental records in MyHealth and there is something to show.
@@ -300,6 +316,8 @@ ask the clinic to correct your record.
   `portal_access` consent must be recorded first. See [Patients](02-patients.md).
 - A patient with an **active** account who forgot the password: **Disable access** (with a reason), then **Issue new code**.
 - Dental sharing and online plan decisions are organization settings under `/dental/settings`. See [Dental](08-dental.md).
+- Patients' records requests are answered under **Records** → **Requests**; medical certificates are issued from the signed consultation. See
+  [Records, reporting and integrations](11-records-reporting-and-integrations.md) and [Consultations](04-consultations-and-care-plans.md).
 - Which tests patients may see is set per test in the laboratory catalog ("Released results may be shown to the patient"). See
   [Laboratory](06-laboratory.md).
 

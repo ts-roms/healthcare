@@ -12,6 +12,7 @@ import type {
   LabOrder,
   LabPanel,
   LabTest,
+  MedicalCertificate,
   Page,
   PatientDetail,
   PatientLabResult,
@@ -76,6 +77,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     labPanels,
     labResults,
     consultation,
+    certificates,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -90,6 +92,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     canOrderLab ? optional<LabPanel[]>("/laboratory/panels") : Promise.resolve(null),
     can(session, "lab.result.read") ? optional<PatientLabResult[]>(`/laboratory/patients/${encounter.patientId}/results`) : Promise.resolve(null),
     online ? optional<TelemedicineConsultation>(`/telemedicine/consultations/${encounter.appointmentId}`) : Promise.resolve(null),
+    optional<MedicalCertificate[]>(`/encounters/${encounter.id}/certificates`),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -140,6 +143,12 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
         results: labResults,
         canOrder: canOrderLab && !!labTests,
         canCancel: can(session, "lab.order.cancel"),
+      }}
+      certificates={{
+        items: certificates,
+        // The API decides for sure: the responsible practitioner issues; they, or staff who may amend, void.
+        canIssue: can(session, "encounter.sign") && (practitioners ? mine?.id === encounter.practitionerId : true),
+        canVoid: (practitioners ? mine?.id === encounter.practitionerId : true) || can(session, "encounter.amend"),
       }}
     />
   );

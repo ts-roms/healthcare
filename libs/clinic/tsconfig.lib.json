@@ -18,6 +18,12 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../pdf/tsconfig.lib.json"
+    },
+    {
+      "path": "../documents/tsconfig.lib.json"
+    },
+    {
       "path": "../notification/tsconfig.lib.json"
     },
     {
