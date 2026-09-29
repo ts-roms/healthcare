@@ -22,6 +22,7 @@ import {
   SupplyLocationDto,
   SupplyTemplateDto,
   UpdateProcedureTypeDto,
+  ProcedureAlternativesDto,
   WithdrawImageDto,
   VisitsQueryDto,
 } from "./dental.dto";
@@ -285,6 +286,13 @@ export class DentalSettingsController {
   @RequirePermissions("dental.settings.manage")
   updateProcedureType(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: UpdateProcedureTypeDto) {
     return this.catalog.updateProcedureType(actor, id, body);
+  }
+
+  @Put("procedure-types/:procedureTypeId/alternatives")
+  @RequirePermissions("dental.settings.manage")
+  @ApiOperation({ summary: "Set the procedures this procedure may turn out to be (fee ranges on estimates; a plan item may be carried out as any of them)" })
+  setAlternatives(@CurrentActor() actor: Actor, @Param("procedureTypeId", ParseUUIDPipe) id: string, @Body() body: ProcedureAlternativesDto) {
+    return this.catalog.setAlternatives(actor, id, body.alternativeIds);
   }
 }
 

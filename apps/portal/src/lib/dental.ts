@@ -1,4 +1,5 @@
 import { PERMANENT_ROWS, PRIMARY_ROWS, surfaceName, toothLabel, toothName } from "@healthcare/domain";
+import { peso } from "./billing";
 import type {
   PortalDentalImage,
   PortalDentalItemStatus,
@@ -127,13 +128,25 @@ export const IMAGE_KIND_TEXT: Record<PortalDentalImage["kind"], string> = {
   other: "Dental image",
 };
 
-/** The estimate of the treatments a patient ticks: the sum of their listed prices, and how many have none. */
-export function selectionEstimate(items: ReadonlyArray<{ id: string; estimatedFee?: number | null }>, accepted: ReadonlySet<string>) {
+/**
+ * The estimate of the treatments a patient ticks: the sum of their listed prices (and of the high ends, for treatments
+ * that may turn out to be another), and how many have none.
+ */
+export function selectionEstimate(
+  items: ReadonlyArray<{ id: string; estimatedFee?: number | null; estimatedFeeHigh?: number | null }>,
+  accepted: ReadonlySet<string>,
+) {
   const chosen = items.filter((i) => accepted.has(i.id));
   return {
     total: chosen.reduce((sum, i) => sum + (i.estimatedFee ?? 0), 0),
+    totalHigh: chosen.reduce((sum, i) => sum + (i.estimatedFeeHigh ?? i.estimatedFee ?? 0), 0),
     unpriced: chosen.filter((i) => i.estimatedFee == null).length,
   };
+}
+
+/** "₱800.00", or "₱800.00 to ₱3,000.00" when the fee is a range. */
+export function feeText(low: number, high: number | null | undefined): string {
+  return high != null && high > low ? `${peso(low)} to ${peso(high)}` : peso(low);
 }
 
 /** What a decision will record, in words: which items are accepted and which declined. */

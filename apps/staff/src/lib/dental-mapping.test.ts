@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DentalSupplyUse, DentalVisit } from "./api/types";
 import {
   changedTeeth,
+  pesoRange,
   draftProblems,
   examinationTeeth,
   openVisit,
@@ -100,5 +101,13 @@ describe("dental mapping", () => {
         { id: "e", status: "accepted", items: [item("completed"), item("declined")] },
       ]),
     ).toEqual(["a", "b"]);
+  });
+});
+
+describe("pesoRange", () => {
+  it("shows a single price or a range", () => {
+    expect(pesoRange(80_000, null)).toBe("₱800.00");
+    expect(pesoRange(80_000, 80_000)).toBe("₱800.00");
+    expect(pesoRange(80_000, 300_000)).toBe("₱800.00 – ₱3,000.00");
   });
 });

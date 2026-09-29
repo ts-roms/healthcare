@@ -6,9 +6,17 @@ import { EyeOffIcon, PlusIcon, SmartphoneIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalSettings } from "@/lib/api/types";
+import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalProcedureType, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
-import { createProcedureType, setFeeEstimates, setNotation, setPortalDentalRecords, setPortalPlanDecisions, setProcedureTypeStatus } from "../actions";
+import {
+  createProcedureType,
+  setFeeEstimates,
+  setNotation,
+  setPortalDentalRecords,
+  setPortalPlanDecisions,
+  setProcedureAlternatives,
+  setProcedureTypeStatus,
+} from "../actions";
 
 const EFFECTS: Record<DentalChartEffect, string> = {
   restoration: "Restoration (on the treated surfaces)",
@@ -84,6 +92,7 @@ export function DentalSettingsForm({
                     {t.status === "active" ? "Deactivate" : "Reactivate"}
                   </Button>
                 ) : null}
+                <MayBecome type={t} types={settings.procedureTypes} canManage={canManage && t.status === "active"} />
               </li>
             ))}
           </ul>
@@ -249,6 +258,67 @@ export function DentalSettingsForm({
  * Online plan decisions: patients accept or decline plan items awaiting their decision in MyHealth, after confirming
  * the organization's own text (the platform supplies no consent wording).
  */
+/**
+ * The procedures a procedure may turn out to be once under way (e.g. a simple extraction that becomes a surgical one):
+ * estimates show the range of their listed prices, and a plan item may be carried out as any of them.
+ */
+function MayBecome({ type, types, canManage }: { type: DentalProcedureType; types: DentalProcedureType[]; canManage: boolean }) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+  const [editing, setEditing] = React.useState<string[] | null>(null);
+  const name = (id: string) => types.find((t) => t.id === id)?.name ?? "Procedure";
+  // Whole-mouth procedures only become whole-mouth ones; tooth procedures tooth ones.
+  const candidates = types.filter((t) => t.id !== type.id && t.status === "active" && (t.site === "mouth") === (type.site === "mouth"));
+  const save = (ids: string[]) =>
+    startTransition(async () => {
+      const result = await setProcedureAlternatives(type.id, ids);
+      if (result.ok) {
+        toast.success(ids.length ? `${type.name}: fee range set` : `${type.name}: single price`);
+        setEditing(null);
+        router.refresh();
+      } else toast.error(result.message);
+    });
+  if (editing) {
+    return (
+      <div className="flex basis-full flex-col gap-1.5 rounded-md border p-2">
+        <span className="text-meta">{type.name} may turn out to be:</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {candidates.map((c) => (
+            <label key={c.id} className="flex items-center gap-1.5 text-meta">
+              <input
+                type="checkbox"
+                checked={editing.includes(c.id)}
+                onChange={(e) => setEditing(e.target.checked ? [...editing, c.id] : editing.filter((id) => id !== c.id))}
+              />
+              {c.name}
+            </label>
+          ))}
+          {candidates.length === 0 ? <span className="text-meta text-muted-foreground">No other active procedure on the same site.</span> : null}
+        </div>
+        <div className="flex gap-1">
+          <Button size="xs" disabled={pending} onClick={() => save(editing)}>
+            Save
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setEditing(null)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (!type.alternativeIds.length && !canManage) return null;
+  return (
+    <span className="flex basis-full items-center gap-2 pl-32 text-meta text-muted-foreground">
+      {type.alternativeIds.length ? `May turn out to be ${type.alternativeIds.map(name).join(" or ")} — estimates show a fee range` : null}
+      {canManage ? (
+        <Button size="xs" variant="ghost" onClick={() => setEditing([...type.alternativeIds])}>
+          {type.alternativeIds.length ? "Change" : "May turn out to be…"}
+        </Button>
+      ) : null}
+    </span>
+  );
+}
+
 function PlanDecisions({
   portal,
   canManage,

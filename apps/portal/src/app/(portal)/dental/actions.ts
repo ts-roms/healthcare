@@ -21,6 +21,7 @@ export async function decideDentalPlan(input: {
   acceptedItemIds: string[];
   awaitingItemIds: string[];
   estimateAwaitingDecision: number | null;
+  estimateAwaitingDecisionHigh: number | null;
 }): Promise<Result<PortalDentalPlan>> {
   if (!UUID.test(input.planId) || ![...input.acceptedItemIds, ...input.awaitingItemIds].every((id) => UUID.test(id))) {
     return { ok: false, message: "Invalid decision." };
@@ -33,6 +34,7 @@ export async function decideDentalPlan(input: {
         awaitingItemIds: input.awaitingItemIds,
         acknowledged: true,
         estimateAwaitingDecision: input.estimateAwaitingDecision,
+        estimateAwaitingDecisionHigh: input.estimateAwaitingDecisionHigh,
       },
     }),
   );

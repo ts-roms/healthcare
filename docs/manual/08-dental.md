@@ -134,6 +134,10 @@ no priced billing service (map it in billing settings). Discounts, packages and 
 estimate** for a copy the patient can take home and sign. Once the patient decides, each item shows "Estimate at decision" — the price it had
 that day.
 
+**Fee ranges.** When a procedure may turn out to be another one once under way (set in dental settings, for example a simple extraction that may
+become a surgical one), its estimate is a range — "₱800.00 – ₱3,000.00" — from the lowest to the highest listed price among them, with "may become
+…" under it, and the totals show both ends. "Estimate at decision" keeps the range the patient saw.
+
 ## How to record the patient's decision
 
 1. On the plan, tick the items the patient **accepts**. Unticked items will be recorded as declined.
@@ -158,7 +162,8 @@ statuses: **Proposed**, **Accepted**, **Declined**, **Done**, **Cancelled**.
 
 1. During the patient's visit, go to **Procedures**.
 2. If the procedure carries out an accepted plan item, choose it in **From a treatment plan**. The procedure, tooth and surfaces are filled in for
-   you. Otherwise leave **Not from a plan**.
+   you. Otherwise leave **Not from a plan**. If the planned procedure may turn out to be another one (a fee range), the form says so: choose that
+   procedure instead if that is what it became — the plan item is still completed, and billing charges the procedure you record.
 3. Choose the **Procedure**. Each shows what it is recorded against: **Whole mouth**, **Tooth** or **Tooth surfaces**.
 4. Enter the **Tooth (FDI)** and choose the **Surfaces** if the procedure asks for them.
 5. Optionally add **Notes** (material, anaesthesia, remarks).
@@ -256,6 +261,11 @@ Open **Dental** → **Settings** (`/dental/settings`). Everyone with `dental.rec
 
 Code, site and chart effect cannot be changed later. Use **Deactivate** / **Reactivate** to take a procedure out of use.
 
+**May turn out to be** — for a procedure whose final form is only known once under way, click **May turn out to be…** under it, tick the
+procedures it may become (active ones on the same site: whole-mouth with whole-mouth, tooth with tooth; at most 10) and click **Save**. Estimates
+then show a fee range over their listed prices, and a plan item for it can be carried out as any of them. Untick all and save to go back to a
+single price. Each change is audited.
+
 **Tooth notation** — how teeth are numbered on screen at the selected facility: **FDI (ISO 3950)**, **Universal** or **Palmer**. Records are
 always stored in FDI.
 
@@ -281,7 +291,8 @@ What patients see is described in [MyHealth patient portal](12-patient-portal.md
   a dentist practitioner.
 - Tooth numbers must be valid FDI codes; surfaces must exist on that tooth (for example no occlusal surface on an incisor).
 - Missing, pontic, impacted and unerupted cannot be combined with other findings on the same tooth.
-- A procedure from a plan must match the accepted item (same procedure and tooth), and each plan item is carried out once.
+- A procedure from a plan must match the accepted item (the same procedure, or one it may turn out to be, and the same tooth), and each plan item
+  is carried out once.
 - A patient's decision covers every item awaiting a decision; you cannot decide on a closed plan.
 - Examinations, periodontal charts, procedures and images are never edited or deleted — only marked entered in error with a reason.
 - Supplies are issued first-expiry-first-out, never from expired lots, never below zero; controlled items need a reason and a reference.
@@ -289,27 +300,27 @@ What patients see is described in [MyHealth patient portal](12-patient-portal.md
 
 ## Troubleshooting / common messages
 
-| Message                                                                                          | Meaning                                                                       | What to do                                                                                     |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Only a dentist can record this                                                                   | Your account is not linked to an active practitioner with profession dentist. | Ask your administrator to link your account.                                                   |
-| Your account is not linked to a practitioner who can conduct encounters                          | **Start dental visit** needs a practitioner account.                          | Ask your administrator, or start the visit from the queue with the dentist.                    |
-| The encounter is not in progress                                                                 | The visit was signed or ended.                                                | Start a new dental visit.                                                                      |
-| Chart at least one tooth or record the examination findings                                      | The examination is empty.                                                     | Chart a tooth, or add notes or oral hygiene.                                                   |
-| An FDI tooth code (11–48 permanent, 51–85 primary)                                               | The tooth number is not a valid FDI code.                                     | Type the FDI number, for example 16.                                                           |
-| The procedure does not match the planned item (procedure and tooth)                              | The procedure or tooth differs from the plan item chosen.                     | Choose the matching plan item, or record it as **Not from a plan**.                            |
-| Only an accepted item of an active plan can be carried out                                       | The plan item is not accepted, or the plan is closed.                         | Record the patient's decision first.                                                           |
-| This plan item has already been carried out                                                      | A procedure already completed that item.                                      | Check the procedures list.                                                                     |
-| This is the plan's last open item; record the patient's decision or discontinue the plan instead | You tried to cancel the only remaining item.                                  | Record the decision or discontinue the plan.                                                   |
-| The plan is closed                                                                               | The plan is completed, declined or discontinued.                              | Propose a new plan.                                                                            |
-| … was modified by someone else (expected version …). Reload and try again.                       | Someone changed the plan or setting while you were looking at it.             | Reload the page and repeat.                                                                    |
-| Not enough usable … here: … available (expired lots excluded)                                    | The location does not hold enough unexpired stock.                            | Choose another location, lower the quantity, or ask inventory to restock.                      |
-| … is a controlled item: every movement needs a reason and a reference                            | A controlled supply was issued or returned without both.                      | Fill in the reason and reference.                                                              |
-| This facility has no active stock location. Inventory staff can add one.                         | No storage location exists at this facility.                                  | Ask the inventory officer to add one ([Pharmacy and inventory](09-pharmacy-and-inventory.md)). |
-| Only an imaging document (image or DICOM file) can be added                                      | The file type is not accepted.                                                | Upload JPEG, PNG, HEIC, TIFF or DICOM.                                                         |
-| The file has not finished uploading                                                              | The stored file is not ready yet.                                             | Wait a moment and click **Add stored file**.                                                   |
-| This file is already in the dental record                                                        | The same file was added before.                                               | Nothing to do.                                                                                 |
-| A procedure with code … exists                                                                   | Procedure codes are unique.                                                   | Use another code.                                                                              |
-| Write the acknowledgement patients confirm before deciding a plan online                         | Online decisions need your clinic's text.                                     | Write at least 20 characters in **What the patient confirms**.                                 |
+| Message                                                                                              | Meaning                                                                       | What to do                                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Only a dentist can record this                                                                       | Your account is not linked to an active practitioner with profession dentist. | Ask your administrator to link your account.                                                   |
+| Your account is not linked to a practitioner who can conduct encounters                              | **Start dental visit** needs a practitioner account.                          | Ask your administrator, or start the visit from the queue with the dentist.                    |
+| The encounter is not in progress                                                                     | The visit was signed or ended.                                                | Start a new dental visit.                                                                      |
+| Chart at least one tooth or record the examination findings                                          | The examination is empty.                                                     | Chart a tooth, or add notes or oral hygiene.                                                   |
+| An FDI tooth code (11–48 permanent, 51–85 primary)                                                   | The tooth number is not a valid FDI code.                                     | Type the FDI number, for example 16.                                                           |
+| The procedure does not match the planned item (procedure — or one it may turn out to be — and tooth) | The procedure or tooth differs from the plan item chosen.                     | Choose the matching plan item, or record it as **Not from a plan**.                            |
+| Only an accepted item of an active plan can be carried out                                           | The plan item is not accepted, or the plan is closed.                         | Record the patient's decision first.                                                           |
+| This plan item has already been carried out                                                          | A procedure already completed that item.                                      | Check the procedures list.                                                                     |
+| This is the plan's last open item; record the patient's decision or discontinue the plan instead     | You tried to cancel the only remaining item.                                  | Record the decision or discontinue the plan.                                                   |
+| The plan is closed                                                                                   | The plan is completed, declined or discontinued.                              | Propose a new plan.                                                                            |
+| … was modified by someone else (expected version …). Reload and try again.                           | Someone changed the plan or setting while you were looking at it.             | Reload the page and repeat.                                                                    |
+| Not enough usable … here: … available (expired lots excluded)                                        | The location does not hold enough unexpired stock.                            | Choose another location, lower the quantity, or ask inventory to restock.                      |
+| … is a controlled item: every movement needs a reason and a reference                                | A controlled supply was issued or returned without both.                      | Fill in the reason and reference.                                                              |
+| This facility has no active stock location. Inventory staff can add one.                             | No storage location exists at this facility.                                  | Ask the inventory officer to add one ([Pharmacy and inventory](09-pharmacy-and-inventory.md)). |
+| Only an imaging document (image or DICOM file) can be added                                          | The file type is not accepted.                                                | Upload JPEG, PNG, HEIC, TIFF or DICOM.                                                         |
+| The file has not finished uploading                                                                  | The stored file is not ready yet.                                             | Wait a moment and click **Add stored file**.                                                   |
+| This file is already in the dental record                                                            | The same file was added before.                                               | Nothing to do.                                                                                 |
+| A procedure with code … exists                                                                       | Procedure codes are unique.                                                   | Use another code.                                                                              |
+| Write the acknowledgement patients confirm before deciding a plan online                             | Online decisions need your clinic's text.                                     | Write at least 20 characters in **What the patient confirms**.                                 |
 
 ## Related chapters
 

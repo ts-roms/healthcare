@@ -184,7 +184,15 @@ describe("dental fee estimates", () => {
 
     // Declined items leave the estimate; accepted ones stay until done.
     const estimate = (await staff(dentist).get(`/dental/treatment-plans/${ids.plan}/estimate`).expect(200)).body;
-    expect(estimate.totals).toEqual({ awaitingDecision: 0, accepted: 150_000, remaining: 150_000, unpricedItems: 1 });
+    expect(estimate.totals).toEqual({
+      awaitingDecision: 0,
+      accepted: 150_000,
+      remaining: 150_000,
+      awaitingDecisionHigh: 0,
+      acceptedHigh: 150_000,
+      remainingHigh: 150_000,
+      unpricedItems: 1,
+    });
   });
 
   it("follows the price list while keeping what was recorded at the decision", async () => {
@@ -287,5 +295,121 @@ describe("dental fee estimates", () => {
     ]);
     const after = (await portal()).body.plans.find((p: { id: string }) => p.id === pending.id);
     expect(after.estimate).toMatchObject({ awaitingDecision: 0, accepted: 180_000, remaining: 180_000 });
+  });
+
+  it("shows a fee range when a procedure may turn out to be another, and lets the item be carried out as either", async () => {
+    ids.surgical = (
+      await staff(admin).post("/dental/procedure-types", { code: "surgical-extraction", name: "Surgical extraction", site: "tooth" }).expect(201)
+    ).body.id;
+    ids.prophylaxis = (
+      await staff(admin).post("/dental/procedure-types", { code: "prophylaxis", name: "Oral prophylaxis", site: "mouth" }).expect(201)
+    ).body.id;
+    await staff(admin)
+      .post("/billing/services", {
+        code: "d-surgical-extraction",
+        name: "Surgical extraction",
+        category: "dental",
+        sourceKind: "dental_procedure",
+        sourceCode: "surgical-extraction",
+        unitPrice: 300_000,
+        effectiveFrom: manilaDate(-30),
+      })
+      .expect(201);
+
+    // The catalog lists what a procedure may turn out to be (dental.settings.manage).
+    const alternatives = (token: string, alternativeIds: string[]) =>
+      staff(token).put(`/dental/procedure-types/${ids.extraction}/alternatives`, { alternativeIds });
+    await alternatives(cashier, [ids.surgical!]).expect(403);
+    await alternatives(admin, [ids.extraction!])
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("invalid_alternative"));
+    await alternatives(admin, [ids.prophylaxis!])
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("invalid_alternative"));
+    expect((await alternatives(admin, [ids.surgical!]).expect(200)).body).toMatchObject({ code: "extraction", alternativeIds: [ids.surgical] });
+    const types = (await staff(dentist).get("/dental/settings").expect(200)).body.procedureTypes;
+    expect(types.find((t: { id: string }) => t.id === ids.extraction).alternativeIds).toEqual([ids.surgical]);
+    expect(types.find((t: { id: string }) => t.id === ids.composite).alternativeIds).toEqual([]);
+    const audit = await auditRows(ctx.pool, "action = 'dental.procedure-type.alternatives' AND resource_id = $1", [ids.extraction]);
+    expect(audit[0]?.metadata).toBeNull();
+
+    // The estimate of an extraction is the range over it and a surgical extraction.
+    const ranged = await plan([
+      { type: "extraction", tooth: "18" },
+      { type: "composite", tooth: "25", surfaces: ["O"] },
+    ]);
+    const estimate = (await staff(dentist).get(`/dental/treatment-plans/${ranged.id}/estimate`).expect(200)).body;
+    const extraction = estimate.items.find((i: { procedure: { code: string } }) => i.procedure.code === "extraction");
+    expect(extraction).toMatchObject({
+      listed: { unitPrice: 80_000 },
+      range: {
+        low: 80_000,
+        high: 300_000,
+        unpricedAlternatives: 0,
+        alternatives: [{ code: "surgical-extraction", name: "Surgical extraction", unitPrice: 300_000 }],
+      },
+    });
+    expect(estimate.items.find((i: { procedure: { code: string } }) => i.procedure.code === "composite").range).toBeNull();
+    expect(estimate.totals).toMatchObject({ awaitingDecision: 260_000, awaitingDecisionHigh: 480_000, remaining: 260_000, remainingHigh: 480_000 });
+
+    const text = extractPdfText(
+      (await staff(dentist).get(`/dental/treatment-plans/${ranged.id}/estimate.pdf`).buffer(true).parse(binary).expect(200)).body as Buffer,
+    );
+    // Table cells wrap; compare with whitespace (and the extractor's soft-wrap marks) collapsed.
+    const flat = text.replace(/·/g, "").replace(/\s+/g, " ");
+    expect(flat).toContain("PHP 800.00 to PHP 3,000.00");
+    expect(flat).toContain("PHP 2,600.00 to PHP 4,800.00");
+    expect(flat).toContain("Extraction may become Surgical extraction");
+
+    // MyHealth shows the range; the patient decides on both ends of it.
+    const token = await portalToken();
+    const shown = (
+      await ctx
+        .http()
+        .get("/api/v1/portal/dental/record")
+        .set({ authorization: `Bearer ${token}` })
+        .expect(200)
+    ).body.plans.find((p: { id: string }) => p.id === ranged.id);
+    expect(shown.estimate).toMatchObject({ awaitingDecision: 260_000, awaitingDecisionHigh: 480_000 });
+    const shownExtraction = shown.items.find((i: { procedureName: string }) => i.procedureName === "Extraction");
+    expect(shownExtraction).toMatchObject({ estimatedFee: 80_000, estimatedFeeHigh: 300_000, mayBecome: ["Surgical extraction"] });
+    expect(JSON.stringify(shown)).not.toContain("surgical-extraction");
+    const decide = (body: object) =>
+      ctx
+        .http()
+        .post(`/api/v1/portal/dental/plans/${ranged.id}/decision`)
+        .set({ authorization: `Bearer ${token}` })
+        .send({ acceptedItemIds: ranged.items.map((i) => i.id), awaitingItemIds: ranged.items.map((i) => i.id), acknowledged: true, ...body });
+    await decide({ estimateAwaitingDecision: 260_000 }).expect(409);
+    await decide({ estimateAwaitingDecision: 260_000, estimateAwaitingDecisionHigh: 480_000 }).expect(201);
+    const recorded = await ctx.pool.query<{ code: string; decision_estimate: string; decision_estimate_high: string | null }>(
+      `SELECT t.code, i.decision_estimate, i.decision_estimate_high FROM dental_treatment_plan_item i
+       JOIN dental_procedure_type t ON t.id = i.procedure_type_id WHERE i.plan_id = $1 ORDER BY t.code`,
+      [ranged.id],
+    );
+    expect(recorded.rows).toEqual([
+      { code: "composite", decision_estimate: "180000", decision_estimate_high: null },
+      { code: "extraction", decision_estimate: "80000", decision_estimate_high: "300000" },
+    ]);
+    await expect(ctx.pool.query("UPDATE dental_treatment_plan_item SET decision_estimate_high = 1 WHERE plan_id = $1", [ranged.id])).rejects.toThrow(
+      /not changed/,
+    );
+    const after = (await staff(dentist).get(`/dental/treatment-plans/${ranged.id}/estimate`).expect(200)).body;
+    expect(after.items.find((i: { procedure: { code: string } }) => i.procedure.code === "extraction").atDecision).toMatchObject({
+      amount: 80_000,
+      high: 300_000,
+    });
+
+    // Carried out as the surgical extraction it turned out to be; another procedure still does not match.
+    const encounterId = (await staff(dentist).post("/encounters", { patientId, chiefComplaint: "Extraction" }).expect(201)).body.id;
+    const itemId = ranged.items.find((i) => i.procedureTypeId === ids.extraction)!.id;
+    const record = (procedureTypeId: string) =>
+      staff(dentist).post(`/dental/patients/${patientId}/procedures`, { encounterId, procedureTypeId, tooth: "18", planItemId: itemId });
+    await record(ids.sealant!)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("plan_item_mismatch"));
+    await record(ids.surgical!).expect(201);
+    const done = (await staff(dentist).get(`/dental/treatment-plans/${ranged.id}`).expect(200)).body;
+    expect(done.items.find((i: { id: string }) => i.id === itemId).status).toBe("completed");
   });
 });

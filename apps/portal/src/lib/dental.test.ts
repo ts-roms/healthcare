@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortalDentalTooth, PortalToothCondition, PortalToothSurface } from "./api/types";
-import { chartRows, conditionsText, decisionSummary, planItemState, selectionEstimate, surfacesText, toothText, toothTone } from "./dental";
+import { chartRows, conditionsText, decisionSummary, feeText, planItemState, selectionEstimate, surfacesText, toothText, toothTone } from "./dental";
 
 const tooth = (t: string, conditions: Array<[PortalToothCondition, PortalToothSurface[]]>): PortalDentalTooth => ({
   tooth: t,
@@ -65,7 +65,15 @@ describe("plan decision summary", () => {
       { id: "b", estimatedFee: 80_000 },
       { id: "c", estimatedFee: null },
     ];
-    expect(selectionEstimate(priced, new Set(["a", "c"]))).toEqual({ total: 150_000, unpriced: 1 });
-    expect(selectionEstimate(priced, new Set())).toEqual({ total: 0, unpriced: 0 });
+    expect(selectionEstimate(priced, new Set(["a", "c"]))).toEqual({ total: 150_000, totalHigh: 150_000, unpriced: 1 });
+    expect(selectionEstimate(priced, new Set())).toEqual({ total: 0, totalHigh: 0, unpriced: 0 });
+    // A treatment that may turn out to be another adds its range.
+    const ranged = [...priced, { id: "d", estimatedFee: 80_000, estimatedFeeHigh: 300_000 }];
+    expect(selectionEstimate(ranged, new Set(["a", "d"]))).toEqual({ total: 230_000, totalHigh: 450_000, unpriced: 0 });
+  });
+
+  it("writes a fee as a price or a range", () => {
+    expect(feeText(80_000, null)).toBe("₱800.00");
+    expect(feeText(80_000, 300_000)).toBe("₱800.00 to ₱3,000.00");
   });
 });

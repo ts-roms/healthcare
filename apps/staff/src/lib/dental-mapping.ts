@@ -11,6 +11,7 @@ import type {
   DentalTreatmentPlan,
   DentalVisit,
 } from "./api/types";
+import { peso } from "./billing-mapping";
 
 type Variant = "success" | "warning" | "danger" | "neutral" | "info" | "teal";
 
@@ -167,4 +168,9 @@ export function plansWithEstimate(plans: readonly Pick<DentalTreatmentPlan, "id"
         p.items.some((i) => i.status === "proposed" || i.status === "accepted"),
     )
     .map((p) => p.id);
+}
+
+/** "₱800.00", or "₱800.00 – ₱3,000.00" for a fee range (a procedure that may turn out to be another). */
+export function pesoRange(low: number, high: number | null | undefined): string {
+  return high != null && high > low ? `${peso(low)} – ${peso(high)}` : peso(low);
 }

@@ -8,7 +8,7 @@ import { normalizeSurfaces, toothInNotation } from "../dental.rules";
 import type { PlanItemStatus, PlanStatus, Surface } from "../dental.schema";
 import { DENTAL_CONTEXT, type DentalContext, type DentalListedFee } from "../ports";
 import { DentalPortalSettings } from "../portal/dental-portal-settings.service";
-import { DentalFeeLookup } from "./dental-fee-lookup";
+import { DentalFeeLookup, type ProcedureFee } from "./dental-fee-lookup";
 import { DentalPlanService } from "./dental-plan.service";
 import { ESTIMATE_DISCLAIMER, estimatePart, type EstimatePart, estimateTotals, type EstimateTotals } from "./fee-estimate.rules";
 
@@ -23,8 +23,13 @@ export interface DentalPlanEstimateItem {
   part: EstimatePart | null;
   /** Billing's listed price today; null when the procedure has no listed price (or the item is not in the estimate). */
   listed: DentalListedFee | null;
-  /** The estimate recorded when the patient decided this item (null amount: no listed price then). */
-  atDecision: { amount: number | null; pricedOn: string } | null;
+  /**
+   * With procedures it may turn out to be: the range of listed prices over it and them, and each of them with its
+   * listed price. Null without alternatives, without a listed price, or when the item is not in the estimate.
+   */
+  range: ProcedureFee | null;
+  /** The estimate recorded when the patient decided this item (null amount: no listed price then; high: its range's high end). */
+  atDecision: { amount: number | null; high: number | null; pricedOn: string } | null;
 }
 
 export interface DentalPlanEstimate {
@@ -97,24 +102,33 @@ export class DentalFeeEstimates {
             [
               { header: "Phase", width: 0.7, align: "center" },
               { header: "Tooth", width: 1.1 },
-              { header: "Procedure", width: 3.6 },
+              { header: "Procedure", width: 3.2 },
               { header: "Status", width: 1.6 },
-              { header: "Listed price", width: 1.5, align: "right" },
+              { header: "Listed price", width: 1.9, align: "right" },
             ],
             lines.map((i) => [
               String(i.phase),
               i.tooth ? `${toothInNotation(i.tooth, notation)}${i.surfaces.length ? ` ${normalizeSurfaces(i.surfaces).join("")}` : ""}` : "Whole mouth",
               i.procedure?.name ?? "Dental procedure",
               i.part === "awaiting" ? "For your decision" : "Accepted",
-              i.listed ? pdfMoney(i.listed.unitPrice) : "Ask the clinic",
+              i.range ? moneyRange(i.range.low, i.range.high) : i.listed ? pdfMoney(i.listed.unitPrice) : "Ask the clinic",
             ]),
           );
           w.space();
           w.totals([
-            ["For your decision", pdfMoney(estimate.totals.awaitingDecision)],
-            ["Accepted, not yet done", pdfMoney(estimate.totals.accepted)],
-            ["Estimated total", pdfMoney(estimate.totals.remaining), true],
+            ["For your decision", moneyRange(estimate.totals.awaitingDecision, estimate.totals.awaitingDecisionHigh)],
+            ["Accepted, not yet done", moneyRange(estimate.totals.accepted, estimate.totals.acceptedHigh)],
+            ["Estimated total", moneyRange(estimate.totals.remaining, estimate.totals.remainingHigh), true],
           ]);
+          const ranged = lines.filter((i) => i.range);
+          if (ranged.length) {
+            w.paragraph(
+              `A range means the procedure may turn out to be another one once under way: ${ranged
+                .map((i) => `${i.procedure?.name ?? "the procedure"} may become ${i.range!.alternatives.map((a) => a.name).join(" or ")}`)
+                .join("; ")}. The procedure carried out is charged at its listed price.`,
+              { muted: true },
+            );
+          }
           if (estimate.totals.unpricedItems) {
             w.paragraph(
               `${estimate.totals.unpricedItems} item${estimate.totals.unpricedItems === 1 ? " has" : "s have"} no listed price and ${estimate.totals.unpricedItems === 1 ? "is" : "are"} not in the total; ask the clinic.`,
@@ -137,7 +151,12 @@ export class DentalFeeEstimates {
       resourceType: "dental_treatment_plan",
       resourceId: plan.id,
       patientId: plan.patientId,
-      metadata: { pricedOn: estimate.pricedOn, remaining: estimate.totals.remaining, unpricedItems: estimate.totals.unpricedItems },
+      metadata: {
+        pricedOn: estimate.pricedOn,
+        remaining: estimate.totals.remaining,
+        remainingHigh: estimate.totals.remainingHigh,
+        unpricedItems: estimate.totals.unpricedItems,
+      },
     });
     return { filename: `dental-estimate-${estimate.pricedOn}-${plan.id.slice(0, 8)}.pdf`, pdf };
   }
@@ -165,7 +184,8 @@ export class DentalFeeEstimates {
         status: i.status,
         part,
         listed: part ? (priced.byType.get(i.procedureTypeId) ?? null) : null,
-        atDecision: i.decisionEstimateOn ? { amount: i.decisionEstimate, pricedOn: i.decisionEstimateOn } : null,
+        range: part ? rangeOf(priced.fees.get(i.procedureTypeId)) : null,
+        atDecision: i.decisionEstimateOn ? { amount: i.decisionEstimate, high: i.decisionEstimateHigh, pricedOn: i.decisionEstimateOn } : null,
       };
     });
     const estimate: DentalPlanEstimate = {
@@ -174,10 +194,26 @@ export class DentalFeeEstimates {
       pricedOn,
       currency: "PHP",
       items,
-      totals: estimateTotals(items.map((i) => ({ status: i.status, listedPrice: i.listed?.unitPrice ?? null }))),
+      totals: estimateTotals(
+        items.map((i) => ({
+          status: i.status,
+          listedPrice: i.range ? i.range.low : (i.listed?.unitPrice ?? null),
+          highPrice: i.range?.high ?? null,
+        })),
+      ),
       disclaimer: ESTIMATE_DISCLAIMER,
       note: settings.note,
     };
     return { plan, estimate };
   }
+}
+
+/** A range only when the item may turn out to be another procedure (null: a single price). */
+function rangeOf(fee: ProcedureFee | undefined): ProcedureFee | null {
+  return fee && fee.alternatives.length > 0 ? fee : null;
+}
+
+/** "PHP 800.00" or "PHP 800.00 to PHP 3,000.00" (the standard PDF fonts have no dash to rely on). */
+function moneyRange(low: number, high: number): string {
+  return high > low ? `${pdfMoney(low)} to ${pdfMoney(high)}` : pdfMoney(low);
 }

@@ -8,7 +8,7 @@ import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { DentalPlanEstimate, DentalProcedureType, DentalTreatmentPlan } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { PLAN_ITEM_STATUS, PLAN_STATUS } from "@/lib/dental-mapping";
+import { PLAN_ITEM_STATUS, PLAN_STATUS, pesoRange } from "@/lib/dental-mapping";
 import { fileHref } from "@/lib/files";
 import { cancelPlanItem, createTreatmentPlan, decideTreatmentPlan, discontinueTreatmentPlan } from "../../actions";
 import { emptySelection, itemLabel, ProcedureFields, type ProcedureSelection, selectionComplete, selectionPayload } from "./procedure-fields";
@@ -222,14 +222,25 @@ function PlanCard({
                 {item.note ? <span className="text-muted-foreground"> · {item.note}</span> : null}
                 {item.decisionEstimateOn ? (
                   <span className="block text-meta text-muted-foreground">
-                    Estimate at decision: {item.decisionEstimate == null ? "no listed price" : peso(item.decisionEstimate)} (
+                    Estimate at decision: {item.decisionEstimate == null ? "no listed price" : pesoRange(item.decisionEstimate, item.decisionEstimateHigh)} (
                     {clinicalDate(item.decisionEstimateOn)})
                   </span>
                 ) : null}
               </span>
               {line?.part ? (
                 <span className="text-right tabular-nums" title={line.listed ? `${line.listed.serviceCode} · ${line.listed.serviceName}` : undefined}>
-                  {line.listed ? peso(line.listed.unitPrice) : <span className="text-meta text-warning-foreground">No listed price</span>}
+                  {line.range ? (
+                    <span className="flex flex-col">
+                      <span>{pesoRange(line.range.low, line.range.high)}</span>
+                      <span className="text-meta text-muted-foreground">
+                        may become {line.range.alternatives.map((a) => `${a.name}${a.unitPrice === null ? " (no listed price)" : ""}`).join(" or ")}
+                      </span>
+                    </span>
+                  ) : line.listed ? (
+                    peso(line.listed.unitPrice)
+                  ) : (
+                    <span className="text-meta text-warning-foreground">No listed price</span>
+                  )}
                 </span>
               ) : null}
               <Badge variant={itemStatus.variant}>{itemStatus.label}</Badge>
@@ -323,9 +334,11 @@ function EstimateSummary({ planId, estimate }: { planId: string; estimate: Denta
     <div className="flex flex-col gap-1 border-t bg-muted/40 px-3 py-2" aria-label="Fee estimate">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <span className="font-medium">Fee estimate</span>
-        {totals.awaitingDecision ? <span className="text-meta">Awaiting decision {peso(totals.awaitingDecision)}</span> : null}
-        {totals.accepted ? <span className="text-meta">Accepted, not yet done {peso(totals.accepted)}</span> : null}
-        <span className="font-semibold tabular-nums">Total {peso(totals.remaining)}</span>
+        {totals.awaitingDecisionHigh ? (
+          <span className="text-meta">Awaiting decision {pesoRange(totals.awaitingDecision, totals.awaitingDecisionHigh)}</span>
+        ) : null}
+        {totals.acceptedHigh ? <span className="text-meta">Accepted, not yet done {pesoRange(totals.accepted, totals.acceptedHigh)}</span> : null}
+        <span className="font-semibold tabular-nums">Total {pesoRange(totals.remaining, totals.remainingHigh)}</span>
         <Button asChild size="xs" variant="outline" className="ml-auto">
           <a href={fileHref.dentalEstimate(planId)} target="_blank" rel="noreferrer">
             <PrinterIcon /> Print estimate
