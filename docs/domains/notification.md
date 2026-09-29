@@ -20,8 +20,9 @@ Code-defined, versioned, with Zod-validated variables (`templates.ts`).
 External channels must not carry clinical detail. Templates:
 `patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
 `staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
-`lab.quality-notice` (in-app to laboratory quality managers: a nonconformance opened or a QC run rejected; record
-numbers, instrument and test only, with a link to the record),
+`lab.quality-notice` (in-app to laboratory quality managers: a nonconformance opened, a QC run rejected, a temperature
+reading missed or a competency reassessment due — the last also to the person; record numbers, instrument, unit, test
+or section and staff name only, with a link to the page),
 `lab.results-available` (SMS, or email when SMS is not possible, plus a MyHealth inbox copy, to patients who use
 MyHealth: "new results" or "a result was updated", naming no test and no value), `appointment.self-service`
 (SMS + in-app: the patient booked, moved or cancelled in MyHealth), `appointment.no-show` (SMS + in-app: "we missed

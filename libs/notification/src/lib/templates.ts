@@ -210,19 +210,46 @@ export const TEMPLATES = [
         testName: shortText,
         rules: z.array(z.string().regex(/^[0-9A-Za-z_]{2,8}$/)).max(6),
       }),
+      z.object({ kind: z.literal("temperature_due"), storageUnitCode: shortText, storageUnitName: shortText }),
+      z.object({
+        kind: z.literal("competency_due"),
+        staffName: shortText,
+        areaName: shortText,
+        dueOn: z.iso.date(),
+        /** The message goes to the person to be reassessed (otherwise to a quality manager). */
+        forSelf: z.boolean(),
+      }),
     ]),
-    render: (v) =>
-      v.kind === "nonconformance"
-        ? {
+    render: (v) => {
+      switch (v.kind) {
+        case "nonconformance":
+          return {
             subject: `${v.severity === "minor" ? "Nonconformance" : `${v.severity === "critical" ? "Critical" : "Major"} nonconformance`} ${v.number}`,
             text: `${NONCONFORMANCE_CATEGORY_LABEL[v.category]} nonconformance ${v.number} (${v.severity}) was opened. Open it to investigate and record the corrective action.`,
             href: `/laboratory/nonconformances/${v.nonconformanceId}`,
-          }
-        : {
+          };
+        case "qc_rejected":
+          return {
             subject: `QC rejected — ${v.testName} on ${v.instrumentCode}`,
             text: `A QC run for ${v.testName} on instrument ${v.instrumentCode} was rejected${v.rules.length ? ` (${v.rules.join(", ")})` : ""}. Review the run and record a corrective action.`,
             href: "/laboratory/qc",
-          },
+          };
+        case "temperature_due":
+          return {
+            subject: `Temperature reading due — ${v.storageUnitName}`,
+            text: `The temperature of ${v.storageUnitName} (${v.storageUnitCode}) has not been recorded within its reading interval. Record a reading.`,
+            href: "/laboratory/temperatures",
+          };
+        case "competency_due":
+          return {
+            subject: v.forSelf ? `Your competency reassessment is due — ${v.areaName}` : `Competency reassessment due — ${v.staffName}`,
+            text: v.forSelf
+              ? `Your competency assessment for ${v.areaName} was due for reassessment on ${v.dueOn}. Ask your section head to reassess you.`
+              : `${v.staffName}'s competency assessment for ${v.areaName} was due for reassessment on ${v.dueOn}.`,
+            href: "/laboratory/competency",
+          };
+      }
+    },
   }),
 ] as const;
 
