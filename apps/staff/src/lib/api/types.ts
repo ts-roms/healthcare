@@ -295,10 +295,12 @@ export interface QueueVisit {
   patient: PatientBrief | null;
   /** The visit's consultation once started. */
   encounterId: string | null;
+  /** From the visit type; an online visit is started from Telemedicine. */
+  modality: "in_person" | "telemedicine";
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 

@@ -31,6 +31,7 @@ import {
   type PractitionerRecord,
   triageAssessment,
   vitalSignSet,
+  visitType,
 } from "../clinic.schema";
 import { found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
@@ -68,7 +69,20 @@ export class EncounterService {
     private readonly visits: VisitService,
   ) {}
 
-  async start(actor: Actor, input: z.infer<typeof startEncounterSchema>): Promise<EncounterView> {
+  /**
+   * Starts a consultation. A visit of an online (telemedicine) appointment is refused here: it is started through
+   * Telemedicine (`startOnline`), which also moves the patient from the waiting room into the call.
+   */
+  start(actor: Actor, input: z.infer<typeof startEncounterSchema>): Promise<EncounterView> {
+    return this.open(actor, input, false);
+  }
+
+  /** The telemedicine encounter of an online visit, for the telemedicine workflow only (never a client's choice). */
+  startOnline(actor: Actor, visitId: string): Promise<EncounterView> {
+    return this.open(actor, { visitId, modality: "telemedicine" }, true);
+  }
+
+  private async open(actor: Actor, input: z.infer<typeof startEncounterSchema>, online: boolean): Promise<EncounterView> {
     const clinician = await this.requireClinician(actor);
     try {
       return await this.db.transaction(async (tx) => {
@@ -77,6 +91,16 @@ export class EncounterService {
         if (input.visitId) {
           visitRow = await this.visits.lock(tx, actor.organizationId, input.visitId);
           if (actor.facilityId && visitRow.facilityId !== actor.facilityId) throw new NotFoundError("Visit");
+          const [type] = await tx
+            .select({ modality: visitType.modality })
+            .from(visitType)
+            .where(and(eq(visitType.organizationId, actor.organizationId), eq(visitType.id, visitRow.visitTypeId)));
+          if (type?.modality === "telemedicine" && !online) {
+            throw new BusinessRuleError(
+              "This is an online consultation. Start it from Telemedicine, so the patient waiting in MyHealth joins the call",
+              "online_consultation",
+            );
+          }
           values = {
             facilityId: visitRow.facilityId,
             patientId: visitRow.patientId,

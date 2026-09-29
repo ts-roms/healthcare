@@ -93,8 +93,9 @@ The answers are the patient's report, not a triage decision.
 
 **Start consultation** needs `telemedicine.conduct` and `encounter.write`, and your account must be linked to a practitioner.
 
-Start online consultations from **Telemedicine**, not with **Start consultation** on the **Queue** board — the queue button opens an ordinary
-encounter without the online panel.
+Online consultations are started only from **Telemedicine**. On the **Queue** board and the **Consultations** list, an online visit shows **Open
+in Telemedicine** instead of **Start consultation**; it takes you to the consultation's page. An ordinary consultation cannot be started for an
+online visit ("This is an online consultation. Start it from Telemedicine, so the patient waiting in MyHealth joins the call").
 
 ## How to run the video call
 

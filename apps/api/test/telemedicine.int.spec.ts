@@ -190,6 +190,19 @@ describe("telemedicine", () => {
       expect(appointment.rows[0].status).toBe("checked_in");
     });
 
+    it("shows the online visit in the queue and refuses an ordinary consultation for it", async () => {
+      const [visit] = (await ctx.pool.query<{ id: string }>(`SELECT id FROM visit WHERE appointment_id = $1`, [appointmentId])).rows;
+      const queue = await staff(doctor).get("/api/v1/queue").expect(200);
+      expect(queue.body.find((v: { id: string }) => v.id === visit!.id)).toMatchObject({ modality: "telemedicine", appointmentId });
+      // Neither the default nor an explicit modality opens it outside Telemedicine: the session would stay waiting.
+      for (const body of [{ visitId: visit!.id }, { visitId: visit!.id, modality: "telemedicine" }]) {
+        const refused = await staff(doctor).post("/api/v1/encounters").send(body).expect(422);
+        expect(refused.body.error.code).toBe("online_consultation");
+      }
+      const open = await ctx.pool.query(`SELECT count(*)::int AS n FROM encounter WHERE visit_id = $1`, [visit!.id]);
+      expect(open.rows[0].n).toBe(0);
+    });
+
     it("starts a telemedicine encounter and hands out room-bound video tokens", async () => {
       await staff(nurse).post(`/api/v1/telemedicine/consultations/${appointmentId}/start`).expect(403);
       const started = await staff(doctor).post(`/api/v1/telemedicine/consultations/${appointmentId}/start`).expect(200);

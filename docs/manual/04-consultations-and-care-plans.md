@@ -37,7 +37,8 @@ conduct encounters", ask your administrator.
 
 1. Open **Clinic → Encounters**. The **Consultations** list shows today's patients at the selected facility who are ready for the provider, with
    the provider, or already seen — with ticket, arrival time, complaint, priority and status.
-2. Select **Start consultation** next to the patient. (You can also start from the ticket panel on the **Queue** board.)
+2. Select **Start consultation** next to the patient. (You can also start from the ticket panel on the **Queue** board.) For an online visit the
+   button is **Open in Telemedicine**; see [Telemedicine](05-telemedicine.md).
 3. The encounter workspace opens. The patient moves to **With provider** on the queue, and you become the responsible practitioner for this
    encounter.
 

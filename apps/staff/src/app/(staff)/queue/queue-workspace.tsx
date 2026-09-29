@@ -202,7 +202,7 @@ function VisitPanel({
             </Link>
           </Button>
         ) : canConsult && canStartConsultation(visit.status) ? (
-          <StartConsultationButton visitId={visit.id} />
+          <StartConsultationButton visit={visit} />
         ) : null}
         {mayTriage && canTriage(visit.status) ? (
           <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>
