@@ -1,5 +1,6 @@
 import {
   BuildingIcon,
+  ChartColumnIcon,
   ClipboardListIcon,
   CalendarDaysIcon,
   FileInputIcon,
@@ -86,6 +87,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Pharmacy", href: "/pharmacy", icon: PillIcon, roles: ["nurse", "admin"] },
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
+  { label: "Management", href: "/management", icon: ChartColumnIcon, roles: ["admin"] },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
   {
     label: "Records",

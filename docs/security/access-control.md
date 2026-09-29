@@ -78,6 +78,9 @@ and the instrument log are append-only. Quality management (migration 0055)
 uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record`,
 `lab.nonconformance.*`, `lab.eqa.*`, `lab.competency.record`; competency is never
 self-assessed.
+Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
+a facility-scoped grant limits the figures to that facility; audited
+`management.dashboard.view` (range and facilities). Counts and amounts only.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

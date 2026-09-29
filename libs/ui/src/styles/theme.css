@@ -77,6 +77,10 @@
 }
 
 .dark {
+  /* Chart slots re-stepped for the dark surface (validated: lightness band, CVD separation, contrast >= 3:1). */
+  --chart-1: oklch(0.64 0.14 252);
+  --chart-3: oklch(0.66 0.14 70);
+  --chart-4: oklch(0.62 0.15 320);
   --background: oklch(0.17 0.02 265);
   --foreground: oklch(0.95 0.008 255);
   --card: oklch(0.21 0.025 265);

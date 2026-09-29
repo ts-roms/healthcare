@@ -6,6 +6,7 @@ export * from "./lib/patient.views";
 export * from "./lib/communication-policy";
 export { normalizeContact } from "./lib/contact-normalization";
 export * from "./lib/patient-record.service";
+export * from "./lib/patient-reporting.queries";
 export * from "./lib/patient-registration.service";
 export * from "./lib/portal/portal.schema";
 export * from "./lib/portal/portal-account.service";

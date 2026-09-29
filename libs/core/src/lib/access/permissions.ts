@@ -115,6 +115,8 @@ export const PERMISSIONS = [
   // reviewers match the patient and accept or reject each entry.
   "interop.fhir.import",
   "interop.fhir.import.review",
+  // Management dashboard: cross-domain operational figures, counts and amounts only (migration 0059).
+  "management.dashboard.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

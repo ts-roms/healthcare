@@ -1,6 +1,7 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
 import { BillingRecordQueries } from "./billing-record.queries";
+import { BillingReportingQueries } from "./billing-reporting.queries";
 import { BillingCatalogController, BillingController, OnlinePaymentNotificationController } from "./billing.controllers";
 import { BillingCatalogService } from "./catalog/billing-catalog.service";
 import { ChargeCapture } from "./charges/charge-capture";
@@ -36,6 +37,7 @@ export class BillingModule {
         BillingCatalogService,
         BillingDocuments,
         BillingRecordQueries,
+        BillingReportingQueries,
         ChargeCapture,
         ChargeService,
         CreditNoteService,
@@ -49,7 +51,7 @@ export class BillingModule {
         { provide: BILLING_SOURCES, useClass: options.sources },
         { provide: BILLING_PATIENTS, useClass: options.patients },
       ],
-      exports: [BillingDocuments, BillingRecordQueries, ChargeService, DepositService, InvoiceService, OnlinePaymentService],
+      exports: [BillingDocuments, BillingRecordQueries, BillingReportingQueries, ChargeService, DepositService, InvoiceService, OnlinePaymentService],
     };
   }
 }
