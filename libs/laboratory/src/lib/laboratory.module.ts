@@ -21,6 +21,7 @@ import { LabQualityService } from "./quality/lab-quality.service";
 import { LabReagentService } from "./quality/lab-reagent.service";
 import { LabPatientAccess } from "./results/lab-patient-access";
 import { LabRecordQueries } from "./results/lab-record-queries";
+import { LabReportingQueries } from "./results/lab-reporting.queries";
 import { LabResultAttachments } from "./results/lab-result-attachments";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./results/lab-report-archive";
 import { bullMqLabReportArchiveQueue, LabReportArchiveWorker } from "./results/lab-report-archive-queue";
@@ -69,6 +70,7 @@ export class LaboratoryModule {
         LabQualitySummaryService,
         LabQualityDue,
         LabRecordQueries,
+        LabReportingQueries,
         LabReadModel,
         LabReportService,
         LabReportArchive,
@@ -93,6 +95,7 @@ export class LaboratoryModule {
         LabQualityDue,
         LabPatientAccess,
         LabRecordQueries,
+        LabReportingQueries,
         LabReportService,
         LabReportArchive,
         LabReportArchiveWorker,

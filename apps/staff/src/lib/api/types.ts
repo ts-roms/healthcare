@@ -2877,3 +2877,45 @@ export interface PatientTimelinePage {
   withheld: PatientTimelineKind[];
   timeZone: string;
 }
+
+// ---- Management dashboard (GET /management/dashboard, management.dashboard.read; amounts in centavos) ------------
+
+export interface ManagementDashboard {
+  from: string;
+  to: string;
+  timeZone: string;
+  /** Facilities covered (null: the whole organization). */
+  facilityIds: string[] | null;
+  facilities: Array<{ id: string; name: string }>;
+  wholeOrganization: boolean;
+  patients: { registered: number; seen: number; returning: number; returningRate: number | null };
+  clinic: {
+    appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
+    visits: { checkedIn: number; walkIns: number; leftWithoutBeingSeen: number; averageWaitMinutes: number | null };
+    encounters: { completed: number; telemedicine: number; patientsSeen: number; returningPatients: number };
+    providers: Array<{ practitionerId: string; displayName: string; encounters: number; patients: number; appointments: number; noShows: number }>;
+  };
+  laboratory: {
+    orders: { orders: number; stat: number; cancelled: number };
+    testsOrdered: number;
+    released: number;
+    corrections: number;
+    averageTurnaroundMinutes: number | null;
+    withinTargetRate: number | null;
+    specimensRejected: number;
+    topTests: Array<{ testId: string; name: string; ordered: number }>;
+  };
+  dental: { procedures: number; patients: number };
+  billing: {
+    invoices: { issued: number; grossTotal: number; discountTotal: number; netTotal: number; payerTotal: number; patientTotal: number; voided: number };
+    creditNotesTotal: number;
+    debitNotesTotal: number;
+    collectedTotal: number;
+    refundedTotal: number;
+    netCollected: number;
+    collections: Array<{ method: PaymentMethod; collected: number; refunded: number; payments: number }>;
+    byCategory: Array<{ category: BillingCategory; net: number; quantity: number }>;
+    topServices: Array<{ serviceId: string; code: string; name: string; category: BillingCategory; quantity: number; net: number }>;
+  };
+  daily: Array<{ date: string; registered: number; encounters: number; labReleased: number; invoiced: number; collected: number }>;
+}

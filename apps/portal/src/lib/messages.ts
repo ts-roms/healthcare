@@ -5,6 +5,8 @@ export function messageAction(message: Pick<PortalMessage, "templateKey">): { hr
   switch (message.templateKey) {
     case "lab.results-available":
       return { href: "/results", label: "See your results" };
+    case "dental.record-update":
+      return { href: "/dental", label: "See your dental record" };
     case "appointment.self-service":
     case "appointment.reminder":
       return { href: "/appointments", label: "See your visits" };

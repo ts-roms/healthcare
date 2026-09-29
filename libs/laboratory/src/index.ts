@@ -30,3 +30,4 @@ export * from "./lib/send-outs/send-out.schema";
 export * from "./lib/send-outs/send-out.service";
 export * from "./lib/quality/lab-quality-summary.service";
 export * from "./lib/quality/lab-quality-due";
+export * from "./lib/results/lab-reporting.queries";

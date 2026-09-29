@@ -16,6 +16,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/pharmacy": ["prescription.dispense"],
   "/inventory": ["inventory.read"],
   "/communications": ["notification.read", "notification.send"],
+  "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
   "/records": ["interop.fhir.import.review"],
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],

@@ -324,6 +324,47 @@ export class DentalPatientAccess {
   }
 
   /**
+   * For notices: whether this release of an image is still shared with the patient (records shown, release not
+   * withdrawn, image not entered in error). Checked when the notice is sent, not when the image was shared.
+   */
+  async releaseStillShared(organizationId: string, patientId: string, releaseId: string): Promise<boolean> {
+    if (!(await this.settings.enabled(organizationId))) return false;
+    const [row] = await this.db
+      .select({ id: dentalImageRelease.id })
+      .from(dentalImageRelease)
+      .innerJoin(dentalImage, eq(dentalImage.id, dentalImageRelease.imageId))
+      .where(
+        and(
+          eq(dentalImageRelease.organizationId, organizationId),
+          eq(dentalImageRelease.id, releaseId),
+          eq(dentalImage.patientId, patientId),
+          eq(dentalImage.status, "recorded"),
+          isNull(dentalImageRelease.withdrawnAt),
+        ),
+      );
+    return row !== undefined;
+  }
+
+  /**
+   * For notices: whether a plan of this patient still has items awaiting their decision while dental records are
+   * shown, and whether they can decide it in MyHealth; undefined when there is nothing to tell them.
+   */
+  async planAwaitingPatient(organizationId: string, patientId: string, planId: string): Promise<{ canDecide: boolean } | undefined> {
+    if (!(await this.settings.enabled(organizationId))) return undefined;
+    const [plan] = await this.db
+      .select()
+      .from(dentalTreatmentPlan)
+      .where(and(eq(dentalTreatmentPlan.organizationId, organizationId), eq(dentalTreatmentPlan.id, planId), eq(dentalTreatmentPlan.patientId, patientId)));
+    if (!plan || !["proposed", "accepted", "in_progress"].includes(plan.status)) return undefined;
+    const items = await this.db
+      .select({ status: dentalTreatmentPlanItem.status })
+      .from(dentalTreatmentPlanItem)
+      .where(and(eq(dentalTreatmentPlanItem.organizationId, organizationId), eq(dentalTreatmentPlanItem.planId, planId)));
+    if (!items.some((i) => i.status === "proposed")) return undefined;
+    return { canDecide: (await this.settings.decisions(organizationId)) !== undefined };
+  }
+
+  /**
    * A short-lived link to an image the dentist released to this patient (while dental records are shared, not
    * entered in error). Audited as the patient's access by the documents service.
    */
