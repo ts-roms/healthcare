@@ -14,19 +14,19 @@ issuances. QC evaluation is decision support for the laboratory's review.
 
 ## Who uses it
 
-| Permission      | Default roles                                         | Allows                                                                                                                                                                                               |
-| --------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lab.qc.read`   | Organization admin, medical technologist, pathologist | See all quality pages                                                                                                                                                                                |
-| `lab.qc.enter`  | Organization admin, medical technologist, pathologist | Record QC runs and corrective actions, instrument log entries, load and unload reagent lots, record temperatures, report nonconformances and add entries, record EQA rounds, results and evaluations |
-| `lab.qc.manage` | Organization admin, pathologist                       | Register instruments, retire an instrument, set up control materials, lots and targets, register and retire storage units, add EQA schemes, reclassify and close nonconformances, assess competency  |
+| Permission      | Default roles                                         | Allows                                                                                                                                                                                                                                                          |
+| --------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lab.qc.read`   | Organization admin, medical technologist, pathologist | See all quality pages, including reagent use and cost per patient run                                                                                                                                                                                           |
+| `lab.qc.enter`  | Organization admin, medical technologist, pathologist | Record QC runs and corrective actions, instrument log entries, load and unload reagent lots, record reagent use (repeats, calibration, priming, waste), record temperatures, report nonconformances and add entries, record EQA rounds, results and evaluations |
+| `lab.qc.manage` | Organization admin, pathologist                       | Register instruments, retire an instrument, set up control materials, lots and targets, set each reagent's tests per unit, register and retire storage units, add EQA schemes, reclassify and close nonconformances, assess competency                          |
 
 The QC and competency policy is part of the facility's laboratory policy and needs `lab.catalog.manage` (see
 [How to set the QC and competency policy](#how-to-set-the-qc-and-competency-policy)).
 
 Find the pages under **Laboratory** in the side navigation: **Quality control** (`/laboratory/qc`), **Instruments** (`/laboratory/instruments`),
-**Temperatures** (`/laboratory/temperatures`), **Nonconformances** (`/laboratory/nonconformances`), **Proficiency testing** (`/laboratory/eqa`) and
-**Competency** (`/laboratory/competency`). Each page works on the facility selected in the top bar. If you do not have `lab.qc.read`, these pages send
-you back to the home page.
+**Reagent use** (`/laboratory/reagents`), **Temperatures** (`/laboratory/temperatures`), **Nonconformances** (`/laboratory/nonconformances`),
+**Proficiency testing** (`/laboratory/eqa`) and **Competency** (`/laboratory/competency`). Each page works on the facility selected in the top bar.
+They are listed only for people with `lab.qc.read`.
 
 ## How to see what needs attention
 
@@ -37,6 +37,7 @@ With `lab.qc.read`, the home dashboard (`/`) shows a **Laboratory quality** list
 - **QC to review** (rejected, or not run in the window)
 - **Storage units out of range at the last reading** and **Temperature readings due**
 - **Instruments** (calibration overdue, out of service)
+- **Reagent lots running low** (loaded lots with a tenth or less of their tests left)
 - **Proficiency testing** (rounds past due with nothing reported, rounds awaiting the provider's evaluation)
 - **Staff competency** (reassessments due, not yet competent, and — when competency is required — people not assessed)
 
@@ -312,8 +313,12 @@ results.
 - Calibration and verification entries need an outcome. Out of service, repair and retirement need notes.
 - QC runs need a target for that lot, test and instrument. Retired or expired control lots take no runs.
 - Only reagent-category inventory lots that have not expired can be loaded. An expired lot in use refuses QC runs and results on that test.
-- Reagent use is counted automatically for patient results entered with the instrument and for QC runs; other use needs a reason and is kept
-  as history (it cannot be changed or deleted).
+- Reagent use is counted automatically for patient results entered with the instrument and for QC runs; other use (repeat, calibration, priming,
+  waste, other) needs a number of tests and what it was for, and is kept as history (it cannot be changed or deleted).
+- Use can be recorded only against a lot that is still loaded. Counting never moves stock and never refuses a result or a QC run.
+- A lot's capacity is **Tests it holds** when given at loading, otherwise the stock taken times the reagent's **tests per unit** at that moment;
+  changing tests per unit affects only lots loaded afterwards. Without either, the lot shows only how many tests it used and never runs low.
+- The **Reagent use** page covers at most 366 days at a time.
 - When the facility requires QC, a result on an instrument is refused if no QC run is in the window or a control level is rejected.
 - When the facility requires competency, a result is refused from staff whose assessment is missing, due, or not yet competent.
 - A temperature outside the range needs a note and opens a nonconformance.
@@ -352,6 +357,11 @@ results.
 | Staff do not assess their own competency                                                             | You chose yourself.                                                            | Another assessor must record it.                                            |
 | Competency is recorded for staff who enter results at this facility                                  | The person does not enter results here.                                        | Check the person's role at this facility.                                   |
 | The assessment date cannot be in the future                                                          | Wrong date.                                                                    | Correct the date.                                                           |
+| This lot has been unloaded                                                                           | You recorded use for a lot that is no longer on the instrument.                | Record it against the lot now loaded, or leave it if it no longer applies.  |
+| This lot is already loaded                                                                           | The lot is on an instrument already.                                           | Unload it there first, or pick another lot.                                 |
+| Reagent … lot … loaded on this instrument has expired. Load a new lot first.                         | An expired lot is still loaded for this test.                                  | Load a fresh lot (see above), then run QC or enter the result.              |
+| Only reagents have a yield                                                                           | **Tests per unit** was set for an item that is not a reagent.                  | Check the item's category in the inventory catalog.                         |
+| Choose at most 366 days / The period starts after it ends                                            | The **Reagent use** period is too long or reversed.                            | Adjust **From** and **To**.                                                 |
 
 ## Related chapters
 
