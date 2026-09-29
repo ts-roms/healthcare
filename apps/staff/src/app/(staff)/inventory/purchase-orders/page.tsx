@@ -18,7 +18,7 @@ export const metadata = { title: "Purchase orders" };
 export default async function PurchaseOrdersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} />;
+  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
   if (!facility) {
     return (
       <>

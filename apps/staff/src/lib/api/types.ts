@@ -2968,3 +2968,111 @@ export interface ManagementKeyFigures {
   labTurnaroundMinutes: number | null;
   dentalProcedures: number;
 }
+
+// ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------
+
+/** GET /inventory/valuation */
+export interface InventoryValuation {
+  totalValue: number;
+  unvaluedLines: number;
+  byCategory: Array<{ category: InventoryCategory; value: number; lines: number }>;
+  byLocation: Array<{ locationId: string; name: string; value: number; lines: number }>;
+  lines: Array<{
+    itemId: string;
+    code: string;
+    name: string;
+    category: InventoryCategory;
+    stockUnit: string;
+    locationId: string;
+    locationName: string;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    averageUnitCost: number | null;
+  }>;
+}
+
+export type InventoryMovementKind = "receipt" | "issue" | "transfer_out" | "transfer_in" | "adjustment" | "write_off" | "return";
+export type InventoryMovementSource = "prescription_dispense" | "lab_reagent_load" | "purchase_order_line" | "dental_procedure";
+
+/** GET /inventory/valuation/usage — signed quantities and values (receipts positive, uses negative). */
+export interface InventoryUsage {
+  from: string;
+  to: string;
+  timeZone: string;
+  rows: Array<{
+    kind: InventoryMovementKind;
+    sourceType: InventoryMovementSource | null;
+    quantity: number;
+    value: number;
+    unvaluedQuantity: number;
+    movements: number;
+  }>;
+  topItems: Array<{ itemId: string; name: string; stockUnit: string; quantity: number; value: number }>;
+}
+
+export type SupplierInvoiceStatus = "recorded" | "approved" | "paid" | "void";
+
+export interface SupplierInvoice {
+  id: string;
+  facilityId: string;
+  purchaseOrderId: string;
+  poNumber: string | null;
+  supplierId: string;
+  supplier: { id: string; code: string; name: string } | null;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string | null;
+  linesTotal: number;
+  vatAmount: number;
+  total: number;
+  notes: string | null;
+  status: SupplierInvoiceStatus;
+  recordedAt: string;
+  recordedByYou: boolean;
+  approvedAt: string | null;
+  approvalNote: string | null;
+  paidOn: string | null;
+  paymentReference: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  overdue: boolean;
+  version: number;
+}
+
+export interface SupplierInvoiceDetail extends SupplierInvoice {
+  lines: Array<{
+    id: string;
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemName: string;
+    stockUnit: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    /** Invoiced less ordered price per stock unit; null when the order had no price. */
+    variance: number | null;
+  }>;
+}
+
+/** GET /inventory/purchase-orders/:id/invoicing */
+export interface PurchaseOrderInvoicing {
+  purchaseOrderId: string;
+  poNumber: string;
+  supplierId: string;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    lineNumber: number;
+    itemId: string;
+    itemName: string;
+    stockUnit: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    orderUnitCost: number | null;
+    quantityInvoiced: number;
+    invoiceable: number;
+  }>;
+}

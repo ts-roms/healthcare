@@ -63,6 +63,10 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Inventory valuation (migration 0061): `inventory.valuation.read` (org_admin,
+inventory_officer). Supplier invoices use the procurement permissions (approval
+never by the recorder — database constraint); audited
+`inventory.supplier-invoice.record | approve | pay | void`.
 Dental (migration 0027): `dental.record.read`, `dental.record.write`
 (corrections), `dental.chart.write`, `dental.treatment-plan.manage`,
 `dental.procedure.record`, `dental.imaging.read`, `dental.imaging.upload`,
