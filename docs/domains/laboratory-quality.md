@@ -27,8 +27,7 @@ numeric tests. Loading a lot can take that lot's stock from a storage location o
 (migration `0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
 Not yet either: electronic EQA exchange with providers (results are entered by hand), automatic temperature sensors,
-documents attached to nonconformances, and scheduled reminders for overdue temperature readings or competency
-reassessments (they show on the dashboard; nothing is sent).
+and documents attached to nonconformances. Reminders are in-app only (no SMS or email to staff).
 
 No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, whether patient
 results need QC, storage limits and reading intervals, EQA schemes, competency areas and intervals, and what a
@@ -186,6 +185,17 @@ staff, a temperature excursion or an unacceptable EQA result) and `LaboratoryQcR
 the person whose action raised it. The message names the record number, category and severity, or the instrument code,
 test name and rules; never a patient, specimen, title, description or control value. It links to the nonconformance or
 to `/laboratory/qc`. One message per event and recipient (idempotency key), so redelivered events are not repeated.
+
+**Reminders** (`apps/api/src/app/laboratory-quality-reminders.ts`, hourly in the API process, advisory lock; what is due
+comes from `LabQualityDue` in the library):
+
+- **Temperature reading missed**: an active unit with a reading interval whose last reading (or, never read, its
+  registration) is older than the interval. The facility's quality managers get one `lab.quality-notice` per missed
+  reading (key: unit and last reading), so a unit left unread is reminded once, and again after the next missed
+  interval once a reading was recorded.
+- **Competency reassessment due**: the latest assessment of an area (test or section) is competent and its next due
+  date has passed in the facility's time zone. The person (while they still enter results at the facility) and the
+  quality managers get one message per assessment; a new assessment ends it.
 
 ## Permissions
 

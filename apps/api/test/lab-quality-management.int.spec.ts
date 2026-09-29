@@ -1,3 +1,5 @@
+import { LabQualityDue } from "@healthcare/laboratory";
+import { LaboratoryQualityReminders } from "../src/app/laboratory-quality-reminders";
 import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
 
 /**
@@ -328,6 +330,72 @@ describe("laboratory quality management", () => {
     expect(before).toBeGreaterThanOrEqual(adminNotices.length);
     await ctx.http().post(`/api/v1/me/notifications/${adminNotices[0]!.id}/read`).set(as(admin)).expect(204);
     expect(await unread()).toBe(before - 1);
+  });
+
+  it("reminds quality managers of missed temperature readings and due reassessments, once each", async () => {
+    type Notice = { subject: string; text: string; href: string | null };
+    const reminders = async (token: string, kind: RegExp): Promise<Notice[]> =>
+      ((await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200)).body as Array<Notice & { templateKey: string }>).filter(
+        (n) => n.templateKey === "lab.quality-notice" && kind.test(n.subject),
+      );
+    const job = ctx.app.get(LaboratoryQualityReminders);
+    const hours = (h: number) => new Date(Date.now() + h * 3_600_000);
+
+    // A unit read every 4 hours is not due until 4 hours after it was registered.
+    const unit = await lab("post", "/storage-units", pathologist, {
+      code: "fridge-r",
+      name: "Blood bank fridge",
+      kind: "refrigerator",
+      minCelsius: 2,
+      maxCelsius: 6,
+      readingIntervalHours: 4,
+    }).expect(201);
+    await job.run(hours(1));
+    expect(await reminders(admin, /^Temperature reading due — Blood bank fridge/)).toEqual([]);
+    await job.run(hours(5));
+    await job.run(hours(6));
+    const first = await reminders(admin, /^Temperature reading due — Blood bank fridge/);
+    expect(first).toEqual([expect.objectContaining({ href: "/laboratory/temperatures" })]);
+    expect(first[0]!.text).toContain("fridge-r");
+    expect(await reminders(pathologist, /^Temperature reading due — Blood bank fridge/)).toHaveLength(1);
+    expect(await reminders(medtech, /^Temperature reading due/)).toEqual([]);
+    // A reading clears it; the next missed reading is a new reminder.
+    await lab("post", `/storage-units/${unit.body.id}/readings`, medtech, { celsius: 4 }).expect(201);
+    await job.run(hours(2));
+    expect(await reminders(admin, /^Temperature reading due — Blood bank fridge/)).toHaveLength(1);
+    await job.run(hours(5));
+    expect(await reminders(admin, /^Temperature reading due — Blood bank fridge/)).toHaveLength(2);
+
+    // A competent assessment of a whole section, past its next due date.
+    ids.hema = (await lab("post", "/departments", admin, { code: "hema", name: "Hematology" }).expect(201)).body.id;
+    await lab("post", "/competency", pathologist, {
+      userId: ids.medtech2User,
+      departmentId: ids.hema,
+      method: "direct_observation",
+      outcome: "competent",
+      assessedOn: "2026-01-05",
+      nextDueOn: "2026-03-01",
+    }).expect(201);
+    await job.run();
+    await job.run();
+    const own = await reminders(medtech2, /^Your competency reassessment is due — Hematology/);
+    expect(own).toEqual([expect.objectContaining({ href: "/laboratory/competency" })]);
+    expect(own[0]!.text).toContain("2026-03-01");
+    expect(await reminders(admin, /^Competency reassessment due — medtech2@example\.ph/)).toHaveLength(1);
+    expect(await reminders(pathologist, /^Competency reassessment due — medtech2@example\.ph/)).toHaveLength(1);
+    expect(await reminders(medtech, /competency reassessment/i)).toEqual([]);
+
+    // Reassessed: nothing more for that area.
+    await lab("post", "/competency", pathologist, {
+      userId: ids.medtech2User,
+      departmentId: ids.hema,
+      method: "direct_observation",
+      outcome: "competent",
+      assessedOn: "2026-03-10",
+      nextDueOn: "2027-03-10",
+    }).expect(201);
+    const due = await ctx.app.get(LabQualityDue).competencyReassessmentsDue();
+    expect(due.filter((d) => d.userId === ids.medtech2User && d.areaName.startsWith("Hematology"))).toEqual([]);
   });
 
   it("sums up what needs attention for the dashboard, per facility", async () => {
