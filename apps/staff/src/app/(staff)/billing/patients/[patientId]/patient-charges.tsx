@@ -6,10 +6,8 @@ import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { BillingCharge, BillingService } from "@/lib/api/types";
-import { CATEGORY_LABEL, parsePesos, peso, pesoInput } from "@/lib/billing-mapping";
+import { CATEGORY_LABEL, CHARGE_SOURCE_LABEL, parsePesos, peso, pesoInput } from "@/lib/billing-mapping";
 import { addCharge, cancelCharge, createInvoice } from "../../actions";
-
-const SOURCE_LABEL: Record<BillingCharge["sourceType"], string> = { encounter: "Consultation", lab_order_item: "Laboratory order", manual: "Added by staff" };
 
 /** Pending charges of one patient: choose what to invoice, add a charge, or cancel one with a reason. */
 export function PatientCharges({
@@ -110,7 +108,7 @@ function ChargeRow({
           {c.quantity > 1 ? <span className="text-muted-foreground"> × {c.quantity}</span> : null}
         </span>
         <span className="block text-meta text-muted-foreground">
-          {clinicalDate(c.serviceDate)} · {SOURCE_LABEL[c.sourceType]}
+          {clinicalDate(c.serviceDate)} · {CHARGE_SOURCE_LABEL[c.sourceType]}
         </span>
       </span>
       <Badge variant="neutral">{CATEGORY_LABEL[c.category]}</Badge>

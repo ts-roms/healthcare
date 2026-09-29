@@ -1051,7 +1051,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "manual";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
   description: string;
   quantity: number;
   unitPrice: number;
