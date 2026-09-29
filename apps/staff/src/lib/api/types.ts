@@ -2888,6 +2888,9 @@ export interface ManagementDashboard {
   facilityIds: string[] | null;
   facilities: Array<{ id: string; name: string }>;
   wholeOrganization: boolean;
+  keyFigures: ManagementKeyFigures;
+  /** The period of the same length just before the range. */
+  previous: { from: string; to: string; keyFigures: ManagementKeyFigures };
   patients: { registered: number; seen: number; returning: number; returningRate: number | null };
   clinic: {
     appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
@@ -2918,4 +2921,18 @@ export interface ManagementDashboard {
     topServices: Array<{ serviceId: string; code: string; name: string; category: BillingCategory; quantity: number; net: number }>;
   };
   daily: Array<{ date: string; registered: number; encounters: number; labReleased: number; invoiced: number; collected: number }>;
+}
+
+/** Headline figures of the management dashboard (amounts in centavos). */
+export interface ManagementKeyFigures {
+  patientsSeen: number;
+  newPatients: number;
+  consultations: number;
+  noShowRate: number | null;
+  averageWaitMinutes: number | null;
+  netInvoiced: number;
+  netCollected: number;
+  labTestsReleased: number;
+  labTurnaroundMinutes: number | null;
+  dentalProcedures: number;
 }

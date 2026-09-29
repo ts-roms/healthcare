@@ -26,7 +26,7 @@ import type { ManagementDashboard } from "@/lib/api/types";
 import { CATEGORY_LABEL, METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import { minutesLabel } from "@/lib/dashboard-mapping";
-import { percentOf, rangePresets } from "@/lib/management-mapping";
+import { comparison, EXPORT_TABLES, percentOf, previousLabel, rangePresets } from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
 
 export const metadata = { title: "Management dashboard" };
@@ -67,6 +67,10 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
       : data.facilityIds.map((id) => data.facilities.find((f) => f.id === id)?.name ?? "Facility").join(", ") || "No facilities";
   const today = todayIn(data.timeZone);
   const facilityParam = query.facilityId ? `&facilityId=${query.facilityId}` : "";
+  const k = data.keyFigures;
+  const prev = data.previous.keyFigures;
+  const versus = `vs ${previousLabel(data.previous.from, data.previous.to)}`;
+  const exportQuery = `from=${data.from}&to=${data.to}${facilityParam}`;
   const c = data.clinic;
   const b = data.billing;
   const l = data.laboratory;
@@ -115,29 +119,63 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           </nav>
         </form>
 
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
+          <span>Download CSV:</span>
+          {EXPORT_TABLES.map((t) => (
+            <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
+              {t.label}
+            </a>
+          ))}
+        </p>
+
         <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Figure label="Patients seen" value={c.encounters.patientsSeen.toLocaleString("en-PH")}>
+          <Figure
+            label="Patients seen"
+            value={k.patientsSeen.toLocaleString("en-PH")}
+            change={comparison(k.patientsSeen, prev.patientsSeen, "count")}
+            versus={versus}
+          >
             {data.patients.registered.toLocaleString("en-PH")} new · {percentOf(data.patients.returningRate)} returning
           </Figure>
-          <Figure label="Consultations" value={c.encounters.completed.toLocaleString("en-PH")}>
+          <Figure
+            label="Consultations"
+            value={k.consultations.toLocaleString("en-PH")}
+            change={comparison(k.consultations, prev.consultations, "count")}
+            versus={versus}
+          >
             {c.encounters.telemedicine.toLocaleString("en-PH")} online · {data.dental.procedures.toLocaleString("en-PH")} dental procedures
           </Figure>
-          <Figure label="No-show rate" value={percentOf(c.appointments.noShowRate)}>
+          <Figure label="No-show rate" value={percentOf(k.noShowRate)} change={comparison(k.noShowRate, prev.noShowRate, "rate")} versus={versus}>
             {c.appointments.noShow} of {c.appointments.booked} booked · {c.appointments.cancelled} cancelled
           </Figure>
-          <Figure label="Average wait" value={minutesLabel(c.visits.averageWaitMinutes)}>
+          <Figure
+            label="Average wait"
+            value={minutesLabel(k.averageWaitMinutes)}
+            change={comparison(k.averageWaitMinutes, prev.averageWaitMinutes, "minutes")}
+            versus={versus}
+          >
             check-in to consultation · {c.visits.checkedIn} checked in, {c.visits.leftWithoutBeingSeen} left unseen
           </Figure>
-          <Figure label="Invoiced (net)" value={peso(b.invoices.netTotal)}>
+          <Figure label="Invoiced (net)" value={peso(k.netInvoiced)} change={comparison(k.netInvoiced, prev.netInvoiced, "count")} versus={versus}>
             {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
           </Figure>
-          <Figure label="Collected" value={peso(b.netCollected)}>
+          <Figure label="Collected" value={peso(k.netCollected)} change={comparison(k.netCollected, prev.netCollected, "count")} versus={versus}>
             {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
           </Figure>
-          <Figure label="Lab tests released" value={l.released.toLocaleString("en-PH")}>
+          <Figure
+            label="Lab tests released"
+            value={k.labTestsReleased.toLocaleString("en-PH")}
+            change={comparison(k.labTestsReleased, prev.labTestsReleased, "count")}
+            versus={versus}
+          >
             {l.testsOrdered} ordered · {l.specimensRejected} specimens rejected
           </Figure>
-          <Figure label="Lab turnaround" value={minutesLabel(l.averageTurnaroundMinutes)}>
+          <Figure
+            label="Lab turnaround"
+            value={minutesLabel(k.labTurnaroundMinutes)}
+            change={comparison(k.labTurnaroundMinutes, prev.labTurnaroundMinutes, "minutes")}
+            versus={versus}
+          >
             collection to release · {percentOf(l.withinTargetRate)} within the test&apos;s target
           </Figure>
         </section>
@@ -223,11 +261,20 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
   );
 }
 
-function Figure({ label, value, children }: { label: string; value: string; children: ReactNode }) {
+function Figure({ label, value, change, versus, children }: { label: string; value: string; change: string; versus: string; children: ReactNode }) {
   return (
     <Card className="p-3">
       <p className="text-meta text-muted-foreground">{label}</p>
       <p className="tabular text-2xl font-semibold">{value}</p>
+      <p className="text-meta">
+        {change === "no comparison" ? (
+          <span className="text-muted-foreground">Nothing to compare {versus.replace(/^vs /, "with ")}</span>
+        ) : (
+          <>
+            <span className="font-medium">{change}</span> <span className="text-muted-foreground">{versus}</span>
+          </>
+        )}
+      </p>
       <p className="mt-1 text-meta text-muted-foreground">{children}</p>
     </Card>
   );
