@@ -42,7 +42,7 @@ Organization administrators hold all of these. Your administrator may have set u
 
 You see **Laboratory** in the side navigation if you have `lab.order.read`. Its pages are **Workbench** (`/laboratory/worklist`), **Send-outs**
 (`/laboratory/send-outs`), **Critical results** (`/laboratory/critical`) and **Catalog** (`/laboratory/catalog`). The quality pages (**Quality
-control**, **Instruments**, **Temperatures**, **Nonconformances**, **Proficiency testing**, **Competency**) are covered in
+control**, **Instruments**, **Reagent use**, **Temperatures**, **Nonconformances**, **Proficiency testing**, **Competency**) are covered in
 [Chapter 7](07-laboratory-quality.md).
 
 Most laboratory pages work on the facility selected in the top bar. If no facility is selected, the page asks you to choose one first.
