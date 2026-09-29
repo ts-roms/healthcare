@@ -5,6 +5,7 @@ import {
   CalendarDaysIcon,
   FileInputIcon,
   FlaskConicalIcon,
+  CircleHelpIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
   MessageSquareIcon,
@@ -103,6 +104,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     roles: ["admin"],
     children: [{ label: "Integrations", href: "/admin/integrations" }],
   },
+  { label: "Help", href: "/help", icon: CircleHelpIcon },
 ];
 
 export function navigationForRole(role: StaffRole, items: NavItem[] = STAFF_NAVIGATION): NavItem[] {

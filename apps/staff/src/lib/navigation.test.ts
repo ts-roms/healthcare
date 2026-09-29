@@ -4,8 +4,8 @@ import { isDemoPath, navigationForPermissions } from "./navigation";
 const hrefs = (permissions: string[]) => navigationForPermissions(permissions).map((i) => i.href);
 
 describe("navigationForPermissions", () => {
-  it("shows only the dashboard to a user without relevant permissions", () => {
-    expect(hrefs([])).toEqual(["/"]);
+  it("shows only the dashboard and help to a user without relevant permissions", () => {
+    expect(hrefs([])).toEqual(["/", "/help"]);
   });
 
   it("shows patient lookup to users who can search patients", () => {

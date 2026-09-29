@@ -8,6 +8,7 @@
       "libs/ui/**",
       "libs/domain/**",
       "libs/web-session/**",
+      "docs/manual/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
