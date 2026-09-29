@@ -28,6 +28,7 @@ None. Every entry has one shape:
 | `marker`     | `entered_in_error`, `cancelled` or `void` when the record is not valid care: still listed (history), marked, never as valid |
 | `flag`       | Laboratory releases only: `abnormal` / `critical` if any released result was flagged                                        |
 | `link`       | `{ type, id }` of the screen to open (`encounter`, `appointment`, `telemedicine`, `patient_laboratory`, `dental_record`, …) |
+| `filedUnder` | The patient number of a record merged into this patient that the entry is filed under; null for the patient's own entries   |
 | `sourceIds`  | The underlying ids (e.g. `prescriptionId`, `encounterId`)                                                                   |
 
 ### Kinds, what a row shows and what it never shows
@@ -116,6 +117,11 @@ never repeats or skips an entry even when many share a timestamp. Instants keep 
 the cursor bound is exact. Each source query is bounded by the cursor and returns `limit + 1` rows; the API merges them,
 trims to `limit` and returns the last entry's position as the opaque `nextCursor` (base64url; validated before use).
 Future appointments appear at the top (newest first by scheduled time).
+
+**Patient merge.** Each domain's timeline query reads the rows filed as this patient (`filedAsPatient`, ADR-0009): the
+patient's own and those of every record merged into it, returning each row's `patientId`; the service maps a row
+filed under a merged record to its number (`filedUnder`). The staff app shows it after the details ("Filed under P…")
+and opens the survivor's timeline for a retired record.
 
 ## Database relationships
 

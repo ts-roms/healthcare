@@ -48,6 +48,13 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 | Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                                                  |
 | Dental (when shared)          | `GET /portal/dental/availability`, `GET /portal/dental/record`, `GET /portal/dental/images/:id/link`, `POST /portal/dental/plans/:id/decision` |
 
+**Patient merge.** After a merge the MyHealth account belongs to the surviving record (moved when only the retired
+record had one; otherwise the retired record's account is disabled with reason `merged`; its sessions are revoked, so
+the patient signs in again). Every `/portal/*` read (visits, results and trends, medicines, care plans, bills and
+account, messages, dental) includes the records merged into the patient (`filedAsPatient`, ADR-0009), and printable
+invoices, notes and documents of those records open for the survivor's account. An unmerge moves an account that was
+moved at the merge back.
+
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`, `portal.dental-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
 **Results (CLAUDE.md §17).** A result is shown only when it is the current version, **released**, of a test the laboratory marks as releasable to patients (`lab_test.patient_releasable`), and — if critical — after the ordering side has **acknowledged** it, so the patient never learns of a critical value before their care team. While a released result is being corrected it is hidden until the corrected version is released. The portal words each value against the snapshotted range in plain language ("Within the usual range", "Higher than the usual range", "Much higher than the usual range — your care team has been told"; icon, words and colour), shows "Usual range: …", and the result page draws a trend with the range shaded plus the history with each value's range at the time. It does not interpret results; it tells the patient to talk to their doctor (`lib/records.ts`).

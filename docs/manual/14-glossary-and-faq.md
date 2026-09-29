@@ -19,7 +19,9 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 | Communication preferences | A patient's opt-in or opt-out per channel (SMS, email, in-app) and category. Reminders and notices respect them.                                                          |
 | Duplicate review          | When you register a patient, the system shows existing patients who may be the same person so you do not create a second record. There is one record per patient.         |
 | Entered in error          | A way to correct a record that should never have existed (wrong patient, wrong entry). The record is kept, marked and excluded from current care; it is not deleted.      |
+| Filed under               | On a surviving record, marks a row that belongs to a record merged into it, e.g. **Filed under P00000123**. The row was not moved.                                        |
 | Facility                  | One branch or site of your **organization** (clinic, laboratory). You choose the facility you are working at; many screens and rules apply per facility.                  |
+| Merged record             | A duplicate record retired into the **surviving record** of the same patient. It keeps what was filed under it, is read only and can be unmerged.                         |
 | MFA                       | Multi-factor authentication. Staff may be asked for a 6-digit code from an authenticator app (TOTP) after the password.                                                   |
 | MyHealth                  | The patient portal: patients see visits, released results, medicines, care plans, bills, messages and (if shared) dental records. See [chapter 12](12-patient-portal.md). |
 | Organization              | Your clinic group as a whole. Settings such as tax profile, dental sharing and reportable conditions are set per organization.                                            |
@@ -28,6 +30,7 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 | Permission                | A single right such as `encounter.sign`. **Roles** are sets of permissions. A missing button usually means a missing permission.                                          |
 | Placeholder page          | A menu item for a module not built yet. It shows that the module is not available; it holds no data.                                                                      |
 | Role                      | A named set of permissions given to a user, e.g. receptionist, nurse, physician, med tech, pathologist, dentist, pharmacist, cashier, records officer, org admin.         |
+| Surviving record          | The record kept when duplicates are merged. Every screen of it also shows the records of each **merged record**, marked **Filed under**.                                  |
 | Timeline                  | The patient's history in date order (`/patients/[id]/timeline`): visits, encounters, results released, prescriptions, dental work, invoices, messages and more.           |
 
 ### Clinic, consultations and telemedicine
@@ -172,7 +175,9 @@ No. Clinical records are never deleted. Mark them **entered in error** with a re
 imported history). They stay visible as history, marked, and are excluded from current care.
 
 **4. I registered the same patient twice. Can I merge the records?**
-Patient merge is not available yet. Always use the duplicate review when registering. If a duplicate already exists, tell your records officer.
+Yes — a records officer merges them from the patient record (**Merge duplicate…**): nothing is moved, the retired record becomes read only and the
+surviving record shows both histories. A merge can be undone. See [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records).
+Always use the duplicate review when registering, so duplicates are rare.
 
 **5. Why does the patient header say "Allergies not recorded — ask the patient"?**
 No allergy review has been recorded, or the allergy list changed after the last review. Ask the patient and record their allergies, or confirm no known

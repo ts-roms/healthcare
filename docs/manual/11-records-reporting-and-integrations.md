@@ -1,13 +1,13 @@
 # 11. Records, reporting and integrations
 
-**What this is for.** This chapter covers the work that connects the clinic to the outside: reviewing health records other providers send in
-(FHIR imports), reviewing disease case reports for the Department of Health (DOH), preparing PhilHealth YAKAP consultation packages, and — for
-administrators — reviewing requests the platform sends to external systems and the keys that protect them. It ends with a short note on the FHIR
-read interface other systems can use.
+**What this is for.** This chapter covers merging duplicate patient records and the work that connects the clinic to the outside: reviewing health
+records other providers send in (FHIR imports), reviewing disease case reports for the Department of Health (DOH), preparing PhilHealth YAKAP
+consultation packages, and — for administrators — reviewing requests the platform sends to external systems and the keys that protect them. It ends
+with a short note on the FHIR read interface other systems can use.
 
 **Who uses it.**
 
-- **Records officers** and organization administrators: record imports (`/records/imports`).
+- **Records officers** and organization administrators: merging duplicate patient records (`patient.merge`) and record imports (`/records/imports`).
 - **Physicians**, records officers and organization administrators: disease case reports (`/reporting`).
 - **Organization administrators**: reportable-condition settings (`/reporting/settings`) and integration review (`/admin/integrations`).
 - **Platform administrators** (the people who run the platform's servers): payload encryption keys.
@@ -16,6 +16,62 @@ read interface other systems can use.
 eClaims, PhilHealth eligibility, PhilHealth YAKAP or DOH reporting, so the platform sends nothing to them. You prepare and check the information in
 the platform, report or file it through the agency's own channel, and record the reference the agency gives you. The **Submit** / **Send** buttons
 for these only appear once an adapter for the official specification is configured.
+
+## How to merge duplicate patient records
+
+When the same person was registered twice, merge the two records so every screen shows one history. **Nothing is moved or rewritten**: the record
+you retire keeps everything filed under it (consultations, results, prescriptions, bills, documents), becomes read only, and every screen of the
+surviving record shows it, each row marked **Filed under P…**. That is also why a merge can be undone exactly.
+
+**Who:** records officers and organization administrators (`patient.merge`).
+
+### Choose the two records
+
+1. Open one of the two patient records and select **Merge duplicate…**.
+2. Search for the other record (name, patient number or mobile).
+3. Decide which record survives — usually the one the patient uses (MyHealth account, PhilHealth PIN, most recent visits) — and select **Keep P…**
+   on that side. The other record will be retired.
+
+### Compare and resolve what is in progress
+
+The **Compare and merge** page shows both records side by side: name, birth date, sex, status, identifiers, contacts, MyHealth account, consent,
+registration and records already merged into either. Rows that differ say **Differs**.
+
+Under **Work in progress**, the record to retire must have nothing still going on, because nothing new can be filed under a retired number and no
+reminders are sent to it. Each item links to the screen that resolves it:
+
+| Item                                    | What to do                                               |
+| --------------------------------------- | -------------------------------------------------------- |
+| Consultation or online consultation     | Sign it (or mark it entered in error); end an online one |
+| In the queue                            | Finish or cancel the visit                               |
+| Upcoming appointment                    | Cancel it and book it again under the surviving record   |
+| Laboratory order not finished           | Release the results or cancel the remaining tests        |
+| Draft invoice / charge not yet invoiced | Issue or cancel it                                       |
+| Deposit or credit balance               | Apply it to an invoice or refund it                      |
+
+An **active care plan** is only a note: it stays under the retired number and is shown on the surviving record, but its reminders are no longer sent.
+Consider closing it and starting one on the surviving record. Reload the page after resolving the items.
+
+The page also says what happens to MyHealth: if only the retired record has an account, it moves to the surviving record (the patient signs in
+again; the surviving record's portal consent applies). If both have one, the retired record's account is disabled.
+
+### Merge
+
+1. Tick each flagged difference (for example a different birth date, or one record marked deceased) after checking it is the same person.
+2. Enter the **Reason** (at least 5 characters), for example "Same person registered twice (PhilSys ID checked)".
+3. Type the retired patient number to confirm, and select **Merge P… into P…**.
+
+The surviving record opens. It lists the retired number under **Merged records** with the merge history. Opening the retired record shows **Merged
+into P… on … by …** with a link. Searching for the retired number, its mobile number or an identifier finds the surviving record. The merge is
+recorded in the audit trail with your reason.
+
+If a record already had other records merged into it and is itself merged, those records now point to the new surviving record too.
+
+### Undo a merge
+
+On the surviving record, under **Merged records**, select **Unmerge…** next to the retired number, give the reason and confirm. The retired record
+gets its previous status and everything filed under it back as a separate patient; a MyHealth account moved at the merge moves back. What was
+recorded on the surviving record **after** the merge stays there — check it and correct anything that belongs to the other person.
 
 ## How to review records sent by another provider (FHIR imports)
 
@@ -244,6 +300,9 @@ billing report access (`billing.report.read`) for every facility shown.
 
 ## Rules the system enforces
 
+- A merge needs a reason, the versions you reviewed, every flagged difference acknowledged, and no work in progress under the record to retire. Both
+  records must be in your organization; a record that is itself merged cannot survive. Merge and unmerge are audited.
+- A merged record is read only: new care is refused there ("This record was merged into another patient; use the surviving record instead").
 - Nothing from an import enters a record until a reviewer matches the patient and accepts the entry. Nothing is matched automatically.
 - An import entry cannot be accepted before the patient is matched; the match cannot change after an entry was accepted for that patient.
 - An imported allergy is always unconfirmed and never replaces an active allergy to the same substance.
@@ -260,6 +319,9 @@ billing report access (`billing.report.read`) for every facility shown.
 
 | Message                                                                                                                     | Meaning                                                   | What to do                                                                 |
 | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Finish, cancel or rebook the work in progress under this record first                                                       | Something is still in progress under the record to retire | Resolve each item under **Work in progress**, reload, then merge           |
+| Review and acknowledge every flagged difference before merging                                                              | A difference was not ticked                               | Tick each difference after checking it                                     |
+| The record chosen to survive is itself merged                                                                               | You picked a retired record to keep                       | Choose the record it was merged into                                       |
 | Match the patient first                                                                                                     | No patient matched yet                                    | Match or register the patient                                              |
 | Entries were already accepted for the matched patient; the match cannot change                                              | The match is locked                                       | Reject remaining entries if the match was wrong, and correct accepted ones |
 | This record was merged into another patient; match the surviving record                                                     | You chose a merged patient                                | Search again and match the surviving record                                |
