@@ -22,17 +22,19 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { ManagementDashboard } from "@/lib/api/types";
+import type { ManagementDashboard, ManagementFigureComparison } from "@/lib/api/types";
 import { CATEGORY_LABEL, METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import { minutesLabel } from "@/lib/dashboard-mapping";
-import { percentOf, rangePresets } from "@/lib/management-mapping";
+import { changeLabel, countLabel, type CsvSection, csvHref, patientRateLabel, percentOf, rangePresets } from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
 
 export const metadata = { title: "Management dashboard" };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
+
+const TONE_CLASS = { better: "text-success", worse: "text-danger", neutral: "text-muted-foreground" } as const;
 
 /** Operational figures across the organization's domains for a range of days (CLAUDE.md §28, management). */
 export default async function ManagementPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; facilityId?: string }> }) {
@@ -67,9 +69,15 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
       : data.facilityIds.map((id) => data.facilities.find((f) => f.id === id)?.name ?? "Facility").join(", ") || "No facilities";
   const today = todayIn(data.timeZone);
   const facilityParam = query.facilityId ? `&facilityId=${query.facilityId}` : "";
+  const filters = { from: data.from, to: data.to, facilityId: query.facilityId };
+  const csv = (section: CsvSection) => csvHref(section, filters);
+  const compared = (key: string) => data.comparison.find((f) => f.key === key);
+  const d = data.definitions;
   const c = data.clinic;
   const b = data.billing;
   const l = data.laboratory;
+  const t = data.telemedicine;
+  const r = data.retention;
 
   return (
     <>
@@ -115,120 +123,288 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           </nav>
         </form>
 
+        <div className="flex flex-wrap items-center justify-between gap-2 text-meta text-muted-foreground">
+          <p>
+            {data.previous
+              ? `Compared with ${clinicalDate(`${data.previous.from}T12:00:00Z`)} to ${clinicalDate(`${data.previous.to}T12:00:00Z`)} (the previous period of equal length). `
+              : null}
+            Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy.
+          </p>
+          <p className="flex gap-3">
+            <CsvLink href={csv("summary")} label="Key figures" />
+            <CsvLink href={csv("daily")} label="Daily figures" />
+          </p>
+        </div>
+
+        {b === null ? (
+          <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
+            Revenue, collections and service revenue are not shown: they need billing report access for every facility in scope.
+          </p>
+        ) : null}
+
         <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Figure label="Patients seen" value={c.encounters.patientsSeen.toLocaleString("en-PH")}>
-            {data.patients.registered.toLocaleString("en-PH")} new · {percentOf(data.patients.returningRate)} returning
+          <Figure label="Patients seen" value={countLabel(data.patients.seen)} comparison={compared("patientsSeen")} definition={d.patientsSeen}>
+            {countLabel(data.patients.registered)} new · {patientRateLabel(data.patients.returningRate, data.patients.returningRateSuppressed)} returning
           </Figure>
-          <Figure label="Consultations" value={c.encounters.completed.toLocaleString("en-PH")}>
+          <Figure
+            label="Consultations"
+            value={c.encounters.completed.toLocaleString("en-PH")}
+            comparison={compared("consultations")}
+            definition={d.consultations}
+          >
             {c.encounters.telemedicine.toLocaleString("en-PH")} online · {data.dental.procedures.toLocaleString("en-PH")} dental procedures
           </Figure>
-          <Figure label="No-show rate" value={percentOf(c.appointments.noShowRate)}>
+          <Figure label="No-show rate" value={percentOf(c.appointments.noShowRate)} comparison={compared("noShowRate")} definition={d.noShowRate}>
             {c.appointments.noShow} of {c.appointments.booked} booked · {c.appointments.cancelled} cancelled
           </Figure>
-          <Figure label="Average wait" value={minutesLabel(c.visits.averageWaitMinutes)}>
+          <Figure label="Average wait" value={minutesLabel(c.visits.averageWaitMinutes)} comparison={compared("averageWait")} definition={d.averageWait}>
             check-in to consultation · {c.visits.checkedIn} checked in, {c.visits.leftWithoutBeingSeen} left unseen
           </Figure>
-          <Figure label="Invoiced (net)" value={peso(b.invoices.netTotal)}>
-            {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
+          {b ? (
+            <>
+              <Figure label="Invoiced (net)" value={peso(b.invoices.netTotal)} comparison={compared("invoicedNet")} definition={d.invoicedNet}>
+                {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
+              </Figure>
+              <Figure label="Collected" value={peso(b.netCollected)} comparison={compared("collected")} definition={d.collected}>
+                {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
+              </Figure>
+            </>
+          ) : null}
+          <Figure label="Lab tests released" value={l.released.toLocaleString("en-PH")} comparison={compared("labReleased")} definition={d.labReleased}>
+            {l.testsOrdered} ordered · {l.corrections} corrections
           </Figure>
-          <Figure label="Collected" value={peso(b.netCollected)}>
-            {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
-          </Figure>
-          <Figure label="Lab tests released" value={l.released.toLocaleString("en-PH")}>
-            {l.testsOrdered} ordered · {l.specimensRejected} specimens rejected
-          </Figure>
-          <Figure label="Lab turnaround" value={minutesLabel(l.averageTurnaroundMinutes)}>
+          <Figure label="Lab turnaround" value={minutesLabel(l.averageTurnaroundMinutes)} comparison={compared("labTurnaround")} definition={d.labTurnaround}>
             collection to release · {percentOf(l.withinTargetRate)} within the test&apos;s target
+          </Figure>
+          <Figure
+            label="Specimen rejection"
+            value={percentOf(l.specimens.rejectionRate)}
+            comparison={compared("specimenRejectionRate")}
+            definition={d.specimenRejectionRate}
+          >
+            {l.specimens.rejected} of {l.specimens.collected} collected
+          </Figure>
+          <Figure
+            label="Retention"
+            value={patientRateLabel(r.retentionRate, r.retentionRateSuppressed)}
+            comparison={compared("retentionRate")}
+            definition={d.retentionRate}
+          >
+            seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
+          </Figure>
+          <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
+            {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
+          </Figure>
+          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={d.telemedicine}>
+            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress
           </Figure>
         </section>
 
-        <ManagementCharts daily={data.daily} />
+        <ManagementCharts daily={data.daily} revenue={b !== null} />
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top services by revenue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SimpleTable
-                empty="No invoiced services."
-                head={["Service", "Qty", "Net"]}
-                rows={b.topServices.map((s) => [
-                  <span key="n">
-                    {s.name} <span className="text-meta text-muted-foreground">· {CATEGORY_LABEL[s.category]}</span>
-                  </span>,
-                  s.quantity.toLocaleString("en-PH"),
-                  peso(s.net),
-                ])}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue by category</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <SimpleTable
-                empty="No invoiced services."
-                head={["Category", "Qty", "Net"]}
-                rows={b.byCategory.map((r) => [CATEGORY_LABEL[r.category], r.quantity.toLocaleString("en-PH"), peso(r.net)])}
-              />
-              <SimpleTable
-                empty="No payments recorded."
-                head={["Payment method", "Payments", "Received", "Refunded"]}
-                rows={b.collections.map((r) => [METHOD_LABEL[r.method], r.payments.toLocaleString("en-PH"), peso(r.collected), peso(r.refunded)])}
-              />
-              <p className="text-meta text-muted-foreground">
-                Credit notes {peso(b.creditNotesTotal)} · debit notes {peso(b.debitNotesTotal)} · payer share of invoices {peso(b.invoices.payerTotal)} ·{" "}
-                {b.invoices.voided} voided
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Providers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SimpleTable
-                empty="No consultations or appointments."
-                head={["Practitioner", "Consultations", "Patients", "Booked", "No-shows"]}
-                rows={c.providers.map((p) => [
-                  p.displayName,
-                  p.encounters.toLocaleString("en-PH"),
-                  p.patients.toLocaleString("en-PH"),
-                  p.appointments.toLocaleString("en-PH"),
-                  p.noShows.toLocaleString("en-PH"),
-                ])}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Laboratory</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <SimpleTable
-                empty="No tests ordered."
-                head={["Most ordered tests", "Ordered"]}
-                rows={l.topTests.map((t) => [t.name, t.ordered.toLocaleString("en-PH")])}
-              />
-              <p className="text-meta text-muted-foreground">
-                {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.corrections} corrections released
-              </p>
-            </CardContent>
-          </Card>
+          {b ? (
+            <>
+              <Section title="Top services by revenue" csv={[{ href: csv("services"), label: "Services" }]}>
+                <SimpleTable
+                  empty="No invoiced services."
+                  head={["Service", "Qty", "Patients", "Net"]}
+                  rows={b.topServices.map((s) => [
+                    <span key="n">
+                      {s.name} <span className="text-meta text-muted-foreground">· {CATEGORY_LABEL[s.category]}</span>
+                    </span>,
+                    s.quantity.toLocaleString("en-PH"),
+                    countLabel(s.patients),
+                    peso(s.net),
+                  ])}
+                />
+              </Section>
+              <Section
+                title="Revenue by category"
+                csv={[
+                  { href: csv("revenue"), label: "Revenue" },
+                  { href: csv("revenue-by-category"), label: "Categories" },
+                  { href: csv("collections"), label: "Payment methods" },
+                ]}
+              >
+                <SimpleTable
+                  empty="No invoiced services."
+                  head={["Category", "Qty", "Net"]}
+                  rows={b.byCategory.map((row) => [CATEGORY_LABEL[row.category], row.quantity.toLocaleString("en-PH"), peso(row.net)])}
+                />
+                <SimpleTable
+                  empty="No payments recorded."
+                  head={["Payment method", "Payments", "Received", "Refunded"]}
+                  rows={b.collections.map((row) => [METHOD_LABEL[row.method], row.payments.toLocaleString("en-PH"), peso(row.collected), peso(row.refunded)])}
+                />
+                <p className="text-meta text-muted-foreground">
+                  Credit notes {peso(b.creditNotesTotal)} · debit notes {peso(b.debitNotesTotal)} · payer share of invoices {peso(b.invoices.payerTotal)} ·{" "}
+                  {b.invoices.voided} voided
+                </p>
+              </Section>
+            </>
+          ) : null}
+          <Section title="Providers" csv={[{ href: csv("providers"), label: "Providers" }]} definition={d.utilization}>
+            <SimpleTable
+              empty="No consultations, appointments or schedules."
+              head={["Practitioner", "Consultations", "Patients", "Booked", "No-shows", "Utilization"]}
+              rows={c.providers.map((p) => [
+                p.displayName,
+                p.encounters.toLocaleString("en-PH"),
+                countLabel(p.patients),
+                p.appointments.toLocaleString("en-PH"),
+                p.noShows.toLocaleString("en-PH"),
+                percentOf(p.utilization),
+              ])}
+            />
+          </Section>
+          <Section
+            title="Laboratory"
+            csv={[
+              { href: csv("laboratory"), label: "Figures" },
+              { href: csv("lab-tests"), label: "Tests" },
+              { href: csv("lab-instruments"), label: "Instruments" },
+            ]}
+            definition={d.resultsPerInstrument}
+          >
+            <SimpleTable
+              empty="No tests ordered."
+              head={["Most ordered tests", "Ordered"]}
+              rows={l.topTests.map((test) => [test.name, test.ordered.toLocaleString("en-PH")])}
+            />
+            <SimpleTable
+              empty="No results entered."
+              head={["Instrument", "First results entered"]}
+              rows={l.byInstrument.map((i) => [i.name ?? "No instrument recorded", i.results.toLocaleString("en-PH")])}
+            />
+            <p className="text-meta text-muted-foreground">
+              {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
+            </p>
+          </Section>
+          <Section title="Dental procedures" csv={[{ href: csv("dental-procedures"), label: "Procedures" }]} definition={d.dentalProcedures}>
+            <SimpleTable
+              empty="No dental procedures."
+              head={["Procedure", "Done", "Patients"]}
+              rows={data.dental.byProcedure.map((p) => [`${p.name} (${p.code})`, p.procedures.toLocaleString("en-PH"), countLabel(p.patients)])}
+            />
+            <p className="text-meta text-muted-foreground">
+              {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
+            </p>
+          </Section>
+          <Section title="Online consultations" csv={[{ href: csv("telemedicine"), label: "Online consultations" }]} definition={d.telemedicine}>
+            <SimpleTable
+              empty="No online consultations."
+              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate"]}
+              rows={t.started ? [[t.started, t.ended, t.escalated, t.inProgress, percentOf(t.escalationRate)].map(String)] : []}
+            />
+          </Section>
+          <Section title="Patient retention" csv={[{ href: csv("retention"), label: "Retention" }]} definition={`${d.retentionRate} ${d.returnRate}`}>
+            <SimpleTable
+              empty="No patients seen."
+              head={["", "Patients", "Of them", "Rate"]}
+              rows={[
+                [
+                  `Also seen in the ${r.lookbackMonths} months before`,
+                  countLabel(r.seen),
+                  countLabel(r.retained),
+                  patientRateLabel(r.retentionRate, r.retentionRateSuppressed),
+                ],
+                [
+                  `Returned within ${r.returnWindowDays} days`,
+                  countLabel(r.returnCohort),
+                  countLabel(r.returned),
+                  patientRateLabel(r.returnRate, r.returnRateSuppressed),
+                ],
+              ]}
+            />
+          </Section>
         </div>
+
+        <details className="text-meta text-muted-foreground">
+          <summary className="cursor-pointer">About these figures</summary>
+          <p className="mt-1">{d.comparison}</p>
+          <p className="mt-1">{d.suppression}</p>
+        </details>
       </div>
     </>
   );
 }
 
-function Figure({ label, value, children }: { label: string; value: string; children: ReactNode }) {
+function Figure({
+  label,
+  value,
+  comparison,
+  definition,
+  children,
+}: {
+  label: string;
+  value: string;
+  comparison?: ManagementFigureComparison;
+  definition: string;
+  children: ReactNode;
+}) {
+  const change = comparison ? changeLabel(comparison) : null;
   return (
-    <Card className="p-3">
+    <Card className="flex flex-col p-3">
       <p className="text-meta text-muted-foreground">{label}</p>
       <p className="tabular text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-meta text-muted-foreground">{children}</p>
+      {comparison ? (
+        change ? (
+          <p className={`mt-1 text-meta ${TONE_CLASS[change.tone]}`}>
+            <span aria-hidden>{change.arrow}</span> {change.text}
+          </p>
+        ) : (
+          <p className="mt-1 text-meta text-muted-foreground">No comparison with the previous period</p>
+        )
+      ) : null}
+      <Definition text={definition} />
+    </Card>
+  );
+}
+
+function Definition({ text }: { text: string }) {
+  return (
+    <details className="mt-auto pt-1 text-meta text-muted-foreground">
+      <summary className="cursor-pointer">How is this calculated?</summary>
+      <p className="mt-1">{text}</p>
+    </details>
+  );
+}
+
+function CsvLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} download className="text-primary hover:underline">
+      {label} (CSV)
+    </a>
+  );
+}
+
+function Section({
+  title,
+  csv,
+  definition,
+  children,
+}: {
+  title: string;
+  csv: Array<{ href: string; label: string }>;
+  definition?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-2">
+        <CardTitle>{title}</CardTitle>
+        <span className="flex flex-wrap gap-3 text-meta">
+          {csv.map((link) => (
+            <CsvLink key={link.href} href={link.href} label={link.label} />
+          ))}
+        </span>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {children}
+        {definition ? <Definition text={definition} /> : null}
+      </CardContent>
     </Card>
   );
 }
@@ -240,7 +416,7 @@ function SimpleTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][
       <TableHeader>
         <TableRow>
           {head.map((h, i) => (
-            <TableHead key={h} className={i === 0 ? undefined : "text-right"}>
+            <TableHead key={`${h}-${i}`} className={i === 0 ? undefined : "text-right"}>
               {h}
             </TableHead>
           ))}
