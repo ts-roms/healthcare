@@ -358,3 +358,39 @@ export interface PortalDentalRecord {
   /** Online plan decisions: allowed or not, and the clinic's text the patient confirms. */
   decisions: { enabled: boolean; acknowledgement: string | null };
 }
+
+// ---- Documents: medical certificates and records requests (GET /portal/documents; migration 0068) ---------------
+
+export type PortalRecordsScope = "consultations" | "laboratory" | "prescriptions" | "dental" | "imaging" | "certificates" | "other";
+export type PortalRecordsRequestStatus = "submitted" | "in_review" | "fulfilled" | "declined" | "withdrawn";
+
+export interface PortalCertificate {
+  id: string;
+  certificateNumber: string;
+  examinedOn: string;
+  issuedAt: string;
+  purpose: string;
+  practitionerName: string | null;
+  restDays: number | null;
+}
+
+export interface PortalRecordsRequest {
+  id: string;
+  requestNumber: string;
+  scope: PortalRecordsScope[];
+  periodFrom: string | null;
+  periodTo: string | null;
+  details: string | null;
+  purpose: string | null;
+  status: PortalRecordsRequestStatus;
+  submittedAt: string;
+  closedAt: string | null;
+  /** The records office's note (shared) or reason (declined). */
+  responseNote: string | null;
+  documents: Array<{ documentId: string; title: string; category: string; sharedAt: string }>;
+}
+
+export interface PortalDocuments {
+  certificates: PortalCertificate[];
+  requests: PortalRecordsRequest[];
+}

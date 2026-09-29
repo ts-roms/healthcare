@@ -18,7 +18,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/communications": ["notification.read", "notification.send"],
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
-  "/records": ["interop.fhir.import.review"],
+  "/records": ["interop.fhir.import.review", "patient.records-request.manage"],
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
 };
 
@@ -36,6 +36,8 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/laboratory/nonconformances": ["lab.qc.read"],
   "/laboratory/eqa": ["lab.qc.read"],
   "/laboratory/competency": ["lab.qc.read"],
+  "/records/imports": ["interop.fhir.import.review"],
+  "/records/requests": ["patient.records-request.manage"],
   "/admin/integrations": ["integration.exchange.manage"],
 };
 

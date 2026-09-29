@@ -11,3 +11,7 @@ export * from "./lib/patient-registration.service";
 export * from "./lib/portal/portal.schema";
 export * from "./lib/portal/portal-account.service";
 export * from "./lib/portal/patient-access.guard";
+export * from "./lib/records-requests/records-request.schema";
+export * from "./lib/records-requests/records-request.service";
+export * from "./lib/records-requests/records-request.rules";
+export { SubmitRecordsRequestDto } from "./lib/records-requests/records-request.dto";

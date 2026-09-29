@@ -7,7 +7,7 @@ read interface other systems can use.
 
 **Who uses it.**
 
-- **Records officers** and organization administrators: record imports (`/records/imports`).
+- **Records officers** and organization administrators: patients' records requests (`/records/requests`) and record imports (`/records/imports`).
 - **Physicians**, records officers and organization administrators: disease case reports (`/reporting`).
 - **Organization administrators**: reportable-condition settings (`/reporting/settings`) and integration review (`/admin/integrations`).
 - **Platform administrators** (the people who run the platform's servers): payload encryption keys.
@@ -16,6 +16,23 @@ read interface other systems can use.
 eClaims, PhilHealth eligibility, PhilHealth YAKAP or DOH reporting, so the platform sends nothing to them. You prepare and check the information in
 the platform, report or file it through the agency's own channel, and record the reference the agency gives you. The **Submit** / **Send** buttons
 for these only appear once an adapter for the official specification is configured.
+
+## How to answer a patient's records request
+
+Patients ask for copies of their records in MyHealth (**Documents**). You need `patient.records-request.manage` (records officers and organization
+administrators). You get a message under the bell for each new request.
+
+1. Open **Records** → **Requests**. Open requests are listed oldest first, with how long each has waited.
+2. Open one to see what the patient asked for (consultation records, laboratory results, prescriptions, dental records, X-rays and images,
+   medical certificates or something else), the period, details and purpose. Opening it is recorded.
+3. Select **Take into review** so colleagues see someone is working on it (optional).
+4. Confirm the requester as your organization's Data Privacy Act procedures require. The platform encodes no deadline, fee or disclosure rule.
+5. To share copies: upload them to the patient's record first if they are not there (see [Patients](02-patients.md)), tick the documents under
+   **Documents to share**, add a **Note to the patient** if useful, and select **Share**. The patient downloads them in MyHealth.
+6. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
+
+The patient is told by message (and SMS or email) that the request was answered, without details. An answered request cannot be changed; the patient
+can send a new one. Patients can have at most 3 open requests and can withdraw an open one.
 
 ## How to review records sent by another provider (FHIR imports)
 

@@ -352,3 +352,24 @@ export class PatientRescheduleDto extends createZodDto(patientRescheduleSchema) 
 
 export const patientCancelSchema = z.object({ reason: z.string().trim().min(3).max(500).optional(), version: z.number().int().positive() });
 export class PatientCancelDto extends createZodDto(patientCancelSchema) {}
+
+// ---- Medical certificates (migration 0068) ---------------------------------------------------
+
+const calendarDate = z.iso.date();
+
+export const issueCertificateSchema = z.object({
+  /** What the certificate is for, in the practitioner's words (e.g. "Absence from work"). */
+  purpose: z.string().trim().min(3, "Say what the certificate is for").max(200),
+  /** Findings or diagnosis as the practitioner states them on the certificate. */
+  findings: z.string().trim().min(3, "Write the findings or diagnosis").max(2000),
+  recommendations: z.string().trim().max(2000).optional(),
+  /** A rest period, both dates included. */
+  rest: z
+    .object({ from: calendarDate, to: calendarDate })
+    .refine((r) => r.to >= r.from, { message: "The rest period ends before it starts", path: ["to"] })
+    .optional(),
+});
+export class IssueCertificateDto extends createZodDto(issueCertificateSchema) {}
+
+export const voidCertificateSchema = z.object({ reason: z.string().trim().min(5, "Say why the certificate is void").max(500) });
+export class VoidCertificateDto extends createZodDto(voidCertificateSchema) {}

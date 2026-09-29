@@ -31,6 +31,7 @@ import type {
   LabOrder,
   LabPanel,
   LabTest,
+  MedicalCertificate,
   NoteRevision,
   PatientLabResult,
   PatientSummaryResponse,
@@ -52,6 +53,7 @@ import {
 import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
+import { CertificatesPanel } from "./certificates-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { LabOrdersPanel } from "./lab-orders-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
@@ -77,6 +79,7 @@ export function EncounterWorkspace({
   canManageAllergies,
   telemedicine,
   lab,
+  certificates,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -107,6 +110,8 @@ export function EncounterWorkspace({
     canOrder: boolean;
     canCancel: boolean;
   };
+  /** Medical certificates of this consultation (items null: no access). */
+  certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -388,6 +393,19 @@ export function EncounterWorkspace({
                   .map((d) => diagnosisLabel(d))
                   .join("; ")
                   .slice(0, 1000)}
+              />
+              <CertificatesPanel
+                encounterId={encounter.id}
+                signed={encounter.status === "completed"}
+                certificates={certificates.items}
+                canIssue={certificates.canIssue}
+                canVoid={certificates.canVoid}
+                suggestedFindings={encounter.diagnoses
+                  .filter((d) => d.status === "active")
+                  .map((d) => d.display)
+                  .join("; ")
+                  .slice(0, 2000)}
+                today={followUp.today}
               />
               <CarePlansPanel
                 plans={carePlans}
