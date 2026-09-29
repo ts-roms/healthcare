@@ -17,16 +17,7 @@ import {
   TestTubeIcon,
   UserIcon,
 } from "lucide-react";
-import {
-  clinicalDate,
-  clinicalDateTime,
-  EncounterTimeline,
-  LabTrendChart,
-  MedicationList,
-  PatientHeader,
-  ProblemList,
-  VitalSigns,
-} from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, LabTrendChart, MedicationList, PatientHeader, ProblemList, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
 import { PatientLabResults } from "../lab-results";
@@ -45,7 +36,6 @@ import {
   maskedPhilHealthPin,
   nextActivity,
   relevantTests,
-  toEncounterHistory,
   toMedications,
   toProblems,
   trendFromResults,
@@ -53,6 +43,7 @@ import {
   workspaceAccess,
   WITHHELD_TEXT,
 } from "@/lib/patient-workspace";
+import { EncounterHistory } from "./encounter-history";
 import { WorkspaceFiles } from "./workspace-files";
 
 // Never put patient names in the tab title (shoulder surfing, browser history).
@@ -229,12 +220,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
             {isWithheld(workspace, "encounter_history") || !workspace?.encounterHistory ? (
               <Withheld />
             ) : workspace.encounterHistory.length ? (
-              <EncounterTimeline
-                encounters={toEncounterHistory(workspace.encounterHistory)}
-                selectedId={lead?.id}
-                href={(e) => `/clinic/encounters/${e.id}`}
-                linkComponent={Link}
-              />
+              <EncounterHistory encounters={workspace.encounterHistory} currentId={lead?.id} />
             ) : (
               <p className="text-table text-muted-foreground">No consultations recorded.</p>
             )}
