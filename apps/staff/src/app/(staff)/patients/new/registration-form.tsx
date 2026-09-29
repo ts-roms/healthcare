@@ -181,6 +181,7 @@ export function RegistrationFormView() {
                 <p className="text-table text-muted-foreground">
                   {clinicalDate(c.patient.birthDate)} · {sexLabel(c.patient.sex)} · {c.patient.primaryMobileMasked ?? "no mobile"} ·{" "}
                   {c.reasons.map((r) => REASONS[r] ?? label(r)).join("; ")}
+                  {c.patient.resolvedFrom ? ` · matched through ${c.patient.resolvedFrom.patientNumber}, which was merged into this record` : ""}
                 </p>
                 {c.level !== "certain" ? (
                   <label className="mt-1.5 flex items-center gap-2 text-table">
@@ -201,6 +202,10 @@ export function RegistrationFormView() {
               </li>
             ))}
           </ul>
+          <p className="text-meta text-muted-foreground">
+            If you find the same person registered twice, don&apos;t register a third record: tell a records officer, who can merge the duplicates from the
+            patient record (Merge duplicate…). Registration never merges records by itself.
+          </p>
           {hasCertain ? (
             <p className="text-table font-medium text-critical">A record with the same identifier exists. Use that record instead of registering a new one.</p>
           ) : (

@@ -12,6 +12,7 @@ import type {
 } from "./api/types";
 import { groupResultsByTest } from "./lab-mapping";
 import { currentConsents, label } from "./patient-mapping";
+import { filedUnderText } from "./patient-merge";
 import { FREQUENCY_LABEL } from "./prescription-form";
 
 /**
@@ -127,7 +128,7 @@ export function deriveAlerts(input: {
 // ---- Panels -----------------------------------------------------------------------------------------------------
 
 /** Active prescription items as the design system's medication list: prescriber, number and date alongside. */
-export function toMedications(prescriptions: readonly WorkspacePrescription[]): Medication[] {
+export function toMedications(prescriptions: readonly WorkspacePrescription[], filedUnder: (patientId?: string) => string | null = () => null): Medication[] {
   return prescriptions.flatMap((rx) =>
     rx.items.map((i) => ({
       id: i.id,
@@ -136,15 +137,22 @@ export function toMedications(prescriptions: readonly WorkspacePrescription[]): 
       frequency:
         i.frequency === "custom" ? (i.frequencyText ?? "") : (FREQUENCY_LABEL[i.frequency as keyof typeof FREQUENCY_LABEL] ?? label(i.frequency)).toLowerCase(),
       startedOn: rx.issuedAt,
-      prescriber: [rx.prescriberName, rx.prescriptionNumber].filter(Boolean).join(" · "),
+      prescriber: [rx.prescriberName, rx.prescriptionNumber, filedUnderText(filedUnder(rx.patientId))].filter(Boolean).join(" · "),
       status: "active" as const,
     })),
   );
 }
 
 /** Problems as the design system's problem list (active ones; chronic first as the API sorts them). */
-export function toProblems(problems: ReadonlyArray<{ id: string; code: string | null; display: string; isChronic: boolean }>): Problem[] {
-  return problems.map((p) => ({ id: p.id, code: p.code ?? undefined, description: p.isChronic ? `${p.display} (chronic)` : p.display, status: "active" }));
+export function toProblems(
+  problems: ReadonlyArray<{ id: string; patientId?: string; code: string | null; display: string; isChronic: boolean }>,
+  filedUnder: (patientId?: string) => string | null = () => null,
+): Problem[] {
+  return problems.map((p) => {
+    const where = filedUnderText(filedUnder(p.patientId));
+    const description = p.isChronic ? `${p.display} (chronic)` : p.display;
+    return { id: p.id, code: p.code ?? undefined, description: where ? `${description} · ${where}` : description, status: "active" };
+  });
 }
 
 /** "E11.9 Type 2 diabetes mellitus, I10 …" or "No diagnosis recorded". */
@@ -163,7 +171,7 @@ export function toEncounterHistory(encounters: readonly WorkspaceEncounter[]): E
     date: e.startedAt,
     provider: e.practitionerName,
     facility: e.facility?.name ?? "",
-    reason: [e.visitTypeName, diagnosisLine(e.diagnoses)].filter(Boolean).join(" · "),
+    reason: [e.visitTypeName, diagnosisLine(e.diagnoses), filedUnderText(e.filedUnder)].filter(Boolean).join(" · "),
   }));
 }
 
