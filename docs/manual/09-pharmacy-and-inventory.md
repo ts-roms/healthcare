@@ -226,7 +226,9 @@ valuation are **not** handled by the platform.
 
 ### Stock used by other modules
 
-- **Laboratory** — loading a reagent lot on an instrument can take it from stock (see [Laboratory quality](07-laboratory-quality.md)).
+- **Laboratory** — loading a reagent lot on an instrument can take it from stock. After that, the tests run on the lot are counted on the
+  laboratory's **Reagent use** page (runs never move stock again), which also shows the stock cost per patient run once the lot is unloaded (see
+  [How to follow reagent use per test run](07-laboratory-quality.md#how-to-follow-reagent-use-per-test-run)).
 - **Dental** — the supplies a procedure used are issued from stock and unused ones returned (see [Dental](08-dental.md)).
 - **Pharmacy** — every dispense and reversal, as above.
 

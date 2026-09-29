@@ -41,6 +41,7 @@ Developers and system operators should read the technical documentation instead:
 | Collect a specimen and print its label     | [Laboratory](06-laboratory.md)                                  |
 | Enter, verify, approve and release results | [Laboratory](06-laboratory.md)                                  |
 | Record a QC run or a fridge temperature    | [Laboratory quality](07-laboratory-quality.md)                  |
+| See reagent use and cost per test run      | [Laboratory quality](07-laboratory-quality.md)                  |
 | Chart teeth or record a dental procedure   | [Dental](08-dental.md)                                          |
 | Dispense a prescription                    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)          |
 | Receive stock or raise a purchase order    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)          |
