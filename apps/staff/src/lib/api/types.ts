@@ -357,6 +357,10 @@ export interface PortalAccountStatus {
   activationExpiresAt: string | null;
   /** The invitation code can no longer be used (expired or too many wrong attempts). */
   invitationExpired: boolean;
+  /** Why the patient's latest activation attempt failed (staff only; the patient sees a generic message). */
+  lastActivationFailure: { reason: "expired" | "birth_date_mismatch" | "code_mismatch"; at: string } | null;
+  failedActivationAttempts: number;
+  maxActivationAttempts: number;
   activatedAt: string | null;
   lastLoginAt: string | null;
   disabledAt: string | null;
@@ -708,6 +712,8 @@ export interface LabPolicy {
   qcRequired: boolean;
   /** A new reagent lot for a test starts its QC window again. */
   qcAfterReagentChange: boolean;
+  /** Result entry needs a current "competent" assessment of the person for the test or its department. */
+  competencyRequired: boolean;
   version: number;
 }
 
@@ -2598,6 +2604,130 @@ export interface PayloadKeyOverview {
   keys: PayloadKeyUsage[];
 }
 
+// ---- Laboratory quality management (Phase 9): temperatures, nonconformance, EQA, competency ----------------
+
+export type StorageUnitKind = "refrigerator" | "freezer" | "incubator" | "water_bath" | "room" | "other";
+
+export interface LabStorageUnit {
+  id: string;
+  facilityId: string;
+  departmentId: string | null;
+  code: string;
+  name: string;
+  kind: StorageUnitKind;
+  minCelsius: number;
+  maxCelsius: number;
+  readingIntervalHours: number | null;
+  status: "active" | "retired";
+  version: number;
+  lastReading: { celsius: number; readAt: string; outOfRange: boolean } | null;
+  readingDue: boolean;
+  excursionsLast7Days: number;
+}
+
+export interface LabTemperatureReading {
+  id: string;
+  storageUnitId: string;
+  celsius: number;
+  minCelsius: number;
+  maxCelsius: number;
+  outOfRange: boolean;
+  readAt: string;
+  note: string | null;
+  recordedByName: string | null;
+  nonconformanceId: string | null;
+}
+
+export type NonconformanceCategory =
+  "pre_analytical" | "analytical" | "post_analytical" | "equipment" | "temperature_excursion" | "qc_failure" | "eqa_failure" | "safety" | "complaint" | "other";
+export type NonconformanceSeverity = "minor" | "major" | "critical";
+export type NonconformanceEntryKind = "note" | "correction" | "root_cause" | "corrective_action" | "preventive_action" | "effectiveness_check";
+
+export interface LabNonconformance {
+  id: string;
+  facilityId: string;
+  number: string;
+  category: NonconformanceCategory;
+  severity: NonconformanceSeverity;
+  title: string;
+  description: string;
+  occurredAt: string;
+  instrumentId: string | null;
+  instrumentName: string | null;
+  qcRunId: string | null;
+  temperatureReadingId: string | null;
+  eqaResultId: string | null;
+  specimenId: string | null;
+  specimenAccession: string | null;
+  status: "open" | "investigating" | "closed";
+  reportedAt: string;
+  reportedByName: string | null;
+  closedAt: string | null;
+  version: number;
+}
+
+export interface LabNonconformanceDetail extends LabNonconformance {
+  entries: Array<{ id: string; kind: NonconformanceEntryKind | "reclassified" | "closed"; body: string; recordedAt: string; recordedByName: string | null }>;
+  missingToClose: string[];
+}
+
+export interface LabEqaScheme {
+  id: string;
+  code: string;
+  provider: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+export type EqaEvaluation = "acceptable" | "unacceptable" | "not_graded";
+
+export interface LabEqaSurvey {
+  id: string;
+  facilityId: string;
+  schemeId: string;
+  roundCode: string;
+  receivedOn: string;
+  dueOn: string | null;
+  scheme: { id: string; code: string; provider: string; name: string };
+  status: "received" | "reported" | "evaluated";
+  results: Array<{
+    id: string;
+    testId: string;
+    testName: string;
+    sampleCode: string;
+    reportedValue: string;
+    reportedByName: string | null;
+    evaluation: EqaEvaluation | null;
+    targetValue: string | null;
+    providerScore: string | null;
+    evaluationNote: string | null;
+    evaluatedByName: string | null;
+    nonconformance: { id: string; number: string } | null;
+  }>;
+}
+
+export type CompetencyMethod = "direct_observation" | "blind_sample" | "record_review" | "written_assessment" | "other";
+
+export interface LabCompetencyOverview {
+  competencyRequired: boolean;
+  staff: Array<{
+    userId: string;
+    displayName: string;
+    areas: Array<{
+      id: string;
+      testId: string | null;
+      departmentId: string | null;
+      method: CompetencyMethod;
+      outcome: "competent" | "not_yet_competent";
+      assessedOn: string;
+      nextDueOn: string | null;
+      notes: string | null;
+      assessedByName: string | null;
+      state: "competent" | "due" | "not_yet_competent";
+    }>;
+  }>;
+}
+
 // ---- MyHealth dental records (libs/dental/src/lib/portal/dental-portal-settings.service.ts; GET/PUT /dental/settings/portal) ----
 
 export interface DentalPortalSetting {
@@ -2661,6 +2791,32 @@ export interface DentalSupplyUse {
 /** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
 export interface DentalRecordSupplies {
   supplyUses?: DentalSupplyUse[];
+}
+
+// ---- Staff in-app inbox (GET /me/notifications, GET /me/notifications/unread-count) ----------------------------
+
+export interface StaffNotice {
+  id: string;
+  templateKey: string;
+  subject: string | null;
+  text: string;
+  /** The staff page the message is about, when there is one. */
+  href: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+// ---- Laboratory quality summary (GET /laboratory/quality/summary, lab.qc.read) ----------------------------------
+
+export interface LabQualitySummary {
+  facilityId: string;
+  date: string;
+  nonconformances: { open: number; investigating: number; critical: number; major: number };
+  qc: { rejected: number; missing: number; resultsBlocked: number };
+  instruments: { outOfService: number; calibrationOverdue: number };
+  temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
+  eqa: { overdue: number; awaitingEvaluation: number };
+  competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
 }
 
 // ---- Patient timeline (GET /patients/:id/timeline) ----------------------------------------------------------------

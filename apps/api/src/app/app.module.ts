@@ -35,6 +35,7 @@ import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
+import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
@@ -179,6 +180,7 @@ export class AppModule implements NestModule {
         PatientTimelineService,
         RealtimeGateway,
         LaboratoryNotifications,
+        LaboratoryQualityNotifications,
         PatientResultNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },

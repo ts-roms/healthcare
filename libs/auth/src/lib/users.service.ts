@@ -68,6 +68,33 @@ export class UsersService {
     return names;
   }
 
+  /**
+   * Active staff who hold a permission at a facility (through an organization-wide or that facility's role), e.g. the
+   * laboratory's result-entering staff for competency records. Names only; not audited.
+   */
+  async holdersOf(organizationId: string, permission: string, facilityId: string): Promise<Array<{ id: string; displayName: string }>> {
+    return this.db
+      .selectDistinct({ id: appUser.id, displayName: appUser.displayName })
+      .from(roleAssignment)
+      .innerJoin(rolePermission, eq(rolePermission.roleId, roleAssignment.roleId))
+      .innerJoin(appUser, eq(appUser.id, roleAssignment.userId))
+      .innerJoin(
+        organizationMembership,
+        and(eq(organizationMembership.userId, roleAssignment.userId), eq(organizationMembership.organizationId, roleAssignment.organizationId)),
+      )
+      .where(
+        and(
+          eq(roleAssignment.organizationId, organizationId),
+          isNull(roleAssignment.revokedAt),
+          eq(rolePermission.permissionKey, permission),
+          eq(organizationMembership.status, "active"),
+          eq(appUser.status, "active"),
+          or(isNull(roleAssignment.facilityId), eq(roleAssignment.facilityId, facilityId)),
+        ),
+      )
+      .orderBy(asc(appUser.displayName));
+  }
+
   async list(organizationId: string): Promise<StaffUserView[]> {
     const members = await this.db
       .select({

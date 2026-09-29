@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ClinicDashboard, DueCareActivity } from "./api/types";
-import { attentionItems, minutesLabel } from "./dashboard-mapping";
+import type { ClinicDashboard, DueCareActivity, LabQualitySummary } from "./api/types";
+import { attentionItems, minutesLabel, qualityAttentionItems } from "./dashboard-mapping";
 
 const quiet: ClinicDashboard = {
   facilityId: "f",
@@ -57,5 +57,62 @@ describe("attentionItems", () => {
 describe("minutesLabel", () => {
   it("formats minutes for people", () => {
     expect([minutesLabel(null), minutesLabel(12), minutesLabel(60), minutesLabel(135)]).toEqual(["—", "12 min", "1 h", "2 h 15 min"]);
+  });
+});
+
+describe("qualityAttentionItems", () => {
+  const quiet: LabQualitySummary = {
+    facilityId: "f",
+    date: "2026-09-28",
+    nonconformances: { open: 0, investigating: 0, critical: 0, major: 0 },
+    qc: { rejected: 0, missing: 0, resultsBlocked: 0 },
+    instruments: { outOfService: 0, calibrationOverdue: 0 },
+    temperatures: { readingsDue: 0, outOfRangeNow: 0, excursionsLast7Days: 3 },
+    eqa: { overdue: 0, awaitingEvaluation: 0 },
+    competency: { required: false, due: 0, notYetCompetent: 0, staffNotAssessed: 4 },
+  };
+
+  it("is empty when nothing is open (past excursions and unassessed staff without the policy don't count)", () => {
+    expect(qualityAttentionItems(quiet)).toEqual([]);
+  });
+
+  it("marks what puts results or specimens at stake as critical", () => {
+    const items = qualityAttentionItems({
+      ...quiet,
+      nonconformances: { open: 3, investigating: 1, critical: 1, major: 1 },
+      qc: { rejected: 1, missing: 2, resultsBlocked: 1 },
+      temperatures: { readingsDue: 2, outOfRangeNow: 1, excursionsLast7Days: 3 },
+    });
+    expect(items.map((i) => [i.id, i.severity, i.count])).toEqual([
+      ["quality-nc", "critical", 3],
+      ["quality-qc-blocked", "critical", 1],
+      ["quality-qc", "warning", 3],
+      ["quality-temp-out", "critical", 1],
+      ["quality-temp-due", "warning", 2],
+    ]);
+    expect(items[0]?.detail).toBe("1 critical, 1 major, 1 under investigation");
+    expect(items[2]?.detail).toBe("1 rejected, 2 not run in the window");
+  });
+
+  it("counts unassessed staff only when the facility requires competency", () => {
+    const required = qualityAttentionItems({ ...quiet, competency: { required: true, due: 1, notYetCompetent: 0, staffNotAssessed: 2 } });
+    expect(required).toEqual([
+      expect.objectContaining({ id: "quality-competency", severity: "warning", count: 3, detail: "1 reassessment due, 2 people not assessed" }),
+    ]);
+    const optional = qualityAttentionItems({ ...quiet, competency: { required: false, due: 1, notYetCompetent: 0, staffNotAssessed: 2 } });
+    expect(optional).toEqual([expect.objectContaining({ severity: "info", count: 1, detail: "1 reassessment due" })]);
+  });
+
+  it("summarises EQA and instruments", () => {
+    const items = qualityAttentionItems({ ...quiet, eqa: { overdue: 1, awaitingEvaluation: 2 }, instruments: { outOfService: 1, calibrationOverdue: 0 } });
+    expect(items).toEqual([
+      expect.objectContaining({ id: "quality-instruments", severity: "info", detail: "1 out of service" }),
+      expect.objectContaining({
+        id: "quality-eqa",
+        severity: "warning",
+        count: 3,
+        detail: "1 round past due, nothing reported, 2 rounds awaiting the provider's evaluation",
+      }),
+    ]);
   });
 });

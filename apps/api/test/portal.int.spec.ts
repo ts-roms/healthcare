@@ -80,6 +80,14 @@ describe("patient portal sign-in", () => {
     const unknownOrg = await activate({ ...activation(), organizationCode: "nope" }).expect(401);
     expect(new Set([wrongBirth.body.error.message, wrongCode.body.error.message, unknownOrg.body.error.message]).size).toBe(1);
     expect(wrongBirth.body.error.code).toBe("invalid_activation");
+    // Staff see the specific reason of the latest attempt against the invitation (an unknown organization reaches none).
+    expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
+      lastActivationFailure: { reason: "code_mismatch" },
+      failedActivationAttempts: 2,
+      maxActivationAttempts: 5,
+    });
+    const reasons = await auditRows(ctx.pool, `action = 'portal.activate' AND outcome = 'failure' AND patient_id = $1`, [patientId]);
+    expect(reasons.map((row) => row.reason).sort()).toEqual(["birth_date_mismatch", "code_mismatch"]);
   });
 
   it("destroys the code after 5 wrong attempts; a new invitation is needed", async () => {
@@ -94,6 +102,8 @@ describe("patient portal sign-in", () => {
     expect((await staff(reception).get(`/api/v1/patients/${patientId}/portal-account`).expect(200)).body).toMatchObject({
       status: "invited",
       invitationExpired: false,
+      lastActivationFailure: null,
+      failedActivationAttempts: 0,
     });
   });
 

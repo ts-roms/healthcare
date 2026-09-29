@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Actor, DbExecutor } from "@healthcare/core";
 import { InventoryStockService } from "@healthcare/inventory";
-import type { DispensingStock } from "@healthcare/prescription";
+import { DISPENSABLE_CATEGORIES, type DispensingStock } from "@healthcare/prescription";
 
 /** Dispensing → inventory: medicines and supplies in stock, taken and given back inside the dispensing transaction. */
 @Injectable()
@@ -9,7 +9,7 @@ export class AppDispensingStock implements DispensingStock {
   constructor(private readonly stock: InventoryStockService) {}
 
   available(organizationId: string, facilityId: string) {
-    return this.stock.usableAt(organizationId, facilityId, ["medicine", "medical_supply"]);
+    return this.stock.usableAt(organizationId, facilityId, [...DISPENSABLE_CATEGORIES]);
   }
 
   take(tx: DbExecutor, actor: Actor, input: { dispenseId: string; locationId: string; itemId: string; quantity: number; reference: string; reason: string }) {
@@ -19,6 +19,7 @@ export class AppDispensingStock implements DispensingStock {
       quantity: input.quantity,
       source: { type: "prescription_dispense", id: input.dispenseId },
       issuedTo: "Dispensed on prescription",
+      categories: DISPENSABLE_CATEGORIES,
       reference: input.reference,
       reason: input.reason,
     });

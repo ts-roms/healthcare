@@ -11,6 +11,20 @@ describe("dental supply rules", () => {
     expect(supplyLineIssues([], items, { allowEmpty: true })).toEqual({});
   });
 
+  it("accepts dental and medical supplies, medicines and PPE, not laboratory items", () => {
+    const byCategory = new Map([
+      ["bond", { id: "bond", name: "Bonding agent", status: "active" as const, category: "dental_supply" }],
+      ["gloves", { id: "gloves", name: "Gloves", status: "active" as const, category: "ppe" }],
+      ["glucose", { id: "glucose", name: "Glucose reagent", status: "active" as const, category: "reagent" }],
+      ["tube", { id: "tube", name: "Red-top tube", status: "active" as const, category: "laboratory_consumable" }],
+    ]);
+    const lines = [...byCategory.keys()].map((itemId) => ({ itemId, quantity: 1 }));
+    expect(supplyLineIssues(lines, byCategory, { allowEmpty: false })).toEqual({
+      glucose: ["Glucose reagent is not a dental supply (reagent)"],
+      tube: ["Red-top tube is not a dental supply (laboratory consumable)"],
+    });
+  });
+
   it("flags empty lists, duplicates, unknown or inactive items and bad quantities", () => {
     expect(supplyLineIssues([], items, { allowEmpty: false })).toEqual({ _: ["list at least one supply"] });
     expect(

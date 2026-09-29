@@ -119,6 +119,7 @@ export const labFacilityPolicy = pgTable("lab_facility_policy", {
   qcValidHours: integer("qc_valid_hours").notNull().default(24),
   qcRequired: boolean("qc_required").notNull().default(false),
   qcAfterReagentChange: boolean("qc_after_reagent_change").notNull().default(true),
+  competencyRequired: boolean("competency_required").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid("updated_by").notNull(),
   version: integer("version").notNull().default(1),

@@ -139,6 +139,7 @@ function StatusLine({ account }: { account: PortalAccountStatus }) {
           ) : (
             <span className="text-muted-foreground">The code can no longer be used. Issue a new code for the patient to sign up.</span>
           )}
+          <ActivationFailure account={account} />
         </p>
       );
     }
@@ -159,4 +160,29 @@ function StatusLine({ account }: { account: PortalAccountStatus }) {
         </p>
       );
   }
+}
+
+const ACTIVATION_FAILURE_TEXT: Record<NonNullable<PortalAccountStatus["lastActivationFailure"]>["reason"], string> = {
+  expired: "the code had already expired",
+  birth_date_mismatch: "the date of birth did not match the patient record",
+  code_mismatch: "the activation code was wrong (only the latest code issued works)",
+};
+
+/**
+ * Why the patient's latest sign-up attempt failed. Shown to staff only: the patient is always
+ * told the same thing, so the activation page cannot confirm patient numbers or birth dates.
+ */
+function ActivationFailure({ account }: { account: PortalAccountStatus }) {
+  const failure = account.lastActivationFailure;
+  if (!failure) return null;
+  const attempts = failure.reason === "expired" ? null : `${account.failedActivationAttempts} of ${account.maxActivationAttempts} wrong attempts`;
+  return (
+    <span className="flex basis-full items-start gap-1.5 text-table text-warning-foreground">
+      <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span>
+        Last sign-up attempt {clinicalDateTime(failure.at)} failed: {ACTIVATION_FAILURE_TEXT[failure.reason]}
+        {attempts ? ` · ${attempts}` : ""}.
+      </span>
+    </span>
+  );
 }

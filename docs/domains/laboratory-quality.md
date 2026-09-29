@@ -10,16 +10,30 @@ link from each **patient result** to the instrument it was measured on and the Q
 It also records **reagent lots** (inventory lots of reagent items) loaded on each instrument; results and QC runs keep
 the lots in use when they were entered.
 
+The rest of the quality system (migration `0055`): **temperature logs** of storage units (refrigerators, freezers,
+incubators, rooms) with excursions, **nonconformances** (incidents) with their investigation and corrective and
+preventive actions (CAPA), **proficiency testing** (external quality assessment, EQA) rounds with reported results and
+the provider's evaluation, and **staff competency** assessments per test or section, optionally required for result
+entry.
+
 Code: `libs/laboratory/src/lib/quality` (`LabQualityService`, `LabReagentService`, `qc.rules.ts`), migrations
-`0050_lab_quality.sql` and `0051_lab_reagent_lots.sql`, staff `/laboratory/qc` and `/laboratory/instruments`.
+`0050_lab_quality.sql` and `0051_lab_reagent_lots.sql`, staff `/laboratory/qc` and `/laboratory/instruments`; quality
+management in `LabTemperatureService`, `LabNonconformanceService`, `LabEqaService`, `LabCompetencyService`,
+`quality-management.rules.ts`, migration `0055_lab_quality_management.sql`, staff `/laboratory/temperatures`,
+`/laboratory/nonconformances`, `/laboratory/eqa` and `/laboratory/competency`.
 
-Not yet: temperature logs, incidents and nonconformance, proficiency testing (EQA), staff competency, and instrument
-interfaces (results and QC values arriving from analyzers through `libs/interoperability`). QC is for numeric tests.
-Loading a lot can take that lot's stock from a storage location of the facility in the same transaction (migration
-`0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
+Not yet: instrument interfaces (results and QC values arriving from analyzers through `libs/interoperability`). QC is for
+numeric tests. Loading a lot can take that lot's stock from a storage location of the facility in the same transaction
+(migration `0054_lab_reagent_stock.sql`); otherwise stock is issued to the laboratory separately.
 
-No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, and whether patient
-results need QC are **facility configuration**; confirm them against the laboratory's QC plan and the applicable DOH
+Not yet either: electronic EQA exchange with providers (results are entered by hand), automatic temperature sensors,
+documents attached to nonconformances, and scheduled reminders for overdue temperature readings or competency
+reassessments (they show on the dashboard; nothing is sent).
+
+No regulatory rule is encoded. Which rules reject a run, how long a run covers patient results, whether patient
+results need QC, storage limits and reading intervals, EQA schemes, competency areas and intervals, and what a
+nonconformance needs before it closes beyond the platform's minimum are **facility configuration** or the laboratory's
+own procedure; confirm them against the laboratory's QC plan and the applicable DOH
 issuances.
 
 ## Entities
@@ -49,7 +63,31 @@ none`): a snapshot of the QC in force at entry, immutable like the value (trigge
 - **Reagents on results and runs** (`lab_result_reagent`, `lab_qc_run_reagent`, append-only) — the loads in use when the
   result was entered or the QC run recorded.
 - **Facility policy** (`lab_facility_policy`, new columns) — `qc_reject_rules` (default `1_3s, 2_2s, R_4s`),
-  `qc_valid_hours` (default 24, 1–168), `qc_required` (default false), `qc_after_reagent_change` (default true).
+  `qc_valid_hours` (default 24, 1–168), `qc_required` (default false), `qc_after_reagent_change` (default true),
+  `competency_required` (default false).
+- **Storage unit** (`lab_storage_unit`) — per facility: code, name, kind (`refrigerator | freezer | incubator |
+water_bath | room | other`), optional department, acceptable range (min < max °C), reading interval (1–168 h), status
+  `active | retired`; versioned, changes need a reason.
+- **Temperature reading** (`lab_temperature_reading`, append-only) — the value, when it was read, who read it, the range
+  in force (snapshot) and `out_of_range` (checked against the snapshot by the database); a note is required when out of
+  range.
+- **Nonconformance** (`lab_nonconformance`) — `NC########` per organization, facility, category (`pre_analytical,
+analytical, post_analytical, equipment, temperature_excursion, qc_failure, eqa_failure, safety, complaint, other`),
+  severity `minor | major | critical`, title, description, when it happened, optional links (instrument, QC run,
+  temperature reading, EQA result, specimen — one nonconformance per reading and per EQA result), status
+  `open | investigating | closed`. Links, occurrence and reporter never change; a closed record never changes and none is
+  deleted (trigger).
+- **Nonconformance entry** (`lab_nonconformance_entry`, append-only) — the investigation record: `note, correction,
+root_cause, corrective_action, preventive_action, effectiveness_check`, plus `reclassified` and `closed` written by the
+  platform.
+- **EQA scheme** (`lab_eqa_scheme`, organization) — code, provider, name, status. **Survey** (`lab_eqa_survey`) — a round
+  received at a facility (round code unique per scheme and facility, received and due dates). **EQA result**
+  (`lab_eqa_result`) — sample code, test, the value reported (text, as sent), who reported it; then, once, the provider's
+  evaluation `acceptable | unacceptable | not_graded` with target, score and note (trigger).
+- **Competency assessment** (`lab_competency_assessment`, append-only) — a staff member assessed at a facility for a test
+  **or** a whole section (department): method (`direct_observation, blind_sample, record_review, written_assessment,
+other`), outcome `competent | not_yet_competent` (notes required), assessed on, next due (after the assessment), by
+  whom (never the person assessed).
 
 ## Rules
 
@@ -87,14 +125,35 @@ lots in use are recorded on the result. Results
 without an instrument (manual methods) are not gated. The workbench shows the QC state on each result so verifiers see
 results entered while QC was rejected.
 
+**Temperatures.** A reading outside the unit's range (limits inclusive) needs a note and opens a nonconformance
+(`temperature_excursion`, major) linked to it. A unit is **due** when its last reading is older than its interval (a
+reminder; nothing is blocked).
+
+**Nonconformances.** Opened by staff (optionally naming a specimen by accession number, an instrument, a QC run) or by
+the platform: a temperature excursion, an unacceptable EQA result. The first investigation entry that is not a note moves
+it to _investigating_. Closing (`lab.qc.manage`) needs at least a root cause, a corrective action and an effectiveness
+check (`nonconformance_incomplete` lists what is missing) and a summary; reclassifying category or severity needs a
+reason. Both are recorded as entries.
+
+**EQA.** Results are reported before the evaluation; the evaluation is recorded once. An unacceptable result opens an
+`eqa_failure` nonconformance (major). A survey is _received_, _reported_ (all results in) or _evaluated_.
+
+**Competency.** Only staff who may enter results at the facility are assessed; no one assesses themselves; the date is
+not in the future. The state of an area is the latest assessment: _competent_, _reassessment due_ (past its next due
+date), _not yet competent_. For a test, its own latest assessment counts first, else its section's. With
+`competency_required`, entering or correcting a result needs a current _competent_ state for the test
+(`competency_required` otherwise; the message names why).
+
 ## Commands
 
 Load a reagent lot on an instrument (replacing the lot of the same reagent in use), optionally taking a quantity of that
 lot from a storage location (`takeFromStock: { locationId, quantity }`; needs `inventory.move` too; an inventory issue
-with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short); unload a lot (reason);
+with source `lab_reagent_load` and the instrument code as reference — refused with the load if the stock is short; inventory also accepts only `REAGENT_CATEGORY` items for it); unload a lot (reason);
 register/update instruments; record log entries (retiring needs `lab.qc.manage`); create materials and lots; retire a
 lot; set a target; record a QC run; record a corrective action; change the facility QC policy (with the laboratory
-policy, reason required, audited).
+policy, reason required, audited). Register, update or retire a storage unit; record a reading; report a
+nonconformance, add investigation entries, reclassify, close; create EQA schemes and rounds, report results, record the
+evaluation; record a competency assessment.
 
 ## Queries
 
@@ -103,13 +162,30 @@ instrument's log; materials with lots and current targets; the QC board (each te
 instrument: latest run per level in the window, decisive run, whether results are allowed); runs of a test on an
 instrument (optionally one lot, last N days) for the Levey-Jennings chart, with corrective actions and reagent lots;
 reagent lots in use at the facility (optionally one instrument), an instrument's load history, and the reagent lots in
-stock at the facility (from inventory) that can be loaded.
+stock at the facility (from inventory) that can be loaded. Storage units with their last reading, whether a reading
+is due and excursions in the last 7 days; a unit's readings (last N days, default 31); nonconformances (open,
+closed, all) and one with its entries and what it still needs to close; EQA schemes and rounds with results; each
+result-entering staff member's latest assessment per area, and one person's history. The **quality summary**
+(`LabQualitySummaryService`, built from the same queries as the pages): open nonconformances (investigating, critical,
+major), QC pairs rejected, missing in the window or refusing patient results, instruments out of service or with
+calibration overdue, storage units with a reading due or out of range at the last reading and excursions in 7 days, EQA
+rounds past due with nothing reported or awaiting evaluation, and competency areas due or not yet competent and staff
+never assessed.
 
 ## Events
 
-`LaboratoryQcRunRejected` (run id, instrument, test, lot, rules — no values), `LaboratoryInstrumentStatusChanged` (from,
-to), `LaboratoryReagentLotLoaded` (load, inventory lot, test, replaced load), `LaboratoryReagentLotUnloaded`. No
-subscribers yet (intended: notify the section head; dashboard).
+`LaboratoryQcRunRejected` (run id, instrument, test, lot, rules, who entered it — no values), `LaboratoryInstrumentStatusChanged` (from,
+to), `LaboratoryReagentLotLoaded` (load, inventory lot, test, replaced load), `LaboratoryReagentLotUnloaded`,
+`LaboratoryTemperatureExcursion` (reading, unit, nonconformance), `LaboratoryNonconformanceOpened` (number, category,
+severity, who reported it), `LaboratoryNonconformanceClosed`, `LaboratoryEqaResultUnacceptable` (result, survey, test,
+nonconformance) — ids only.
+
+**Notifications** (`apps/api/src/app/laboratory-quality-notifications.ts`): on `LaboratoryNonconformanceOpened` (by
+staff, a temperature excursion or an unacceptable EQA result) and `LaboratoryQcRunRejected`, every active user holding
+`lab.qc.manage` at the event's facility (organization-wide or facility role) gets an in-app `lab.quality-notice`, except
+the person whose action raised it. The message names the record number, category and severity, or the instrument code,
+test name and rules; never a patient, specimen, title, description or control value. It links to the nonconformance or
+to `/laboratory/qc`. One message per event and recipient (idempotency key), so redelivered events are not repeated.
 
 ## Permissions
 
@@ -119,7 +195,12 @@ subscribers yet (intended: notify the section head; dashboard).
 | `lab.qc.enter`  | org_admin, medical_technologist, pathologist | QC runs, corrective actions, instrument log entries     |
 | `lab.qc.manage` | org_admin, pathologist                       | Instruments, control materials, lots, targets; retiring |
 
-The QC policy is part of the laboratory policy (`lab.catalog.manage`). Instrument, run and board endpoints are scoped to
+Quality management uses the same permissions (no new ones): `lab.qc.read` reads temperatures, nonconformances, EQA and
+competency; `lab.qc.enter` records readings, reports nonconformances and adds entries, records EQA rounds, results and
+evaluations; `lab.qc.manage` sets up storage units and EQA schemes, reclassifies and closes nonconformances and records
+competency assessments.
+
+The QC and competency policy is part of the laboratory policy (`lab.catalog.manage`). Instrument, run and board endpoints are scoped to
 the selected facility.
 
 ## API
@@ -128,18 +209,27 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory quality`): `GET/POST instrum
 `GET/POST instruments/:id/log`, `GET/POST qc/materials`, `POST qc/materials/:id/lots`, `POST qc/lots/:id/retire`,
 `POST qc/lots/:id/targets`, `GET qc/status`, `GET qc/runs?instrumentId=&testId=&qcLotId=&days=`, `POST qc/runs`,
 `POST qc/runs/:id/actions`, `GET reagents?instrumentId=`, `GET reagents/available`, `GET/POST instruments/:id/reagents`,
-`POST reagents/:loadId/unload`. `PUT policy` accepts `qcRejectRules`, `qcValidHours`, `qcRequired`,
-`qcAfterReagentChange` (left out: unchanged). Results and QC runs carry `reagents`.
+`POST reagents/:loadId/unload`, `GET/POST storage-units`, `PATCH storage-units/:id`,
+`GET/POST storage-units/:id/readings`, `GET/POST nonconformances?status=`, `GET nonconformances/:id`,
+`POST nonconformances/:id/entries | reclassify | close`, `GET/POST eqa/schemes`, `GET/POST eqa/surveys`,
+`POST eqa/surveys/:id/results`, `POST eqa/results/:id/evaluation`, `GET/POST competency`,
+`GET competency/users/:userId`, `GET quality/summary` (`lab.qc.read`, selected facility). `PUT policy` accepts `qcRejectRules`, `qcValidHours`, `qcRequired`,
+`qcAfterReagentChange`, `competencyRequired` (left out: unchanged). Results and QC runs carry `reagents`.
 `POST order-items/:itemId/results` and `POST results/:id/correct` accept `instrumentId`.
 
 Audit: `lab.instrument.create | update | log`, `lab.qc.material.create`, `lab.qc.lot.create | retire`,
-`lab.qc.target.set`, `lab.qc.run.record`, `lab.qc.action.record`, `lab.reagent.load | unload`, `lab.policy.update`.
+`lab.qc.target.set`, `lab.qc.run.record`, `lab.qc.action.record`, `lab.reagent.load | unload`, `lab.policy.update`,
+`lab.storage-unit.create | update`, `lab.temperature.record`, `lab.nonconformance.open | entry | reclassify | close`,
+`lab.eqa.scheme.create`, `lab.eqa.survey.create`, `lab.eqa.result.report | evaluate`, `lab.competency.record`.
 
 ## Database relationships
 
 Composite same-organization foreign keys throughout (instrument → facility and department; target → lot, test,
 instrument; run → facility, instrument, test, lot, target; result → instrument and run). Append-only: instrument log,
-runs, actions (`prevent_mutation`); targets immutable except closing (trigger); result QC link immutable.
+runs, actions (`prevent_mutation`); targets immutable except closing (trigger); result QC link immutable. Temperature
+readings, nonconformance entries and competency assessments are append-only; nonconformances and EQA results are guarded
+by triggers (above). Nonconformances link to instrument, QC run, reading, EQA result and specimen by composite foreign
+keys.
 
 ## Integration points
 
@@ -155,6 +245,13 @@ runs, actions (`prevent_mutation`); targets immutable except closing (trigger); 
 `/laboratory/qc`: the QC board, "Record a control" (evaluated on save), the Levey-Jennings chart and run history with
 corrective actions, and control material / lot / target setup (`lab.qc.manage`). `/laboratory/instruments`: the
 register, status, last calibration (overdue flagged) and maintenance, reagent lots in use (load from stock, replace,
-unload, history), the log and new entries. The QC board shows the lots in use and "since the reagent lot change". Workbench: result entry
+unload, history), the log and new entries. `/laboratory/temperatures`: storage units with the last reading, due and
+excursion flags, record a reading (an excursion asks for a note and links to the nonconformance it opened), the reading
+history, unit setup. `/laboratory/nonconformances`: open / closed lists, report one; the detail page shows
+links, the investigation, what is still needed to close, reclassify and close. `/laboratory/eqa`: rounds with results
+and evaluations (unacceptable ones link to their nonconformance), schemes. `/laboratory/competency`: each
+result-entering staff member's areas with their state, and recording an assessment. Dashboard (`/`, with
+`lab.qc.read`): a _Laboratory quality_ list of what needs attention, linking to each page — critical when patient results
+are refused, a storage unit is out of range or a critical nonconformance is open. The QC board shows the lots in use and "since the reagent lot change". Workbench: result entry
 and corrections name the instrument; each result shows its QC state. Laboratory catalog: QC settings in the facility
 policy.
