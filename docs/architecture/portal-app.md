@@ -82,7 +82,7 @@ sides, dentist, clinic) and a read-only tooth chart summary with a key and a pla
 library's patient read model is returned (`libs/dental/src/lib/portal/dental-patient-access.ts`): never examination or
 tooth notes, decision notes, periodontal charts, images, procedure codes or anything entered in error. Fee estimates
 (the work still ahead at the clinic's listed prices, with what they are not and the organization's note) appear on open
-plans only when the organization turns them on; a MyHealth decision sends the estimate the patient saw and is refused
+plans only when the organization turns them on; a treatment that may turn out to be another shows a range (`estimatedFeeHigh`, `mayBecome`; totals carry both ends); a MyHealth decision sends the estimate the patient saw (both ends) and is refused
 (`estimate_changed`) if prices changed since. `GET /portal/dental/record` is audited `portal.dental-view` (actor type `patient`) and refused (403, audited as
 denied) while records are not shared. Images a dentist shared are listed and opened through a short-lived link
 (audited as the patient). When the organization also allows online decisions, a plan awaiting the patient's decision

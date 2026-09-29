@@ -238,5 +238,13 @@ export const patientPlanDecisionSchema = z.object({
    * a different current estimate means the prices changed since and nothing is decided.
    */
   estimateAwaitingDecision: z.number().int().min(0).nullable().optional(),
+  /** The high end of that total when items have fee ranges (left out: the same as the low end). */
+  estimateAwaitingDecisionHigh: z.number().int().min(0).nullable().optional(),
 });
 export class PatientPlanDecisionDto extends createZodDto(patientPlanDecisionSchema) {}
+
+export const procedureAlternativesSchema = z.object({
+  /** The procedures this one may turn out to be (replaces the list; at most 10). */
+  alternativeIds: z.array(z.uuid()).max(10),
+});
+export class ProcedureAlternativesDto extends createZodDto(procedureAlternativesSchema) {}

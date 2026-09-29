@@ -333,6 +333,20 @@ export async function createProcedureType(input: z.input<typeof procedureTypeSch
   return run<DentalProcedureType>(procedureTypeSchema, input, "/dental/procedure-types", { revalidate: ["/dental/settings"] });
 }
 
+/** The procedures a procedure may turn out to be (replaces the list; fee ranges on estimates). */
+export async function setProcedureAlternatives(procedureTypeId: string, alternativeIds: string[]) {
+  if (!id.safeParse(procedureTypeId).success) return { ok: false as const, message: "Unknown procedure." };
+  return run<DentalProcedureType>(
+    z.object({ alternativeIds: z.array(id).max(10, "List at most 10 procedures.") }),
+    { alternativeIds },
+    `/dental/procedure-types/${procedureTypeId}/alternatives`,
+    {
+      method: "PUT",
+      revalidate: ["/dental/settings"],
+    },
+  );
+}
+
 export async function setProcedureTypeStatus(procedureTypeId: string, status: "active" | "inactive", typeVersion: number) {
   if (!id.safeParse(procedureTypeId).success) return { ok: false as const, message: "Unknown procedure." };
   return run<DentalProcedureType>(

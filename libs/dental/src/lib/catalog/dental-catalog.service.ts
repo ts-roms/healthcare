@@ -5,7 +5,11 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import type { createProcedureTypeSchema, updateProcedureTypeSchema } from "../dental.dto";
-import { dentalFacilitySetting, dentalProcedureType, type DentalProcedureTypeRecord, type Notation } from "../dental.schema";
+import { dentalFacilitySetting, dentalProcedureAlternative, dentalProcedureType, type DentalProcedureTypeRecord, type Notation } from "../dental.schema";
+import { alternativeSiteAllowed } from "../plans/fee-estimate.rules";
+
+/** At most this many procedures a procedure may turn out to be. */
+export const MAX_ALTERNATIVES = 10;
 import { assertVersion, found, strip } from "../dental-support";
 
 /**
@@ -43,13 +47,87 @@ export class DentalCatalogService {
     });
   }
 
+  /** The catalog, each procedure with the procedures it may turn out to be (`alternativeIds`). */
   async procedureTypes(organizationId: string) {
-    const rows = await this.db
-      .select()
-      .from(dentalProcedureType)
-      .where(eq(dentalProcedureType.organizationId, organizationId))
+    const [rows, links] = await Promise.all([
+      this.db.select().from(dentalProcedureType).where(eq(dentalProcedureType.organizationId, organizationId)).orderBy(asc(dentalProcedureType.name)),
+      this.db.select().from(dentalProcedureAlternative).where(eq(dentalProcedureAlternative.organizationId, organizationId)),
+    ]);
+    return rows.map((r) => ({
+      ...strip(r),
+      alternativeIds: links.filter((l) => l.procedureTypeId === r.id).map((l) => l.alternativeTypeId),
+    }));
+  }
+
+  /**
+   * Sets the procedures a procedure may turn out to be (replacing the list): active procedures of the organization, not
+   * itself, whole-mouth for a whole-mouth procedure and on a tooth for a tooth procedure. Estimates then show a fee range
+   * and a plan item may be carried out as any of them.
+   */
+  async setAlternatives(actor: Actor, id: string, alternativeIds: string[]) {
+    const wanted = [...new Set(alternativeIds)];
+    if (wanted.length > MAX_ALTERNATIVES) throw new BusinessRuleError(`List at most ${MAX_ALTERNATIVES} procedures`, "too_many_alternatives");
+    if (wanted.includes(id)) throw new BusinessRuleError("A procedure is not its own alternative", "invalid_alternative");
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(dentalProcedureType)
+        .where(and(eq(dentalProcedureType.organizationId, actor.organizationId), eq(dentalProcedureType.id, id)))
+        .for("update");
+      const type = found(current, "Procedure");
+      const alternatives = await this.byIds(tx, actor.organizationId, wanted);
+      const missing = wanted.filter((a) => !alternatives.has(a));
+      if (missing.length) throw new NotFoundError("Procedure");
+      for (const alternative of alternatives.values()) {
+        if (alternative.status !== "active") throw new BusinessRuleError(`${alternative.name} is inactive`, "procedure_type_inactive");
+        if (!alternativeSiteAllowed(type.site, alternative.site)) {
+          throw new BusinessRuleError(
+            type.site === "mouth" ? `${alternative.name} is done on a tooth, not the whole mouth` : `${alternative.name} is a whole-mouth procedure`,
+            "invalid_alternative",
+          );
+        }
+      }
+      const before = await tx
+        .select({ alternativeTypeId: dentalProcedureAlternative.alternativeTypeId })
+        .from(dentalProcedureAlternative)
+        .where(eq(dentalProcedureAlternative.procedureTypeId, id));
+      await tx.delete(dentalProcedureAlternative).where(eq(dentalProcedureAlternative.procedureTypeId, id));
+      if (wanted.length) {
+        await tx
+          .insert(dentalProcedureAlternative)
+          .values(
+            wanted.map((alternativeTypeId) => ({ organizationId: actor.organizationId, procedureTypeId: id, alternativeTypeId, createdBy: actor.userId })),
+          );
+      }
+      const codes = async (ids: string[]) => [...(await this.byIds(tx, actor.organizationId, ids)).values()].map((t) => t.code).sort();
+      await this.audit.record(tx, actor, {
+        action: "dental.procedure-type.alternatives",
+        resourceType: "dental_procedure_type",
+        resourceId: id,
+        changes: { alternatives: { from: await codes(before.map((b) => b.alternativeTypeId)), to: await codes(wanted) } },
+      });
+      return { ...strip(type), alternativeIds: wanted };
+    });
+  }
+
+  /** The active procedures each of these procedures may turn out to be. */
+  async alternativesOf(executor: DbExecutor, organizationId: string, ids: readonly string[]): Promise<Map<string, DentalProcedureTypeRecord[]>> {
+    const result = new Map<string, DentalProcedureTypeRecord[]>();
+    if (!ids.length) return result;
+    const rows = await executor
+      .select({ procedureTypeId: dentalProcedureAlternative.procedureTypeId, alternative: dentalProcedureType })
+      .from(dentalProcedureAlternative)
+      .innerJoin(dentalProcedureType, eq(dentalProcedureType.id, dentalProcedureAlternative.alternativeTypeId))
+      .where(
+        and(
+          eq(dentalProcedureAlternative.organizationId, organizationId),
+          inArray(dentalProcedureAlternative.procedureTypeId, [...new Set(ids)]),
+          eq(dentalProcedureType.status, "active"),
+        ),
+      )
       .orderBy(asc(dentalProcedureType.name));
-    return rows.map(strip);
+    for (const row of rows) result.set(row.procedureTypeId, [...(result.get(row.procedureTypeId) ?? []), row.alternative]);
+    return result;
   }
 
   async createProcedureType(actor: Actor, input: z.infer<typeof createProcedureTypeSchema>) {

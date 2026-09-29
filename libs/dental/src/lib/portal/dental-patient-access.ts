@@ -53,6 +53,10 @@ export interface PatientDentalPlanItem {
    * yet done; null for an item without a listed price or not part of the estimate. Absent without an estimate.
    */
   estimatedFee?: number | null;
+  /** With a plan estimate: the high end when the item may turn out to be another procedure (its fee is a range); else null. */
+  estimatedFeeHigh?: number | null;
+  /** With a range: the procedures it may turn out to be (names only). */
+  mayBecome?: string[];
 }
 
 /** The fee estimate on a plan, when the organization shows estimates in MyHealth (docs/domains/dental.md). */
@@ -61,6 +65,10 @@ export interface PatientPlanEstimate {
   awaitingDecision: number;
   accepted: number;
   remaining: number;
+  /** High ends of the totals (equal to the above when no item has a range). */
+  awaitingDecisionHigh: number;
+  acceptedHigh: number;
+  remainingHigh: number;
   unpricedItems: number;
   disclaimer: string;
   note: string | null;
@@ -146,6 +154,8 @@ export function planItemDecision(status: PlanItemStatus): PatientPlanItemDecisio
 export interface PatientEstimatePrices {
   pricedOn: string;
   byType: ReadonlyMap<string, { unitPrice: number }>;
+  /** Fee ranges by procedure type id, for procedures that may turn out to be others. */
+  fees?: ReadonlyMap<string, { low: number; high: number; alternatives: ReadonlyArray<{ name: string }> }>;
   note: string | null;
 }
 
@@ -164,9 +174,18 @@ export function toPatientPlan(
 ): PatientDentalPlan {
   const timezone = facility?.timezone ?? DEFAULT_TIMEZONE;
   const open = plan.status === "proposed" || plan.status === "accepted" || plan.status === "in_progress";
-  const fee = (i: DentalTreatmentPlanItemRecord) => (open && estimatePart(i.status) ? (prices?.byType.get(i.procedureTypeId)?.unitPrice ?? null) : null);
+  const range = (i: DentalTreatmentPlanItemRecord) => {
+    const r = open && estimatePart(i.status) && prices?.byType.has(i.procedureTypeId) ? prices.fees?.get(i.procedureTypeId) : undefined;
+    return r && r.alternatives.length > 0 ? r : undefined;
+  };
+  const fee = (i: DentalTreatmentPlanItemRecord) =>
+    open && estimatePart(i.status) ? (range(i)?.low ?? prices?.byType.get(i.procedureTypeId)?.unitPrice ?? null) : null;
+  const feeHigh = (i: DentalTreatmentPlanItemRecord) => {
+    const r = range(i);
+    return r && r.high > r.low ? r.high : null;
+  };
   const withEstimate = prices !== undefined && open && items.some((i) => estimatePart(i.status));
-  const totals = withEstimate ? estimateTotals(items.map((i) => ({ status: i.status, listedPrice: fee(i) }))) : undefined;
+  const totals = withEstimate ? estimateTotals(items.map((i) => ({ status: i.status, listedPrice: fee(i), highPrice: feeHigh(i) }))) : undefined;
   return {
     id: plan.id,
     title: plan.title,
@@ -185,7 +204,9 @@ export function toPatientPlan(
       procedureName: procedureNames.get(i.procedureTypeId) ?? "Dental procedure",
       status: i.status,
       decision: planItemDecision(i.status),
-      ...(withEstimate ? { estimatedFee: fee(i) } : {}),
+      ...(withEstimate
+        ? { estimatedFee: fee(i), estimatedFeeHigh: feeHigh(i), ...(feeHigh(i) !== null ? { mayBecome: range(i)!.alternatives.map((a) => a.name) } : {}) }
+        : {}),
     })),
     estimate:
       totals && prices
@@ -194,6 +215,9 @@ export function toPatientPlan(
             awaitingDecision: totals.awaitingDecision,
             accepted: totals.accepted,
             remaining: totals.remaining,
+            awaitingDecisionHigh: totals.awaitingDecisionHigh,
+            acceptedHigh: totals.acceptedHigh,
+            remainingHigh: totals.remainingHigh,
             unpricedItems: totals.unpricedItems,
             disclaimer: ESTIMATE_DISCLAIMER,
             note: prices.note,
@@ -433,14 +457,19 @@ export class DentalPatientAccess {
   async decidePlan(
     context: PatientAuditContext,
     planId: string,
-    input: { acceptedItemIds: string[]; awaitingItemIds: string[]; estimateAwaitingDecision?: number | null },
+    input: { acceptedItemIds: string[]; awaitingItemIds: string[]; estimateAwaitingDecision?: number | null; estimateAwaitingDecisionHigh?: number | null },
   ) {
     const decisions = await this.settings.decisions(context.organizationId);
     if (!decisions) throw new ForbiddenError("Your clinic takes treatment plan decisions in person");
     // With estimates shown, the patient decides on the estimate they saw: if the listed prices changed since, they look again.
     const before = await this.record(context.organizationId, context.patientId);
     const shown = before?.plans.find((p) => p.id === planId)?.estimate;
-    if (shown && shown.awaitingDecision !== input.estimateAwaitingDecision) {
+    // A range is checked at both ends (a client that sends only the low end is taken to have seen a single price).
+    if (
+      shown &&
+      (shown.awaitingDecision !== input.estimateAwaitingDecision ||
+        shown.awaitingDecisionHigh !== (input.estimateAwaitingDecisionHigh ?? input.estimateAwaitingDecision))
+    ) {
       throw new ConflictError("The fee estimate for this plan changed since you opened it. Please review it again.", undefined, "estimate_changed");
     }
     const { acceptedItemIds, awaitingItemIds } = input;
@@ -469,7 +498,7 @@ export class DentalPatientAccess {
     for (const [facilityId, typeIds] of byFacility) {
       const pricedOn = localDate(new Date(), facilities.get(facilityId)?.timezone ?? DEFAULT_TIMEZONE);
       const priced = await this.fees.price(organizationId, [...typeIds], pricedOn);
-      result.set(facilityId, { pricedOn, byType: priced.byType, note });
+      result.set(facilityId, { pricedOn, byType: priced.byType, fees: priced.fees, note });
     }
     return result;
   }

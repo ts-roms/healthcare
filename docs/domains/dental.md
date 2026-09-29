@@ -48,8 +48,12 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
   (reason); item status `proposed → accepted | declined → completed` (linked to the procedure) or `cancelled`. The
   patient's decision is recorded per item with a note on how they decided (e.g. options and fees explained, consent
   form signed). Plans carry **no prices of their own**: fees are billing's. Each decided item keeps the estimate it
-  carried when the patient decided (`decision_estimate`, `decision_estimate_on`; migration `0060`) — see
+  carried when the patient decided (`decision_estimate`, `decision_estimate_on`; migration `0060`; with a fee range
+  `decision_estimate` is its low end and `decision_estimate_high` its high end, migration `0066`) — see
   [fee estimates](#fee-estimates).
+- `dental_procedure_alternative` (migration `0066`) — the procedures a catalog procedure may turn out to be once under
+  way (e.g. simple → surgical extraction): same organization, not itself, whole-mouth with whole-mouth and tooth with
+  tooth, active, at most 10; replaced as a whole (audited `dental.procedure-type.alternatives`, codes before and after).
 - `dental_procedure` — performed during the patient's encounter in progress: procedure type, tooth and surfaces as
   its site requires, notes, optional accepted plan item it carries out. Immutable except entered in error. One
   recorded procedure per plan item (partial unique index).
@@ -64,24 +68,25 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
 
 ## Commands
 
-| Command                      | Endpoint                                                                                                           | Rules                                                                                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Record examination           | `POST /dental/patients/:patientId/examinations`                                                                    | Actor is a dentist (practitioner profession); the encounter is the patient's, in progress, at the selected facility; teeth and surfaces valid; each charted tooth appended.     |
-| Propose treatment plan       | `POST /dental/treatment-plans`                                                                                     | Dentist; at least one item; each item's tooth/surfaces match the procedure's site; active procedure types.                                                                      |
-| Add plan item                | `POST /dental/treatment-plans/:id/items`                                                                           | Dentist; open plan; the item awaits the patient's decision.                                                                                                                     |
-| Record patient's decision    | `POST /dental/treatment-plans/:id/decision`                                                                        | Every item awaiting a decision is decided (listed ones accepted, others declined); a note is required; optimistic `version`.                                                    |
-| Cancel plan item             | `POST /dental/treatment-plans/:id/items/:itemId/cancel`                                                            | Proposed or accepted items only; not the plan's last open item (decline or discontinue instead).                                                                                |
-| Discontinue plan             | `POST /dental/treatment-plans/:id/discontinue`                                                                     | Accepted or in-progress plans; reason; open items are cancelled, completed ones stay.                                                                                           |
-| Record procedure             | `POST /dental/patients/:patientId/procedures`                                                                      | Dentist; encounter in progress; site rules; a plan item must be accepted, of an active plan, same type and tooth. Chart effect applied to the tooth's current state (appended). |
-| Add image                    | `POST /dental/patients/:patientId/images`                                                                          | The document is this patient's, uploaded (`available`), category `imaging`, an image or DICOM type; once per document.                                                          |
-| Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                                                    | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
-| Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`                                  | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
-| Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation`                                | Settings permission.                                                                                                                                                            |
-| MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, portalPlanDecisions?, portalPlanAcknowledgement?, version }` | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                              |
-| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                                                         | Settings permission; active inventory items dentistry uses, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                           |
-| Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                                               | Settings permission; an active inventory location of that facility, or `null`.                                                                                                  |
-| Record supplies used         | `POST /dental/procedures/:id/supplies`                                                                             | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                           |
-| Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                                                     | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                     |
+| Command                      | Endpoint                                                                                                           | Rules                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Record examination           | `POST /dental/patients/:patientId/examinations`                                                                    | Actor is a dentist (practitioner profession); the encounter is the patient's, in progress, at the selected facility; teeth and surfaces valid; each charted tooth appended.                                                |
+| Propose treatment plan       | `POST /dental/treatment-plans`                                                                                     | Dentist; at least one item; each item's tooth/surfaces match the procedure's site; active procedure types.                                                                                                                 |
+| Add plan item                | `POST /dental/treatment-plans/:id/items`                                                                           | Dentist; open plan; the item awaits the patient's decision.                                                                                                                                                                |
+| Record patient's decision    | `POST /dental/treatment-plans/:id/decision`                                                                        | Every item awaiting a decision is decided (listed ones accepted, others declined); a note is required; optimistic `version`.                                                                                               |
+| Cancel plan item             | `POST /dental/treatment-plans/:id/items/:itemId/cancel`                                                            | Proposed or accepted items only; not the plan's last open item (decline or discontinue instead).                                                                                                                           |
+| Discontinue plan             | `POST /dental/treatment-plans/:id/discontinue`                                                                     | Accepted or in-progress plans; reason; open items are cancelled, completed ones stay.                                                                                                                                      |
+| Record procedure             | `POST /dental/patients/:patientId/procedures`                                                                      | Dentist; encounter in progress; site rules; a plan item must be accepted, of an active plan, the same type or one it may turn out to be, and the same tooth. Chart effect applied to the tooth's current state (appended). |
+| Add image                    | `POST /dental/patients/:patientId/images`                                                                          | The document is this patient's, uploaded (`available`), category `imaging`, an image or DICOM type; once per document.                                                                                                     |
+| Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                                                    | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                                                                         |
+| Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`                                  | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                                                                |
+| Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation`                                | Settings permission.                                                                                                                                                                                                       |
+| May turn out to be           | `PUT /dental/procedure-types/:id/alternatives` `{ alternativeIds }`                                                | Settings permission; see [fee ranges](#fee-ranges). `GET /dental/settings` lists each procedure's `alternativeIds`.                                                                                                        |
+| MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, portalPlanDecisions?, portalPlanAcknowledgement?, version }` | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                                                                         |
+| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                                                         | Settings permission; active inventory items dentistry uses, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                                                                      |
+| Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                                               | Settings permission; an active inventory location of that facility, or `null`.                                                                                                                                             |
+| Record supplies used         | `POST /dental/procedures/:id/supplies`                                                                             | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                                                                      |
+| Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                                                     | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                                                                |
 
 Examinations and procedures accept an `Idempotency-Key` header (the staff app sends one per form).
 
@@ -160,7 +165,7 @@ Endpoints above under `/api/v1/dental` (OpenAPI tag `dental`). Errors: `invalid_
 
 ## Database relationships
 
-Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions, `0060` fee estimates). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
+Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions, `0060` fee estimates, `0066` fee ranges). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
 `practitioner`, `encounter (patient_id, id)` and `document`; tooth states reference their examination or procedure
 by `(patient_id, id)`, so a state cannot belong to another patient's record. Triggers: `dental_record_guard`
 (examinations, procedures, images: only `recorded → entered_in_error` with reason, author and time; no deletes),
@@ -388,6 +393,29 @@ holds), set in dental settings.
   option use `dental.settings.manage` (`PUT /dental/settings/portal`, fields `portalPlanEstimates`,
   `feeEstimateNote`). Billing staff without dental access do not read estimates.
 
+### Fee ranges
+
+Some procedures are only known for certain once under way. The catalog lists, per procedure, the procedures it may
+turn out to be (`dental_procedure_alternative`, migration `0066`). An item of such a procedure is estimated as a
+**range** from the lowest to the highest listed price among the planned procedure and those (`feeRange` in
+`fee-estimate.rules.ts`; `DentalFeeLookup.price` returns `fees` by procedure type) — still billing's prices, dentistry
+keeps none. Rules:
+
+- The planned procedure must have a listed price; otherwise the item is "no listed price" whatever its alternatives
+  cost. Alternatives without a listed price are left out of the range and counted (`unpricedAlternatives`); inactive
+  alternatives are ignored.
+- Totals carry both ends (`awaitingDecisionHigh`, `acceptedHigh`, `remainingHigh`; equal to the low ends without a
+  range). The staff plan shows "₱800.00 – ₱3,000.00" with "may become …"; the PDF prints "PHP 800.00 to PHP 3,000.00"
+  and says what each ranged procedure may become.
+- A decision records the low end (`decision_estimate`) and, with a range, the high end (`decision_estimate_high`, CHECK
+  above the low end; guarded like the rest of the estimate).
+- MyHealth shows `estimatedFee` (low end), `estimatedFeeHigh` and `mayBecome` (procedure names only); a MyHealth decision
+  sends both ends it saw (`estimateAwaitingDecision`, `estimateAwaitingDecisionHigh`, the latter defaulting to the low
+  end) and is refused with `estimate_changed` if either differs.
+- **Carrying out.** A plan item may be carried out as its planned procedure or one it may turn out to be (as the catalog
+  lists them when the procedure is recorded), on the same tooth; billing charges the procedure recorded, at its listed
+  price. Anything else is `plan_item_mismatch`.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.
@@ -399,8 +427,9 @@ holds), set in dental settings.
   need a direct-to-storage or PACS integration.
 - MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
   status; confirm with the clinics. A DICOM file opens as a download (no viewer in MyHealth).
-- Fee estimates use the organization's price list as it stands: one listed price per procedure code (no fee ranges,
-  per-surface or per-canal pricing unless the organization defines separate procedure codes), VAT-inclusive as billing
+- Fee estimates use the organization's price list as it stands: one listed price per procedure code, with ranges only
+  through procedures a procedure may turn out to be (no per-surface or per-canal pricing unless the organization
+  defines separate procedure codes), VAT-inclusive as billing
   stores prices, without discounts, packages or HMO/PhilHealth coverage. Whether an estimate or its validity must be
   given in writing for particular treatments, and any consumer or DOH requirement on its content, is a **compliance
   dependency** each organization validates; the platform supplies only the statement of what an estimate is not.

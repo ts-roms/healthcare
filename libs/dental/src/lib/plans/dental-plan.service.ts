@@ -28,7 +28,7 @@ import {
 } from "../dental.schema";
 import { assertVersion, found, rejectIssues, requireDentist, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
-import { DentalFeeLookup } from "./dental-fee-lookup";
+import { DentalFeeLookup, type ProcedureFee } from "./dental-fee-lookup";
 
 type PlanItemInput = { phase: number; procedureTypeId: string; tooth?: string; surfaces: Surface[]; note?: string };
 
@@ -230,7 +230,9 @@ export class DentalPlanService {
         .update(dentalTreatmentPlanItem)
         .set({
           status: accepted.has(item.id) ? "accepted" : "declined",
-          decisionEstimate: priced.byType.get(item.procedureTypeId)?.unitPrice ?? null,
+          // The low end of the item's range (the listed price without one) and, with a range, its high end.
+          decisionEstimate: priced.fees.get(item.procedureTypeId)?.low ?? null,
+          decisionEstimateHigh: rangeHigh(priced.fees.get(item.procedureTypeId)),
           decisionEstimateOn: priced.pricedOn,
           updatedAt: new Date(),
           version: sql`${dentalTreatmentPlanItem.version} + 1`,
@@ -349,8 +351,14 @@ export class DentalPlanService {
     if (item.status !== "accepted" || (plan.status !== "accepted" && plan.status !== "in_progress")) {
       throw new BusinessRuleError("Only an accepted item of an active plan can be carried out", "plan_item_not_accepted");
     }
-    if (item.procedureTypeId !== procedure.procedureTypeId || (item.tooth ?? null) !== (procedure.tooth ?? null)) {
-      throw new BusinessRuleError("The procedure does not match the planned item (procedure and tooth)", "plan_item_mismatch");
+    // The planned procedure or one it may turn out to be (the catalog's alternatives, as configured now).
+    const sameProcedure =
+      item.procedureTypeId === procedure.procedureTypeId ||
+      ((await this.catalog.alternativesOf(tx, procedure.organizationId, [item.procedureTypeId])).get(item.procedureTypeId) ?? []).some(
+        (a) => a.id === procedure.procedureTypeId,
+      );
+    if (!sameProcedure || (item.tooth ?? null) !== (procedure.tooth ?? null)) {
+      throw new BusinessRuleError("The procedure does not match the planned item (procedure — or one it may turn out to be — and tooth)", "plan_item_mismatch");
     }
     await tx
       .update(dentalTreatmentPlanItem)
@@ -459,4 +467,9 @@ function itemView(item: DentalTreatmentPlanItemRecord, types: Map<string, { code
   const type = types.get(item.procedureTypeId);
   const { organizationId: _o, ...rest } = item;
   return { ...rest, procedure: type ? { code: type.code, name: type.name, site: type.site } : null };
+}
+
+/** The high end of an item's fee range to record with a decision; null without a range (a single price or none). */
+function rangeHigh(fee: ProcedureFee | undefined): number | null {
+  return fee && fee.high > fee.low ? fee.high : null;
 }

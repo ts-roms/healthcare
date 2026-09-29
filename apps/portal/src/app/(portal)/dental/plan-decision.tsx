@@ -4,8 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckIcon } from "lucide-react";
 import type { PortalDentalPlan } from "@/lib/api/types";
-import { peso } from "@/lib/billing";
-import { decisionSummary, selectionEstimate } from "@/lib/dental";
+import { decisionSummary, feeText, selectionEstimate } from "@/lib/dental";
 import { decideDentalPlan } from "./actions";
 
 /**
@@ -33,6 +32,7 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
             acceptedItemIds: [...accepted],
             awaitingItemIds: awaiting.map((i) => i.id),
             estimateAwaitingDecision: plan.estimate?.awaitingDecision ?? null,
+            estimateAwaitingDecisionHigh: plan.estimate?.awaitingDecisionHigh ?? null,
           });
           if (result.ok) router.refresh();
           else
@@ -56,7 +56,11 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
             <span>
               {item.procedureName}
               {plan.estimate ? (
-                <span className="text-muted-foreground"> · {item.estimatedFee == null ? "price: ask the clinic" : `about ${peso(item.estimatedFee)}`}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {item.estimatedFee == null ? "price: ask the clinic" : `about ${feeText(item.estimatedFee, item.estimatedFeeHigh)}`}
+                  {item.mayBecome?.length ? ` (may turn out to be ${item.mayBecome.join(" or ")})` : ""}
+                </span>
               ) : null}
             </span>
           </label>
@@ -85,10 +89,10 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
   );
 }
 
-function SelectionEstimate({ total, unpriced }: { total: number; unpriced: number }) {
+function SelectionEstimate({ total, totalHigh, unpriced }: { total: number; totalHigh: number; unpriced: number }) {
   return (
     <p className="text-body">
-      Estimated fee of what you accept: <span className="font-semibold">{peso(total)}</span>
+      Estimated fee of what you accept: <span className="font-semibold">{feeText(total, totalHigh)}</span>
       {unpriced ? (
         <span className="text-muted-foreground"> plus {unpriced === 1 ? "one treatment" : `${unpriced} treatments`} without a listed price</span>
       ) : null}

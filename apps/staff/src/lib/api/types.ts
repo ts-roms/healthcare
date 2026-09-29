@@ -1653,6 +1653,8 @@ export interface DentalProcedureType {
   chartEffect: DentalChartEffect | null;
   status: "active" | "inactive";
   version: number;
+  /** The procedures this one may turn out to be (fee ranges on estimates; migration 0066). */
+  alternativeIds: string[];
 }
 
 export interface DentalSettings {
@@ -1714,6 +1716,8 @@ export interface DentalPlanItem {
   /** The listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on. */
   decisionEstimate?: number | null;
   decisionEstimateOn?: string | null;
+  /** The high end when the item had a fee range at the decision (decisionEstimate is then the low end). */
+  decisionEstimateHigh?: number | null;
 }
 
 /** GET /dental/treatment-plans/:id/estimate (libs/dental/src/lib/plans/dental-fee-estimates.ts). Amounts in centavos. */
@@ -1732,9 +1736,24 @@ export interface DentalPlanEstimate {
     /** In the estimate: awaiting the patient's decision, or accepted and not yet done; null: not part of it. */
     part: "awaiting" | "accepted" | null;
     listed: { serviceCode: string; serviceName: string; unitPrice: number } | null;
-    atDecision: { amount: number | null; pricedOn: string } | null;
+    /** With procedures it may turn out to be: the range of listed prices and each of them (null: a single price). */
+    range: {
+      low: number;
+      high: number;
+      unpricedAlternatives: number;
+      alternatives: Array<{ code: string; name: string; unitPrice: number | null }>;
+    } | null;
+    atDecision: { amount: number | null; high: number | null; pricedOn: string } | null;
   }>;
-  totals: { awaitingDecision: number; accepted: number; remaining: number; unpricedItems: number };
+  totals: {
+    awaitingDecision: number;
+    accepted: number;
+    remaining: number;
+    awaitingDecisionHigh: number;
+    acceptedHigh: number;
+    remainingHigh: number;
+    unpricedItems: number;
+  };
   disclaimer: string;
   note: string | null;
 }

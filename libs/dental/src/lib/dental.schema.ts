@@ -1,8 +1,8 @@
-import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql,
 // 0057_dental_supplies.sql, 0058_dental_portal_images_decisions.sql
-// and 0060_dental_fee_estimates.sql (the migrations are the source of truth).
+// 0060_dental_fee_estimates.sql and 0066_dental_fee_ranges.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -124,8 +124,23 @@ export const dentalTreatmentPlanItem = pgTable("dental_treatment_plan_item", {
   // 0060: the listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on.
   decisionEstimate: bigint("decision_estimate", { mode: "number" }),
   decisionEstimateOn: date("decision_estimate_on", { mode: "string" }),
+  // 0066: the high end of the estimate when the item had a range (decisionEstimate is then the low end).
+  decisionEstimateHigh: bigint("decision_estimate_high", { mode: "number" }),
 });
 export type DentalTreatmentPlanItemRecord = typeof dentalTreatmentPlanItem.$inferSelect;
+
+// 0066: the procedures a procedure may turn out to be (a fee range on estimates; either may be carried out).
+export const dentalProcedureAlternative = pgTable(
+  "dental_procedure_alternative",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    procedureTypeId: uuid("procedure_type_id").notNull(),
+    alternativeTypeId: uuid("alternative_type_id").notNull(),
+    createdBy: uuid("created_by").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.procedureTypeId, t.alternativeTypeId] })],
+);
 
 export const dentalProcedure = pgTable("dental_procedure", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -45,6 +45,7 @@ const item = (id: string, status: DentalTreatmentPlanItemRecord["status"], tooth
   version: 1,
   decisionEstimate: status === "proposed" ? null : 123_456,
   decisionEstimateOn: status === "proposed" ? null : "2026-03-02",
+  decisionEstimateHigh: null,
 });
 
 const procedure = (status: DentalProcedureRecord["status"]): DentalProcedureRecord => ({
@@ -119,6 +120,16 @@ describe("dental patient access (what MyHealth shows)", () => {
       note: "Estimates hold for 30 days.",
     });
     expect(view.estimate?.disclaimer).toMatch(/not an invoice/);
+
+    // A procedure that may turn out to be another one: its fee is a range, and the totals carry both ends.
+    const ranged = toPatientPlan({ ...plan, status: "in_progress" }, items, names, facility, null, true, {
+      ...prices,
+      fees: new Map([["t1", { low: 150_000, high: 400_000, alternatives: [{ name: "Root canal treatment" }] }]]),
+    });
+    expect(ranged.items[0]).toMatchObject({ estimatedFee: 150_000, estimatedFeeHigh: 400_000, mayBecome: ["Root canal treatment"] });
+    expect(view.items[0]).toMatchObject({ estimatedFeeHigh: null });
+    expect(view.items[0]).not.toHaveProperty("mayBecome");
+    expect(ranged.estimate).toMatchObject({ awaitingDecision: 150_000, awaitingDecisionHigh: 400_000, remaining: 300_000, remainingHigh: 800_000 });
 
     // Without prices (the organization does not show estimates), on a closed plan, or with nothing ahead: none.
     expect(toPatientPlan(plan, items, names, facility, null, true).estimate).toBeNull();

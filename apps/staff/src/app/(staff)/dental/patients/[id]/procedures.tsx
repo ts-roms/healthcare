@@ -51,6 +51,8 @@ export function Procedures({
     .filter((p) => p.status === "accepted" || p.status === "in_progress")
     .flatMap((p) => p.items.filter((i) => i.status === "accepted").map((i) => ({ plan: p, item: i })));
   const type = types.find((t) => t.id === selection.procedureTypeId);
+  const plannedItem = planned.find((p) => p.item.id === planItemId)?.item;
+  const plannedType = plannedItem ? types.find((t) => t.id === plannedItem.procedureTypeId) : undefined;
 
   const choosePlanned = (id: string) => {
     setPlanItemId(id);
@@ -97,6 +99,13 @@ export function Procedures({
                       </option>
                     ))}
                   </NativeSelect>
+                  {plannedType?.alternativeIds.length ? (
+                    <p className="text-meta text-muted-foreground">
+                      Planned as {plannedType.name}; it may be recorded as{" "}
+                      {plannedType.alternativeIds.map((a) => types.find((t) => t.id === a)?.name ?? "another procedure").join(" or ")} if that is what it turned
+                      out to be (charged at that procedure&apos;s price).
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
               <ProcedureFields id="procedure" types={types} notation={notation} value={selection} onChange={setSelection} />

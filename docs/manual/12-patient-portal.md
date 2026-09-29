@@ -231,7 +231,9 @@ your communication preferences.
 
 Your dentist's notes are not shown here. If your clinic shows fee estimates, a plan shows the **Estimated fee** of each treatment still ahead and
 the **Estimated cost of the treatment still ahead**, with the date of the prices. It is an estimate, not a bill: discounts and HMO or PhilHealth
-coverage are not included, and a treatment without a listed price says "ask the clinic". Otherwise, ask the clinic about costs.
+coverage are not included, and a treatment without a listed price says "ask the clinic". Some treatments show a range, for example "₱800.00 to
+₱3,000.00": the treatment may turn out to be another one once your dentist starts (the page says which), and you pay the price of what is done.
+Otherwise, ask the clinic about costs.
 
 **Deciding on a treatment plan online.** Some clinics let you decide in MyHealth. If yours does, a plan waiting for your decision shows **Your
 decision**:

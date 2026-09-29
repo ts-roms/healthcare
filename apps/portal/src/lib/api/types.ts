@@ -298,6 +298,10 @@ export interface PortalDentalPlan {
     decision: "awaiting" | "accepted" | "declined" | null;
     /** With an estimate: the listed price (centavos) of work still ahead; null: no listed price or not ahead. */
     estimatedFee?: number | null;
+    /** The high end when the treatment may turn out to be another (its fee is a range); null: a single price. */
+    estimatedFeeHigh?: number | null;
+    /** With a range: what the treatment may turn out to be. */
+    mayBecome?: string[];
   }>;
   /** Only when the clinic shows fee estimates in MyHealth and something on the plan is still ahead. */
   estimate: PortalPlanEstimate | null;
@@ -309,6 +313,10 @@ export interface PortalPlanEstimate {
   awaitingDecision: number;
   accepted: number;
   remaining: number;
+  /** High ends of the totals (the same as the above when no treatment has a fee range). */
+  awaitingDecisionHigh: number;
+  acceptedHigh: number;
+  remainingHigh: number;
   unpricedItems: number;
   disclaimer: string;
   note: string | null;

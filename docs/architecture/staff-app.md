@@ -235,7 +235,7 @@ dentition; each tooth shows glyph + chart code, never colour alone), a tooth's s
 the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
 **Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
 record the patient's decision item by item, cancel items, discontinue; an open plan shows its fee estimate — listed
-price per item ahead, "No listed price", totals, the estimate each decided item carried — and **Print estimate**); procedures (optionally from an accepted plan
+price per item ahead or a fee range with "may become …", "No listed price", totals (both ends), the estimate each decided item carried — and **Print estimate**); procedures (optionally from an accepted plan
 item), each with a **Supplies used** panel (opened after recording: prefilled from the procedure's template, stock
 location, issued from inventory with the lots shown, refusals inline next to the supply; return unused supplies);
 examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,
@@ -244,7 +244,7 @@ imaging (upload through the staff server as an `imaging` document, ≤ 10 MB; op
 link; share with the patient in MyHealth and stop sharing — `dental.imaging.release`); plans decided by the patient
 in MyHealth are marked as such. `/dental/settings` also holds "Dental records in MyHealth" and, when on, "Treatment plan
 decisions in MyHealth" with the organization's acknowledgement text, and "Fee estimates" (the organization's note
-under every estimate; whether MyHealth shows them). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
+under every estimate; whether MyHealth shows them); per procedure, **May turn out to be…** (the procedures it may become: fee ranges). Records are corrected by marking them entered in error with a reason. "Notes & prescriptions" opens the
 visit's encounter workspace. `/dental/settings`: the procedure catalog, supply templates per procedure, the facility's tooth notation and
 default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See

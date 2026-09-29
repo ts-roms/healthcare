@@ -15,12 +15,12 @@ import {
 } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { EmptyState } from "@/components/empty-state";
-import { peso } from "@/lib/billing";
 import { portalApi } from "@/lib/api/client";
 import type { PortalDentalPlan, PortalDentalRecord } from "@/lib/api/types";
 import {
   chartRows,
   conditionsText,
+  feeText,
   PLAN_STATUS_TEXT,
   planItemState,
   surfacesText,
@@ -197,7 +197,8 @@ function Plan({ plan, notation, acknowledgement }: { plan: PortalDentalPlan; not
                     </span>
                     {plan.estimate && (item.decision === "awaiting" || item.status === "accepted") ? (
                       <span className="text-meta text-muted-foreground">
-                        {item.estimatedFee == null ? "Estimated fee: ask the clinic" : `Estimated fee: ${peso(item.estimatedFee)}`}
+                        {item.estimatedFee == null ? "Estimated fee: ask the clinic" : `Estimated fee: ${feeText(item.estimatedFee, item.estimatedFeeHigh)}`}
+                        {item.mayBecome?.length ? ` — the range is because it may turn out to be ${item.mayBecome.join(" or ")} once your dentist starts` : ""}
                       </span>
                     ) : null}
                   </li>
@@ -220,10 +221,11 @@ function Plan({ plan, notation, acknowledgement }: { plan: PortalDentalPlan; not
 function Estimate({ estimate }: { estimate: NonNullable<PortalDentalPlan["estimate"]> }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3">
-      <p className="font-semibold">Estimated cost of the treatment still ahead: {peso(estimate.remaining)}</p>
-      {estimate.awaitingDecision && estimate.accepted ? (
+      <p className="font-semibold">Estimated cost of the treatment still ahead: {feeText(estimate.remaining, estimate.remainingHigh)}</p>
+      {estimate.awaitingDecisionHigh && estimate.acceptedHigh ? (
         <p className="text-meta">
-          Awaiting your decision {peso(estimate.awaitingDecision)} · accepted {peso(estimate.accepted)}
+          Awaiting your decision {feeText(estimate.awaitingDecision, estimate.awaitingDecisionHigh)} · accepted{" "}
+          {feeText(estimate.accepted, estimate.acceptedHigh)}
         </p>
       ) : null}
       {estimate.unpricedItems ? (
