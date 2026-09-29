@@ -28,7 +28,7 @@ import {
 } from "../dental.schema";
 import { assertVersion, found, rejectIssues, requireDentist, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
-import { DentalFeeLookup, type ProcedureFee } from "./dental-fee-lookup";
+import { DentalFeeLookup, type ItemFee, itemFee } from "./dental-fee-lookup";
 
 type PlanItemInput = { phase: number; procedureTypeId: string; tooth?: string; surfaces: Surface[]; note?: string };
 
@@ -231,8 +231,8 @@ export class DentalPlanService {
         .set({
           status: accepted.has(item.id) ? "accepted" : "declined",
           // The low end of the item's range (the listed price without one) and, with a range, its high end.
-          decisionEstimate: priced.fees.get(item.procedureTypeId)?.low ?? null,
-          decisionEstimateHigh: rangeHigh(priced.fees.get(item.procedureTypeId)),
+          decisionEstimate: decisionLow(itemFee(priced, item.procedureTypeId, item.surfaces.length)),
+          decisionEstimateHigh: rangeHigh(itemFee(priced, item.procedureTypeId, item.surfaces.length)),
           decisionEstimateOn: priced.pricedOn,
           updatedAt: new Date(),
           version: sql`${dentalTreatmentPlanItem.version} + 1`,
@@ -469,7 +469,12 @@ function itemView(item: DentalTreatmentPlanItemRecord, types: Map<string, { code
   return { ...rest, procedure: type ? { code: type.code, name: type.name, site: type.site } : null };
 }
 
+/** The estimate an item records with a decision: the low end of its range, or its amount; null without a listed price. */
+function decisionLow(fee: ItemFee | null): number | null {
+  return fee ? (fee.range?.low ?? fee.amount) : null;
+}
+
 /** The high end of an item's fee range to record with a decision; null without a range (a single price or none). */
-function rangeHigh(fee: ProcedureFee | undefined): number | null {
-  return fee && fee.high > fee.low ? fee.high : null;
+function rangeHigh(fee: ItemFee | null): number | null {
+  return fee?.range && fee.range.high > fee.range.low ? fee.range.high : null;
 }

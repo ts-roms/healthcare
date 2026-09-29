@@ -8,7 +8,7 @@ import { normalizeSurfaces, toothInNotation } from "../dental.rules";
 import type { PlanItemStatus, PlanStatus, Surface } from "../dental.schema";
 import { DENTAL_CONTEXT, type DentalContext, type DentalListedFee } from "../ports";
 import { DentalPortalSettings } from "../portal/dental-portal-settings.service";
-import { DentalFeeLookup, type ProcedureFee } from "./dental-fee-lookup";
+import { DentalFeeLookup, itemFee, type ProcedureFee } from "./dental-fee-lookup";
 import { DentalPlanService } from "./dental-plan.service";
 import { ESTIMATE_DISCLAIMER, estimatePart, type EstimatePart, estimateTotals, type EstimateTotals } from "./fee-estimate.rules";
 
@@ -23,6 +23,10 @@ export interface DentalPlanEstimateItem {
   part: EstimatePart | null;
   /** Billing's listed price today; null when the procedure has no listed price (or the item is not in the estimate). */
   listed: DentalListedFee | null;
+  /** Surfaces charged when the price is per surface (at least one), else 1; null without a listed price. */
+  quantity: number | null;
+  /** The listed price times the quantity (centavos); null without a listed price. */
+  amount: number | null;
   /**
    * With procedures it may turn out to be: the range of listed prices over it and them, and each of them with its
    * listed price. Null without alternatives, without a listed price, or when the item is not in the estimate.
@@ -111,7 +115,13 @@ export class DentalFeeEstimates {
               i.tooth ? `${toothInNotation(i.tooth, notation)}${i.surfaces.length ? ` ${normalizeSurfaces(i.surfaces).join("")}` : ""}` : "Whole mouth",
               i.procedure?.name ?? "Dental procedure",
               i.part === "awaiting" ? "For your decision" : "Accepted",
-              i.range ? moneyRange(i.range.low, i.range.high) : i.listed ? pdfMoney(i.listed.unitPrice) : "Ask the clinic",
+              i.range
+                ? moneyRange(i.range.low, i.range.high)
+                : i.amount !== null && i.listed
+                  ? i.quantity && i.quantity > 1
+                    ? `${pdfMoney(i.amount)} (${i.quantity} surfaces at ${pdfMoney(i.listed.unitPrice)})`
+                    : pdfMoney(i.amount)
+                  : "Ask the clinic",
             ]),
           );
           w.space();
@@ -175,6 +185,7 @@ export class DentalFeeEstimates {
     ]);
     const items: DentalPlanEstimateItem[] = plan.items.map((i) => {
       const part = estimatePart(i.status);
+      const fee = part ? itemFee(priced, i.procedureTypeId, i.surfaces.length) : null;
       return {
         itemId: i.id,
         phase: i.phase,
@@ -183,8 +194,10 @@ export class DentalFeeEstimates {
         procedure: i.procedure ? { code: i.procedure.code, name: i.procedure.name } : null,
         status: i.status,
         part,
-        listed: part ? (priced.byType.get(i.procedureTypeId) ?? null) : null,
-        range: part ? rangeOf(priced.fees.get(i.procedureTypeId)) : null,
+        listed: fee?.listed ?? null,
+        quantity: fee?.quantity ?? null,
+        amount: fee?.amount ?? null,
+        range: fee?.range ?? null,
         atDecision: i.decisionEstimateOn ? { amount: i.decisionEstimate, high: i.decisionEstimateHigh, pricedOn: i.decisionEstimateOn } : null,
       };
     });
@@ -197,7 +210,7 @@ export class DentalFeeEstimates {
       totals: estimateTotals(
         items.map((i) => ({
           status: i.status,
-          listedPrice: i.range ? i.range.low : (i.listed?.unitPrice ?? null),
+          listedPrice: i.range ? i.range.low : i.amount,
           highPrice: i.range?.high ?? null,
         })),
       ),
@@ -206,11 +219,6 @@ export class DentalFeeEstimates {
     };
     return { plan, estimate };
   }
-}
-
-/** A range only when the item may turn out to be another procedure (null: a single price). */
-function rangeOf(fee: ProcedureFee | undefined): ProcedureFee | null {
-  return fee && fee.alternatives.length > 0 ? fee : null;
 }
 
 /** "PHP 800.00" or "PHP 800.00 to PHP 3,000.00" (the standard PDF fonts have no dash to rely on). */

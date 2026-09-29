@@ -1,5 +1,6 @@
 import { toothInNotation } from "../dental.rules";
-import { alternativeSiteAllowed, estimatePart, estimateTotals, feeRange } from "./fee-estimate.rules";
+import { itemFee } from "./dental-fee-lookup";
+import { alternativeSiteAllowed, estimatePart, estimateTotals, feeRange, surfaceQuantity } from "./fee-estimate.rules";
 
 describe("fee estimate rules", () => {
   it("covers the work still ahead: items awaiting a decision and accepted items not yet done", () => {
@@ -57,6 +58,30 @@ describe("fee estimate rules", () => {
     expect(feeRange(80_000, [])).toEqual({ low: 80_000, high: 80_000, unpricedAlternatives: 0 });
     // Without a price for the planned procedure the item is not priced, whatever its alternatives cost.
     expect(feeRange(null, [300_000])).toBeNull();
+  });
+
+  it("charges per surface as billing does: the surfaces treated, at least one", () => {
+    expect(surfaceQuantity(true, 3)).toBe(3);
+    expect(surfaceQuantity(true, 0)).toBe(1);
+    expect(surfaceQuantity(false, 3)).toBe(1);
+  });
+
+  it("prices an item with its surfaces, and a range with alternatives priced the same way", () => {
+    const priced = {
+      byType: new Map([
+        ["composite", { unitPrice: 50_000, perSurface: true }],
+        ["crown", { unitPrice: 900_000, perSurface: false }],
+      ]),
+      alternatives: new Map([["composite", [{ code: "crown", name: "Crown", fee: { unitPrice: 900_000, perSurface: false } }]]]),
+    };
+    expect(itemFee({ ...priced, alternatives: new Map() }, "composite", 3)).toMatchObject({ quantity: 3, amount: 150_000, range: null });
+    expect(itemFee(priced, "composite", 2)).toMatchObject({
+      quantity: 2,
+      amount: 100_000,
+      range: { low: 100_000, high: 900_000, alternatives: [{ code: "crown", unitPrice: 900_000, amount: 900_000 }] },
+    });
+    expect(itemFee(priced, "crown", 0)).toMatchObject({ quantity: 1, amount: 900_000, range: null });
+    expect(itemFee(priced, "sealant", 1)).toBeNull();
   });
 
   it("keeps whole-mouth procedures apart from tooth procedures", () => {

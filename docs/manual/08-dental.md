@@ -134,6 +134,9 @@ no priced billing service (map it in billing settings). Discounts, packages and 
 estimate** for a copy the patient can take home and sign. Once the patient decides, each item shows "Estimate at decision" — the price it had
 that day.
 
+**Per surface.** When billing prices a procedure per surface treated (billing settings), its estimate is the price times the item's surfaces (at
+least one) — "₱5,400.00" with "3 surfaces × ₱1,800.00" under it — and billing charges the surfaces recorded with the procedure.
+
 **Fee ranges.** When a procedure may turn out to be another one once under way (set in dental settings, for example a simple extraction that may
 become a surgical one), its estimate is a range — "₱800.00 – ₱3,000.00" — from the lowest to the highest listed price among them, with "may become
 …" under it, and the totals show both ends. "Estimate at decision" keeps the range the patient saw.

@@ -7,6 +7,7 @@ import {
   createStaff,
   createTenant,
   createTestApp,
+  drainEvents,
   juan,
   login,
   manilaDate,
@@ -411,5 +412,64 @@ describe("dental fee estimates", () => {
     await record(ids.surgical!).expect(201);
     const done = (await staff(dentist).get(`/dental/treatment-plans/${ranged.id}`).expect(200)).body;
     expect(done.items.find((i: { id: string }) => i.id === itemId).status).toBe("completed");
+  });
+
+  it("prices a procedure per surface when billing charges it per surface, in the estimate and the charge", async () => {
+    const patch = (serviceId: string, body: object) => ctx.http().patch(`/api/v1/billing/services/${serviceId}`).set(as(admin, tenant.facilityId)).send(body);
+    const version = async (serviceId: string) =>
+      (await ctx.pool.query<{ version: number }>("SELECT version FROM billing_service WHERE id = $1", [serviceId])).rows[0]!.version;
+
+    // Only a service charged for a dental procedure can be priced per surface.
+    await staff(admin)
+      .post("/billing/services", {
+        code: "consult",
+        name: "Consultation",
+        category: "consultation",
+        unitPrice: 50_000,
+        effectiveFrom: manilaDate(-1),
+        chargeUnit: "surface",
+      })
+      .expect(400);
+    const consult = (
+      await staff(admin)
+        .post("/billing/services", { code: "consult", name: "Consultation", category: "consultation", unitPrice: 50_000, effectiveFrom: manilaDate(-1) })
+        .expect(201)
+    ).body;
+    expect(consult.chargeUnit).toBe("each");
+    await patch(consult.id, { chargeUnit: "surface", version: consult.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("invalid_charge_unit"));
+    const updated = await patch(ids.compositeService!, { chargeUnit: "surface", version: await version(ids.compositeService!) }).expect(200);
+    expect(updated.body.chargeUnit).toBe("surface");
+    const audit = await auditRows(ctx.pool, "action = 'billing.service.update' AND resource_id = $1", [ids.compositeService]);
+    expect(audit.at(-1)).toBeDefined();
+
+    // A composite on three surfaces is estimated at three times the listed price (₱1,800.00 per surface).
+    const perSurface = await plan([{ type: "composite", tooth: "36", surfaces: ["M", "O", "D"] }]);
+    const estimate = (await staff(dentist).get(`/dental/treatment-plans/${perSurface.id}/estimate`).expect(200)).body;
+    expect(estimate.items[0]).toMatchObject({ listed: { unitPrice: 180_000, perSurface: true }, quantity: 3, amount: 540_000, range: null });
+    expect(estimate.totals).toMatchObject({ awaitingDecision: 540_000, awaitingDecisionHigh: 540_000 });
+    const text = extractPdfText(
+      (await staff(dentist).get(`/dental/treatment-plans/${perSurface.id}/estimate.pdf`).buffer(true).parse(binary).expect(200)).body as Buffer,
+    )
+      .replace(/·/g, "")
+      .replace(/\s+/g, " ");
+    expect(text).toContain("PHP 5,400.00 (3 surfaces at PHP 1,800.00)");
+
+    // Billing charges the surfaces recorded, at the listed unit price.
+    const encounterId = (await staff(dentist).post("/encounters", { patientId, chiefComplaint: "Fillings" }).expect(201)).body.id;
+    const procedure = (
+      await staff(dentist)
+        .post(`/dental/patients/${patientId}/procedures`, { encounterId, procedureTypeId: ids.composite, tooth: "46", surfaces: ["M", "O"] })
+        .expect(201)
+    ).body;
+    await drainEvents(ctx);
+    const charge = await ctx.pool.query<{ quantity: number; unit_price: string }>(
+      "SELECT quantity, unit_price FROM billing_charge WHERE source_type = 'dental_procedure' AND source_id = $1",
+      [procedure.id],
+    );
+    expect(charge.rows).toEqual([{ quantity: 2, unit_price: "180000" }]);
+    const captured = await auditRows(ctx.pool, "action = 'billing.charge.capture' AND metadata->>'source' = $1", [`dental_procedure:${procedure.id}`]);
+    expect(captured[0]?.metadata).toMatchObject({ quantity: 2, unitPrice: 180_000 });
   });
 });

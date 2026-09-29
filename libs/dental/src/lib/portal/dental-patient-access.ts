@@ -24,7 +24,7 @@ import {
   type Surface,
   type ToothCondition,
 } from "../dental.schema";
-import { DentalFeeLookup } from "../plans/dental-fee-lookup";
+import { DentalFeeLookup, itemFee, type ListedUnitPrice } from "../plans/dental-fee-lookup";
 import { DentalPlanService } from "../plans/dental-plan.service";
 import { ESTIMATE_DISCLAIMER, estimatePart, estimateTotals } from "../plans/fee-estimate.rules";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
@@ -153,9 +153,10 @@ export function planItemDecision(status: PlanItemStatus): PatientPlanItemDecisio
 /** Listed prices for a plan's estimate in MyHealth: by procedure type id, priced on a date, with the organization's note. */
 export interface PatientEstimatePrices {
   pricedOn: string;
-  byType: ReadonlyMap<string, { unitPrice: number }>;
-  /** Fee ranges by procedure type id, for procedures that may turn out to be others. */
-  fees?: ReadonlyMap<string, { low: number; high: number; alternatives: ReadonlyArray<{ name: string }> }>;
+  /** Listed unit prices by procedure type id (per procedure or per surface). */
+  byType: ReadonlyMap<string, ListedUnitPrice>;
+  /** By procedure type id: the procedures it may turn out to be, with their listed prices (fee ranges). */
+  alternatives?: ReadonlyMap<string, ReadonlyArray<{ code: string; name: string; fee: ListedUnitPrice | null }>>;
   note: string | null;
 }
 
@@ -174,12 +175,16 @@ export function toPatientPlan(
 ): PatientDentalPlan {
   const timezone = facility?.timezone ?? DEFAULT_TIMEZONE;
   const open = plan.status === "proposed" || plan.status === "accepted" || plan.status === "in_progress";
-  const range = (i: DentalTreatmentPlanItemRecord) => {
-    const r = open && estimatePart(i.status) && prices?.byType.has(i.procedureTypeId) ? prices.fees?.get(i.procedureTypeId) : undefined;
-    return r && r.alternatives.length > 0 ? r : undefined;
+  // Each item's fee as billing would charge it: per procedure or per surface, a range with procedures it may become.
+  const priced = (i: DentalTreatmentPlanItemRecord) =>
+    open && estimatePart(i.status) && prices
+      ? itemFee({ byType: prices.byType, alternatives: prices.alternatives ?? new Map() }, i.procedureTypeId, i.surfaces.length)
+      : null;
+  const range = (i: DentalTreatmentPlanItemRecord) => priced(i)?.range ?? undefined;
+  const fee = (i: DentalTreatmentPlanItemRecord) => {
+    const f = priced(i);
+    return f ? (f.range?.low ?? f.amount) : null;
   };
-  const fee = (i: DentalTreatmentPlanItemRecord) =>
-    open && estimatePart(i.status) ? (range(i)?.low ?? prices?.byType.get(i.procedureTypeId)?.unitPrice ?? null) : null;
   const feeHigh = (i: DentalTreatmentPlanItemRecord) => {
     const r = range(i);
     return r && r.high > r.low ? r.high : null;
@@ -498,7 +503,7 @@ export class DentalPatientAccess {
     for (const [facilityId, typeIds] of byFacility) {
       const pricedOn = localDate(new Date(), facilities.get(facilityId)?.timezone ?? DEFAULT_TIMEZONE);
       const priced = await this.fees.price(organizationId, [...typeIds], pricedOn);
-      result.set(facilityId, { pricedOn, byType: priced.byType, fees: priced.fees, note });
+      result.set(facilityId, { pricedOn, byType: priced.byType, alternatives: priced.alternatives, note });
     }
     return result;
   }

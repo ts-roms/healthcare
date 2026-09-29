@@ -130,6 +130,8 @@ export interface DentalListedFee {
   serviceName: string;
   /** Centavos, as on the price list (VAT-inclusive where VAT applies). */
   unitPrice: number;
+  /** The price is per surface treated (billing charges the surfaces, at least one); otherwise per procedure. */
+  perSurface: boolean;
 }
 
 /**

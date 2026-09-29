@@ -101,7 +101,7 @@ describe("dental patient access (what MyHealth shows)", () => {
 
   it("estimates the work still ahead at listed prices, only when prices are passed and the plan is open", () => {
     const names = new Map([["t1", "Composite restoration"]]);
-    const prices = { pricedOn: "2026-03-02", byType: new Map([["t1", { unitPrice: 150_000 }]]), note: "Estimates hold for 30 days." };
+    const prices = { pricedOn: "2026-03-02", byType: new Map([["t1", { unitPrice: 150_000, perSurface: false }]]), note: "Estimates hold for 30 days." };
     const items = [
       item("i1", "proposed"),
       item("i2", "accepted"),
@@ -124,12 +124,20 @@ describe("dental patient access (what MyHealth shows)", () => {
     // A procedure that may turn out to be another one: its fee is a range, and the totals carry both ends.
     const ranged = toPatientPlan({ ...plan, status: "in_progress" }, items, names, facility, null, true, {
       ...prices,
-      fees: new Map([["t1", { low: 150_000, high: 400_000, alternatives: [{ name: "Root canal treatment" }] }]]),
+      alternatives: new Map([["t1", [{ code: "rct", name: "Root canal treatment", fee: { unitPrice: 400_000, perSurface: false } }]]]),
     });
     expect(ranged.items[0]).toMatchObject({ estimatedFee: 150_000, estimatedFeeHigh: 400_000, mayBecome: ["Root canal treatment"] });
     expect(view.items[0]).toMatchObject({ estimatedFeeHigh: null });
     expect(view.items[0]).not.toHaveProperty("mayBecome");
     expect(ranged.estimate).toMatchObject({ awaitingDecision: 150_000, awaitingDecisionHigh: 400_000, remaining: 300_000, remainingHigh: 800_000 });
+
+    // Priced per surface: the item's surfaces times the price (the fixture's items are on two surfaces).
+    const perSurface = toPatientPlan({ ...plan, status: "in_progress" }, items, names, facility, null, true, {
+      ...prices,
+      byType: new Map([["t1", { unitPrice: 50_000, perSurface: true }]]),
+    });
+    expect(perSurface.items[0]).toMatchObject({ estimatedFee: 100_000, estimatedFeeHigh: null });
+    expect(perSurface.estimate).toMatchObject({ awaitingDecision: 100_000, accepted: 100_000, remaining: 200_000 });
 
     // Without prices (the organization does not show estimates), on a closed plan, or with nothing ahead: none.
     expect(toPatientPlan(plan, items, names, facility, null, true).estimate).toBeNull();

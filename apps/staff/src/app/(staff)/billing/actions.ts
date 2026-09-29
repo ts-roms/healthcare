@@ -218,6 +218,7 @@ const serviceSchema = z.object({
   sourceCode: z.string().trim().min(1).max(60).optional(),
   unitPrice: centavos,
   effectiveFrom: date,
+  chargeUnit: z.enum(["each", "surface"]).optional(),
 });
 export async function createService(input: z.input<typeof serviceSchema>) {
   return run(serviceSchema, input, () => api<BillingService>("/billing/services", { method: "POST", body: input }), ["/billing/settings"]);
@@ -403,6 +404,13 @@ export async function updateTaxProfile(input: z.input<typeof taxProfileSchema>) 
 }
 
 const serviceTaxSchema = z.object({ serviceId: id, taxClass: z.enum(["vatable", "vat_exempt", "zero_rated"]).nullable(), version });
+const chargeUnitSchema = z.object({ serviceId: id, chargeUnit: z.enum(["each", "surface"]), version });
+/** Per procedure or per surface treated (a service charged for a dental procedure); applies to charges from now on. */
+export async function setServiceChargeUnit(input: z.input<typeof chargeUnitSchema>) {
+  const { serviceId, ...body } = input;
+  return run(chargeUnitSchema, input, () => api<BillingService>(`/billing/services/${serviceId}`, { method: "PATCH", body }), ["/billing/settings"]);
+}
+
 export async function setServiceTaxClass(input: z.input<typeof serviceTaxSchema>) {
   const { serviceId, ...body } = input;
   return run(serviceTaxSchema, input, () => api<BillingService>(`/billing/services/${serviceId}`, { method: "PATCH", body }), ["/billing/settings"]);

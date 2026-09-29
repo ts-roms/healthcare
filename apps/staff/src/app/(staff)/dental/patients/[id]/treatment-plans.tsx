@@ -236,8 +236,15 @@ function PlanCard({
                         may become {line.range.alternatives.map((a) => `${a.name}${a.unitPrice === null ? " (no listed price)" : ""}`).join(" or ")}
                       </span>
                     </span>
-                  ) : line.listed ? (
-                    peso(line.listed.unitPrice)
+                  ) : line.listed && line.amount !== null ? (
+                    <span className="flex flex-col">
+                      <span>{peso(line.amount)}</span>
+                      {line.listed.perSurface ? (
+                        <span className="text-meta text-muted-foreground">
+                          {line.quantity} {line.quantity === 1 ? "surface" : "surfaces"} × {peso(line.listed.unitPrice)}
+                        </span>
+                      ) : null}
+                    </span>
                   ) : (
                     <span className="text-meta text-warning-foreground">No listed price</span>
                   )}

@@ -45,6 +45,7 @@ import {
   createService,
   deactivateDiscountRule,
   recordAccreditation,
+  setServiceChargeUnit,
   setServiceStatus,
   setServiceTaxClass,
 } from "../actions";
@@ -189,7 +190,30 @@ function Services({
                         {s.status === "inactive" ? " · inactive" : ""}
                       </span>
                     </TableCell>
-                    <TableCell className="text-table">{sourceName(s)}</TableCell>
+                    <TableCell className="text-table">
+                      {sourceName(s)}
+                      {s.sourceKind === "dental_procedure" ? (
+                        canManage ? (
+                          <NativeSelect
+                            aria-label={`${s.name}: price is`}
+                            className="mt-1 h-7"
+                            value={s.chargeUnit ?? "each"}
+                            disabled={pending}
+                            onChange={(e) =>
+                              submit(
+                                () => setServiceChargeUnit({ serviceId: s.id, chargeUnit: e.target.value as "each" | "surface", version: s.version }),
+                                e.target.value === "surface" ? `${s.name} is charged per surface` : `${s.name} is charged per procedure`,
+                              )
+                            }
+                          >
+                            <option value="each">Price per procedure</option>
+                            <option value="surface">Price per surface treated</option>
+                          </NativeSelect>
+                        ) : (
+                          <span className="block text-meta text-muted-foreground">{s.chargeUnit === "surface" ? "per surface treated" : "per procedure"}</span>
+                        )
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{s.currentPrice !== null ? peso(s.currentPrice) : "—"}</TableCell>
                     <TableCell className="text-table">
                       {upcoming.map((p) => (
@@ -311,6 +335,7 @@ function NewService({ sources }: { sources: Sources }) {
     sourceCode: "",
     price: "",
     from: todayIn("Asia/Manila"),
+    chargeUnit: "each" as "each" | "surface",
   });
   const kind = f.sourceKind in SOURCE_LABEL ? (f.sourceKind as SourceKind) : undefined;
   const options = kind ? sources[kind] : [];
@@ -334,6 +359,7 @@ function NewService({ sources }: { sources: Sources }) {
               sourceCode: f.sourceKind ? f.sourceCode : undefined,
               unitPrice: centavos,
               effectiveFrom: f.from,
+              chargeUnit: kind === "dental_procedure" ? f.chargeUnit : undefined,
             }),
           `${f.name} added`,
           () => setF({ ...f, code: "", name: "", sourceCode: "", price: "" }),
@@ -380,6 +406,12 @@ function NewService({ sources }: { sources: Sources }) {
       ) : (
         <span />
       )}
+      {kind === "dental_procedure" ? (
+        <NativeSelect aria-label="Price is" value={f.chargeUnit} onChange={(e) => setF({ ...f, chargeUnit: e.target.value as "each" | "surface" })}>
+          <option value="each">Price per procedure</option>
+          <option value="surface">Price per surface treated</option>
+        </NativeSelect>
+      ) : null}
       <span className="flex gap-2">
         <Input
           aria-label="Price (₱)"

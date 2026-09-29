@@ -293,8 +293,12 @@ default), which you need to change anything. Other billing staff can open `/bill
 1. Under **Add a service**, enter a **Code**, the **Name on the invoice** and the **Category** (Consultation, Procedure, Laboratory, Dental,
    Telemedicine, Supply, Other).
 2. Choose when it is charged: **Only when added by staff**, **When a visit of a type is signed**, **When a laboratory test is ordered**, or **When a
-   dental procedure is performed** — then choose the visit type, test or procedure.
+   dental procedure is performed** — then choose the visit type, test or procedure. For a dental procedure also choose **Price per procedure** or
+   **Price per surface treated** (for example a composite restoration priced per surface: a filling on three surfaces is charged three times).
 3. Enter the **Price** and the date it applies from. Click **Add service**.
+
+A dental service's **Price per procedure / Price per surface treated** can be changed later in the **Charged on** column; the change applies to
+procedures recorded afterwards. Dental fee estimates follow the same rule.
 
 To change a price, click **New price** on the service, enter the amount and the **Effective from** date, and click **Save**. The old price ends the
 day before. Charges and invoices already made keep the price they used. Use **Deactivate** / **Activate** to stop or resume using a service.

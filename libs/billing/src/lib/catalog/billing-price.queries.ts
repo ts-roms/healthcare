@@ -1,7 +1,7 @@
 import { Inject, Injectable, Module } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
-import { billingService, billingServicePrice, type ServiceSourceKind, type TaxClass } from "../billing.schema";
+import { billingService, billingServicePrice, type ChargeUnit, type ServiceSourceKind, type TaxClass } from "../billing.schema";
 
 /** A service's listed price on a date, as other domains may read it (estimates). */
 export interface ListedPrice {
@@ -11,6 +11,8 @@ export interface ListedPrice {
   /** Centavos, as on the price list (VAT-inclusive where VAT applies). */
   unitPrice: number;
   taxClass: TaxClass | null;
+  /** Per item, or per surface treated (a dental procedure is charged its number of surfaces, at least one). */
+  chargeUnit: ChargeUnit;
 }
 
 /**
@@ -33,6 +35,7 @@ export class BillingPriceQueries {
         serviceName: billingService.name,
         unitPrice: billingServicePrice.unitPrice,
         taxClass: billingService.taxClass,
+        chargeUnit: billingService.chargeUnit,
       })
       .from(billingService)
       .innerJoin(billingServicePrice, eq(billingServicePrice.serviceId, billingService.id))

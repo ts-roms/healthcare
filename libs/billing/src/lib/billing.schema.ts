@@ -17,6 +17,9 @@ export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedur
 /** What captures a service automatically: a visit type (signed encounter), a laboratory test (ordering) or a dental procedure (performed). */
 export const SERVICE_SOURCE_KINDS = ["visit_type", "lab_test", "dental_procedure"] as const;
 export type ServiceSourceKind = (typeof SERVICE_SOURCE_KINDS)[number];
+/** What a service's price is for: one item, or each surface treated (a service mapped to a dental procedure). */
+export const CHARGE_UNITS = ["each", "surface"] as const;
+export type ChargeUnit = (typeof CHARGE_UNITS)[number];
 export type SequenceKind = "invoice" | "receipt" | "credit_note" | "debit_note";
 export const TAX_CLASSES = ["vatable", "vat_exempt", "zero_rated"] as const;
 export type TaxClass = (typeof TAX_CLASSES)[number];
@@ -39,6 +42,8 @@ export const billingService = pgTable("billing_service", {
   packageValidityDays: integer("package_validity_days"),
   /** VAT class (null: not classified); configuration, see billing_organization_profile. */
   taxClass: text("tax_class").$type<TaxClass>(),
+  /** 0067: what the price is for — one item, or each surface treated (dental procedures only). */
+  chargeUnit: text("charge_unit").$type<ChargeUnit>().notNull().default("each"),
 });
 
 export const billingServicePrice = pgTable("billing_service_price", {

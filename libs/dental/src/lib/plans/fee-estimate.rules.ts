@@ -28,6 +28,14 @@ export function feeRange(planned: number | null, alternatives: ReadonlyArray<num
   return { low: Math.min(...all), high: Math.max(...all), unpricedAlternatives: alternatives.length - priced.length };
 }
 
+/**
+ * The quantity billing charges for a procedure: one, or — when its service is priced per surface — the surfaces treated,
+ * at least one. Mirrors billing's charge capture (`chargeQuantity` in libs/billing), so estimates match the charge.
+ */
+export function surfaceQuantity(perSurface: boolean, surfaceCount: number): number {
+  return perSurface ? Math.max(surfaceCount, 1) : 1;
+}
+
 /** What an estimate is not; printed and shown with every estimate (the organization may add its own note). */
 export const ESTIMATE_DISCLAIMER =
   "An estimate from the clinic's listed prices, not an invoice or official receipt. Discounts, packages and HMO or PhilHealth coverage are not applied; each procedure is charged at the listed price on the day it is done.";
