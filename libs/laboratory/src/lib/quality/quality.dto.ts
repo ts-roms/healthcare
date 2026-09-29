@@ -90,6 +90,10 @@ export class RecordReagentUseDto extends createZodDto(recordReagentUseSchema) {}
 export const setReagentYieldSchema = z.object({ testsPerUnit: z.number().int().positive().max(1_000_000) });
 export class SetReagentYieldDto extends createZodDto(setReagentYieldSchema) {}
 
+/** Tests one run of a test uses from a reagent; 1 (the default) removes the setting. */
+export const setTestsPerRunSchema = z.object({ testsPerRun: z.number().int().min(1).max(100) });
+export class SetTestsPerRunDto extends createZodDto(setTestsPerRunSchema) {}
+
 export const reagentUsageQuerySchema = z.object({ from: isoDate, to: isoDate, instrumentId: z.uuid().optional() });
 export class ReagentUsageQueryDto extends createZodDto(reagentUsageQuerySchema) {}
 

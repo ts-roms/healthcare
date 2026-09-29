@@ -3,6 +3,7 @@ import type { LabSendOut, LabTrend, PatientLabResult } from "./api/types";
 import {
   percent,
   reagentUseText,
+  runsText,
   byReferenceLaboratory,
   bySpecimenType,
   formatDuration,
@@ -133,7 +134,19 @@ describe("send-outs", () => {
 });
 
 describe("reagent use", () => {
-  const use = { patientRuns: 10, qcRuns: 2, otherRuns: 0, wasted: 0, total: 12, capacity: 100, remaining: 88, usedShare: 0.12, low: false };
+  const use = {
+    patientRuns: 10,
+    patientTests: 10,
+    qcRuns: 2,
+    qcTests: 2,
+    otherRuns: 0,
+    wasted: 0,
+    total: 12,
+    capacity: 100,
+    remaining: 88,
+    usedShare: 0.12,
+    low: false,
+  };
   it("describes use against the capacity", () => {
     expect(reagentUseText(use)).toBe("12 of 100 tests used · 88 left");
     expect(reagentUseText({ ...use, total: 110, remaining: -10 })).toBe("110 of 100 tests used · 10 beyond the stated capacity");
@@ -142,5 +155,13 @@ describe("reagent use", () => {
   it("formats shares", () => {
     expect(percent(0.857)).toBe("86%");
     expect(percent(null)).toBe("—");
+  });
+});
+
+describe("runs and tests", () => {
+  it("names the tests only when runs used more than one each", () => {
+    expect(runsText(1, 1)).toBe("1 run");
+    expect(runsText(2, 2)).toBe("2 runs");
+    expect(runsText(2, 3)).toBe("2 runs (3 tests)");
   });
 });

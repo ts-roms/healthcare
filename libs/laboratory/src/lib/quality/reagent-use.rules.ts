@@ -16,7 +16,10 @@ export function loadCapacity(input: { capacityTests?: number | null; stockQuanti
 export interface ReagentUseSummary {
   /** Patient runs (an order measured on the instrument; a panel counts once per result version). */
   patientRuns: number;
+  /** Tests the patient runs used (more than the runs when a test uses several per run). */
+  patientTests: number;
   qcRuns: number;
+  qcTests: number;
   /** Repeats not entered as results, calibration, priming and other recorded use. */
   otherRuns: number;
   wasted: number;
@@ -30,22 +33,38 @@ export interface ReagentUseSummary {
   low: boolean;
 }
 
-export function summarizeReagentUse(uses: Array<{ kind: ReagentUseKind; tests: number }>, capacity: number | null, loaded: boolean): ReagentUseSummary {
+/**
+ * Use of a load from its use records (`tests` summed and, for patient and QC runs, `runs` counted; `runs` defaults to
+ * `tests`, as when every run used one test). Capacity and totals are in tests.
+ */
+export function summarizeReagentUse(
+  uses: Array<{ kind: ReagentUseKind; tests: number; runs?: number }>,
+  capacity: number | null,
+  loaded: boolean,
+): ReagentUseSummary {
   let patientRuns = 0;
+  let patientTests = 0;
   let qcRuns = 0;
+  let qcTests = 0;
   let otherRuns = 0;
   let wasted = 0;
   for (const use of uses) {
-    if (use.kind === "patient") patientRuns += use.tests;
-    else if (use.kind === "qc") qcRuns += use.tests;
-    else if (use.kind === "waste") wasted += use.tests;
+    if (use.kind === "patient") {
+      patientRuns += use.runs ?? use.tests;
+      patientTests += use.tests;
+    } else if (use.kind === "qc") {
+      qcRuns += use.runs ?? use.tests;
+      qcTests += use.tests;
+    } else if (use.kind === "waste") wasted += use.tests;
     else otherRuns += use.tests;
   }
-  const total = patientRuns + qcRuns + otherRuns + wasted;
+  const total = patientTests + qcTests + otherRuns + wasted;
   const remaining = capacity === null ? null : capacity - total;
   return {
     patientRuns,
+    patientTests,
     qcRuns,
+    qcTests,
     otherRuns,
     wasted,
     total,
@@ -64,4 +83,26 @@ export function summarizeReagentUse(uses: Array<{ kind: ReagentUseKind; tests: n
 export function costPerPatientRun(cost: number | null, patientRuns: number, unloaded: boolean): number | null {
   if (!unloaded || cost === null || patientRuns === 0) return null;
   return Math.round(cost / patientRuns);
+}
+
+/** A reagent's tests per run for tests (keyed by test id); a test without a stated number uses 1. */
+export function testsPerRunOf(stated: ReadonlyMap<string, number>, testId: string): number {
+  return stated.get(testId) ?? 1;
+}
+
+/**
+ * Tests a patient run counts on a load: the first run of an order (version 1) measures the ordered tests the load
+ * serves — a panel is one run, counted with the most tests per run among them; a later version (a re-run or a re-test)
+ * measures its own test. Tests the load does not serve are left out; at least 1.
+ */
+export function patientRunTests(input: {
+  loadTestId: string | null;
+  resultTestId: string;
+  versionNumber: number;
+  orderTestIds: readonly string[];
+  testsPerRun: ReadonlyMap<string, number>;
+}): number {
+  const measured = input.versionNumber === 1 ? input.orderTestIds : [input.resultTestId];
+  const served = measured.filter((t) => input.loadTestId === null || t === input.loadTestId);
+  return Math.max(1, ...served.map((t) => testsPerRunOf(input.testsPerRun, t)));
 }

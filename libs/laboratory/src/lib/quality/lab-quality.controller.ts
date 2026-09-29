@@ -14,6 +14,7 @@ import {
   RecordReagentUseDto,
   ReagentUsageQueryDto,
   SetReagentYieldDto,
+  SetTestsPerRunDto,
   QcActionDto,
   QcRunQueryDto,
   ReagentQueryDto,
@@ -135,6 +136,25 @@ export class LabQualityController {
   @ApiOperation({ summary: "Set how many tests one stock unit of a reagent holds" })
   setReagentYield(@CurrentActor() actor: Actor, @Param("itemId", uuid) itemId: string, @Body() body: SetReagentYieldDto) {
     return this.reagents.setYield(actor, itemId, body.testsPerUnit);
+  }
+
+  @Get("reagents/tests-per-run")
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Tests one run of a test uses from a reagent, where more than 1 (duplicates, dilutions, blanks)" })
+  reagentTestsPerRun(@CurrentActor() actor: Actor) {
+    return this.reagents.testsPerRun(actor);
+  }
+
+  @Put("reagents/yields/:itemId/tests/:testId")
+  @RequirePermissions("lab.qc.manage")
+  @ApiOperation({ summary: "Set how many tests one run of a test uses from a reagent (1 removes the setting)" })
+  setReagentTestsPerRun(
+    @CurrentActor() actor: Actor,
+    @Param("itemId", uuid) itemId: string,
+    @Param("testId", uuid) testId: string,
+    @Body() body: SetTestsPerRunDto,
+  ) {
+    return this.reagents.setTestsPerRun(actor, itemId, testId, body.testsPerRun);
   }
 
   @Get("reagents/:loadId/uses")

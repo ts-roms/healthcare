@@ -1,4 +1,4 @@
-import { costPerPatientRun, loadCapacity, summarizeReagentUse } from "./reagent-use.rules";
+import { costPerPatientRun, loadCapacity, patientRunTests, summarizeReagentUse, testsPerRunOf } from "./reagent-use.rules";
 
 describe("reagent use rules", () => {
   it("takes the stated capacity, else the stock taken times the yield", () => {
@@ -38,5 +38,34 @@ describe("reagent use rules", () => {
     expect(costPerPatientRun(100_000, 3, false)).toBeNull();
     expect(costPerPatientRun(null, 3, true)).toBeNull();
     expect(costPerPatientRun(100_000, 0, true)).toBeNull();
+  });
+
+  it("counts runs and tests apart when a run uses more than one test", () => {
+    const summary = summarizeReagentUse(
+      [
+        { kind: "patient", tests: 3, runs: 2 },
+        { kind: "qc", tests: 4, runs: 2 },
+        { kind: "waste", tests: 1 },
+      ],
+      100,
+      true,
+    );
+    expect(summary).toMatchObject({ patientRuns: 2, patientTests: 3, qcRuns: 2, qcTests: 4, wasted: 1, total: 8, remaining: 92 });
+  });
+
+  it("counts a panel's first run with the most tests per run among the ordered tests the load serves, a later version with its own test", () => {
+    const testsPerRun = new Map([
+      ["chol", 2],
+      ["tsh", 3],
+    ]);
+    expect(testsPerRunOf(testsPerRun, "glu")).toBe(1);
+    const base = { loadTestId: null, resultTestId: "glu", orderTestIds: ["glu", "chol"], testsPerRun };
+    expect(patientRunTests({ ...base, versionNumber: 1 })).toBe(2);
+    expect(patientRunTests({ ...base, versionNumber: 2 })).toBe(1);
+    expect(patientRunTests({ ...base, resultTestId: "chol", versionNumber: 2 })).toBe(2);
+    // A load for glucose only serves glucose: cholesterol's duplicate does not count on it.
+    expect(patientRunTests({ ...base, loadTestId: "glu", versionNumber: 1 })).toBe(1);
+    // A test the load serves that is not on the order does not count either.
+    expect(patientRunTests({ ...base, loadTestId: "tsh", versionNumber: 1 })).toBe(1);
   });
 });

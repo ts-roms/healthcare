@@ -668,7 +668,7 @@ export class LabQualityService {
   recordResultReagents(
     tx: DbExecutor,
     organizationId: string,
-    result: { id: string; orderId: string; versionNumber: number; enteredBy: string },
+    result: { id: string; orderId: string; testId: string; versionNumber: number; enteredBy: string },
     loadIds: string[],
   ): Promise<void> {
     return this.reagents.recordOnResult(tx, organizationId, result, loadIds);

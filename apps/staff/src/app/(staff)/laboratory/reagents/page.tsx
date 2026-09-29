@@ -23,10 +23,11 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { LabAvailableReagentLot, LabReagentUsage, LabReagentYield } from "@/lib/api/types";
+import type { LabAvailableReagentLot, LabReagentTestsPerRun, LabReagentUsage, LabReagentYield, LabTest } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
-import { percent, reagentUseText } from "@/lib/lab-mapping";
+import { percent, reagentUseText, runsText } from "@/lib/lab-mapping";
+import { TestsPerRunEditor } from "./tests-per-run-editor";
 import { YieldEditor } from "./yield-editor";
 
 export const metadata = { title: "Reagent use" };
@@ -50,18 +51,25 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
   const to = params.to && DATE.test(params.to) ? params.to : today;
   const from = params.from && DATE.test(params.from) && params.from <= to ? params.from : shiftDate(to, -29);
   const canManage = can(session, "lab.qc.manage");
-  const [usage, yields, available] = await Promise.all([
+  const [usage, yields, available, perRun, tests] = await Promise.all([
     api<LabReagentUsage>("/laboratory/reagents/usage", { query: { from, to } }),
     api<LabReagentYield[]>("/laboratory/reagents/yields"),
     canManage ? api<LabAvailableReagentLot[]>("/laboratory/reagents/available") : Promise.resolve([]),
+    api<LabReagentTestsPerRun[]>("/laboratory/reagents/tests-per-run"),
+    canManage ? api<LabTest[]>("/laboratory/tests") : Promise.resolve([]),
   ]);
   const reagents = new Map<string, { itemId: string; itemName: string; stockUnit: string }>();
   for (const l of available) reagents.set(l.itemId, { itemId: l.itemId, itemName: l.itemName, stockUnit: l.stockUnit });
-  const period = usage.reagents.reduce((n, r) => ({ patient: n.patient + r.patientRuns, other: n.other + r.total - r.patientRuns, total: n.total + r.total }), {
-    patient: 0,
-    other: 0,
-    total: 0,
-  });
+  for (const y of yields) reagents.set(y.inventoryItemId, { itemId: y.inventoryItemId, itemName: y.itemName, stockUnit: y.stockUnit });
+  const period = usage.reagents.reduce(
+    (n, r) => ({
+      patient: n.patient + r.patientRuns,
+      patientTests: n.patientTests + r.patientTests,
+      other: n.other + r.total - r.patientTests,
+      total: n.total + r.total,
+    }),
+    { patient: 0, patientTests: 0, other: 0, total: 0 },
+  );
   const low = usage.loads.filter((l) => l.use.low);
 
   return (
@@ -88,6 +96,7 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
         <section aria-label="Totals" className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Figure label="Patient runs" value={period.patient.toLocaleString("en-PH")}>
             {day(from)} to {day(to)}
+            {period.patientTests !== period.patient ? ` · ${period.patientTests.toLocaleString("en-PH")} tests` : ""}
           </Figure>
           <Figure label="QC, repeats, calibration, waste" value={period.other.toLocaleString("en-PH")}>
             {percent(period.total ? period.other / period.total : null)} of all tests used
@@ -114,16 +123,17 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
           <CardContent>
             <SimpleTable
               empty="No reagent lot was in use in this period."
-              head={["Reagent", "Lots", "Patient runs", "QC runs", "Other", "Wasted", "Not patient runs"]}
+              head={["Reagent", "Lots", "Patient runs", "QC runs", "Other", "Wasted", "Tests used", "Not patient runs"]}
               rows={usage.reagents.map((r) => [
                 <span key="r">
                   {r.itemName} <span className="text-meta text-muted-foreground">· {r.itemCode}</span>
                 </span>,
                 r.loads,
-                r.patientRuns,
-                r.qcRuns,
+                runsText(r.patientRuns, r.patientTests),
+                runsText(r.qcRuns, r.qcTests),
                 r.otherRuns,
                 r.wasted,
+                r.total,
                 percent(r.nonPatientShare),
               ])}
             />
@@ -156,7 +166,8 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
                 <span key="p" className="flex flex-col">
                   <span>{l.period.total} tests</span>
                   <span className="text-meta text-muted-foreground">
-                    patient {l.period.patientRuns} · QC {l.period.qcRuns} · other {l.period.otherRuns} · wasted {l.period.wasted}
+                    patient {runsText(l.period.patientRuns, l.period.patientTests)} · QC {runsText(l.period.qcRuns, l.period.qcTests)} · other{" "}
+                    {l.period.otherRuns} · wasted {l.period.wasted}
                   </span>
                 </span>,
                 <span key="u" className="flex flex-col">
@@ -169,7 +180,8 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
             />
             <p className="text-meta text-muted-foreground">
               A patient run is an order measured on the instrument: the tests of one order entered together count once, and a correction entered on the
-              instrument is a re-run. The cost per patient run spreads what the lot&apos;s stock cost — QC, repeats, calibration, waste and what was left unused
+              instrument is a re-run. A run uses one test of each lot unless a test is set to use more (tests per run below): a panel&apos;s first run counts
+              the most of its tests. The cost per patient run spreads what the lot&apos;s stock cost — QC, repeats, calibration, waste and what was left unused
               included — over its patient runs, once the lot is unloaded. Operational figures, not an accounting valuation. Record repeats, calibration and
               waste on the{" "}
               <Link href="/laboratory/instruments" className="text-primary hover:underline">
@@ -186,6 +198,20 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
           </CardHeader>
           <CardContent>
             <YieldEditor yields={yields} reagents={[...reagents.values()]} canManage={canManage} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tests per run</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TestsPerRunEditor
+              settings={perRun}
+              reagents={[...reagents.values()]}
+              tests={tests.filter((t) => t.status === "active").map((t) => ({ id: t.id, name: t.name }))}
+              canManage={canManage}
+            />
           </CardContent>
         </Card>
       </div>

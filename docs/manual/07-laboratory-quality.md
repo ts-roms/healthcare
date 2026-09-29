@@ -107,11 +107,14 @@ By default, loading a new lot restarts the QC window for the test: QC must be ru
 ## How to follow reagent use per test run
 
 Every lot in use shows how many tests it has used and how many are left, for example "42 of 100 tests used · 58 left", and **Running low** when a
-tenth or less is left. Quality managers then get one in-app notice for that lot, and the dashboard lists **Reagent lots running low**. Under it: patient, QC, other and wasted runs.
+tenth or less is left. Quality managers then get one in-app notice for that lot, and the dashboard lists **Reagent lots running low**. Under it: patient, QC, other and wasted runs ("2 runs (3 tests)" when runs used more than one test each).
 
 - A **patient run** is counted when a result is entered with the instrument: the tests of one order entered together count once; a correction
   entered on the instrument counts as a re-run.
 - A **QC run** is counted when a control is recorded.
+- A run uses **one test** of each lot in use, unless the reagent's **tests per run** for that test says more (a test run in duplicate, or with a
+  dilution or blank). The first run of an order counts once per lot with the most tests per run among its ordered tests; a QC run or a re-run
+  counts its own test's number.
 - Click **Record use…** for anything else: choose **Repeat** (a re-run not entered as a result), **Calibration**, **Priming**, **Waste** or
   **Other**, enter the number of tests and what for, and click **Record**. You need `lab.qc.enter`; an unloaded lot cannot take more use.
 - Click **Runs** to see every run counted against the lot, with who and when.
@@ -122,7 +125,8 @@ shows as "beyond the stated capacity".
 **Reagent use** (menu **Laboratory → Reagent use**, `lab.qc.read`) shows a period (default the last 30 days): patient runs, QC and other use and
 their share, lots running low, use per reagent, and per lot the runs in the period and over its life, what its stock cost, the **cost per patient
 run** once the lot is unloaded (everything the lot cost spread over its patient runs) and what was left unused. With `lab.qc.manage`, set each
-reagent's **tests per unit** in **Tests per unit** (it applies to lots loaded from then on). These are operational figures, not an accounting
+reagent's **tests per unit** in **Tests per unit** (it applies to lots loaded from then on), and in **Tests per run** choose a reagent, a test and
+the number of tests one run uses, then click **Set**; **Use 1** puts a test back to one test per run. A change applies to runs from then on. These are operational figures, not an accounting
 valuation.
 
 ## How to set up control materials, lots and targets

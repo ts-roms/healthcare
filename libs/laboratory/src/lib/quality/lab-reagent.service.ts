@@ -24,7 +24,9 @@ import {
   labReagentLoad,
   type LabReagentLoadRecord,
   labReagentUse,
+  labOrderItem,
   labReagentLowAlert,
+  labReagentTestUsage,
   labReagentYield,
   labResultReagent,
   labTest,
@@ -32,7 +34,7 @@ import {
 } from "../laboratory.schema";
 import { found, publicView } from "../laboratory-support";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "../ports";
-import { costPerPatientRun, loadCapacity, type ReagentUseSummary, summarizeReagentUse } from "./reagent-use.rules";
+import { costPerPatientRun, loadCapacity, patientRunTests, type ReagentUseSummary, summarizeReagentUse, testsPerRunOf } from "./reagent-use.rules";
 
 /** Longest period the reagent use report reads at once, in days. */
 export const MAX_REAGENT_USE_DAYS = 366;
@@ -294,17 +296,25 @@ export class LabReagentService {
 
   /**
    * Records the lots in use on a result and counts the run against each load: an order measured on the instrument,
-   * once per load and result version (the tests of a panel entered for one order are one run).
+   * once per load and result version (the tests of a panel entered for one order are one run), with the tests it used
+   * (`patientRunTests`: the reagent's tests per run for the tests measured, default 1).
    */
   async recordOnResult(
     tx: DbExecutor,
     organizationId: string,
-    result: { id: string; orderId: string; versionNumber: number; enteredBy: string },
+    result: { id: string; orderId: string; testId: string; versionNumber: number; enteredBy: string },
     loadIds: string[],
   ): Promise<void> {
     if (loadIds.length === 0) return;
     await tx.insert(labResultReagent).values(loadIds.map((reagentLoadId) => ({ organizationId, resultId: result.id, reagentLoadId })));
     const loads = await this.facilities(tx, loadIds);
+    const orderTestIds =
+      result.versionNumber === 1
+        ? (await tx.select({ testId: labOrderItem.testId, status: labOrderItem.status }).from(labOrderItem).where(eq(labOrderItem.orderId, result.orderId)))
+            .filter((i) => i.status !== "cancelled")
+            .map((i) => i.testId)
+        : [result.testId];
+    const perRun = await this.testsPerRunFor(tx, organizationId, loads, [...orderTestIds, result.testId]);
     await tx
       .insert(labReagentUse)
       .values(
@@ -313,7 +323,13 @@ export class LabReagentService {
           facilityId: l.facilityId,
           reagentLoadId: l.id,
           kind: "patient" as const,
-          tests: 1,
+          tests: patientRunTests({
+            loadTestId: l.testId,
+            resultTestId: result.testId,
+            versionNumber: result.versionNumber,
+            orderTestIds,
+            testsPerRun: perRun.get(l.inventoryItemId) ?? new Map(),
+          }),
           orderId: result.orderId,
           resultId: result.id,
           runNumber: result.versionNumber,
@@ -324,18 +340,19 @@ export class LabReagentService {
     await this.raiseLowAlerts(tx, organizationId, loadIds);
   }
 
-  /** Records the lots in use on a QC run and counts the run against each load. */
-  async recordOnQcRun(tx: DbExecutor, organizationId: string, run: { id: string; enteredBy: string }, loadIds: string[]): Promise<void> {
+  /** Records the lots in use on a QC run and counts the run against each load, with its test's tests per run. */
+  async recordOnQcRun(tx: DbExecutor, organizationId: string, run: { id: string; testId: string; enteredBy: string }, loadIds: string[]): Promise<void> {
     if (loadIds.length === 0) return;
     await tx.insert(labQcRunReagent).values(loadIds.map((reagentLoadId) => ({ organizationId, qcRunId: run.id, reagentLoadId })));
     const loads = await this.facilities(tx, loadIds);
+    const perRun = await this.testsPerRunFor(tx, organizationId, loads, [run.testId]);
     await tx.insert(labReagentUse).values(
       loads.map((l) => ({
         organizationId,
         facilityId: l.facilityId,
         reagentLoadId: l.id,
         kind: "qc" as const,
-        tests: 1,
+        tests: testsPerRunOf(perRun.get(l.inventoryItemId) ?? new Map(), run.testId),
         qcRunId: run.id,
         recordedBy: run.enteredBy,
       })),
@@ -458,6 +475,80 @@ export class LabReagentService {
     return (await this.yields(actor)).find((y) => y.inventoryItemId === itemId)!;
   }
 
+  /** Tests one run of a test uses from a reagent, where more than 1 (duplicates, dilutions, blanks). */
+  async testsPerRun(actor: Actor) {
+    const rows = await this.db
+      .select({ usage: labReagentTestUsage, testName: labTest.name, testCode: labTest.code })
+      .from(labReagentTestUsage)
+      .innerJoin(labTest, eq(labTest.id, labReagentTestUsage.testId))
+      .where(eq(labReagentTestUsage.organizationId, actor.organizationId));
+    const [items, names] = await Promise.all([
+      this.db
+        .select({ id: labReagentYield.inventoryItemId, name: labReagentYield.itemName, code: labReagentYield.itemCode })
+        .from(labReagentYield)
+        .where(eq(labReagentYield.organizationId, actor.organizationId)),
+      this.context.staffNames(actor.organizationId, [...new Set(rows.map((r) => r.usage.updatedBy))]),
+    ]);
+    const known = new Map(items.map((i) => [i.id, i]));
+    const missing = rows.map((r) => r.usage.inventoryItemId).filter((id) => !known.has(id));
+    for (const id of [...new Set(missing)]) {
+      const item = await this.context.inventoryItem(actor.organizationId, id);
+      if (item) known.set(id, { id, name: item.name, code: item.code });
+    }
+    return rows
+      .map((r) => ({
+        inventoryItemId: r.usage.inventoryItemId,
+        itemName: known.get(r.usage.inventoryItemId)?.name ?? "Reagent",
+        itemCode: known.get(r.usage.inventoryItemId)?.code ?? "",
+        testId: r.usage.testId,
+        testName: r.testName,
+        testCode: r.testCode,
+        testsPerRun: r.usage.testsPerRun,
+        updatedAt: r.usage.updatedAt,
+        updatedByName: names.get(r.usage.updatedBy) ?? null,
+      }))
+      .sort((a, b) => a.itemName.localeCompare(b.itemName) || a.testName.localeCompare(b.testName));
+  }
+
+  /**
+   * Sets how many tests one run of a test uses from a reagent (2–100); 1 removes the setting (the default). Runs already
+   * counted keep their count. Audited with the previous value.
+   */
+  async setTestsPerRun(actor: Actor, itemId: string, testId: string, testsPerRun: number) {
+    const item = await this.context.inventoryItem(actor.organizationId, itemId);
+    if (!item) throw new NotFoundError("Inventory item");
+    if (item.category !== REAGENT_CATEGORY) throw new BusinessRuleError("Only reagents have tests per run", "not_a_reagent");
+    await this.db.transaction(async (tx) => {
+      const [test] = await tx
+        .select({ id: labTest.id })
+        .from(labTest)
+        .where(and(eq(labTest.organizationId, actor.organizationId), eq(labTest.id, testId)));
+      found(test, "Laboratory test");
+      const key = and(
+        eq(labReagentTestUsage.organizationId, actor.organizationId),
+        eq(labReagentTestUsage.inventoryItemId, itemId),
+        eq(labReagentTestUsage.testId, testId),
+      );
+      const [previous] = await tx.select({ testsPerRun: labReagentTestUsage.testsPerRun }).from(labReagentTestUsage).where(key).for("update");
+      if (testsPerRun === 1) {
+        await tx.delete(labReagentTestUsage).where(key);
+      } else {
+        const values = { testsPerRun, updatedAt: new Date(), updatedBy: actor.userId };
+        await tx
+          .insert(labReagentTestUsage)
+          .values({ organizationId: actor.organizationId, inventoryItemId: itemId, testId, ...values })
+          .onConflictDoUpdate({ target: [labReagentTestUsage.organizationId, labReagentTestUsage.inventoryItemId, labReagentTestUsage.testId], set: values });
+      }
+      await this.audit.record(tx, actor, {
+        action: "lab.reagent.tests-per-run",
+        resourceType: "inventory_item",
+        resourceId: itemId,
+        metadata: { testId, testsPerRun, previous: previous?.testsPerRun ?? 1 },
+      });
+    });
+    return this.testsPerRun(actor);
+  }
+
   /**
    * Reagent use at the selected facility over a period of local days: every load in use during the period with the
    * runs counted in the period and over its life, what is left, and — for finished loads whose stock came from
@@ -490,7 +581,12 @@ export class LabReagentService {
     const [views, inPeriod, costs] = await Promise.all([
       this.views(actor.organizationId, facilityId, loads),
       this.db
-        .select({ loadId: labReagentUse.reagentLoadId, kind: labReagentUse.kind, tests: sql<number>`sum(${labReagentUse.tests})::int` })
+        .select({
+          loadId: labReagentUse.reagentLoadId,
+          kind: labReagentUse.kind,
+          tests: sql<number>`sum(${labReagentUse.tests})::int`,
+          runs: sql<number>`count(*)::int`,
+        })
         .from(labReagentUse)
         .where(and(inArray(labReagentUse.reagentLoadId, ids), gte(labReagentUse.recordedAt, start), lt(labReagentUse.recordedAt, end)))
         .groupBy(labReagentUse.reagentLoadId, labReagentUse.kind),
@@ -508,7 +604,15 @@ export class LabReagentService {
       const cost = v.stockMovementGroupId ? (costs.get(v.stockMovementGroupId) ?? null) : null;
       return {
         ...v,
-        period: { patientRuns: period.patientRuns, qcRuns: period.qcRuns, otherRuns: period.otherRuns, wasted: period.wasted, total: period.total },
+        period: {
+          patientRuns: period.patientRuns,
+          patientTests: period.patientTests,
+          qcRuns: period.qcRuns,
+          qcTests: period.qcTests,
+          otherRuns: period.otherRuns,
+          wasted: period.wasted,
+          total: period.total,
+        },
         /** What the stock taken at the load cost (centavos); null when not taken from stock or not valued. */
         stockCost: cost,
         costPerPatientRun: costPerPatientRun(cost, v.use.patientRuns, v.unloadedAt !== null),
@@ -518,15 +622,37 @@ export class LabReagentService {
     });
     const byItem = new Map<
       string,
-      { itemCode: string; itemName: string; loads: number; patientRuns: number; qcRuns: number; otherRuns: number; wasted: number }
+      {
+        itemCode: string;
+        itemName: string;
+        loads: number;
+        patientRuns: number;
+        patientTests: number;
+        qcRuns: number;
+        qcTests: number;
+        otherRuns: number;
+        wasted: number;
+      }
     >();
     for (const r of rows) {
-      const g = byItem.get(r.inventoryItemId) ?? { itemCode: r.itemCode, itemName: r.itemName, loads: 0, patientRuns: 0, qcRuns: 0, otherRuns: 0, wasted: 0 };
+      const g = byItem.get(r.inventoryItemId) ?? {
+        itemCode: r.itemCode,
+        itemName: r.itemName,
+        loads: 0,
+        patientRuns: 0,
+        patientTests: 0,
+        qcRuns: 0,
+        qcTests: 0,
+        otherRuns: 0,
+        wasted: 0,
+      };
       byItem.set(r.inventoryItemId, {
         ...g,
         loads: g.loads + 1,
         patientRuns: g.patientRuns + r.period.patientRuns,
+        patientTests: g.patientTests + r.period.patientTests,
         qcRuns: g.qcRuns + r.period.qcRuns,
+        qcTests: g.qcTests + r.period.qcTests,
         otherRuns: g.otherRuns + r.period.otherRuns,
         wasted: g.wasted + r.period.wasted,
       });
@@ -534,10 +660,10 @@ export class LabReagentService {
     return {
       ...base,
       loads: rows,
-      /** Runs in the period per reagent; nonPatientShare = everything but patient runs over all runs. */
+      /** Runs and tests in the period per reagent; nonPatientShare = the tests not used by patient runs over all tests. */
       reagents: [...byItem.entries()].map(([inventoryItemId, g]) => {
-        const total = g.patientRuns + g.qcRuns + g.otherRuns + g.wasted;
-        return { inventoryItemId, ...g, total, nonPatientShare: total > 0 ? (total - g.patientRuns) / total : null };
+        const total = g.patientTests + g.qcTests + g.otherRuns + g.wasted;
+        return { inventoryItemId, ...g, total, nonPatientShare: total > 0 ? (total - g.patientTests) / total : null };
       }),
     };
   }
@@ -568,7 +694,12 @@ export class LabReagentService {
       this.testNames(rows.map((r) => r.testId).filter((id): id is string => !!id)),
       this.context.staffNames(organizationId, [...new Set(rows.flatMap((r) => [r.loadedBy, r.unloadedBy]).filter((id): id is string => !!id))]),
       this.db
-        .select({ loadId: labReagentUse.reagentLoadId, kind: labReagentUse.kind, tests: sql<number>`sum(${labReagentUse.tests})::int` })
+        .select({
+          loadId: labReagentUse.reagentLoadId,
+          kind: labReagentUse.kind,
+          tests: sql<number>`sum(${labReagentUse.tests})::int`,
+          runs: sql<number>`count(*)::int`,
+        })
         .from(labReagentUse)
         .where(
           inArray(
@@ -659,7 +790,33 @@ export class LabReagentService {
   }
 
   private facilities(executor: DbExecutor, loadIds: string[]) {
-    return executor.select({ id: labReagentLoad.id, facilityId: labReagentLoad.facilityId }).from(labReagentLoad).where(inArray(labReagentLoad.id, loadIds));
+    return executor
+      .select({ id: labReagentLoad.id, facilityId: labReagentLoad.facilityId, testId: labReagentLoad.testId, inventoryItemId: labReagentLoad.inventoryItemId })
+      .from(labReagentLoad)
+      .where(inArray(labReagentLoad.id, loadIds));
+  }
+
+  /** Tests per run stated for these loads' reagents and tests: reagent id → (test id → tests per run). */
+  private async testsPerRunFor(
+    executor: DbExecutor,
+    organizationId: string,
+    loads: Array<{ inventoryItemId: string }>,
+    testIds: string[],
+  ): Promise<Map<string, Map<string, number>>> {
+    const byItem = new Map<string, Map<string, number>>();
+    if (loads.length === 0 || testIds.length === 0) return byItem;
+    const rows = await executor
+      .select()
+      .from(labReagentTestUsage)
+      .where(
+        and(
+          eq(labReagentTestUsage.organizationId, organizationId),
+          inArray(labReagentTestUsage.inventoryItemId, [...new Set(loads.map((l) => l.inventoryItemId))]),
+          inArray(labReagentTestUsage.testId, [...new Set(testIds)]),
+        ),
+      );
+    for (const r of rows) byItem.set(r.inventoryItemId, (byItem.get(r.inventoryItemId) ?? new Map()).set(r.testId, r.testsPerRun));
+    return byItem;
   }
 
   private async testNames(ids: string[]): Promise<Map<string, string>> {

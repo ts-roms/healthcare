@@ -3313,7 +3313,10 @@ export interface PatientWorkspaceSummary extends Omit<PatientSummaryResponse, "a
 
 export interface LabReagentUseSummary {
   patientRuns: number;
+  /** Tests the patient runs used (more than the runs when a test uses several per run; migration 0065). */
+  patientTests: number;
   qcRuns: number;
+  qcTests: number;
   otherRuns: number;
   wasted: number;
   total: number;
@@ -3351,6 +3354,19 @@ export interface LabReagentYield {
   updatedByName: string | null;
 }
 
+/** GET /laboratory/reagents/tests-per-run (settings above 1; 1 is the default) */
+export interface LabReagentTestsPerRun {
+  inventoryItemId: string;
+  itemName: string;
+  itemCode: string;
+  testId: string;
+  testName: string;
+  testCode: string;
+  testsPerRun: number;
+  updatedAt: string;
+  updatedByName: string | null;
+}
+
 /** GET /laboratory/reagents/usage */
 export interface LabReagentUsage {
   from: string;
@@ -3358,7 +3374,7 @@ export interface LabReagentUsage {
   timeZone: string;
   loads: Array<
     LabReagentLoad & {
-      period: Pick<LabReagentUseSummary, "patientRuns" | "qcRuns" | "otherRuns" | "wasted" | "total">;
+      period: Pick<LabReagentUseSummary, "patientRuns" | "patientTests" | "qcRuns" | "qcTests" | "otherRuns" | "wasted" | "total">;
       stockMovementGroupId: string | null;
       stockCost: number | null;
       costPerPatientRun: number | null;
@@ -3371,7 +3387,9 @@ export interface LabReagentUsage {
     itemName: string;
     loads: number;
     patientRuns: number;
+    patientTests: number;
     qcRuns: number;
+    qcTests: number;
     otherRuns: number;
     wasted: number;
     total: number;
