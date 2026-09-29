@@ -1,32 +1,38 @@
 import { z } from "zod";
 
 /** Staff registration form. The API re-validates everything; this gives fast, field-level feedback. */
-export const registrationFormSchema = z.object({
-  familyName: z.string().trim().min(1, "Required").max(100),
-  givenName: z.string().trim().min(1, "Required").max(100),
-  middleName: z.string().trim().max(100).optional(),
-  suffix: z.string().trim().max(20).optional(),
-  sex: z.enum(["female", "male", "intersex", "unknown"], { message: "Select sex" }),
-  birthDate: z.iso.date("Enter a valid date").refine((d) => d <= new Date().toISOString().slice(0, 10), "Birth date cannot be in the future"),
-  birthDateIsEstimated: z.boolean().optional(),
-  mobile: z
-    .string()
-    .trim()
-    // Spaces and dashes are allowed as typed (toRegisterPayload strips them).
-    .refine((v) => /^(\+?63|0)?9\d{9}$/.test(v.replace(/[\s-]/g, "")), "Enter a PH mobile number, e.g. 0917 123 4567")
-    .or(z.literal(""))
-    .optional(),
-  email: z.string().trim().email("Enter a valid email").or(z.literal("")).optional(),
-  philhealthPin: z
-    .string()
-    .trim()
-    .regex(/^\d{2}-?\d{9}-?\d$/, "PhilHealth PIN has 12 digits")
-    .or(z.literal(""))
-    .optional(),
-  cityMunicipality: z.string().trim().max(120).optional(),
-  barangay: z.string().trim().max(120).optional(),
-  province: z.string().trim().max(120).optional(),
-});
+export const registrationFormSchema = z
+  .object({
+    familyName: z.string().trim().min(1, "Required").max(100),
+    givenName: z.string().trim().min(1, "Required").max(100),
+    middleName: z.string().trim().max(100).optional(),
+    suffix: z.string().trim().max(20).optional(),
+    sex: z.enum(["female", "male", "intersex", "unknown"], { message: "Select sex" }),
+    birthDate: z.iso.date("Enter a valid date").refine((d) => d <= new Date().toISOString().slice(0, 10), "Birth date cannot be in the future"),
+    birthDateIsEstimated: z.boolean().optional(),
+    mobile: z
+      .string()
+      .trim()
+      // Spaces and dashes are allowed as typed (toRegisterPayload strips them).
+      .refine((v) => /^(\+?63|0)?9\d{9}$/.test(v.replace(/[\s-]/g, "")), "Enter a PH mobile number, e.g. 0917 123 4567")
+      .or(z.literal(""))
+      .optional(),
+    email: z.string().trim().email("Enter a valid email").or(z.literal("")).optional(),
+    philhealthPin: z
+      .string()
+      .trim()
+      .regex(/^\d{2}-?\d{9}-?\d$/, "PhilHealth PIN has 12 digits")
+      .or(z.literal(""))
+      .optional(),
+    cityMunicipality: z.string().trim().max(120).optional(),
+    barangay: z.string().trim().max(120).optional(),
+    province: z.string().trim().max(120).optional(),
+  })
+  // An address is saved only with its city or municipality (the API requires it): never drop a barangay or province silently.
+  .refine((f) => Boolean(f.cityMunicipality?.trim()) || !(f.barangay?.trim() || f.province?.trim()), {
+    path: ["cityMunicipality"],
+    message: "Enter the city or municipality to save the address",
+  });
 
 export type RegistrationForm = z.infer<typeof registrationFormSchema>;
 

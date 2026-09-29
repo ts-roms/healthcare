@@ -42,6 +42,8 @@ open it with the menu button (**Open navigation**) at the top left.
 
 - Selecting a module that has sub-pages (for example **Laboratory**) opens its first sub-page. The sub-pages appear under the module while you are in it.
 - **Dashboard** is always shown.
+- Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
+  reach is not shown at all.
 - A few menu entries lead to a page that says "This module is part of the platform roadmap and is not built yet." These are **Clinic → Prescriptions**,
   **Clinic → Referrals** and **Communications**. Nothing is lost. The work is done elsewhere (for example, prescribing is in the encounter workspace).
 
@@ -70,7 +72,7 @@ buttons you may not use are hidden, and the server checks every action again. Th
 
 From left to right:
 
-- **Search box** ("Search patient name, MRN, accession…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
+- **Search box** ("Search patients: name, patient no. or mobile…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
@@ -118,7 +120,8 @@ The small indicator next to **Clinic today** tells you how the figures update:
   word, not just the colour.
 - **Allergy statements are precise.** "No known allergies" appears only after someone recorded that review with the patient. A patient never asked shows
   "Allergies not recorded". If you may not see clinical data, you see "Allergies: no access". Never read a missing allergy badge as "no allergies".
-- **Dates** are written like `27 Sep 2026`. **Times** use the 24-hour clock (`14:05`) in Philippine time (Asia/Manila). Birth dates and due dates are calendar
+- **Dates** are written like `27 Sep 2026`. **Times** use the 24-hour clock (`14:05`) in the time zone of the facility you selected (Asia/Manila unless your organization set another for that facility; also Asia/Manila
+  before you select one). Birth dates and due dates are calendar
   dates and do not shift.
 - **Money** is in Philippine pesos (₱).
 - **Demo data.** A screen marked **Demo** with a yellow "Demo data." banner shows sample patients only. It is a design preview, is not connected to the patient

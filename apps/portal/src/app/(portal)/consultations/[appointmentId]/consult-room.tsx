@@ -33,13 +33,13 @@ export function ConsultRoom({ consult }: { consult: PortalTeleconsult }) {
       <header>
         <h1 className="text-page-lg font-semibold">Online consultation</h1>
         <p className="text-body text-muted-foreground">
-          {consult.practitionerName} · {visitTime({ startsAt: consult.startsAt, timeZone: "Asia/Manila" })}
+          {consult.practitionerName} · {visitTime({ startsAt: consult.startsAt, timeZone: consult.timeZone })}
         </p>
       </header>
       {stage === "questionnaire" ? <Questionnaire appointmentId={consult.appointmentId} onDone={() => router.refresh()} /> : null}
       {stage === "early" ? (
         <Panel icon={ClockIcon} title="Your answers are with your doctor">
-          The waiting room opens at {visitTime({ startsAt: consult.waitingRoomOpensAt, timeZone: "Asia/Manila" })}. Keep this page open or come back then.
+          The waiting room opens at {visitTime({ startsAt: consult.waitingRoomOpensAt, timeZone: consult.timeZone })}. Keep this page open or come back then.
         </Panel>
       ) : null}
       {stage === "ready" ? <EnterWaitingRoom appointmentId={consult.appointmentId} onDone={() => router.refresh()} /> : null}

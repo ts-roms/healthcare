@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
+import { setRequestTimeZone } from "../time-zone";
 import { API_BASE_URL, COOKIES } from "./config";
 import { toApiError } from "@healthcare/web-session";
 import { forwardedHeaders } from "@healthcare/web-session";
@@ -27,6 +28,7 @@ export function buildUrl(path: string, query?: ApiRequest["query"]): string {
  */
 export async function api<T>(path: string, { method = "GET", query, body, idempotencyKey }: ApiRequest = {}): Promise<T> {
   const jar = await cookies();
+  setRequestTimeZone(jar.get(COOKIES.timeZone)?.value);
   const accessToken = jar.get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");
   const headers: Record<string, string> = {

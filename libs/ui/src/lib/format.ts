@@ -4,19 +4,54 @@ import type { Patient, Sex } from "@healthcare/domain";
 /**
  * Clinical times are always shown in the facility's timezone, never the
  * server's or the browser's — a result "collected 01:42" when it was 09:42
- * is a patient-safety bug. Override per deployment with `setClinicTimeZone`.
+ * is a patient-safety bug. The app supplies the selected facility's zone:
+ * in the browser with `setClinicTimeZone` (one user per page), on a server
+ * with `setClinicTimeZoneResolver` (a request-scoped lookup, so concurrent
+ * requests for facilities in different zones never share one). Unknown
+ * zones fall back to Asia/Manila.
  */
-let clinicTimeZone = "Asia/Manila";
+export const DEFAULT_CLINIC_TIME_ZONE = "Asia/Manila";
 
-export function setClinicTimeZone(tz: string) {
-  clinicTimeZone = tz;
+let clinicTimeZone = DEFAULT_CLINIC_TIME_ZONE;
+let resolveClinicTimeZone: (() => string | null | undefined) | undefined;
+const validZones = new Map<string, boolean>();
+
+/** Whether `tz` is an IANA time zone this runtime knows. */
+export function isTimeZone(tz: string | null | undefined): tz is string {
+  if (!tz) return false;
+  let valid = validZones.get(tz);
+  if (valid === undefined) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz });
+      valid = true;
+    } catch {
+      valid = false;
+    }
+    validZones.set(tz, valid);
+  }
+  return valid;
+}
+
+export function setClinicTimeZone(tz: string | null | undefined) {
+  clinicTimeZone = isTimeZone(tz) ? tz : DEFAULT_CLINIC_TIME_ZONE;
+}
+
+/** A request-scoped lookup that takes precedence over `setClinicTimeZone` (for server rendering). */
+export function setClinicTimeZoneResolver(resolve: (() => string | null | undefined) | undefined) {
+  resolveClinicTimeZone = resolve;
+}
+
+/** The zone clinical times are shown in right now. */
+export function currentClinicTimeZone(): string {
+  const resolved = resolveClinicTimeZone?.();
+  return isTimeZone(resolved) ? resolved : clinicTimeZone;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const cache = new Map<string, Intl.DateTimeFormat>();
 
 function zoned(iso: string | Date) {
-  const tz = clinicTimeZone;
+  const tz = currentClinicTimeZone();
   let fmt = cache.get(tz);
   if (!fmt) {
     fmt = new Intl.DateTimeFormat("en-US", {

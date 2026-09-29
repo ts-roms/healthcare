@@ -22,14 +22,17 @@ export async function signOut(): Promise<void> {
   }
   clearSessionCookies(jar);
   jar.delete(COOKIES.facility);
+  jar.delete(COOKIES.timeZone);
   redirect("/login");
 }
 
-/** Selects the facility sent as X-Facility-Id. Only facilities the API lists for this organization are accepted. */
+/** Selects the facility sent as X-Facility-Id (and remembers its time zone for showing times). Only facilities the API lists for this organization are accepted. */
 export async function selectFacility(facilityId: string): Promise<void> {
-  const facilities = await getFacilities();
-  if (!facilities.some((f) => f.id === facilityId)) throw new Error("Unknown facility");
-  (await cookies()).set(COOKIES.facility, facilityId, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
+  const facility = (await getFacilities()).find((f) => f.id === facilityId);
+  if (!facility) throw new Error("Unknown facility");
+  const jar = await cookies();
+  jar.set(COOKIES.facility, facility.id, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
+  jar.set(COOKIES.timeZone, facility.timezone, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "lax", path: "/" });
 }
 
 /**

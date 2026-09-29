@@ -122,6 +122,8 @@ export interface PortalTeleconsult {
   appointmentId: string;
   startsAt: string;
   endsAt: string;
+  /** The facility's time zone. */
+  timeZone: string;
   appointmentStatus: string;
   practitionerName: string;
   visitType: string;

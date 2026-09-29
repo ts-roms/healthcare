@@ -114,9 +114,11 @@ export class OnlineVisitService {
         reason: appointment.reason,
         modality: visitType.modality,
         visitTypeName: visitType.name,
+        timeZone: facility.timezone,
       })
       .from(appointment)
       .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+      .innerJoin(facility, eq(facility.id, appointment.facilityId))
       .innerJoin(practitioner, eq(practitioner.id, appointment.practitionerId));
   }
 }

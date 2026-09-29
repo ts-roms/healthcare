@@ -11,12 +11,13 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 
 ## Session
 
-| Cookie   | Holds                               | Flags                                     | Lifetime                                |
-| -------- | ----------------------------------- | ----------------------------------------- | --------------------------------------- |
-| `hc_at`  | Access token                        | httpOnly, SameSite=Lax, Secure in prod    | Token TTL minus 30 s                    |
-| `hc_rt`  | Refresh token                       | httpOnly, SameSite=Strict, Secure in prod | Until the API's `refreshTokenExpiresAt` |
-| `hc_mfa` | MFA challenge token (between steps) | httpOnly, SameSite=Strict                 | 5 minutes, cleared on success           |
-| `hc_fac` | Selected facility id (not a secret) | httpOnly, SameSite=Lax                    | Session                                 |
+| Cookie   | Holds                                        | Flags                                     | Lifetime                                |
+| -------- | -------------------------------------------- | ----------------------------------------- | --------------------------------------- |
+| `hc_at`  | Access token                                 | httpOnly, SameSite=Lax, Secure in prod    | Token TTL minus 30 s                    |
+| `hc_rt`  | Refresh token                                | httpOnly, SameSite=Strict, Secure in prod | Until the API's `refreshTokenExpiresAt` |
+| `hc_mfa` | MFA challenge token (between steps)          | httpOnly, SameSite=Strict                 | 5 minutes, cleared on success           |
+| `hc_fac` | Selected facility id (not a secret)          | httpOnly, SameSite=Lax                    | Session                                 |
+| `hc_tz`  | Selected facility's time zone (display only) | httpOnly, SameSite=Lax                    | Session                                 |
 
 - **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). The facility selector lists `GET /auth/me/facilities` (active facilities where the user holds a role, every one for an organization-wide role; no `organization.read` needed); when that is exactly one facility it is selected at sign-in.
 - **Public pages** (`PUBLIC_PATHS` in `src/proxy.ts`): only the landing page `/welcome` (`app/(public)/welcome`) renders without a session. It is static, never calls the API, and describes the platform from `components/platform-highlights.tsx`, which the split sign-in page (`app/(auth)/layout.tsx`) shares.
@@ -28,6 +29,15 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 - **Sign-out**: `POST /auth/logout` (revokes the session), then cookies are cleared.
 
 Authorization is always the API's: the staff app hides what the user can't do (navigation from `GET /auth/me` permissions, buttons via `can()`), but every request is checked server-side by the API.
+
+## Time zone
+
+Clinical times are shown in the selected facility's time zone (`libs/ui` format helpers). On the server, the zone is
+request-scoped (`lib/time-zone.ts`: a React `cache` store the helpers read through `setClinicTimeZoneResolver`), filled
+from the `hc_tz` cookie on every API call and by the `(staff)` layout, so concurrent requests for facilities in
+different zones never share one. In the browser, `StaffShell` sets it (`setClinicTimeZone`) before the page renders.
+`hc_tz` is written with `hc_fac` (facility selection, sign-in pre-selection) and is display-only: an unknown zone falls
+back to Asia/Manila.
 
 ## Help (user manual)
 

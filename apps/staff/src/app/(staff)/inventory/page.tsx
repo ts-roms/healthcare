@@ -32,8 +32,11 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     );
   }
   const show = FILTERS.find((f) => f.key === params.show)?.key ?? "all";
-  const [stock, locations, allLocations, items, suppliers] = await Promise.all([
+  const filtered = show !== "all" || Boolean(params.location);
+  const [stock, unfiltered, locations, allLocations, items, suppliers] = await Promise.all([
     api<{ today: string; rows: StockRow[] }>("/inventory/stock", { query: { show, locationId: params.location } }),
+    // The movement form picks lots from all stock, whatever the table is filtered to.
+    filtered ? api<{ today: string; rows: StockRow[] }>("/inventory/stock", { query: { show: "all" } }) : null,
     api<InventoryLocation[]>("/inventory/locations", { query: { scope: "facility" } }),
     api<InventoryLocation[]>("/inventory/locations"),
     api<InventoryItem[]>("/inventory/items"),
@@ -126,7 +129,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             locations={locations.filter((l) => l.status === "active")}
             allLocations={allLocations.filter((l) => l.status === "active")}
             suppliers={suppliers.filter((s) => s.status === "active")}
-            stock={stock.rows}
+            stock={(unfiltered ?? stock).rows}
             canMove={canMove}
             canAdjust={canAdjust}
           />

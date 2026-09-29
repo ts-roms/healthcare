@@ -22,20 +22,38 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
 };
 
-/** Navigation for the signed-in user, from the permissions the API grants (not a client-side role). */
+/**
+ * Pages inside a module that need more than the module's own permission (any one is enough). They mirror each
+ * page's own check, so the menu never offers a page that sends the user back to the dashboard.
+ */
+const PAGE_PERMISSIONS: Record<string, string[]> = {
+  "/clinic/care-plans": ["care-plan.read"],
+  "/laboratory/critical": ["lab.result.read"],
+  "/laboratory/qc": ["lab.qc.read"],
+  "/laboratory/instruments": ["lab.qc.read"],
+  "/laboratory/temperatures": ["lab.qc.read"],
+  "/laboratory/nonconformances": ["lab.qc.read"],
+  "/laboratory/eqa": ["lab.qc.read"],
+  "/laboratory/competency": ["lab.qc.read"],
+  "/admin/integrations": ["integration.exchange.manage"],
+};
+
+/**
+ * Navigation for the signed-in user, from the permissions the API grants (not a client-side role). A module whose
+ * pages are all out of reach is left out.
+ */
 export function navigationForPermissions(permissions: readonly string[], items: NavItem[] = STAFF_NAVIGATION): NavItem[] {
   const granted = new Set(permissions);
+  const allowed = (required: string[] | undefined) => !required || required.some((p) => granted.has(p));
   return items
-    .filter((item) => {
-      const required = MODULE_PERMISSIONS[item.href];
-      return !required || required.some((p) => granted.has(p));
-    })
+    .filter((item) => allowed(MODULE_PERMISSIONS[item.href]))
     .map((item) => {
-      // Children inherit the module's gate; per-role child filtering is a demo concept.
+      // Children pass the module's gate and their own page's; per-role child filtering is a demo concept.
       const { roles: _roles, ...rest } = item;
-      const children = item.children?.map(({ roles: _r, ...child }) => child);
+      const children = item.children?.filter((child) => allowed(PAGE_PERMISSIONS[child.href])).map(({ roles: _r, ...child }) => child);
       return { ...rest, ...(children ? { children } : {}), ...(DEMO_MODULES.includes(item.href) ? { badge: "Demo" } : {}) };
-    });
+    })
+    .filter((item) => !item.children || item.children.length > 0);
 }
 
 export function isDemoPath(pathname: string): boolean {

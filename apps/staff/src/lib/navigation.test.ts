@@ -37,9 +37,23 @@ describe("navigationForPermissions", () => {
     expect(navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic")?.badge).toBeUndefined();
   });
 
-  it("shows administration only to user or organization managers", () => {
+  it("shows administration only when one of its pages is open to the user", () => {
     expect(hrefs(["patient.read"])).not.toContain("/admin");
-    expect(hrefs(["user.manage"])).toContain("/admin");
+    // Its only page (integrations) needs integration.exchange.manage; user management alone would bounce.
+    expect(hrefs(["user.manage"])).not.toContain("/admin");
+    const admin = navigationForPermissions(["integration.exchange.manage"]).find((i) => i.href === "/admin");
+    expect(admin?.children?.map((c) => c.href)).toEqual(["/admin/integrations"]);
+  });
+
+  it("offers only the laboratory pages the user can open", () => {
+    const children = (permissions: string[]) =>
+      navigationForPermissions(permissions)
+        .find((i) => i.href === "/laboratory")
+        ?.children?.map((c) => c.href);
+    // A phlebotomist: orders, but no results or quality.
+    expect(children(["lab.order.read"])).toEqual(["/laboratory/worklist", "/laboratory/send-outs", "/laboratory/catalog"]);
+    expect(children(["lab.order.read", "lab.result.read", "lab.qc.read"])).toContain("/laboratory/qc");
+    expect(children(["lab.order.read", "lab.result.read"])).toContain("/laboratory/critical");
   });
 
   it("shows record imports only to import reviewers", () => {
@@ -49,10 +63,15 @@ describe("navigationForPermissions", () => {
   });
 
   it("drops demo role filters from items and children", () => {
-    const clinic = navigationForPermissions(["encounter.read"]).find((i) => i.href === "/clinic");
+    const clinic = navigationForPermissions(["encounter.read", "care-plan.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);
     expect(clinic?.children?.every((c) => !("roles" in c))).toBe(true);
     expect(clinic?.children?.length).toBe(4);
+    expect(
+      navigationForPermissions(["encounter.read"])
+        .find((i) => i.href === "/clinic")
+        ?.children?.map((c) => c.href),
+    ).not.toContain("/clinic/care-plans");
   });
 });
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BellIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
@@ -18,12 +19,16 @@ export interface StaffShellProps {
   organizationName: string;
   facilities: { id: string; name: string }[];
   facilityId: string | null;
+  /** The selected facility's time zone; clinical times in the page are shown in it (Asia/Manila when none). */
+  timeZone: string | null;
   /** Unread in-app messages of the signed-in user. */
   unreadNotices: number;
   children: React.ReactNode;
 }
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, unreadNotices, children }: StaffShellProps) {
+export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, children }: StaffShellProps) {
+  // Set during render, before the page below renders, so every client component formats times in the facility's zone.
+  setClinicTimeZone(timeZone);
   const pathname = usePathname();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
