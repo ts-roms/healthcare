@@ -5,6 +5,7 @@ import { type Actor, CurrentActor, ForbiddenError, Public, RequireFacility, requ
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
 import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from "./auth.dto";
+import { AccessService, facilitiesInReach } from "./access.service";
 import { AuthService } from "./auth.service";
 import { REALTIME_TICKET_TTL_SECONDS, TokenService } from "./tokens";
 
@@ -16,6 +17,7 @@ const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly access: AccessService,
     private readonly organizations: OrganizationService,
     private readonly tokens: TokenService,
   ) {}
@@ -83,6 +85,27 @@ export class AuthController {
       facilityId: actor.facilityId ?? null,
       permissions: [...actor.permissions].sort(),
     };
+  }
+
+  @Get("me/facilities")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Active facilities the current user can work in (holds a role there, or an organization-wide role); for the facility selector",
+  })
+  async myFacilities(@CurrentActor() actor: Actor) {
+    const [grants, facilities] = await Promise.all([
+      this.access.grantsFor(actor.userId, actor.organizationId),
+      this.organizations.listFacilities(actor.organizationId),
+    ]);
+    const active = facilities.filter((f) => f.status === "active");
+    return facilitiesInReach(grants, active).map((f) => ({
+      id: f.id,
+      code: f.code,
+      name: f.name,
+      facilityType: f.facilityType,
+      timezone: f.timezone,
+      status: f.status,
+    }));
   }
 
   @Post("password")

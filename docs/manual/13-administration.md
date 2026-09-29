@@ -204,9 +204,8 @@ not repeated. A dash (—) means only the organization administrator has it by d
 - Several powerful actions are held only by the organization administrator: voiding invoices, refunds, credit and debit notes, price lists, DOH settings,
   PhilHealth settings, dental settings, clinic configuration, approving purchase orders, integration review, FHIR read and import, and all user, role and
   organization management. Grant them to a custom role if someone else must do them.
-- The **Cashier** role does not include `organization.read`. A person with only the cashier role cannot see the facility selector, so they cannot select a
-  facility and the billing screens ask them to select one. Until this is changed, also give cashiers a role that includes `organization.read` (or a custom role
-  that adds it).
+- The facility selector lists the facilities where a person holds a role (every facility for an organization-wide role). It does not need
+  `organization.read`, so a cashier-only user can choose their facility.
 - The **Auditor** role has no screen to use yet: the audit trail is read through the API (see below).
 
 ## How staff accounts are managed
@@ -243,6 +242,7 @@ the API:
 | Task                       | API call                                                           | Permission                                  |
 | -------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
 | View the organization      | `GET /api/v1/organization`                                         | `organization.read`                         |
+| Facilities you can work in | `GET /api/v1/auth/me/facilities` (the facility selector)           | Any signed-in user                          |
 | List or view facilities    | `GET /api/v1/facilities`, `GET /api/v1/facilities/{facilityId}`    | `organization.read`                         |
 | Create a facility          | `POST /api/v1/facilities`                                          | `organization.manage`                       |
 | Update a facility          | `PATCH /api/v1/facilities/{facilityId}` (with its current version) | `organization.manage`                       |
@@ -332,7 +332,7 @@ entries.
 | Message                                                                           | Meaning                                                                  | What to do                                                                                |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | You do not have permission to perform this action                                 | The user's roles do not include the permission at the selected facility. | Check their role grants and whether the grant is limited to another facility.             |
-| A staff member sees no facility selector                                          | They lack `organization.read` (for example, cashier-only users).         | Grant a role that includes `organization.read`.                                           |
+| A staff member sees no facility selector                                          | They hold no role in any active facility.                                | Grant a role for the organization or for their facility.                                  |
 | Facility is not accessible                                                        | The selected facility is inactive or not in the organization.            | Select an active facility.                                                                |
 | You cannot grant permissions you do not hold                                      | The role contains permissions the granting user lacks.                   | Ask an organization administrator to grant it.                                            |
 | The user already has this role in this scope                                      | The same role is already granted at that level.                          | No action needed.                                                                         |

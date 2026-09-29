@@ -32,7 +32,8 @@ the facility you choose with everything you do.
 - The selector appears on tablet-sized and larger screens only. On a phone-sized window, widen the window or use a larger screen to switch facility.
 - Screens that need a facility show a yellow note, for example "Select your facility in the top bar first." Registration says "Patients are registered at a
   facility."
-- If you don't see a facility selector at all, you need the `organization.read` permission. Ask your administrator.
+- The selector lists the facilities where you hold a role (all of them if your role covers the whole organization). If you don't see a facility selector
+  at all, you have no role in any active facility. Ask your administrator.
 
 ## How to find your way around
 

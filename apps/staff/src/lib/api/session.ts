@@ -9,12 +9,8 @@ import type { Facility, Me } from "./types";
 export const getSession = cache(() => api<Me>("/auth/me"));
 
 /** Facilities of the organization, or none when the user may not read them. */
-export const getFacilities = cache(async (): Promise<Facility[]> => {
-  const session = await getSession();
-  if (!session.permissions.includes("organization.read")) return [];
-  const facilities = await api<Facility[]>("/facilities");
-  return facilities.filter((f) => f.status === "active");
-});
+/** The active facilities the user holds a role in (all of them for an organization-wide role): the facility selector's choices. */
+export const getFacilities = cache(async (): Promise<Facility[]> => api<Facility[]>("/auth/me/facilities"));
 
 /** The facility selected in the top bar (sent as X-Facility-Id), if it is one of the organization's active facilities. */
 export const getSelectedFacility = cache(async (): Promise<Facility | null> => {
