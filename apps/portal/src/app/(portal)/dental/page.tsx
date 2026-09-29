@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { EmptyState } from "@/components/empty-state";
+import { peso } from "@/lib/billing";
 import { portalApi } from "@/lib/api/client";
 import type { PortalDentalPlan, PortalDentalRecord } from "@/lib/api/types";
 import {
@@ -129,8 +130,9 @@ export default async function DentalPage() {
       )}
       <p className="flex items-start gap-2 text-meta text-muted-foreground">
         <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-        Your dentist&apos;s notes are not shown here, X-rays and photos only when your dentist shares them, and fees are not part of a plan — ask the clinic. If
-        something looks wrong, tell your dentist at your next visit.
+        Your dentist&apos;s notes are not shown here, and X-rays and photos only when your dentist shares them.{" "}
+        {record.plans.some((p) => p.estimate) ? "Fees shown are estimates; ask the clinic about your final bill." : "For fees, ask the clinic."} If something
+        looks wrong, tell your dentist at your next visit.
       </p>
     </div>
   );
@@ -193,18 +195,48 @@ function Plan({ plan, notation, acknowledgement }: { plan: PortalDentalPlan; not
                       <Icon className="size-4 shrink-0" aria-hidden />
                       {state.text}
                     </span>
+                    {plan.estimate && (item.decision === "awaiting" || item.status === "accepted") ? (
+                      <span className="text-meta text-muted-foreground">
+                        {item.estimatedFee == null ? "Estimated fee: ask the clinic" : `Estimated fee: ${peso(item.estimatedFee)}`}
+                      </span>
+                    ) : null}
                   </li>
                 );
               })}
           </ul>
         </div>
       ))}
+      {plan.estimate ? <Estimate estimate={plan.estimate} /> : null}
       {plan.canDecide && acknowledgement ? (
         <PlanDecision plan={plan} acknowledgement={acknowledgement} />
       ) : plan.items.some((i) => i.decision === "awaiting") ? (
         <p className="text-meta text-muted-foreground">To decide, talk to your dentist or the clinic — decisions are recorded at the clinic.</p>
       ) : null}
     </article>
+  );
+}
+
+/** The estimate of the work still ahead on a plan, with what it is not and the clinic's own note. */
+function Estimate({ estimate }: { estimate: NonNullable<PortalDentalPlan["estimate"]> }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3">
+      <p className="font-semibold">Estimated cost of the treatment still ahead: {peso(estimate.remaining)}</p>
+      {estimate.awaitingDecision && estimate.accepted ? (
+        <p className="text-meta">
+          Awaiting your decision {peso(estimate.awaitingDecision)} · accepted {peso(estimate.accepted)}
+        </p>
+      ) : null}
+      {estimate.unpricedItems ? (
+        <p className="text-meta">
+          {estimate.unpricedItems === 1 ? "One treatment has" : `${estimate.unpricedItems} treatments have`} no listed price and{" "}
+          {estimate.unpricedItems === 1 ? "is" : "are"} not included — ask the clinic.
+        </p>
+      ) : null}
+      <p className="text-meta text-muted-foreground">
+        Prices as of {formatCalendarDate(estimate.pricedOn)}. {estimate.disclaimer}
+      </p>
+      {estimate.note ? <p className="text-meta text-muted-foreground">{estimate.note}</p> : null}
+    </div>
   );
 }
 

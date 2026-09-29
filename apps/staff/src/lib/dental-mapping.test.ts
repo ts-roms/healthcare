@@ -5,6 +5,7 @@ import {
   draftProblems,
   examinationTeeth,
   openVisit,
+  plansWithEstimate,
   procedureSupplies,
   supplyDraft,
   supplyErrors,
@@ -86,5 +87,18 @@ describe("dental mapping", () => {
     expect(supplyErrors("insufficient_stock", "Not enough", { itemId: "a", available: 1 })).toEqual({ a: "Not enough" });
     expect(supplyErrors("invalid_supplies", "Invalid", { a: ["listed more than once"], _: ["x"] })).toEqual({ a: "listed more than once", _: "x" });
     expect(supplyErrors("location_inactive", "Inactive", undefined)).toEqual({});
+  });
+
+  it("estimates only open plans with work still ahead", () => {
+    const item = (status: "proposed" | "accepted" | "completed" | "declined") => ({ status }) as never;
+    expect(
+      plansWithEstimate([
+        { id: "a", status: "proposed", items: [item("proposed")] },
+        { id: "b", status: "in_progress", items: [item("completed"), item("accepted")] },
+        { id: "c", status: "completed", items: [item("completed")] },
+        { id: "d", status: "discontinued", items: [item("accepted")] },
+        { id: "e", status: "accepted", items: [item("completed"), item("declined")] },
+      ]),
+    ).toEqual(["a", "b"]);
   });
 });

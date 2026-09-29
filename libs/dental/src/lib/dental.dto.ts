@@ -25,6 +25,16 @@ export const portalSettingSchema = z.object({
   portalPlanDecisions: z.boolean().optional(),
   /** The organization's own text patients confirm before deciding online (left out: unchanged). */
   portalPlanAcknowledgement: z.string().trim().min(20).max(1000).nullable().optional(),
+  /** MyHealth shows fee estimates on plans (left out: unchanged). */
+  portalPlanEstimates: z.boolean().optional(),
+  /** The organization's own note under fee estimates (left out: unchanged; empty or null removes it). */
+  feeEstimateNote: z
+    .string()
+    .trim()
+    .max(500)
+    .nullable()
+    .optional()
+    .refine((v) => !v || v.length >= 10, "Write at least 10 characters, or leave it empty"),
   version: z.number().int().min(0),
 });
 export class PortalSettingDto extends createZodDto(portalSettingSchema) {}
@@ -223,5 +233,10 @@ export const patientPlanDecisionSchema = z.object({
   awaitingItemIds: z.array(z.uuid()).min(1).max(60),
   /** The patient confirmed the organization's acknowledgement. */
   acknowledged: z.literal(true, { message: "Confirm the acknowledgement to continue" }),
+  /**
+   * The estimate (centavos) of the items awaiting a decision the patient was shown, when the clinic shows estimates;
+   * a different current estimate means the prices changed since and nothing is decided.
+   */
+  estimateAwaitingDecision: z.number().int().min(0).nullable().optional(),
 });
 export class PatientPlanDecisionDto extends createZodDto(patientPlanDecisionSchema) {}

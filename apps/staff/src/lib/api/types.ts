@@ -1709,6 +1709,32 @@ export interface DentalPlanItem {
   status: DentalPlanItemStatus;
   procedureId: string | null;
   version: number;
+  /** The listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on. */
+  decisionEstimate?: number | null;
+  decisionEstimateOn?: string | null;
+}
+
+/** GET /dental/treatment-plans/:id/estimate (libs/dental/src/lib/plans/dental-fee-estimates.ts). Amounts in centavos. */
+export interface DentalPlanEstimate {
+  planId: string;
+  planStatus: DentalPlanStatus;
+  pricedOn: string;
+  currency: "PHP";
+  items: Array<{
+    itemId: string;
+    phase: number;
+    tooth: string | null;
+    surfaces: ToothSurface[];
+    procedure: { code: string; name: string } | null;
+    status: DentalPlanItemStatus;
+    /** In the estimate: awaiting the patient's decision, or accepted and not yet done; null: not part of it. */
+    part: "awaiting" | "accepted" | null;
+    listed: { serviceCode: string; serviceName: string; unitPrice: number } | null;
+    atDecision: { amount: number | null; pricedOn: string } | null;
+  }>;
+  totals: { awaitingDecision: number; accepted: number; remaining: number; unpricedItems: number };
+  disclaimer: string;
+  note: string | null;
 }
 
 export interface DentalTreatmentPlan {
@@ -2741,6 +2767,10 @@ export interface DentalPortalSetting {
   portalPlanDecisions: boolean;
   /** The organization's own text patients confirm before deciding online. */
   portalPlanAcknowledgement: string | null;
+  /** MyHealth shows fee estimates on plans (needs dental records shown). */
+  portalPlanEstimates: boolean;
+  /** The organization's own note under every fee estimate (printed and in MyHealth). */
+  feeEstimateNote: string | null;
   /** 0 until first set. */
   version: number;
   updatedAt: string | null;

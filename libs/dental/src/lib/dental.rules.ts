@@ -1,4 +1,4 @@
-import type { ChartEffect, ProcedureSite, Surface, ToothCondition } from "./dental.schema";
+import type { ChartEffect, Notation, ProcedureSite, Surface, ToothCondition } from "./dental.schema";
 
 /**
  * Dental charting rules (docs/domains/dental.md). Teeth are FDI / ISO 3950 two-digit codes: permanent 11–18, 21–28,
@@ -147,6 +147,22 @@ export function sortFindings(findings: Finding[]): Finding[] {
 export function procedureLabel(name: string, tooth: string | null, surfaces: readonly Surface[]): string {
   if (!tooth) return name;
   return `${name} — ${tooth}${surfaces.length ? ` ${normalizeSurfaces(surfaces).join("")}` : ""}`;
+}
+
+/**
+ * A tooth in a notation, for documents the API prints (the frontends use `toothLabel` in libs/domain, which this must
+ * match): FDI "16"; Universal 1–32 for permanent teeth and A–T for primary teeth; Palmer as quadrant plus number or
+ * letter ("UR6", "LLD").
+ */
+export function toothInNotation(tooth: string, notation: Notation): string {
+  if (notation === "fdi" || !TOOTH.test(tooth)) return tooth;
+  const quadrant = Number(tooth[0]);
+  const position = Number(tooth[1]);
+  const primary = quadrant > 4;
+  const q = primary ? quadrant - 4 : quadrant;
+  if (notation === "palmer") return `${q <= 2 ? "U" : "L"}${q === 1 || q === 4 ? "R" : "L"}${primary ? String.fromCharCode(64 + position) : position}`;
+  if (!primary) return String([9 - position, 8 + position, 25 - position, 24 + position][q - 1]);
+  return String.fromCharCode(64 + [6 - position, 5 + position, 16 - position, 15 + position][q - 1]!);
 }
 
 // ---- treatment plans ----------------------------------------------------------------------------------
