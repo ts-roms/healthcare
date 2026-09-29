@@ -1,5 +1,4 @@
-import type { ManagementFigureComparison, ManagementPatientCount } from "./api/types";
-import { peso } from "./billing-mapping";
+import type { ManagementFigureChange, ManagementPatientCount } from "./api/types";
 import { shiftDate } from "./clinic-mapping";
 
 /** Display rules for the management dashboard; the API computes every figure. */
@@ -30,6 +29,36 @@ export function percentOf(rate: number | null): string {
   return `${(Math.round(rate * 1000) / 10).toLocaleString("en-PH")}%`;
 }
 
+/**
+ * How a figure moved against the previous period, as text (arrow + words, never colour alone). Counts and amounts
+ * change in percent, rates in percentage points, durations in minutes. Whether up is good depends on the figure, so
+ * the text stays neutral.
+ */
+export function comparison(current: number | "<5" | null, previous: number | "<5" | null, kind: "count" | "rate" | "minutes"): string {
+  // A suppressed patient count ("<5") is not compared: the change would reveal it.
+  if (typeof current !== "number" || typeof previous !== "number") return "no comparison";
+  if (current === previous) return "no change";
+  const arrow = current > previous ? "▲" : "▼";
+  if (kind === "rate") return `${arrow} ${Math.abs(Math.round((current - previous) * 1000) / 10).toLocaleString("en-PH")} pts`;
+  if (kind === "minutes") return `${arrow} ${Math.abs(current - previous).toLocaleString("en-PH")} min`;
+  if (previous === 0) return `${arrow} from none`;
+  return `${arrow} ${Math.abs(Math.round(((current - previous) / previous) * 100)).toLocaleString("en-PH")}%`;
+}
+
+/** "the previous 30 days" / "the previous day". */
+export function previousLabel(from: string, to: string): string {
+  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  return days === 1 ? "the previous day" : `the previous ${days} days`;
+}
+
+/** Whether the change is an improvement, from the API's direction of improvement for the figure; colour follows. */
+export function verdict(change: ManagementFigureChange | undefined): { text: string; tone: "better" | "worse" | "neutral" } | null {
+  const assessment = change?.change?.assessment;
+  if (!assessment || assessment === "unchanged") return null;
+  if (assessment === "neutral") return { text: "neither better nor worse", tone: "neutral" };
+  return { text: assessment, tone: assessment };
+}
+
 /** A patient count for people: "<5" stays as it is (suppressed by the API), numbers get separators. */
 export function countLabel(count: ManagementPatientCount): string {
   return typeof count === "number" ? count.toLocaleString("en-PH") : count;
@@ -40,71 +69,19 @@ export function patientRateLabel(rate: number | null, suppressed: boolean): stri
   return suppressed ? "withheld (<5)" : percentOf(rate);
 }
 
-export type ChangeTone = "better" | "worse" | "neutral";
-
-/**
- * A figure's change against the previous period for people — an arrow, words and a tone (never colour alone):
- * rates in percentage points ("+5.0 points"), money in pesos, other figures in their unit with the percentage.
- * Null when there is nothing to compare (no previous value, or a suppressed count).
- */
-export function changeLabel(figure: ManagementFigureComparison): { arrow: "↑" | "↓" | "→"; text: string; tone: ChangeTone } | null {
-  const change = figure.change;
-  if (!change) return null;
-  if (change.direction === "flat") return { arrow: "→", text: "No change vs previous period", tone: "neutral" };
-  const arrow = change.direction === "up" ? "↑" : "↓";
-  const sign = change.absolute > 0 ? "+" : "−";
-  const abs = Math.abs(change.absolute);
-  let amount: string;
-  if (figure.unit === "rate") amount = `${sign}${(Math.round(abs * 1000) / 10).toFixed(1)} points`;
-  else if (figure.unit === "centavos") amount = `${sign}${peso(abs)}`;
-  else if (figure.unit === "minutes") amount = `${sign}${abs.toLocaleString("en-PH")} min`;
-  else amount = `${sign}${abs.toLocaleString("en-PH")}`;
-  if (figure.unit !== "rate" && change.relative !== null) {
-    amount += ` (${sign}${(Math.round(Math.abs(change.relative) * 1000) / 10).toLocaleString("en-PH")}%)`;
-  }
-  const verdict = { better: "better", worse: "worse", unchanged: "no change", neutral: "neither better nor worse" }[change.assessment];
-  const tone: ChangeTone = change.assessment === "better" ? "better" : change.assessment === "worse" ? "worse" : "neutral";
-  return { arrow, text: `${amount} vs previous period (${verdict})`, tone };
-}
-
-/** The CSV sections the API exports; revenue ones need billing report access. */
-export const CSV_SECTIONS = [
-  "summary",
-  "daily",
-  "providers",
-  "laboratory",
-  "lab-tests",
-  "lab-instruments",
-  "dental-procedures",
-  "telemedicine",
-  "retention",
-  "revenue",
-  "revenue-by-category",
-  "collections",
-  "services",
-] as const;
-export type CsvSection = (typeof CSV_SECTIONS)[number];
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f-]{36}$/i;
-
-/** The staff download link for one section with the page's filters. */
-export function csvHref(section: CsvSection, filters: { from: string; to: string; facilityId?: string }): string {
-  const params = new URLSearchParams({ section, from: filters.from, to: filters.to });
-  if (filters.facilityId) params.set("facilityId", filters.facilityId);
-  return `/management/export?${params.toString()}`;
-}
-
-/** The API query for a download request; null when the section is unknown. Malformed filters are dropped. */
-export function csvApiQuery(params: URLSearchParams): Record<string, string> | null {
-  const section = params.get("section");
-  if (!section || !(CSV_SECTIONS as readonly string[]).includes(section)) return null;
-  const query: Record<string, string> = { section };
-  for (const key of ["from", "to"] as const) {
-    const value = params.get(key);
-    if (value && DATE.test(value)) query[key] = value;
-  }
-  const facilityId = params.get("facilityId");
-  if (facilityId && UUID.test(facilityId)) query.facilityId = facilityId;
-  return query;
-}
+/** CSV tables of the dashboard export; `revenue` ones need billing report access for every facility in scope. */
+export const EXPORT_TABLES: Array<{ key: string; label: string; revenue?: true }> = [
+  { key: "summary", label: "Summary" },
+  { key: "daily", label: "Daily" },
+  { key: "services", label: "Services", revenue: true },
+  { key: "categories", label: "Categories", revenue: true },
+  { key: "revenue", label: "Revenue", revenue: true },
+  { key: "collections", label: "Payment methods", revenue: true },
+  { key: "providers", label: "Providers" },
+  { key: "laboratory", label: "Laboratory" },
+  { key: "lab-tests", label: "Lab tests" },
+  { key: "lab-instruments", label: "Lab instruments" },
+  { key: "dental-procedures", label: "Dental procedures" },
+  { key: "telemedicine", label: "Online consultations" },
+  { key: "retention", label: "Retention" },
+];

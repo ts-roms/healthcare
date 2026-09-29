@@ -22,19 +22,17 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { ManagementDashboard, ManagementFigureComparison } from "@/lib/api/types";
+import type { ManagementDashboard } from "@/lib/api/types";
 import { CATEGORY_LABEL, METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import { minutesLabel } from "@/lib/dashboard-mapping";
-import { changeLabel, countLabel, type CsvSection, csvHref, patientRateLabel, percentOf, rangePresets } from "@/lib/management-mapping";
+import { comparison, countLabel, EXPORT_TABLES, patientRateLabel, percentOf, previousLabel, rangePresets, verdict } from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
 
 export const metadata = { title: "Management dashboard" };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
-
-const TONE_CLASS = { better: "text-success", worse: "text-danger", neutral: "text-muted-foreground" } as const;
 
 /** Operational figures across the organization's domains for a range of days (CLAUDE.md §28, management). */
 export default async function ManagementPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; facilityId?: string }> }) {
@@ -69,9 +67,11 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
       : data.facilityIds.map((id) => data.facilities.find((f) => f.id === id)?.name ?? "Facility").join(", ") || "No facilities";
   const today = todayIn(data.timeZone);
   const facilityParam = query.facilityId ? `&facilityId=${query.facilityId}` : "";
-  const filters = { from: data.from, to: data.to, facilityId: query.facilityId };
-  const csv = (section: CsvSection) => csvHref(section, filters);
-  const compared = (key: string) => data.comparison.find((f) => f.key === key);
+  const k = data.keyFigures;
+  const prev = data.previous.keyFigures;
+  const versus = `vs ${previousLabel(data.previous.from, data.previous.to)}`;
+  const exportQuery = `from=${data.from}&to=${data.to}${facilityParam}`;
+  const changes = data.previous.changes;
   const d = data.definitions;
   const c = data.clinic;
   const b = data.billing;
@@ -123,18 +123,17 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           </nav>
         </form>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-meta text-muted-foreground">
-          <p>
-            {data.previous
-              ? `Compared with ${clinicalDate(`${data.previous.from}T12:00:00Z`)} to ${clinicalDate(`${data.previous.to}T12:00:00Z`)} (the previous period of equal length). `
-              : null}
-            Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy.
-          </p>
-          <p className="flex gap-3">
-            <CsvLink href={csv("summary")} label="Key figures" />
-            <CsvLink href={csv("daily")} label="Daily figures" />
-          </p>
-        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
+          <span>Download CSV:</span>
+          {EXPORT_TABLES.filter((t) => b !== null || !t.revenue).map((t) => (
+            <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
+              {t.label}
+            </a>
+          ))}
+        </p>
+        <p className="text-meta text-muted-foreground">
+          Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.
+        </p>
 
         {b === null ? (
           <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
@@ -143,43 +142,96 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
         ) : null}
 
         <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Figure label="Patients seen" value={countLabel(data.patients.seen)} comparison={compared("patientsSeen")} definition={d.patientsSeen}>
+          <Figure
+            label="Patients seen"
+            value={countLabel(k.patientsSeen)}
+            change={comparison(k.patientsSeen, prev.patientsSeen, "count")}
+            assessment={verdict(changes.patientsSeen)}
+            versus={versus}
+            definition={d.patientsSeen}
+          >
             {countLabel(data.patients.registered)} new · {patientRateLabel(data.patients.returningRate, data.patients.returningRateSuppressed)} returning
           </Figure>
           <Figure
             label="Consultations"
-            value={c.encounters.completed.toLocaleString("en-PH")}
-            comparison={compared("consultations")}
+            value={k.consultations.toLocaleString("en-PH")}
+            change={comparison(k.consultations, prev.consultations, "count")}
+            assessment={verdict(changes.consultations)}
+            versus={versus}
             definition={d.consultations}
           >
             {c.encounters.telemedicine.toLocaleString("en-PH")} online · {data.dental.procedures.toLocaleString("en-PH")} dental procedures
           </Figure>
-          <Figure label="No-show rate" value={percentOf(c.appointments.noShowRate)} comparison={compared("noShowRate")} definition={d.noShowRate}>
+          <Figure
+            label="No-show rate"
+            value={percentOf(k.noShowRate)}
+            change={comparison(k.noShowRate, prev.noShowRate, "rate")}
+            assessment={verdict(changes.noShowRate)}
+            versus={versus}
+            definition={d.noShowRate}
+          >
             {c.appointments.noShow} of {c.appointments.booked} booked · {c.appointments.cancelled} cancelled
           </Figure>
-          <Figure label="Average wait" value={minutesLabel(c.visits.averageWaitMinutes)} comparison={compared("averageWait")} definition={d.averageWait}>
+          <Figure
+            label="Average wait"
+            value={minutesLabel(k.averageWaitMinutes)}
+            change={comparison(k.averageWaitMinutes, prev.averageWaitMinutes, "minutes")}
+            assessment={verdict(changes.averageWaitMinutes)}
+            versus={versus}
+            definition={d.averageWait}
+          >
             check-in to consultation · {c.visits.checkedIn} checked in, {c.visits.leftWithoutBeingSeen} left unseen
           </Figure>
           {b ? (
             <>
-              <Figure label="Invoiced (net)" value={peso(b.invoices.netTotal)} comparison={compared("invoicedNet")} definition={d.invoicedNet}>
+              <Figure
+                label="Invoiced (net)"
+                value={peso(b.invoices.netTotal)}
+                change={comparison(k.netInvoiced, prev.netInvoiced, "count")}
+                assessment={verdict(changes.netInvoiced)}
+                versus={versus}
+                definition={d.invoicedNet}
+              >
                 {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
               </Figure>
-              <Figure label="Collected" value={peso(b.netCollected)} comparison={compared("collected")} definition={d.collected}>
+              <Figure
+                label="Collected"
+                value={peso(b.netCollected)}
+                change={comparison(k.netCollected, prev.netCollected, "count")}
+                assessment={verdict(changes.netCollected)}
+                versus={versus}
+                definition={d.collected}
+              >
                 {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
               </Figure>
             </>
           ) : null}
-          <Figure label="Lab tests released" value={l.released.toLocaleString("en-PH")} comparison={compared("labReleased")} definition={d.labReleased}>
+          <Figure
+            label="Lab tests released"
+            value={k.labTestsReleased.toLocaleString("en-PH")}
+            change={comparison(k.labTestsReleased, prev.labTestsReleased, "count")}
+            assessment={verdict(changes.labTestsReleased)}
+            versus={versus}
+            definition={d.labReleased}
+          >
             {l.testsOrdered} ordered · {l.corrections} corrections
           </Figure>
-          <Figure label="Lab turnaround" value={minutesLabel(l.averageTurnaroundMinutes)} comparison={compared("labTurnaround")} definition={d.labTurnaround}>
+          <Figure
+            label="Lab turnaround"
+            value={minutesLabel(k.labTurnaroundMinutes)}
+            change={comparison(k.labTurnaroundMinutes, prev.labTurnaroundMinutes, "minutes")}
+            assessment={verdict(changes.labTurnaroundMinutes)}
+            versus={versus}
+            definition={d.labTurnaround}
+          >
             collection to release · {percentOf(l.withinTargetRate)} within the test&apos;s target
           </Figure>
           <Figure
             label="Specimen rejection"
-            value={percentOf(l.specimens.rejectionRate)}
-            comparison={compared("specimenRejectionRate")}
+            value={percentOf(k.specimenRejectionRate)}
+            change={comparison(k.specimenRejectionRate, prev.specimenRejectionRate, "rate")}
+            assessment={verdict(changes.specimenRejectionRate)}
+            versus={versus}
             definition={d.specimenRejectionRate}
           >
             {l.specimens.rejected} of {l.specimens.collected} collected
@@ -187,7 +239,9 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           <Figure
             label="Retention"
             value={patientRateLabel(r.retentionRate, r.retentionRateSuppressed)}
-            comparison={compared("retentionRate")}
+            change={comparison(k.retentionRate, prev.retentionRate, "rate")}
+            assessment={verdict(changes.retentionRate)}
+            versus={versus}
             definition={d.retentionRate}
           >
             seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
@@ -205,7 +259,7 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
         <div className="grid gap-4 lg:grid-cols-2">
           {b ? (
             <>
-              <Section title="Top services by revenue" csv={[{ href: csv("services"), label: "Services" }]}>
+              <Section title="Top services by revenue">
                 <SimpleTable
                   empty="No invoiced services."
                   head={["Service", "Qty", "Patients", "Net"]}
@@ -219,14 +273,7 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
                   ])}
                 />
               </Section>
-              <Section
-                title="Revenue by category"
-                csv={[
-                  { href: csv("revenue"), label: "Revenue" },
-                  { href: csv("revenue-by-category"), label: "Categories" },
-                  { href: csv("collections"), label: "Payment methods" },
-                ]}
-              >
+              <Section title="Revenue by category">
                 <SimpleTable
                   empty="No invoiced services."
                   head={["Category", "Qty", "Net"]}
@@ -244,7 +291,7 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               </Section>
             </>
           ) : null}
-          <Section title="Providers" csv={[{ href: csv("providers"), label: "Providers" }]} definition={d.utilization}>
+          <Section title="Providers" definition={d.utilization}>
             <SimpleTable
               empty="No consultations, appointments or schedules."
               head={["Practitioner", "Consultations", "Patients", "Booked", "No-shows", "Utilization"]}
@@ -258,15 +305,7 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               ])}
             />
           </Section>
-          <Section
-            title="Laboratory"
-            csv={[
-              { href: csv("laboratory"), label: "Figures" },
-              { href: csv("lab-tests"), label: "Tests" },
-              { href: csv("lab-instruments"), label: "Instruments" },
-            ]}
-            definition={d.resultsPerInstrument}
-          >
+          <Section title="Laboratory" definition={d.resultsPerInstrument}>
             <SimpleTable
               empty="No tests ordered."
               head={["Most ordered tests", "Ordered"]}
@@ -281,7 +320,7 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
             </p>
           </Section>
-          <Section title="Dental procedures" csv={[{ href: csv("dental-procedures"), label: "Procedures" }]} definition={d.dentalProcedures}>
+          <Section title="Dental procedures" definition={d.dentalProcedures}>
             <SimpleTable
               empty="No dental procedures."
               head={["Procedure", "Done", "Patients"]}
@@ -291,14 +330,14 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
             </p>
           </Section>
-          <Section title="Online consultations" csv={[{ href: csv("telemedicine"), label: "Online consultations" }]} definition={d.telemedicine}>
+          <Section title="Online consultations" definition={d.telemedicine}>
             <SimpleTable
               empty="No online consultations."
               head={["Started", "Ended", "Escalated", "In progress", "Escalation rate"]}
               rows={t.started ? [[t.started, t.ended, t.escalated, t.inProgress, percentOf(t.escalationRate)].map(String)] : []}
             />
           </Section>
-          <Section title="Patient retention" csv={[{ href: csv("retention"), label: "Retention" }]} definition={`${d.retentionRate} ${d.returnRate}`}>
+          <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>
             <SimpleTable
               empty="No patients seen."
               head={["", "Patients", "Of them", "Rate"]}
@@ -330,80 +369,69 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
   );
 }
 
+const TONE_CLASS = { better: "text-success", worse: "text-danger", neutral: "text-muted-foreground" } as const;
+
 function Figure({
   label,
   value,
-  comparison,
+  change,
+  assessment,
+  versus,
   definition,
   children,
 }: {
   label: string;
   value: string;
-  comparison?: ManagementFigureComparison;
+  /** Main's change text (arrow with percent, points or minutes); omitted for figures not compared. */
+  change?: string;
+  /** Better or worse by the figure's direction of improvement (arrow + words + colour, never colour alone). */
+  assessment?: { text: string; tone: keyof typeof TONE_CLASS } | null;
+  versus?: string;
   definition: string;
   children: ReactNode;
 }) {
-  const change = comparison ? changeLabel(comparison) : null;
   return (
     <Card className="flex flex-col p-3">
       <p className="text-meta text-muted-foreground">{label}</p>
       <p className="tabular text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-meta text-muted-foreground">{children}</p>
-      {comparison ? (
-        change ? (
-          <p className={`mt-1 text-meta ${TONE_CLASS[change.tone]}`}>
-            <span aria-hidden>{change.arrow}</span> {change.text}
-          </p>
-        ) : (
-          <p className="mt-1 text-meta text-muted-foreground">No comparison with the previous period</p>
-        )
+      {change !== undefined && versus ? (
+        <p className="text-meta">
+          {change === "no comparison" ? (
+            <span className="text-muted-foreground">Nothing to compare {versus.replace(/^vs /, "with ")}</span>
+          ) : (
+            <>
+              <span className={`font-medium ${assessment ? TONE_CLASS[assessment.tone] : ""}`}>
+                {change}
+                {assessment ? ` (${assessment.text})` : ""}
+              </span>{" "}
+              <span className="text-muted-foreground">{versus}</span>
+            </>
+          )}
+        </p>
       ) : null}
-      <Definition text={definition} />
+      <p className="mt-1 text-meta text-muted-foreground">{children}</p>
+      <details className="mt-auto pt-1 text-meta text-muted-foreground">
+        <summary className="cursor-pointer">How is this calculated?</summary>
+        <p className="mt-1">{definition}</p>
+      </details>
     </Card>
   );
 }
 
-function Definition({ text }: { text: string }) {
-  return (
-    <details className="mt-auto pt-1 text-meta text-muted-foreground">
-      <summary className="cursor-pointer">How is this calculated?</summary>
-      <p className="mt-1">{text}</p>
-    </details>
-  );
-}
-
-function CsvLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a href={href} download className="text-primary hover:underline">
-      {label} (CSV)
-    </a>
-  );
-}
-
-function Section({
-  title,
-  csv,
-  definition,
-  children,
-}: {
-  title: string;
-  csv: Array<{ href: string; label: string }>;
-  definition?: string;
-  children: ReactNode;
-}) {
+function Section({ title, definition, children }: { title: string; definition?: string; children: ReactNode }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-2">
+      <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <span className="flex flex-wrap gap-3 text-meta">
-          {csv.map((link) => (
-            <CsvLink key={link.href} href={link.href} label={link.label} />
-          ))}
-        </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {children}
-        {definition ? <Definition text={definition} /> : null}
+        {definition ? (
+          <details className="text-meta text-muted-foreground">
+            <summary className="cursor-pointer">How is this calculated?</summary>
+            <p className="mt-1">{definition}</p>
+          </details>
+        ) : null}
       </CardContent>
     </Card>
   );

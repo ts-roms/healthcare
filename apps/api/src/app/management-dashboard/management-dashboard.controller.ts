@@ -1,9 +1,9 @@
 import { Controller, Get, Query, StreamableFile } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { CSV_SECTIONS } from "./management-dashboard.csv";
+import { EXPORT_TABLES } from "./management-dashboard.rules";
 import { ManagementDashboardService } from "./management-dashboard.service";
 
 const localDate = z
@@ -17,16 +17,11 @@ export const managementDashboardQuerySchema = z.object({
   to: localDate.optional(),
   /** One facility; every facility the caller may report on when omitted. */
   facilityId: z.uuid().optional(),
-  /** Compare the headline figures with the previous equal period (default true). */
-  compare: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v !== "false"),
 });
 export class ManagementDashboardQueryDto extends createZodDto(managementDashboardQuerySchema) {}
 
-export const managementDashboardCsvQuerySchema = managementDashboardQuerySchema.omit({ compare: true }).extend({ section: z.enum(CSV_SECTIONS) });
-export class ManagementDashboardCsvQueryDto extends createZodDto(managementDashboardCsvQuerySchema) {}
+export const managementExportQuerySchema = managementDashboardQuerySchema.extend({ table: z.enum(EXPORT_TABLES) });
+export class ManagementExportQueryDto extends createZodDto(managementExportQuerySchema) {}
 
 @ApiTags("management")
 @ApiBearerAuth()
@@ -38,23 +33,23 @@ export class ManagementDashboardController {
   @RequirePermissions("management.dashboard.read")
   @ApiOperation({
     summary:
-      'Management dashboard over a range of local days (≤ 366): patient volume and retention, appointments, no-shows, waiting time, providers and schedule utilization, laboratory volume, turnaround and rejections, dental, online consultations, revenue and collections (revenue also needs billing.report.read on every facility in scope), with the headline figures beside the previous equal period. Counts and amounts only; patient counts under 5 shown as "<5".',
+      "Management dashboard over a range of local days (≤ 366): patient volume, appointments, no-shows, waiting time, providers, laboratory volume and turnaround, dental, revenue, collections and top services. Counts and amounts only.",
   })
   get(@CurrentActor() actor: Actor, @Query() query: ManagementDashboardQueryDto) {
     return this.dashboards.dashboard(actor, query);
   }
 
-  @Get("dashboard.csv")
+  @Get("dashboard/export")
   @RequirePermissions("management.dashboard.read")
-  @ApiProduces("text/csv")
   @ApiOperation({
     summary:
-      "One section of the management dashboard as CSV (same filters, scope, suppression and audit; revenue sections need billing.report.read on every facility in scope).",
+      "One table of the management dashboard as CSV (summary with the previous period, daily, services, categories, providers); amounts in pesos; audited",
   })
-  async csv(@CurrentActor() actor: Actor, @Query() query: ManagementDashboardCsvQueryDto): Promise<StreamableFile> {
-    const { section, ...filters } = query;
-    const { filename, content } = await this.dashboards.csv(actor, filters, section);
-    const body = Buffer.from(content, "utf8");
+  async export(@CurrentActor() actor: Actor, @Query() query: ManagementExportQueryDto): Promise<StreamableFile> {
+    const { table, ...range } = query;
+    const { filename, csv } = await this.dashboards.export(actor, range, table);
+    // A byte-order mark so spreadsheet programs read the peso sign and names as UTF-8.
+    const body = Buffer.from(`\uFEFF${csv}`, "utf8");
     return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
   }
 }

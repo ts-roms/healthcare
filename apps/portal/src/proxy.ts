@@ -5,6 +5,8 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api
 
 /** Pages that work without a session. */
 const PUBLIC_PATHS = ["/login", "/activate"];
+/** Pages for everyone, signed in or not (the MyHealth guide), passed through without touching the session. */
+const OPEN_PATHS = ["/help"];
 
 /**
  * Session gate for every portal page (same model as the staff app).
@@ -18,6 +20,7 @@ const PUBLIC_PATHS = ["/login", "/activate"];
  */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  if (OPEN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const refreshToken = request.cookies.get(COOKIES.refresh)?.value;
   const accessToken = request.cookies.get(COOKIES.access)?.value;

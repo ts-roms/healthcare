@@ -9,15 +9,16 @@ import { LabReportingQueries } from "@healthcare/laboratory";
 import { OrganizationService } from "@healthcare/organization";
 import { PatientReportingQueries } from "@healthcare/patient";
 import { TelemedicineReportingQueries } from "@healthcare/telemedicine";
-import { dashboardCsv, type CsvSection, REVENUE_CSV_SECTIONS } from "./management-dashboard.csv";
 import { METRIC_DEFINITIONS } from "./management-dashboard.definitions";
 import {
-  compareFigure,
   coversAll,
   dailySeries,
   daysBetween,
-  type FigureComparison,
+  type ExportTable,
+  keyFigureChanges,
+  keyFigures,
   patientRate,
+  pesos,
   previousRange,
   rate,
   reportableFacilities,
@@ -25,32 +26,27 @@ import {
   RETENTION_LOOKBACK_MONTHS,
   retentionFigures,
   RETURN_WINDOW_DAYS,
+  REVENUE_EXPORT_TABLES,
   shiftMonths,
   SMALL_CELL_THRESHOLD,
+  summaryRows,
   suppressCount,
+  toCsv,
 } from "./management-dashboard.rules";
 
 export const MANAGEMENT_PERMISSION = "management.dashboard.read";
 /** Revenue, collections and revenue breakdowns also need the billing report permission on every facility in scope. */
 export const REVENUE_PERMISSION = "billing.report.read";
 
-export interface ManagementDashboardQuery {
-  from?: string;
-  to?: string;
-  facilityId?: string;
-  /** Compare the headline figures with the previous equal period (default true). */
-  compare?: boolean;
-}
-
-type Section = "billing";
+type DashboardQuery = { from?: string; to?: string; facilityId?: string };
 
 /**
- * The management dashboard (CLAUDE.md §28): patient volume, appointments and no-shows, waiting time, provider
- * utilization, laboratory volume, turnaround and rejections, dental procedures, online consultations, patient
- * retention, revenue and collections, top services — over a range of local days, for one facility or every facility
- * the caller may report on, with the headline figures beside the previous equal period. Each domain counts its own rows
- * (its reporting query); nothing here names a patient, and small patient counts are suppressed. Every view (JSON or
- * CSV) is audited.
+ * The management dashboard (CLAUDE.md §28): patient volume and retention, appointments and no-shows, waiting time,
+ * provider and schedule utilization, laboratory volume, turnaround and rejections, dental procedures, online
+ * consultations, revenue and collections, top services — over a range of local days, for one facility or every facility
+ * the caller may report on, with the headline figures of the period of the same length just before. Each domain counts
+ * its own rows (its reporting query); nothing here names a patient, and small patient counts are suppressed. Revenue
+ * needs billing reporting on every facility in scope. Every view and export is audited.
  */
 @Injectable()
 export class ManagementDashboardService {
@@ -66,28 +62,50 @@ export class ManagementDashboardService {
     private readonly audit: AuditService,
   ) {}
 
-  async dashboard(actor: Actor, query: ManagementDashboardQuery, now = new Date()) {
-    const view = await this.build(actor, { ...query, compare: query.compare ?? true }, now);
-    await this.recordView(actor, view, { format: "json" });
-    return view;
+  /** The dashboard, audited as a view. */
+  async dashboard(actor: Actor, query: DashboardQuery, now = new Date()) {
+    const result = await this.build(actor, query, now);
+    await this.audit.recordStandalone(actor, {
+      action: "management.dashboard.view",
+      resourceType: "organization",
+      resourceId: actor.organizationId,
+      metadata: { from: result.from, to: result.to, facilityIds: result.facilityIds, withheld: result.withheld },
+    });
+    return result;
   }
 
-  /** One section as CSV; revenue sections are refused without the billing report permission on every facility in scope. */
-  async csv(actor: Actor, query: ManagementDashboardQuery, section: CsvSection, now = new Date()): Promise<{ filename: string; content: string }> {
-    const view = await this.build(actor, { ...query, compare: section === "summary" }, now);
-    if (REVENUE_CSV_SECTIONS.includes(section) && view.billing === null) {
+  /**
+   * One table of the dashboard as CSV (amounts in pesos, small patient counts suppressed), audited as an export.
+   * Revenue tables without billing reporting on every facility in scope are refused, and the refusal is audited.
+   */
+  async export(actor: Actor, query: DashboardQuery, table: ExportTable, now = new Date()): Promise<{ filename: string; csv: string }> {
+    const d = await this.build(actor, query, now);
+    if (REVENUE_EXPORT_TABLES.includes(table) && d.billing === null) {
+      await this.audit.recordStandalone(actor, {
+        action: "management.dashboard.export",
+        resourceType: "organization",
+        resourceId: actor.organizationId,
+        outcome: "denied",
+        reason: "Revenue figures need billing.report.read for every facility in scope",
+        metadata: { table, from: d.from, to: d.to, facilityIds: d.facilityIds, withheld: d.withheld },
+      });
       throw new ForbiddenError("Revenue figures need the billing report permission for every facility in scope");
     }
-    await this.recordView(actor, view, { format: "csv", section });
-    return { filename: `management-${section}-${view.from}-to-${view.to}.csv`, content: dashboardCsv(view, section) };
+    const rows = exportRows(d, table);
+    await this.audit.recordStandalone(actor, {
+      action: "management.dashboard.export",
+      resourceType: "organization",
+      resourceId: actor.organizationId,
+      metadata: { table, from: d.from, to: d.to, facilityIds: d.facilityIds, withheld: d.withheld, rows: rows.length - 1 },
+    });
+    return { filename: `management-${table}-${d.from}-to-${d.to}.csv`, csv: toCsv(rows) };
   }
 
-  async build(actor: Actor, query: ManagementDashboardQuery, now = new Date()) {
+  private async build(actor: Actor, query: DashboardQuery, now: Date) {
     const facilities = await this.organizations.listFacilities(actor.organizationId);
     const allGrants = await this.access.grantsFor(actor.userId, actor.organizationId);
-    const grants = allGrants.filter((g) => g.permissionKey === MANAGEMENT_PERMISSION);
     const scope = reportableFacilities(
-      grants,
+      allGrants.filter((g) => g.permissionKey === MANAGEMENT_PERMISSION),
       facilities.map((f) => f.id),
     );
     let facilityIds: string[] | null;
@@ -99,12 +117,11 @@ export class ManagementDashboardService {
       facilityIds = scope.all ? null : scope.facilityIds;
     }
     // Revenue only when the billing report permission covers every facility the figures cover.
-    const covered = facilityIds ?? facilities.map((f) => f.id);
     const includeRevenue = coversAll(
       allGrants.filter((g) => g.permissionKey === REVENUE_PERMISSION),
-      covered,
+      facilityIds ?? facilities.map((f) => f.id),
     );
-    const withheld: Section[] = includeRevenue ? [] : ["billing"];
+    const withheld: Array<"billing"> = includeRevenue ? [] : ["billing"];
 
     // Local days are read in the one facility's time zone, else the request's facility's, else Manila's.
     const zoneFacility = facilities.find((f) => f.id === (facilityIds?.length === 1 ? facilityIds[0] : actor.facilityId));
@@ -112,34 +129,23 @@ export class ManagementDashboardService {
     const today = localDate(now, timeZone);
     const range = resolveRange(query, today);
     if ("error" in range) throw new BadRequestError(range.error);
+    const previous = previousRange(range.from, range.to);
     const windowOf = (r: { from: string; to: string }): ReportingWindow => ({
       from: localDayBounds(r.from, timeZone).start,
       to: localDayBounds(r.to, timeZone).end,
       facilityIds,
       timeZone,
     });
-    const retentionParams = (r: { from: string }) => ({
+    const retention = (r: { from: string }) => ({
       lookbackStart: localDayBounds(shiftMonths(r.from, -RETENTION_LOOKBACK_MONTHS), timeZone).start,
       returnWindowDays: RETURN_WINDOW_DAYS,
       asOfDate: today,
     });
-    const organizationId = actor.organizationId;
-    const load = async (r: { from: string; to: string }) => {
-      const window = windowOf(r);
-      const [patients, clinic, laboratory, dental, telemedicine, retention, billing] = await Promise.all([
-        this.patients.registrations(organizationId, window),
-        this.clinic.figures(organizationId, window),
-        this.laboratory.figures(organizationId, window),
-        this.dental.figures(organizationId, window),
-        this.telemedicine.figures(organizationId, window),
-        this.clinic.retention(organizationId, window, retentionParams(r)),
-        includeRevenue ? this.billing.figures(organizationId, window) : Promise.resolve(null),
-      ]);
-      return { patients, clinic, laboratory, dental, telemedicine, retention, billing };
-    };
-    const previous = query.compare ? previousRange(range) : null;
-    const [current, before] = await Promise.all([load(range), previous ? load(previous) : Promise.resolve(null)]);
 
+    const [current, before] = await Promise.all([
+      this.figures(actor.organizationId, windowOf(range), retention(range), includeRevenue),
+      this.figures(actor.organizationId, windowOf(previous), retention(previous), includeRevenue),
+    ]);
     const { daily: patientsDaily, registered } = current.patients;
     const { daily: clinicDaily, ...clinicTotals } = current.clinic;
     const { daily: labDaily, ...labTotals } = current.laboratory;
@@ -148,19 +154,9 @@ export class ManagementDashboardService {
     const returningRate = patientRate(returning, seen);
     const bookedMinutes = clinicTotals.providers.reduce((n, p) => n + p.bookedMinutes, 0);
     const availableMinutes = clinicTotals.providers.reduce((n, p) => n + p.availableMinutes, 0);
-    const billing = current.billing
-      ? {
-          invoices: current.billing.invoices,
-          creditNotesTotal: current.billing.creditNotesTotal,
-          debitNotesTotal: current.billing.debitNotesTotal,
-          collectedTotal: current.billing.collectedTotal,
-          refundedTotal: current.billing.refundedTotal,
-          netCollected: current.billing.netCollected,
-          collections: current.billing.collections,
-          byCategory: current.billing.byCategory,
-          topServices: current.billing.topServices.map((s) => ({ ...s, patients: suppressCount(s.patients) })),
-        }
-      : null;
+    const b = current.billing;
+    const currentFigures = keyFigures(current);
+    const previousFigures = keyFigures(before);
 
     return {
       from: range.from,
@@ -175,9 +171,9 @@ export class ManagementDashboardService {
       suppressionThreshold: SMALL_CELL_THRESHOLD,
       /** Sections left out for lack of permission (billing: needs billing.report.read on every facility in scope). */
       withheld,
-      /** The previous equal period the headline figures are compared with (null when not compared). */
-      previous,
-      comparison: before ? this.compare(current, before) : [],
+      /** Headline figures for the range, and for the period of the same length just before it. */
+      keyFigures: currentFigures,
+      previous: { ...previous, keyFigures: previousFigures, changes: keyFigureChanges(currentFigures, previousFigures) },
       patients: {
         registered: suppressCount(registered),
         seen: suppressCount(seen),
@@ -211,69 +207,176 @@ export class ManagementDashboardService {
         escalationRate: rate(current.telemedicine.escalated, current.telemedicine.ended + current.telemedicine.escalated),
       },
       retention: retentionFigures(current.retention),
-      billing,
+      /** Null when withheld (see `withheld`). */
+      billing: b
+        ? {
+            invoices: b.invoices,
+            creditNotesTotal: b.creditNotesTotal,
+            debitNotesTotal: b.debitNotesTotal,
+            collectedTotal: b.collectedTotal,
+            refundedTotal: b.refundedTotal,
+            netCollected: b.netCollected,
+            collections: b.collections,
+            byCategory: b.byCategory,
+            topServices: b.topServices.map((s) => ({ ...s, patients: suppressCount(s.patients) })),
+          }
+        : null,
       daily: dailySeries(daysBetween(range.from, range.to), [
         { key: "registered", rows: patientsDaily, field: "registered" },
         { key: "patientsSeen", rows: clinicDaily, field: "patientsSeen" },
         { key: "encounters", rows: clinicDaily, field: "encounters" },
         { key: "labReleased", rows: labDaily, field: "released" },
-        { key: "invoiced", rows: current.billing?.daily ?? [], field: "invoiced" },
-        { key: "collected", rows: current.billing?.daily ?? [], field: "collected" },
+        { key: "invoiced", rows: b?.daily ?? [], field: "invoiced" },
+        { key: "collected", rows: b?.daily ?? [], field: "collected" },
       ]).map((d) => ({
         ...d,
         registered: suppressCount(d.registered),
         patientsSeen: suppressCount(d.patientsSeen),
-        invoiced: includeRevenue ? d.invoiced : null,
-        collected: includeRevenue ? d.collected : null,
+        invoiced: b ? d.invoiced : null,
+        collected: b ? d.collected : null,
       })),
+      /** "How is this calculated?" per figure. */
       definitions: METRIC_DEFINITIONS,
     };
   }
 
-  /** The headline figures beside the previous period's, each with its direction of improvement. */
-  private compare(current: Loaded, previous: Loaded): FigureComparison[] {
-    const retention = (l: Loaded) => patientRate(l.retention.retained, l.retention.seen).rate;
-    const figures: FigureComparison[] = [
-      compareFigure(
-        "patientsSeen",
-        "patients",
-        "up",
-        suppressCount(current.clinic.encounters.patientsSeen),
-        suppressCount(previous.clinic.encounters.patientsSeen),
-      ),
-      compareFigure("consultations", "count", "up", current.clinic.encounters.completed, previous.clinic.encounters.completed),
-      compareFigure("noShowRate", "rate", "down", current.clinic.appointments.noShowRate, previous.clinic.appointments.noShowRate),
-      compareFigure("averageWait", "minutes", "down", current.clinic.visits.averageWaitMinutes, previous.clinic.visits.averageWaitMinutes),
-      compareFigure("labReleased", "count", "up", current.laboratory.released, previous.laboratory.released),
-      compareFigure("labTurnaround", "minutes", "down", current.laboratory.averageTurnaroundMinutes, previous.laboratory.averageTurnaroundMinutes),
-      compareFigure("specimenRejectionRate", "rate", "down", current.laboratory.specimens.rejectionRate, previous.laboratory.specimens.rejectionRate),
-      compareFigure("retentionRate", "rate", "up", retention(current), retention(previous)),
-    ];
-    if (current.billing && previous.billing) {
-      figures.push(
-        compareFigure("invoicedNet", "centavos", "up", current.billing.invoices.netTotal, previous.billing.invoices.netTotal),
-        compareFigure("collected", "centavos", "up", current.billing.netCollected, previous.billing.netCollected),
-      );
-    }
-    return figures;
-  }
-
-  private recordView(actor: Actor, view: ManagementDashboardView, output: { format: "json" | "csv"; section?: CsvSection }) {
-    return this.audit.recordStandalone(actor, {
-      action: "management.dashboard.view",
-      resourceType: "organization",
-      resourceId: actor.organizationId,
-      metadata: { from: view.from, to: view.to, facilityIds: view.facilityIds, withheld: view.withheld, compared: view.previous !== null, ...output },
-    });
+  private async figures(
+    organizationId: string,
+    window: ReportingWindow,
+    retention: { lookbackStart: Date; returnWindowDays: number; asOfDate: string },
+    includeRevenue: boolean,
+  ) {
+    const [patients, clinic, laboratory, dental, telemedicine, retained, billing] = await Promise.all([
+      this.patients.registrations(organizationId, window),
+      this.clinic.figures(organizationId, window),
+      this.laboratory.figures(organizationId, window),
+      this.dental.figures(organizationId, window),
+      this.telemedicine.figures(organizationId, window),
+      this.clinic.retention(organizationId, window, retention),
+      includeRevenue ? this.billing.figures(organizationId, window) : Promise.resolve(null),
+    ]);
+    return { patients, clinic, laboratory, dental, telemedicine, retention: retained, billing };
   }
 }
 
-type Loaded = {
-  clinic: Awaited<ReturnType<ClinicReportingQueries["figures"]>>;
-  laboratory: Awaited<ReturnType<LabReportingQueries["figures"]>>;
-  retention: Awaited<ReturnType<ClinicReportingQueries["retention"]>>;
-  billing: Awaited<ReturnType<BillingReportingQueries["figures"]>> | null;
-};
+type Dashboard = Awaited<ReturnType<ManagementDashboardService["dashboard"]>>;
+type Row = Array<string | number | null>;
 
-/** The dashboard as returned (JSON) and exported (CSV). */
-export type ManagementDashboardView = Awaited<ReturnType<ManagementDashboardService["build"]>>;
+/** The rows (with a header) of one exported table. Revenue tables are only asked for when billing is not withheld. */
+function exportRows(d: Dashboard, table: ExportTable): Row[] {
+  const b = d.billing;
+  switch (table) {
+    case "summary":
+      return summaryRows(d.keyFigures, d.previous.keyFigures, { from: d.from, to: d.to, previousFrom: d.previous.from, previousTo: d.previous.to }, b !== null);
+    case "daily":
+      return [
+        [
+          "Date",
+          "New patients",
+          "Patients seen",
+          "Consultations",
+          "Laboratory tests released",
+          ...(b ? ["Invoiced, net (PHP)", "Collected less refunds (PHP)"] : []),
+        ],
+        ...d.daily.map((r): Row => [
+          r.date,
+          r.registered,
+          r.patientsSeen,
+          r.encounters,
+          r.labReleased,
+          ...(b ? [pesos(r.invoiced ?? 0), pesos(r.collected ?? 0)] : []),
+        ]),
+      ];
+    case "services":
+      return [
+        ["Code", "Service", "Category", "Quantity", "Net (PHP)", "Patients"],
+        ...(b?.topServices ?? []).map((s): Row => [s.code, s.name, s.category, s.quantity, pesos(s.net), s.patients]),
+      ];
+    case "categories":
+      return [["Category", "Quantity", "Net (PHP)"], ...(b?.byCategory ?? []).map((c): Row => [c.category, c.quantity, pesos(c.net)])];
+    case "collections":
+      return [
+        ["Method", "Payments", "Received (PHP)", "Refunded (PHP)"],
+        ...(b?.collections ?? []).map((c): Row => [c.method, c.payments, pesos(c.collected), pesos(c.refunded)]),
+      ];
+    case "revenue":
+      return [
+        ["Figure", "Value"],
+        ...(b
+          ? ([
+              ["Invoices issued", b.invoices.issued],
+              ["Gross (PHP)", pesos(b.invoices.grossTotal)],
+              ["Discounts (PHP)", pesos(b.invoices.discountTotal)],
+              ["Net invoiced (PHP)", pesos(b.invoices.netTotal)],
+              ["Payer share (PHP)", pesos(b.invoices.payerTotal)],
+              ["Patient share (PHP)", pesos(b.invoices.patientTotal)],
+              ["Invoices voided", b.invoices.voided],
+              ["Credit notes (PHP)", pesos(b.creditNotesTotal)],
+              ["Debit notes (PHP)", pesos(b.debitNotesTotal)],
+              ["Collected (PHP)", pesos(b.collectedTotal)],
+              ["Refunded (PHP)", pesos(b.refundedTotal)],
+              ["Collected less refunds (PHP)", pesos(b.netCollected)],
+            ] as Row[])
+          : []),
+      ];
+    case "providers":
+      return [
+        ["Practitioner", "Consultations", "Patients", "Appointments booked", "No-shows", "Booked minutes", "Available minutes", "Utilization"],
+        ...d.clinic.providers.map((p): Row => [
+          p.displayName,
+          p.encounters,
+          p.patients,
+          p.appointments,
+          p.noShows,
+          p.bookedMinutes,
+          p.availableMinutes,
+          p.utilization,
+        ]),
+      ];
+    case "laboratory": {
+      const l = d.laboratory;
+      return [
+        ["Figure", "Value"],
+        ["Orders", l.orders.orders],
+        ["STAT orders", l.orders.stat],
+        ["Cancelled orders", l.orders.cancelled],
+        ["Tests ordered", l.testsOrdered],
+        ["Tests released (first release)", l.released],
+        ["Corrections released", l.corrections],
+        ["Average turnaround, collection to release (minutes)", l.averageTurnaroundMinutes],
+        ["Released within target", l.withinTargetRate],
+        ["Specimens collected", l.specimens.collected],
+        ["Of those rejected", l.specimens.rejected],
+        ["Specimen rejection rate", l.specimens.rejectionRate],
+        ["Specimens rejected in the period (any collection date)", l.specimensRejected],
+      ];
+    }
+    case "lab-tests":
+      return [["Test", "Ordered"], ...d.laboratory.topTests.map((t): Row => [t.name, t.ordered])];
+    case "lab-instruments":
+      return [["Instrument", "First results entered"], ...d.laboratory.byInstrument.map((i): Row => [i.name ?? "No instrument recorded", i.results])];
+    case "dental-procedures":
+      return [["Code", "Procedure", "Procedures", "Patients"], ...d.dental.byProcedure.map((p): Row => [p.code, p.name, p.procedures, p.patients])];
+    case "telemedicine": {
+      const t = d.telemedicine;
+      return [
+        ["Started", "Ended", "Escalated", "In progress", "Escalation rate"],
+        [t.started, t.ended, t.escalated, t.inProgress, t.escalationRate],
+      ];
+    }
+    case "retention": {
+      const r = d.retention;
+      return [
+        [
+          "Patients seen",
+          `Also seen in the ${r.lookbackMonths} months before`,
+          "Retention rate",
+          "Return cohort",
+          `Returned within ${r.returnWindowDays} days`,
+          "Return rate",
+        ],
+        [r.seen, r.retained, r.retentionRate, r.returnCohort, r.returned, r.returnRate],
+      ];
+    }
+  }
+}

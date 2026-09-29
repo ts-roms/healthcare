@@ -23,6 +23,11 @@ describe("portal proxy", () => {
     for (const path of ["/login", "/activate"]) expect((await proxy(request(path))).headers.get("location")).toBeNull();
   });
 
+  it("shows the MyHealth guide to everyone, signed in or not", async () => {
+    expect((await proxy(request("/help"))).headers.get("location")).toBeNull();
+    expect((await proxy(request("/help", SIGNED_IN))).headers.get("location")).toBeNull();
+  });
+
   it("skips the sign-in form for a signed-in patient", async () => {
     expect((await proxy(request("/login", SIGNED_IN))).headers.get("location")).toBe("http://localhost:3001/");
   });

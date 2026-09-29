@@ -80,12 +80,13 @@ uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record
 self-assessed.
 Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
 a facility-scoped grant limits the figures to that facility; revenue, collections
-and service revenue (JSON sections and CSV exports) additionally need the existing
-`billing.report.read` on **every** facility in scope — otherwise `billing` is
-`null`, listed in `withheld`, billing is not queried and revenue CSV sections are
-refused (403). Audited `management.dashboard.view` (range, facilities, what was
-withheld, format and CSV section). Counts and amounts only; patient counts 1–4
-shown as "<5".
+and service revenue (JSON sections and the `services`, `categories`, `revenue` and
+`collections` exports) additionally need the existing `billing.report.read` on
+**every** facility in scope — otherwise `billing` is `null`, listed in `withheld`,
+billing is not queried, and a revenue export is refused (403) and audited as a
+denial. Audited `management.dashboard.view` (range, facilities, withheld) and
+`management.dashboard.export` (table, range, facilities, withheld, rows). Counts
+and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

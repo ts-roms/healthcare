@@ -1,22 +1,32 @@
 import { apiFile } from "@/lib/api/client";
-import { csvApiQuery } from "@/lib/management-mapping";
+import { EXPORT_TABLES } from "@/lib/management-mapping";
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * CSV download of one management dashboard section, fetched from the API with the user's session. The API authorizes
- * (management.dashboard.read; revenue sections also billing.report.read on every facility in scope), suppresses small
- * patient counts and audits the export; this only passes known sections and well-formed filters through.
+ * CSV downloads of the management dashboard, fetched from the API with the user's session. The API authorizes, scopes
+ * to the caller's facilities and audits every export; this passes only known tables and well-formed filters through.
  */
 export async function GET(request: Request) {
-  const query = csvApiQuery(new URL(request.url).searchParams);
-  if (!query) return new Response("Unknown section", { status: 400, headers: { "content-type": "text/plain; charset=utf-8" } });
-  const upstream = await apiFile("/management/dashboard.csv", { accept: "text/csv", query });
+  const params = new URL(request.url).searchParams;
+  const table = params.get("table") ?? "";
+  if (!EXPORT_TABLES.some((t) => t.key === table)) return new Response("Not found", { status: 404 });
+  const pick = (name: string, pattern: RegExp) => {
+    const value = params.get(name);
+    return value && pattern.test(value) ? value : undefined;
+  };
+  const upstream = await apiFile("/management/dashboard/export", {
+    accept: "text/csv",
+    query: { table, from: pick("from", DATE), to: pick("to", DATE), facilityId: pick("facilityId", UUID) },
+  });
   if (!upstream.ok) {
     const message =
       upstream.status === 403
         ? "You do not have access to these figures."
-        : upstream.status === 400 || upstream.status === 404
-          ? "The filters are not valid."
-          : "The export failed.";
+        : upstream.status === 400
+          ? "Choose a valid range."
+          : "The export could not be produced.";
     return new Response(message, { status: upstream.status, headers: { "content-type": "text/plain; charset=utf-8" } });
   }
   return new Response(upstream.body, {

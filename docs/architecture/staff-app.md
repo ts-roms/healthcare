@@ -19,6 +19,7 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 | `hc_fac` | Selected facility id (not a secret) | httpOnly, SameSite=Lax                    | Session                                 |
 
 - **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). With exactly one active facility it is selected automatically.
+- **Public pages** (`PUBLIC_PATHS` in `src/proxy.ts`): only the landing page `/welcome` (`app/(public)/welcome`) renders without a session. It is static, never calls the API, and describes the platform from `components/platform-highlights.tsx`, which the split sign-in page (`app/(auth)/layout.tsx`) shares.
 - **Gate and refresh** (`src/proxy.ts`): no refresh token → `/login?next=…` (same-origin paths only). No access token (its cookie expired) → `POST /auth/refresh`, and the new tokens go to both the current render and the browser.
 - **Single-flight refresh** (`createRefresher` in `libs/web-session`, wired in `lib/api/tokens.ts`): the API rotates refresh tokens and **revokes the session when a rotated token is reused**. Parallel requests from one browser can all carry the same expired token, so concurrent refreshes of one token share a single API call, and the result is reused for 30 s. This is per process: running several staff-app instances needs sticky sessions or a shared store (e.g. Redis) for the same guarantee.
 - **Refresh failures:** only a definitive rejection (invalid, expired or revoked token) signs the user out. A rate limit (429), server error or network failure returns a 503 "service is busy" page that retries itself, and the session cookies are kept.
@@ -27,6 +28,13 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 - **Sign-out**: `POST /auth/logout` (revokes the session), then cookies are cleared.
 
 Authorization is always the API's: the staff app hides what the user can't do (navigation from `GET /auth/me` permissions, buttons via `can()`), but every request is checked server-side by the API.
+
+## Help (user manual)
+
+`/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
+`lib/manual-content.ts` (walks up from the working directory to `docs/manual`; cached per process), with the design system's
+`Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
+links to developer documentation are shown as text. The menu shows **Help** to every signed-in user.
 
 ## Notifications
 
@@ -82,8 +90,8 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 `/management` (`management.dashboard.read`): figures across clinic, laboratory, dental, telemedicine, billing and the
 Patient Master for a range of days and a facility or the whole organization, with the previous-period change (arrow,
 words and colour), "How is this calculated?" per figure, small patient counts shown as "<5", revenue hidden without
-billing report access, and CSV downloads per section through the `/management/export` route handler (it proxies
-`GET /management/dashboard.csv` with the user's session) — see [management-dashboard.md](management-dashboard.md).
+billing report access, and CSV downloads per table through the `/management/export` route handler (it proxies
+`GET /management/dashboard/export?table=` with the user's session) — see [management-dashboard.md](management-dashboard.md).
 
 ## Dashboard
 

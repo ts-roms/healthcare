@@ -52,10 +52,10 @@ export async function api<T>(path: string, { method = "GET", query, body, idempo
 }
 
 /**
- * Fetches a file (a PDF, or a CSV export) from the API as the signed-in user,
- * for route handlers that pass it on to the browser. The token stays on the server.
+ * Fetches a file (a PDF, or a CSV export) from the API as the signed-in user, for route
+ * handlers that pass it on to the browser. The token stays on the server.
  */
-export async function apiFile(path: string, { accept = "application/pdf", query }: { accept?: string; query?: ApiRequest["query"] } = {}): Promise<Response> {
+export async function apiFile(path: string, { query, accept = "application/pdf" }: { query?: ApiRequest["query"]; accept?: string } = {}): Promise<Response> {
   const jar = await cookies();
   const accessToken = jar.get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");

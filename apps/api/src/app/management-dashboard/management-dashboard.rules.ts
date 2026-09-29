@@ -98,27 +98,86 @@ export function patientRate(part: number, whole: number): { rate: number | null;
 
 // ---- Previous-period comparison -----------------------------------------------------------------------------------
 
-/** The equal-length period immediately before `range` (local days, inclusive). */
-export function previousRange(range: { from: string; to: string }): { from: string; to: string } {
-  const days = daysBetween(range.from, range.to).length;
-  return { from: shiftDate(range.from, -days), to: shiftDate(range.from, -1) };
+/** The period of the same length ending the day before `from` — what the range is compared with. */
+export function previousRange(from: string, to: string): { from: string; to: string } {
+  const days = daysBetween(from, to).length;
+  return { from: shiftDate(from, -days), to: shiftDate(from, -1) };
+}
+
+/**
+ * The headline figures, the same for the range and the period before it. Amounts in centavos (null when billing is
+ * withheld); patient counts suppressed under five; rates built on suppressed patient counts null.
+ */
+export interface KeyFigures {
+  patientsSeen: PatientCount;
+  newPatients: PatientCount;
+  consultations: number;
+  noShowRate: number | null;
+  averageWaitMinutes: number | null;
+  netInvoiced: number | null;
+  netCollected: number | null;
+  labTestsReleased: number;
+  labTurnaroundMinutes: number | null;
+  dentalProcedures: number;
+  specimenRejectionRate: number | null;
+  retentionRate: number | null;
+}
+
+export function keyFigures(parts: {
+  patients: { registered: number };
+  clinic: {
+    appointments: { noShowRate: number | null };
+    visits: { averageWaitMinutes: number | null };
+    encounters: { completed: number; patientsSeen: number };
+  };
+  laboratory: { released: number; averageTurnaroundMinutes: number | null; specimens: { rejectionRate: number | null } };
+  dental: { procedures: number };
+  retention: { seen: number; retained: number };
+  billing: { invoices: { netTotal: number }; netCollected: number } | null;
+}): KeyFigures {
+  return {
+    patientsSeen: suppressCount(parts.clinic.encounters.patientsSeen),
+    newPatients: suppressCount(parts.patients.registered),
+    consultations: parts.clinic.encounters.completed,
+    noShowRate: parts.clinic.appointments.noShowRate,
+    averageWaitMinutes: parts.clinic.visits.averageWaitMinutes,
+    netInvoiced: parts.billing ? parts.billing.invoices.netTotal : null,
+    netCollected: parts.billing ? parts.billing.netCollected : null,
+    labTestsReleased: parts.laboratory.released,
+    labTurnaroundMinutes: parts.laboratory.averageTurnaroundMinutes,
+    dentalProcedures: parts.dental.procedures,
+    specimenRejectionRate: parts.laboratory.specimens.rejectionRate,
+    retentionRate: patientRate(parts.retention.retained, parts.retention.seen).rate,
+  };
 }
 
 /** What a figure measures: a rate's change reads in percentage points, the others in their own unit. */
 export type FigureUnit = "count" | "patients" | "rate" | "minutes" | "centavos";
 /** Which direction is an improvement ("neither" for volumes that are not targets either way). */
 export type Better = "up" | "down" | "neither";
+
+/** How each key figure is read: its unit and which direction is better. */
+export const KEY_FIGURE_DIRECTIONS: Record<keyof KeyFigures, { unit: FigureUnit; better: Better }> = {
+  patientsSeen: { unit: "patients", better: "up" },
+  newPatients: { unit: "patients", better: "up" },
+  consultations: { unit: "count", better: "up" },
+  noShowRate: { unit: "rate", better: "down" },
+  averageWaitMinutes: { unit: "minutes", better: "down" },
+  netInvoiced: { unit: "centavos", better: "up" },
+  netCollected: { unit: "centavos", better: "up" },
+  labTestsReleased: { unit: "count", better: "up" },
+  labTurnaroundMinutes: { unit: "minutes", better: "down" },
+  dentalProcedures: { unit: "count", better: "up" },
+  specimenRejectionRate: { unit: "rate", better: "down" },
+  retentionRate: { unit: "rate", better: "up" },
+};
+
 type FigureValue = number | typeof SUPPRESSED | null;
 
-export interface FigureComparison {
-  key: string;
+export interface FigureChange {
   unit: FigureUnit;
   better: Better;
-  /** The figure in the period (a patient count may be "<5"; null when there is nothing to measure). */
-  current: FigureValue;
-  /** The same figure over the previous equal period. */
-  previous: FigureValue;
-  /** Null when either value is unknown or suppressed. */
+  /** Null when either value is unknown, withheld or suppressed. */
   change: {
     /** current − previous (for a rate a fraction: 0.05 = 5 percentage points). */
     absolute: number;
@@ -131,14 +190,22 @@ export interface FigureComparison {
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
-/** The figure beside its previous-period value, with the change and whether it is an improvement. */
-export function compareFigure(key: string, unit: FigureUnit, better: Better, current: FigureValue, previous: FigureValue): FigureComparison {
-  if (typeof current !== "number" || typeof previous !== "number") return { key, unit, better, current, previous, change: null };
+/** A figure's change against the previous period, and whether it is an improvement. */
+export function compareFigure(unit: FigureUnit, better: Better, current: FigureValue, previous: FigureValue): FigureChange {
+  if (typeof current !== "number" || typeof previous !== "number") return { unit, better, change: null };
   const absolute = round4(current - previous);
   const direction = absolute > 0 ? "up" : absolute < 0 ? "down" : "flat";
   const assessment = direction === "flat" ? "unchanged" : better === "neither" ? "neutral" : direction === better ? "better" : "worse";
   const relative = unit === "rate" || previous === 0 ? null : round4((current - previous) / Math.abs(previous));
-  return { key, unit, better, current, previous, change: { absolute, relative, direction, assessment } };
+  return { unit, better, change: { absolute, relative, direction, assessment } };
+}
+
+/** Every key figure's change against the previous period. */
+export function keyFigureChanges(current: KeyFigures, previous: KeyFigures): Record<keyof KeyFigures, FigureChange> {
+  const keys = Object.keys(KEY_FIGURE_DIRECTIONS) as Array<keyof KeyFigures>;
+  return Object.fromEntries(
+    keys.map((key) => [key, compareFigure(KEY_FIGURE_DIRECTIONS[key].unit, KEY_FIGURE_DIRECTIONS[key].better, current[key], previous[key])]),
+  ) as Record<keyof KeyFigures, FigureChange>;
 }
 
 // ---- Retention ----------------------------------------------------------------------------------------------------
@@ -186,4 +253,90 @@ export function coversAll(grants: ReadonlyArray<{ facilityId: string | null; dep
   if (relevant.some((g) => g.facilityId === null)) return true;
   const granted = new Set(relevant.map((g) => g.facilityId));
   return scope.length > 0 && scope.every((id) => granted.has(id));
+}
+
+// ---- CSV export ----------------------------------------------------------------------------------------------------
+
+export const EXPORT_TABLES = [
+  "summary",
+  "daily",
+  "services",
+  "categories",
+  "providers",
+  "revenue",
+  "collections",
+  "laboratory",
+  "lab-tests",
+  "lab-instruments",
+  "dental-procedures",
+  "telemedicine",
+  "retention",
+] as const;
+export type ExportTable = (typeof EXPORT_TABLES)[number];
+
+/** Tables that need the billing report permission on every facility in scope. */
+export const REVENUE_EXPORT_TABLES: readonly ExportTable[] = ["services", "categories", "revenue", "collections"];
+
+type Cell = string | number | null;
+
+/**
+ * RFC 4180 CSV (CRLF, quoted when needed). A cell starting with = + - @ (or a tab / carriage return) is prefixed with
+ * an apostrophe so spreadsheets never run it as a formula — names come from staff-entered data.
+ */
+export function toCsv(rows: ReadonlyArray<ReadonlyArray<Cell>>): string {
+  const cell = (value: Cell) => {
+    if (value === null) return "";
+    if (typeof value === "number") return String(value);
+    const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+    return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+  return rows.map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+/** Centavos as pesos with two decimals (a plain number for spreadsheets). */
+export const pesos = (centavos: number) => (centavos / 100).toFixed(2);
+
+const SUMMARY_ROWS: Array<[keyof KeyFigures, string]> = [
+  ["patientsSeen", "Patients seen"],
+  ["newPatients", "New patients registered"],
+  ["consultations", "Consultations completed"],
+  ["noShowRate", "No-show rate"],
+  ["averageWaitMinutes", "Average wait, check-in to consultation (minutes)"],
+  ["netInvoiced", "Invoiced, net (PHP)"],
+  ["netCollected", "Collected less refunds (PHP)"],
+  ["labTestsReleased", "Laboratory tests released"],
+  ["labTurnaroundMinutes", "Laboratory turnaround, collection to release (minutes)"],
+  ["dentalProcedures", "Dental procedures"],
+  ["specimenRejectionRate", "Specimen rejection rate"],
+  ["retentionRate", "Retention rate (seen in the 12 months before)"],
+];
+
+const BETTER_WHEN: Record<Better, string> = { up: "higher", down: "lower", neither: "neither" };
+
+/**
+ * Summary rows: each key figure for the range and the period before it, the change and whether it is better or worse.
+ * Revenue rows are left out when billing is withheld (`includeRevenue` false).
+ */
+export function summaryRows(
+  current: KeyFigures,
+  previous: KeyFigures,
+  ranges: { from: string; to: string; previousFrom: string; previousTo: string },
+  includeRevenue = true,
+): Cell[][] {
+  const changes = keyFigureChanges(current, previous);
+  const value = (unit: FigureUnit, v: FigureValue): Cell => (typeof v === "number" && unit === "centavos" ? pesos(v) : v);
+  return [
+    ["Figure", `${ranges.from} to ${ranges.to}`, `${ranges.previousFrom} to ${ranges.previousTo}`, "Change", "Better when", "Assessment"],
+    ...SUMMARY_ROWS.filter(([key]) => includeRevenue || KEY_FIGURE_DIRECTIONS[key].unit !== "centavos").map(([key, label]): Cell[] => {
+      const { unit, better, change } = changes[key];
+      return [
+        label,
+        value(unit, current[key]),
+        value(unit, previous[key]),
+        change ? value(unit, change.absolute) : null,
+        BETTER_WHEN[better],
+        change?.assessment ?? null,
+      ];
+    }),
+  ];
 }

@@ -27,7 +27,7 @@ describe("management dashboard extras", () => {
   const dashboard = async (token: string, query = "", status = 200, facilityId?: string) =>
     (await api(token, facilityId).get(`/management/dashboard${query}`).expect(status)).body;
   const csv = async (token: string, query: string, status = 200) => {
-    const response = await api(token).get(`/management/dashboard.csv?${query}`).buffer(true).expect(status);
+    const response = await api(token).get(`/management/dashboard/export?${query}`).buffer(true).expect(status);
     return { text: response.text as string, headers: response.headers as Record<string, string> };
   };
 
@@ -272,35 +272,30 @@ describe("management dashboard extras", () => {
     expect(annex.patients).toMatchObject({ seen: 0, returningRate: null, returningRateSuppressed: false });
   });
 
-  it("compares the headline figures with the previous equal period", async () => {
+  it("compares the key figures with the previous period, with the direction of improvement", async () => {
     const body = await dashboard(admin);
-    expect(body.previous).toEqual({ from: manilaDate(-59), to: manilaDate(-30) });
-    const figure = (key: string) => body.comparison.find((f: { key: string }) => f.key === key);
+    expect(body.previous).toMatchObject({ from: manilaDate(-59), to: manilaDate(-30) });
     // 8 patients now, 6 (P1–P5, P7) before.
-    expect(figure("patientsSeen")).toEqual({
-      key: "patientsSeen",
+    expect(body.keyFigures).toMatchObject({ patientsSeen: 8, newPatients: "<5", consultations: 10, noShowRate: 0.125, retentionRate: 0.875 });
+    expect(body.previous.keyFigures).toMatchObject({ patientsSeen: 6, consultations: 6, noShowRate: 0.5, retentionRate: 0.833, specimenRejectionRate: null });
+    const changes = body.previous.changes;
+    expect(changes.patientsSeen).toEqual({
       unit: "patients",
       better: "up",
-      current: 8,
-      previous: 6,
       change: { absolute: 2, relative: 0.3333, direction: "up", assessment: "better" },
     });
-    expect(figure("consultations")).toMatchObject({ current: 10, previous: 6, change: { direction: "up", assessment: "better" } });
     // No-shows: 1 of 8 booked now (4 in person + 4 online), 2 of 4 before — lower is better.
-    expect(figure("noShowRate")).toMatchObject({
+    expect(changes.noShowRate).toEqual({
+      unit: "rate",
       better: "down",
-      current: 0.125,
-      previous: 0.5,
       change: { absolute: -0.375, relative: null, direction: "down", assessment: "better" },
     });
-    // Nothing collected before: no rejection rate to compare; revenue compared from zero.
-    expect(figure("specimenRejectionRate")).toMatchObject({ current: 0.5, previous: null, change: null });
-    expect(figure("invoicedNet")).toMatchObject({ current: 50_000, previous: 0, change: { absolute: 50_000, relative: null, assessment: "better" } });
+    // Nothing collected before: no rejection rate to compare; revenue compared from zero; suppressed counts not compared.
+    expect(changes.specimenRejectionRate).toEqual({ unit: "rate", better: "down", change: null });
+    expect(changes.netInvoiced.change).toMatchObject({ absolute: 50_000, relative: null, assessment: "better" });
+    expect(changes.newPatients.change).toBeNull();
     // Retention now 7 of 8; before, 5 of 6 (P1–P5 seen 120 days ago; P7 not).
-    expect(figure("retentionRate")).toMatchObject({ current: 0.875, previous: 0.833, change: { assessment: "better" } });
-
-    const uncompared = await dashboard(admin, "?compare=false");
-    expect(uncompared).toMatchObject({ previous: null, comparison: [] });
+    expect(changes.retentionRate.change).toMatchObject({ direction: "up", assessment: "better" });
   });
 
   it("reports retention and return within 90 days", async () => {
@@ -350,7 +345,8 @@ describe("management dashboard extras", () => {
     expect(body).toMatchObject({ withheld: ["billing"], billing: null });
     expect(body.patients.seen).toBe(8);
     expect(body.daily.at(-1)).toMatchObject({ invoiced: null, collected: null, labReleased: 1 });
-    expect(body.comparison.map((f: { key: string }) => f.key)).not.toContain("invoicedNet");
+    expect(body.keyFigures).toMatchObject({ netInvoiced: null, netCollected: null });
+    expect(body.previous.changes.netInvoiced.change).toBeNull();
     // A cashier grant at the annex covers the annex only.
     expect((await dashboard(annexBilling)).withheld).toEqual(["billing"]);
     const annex = await dashboard(annexBilling, `?facilityId=${tenant.otherFacilityId}`);
@@ -360,34 +356,38 @@ describe("management dashboard extras", () => {
     expect((await dashboard(admin)).billing.invoices).toMatchObject({ issued: 1, netTotal: 50_000 });
   });
 
-  it("exports sections as CSV with the same rules", async () => {
-    const summary = await csv(admin, "section=summary");
+  it("exports the extra tables through the dashboard export, with the same rules", async () => {
+    const summary = await csv(admin, "table=summary");
     expect(summary.headers["content-type"]).toMatch(/^text\/csv/);
-    expect(summary.headers["content-disposition"]).toBe(`attachment; filename="management-summary-${manilaDate(-29)}-to-${manilaDate(0)}.csv"`);
-    expect(summary.text).toContain(`Compared with,${manilaDate(-59)} to ${manilaDate(-30)}`);
-    expect(summary.text).toContain("Patients seen,8,6,2,33.3,higher,better\r\n");
-    expect(summary.text).toContain("No-show rate (%),12.5,50.0,-37.5,,lower,better\r\n");
-    expect(summary.text).toContain("Invoiced net (PHP),500.00,0.00,500.00,,higher,better\r\n");
+    expect(summary.text.charCodeAt(0)).toBe(0xfeff);
+    expect(summary.text).toContain("\r\nPatients seen,8,6,2,higher,better\r\n");
+    expect(summary.text).toContain("\r\nNo-show rate,0.125,0.5,-0.375,lower,better\r\n");
+    expect(summary.text).toContain(`\r\n"Invoiced, net (PHP)",500.00,0.00,500.00,higher,better\r\n`);
+    expect(summary.text).toContain("\r\nNew patients registered,<5,0,,higher,\r\n");
 
-    const providers = (await csv(admin, "section=providers")).text;
-    expect(providers).toContain("Dr. santos,2,<5,0,0,0,0,\r\n");
-    expect(providers).toContain("Dr. reyes,8,8,8,1,240,6960,3.4\r\n");
+    const providers = (await csv(admin, "table=providers")).text;
+    expect(providers).toContain("\r\nDr. santos,2,<5,0,0,0,0,\r\n");
+    expect(providers).toContain("\r\nDr. reyes,8,8,8,1,240,6960,0.034\r\n");
     // Text a spreadsheet would run as a formula is prefixed.
-    expect((await csv(admin, "section=lab-instruments")).text).toContain("'=Analyzer One,1\r\n");
-    expect((await csv(admin, "section=dental-procedures")).text).toContain("prophylaxis,Oral prophylaxis,1,<5\r\n");
-    expect((await csv(admin, "section=telemedicine")).text).toContain("4,2,1,1,33.3\r\n");
-    expect((await csv(admin, "section=retention")).text).toContain("8,7,87.5,0,0,\r\n");
-    expect((await csv(admin, "section=services")).text).toContain("consult-fee,Consultation,consultation,1,<5,500.00\r\n");
-    expect((await csv(admin, "section=daily")).text).toContain(`${manilaDate(0)},<5,0,0,1,500.00,200.00\r\n`);
+    expect((await csv(admin, "table=lab-instruments")).text).toContain("\r\n'=Analyzer One,1\r\n");
+    expect((await csv(admin, "table=laboratory")).text).toContain("\r\nSpecimen rejection rate,0.5\r\n");
+    expect((await csv(admin, "table=lab-tests")).text).toContain("\r\nFBS,2\r\n");
+    expect((await csv(admin, "table=dental-procedures")).text).toContain("\r\nprophylaxis,Oral prophylaxis,1,<5\r\n");
+    expect((await csv(admin, "table=telemedicine")).text).toContain("\r\n4,2,1,1,0.333\r\n");
+    expect((await csv(admin, "table=retention")).text).toContain("\r\n8,7,0.875,0,0,\r\n");
+    expect((await csv(admin, "table=services")).text).toContain("\r\nconsult-fee,Consultation,consultation,1,500.00,<5\r\n");
+    expect((await csv(admin, "table=collections")).text).toContain("\r\ncash,1,200.00,0.00\r\n");
+    expect((await csv(admin, "table=revenue")).text).toContain("\r\nNet invoiced (PHP),500.00\r\n");
+    expect((await csv(admin, "table=daily")).text).toContain(`\r\n${manilaDate(0)},<5,0,0,1,500.00,200.00\r\n`);
 
-    // Without billing reports: revenue sections refused, revenue columns left out of the daily table.
-    await csv(noBilling, "section=revenue", 403);
-    await csv(noBilling, "section=services", 403);
-    const daily = (await csv(noBilling, "section=daily")).text;
-    expect(daily).toContain("Date,New patients,Patients seen,Consultations,Lab tests released\r\n");
+    // Without billing reports: revenue tables refused (and the refusal audited), revenue left out of summary and daily.
+    for (const table of ["revenue", "services", "categories", "collections"]) await csv(noBilling, `table=${table}`, 403);
+    const daily = (await csv(noBilling, "table=daily")).text;
+    expect(daily).toContain("Date,New patients,Patients seen,Consultations,Laboratory tests released\r\n");
     expect(daily).not.toContain("Invoiced");
-    await csv(admin, "section=unknown", 400);
-    await csv(admin, `section=summary&facilityId=00000000-0000-4000-8000-000000000000`, 404);
+    expect((await csv(noBilling, "table=summary")).text).not.toContain("PHP");
+    await csv(admin, "table=unknown", 400);
+    await csv(admin, `table=summary&facilityId=00000000-0000-4000-8000-000000000000`, 404);
   });
 
   it("never names a patient, in JSON or CSV", async () => {
@@ -405,7 +405,9 @@ describe("management dashboard extras", () => {
         "retention",
         "revenue",
         "services",
-      ].map(async (section) => (await csv(admin, `section=${section}`)).text),
+        "categories",
+        "collections",
+      ].map(async (table) => (await csv(admin, `table=${table}`)).text),
     );
     for (const text of [body, ...exports]) for (const secret of secrets) expect(text).not.toContain(secret);
   });
@@ -422,15 +424,19 @@ describe("management dashboard extras", () => {
     expect((await dashboard(admin)).clinic.encounters.completed).toBe(10);
   });
 
-  it("audits JSON and CSV views with the format, section and what was withheld", async () => {
-    const rows = await auditRows(ctx.pool, "action = 'management.dashboard.view' AND organization_id = $1", [tenant.organizationId]);
-    const meta = rows.map((r) => r.metadata as { format: string; section?: string; withheld: string[] });
-    expect(meta.some((m) => m.format === "json" && m.withheld.length === 0)).toBe(true);
-    expect(meta.some((m) => m.format === "json" && m.withheld[0] === "billing")).toBe(true);
-    expect(meta.some((m) => m.format === "csv" && m.section === "summary")).toBe(true);
-    expect(meta.some((m) => m.format === "csv" && m.section === "daily" && m.withheld[0] === "billing")).toBe(true);
-    // A refused revenue export is not recorded as a view.
-    expect(meta.some((m) => m.format === "csv" && m.section === "revenue" && m.withheld.length > 0)).toBe(false);
-    expect(rows.every((r) => r.patient_id === null)).toBe(true);
+  it("audits views and exports with what was withheld, and refused revenue exports as denials", async () => {
+    const org = [tenant.organizationId];
+    const views = await auditRows(ctx.pool, "action = 'management.dashboard.view' AND organization_id = $1", org);
+    const viewMeta = views.map((r) => r.metadata as { withheld: string[] });
+    expect(viewMeta.some((m) => m.withheld.length === 0)).toBe(true);
+    expect(viewMeta.some((m) => m.withheld[0] === "billing")).toBe(true);
+    const exports = await auditRows(ctx.pool, "action = 'management.dashboard.export' AND organization_id = $1", org);
+    const done = exports.filter((r) => r.outcome === "success").map((r) => r.metadata as { table: string; withheld: string[] });
+    expect(done.some((m) => m.table === "retention")).toBe(true);
+    expect(done.some((m) => m.table === "daily" && m.withheld[0] === "billing")).toBe(true);
+    const denied = exports.filter((r) => r.outcome === "denied");
+    expect(denied.map((r) => (r.metadata as { table: string }).table).sort()).toEqual(["categories", "collections", "revenue", "services"]);
+    expect(denied.every((r) => r.reason?.includes("billing.report.read"))).toBe(true);
+    expect([...views, ...exports].every((r) => r.patient_id === null)).toBe(true);
   });
 });

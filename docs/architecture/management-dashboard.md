@@ -23,7 +23,7 @@ Like the patient timeline, the dashboard is a cross-domain read model composed i
 
 The API adds the rates, suppression, the previous-period comparison and one row per day of the range (zeros filled
 in). The pure rules — range, facility scope, suppression, comparison, retention figures, revenue gating — live in
-`management-dashboard.rules.ts`; CSV tables in `management-dashboard.csv.ts`; the definitions below in
+`management-dashboard.rules.ts` (with the CSV writer and summary table; the other export tables in the service); the definitions below in
 `management-dashboard.definitions.ts` (returned as `definitions` and shown in the staff app). They stay in the API
 rather than a separate `libs/reporting` library: the dashboard is the only consumer, and one place avoids duplicating
 the rules.
@@ -74,14 +74,15 @@ patients seen.
 
 ## Previous-period comparison
 
-The headline figures (patients seen, consultations, no-show rate, average wait, lab tests released, lab turnaround,
-specimen rejection rate, retention rate and — with billing reporting — invoiced and collected) are computed again for
-the previous period of equal length ending the day before the range (`previous`), and returned in `comparison` with
-`current`, `previous`, the absolute change (rates as a fraction: 0.05 = 5 percentage points), the relative change
-(not for rates, nor from zero), the direction and an assessment against the figure's direction of improvement
-(`better`: up for volumes, collections and retention; down for no-shows, waiting, turnaround and rejections). A
-suppressed or missing value on either side gives no change. The staff app shows it as arrow + words + colour, e.g.
-"↑ +5.0 points vs previous period (worse)". `?compare=false` skips the second read.
+The same queries also run for the period of the same length just before the range (30 days before the last 30 days;
+the day before a single day). The API returns the headline figures for both — `keyFigures` and `previous.keyFigures`:
+patients seen, new patients, consultations, no-show rate, average wait, net invoiced, net collected, laboratory tests
+released, laboratory turnaround, dental procedures, specimen rejection rate and retention rate — and, per figure,
+`previous.changes[key]`: its `unit`, which direction is `better` (up for volumes, revenue and retention; down for
+no-shows, waiting, turnaround and rejections) and the `change` (absolute — a fraction for rates: 0.05 = 5 percentage
+points —, relative (not for rates, nor from zero), direction, and the assessment `better` / `worse` / `unchanged` /
+`neutral`). A suppressed (`"<5"`), withheld (revenue: `null`) or missing value on either side gives no change. The staff
+app shows main's change text with the assessment, coloured (e.g. "▲ 2.5 pts (worse) vs the previous 30 days").
 
 ## Privacy: small-cell suppression
 
@@ -110,27 +111,31 @@ true`). Consultation, test and procedure counts and money are not patient counts
 - **Revenue:** revenue, collections, revenue by category, payment methods and top services also need the existing
   `billing.report.read` on **every** facility the figures cover (organization-wide, or a facility grant on each). Without
   it `billing` is `null`, `withheld` is `["billing"]`, billing is not queried, the daily `invoiced`/`collected` are
-  `null`, revenue is left out of the comparison and revenue CSV sections are refused (403). org_admin holds it.
-- **Audit:** every view is recorded (`management.dashboard.view`, with the range, facilities, `withheld`, whether it was
-  compared, `format` (`json` or `csv`) and the CSV `section`). A refused revenue export is not recorded as a view.
+  `null`, the key figures `netInvoiced`/`netCollected` are `null` (no change), revenue rows are left out of the summary
+  and daily exports, and the revenue tables (`services`, `categories`, `revenue`, `collections`) are refused (403).
+  org_admin holds it.
+- **Audit:** every view is recorded (`management.dashboard.view`, with the range, facilities and `withheld`), every
+  export too (`management.dashboard.export`, with the table, range, facilities, `withheld` and number of rows); a refused
+  revenue export is recorded as a denial (`outcome = denied`, with the reason).
 - **Performance:** partial indexes on the time columns the queries filter (migrations `0059` and `0063`: specimens by
   collection, first result versions by entry, started teleconsultations, recorded dental procedures). The dashboard
-  reads the transactional tables directly (twice when compared); if volumes grow, materialized daily aggregates are the
+  reads the transactional tables directly (twice: the range and the previous period); if volumes grow, materialized daily aggregates are the
   next step.
 
 ## API
 
-- `GET /api/v1/management/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&facilityId=&compare=true|false` → figures, `daily`,
-  `comparison`, `previous`, `retention`, `telemedicine`, `suppressionThreshold`, `withheld`, `definitions`, the
-  facilities the caller may choose (`facilities`) and whether the whole organization is available
+- `GET /api/v1/management/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&facilityId=` → figures, `daily`, `keyFigures`,
+  `previous` (`from`, `to`, `keyFigures`, `changes`), `retention`, `telemedicine`, `suppressionThreshold`, `withheld`,
+  `definitions`, the facilities the caller may choose (`facilities`) and whether the whole organization is available
   (`wholeOrganization`). 400 for an unusable range, 403 outside the caller's facilities, 404 for an unknown facility.
-- `GET /api/v1/management/dashboard.csv?section=…` (same filters) → one table as `text/csv` (attachment
-  `management-<section>-<from>-to-<to>.csv`) after a short header block (period, comparison period, facilities, privacy
-  and revenue notes). Sections: `summary` (compared figures), `daily`, `providers`, `laboratory`, `lab-tests`,
-  `lab-instruments`, `dental-procedures`, `telemedicine`, `retention`, and — with billing reporting — `revenue`,
-  `revenue-by-category`, `collections`, `services`. Suppression applies; text cells a spreadsheet would read as a
-  formula (starting with `=`, `+`, `-`, `@`, tab or carriage return; plain numbers excepted) are prefixed with `'`.
-  Amounts in pesos with two decimals, rates in percent with one.
+- `GET /api/v1/management/dashboard/export?table=…&from=&to=&facilityId=` → one table as `text/csv` (attachment
+  `management-{table}-{from}-to-{to}.csv`), RFC 4180 with a UTF-8 byte-order mark, amounts in pesos with two decimals,
+  rates as fractions. Tables: `summary` (each key figure for the range and the previous period, the change, which way is
+  better and the assessment), `daily`, `providers` (with booked and available minutes and utilization), `laboratory`,
+  `lab-tests`, `lab-instruments`, `dental-procedures`, `telemedicine`, `retention`, and — with billing reporting —
+  `services` (with patients), `categories`, `revenue`, `collections`. Suppression applies. A cell starting with `=`, `+`,
+  `-`, `@`, a tab or a carriage return is prefixed with an apostrophe, so spreadsheets never run staff-entered names as
+  formulas. The same scope rules apply.
 
 ## Staff app
 
@@ -139,11 +144,12 @@ ranges; key figures, each with its previous-period change (arrow, words and colo
 this calculated?"; two daily charts — activity (consultations and lab releases) and revenue (pesos, only when not
 withheld), never on one axis — each with a legend and a table view (`DailySeriesChart` in `@healthcare/ui/healthcare`);
 tables of top services, revenue by category and payment method, providers with utilization, laboratory tests and
-instruments, dental procedure codes, online consultations and retention; a CSV link on each. Downloads go through the
-`/management/export` route handler, which proxies the API with the user's session (the token never reaches the browser).
-Without billing reporting a note replaces the revenue figures.
+instruments, dental procedure codes, online consultations and retention; CSV downloads of each table (revenue tables
+only when not withheld) through the `/management/export` route handler, which passes only known tables and well-formed
+filters to the API with the user's session (the token never reaches the browser). Without billing reporting a note
+replaces the revenue figures.
 
 ## Not yet
 
-PDF export, per-department laboratory figures, median/percentile waiting and turnaround times, inventory and dispensing
+A PDF export, comparisons with the same period last year, per-department laboratory figures, median/percentile waiting and turnaround times, inventory and dispensing
 figures, telemedicine waiting times, and scheduled management reports.

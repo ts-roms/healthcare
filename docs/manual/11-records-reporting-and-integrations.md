@@ -220,6 +220,28 @@ Other systems (for example a referral hospital's system) can read a patient's re
 
 Technical details are in `docs/interoperability/fhir.md`.
 
+## How to read the management dashboard
+
+**Who:** organization administrators (`management.dashboard.read`; a grant at one facility shows only that facility). Revenue figures also need
+billing report access (`billing.report.read`) for every facility shown.
+
+1. Open **Management** in the menu (`/management`).
+2. Choose **From**, **To** and a **Facility** (or **All facilities**), or a quick range such as **Last 30 days**, and select **Apply**.
+3. Read the key figures. Under each one:
+   - the change against the previous period of the same length, with **(better)** or **(worse)** — for example, a lower no-show rate is better, a
+     longer wait is worse;
+   - **How is this calculated?** explains exactly what is counted.
+4. Scroll for the daily charts (each has **Show as table**) and the tables: services, revenue by category and payment method, providers with schedule
+   utilization, laboratory tests and instruments, dental procedures, online consultations and patient retention.
+5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos.
+
+**Things to know:**
+
+- **"<5"** means between one and four patients. Small patient counts are hidden so that no one can be recognized, and a percentage built on
+  such a count shows as **withheld**.
+- Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
+- These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
+
 ## Rules the system enforces
 
 - Nothing from an import enters a record until a reviewer matches the patient and accepts the entry. Nothing is matched automatically.

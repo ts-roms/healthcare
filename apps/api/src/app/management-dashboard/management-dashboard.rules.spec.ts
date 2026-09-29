@@ -4,6 +4,8 @@ import {
   dailySeries,
   daysBetween,
   isSmallCell,
+  keyFigureChanges,
+  keyFigures,
   patientRate,
   previousRange,
   rate,
@@ -13,7 +15,9 @@ import {
   shiftDate,
   shiftMonths,
   SMALL_CELL_THRESHOLD,
+  summaryRows,
   suppressCount,
+  toCsv,
 } from "./management-dashboard.rules";
 
 describe("management dashboard rules", () => {
@@ -59,6 +63,58 @@ describe("management dashboard rules", () => {
     // Utilization may exceed 100%.
     expect(rate(300, 240)).toBe(1.25);
   });
+});
+
+describe("management dashboard comparison and export", () => {
+  it("compares with the period of the same length just before", () => {
+    expect(previousRange("2026-09-01", "2026-09-30")).toEqual({ from: "2026-08-02", to: "2026-08-31" });
+    expect(previousRange("2026-03-01", "2026-03-01")).toEqual({ from: "2026-02-28", to: "2026-02-28" });
+  });
+
+  it("writes RFC 4180 CSV and never lets a cell run as a formula", () => {
+    expect(
+      toCsv([
+        ["Service", "Net"],
+        ['Cert, "rush"', 12.5],
+        ['=HYPERLINK("x")', null],
+        ["-5", 0],
+        ["line\nbreak", 1],
+      ]),
+    ).toBe('Service,Net\r\n"Cert, ""rush""",12.5\r\n"\'=HYPERLINK(""x"")",\r\n\'-5,0\r\n"line\nbreak",1\r\n');
+  });
+
+  const parts = {
+    patients: { registered: 2 },
+    clinic: { appointments: { noShowRate: 0.25 }, visits: { averageWaitMinutes: null }, encounters: { completed: 5, patientsSeen: 6 } },
+    laboratory: { released: 3, averageTurnaroundMinutes: 95, specimens: { rejectionRate: 0.1 } },
+    dental: { procedures: 1 },
+    retention: { seen: 6, retained: 5 },
+    billing: { invoices: { netTotal: 123_456 }, netCollected: 100_000 },
+  };
+
+  it("lists each key figure for both periods with the change and its assessment, amounts in pesos", () => {
+    const figures = keyFigures(parts);
+    // Patient counts under five are suppressed; retention 5 of 6.
+    expect(figures).toMatchObject({ patientsSeen: 6, newPatients: "<5", retentionRate: 0.833, specimenRejectionRate: 0.1 });
+    const rows = summaryRows(
+      figures,
+      { ...figures, netInvoiced: 0, noShowRate: 0.2 },
+      { from: "2026-09-01", to: "2026-09-30", previousFrom: "2026-08-02", previousTo: "2026-08-31" },
+    );
+    expect(rows[0]).toEqual(["Figure", "2026-09-01 to 2026-09-30", "2026-08-02 to 2026-08-31", "Change", "Better when", "Assessment"]);
+    expect(rows).toContainEqual(["Invoiced, net (PHP)", "1234.56", "0.00", "1234.56", "higher", "better"]);
+    expect(rows).toContainEqual(["Average wait, check-in to consultation (minutes)", null, null, null, "lower", null]);
+    expect(rows).toContainEqual(["No-show rate", 0.25, 0.2, 0.05, "lower", "worse"]);
+    expect(rows).toContainEqual(["New patients registered", "<5", "<5", null, "higher", null]);
+  });
+
+  it("leaves revenue out when billing is withheld", () => {
+    const figures = keyFigures({ ...parts, billing: null });
+    expect(figures).toMatchObject({ netInvoiced: null, netCollected: null });
+    const rows = summaryRows(figures, figures, { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, false);
+    expect(rows.map((r) => r[0])).not.toContain("Invoiced, net (PHP)");
+    expect(keyFigureChanges(figures, figures).netInvoiced).toEqual({ unit: "centavos", better: "up", change: null });
+  });
 
   describe("small-cell suppression", () => {
     it("shows patient counts of 1–4 as <5, and 0 and 5+ exactly", () => {
@@ -78,33 +134,25 @@ describe("management dashboard rules", () => {
     });
   });
 
-  describe("previous-period comparison", () => {
-    it("takes the equal period immediately before", () => {
-      expect(previousRange({ from: "2026-09-01", to: "2026-09-30" })).toEqual({ from: "2026-08-02", to: "2026-08-31" });
-      expect(previousRange({ from: "2026-03-01", to: "2026-03-01" })).toEqual({ from: "2026-02-28", to: "2026-02-28" });
-    });
-
+  describe("direction of improvement", () => {
     it("reads the change against the figure's direction of improvement", () => {
-      expect(compareFigure("noShowRate", "rate", "down", 0.25, 0.2)).toEqual({
-        key: "noShowRate",
+      expect(compareFigure("rate", "down", 0.25, 0.2)).toEqual({
         unit: "rate",
         better: "down",
-        current: 0.25,
-        previous: 0.2,
         change: { absolute: 0.05, relative: null, direction: "up", assessment: "worse" },
       });
-      expect(compareFigure("consultations", "count", "up", 12, 8).change).toEqual({ absolute: 4, relative: 0.5, direction: "up", assessment: "better" });
-      expect(compareFigure("averageWait", "minutes", "down", 20, 30).change).toMatchObject({ direction: "down", assessment: "better", relative: -0.3333 });
-      expect(compareFigure("consultations", "count", "up", 5, 5).change).toMatchObject({ direction: "flat", assessment: "unchanged" });
-      expect(compareFigure("volume", "count", "neither", 5, 3).change).toMatchObject({ assessment: "neutral" });
+      expect(compareFigure("count", "up", 12, 8).change).toEqual({ absolute: 4, relative: 0.5, direction: "up", assessment: "better" });
+      expect(compareFigure("minutes", "down", 20, 30).change).toMatchObject({ direction: "down", assessment: "better", relative: -0.3333 });
+      expect(compareFigure("count", "up", 5, 5).change).toMatchObject({ direction: "flat", assessment: "unchanged" });
+      expect(compareFigure("count", "neither", 5, 3).change).toMatchObject({ assessment: "neutral" });
       // From zero there is no relative change.
-      expect(compareFigure("consultations", "count", "up", 3, 0).change).toMatchObject({ absolute: 3, relative: null });
+      expect(compareFigure("count", "up", 3, 0).change).toMatchObject({ absolute: 3, relative: null });
     });
 
     it("has no change when either value is unknown or suppressed", () => {
-      expect(compareFigure("patientsSeen", "patients", "up", "<5", 10).change).toBeNull();
-      expect(compareFigure("patientsSeen", "patients", "up", 10, "<5").change).toBeNull();
-      expect(compareFigure("noShowRate", "rate", "down", null, 0.2).change).toBeNull();
+      expect(compareFigure("patients", "up", "<5", 10).change).toBeNull();
+      expect(compareFigure("patients", "up", 10, "<5").change).toBeNull();
+      expect(compareFigure("rate", "down", null, 0.2).change).toBeNull();
     });
   });
 

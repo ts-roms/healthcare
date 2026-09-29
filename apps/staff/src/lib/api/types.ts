@@ -2892,9 +2892,9 @@ export interface ManagementDashboard {
   suppressionThreshold: number;
   /** Sections left out for lack of permission ("billing": needs billing.report.read on every facility in scope). */
   withheld: Array<"billing">;
-  /** The previous equal period the headline figures are compared with (null: not compared). */
-  previous: { from: string; to: string } | null;
-  comparison: ManagementFigureComparison[];
+  keyFigures: ManagementKeyFigures;
+  /** The period of the same length just before the range, with each key figure's change. */
+  previous: { from: string; to: string; keyFigures: ManagementKeyFigures; changes: Record<keyof ManagementKeyFigures, ManagementFigureChange> };
   patients: {
     registered: ManagementPatientCount;
     seen: ManagementPatientCount;
@@ -3012,18 +3012,32 @@ export type ManagementMetricKey =
   | "comparison"
   | "suppression";
 
-/** A headline figure beside the previous equal period. */
-export interface ManagementFigureComparison {
-  key: string;
+/** A key figure's change against the previous period, and which direction is an improvement. */
+export interface ManagementFigureChange {
   unit: "count" | "patients" | "rate" | "minutes" | "centavos";
-  /** Which direction is an improvement. */
   better: "up" | "down" | "neither";
-  current: number | "<5" | null;
-  previous: number | "<5" | null;
+  /** Null when either value is unknown, withheld or suppressed. */
   change: {
+    /** For a rate a fraction (0.05 = 5 percentage points). */
     absolute: number;
     relative: number | null;
     direction: "up" | "down" | "flat";
     assessment: "better" | "worse" | "unchanged" | "neutral";
   } | null;
+}
+
+/** Headline figures of the management dashboard (amounts in centavos; null when billing is withheld). */
+export interface ManagementKeyFigures {
+  patientsSeen: ManagementPatientCount;
+  newPatients: ManagementPatientCount;
+  consultations: number;
+  noShowRate: number | null;
+  averageWaitMinutes: number | null;
+  netInvoiced: number | null;
+  netCollected: number | null;
+  labTestsReleased: number;
+  labTurnaroundMinutes: number | null;
+  dentalProcedures: number;
+  specimenRejectionRate: number | null;
+  retentionRate: number | null;
 }

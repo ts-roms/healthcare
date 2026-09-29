@@ -20,14 +20,14 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
       ) : null}
 
       {state.step === "mfa" ? (
-        <form action={action} className="flex flex-col gap-3">
+        <form action={action} className="flex flex-col gap-4">
           <input type="hidden" name="intent" value="mfa" />
           <input type="hidden" name="next" value={next} />
           <div className="flex items-center gap-2 text-body">
             <ShieldCheckIcon className="size-4 text-primary" aria-hidden />
             Enter the 6-digit code from your authenticator app.
           </div>
-          <div className="grid gap-1">
+          <div className="grid gap-1.5">
             <Label htmlFor="code">Verification code</Label>
             <Input
               id="code"
@@ -38,23 +38,23 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
               maxLength={6}
               required
               autoFocus
-              className="font-mono tracking-[0.3em]"
+              className="h-10 font-mono tracking-[0.3em]"
             />
           </div>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
             {pending ? "Verifying…" : "Verify and sign in"}
           </Button>
         </form>
       ) : (
-        <form action={action} className="flex flex-col gap-3">
+        <form action={action} className="flex flex-col gap-4">
           <input type="hidden" name="intent" value="password" />
           <input type="hidden" name="next" value={next} />
-          <div className="grid gap-1">
+          <div className="grid gap-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" autoComplete="username" required defaultValue={state.email} autoFocus />
+            <Input id="email" name="email" type="email" autoComplete="username" required defaultValue={state.email} autoFocus className="h-10" />
           </div>
           {state.step === "organization" ? (
-            <div className="grid gap-1">
+            <div className="grid gap-1.5">
               <Label htmlFor="organizationId">Organization</Label>
               <NativeSelect id="organizationId" name="organizationId" required defaultValue="">
                 <option value="" disabled>
@@ -69,11 +69,11 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
               <p className="text-meta text-muted-foreground">You belong to more than one organization. Choose one and enter your password again.</p>
             </div>
           ) : null}
-          <div className="grid gap-1">
+          <div className="grid gap-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="password" autoComplete="current-password" required />
+            <Input id="password" name="password" type="password" autoComplete="current-password" required className="h-10" />
           </div>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
             <KeyRoundIcon /> {pending ? "Signing in…" : "Sign in"}
           </Button>
         </form>

@@ -17,9 +17,11 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
 
 ## Build notes
 
-- **Backend builds type-check their libraries first.** The webpack builds of `api` and the workers read the libraries'
-  declaration output (`libs/*/dist`), which only the `typecheck` target (`tsc -b`) produces. Their `build` targets
-  therefore depend on `^typecheck` (in each app's `package.json`), so `nx run api:build` works on a clean checkout.
+- **Backend builds run `typecheck` first, through Nx.** The webpack builds of `api` and the workers read the libraries'
+  declaration output (`libs/*/dist`), which only the `typecheck` target (`tsc -b`) produces. The `build` target of each
+  backend app therefore depends on its own `typecheck` (which depends on `^typecheck`), declared in the app's
+  `package.json`, and `typecheck` declares `dist`/`out-tsc` as outputs in `nx.json` so a cache hit restores them. A plain
+  `nx run api:build` works from a clean checkout, so the build command is just that.
 - **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff` and `apps/portal` hard-code ports 3000 and
   3001 for local development. The Railway start command runs `next start --port $PORT` instead.
 - `pnpm db:migrate` runs as the API's pre-deploy command. It needs dev dependencies (`@swc-node/register`), so do not

@@ -91,6 +91,13 @@ inbox links to `/dental`). Wording: `lib/dental.ts`. See
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
 
+## Help
+
+`/help` (open to everyone, signed in or not, so a patient who cannot sign in can still read it; `OPEN_PATHS` in `proxy.ts`)
+renders chapter 12 of the user manual (`docs/manual/12-patient-portal.md`) without its staff sections (`lib/guide.ts`), read
+from the repository on the server when served (`lib/guide-content.ts`). Linked from the sign-in page (**How to use MyHealth**)
+and the header (**Help**).
+
 ## Configuration
 
 | Variable                   | Default                        | Meaning                                                   |

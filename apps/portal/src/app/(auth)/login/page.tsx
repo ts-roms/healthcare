@@ -25,6 +25,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           Set up your account
         </Link>
       </section>
+      <Link href="/help" className="text-center text-body font-medium text-primary underline-offset-4 hover:underline">
+        How to use MyHealth
+      </Link>
     </>
   );
 }

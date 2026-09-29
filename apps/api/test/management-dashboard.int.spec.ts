@@ -160,6 +160,68 @@ describe("management dashboard", () => {
     expect(JSON.stringify(body)).not.toMatch(/Dela Cruz|Juan|Garcia|Ana\b|P\d{8}/);
   });
 
+  it("compares the key figures with the period of the same length just before", async () => {
+    const body = await dashboard(admin);
+    // Patient counts under five are suppressed.
+    expect(body.keyFigures).toEqual({
+      patientsSeen: "<5",
+      newPatients: "<5",
+      consultations: 2,
+      noShowRate: 0.5,
+      averageWaitMinutes: 30,
+      netInvoiced: 50_000,
+      netCollected: 20_000,
+      labTestsReleased: 1,
+      labTurnaroundMinutes: expect.any(Number),
+      dentalProcedures: 1,
+      specimenRejectionRate: 0,
+      retentionRate: null,
+    });
+    // Juan's visit 40 days ago falls in the 30 days before the range.
+    expect(body.previous).toMatchObject({
+      from: manilaDate(-59),
+      to: manilaDate(-30),
+      keyFigures: { patientsSeen: "<5", consultations: 1, newPatients: 0, netInvoiced: 0, noShowRate: null },
+    });
+    // Each change with its direction of improvement; none for suppressed or missing values.
+    expect(body.previous.changes.consultations).toEqual({
+      unit: "count",
+      better: "up",
+      change: { absolute: 1, relative: 1, direction: "up", assessment: "better" },
+    });
+    expect(body.previous.changes.patientsSeen).toEqual({ unit: "patients", better: "up", change: null });
+    expect(body.previous.changes.noShowRate).toEqual({ unit: "rate", better: "down", change: null });
+  });
+
+  it("exports each table as CSV (pesos, formula-safe) and audits the export", async () => {
+    await api(doctor).get("/management/dashboard/export?table=summary").expect(403);
+    await api(admin).get("/management/dashboard/export?table=patients").expect(400);
+    const summary = await api(admin).get("/management/dashboard/export?table=summary").expect(200);
+    expect(summary.headers["content-type"]).toMatch(/^text\/csv/);
+    expect(summary.headers["content-disposition"]).toBe(`attachment; filename="management-summary-${manilaDate(-29)}-to-${manilaDate(0)}.csv"`);
+    expect(summary.text.charCodeAt(0)).toBe(0xfeff);
+    const lines = summary.text.slice(1).split("\r\n");
+    expect(lines[0]).toBe(`Figure,${manilaDate(-29)} to ${manilaDate(0)},${manilaDate(-59)} to ${manilaDate(-30)},Change,Better when,Assessment`);
+    expect(lines).toContain(`"Invoiced, net (PHP)",500.00,0.00,500.00,higher,better`);
+    expect(lines).toContain("Consultations completed,2,1,1,higher,better");
+    expect(lines).toContain("Patients seen,<5,<5,,higher,");
+
+    const services = await api(admin).get("/management/dashboard/export?table=services").expect(200);
+    expect(services.text).toContain("cert,Medical certificate,other,1,500.00,<5");
+    const daily = await api(admin)
+      .get(`/management/dashboard/export?table=daily&from=${manilaDate(0)}&to=${manilaDate(0)}`)
+      .expect(200);
+    expect(daily.text.slice(1).split("\r\n")[1]).toBe(`${manilaDate(0)},<5,<5,2,1,500.00,200.00`);
+    const providers = await api(admin).get("/management/dashboard/export?table=providers").expect(200);
+    expect(providers.text).toContain("Dr. reyes,2,<5,2,1,30,0,");
+    // A facility-scoped manager exports only their facility.
+    await api(annexManager, tenant.otherFacilityId).get(`/management/dashboard/export?table=summary&facilityId=${tenant.facilityId}`).expect(403);
+
+    const audits = await auditRows(ctx.pool, "action = 'management.dashboard.export' AND organization_id = $1", [tenant.organizationId]);
+    expect(audits.map((a) => (a.metadata as { table: string }).table).sort()).toEqual(["daily", "providers", "services", "summary"]);
+    expect(JSON.stringify([summary.text, services.text, daily.text, providers.text])).not.toMatch(/Dela Cruz|Juan|Garcia/);
+  });
+
   it("filters by facility and by range of local days", async () => {
     const annex = await dashboard(admin, `?facilityId=${tenant.otherFacilityId}`);
     expect(annex).toMatchObject({ facilityIds: [tenant.otherFacilityId], patients: { registered: "<5", seen: "<5", returning: 0 } });
