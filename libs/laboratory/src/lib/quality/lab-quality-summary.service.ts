@@ -5,6 +5,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { LabCompetencyService } from "./lab-competency.service";
 import { LabEqaService } from "./lab-eqa.service";
 import { LabQualityService } from "./lab-quality.service";
+import { LabReagentService } from "./lab-reagent.service";
 import { LabTemperatureService } from "./lab-temperature.service";
 import { labNonconformance } from "./quality-management.schema";
 
@@ -21,12 +22,13 @@ export class LabQualitySummaryService {
     private readonly temperatures: LabTemperatureService,
     private readonly eqa: LabEqaService,
     private readonly competency: LabCompetencyService,
+    private readonly reagents: LabReagentService,
     private readonly organizations: OrganizationService,
   ) {}
 
   async summary(actor: Actor) {
     const facilityId = requireFacilityId(actor);
-    const [nonconformances, qc, instruments, units, surveys, staff, facility] = await Promise.all([
+    const [nonconformances, qc, instruments, units, surveys, staff, facility, loads] = await Promise.all([
       this.db
         .select({
           open: sql<number>`count(*)::int`,
@@ -44,6 +46,7 @@ export class LabQualitySummaryService {
       this.eqa.surveys(actor),
       this.competency.overview(actor),
       this.organizations.getFacility(actor.organizationId, facilityId),
+      this.reagents.inUse(actor),
     ]);
     const today = localDate(new Date(), facility.timezone);
     const areas = staff.staff.flatMap((s) => s.areas);
@@ -68,6 +71,10 @@ export class LabQualitySummaryService {
       instruments: {
         outOfService: instruments.filter((i) => i.status === "out_of_service").length,
         calibrationOverdue: instruments.filter((i) => i.calibrationOverdue).length,
+      },
+      reagents: {
+        /** Loaded reagent lots with a tenth of their tests or less left (or used beyond their stated capacity). */
+        low: loads.filter((l) => l.use.low).length,
       },
       temperatures: {
         readingsDue: units.filter((u) => u.status === "active" && u.readingDue).length,

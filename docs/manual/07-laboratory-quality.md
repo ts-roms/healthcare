@@ -47,6 +47,8 @@ Quality managers (users with `lab.qc.manage` at the facility) receive in-app mes
 - When a nonconformance is opened (by a colleague, by a temperature excursion or by an unacceptable EQA result). The person who raised it is not
   notified.
 - When a QC run is rejected. The message names the instrument, test and rules — never patient details or control values.
+- Once for each loaded reagent lot that runs low (a tenth or less of the tests it holds is left), naming the instrument, reagent, lot and the tests
+  left. Prepare the next lot; lots loaded without **Tests it holds** (and no tests per unit) never raise it.
 - Once for each missed temperature reading (checked hourly).
 - When a competency reassessment is due. The person assessed is told too.
 
@@ -104,7 +106,7 @@ By default, loading a new lot restarts the QC window for the test: QC must be ru
 ## How to follow reagent use per test run
 
 Every lot in use shows how many tests it has used and how many are left, for example "42 of 100 tests used · 58 left", and **Running low** when a
-tenth or less is left. Under it: patient, QC, other and wasted runs.
+tenth or less is left. Quality managers then get one in-app notice for that lot, and the dashboard lists **Reagent lots running low**. Under it: patient, QC, other and wasted runs.
 
 - A **patient run** is counted when a result is entered with the instrument: the tests of one order entered together count once; a correction
   entered on the instrument counts as a re-run.

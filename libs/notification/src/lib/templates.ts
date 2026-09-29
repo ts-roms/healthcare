@@ -239,6 +239,14 @@ export const TEMPLATES = [
       }),
       z.object({ kind: z.literal("temperature_due"), storageUnitCode: shortText, storageUnitName: shortText }),
       z.object({
+        kind: z.literal("reagent_low"),
+        instrumentCode: shortText,
+        itemName: shortText,
+        lotNumber: shortText.nullable(),
+        remaining: z.number().int(),
+        capacity: z.number().int().positive(),
+      }),
+      z.object({
         kind: z.literal("competency_due"),
         staffName: shortText,
         areaName: shortText,
@@ -260,6 +268,15 @@ export const TEMPLATES = [
             subject: `QC rejected — ${v.testName} on ${v.instrumentCode}`,
             text: `A QC run for ${v.testName} on instrument ${v.instrumentCode} was rejected${v.rules.length ? ` (${v.rules.join(", ")})` : ""}. Review the run and record a corrective action.`,
             href: "/laboratory/qc",
+          };
+        case "reagent_low":
+          return {
+            subject: `Reagent running low — ${v.itemName} on ${v.instrumentCode}`,
+            text:
+              v.remaining > 0
+                ? `${v.itemName} lot ${v.lotNumber ?? "(no lot number)"} on instrument ${v.instrumentCode} has about ${v.remaining} of ${v.capacity} tests left. Prepare the next lot.`
+                : `${v.itemName} lot ${v.lotNumber ?? "(no lot number)"} on instrument ${v.instrumentCode} has used all ${v.capacity} tests it was said to hold. Load the next lot or check the stated capacity.`,
+            href: "/laboratory/instruments",
           };
         case "temperature_due":
           return {

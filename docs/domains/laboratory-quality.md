@@ -139,6 +139,12 @@ its patient runs — QC, repeats, calibration, waste and the unused part include
 without patient runs. Operational figures, not an accounting valuation. Runs recorded before migration `0064` (the lots
 on results and QC runs) were counted by the migration.
 
+**Low reagent alert** (migration `0065`). When a counted run (patient, QC or recorded use) leaves a loaded lot with a
+capacity at or below a tenth of it, the same transaction records one `lab_reagent_low_alert` row for the load (its
+primary key: once per load, whatever runs follow or race) with the capacity and what was left, and publishes
+`LaboratoryReagentLow`. Loads without a capacity never raise it; a new lot gets its own. The alert only informs — nothing
+is refused.
+
 **Patient results.** Entering (or correcting) a result with `instrumentId`: the instrument must be active at the order's
 facility; the decisive run is linked and its status snapshotted (`none` when no run is in the window). When the facility
 sets `qc_required`, no run in the window, or a rejected decisive run, refuses the result (`qc_not_accepted`). The reagent
@@ -194,7 +200,7 @@ closed, all) and one with its entries and what it still needs to close; EQA sche
 result-entering staff member's latest assessment per area, and one person's history. The **quality summary**
 (`LabQualitySummaryService`, built from the same queries as the pages): open nonconformances (investigating, critical,
 major), QC pairs rejected, missing in the window or refusing patient results, instruments out of service or with
-calibration overdue, storage units with a reading due or out of range at the last reading and excursions in 7 days, EQA
+calibration overdue, loaded reagent lots running low, storage units with a reading due or out of range at the last reading and excursions in 7 days, EQA
 rounds past due with nothing reported or awaiting evaluation, and competency areas due or not yet competent and staff
 never assessed.
 
@@ -202,7 +208,8 @@ never assessed.
 
 `LaboratoryQcRunRejected` (run id, instrument, test, lot, rules, who entered it — no values), `LaboratoryInstrumentStatusChanged` (from,
 to), `LaboratoryReagentLotLoaded` (load, inventory lot, test, replaced load), `LaboratoryReagentLotUnloaded`,
-`LaboratoryReagentUseRecorded` (load, use, kind, tests — staff-recorded use only),
+`LaboratoryReagentUseRecorded` (load, use, kind, tests — staff-recorded use only), `LaboratoryReagentLow` (load,
+capacity, remaining — once per load),
 `LaboratoryTemperatureExcursion` (reading, unit, nonconformance), `LaboratoryNonconformanceOpened` (number, category,
 severity, who reported it), `LaboratoryNonconformanceClosed`, `LaboratoryEqaResultUnacceptable` (result, survey, test,
 nonconformance) — ids only.
@@ -212,7 +219,10 @@ staff, a temperature excursion or an unacceptable EQA result) and `LaboratoryQcR
 `lab.qc.manage` at the event's facility (organization-wide or facility role) gets an in-app `lab.quality-notice`, except
 the person whose action raised it. The message names the record number, category and severity, or the instrument code,
 test name and rules; never a patient, specimen, title, description or control value. It links to the nonconformance or
-to `/laboratory/qc`. One message per event and recipient (idempotency key), so redelivered events are not repeated.
+to `/laboratory/qc`. On `LaboratoryReagentLow` every quality manager at the facility (the run that crossed the line was
+nobody's decision) is told the instrument code, reagent, lot number and the tests left of its capacity, linking to
+`/laboratory/instruments`; nothing is sent if the lot was unloaded before the event was handled. One message per event
+and recipient (idempotency key), so redelivered events are not repeated.
 
 **Reminders** (`apps/api/src/app/laboratory-quality-reminders.ts`, hourly in the API process, advisory lock; what is due
 comes from `LabQualityDue` in the library):
