@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { LabQualityService } from "./lab-quality.service";
@@ -11,6 +11,9 @@ import {
   InstrumentEventDto,
   InstrumentQueryDto,
   LoadReagentDto,
+  RecordReagentUseDto,
+  ReagentUsageQueryDto,
+  SetReagentYieldDto,
   QcActionDto,
   QcRunQueryDto,
   ReagentQueryDto,
@@ -108,6 +111,45 @@ export class LabQualityController {
   @RequirePermissions("lab.qc.enter")
   unloadReagent(@CurrentActor() actor: Actor, @Param("loadId", uuid) loadId: string, @Body() body: UnloadReagentDto) {
     return this.reagents.unload(actor, loadId, body.reason);
+  }
+
+  // ---- Reagent use per test run -----------------------------------------------------------
+
+  @Get("reagents/usage")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Reagent use at the selected facility over a period: loads in use, runs by kind, what is left, cost per patient run" })
+  reagentUsage(@CurrentActor() actor: Actor, @Query() query: ReagentUsageQueryDto) {
+    return this.reagents.usage(actor, query);
+  }
+
+  @Get("reagents/yields")
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Tests per stock unit of each reagent (used for the capacity of new loads)" })
+  reagentYields(@CurrentActor() actor: Actor) {
+    return this.reagents.yields(actor);
+  }
+
+  @Put("reagents/yields/:itemId")
+  @RequirePermissions("lab.qc.manage")
+  @ApiOperation({ summary: "Set how many tests one stock unit of a reagent holds" })
+  setReagentYield(@CurrentActor() actor: Actor, @Param("itemId", uuid) itemId: string, @Body() body: SetReagentYieldDto) {
+    return this.reagents.setYield(actor, itemId, body.testsPerUnit);
+  }
+
+  @Get("reagents/:loadId/uses")
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "Every run and recorded use counted against a loaded reagent lot, newest first" })
+  reagentUses(@CurrentActor() actor: Actor, @Param("loadId", uuid) loadId: string) {
+    return this.reagents.uses(actor, loadId);
+  }
+
+  @Post("reagents/:loadId/uses")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.enter")
+  @ApiOperation({ summary: "Record reagent use not entered as a result or QC run (repeat, calibration, priming, waste, other)" })
+  recordReagentUse(@CurrentActor() actor: Actor, @Param("loadId", uuid) loadId: string, @Body() body: RecordReagentUseDto) {
+    return this.reagents.recordUse(actor, loadId, body);
   }
 
   // ---- QC materials, lots, targets -------------------------------------------------------

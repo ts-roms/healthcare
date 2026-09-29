@@ -473,7 +473,7 @@ export class LabQualityService {
         })
         .returning();
       const run = found(row, "QC run");
-      await this.reagents.recordOnQcRun(tx, actor.organizationId, run.id, reagents.loadIds);
+      await this.reagents.recordOnQcRun(tx, actor.organizationId, run, reagents.loadIds);
       await this.audit.record(tx, actor, {
         action: "lab.qc.run.record",
         resourceType: "lab_qc_run",
@@ -665,8 +665,13 @@ export class LabQualityService {
   }
 
   /** Records the reagent lots in use on a result entered on an instrument (with qcForResult, in the same transaction). */
-  recordResultReagents(tx: DbExecutor, organizationId: string, resultId: string, loadIds: string[]): Promise<void> {
-    return this.reagents.recordOnResult(tx, organizationId, resultId, loadIds);
+  recordResultReagents(
+    tx: DbExecutor,
+    organizationId: string,
+    result: { id: string; orderId: string; versionNumber: number; enteredBy: string },
+    loadIds: string[],
+  ): Promise<void> {
+    return this.reagents.recordOnResult(tx, organizationId, result, loadIds);
   }
 
   // ---- internals ------------------------------------------------------------------------

@@ -2605,7 +2605,11 @@ export interface LabReagentLoad {
   /** Stock taken from inventory when the lot was loaded. */
   stockLocationId: string | null;
   stockQuantity: number | null;
+  /** Tests the load holds (stock taken × yield, or stated at the load); null when not known (migration 0064). */
+  capacityTests: number | null;
   expired: boolean;
+  /** Runs counted against the load and what is left. */
+  use: LabReagentUseSummary;
 }
 
 /** GET /laboratory/reagents/available */
@@ -3074,5 +3078,75 @@ export interface PurchaseOrderInvoicing {
     orderUnitCost: number | null;
     quantityInvoiced: number;
     invoiceable: number;
+  }>;
+}
+
+// ---- Laboratory reagent use per test run (migration 0064; amounts in centavos) --------------------------------------
+
+export interface LabReagentUseSummary {
+  patientRuns: number;
+  qcRuns: number;
+  otherRuns: number;
+  wasted: number;
+  total: number;
+  capacity: number | null;
+  remaining: number | null;
+  usedShare: number | null;
+  low: boolean;
+}
+
+export type LabReagentUseKind = "patient" | "qc" | "repeat" | "calibration" | "priming" | "waste" | "other";
+export type LabManualReagentUseKind = Exclude<LabReagentUseKind, "patient" | "qc">;
+
+/** GET /laboratory/reagents/:loadId/uses */
+export interface LabReagentUse {
+  id: string;
+  kind: LabReagentUseKind;
+  tests: number;
+  orderId: string | null;
+  resultId: string | null;
+  runNumber: number | null;
+  qcRunId: string | null;
+  reason: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** GET /laboratory/reagents/yields */
+export interface LabReagentYield {
+  inventoryItemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  testsPerUnit: number;
+  updatedAt: string;
+  updatedByName: string | null;
+}
+
+/** GET /laboratory/reagents/usage */
+export interface LabReagentUsage {
+  from: string;
+  to: string;
+  timeZone: string;
+  loads: Array<
+    LabReagentLoad & {
+      period: Pick<LabReagentUseSummary, "patientRuns" | "qcRuns" | "otherRuns" | "wasted" | "total">;
+      stockMovementGroupId: string | null;
+      stockCost: number | null;
+      costPerPatientRun: number | null;
+      unusedAtUnload: number | null;
+    }
+  >;
+  reagents: Array<{
+    inventoryItemId: string;
+    itemCode: string;
+    itemName: string;
+    loads: number;
+    patientRuns: number;
+    qcRuns: number;
+    otherRuns: number;
+    wasted: number;
+    total: number;
+    nonPatientShare: number | null;
   }>;
 }

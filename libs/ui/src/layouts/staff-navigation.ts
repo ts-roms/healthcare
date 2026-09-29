@@ -67,6 +67,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Catalog", href: "/laboratory/catalog", roles: ["lab-tech", "admin"] },
       { label: "Quality control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
       { label: "Instruments", href: "/laboratory/instruments", roles: ["lab-tech", "admin"] },
+      { label: "Reagent use", href: "/laboratory/reagents", roles: ["lab-tech", "admin"] },
       { label: "Temperatures", href: "/laboratory/temperatures", roles: ["lab-tech", "admin"] },
       { label: "Nonconformances", href: "/laboratory/nonconformances", roles: ["lab-tech", "admin"] },
       { label: "Proficiency testing", href: "/laboratory/eqa", roles: ["lab-tech", "admin"] },
