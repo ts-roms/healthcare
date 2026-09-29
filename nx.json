@@ -25,6 +25,7 @@
     },
     "typecheck": {
       "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/tsconfig.tsbuildinfo", "{projectRoot}/dist", "{projectRoot}/out-tsc"],
       "cache": true
     },
     "lint": {
