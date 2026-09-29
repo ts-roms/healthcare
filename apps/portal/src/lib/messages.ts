@@ -26,9 +26,8 @@ export function messageSource(message: Pick<PortalMessage, "templateKey">): stri
   return "Visits";
 }
 
-/** "Today, 9:30 AM", "Yesterday, 4:05 PM" or "Sep 20, 2026" — in Manila time. */
-export function messageTime(createdAt: string, now = new Date()): string {
-  const tz = "Asia/Manila";
+/** "Today, 9:30 AM", "Yesterday, 4:05 PM" or "Sep 20, 2026" — in the patient's clinic's time zone. */
+export function messageTime(createdAt: string, tz: string, now = new Date()): string {
   const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
   const at = new Date(createdAt);
   const time = new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(at);

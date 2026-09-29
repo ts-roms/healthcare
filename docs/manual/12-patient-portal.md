@@ -63,6 +63,11 @@ Times of visits are shown in the clinic's local time (Philippine time for most c
 
 If you open a part of MyHealth that is not built yet, you see "Coming soon".
 
+## Dates and times
+
+Visits and online consultations show the time at the clinic where they take place. Other dates and times — results, medicines, bills and
+messages — are shown in your clinic's local time (the branch where you were registered), not your phone's.
+
 ## How to see your visits
 
 1. Choose **Visits**.

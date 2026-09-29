@@ -3,6 +3,7 @@ import { ChevronRightIcon, FlaskConicalIcon, FileDownIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ResultMeaning } from "@/components/result-meaning";
 import { portalApi } from "@/lib/api/client";
+import { getMe } from "@/lib/api/session";
 import type { PortalResult } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import { latestPerTest, resultDate, resultValue, usualRange } from "@/lib/records";
@@ -11,6 +12,8 @@ export const metadata = { title: "Results" };
 
 /** Only results the laboratory has released and allows patients to see are listed (the API decides). */
 export default async function ResultsPage() {
+  // Dates and times are shown in the patient\'s clinic\'s time zone.
+  const { timeZone } = await getMe();
   const results = await portalApi<PortalResult[]>("/portal/results");
   const groups = latestPerTest(results);
   return (
@@ -36,7 +39,7 @@ export default async function ResultsPage() {
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <p className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold">{latest.testName}</span>
-                    <span className="text-meta text-muted-foreground">{resultDate(latest.collectedAt ?? latest.releasedAt)}</span>
+                    <span className="text-meta text-muted-foreground">{resultDate(latest.collectedAt ?? latest.releasedAt, timeZone)}</span>
                   </p>
                   <p className="tabular text-section-lg font-semibold">
                     {resultValue(latest)} {latest.unit ? <span className="text-body font-normal text-muted-foreground">{latest.unit}</span> : null}
@@ -69,7 +72,7 @@ export default async function ResultsPage() {
                 >
                   <FileDownIcon className="size-4 text-primary" aria-hidden />
                   <span className="flex-1">Report {r.orderNumber}</span>
-                  <span className="text-meta text-muted-foreground">{resultDate(r.collectedAt ?? r.releasedAt)}</span>
+                  <span className="text-meta text-muted-foreground">{resultDate(r.collectedAt ?? r.releasedAt, timeZone)}</span>
                 </a>
               </li>
             ))}

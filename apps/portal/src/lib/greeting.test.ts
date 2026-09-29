@@ -3,10 +3,10 @@ import { formatCalendarDate, greeting } from "./greeting";
 
 describe("greeting", () => {
   it("uses the hour in Manila, not the server's time zone", () => {
-    expect(greeting(new Date("2026-09-27T00:30:00Z"))).toBe("Good morning"); // 08:30 PHT
-    expect(greeting(new Date("2026-09-27T05:00:00Z"))).toBe("Good afternoon"); // 13:00 PHT
-    expect(greeting(new Date("2026-09-27T12:00:00Z"))).toBe("Good evening"); // 20:00 PHT
-    expect(greeting(new Date("2026-09-26T19:00:00Z"))).toBe("Good evening"); // 03:00 PHT
+    expect(greeting("Asia/Manila", new Date("2026-09-27T00:30:00Z"))).toBe("Good morning"); // 08:30 PHT
+    expect(greeting("Asia/Manila", new Date("2026-09-27T05:00:00Z"))).toBe("Good afternoon"); // 13:00 PHT
+    expect(greeting("Asia/Manila", new Date("2026-09-27T12:00:00Z"))).toBe("Good evening"); // 20:00 PHT
+    expect(greeting("Asia/Manila", new Date("2026-09-26T19:00:00Z"))).toBe("Good evening"); // 03:00 PHT
   });
 });
 

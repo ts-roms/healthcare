@@ -129,9 +129,21 @@ describe("patient portal sign-in", () => {
       patient: { patientNumber: "P00000001", givenName: juan.givenName, birthDate: juan.birthDate },
       organization: { name: "Org portal-org" },
       account: { email: "juan@example.ph" },
+      timeZone: "Asia/Manila",
     });
     const [event] = await auditRows(ctx.pool, `action = 'portal.profile-view'`);
     expect(event).toMatchObject({ actor_type: "patient", patient_id: patientId });
+  });
+
+  it("gives the time zone of the patient's clinic, for showing dates and times", async () => {
+    const zone = (tz: string) =>
+      ctx.pool.query(`UPDATE facility SET timezone = $2 WHERE id = (SELECT registered_facility_id FROM patient WHERE id = $1)`, [patientId, tz]);
+    await zone("Asia/Tokyo");
+    try {
+      expect((await ctx.http().get("/api/v1/portal/me").set(as(accessToken)).expect(200)).body.timeZone).toBe("Asia/Tokyo");
+    } finally {
+      await zone("Asia/Manila");
+    }
   });
 
   it("keeps patient and staff tokens apart", async () => {

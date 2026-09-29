@@ -17,7 +17,7 @@ import {
   sha256Hex,
   UnauthenticatedError,
 } from "@healthcare/core";
-import { organization } from "@healthcare/organization";
+import { facility, organization } from "@healthcare/organization";
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { patient, patientConsent } from "../patient.schema";
@@ -484,9 +484,10 @@ export class PortalAccountService {
   /** The signed-in patient's own profile (identity only; clinical records come from the portal records endpoints). */
   async me(principal: PortalPrincipal) {
     const [row] = await this.db
-      .select({ patient, organizationName: organization.name, email: patientPortalAccount.email })
+      .select({ patient, organizationName: organization.name, email: patientPortalAccount.email, timeZone: facility.timezone })
       .from(patient)
       .innerJoin(organization, eq(organization.id, patient.organizationId))
+      .innerJoin(facility, eq(facility.id, patient.registeredFacilityId))
       .innerJoin(patientPortalAccount, eq(patientPortalAccount.id, principal.accountId))
       .where(and(eq(patient.organizationId, principal.organizationId), eq(patient.id, principal.patientId)));
     if (!row) throw new NotFoundError("Patient");
@@ -506,6 +507,8 @@ export class PortalAccountService {
       },
       organization: { name: row.organizationName },
       account: { email: row.email },
+      /** The patient's clinic (where they were registered): MyHealth shows dates and times in its zone; a visit uses its own facility's. */
+      timeZone: row.timeZone,
     };
   }
 

@@ -109,8 +109,8 @@ export function visitTime(appointment: Pick<PortalAppointment, "startsAt" | "tim
   }).format(new Date(appointment.startsAt));
 }
 
-/** "30 Sep 2026" in Manila time (results carry instants). */
-export function resultDate(iso: string | null): string {
+/** "30 Sep 2026" in the patient's clinic's time zone (results, prescriptions and bills carry instants). */
+export function resultDate(iso: string | null, timeZone: string): string {
   if (!iso) return "";
-  return new Intl.DateTimeFormat("en-PH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Manila" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-PH", { day: "numeric", month: "short", year: "numeric", timeZone }).format(new Date(iso));
 }

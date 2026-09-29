@@ -37,7 +37,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       ) : null}
       <section>
         <h1 className="text-page-lg font-semibold tracking-tight">
-          {greeting()}, {me.patient.givenName}
+          {greeting(me.timeZone)}, {me.patient.givenName}
         </h1>
         <p className="text-muted-foreground">{me.organization.name} · How can we help today?</p>
       </section>
@@ -77,7 +77,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 <Link href={`/results/${latest.testId}`} className="flex flex-col gap-1 rounded-xl border bg-card p-3">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold">{latest.testName}</span>
-                    <span className="text-meta text-muted-foreground">{resultDate(latest.collectedAt ?? latest.releasedAt)}</span>
+                    <span className="text-meta text-muted-foreground">{resultDate(latest.collectedAt ?? latest.releasedAt, me.timeZone)}</span>
                   </span>
                   <span className="tabular">
                     {resultValue(latest)} {latest.unit ?? ""}
