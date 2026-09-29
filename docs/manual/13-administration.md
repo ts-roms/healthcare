@@ -190,14 +190,15 @@ not repeated. A dash (—) means only the organization administrator has it by d
 
 ### Records, reporting and integrations
 
-| Permission                    | What it allows                                                                                     | Default roles (besides Organization administrator) |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `doh.report.manage`           | Review disease case reports: confirm, record as reported, dismiss, submit                          | Dentist, Medical records officer, Physician        |
-| `doh.settings.manage`         | Configure reportable conditions and the facility's DOH health facility code                        | —                                                  |
-| `integration.exchange.manage` | Review outbound integration exchanges: see failures, re-queue stalled ones, record a resolution    | —                                                  |
-| `interop.fhir.import`         | Submit FHIR R4 content for import (received into the review queue, never into the record; audited) | —                                                  |
-| `interop.fhir.import.review`  | Review FHIR imports: view received content, match the patient, accept or reject entries (audited)  | Medical records officer                            |
-| `interop.fhir.read`           | Read patient records through the FHIR R4 interface (whole-record export; audited)                  | —                                                  |
+| Permission                    | What it allows                                                                                                      | Default roles (besides Organization administrator) |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `doh.report.manage`           | Review disease case reports: confirm, record as reported, dismiss, submit                                           | Dentist, Medical records officer, Physician        |
+| `doh.settings.manage`         | Configure reportable conditions and the facility's DOH health facility code                                         | —                                                  |
+| `integration.exchange.manage` | Review outbound integration exchanges: see failures, re-queue stalled ones, record a resolution                     | —                                                  |
+| `interop.fhir.import`         | Submit FHIR R4 content for import (received into the review queue, never into the record; audited)                  | —                                                  |
+| `interop.fhir.import.review`  | Review FHIR imports: view received content, match the patient, accept or reject entries (audited)                   | Medical records officer                            |
+| `interop.fhir.read`           | Read patient records through the FHIR R4 interface (whole-record export; audited)                                   | —                                                  |
+| `management.dashboard.read`   | View the management dashboard and download its tables (aggregate figures; revenue also needs `billing.report.read`) | —                                                  |
 
 **Things to notice in the defaults:**
 

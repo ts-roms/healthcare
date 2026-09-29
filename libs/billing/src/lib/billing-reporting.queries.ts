@@ -99,6 +99,8 @@ export class BillingReportingQueries {
           category: billingService.category,
           quantity: sql<number>`sum(${billingInvoiceItem.quantity})::int`,
           net: centavos(sql`sum(${billingInvoiceItem.netAmount})`),
+          /** Distinct patients invoiced for the service (the API suppresses small counts). */
+          patients: sql<number>`count(distinct ${billingInvoice.patientId})::int`,
         })
         .from(billingInvoiceItem)
         .innerJoin(billingInvoice, eq(billingInvoice.id, billingInvoiceItem.invoiceId))

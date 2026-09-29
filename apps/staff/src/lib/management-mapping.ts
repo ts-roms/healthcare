@@ -1,3 +1,4 @@
+import type { ManagementFigureChange, ManagementPatientCount } from "./api/types";
 import { shiftDate } from "./clinic-mapping";
 
 /** Display rules for the management dashboard; the API computes every figure. */
@@ -33,8 +34,9 @@ export function percentOf(rate: number | null): string {
  * change in percent, rates in percentage points, durations in minutes. Whether up is good depends on the figure, so
  * the text stays neutral.
  */
-export function comparison(current: number | null, previous: number | null, kind: "count" | "rate" | "minutes"): string {
-  if (current === null || previous === null) return "no comparison";
+export function comparison(current: number | "<5" | null, previous: number | "<5" | null, kind: "count" | "rate" | "minutes"): string {
+  // A suppressed patient count ("<5") is not compared: the change would reveal it.
+  if (typeof current !== "number" || typeof previous !== "number") return "no comparison";
   if (current === previous) return "no change";
   const arrow = current > previous ? "▲" : "▼";
   if (kind === "rate") return `${arrow} ${Math.abs(Math.round((current - previous) * 1000) / 10).toLocaleString("en-PH")} pts`;
@@ -49,10 +51,37 @@ export function previousLabel(from: string, to: string): string {
   return days === 1 ? "the previous day" : `the previous ${days} days`;
 }
 
-export const EXPORT_TABLES: Array<{ key: string; label: string }> = [
+/** Whether the change is an improvement, from the API's direction of improvement for the figure; colour follows. */
+export function verdict(change: ManagementFigureChange | undefined): { text: string; tone: "better" | "worse" | "neutral" } | null {
+  const assessment = change?.change?.assessment;
+  if (!assessment || assessment === "unchanged") return null;
+  if (assessment === "neutral") return { text: "neither better nor worse", tone: "neutral" };
+  return { text: assessment, tone: assessment };
+}
+
+/** A patient count for people: "<5" stays as it is (suppressed by the API), numbers get separators. */
+export function countLabel(count: ManagementPatientCount): string {
+  return typeof count === "number" ? count.toLocaleString("en-PH") : count;
+}
+
+/** A rate between patient counts: "withheld" when the API suppressed it. */
+export function patientRateLabel(rate: number | null, suppressed: boolean): string {
+  return suppressed ? "withheld (<5)" : percentOf(rate);
+}
+
+/** CSV tables of the dashboard export; `revenue` ones need billing report access for every facility in scope. */
+export const EXPORT_TABLES: Array<{ key: string; label: string; revenue?: true }> = [
   { key: "summary", label: "Summary" },
   { key: "daily", label: "Daily" },
-  { key: "services", label: "Services" },
-  { key: "categories", label: "Categories" },
+  { key: "services", label: "Services", revenue: true },
+  { key: "categories", label: "Categories", revenue: true },
+  { key: "revenue", label: "Revenue", revenue: true },
+  { key: "collections", label: "Payment methods", revenue: true },
   { key: "providers", label: "Providers" },
+  { key: "laboratory", label: "Laboratory" },
+  { key: "lab-tests", label: "Lab tests" },
+  { key: "lab-instruments", label: "Lab instruments" },
+  { key: "dental-procedures", label: "Dental procedures" },
+  { key: "telemedicine", label: "Online consultations" },
+  { key: "retention", label: "Retention" },
 ];

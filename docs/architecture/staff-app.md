@@ -87,8 +87,11 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 
 ## Management dashboard
 
-`/management` (`management.dashboard.read`): figures across clinic, laboratory, dental, billing and the Patient Master for a
-range of days and a facility or the whole organization — see [management-dashboard.md](management-dashboard.md).
+`/management` (`management.dashboard.read`): figures across clinic, laboratory, dental, telemedicine, billing and the
+Patient Master for a range of days and a facility or the whole organization, with the previous-period change (arrow,
+words and colour), "How is this calculated?" per figure, small patient counts shown as "<5", revenue hidden without
+billing report access, and CSV downloads per table through the `/management/export` route handler (it proxies
+`GET /management/dashboard/export?table=` with the user's session) — see [management-dashboard.md](management-dashboard.md).
 
 ## Dashboard
 
