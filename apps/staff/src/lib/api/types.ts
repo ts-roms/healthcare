@@ -2858,6 +2858,8 @@ export interface LabQualitySummary {
   nonconformances: { open: number; investigating: number; critical: number; major: number };
   qc: { rejected: number; missing: number; resultsBlocked: number };
   instruments: { outOfService: number; calibrationOverdue: number };
+  /** Loaded reagent lots with a tenth of their tests or less left (migration 0065). */
+  reagents: { low: number };
   temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
   eqa: { overdue: number; awaitingEvaluation: number };
   competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };

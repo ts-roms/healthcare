@@ -31,6 +31,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/laboratory/critical": ["lab.result.read"],
   "/laboratory/qc": ["lab.qc.read"],
   "/laboratory/instruments": ["lab.qc.read"],
+  "/laboratory/reagents": ["lab.qc.read"],
   "/laboratory/temperatures": ["lab.qc.read"],
   "/laboratory/nonconformances": ["lab.qc.read"],
   "/laboratory/eqa": ["lab.qc.read"],

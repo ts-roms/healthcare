@@ -67,6 +67,7 @@ describe("qualityAttentionItems", () => {
     nonconformances: { open: 0, investigating: 0, critical: 0, major: 0 },
     qc: { rejected: 0, missing: 0, resultsBlocked: 0 },
     instruments: { outOfService: 0, calibrationOverdue: 0 },
+    reagents: { low: 0 },
     temperatures: { readingsDue: 0, outOfRangeNow: 0, excursionsLast7Days: 3 },
     eqa: { overdue: 0, awaitingEvaluation: 0 },
     competency: { required: false, due: 0, notYetCompetent: 0, staffNotAssessed: 4 },
@@ -92,6 +93,12 @@ describe("qualityAttentionItems", () => {
     ]);
     expect(items[0]?.detail).toBe("1 critical, 1 major, 1 under investigation");
     expect(items[2]?.detail).toBe("1 rejected, 2 not run in the window");
+  });
+
+  it("lists reagent lots running low", () => {
+    expect(qualityAttentionItems({ ...quiet, reagents: { low: 2 } })).toEqual([
+      expect.objectContaining({ id: "quality-reagents-low", severity: "warning", count: 2, href: "/laboratory/reagents" }),
+    ]);
   });
 
   it("counts unassessed staff only when the facility requires competency", () => {

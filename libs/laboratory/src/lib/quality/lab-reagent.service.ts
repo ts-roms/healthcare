@@ -24,6 +24,7 @@ import {
   labReagentLoad,
   type LabReagentLoadRecord,
   labReagentUse,
+  labReagentLowAlert,
   labReagentYield,
   labResultReagent,
   labTest,
@@ -320,6 +321,7 @@ export class LabReagentService {
         })),
       )
       .onConflictDoNothing();
+    await this.raiseLowAlerts(tx, organizationId, loadIds);
   }
 
   /** Records the lots in use on a QC run and counts the run against each load. */
@@ -338,6 +340,7 @@ export class LabReagentService {
         recordedBy: run.enteredBy,
       })),
     );
+    await this.raiseLowAlerts(tx, organizationId, loadIds);
   }
 
   // ---- Use per run -------------------------------------------------------------------------
@@ -383,6 +386,7 @@ export class LabReagentService {
         facilityId,
         payload: { loadId, useId: use?.id ?? null, kind: input.kind, tests: input.tests },
       });
+      await this.raiseLowAlerts(tx, actor.organizationId, [loadId]);
       return current;
     });
     const [view] = await this.views(actor.organizationId, facilityId, [load]);
@@ -587,6 +591,71 @@ export class LabReagentService {
         r.unloadedAt === null,
       ),
     }));
+  }
+
+  /**
+   * Raises the low-reagent alert, once per load, for loaded lots with a capacity whose runs now leave a tenth of it or
+   * less (inside the transaction that counted the run): recorded in lab_reagent_low_alert and published as
+   * LaboratoryReagentLow for the quality managers.
+   */
+  private async raiseLowAlerts(tx: DbExecutor, organizationId: string, loadIds: string[]): Promise<void> {
+    const loads = await tx
+      .select()
+      .from(labReagentLoad)
+      .where(and(inArray(labReagentLoad.id, loadIds), isNull(labReagentLoad.unloadedAt), sql`${labReagentLoad.capacityTests} is not null`));
+    if (loads.length === 0) return;
+    const uses = await tx
+      .select({ loadId: labReagentUse.reagentLoadId, kind: labReagentUse.kind, tests: sql<number>`sum(${labReagentUse.tests})::int` })
+      .from(labReagentUse)
+      .where(
+        inArray(
+          labReagentUse.reagentLoadId,
+          loads.map((l) => l.id),
+        ),
+      )
+      .groupBy(labReagentUse.reagentLoadId, labReagentUse.kind);
+    for (const load of loads) {
+      const use = summarizeReagentUse(
+        uses.filter((u) => u.loadId === load.id),
+        load.capacityTests,
+        true,
+      );
+      if (!use.low || use.capacity === null || use.remaining === null) continue;
+      const [raised] = await tx
+        .insert(labReagentLowAlert)
+        .values({ reagentLoadId: load.id, organizationId, facilityId: load.facilityId, capacityTests: use.capacity, remainingTests: use.remaining })
+        .onConflictDoNothing()
+        .returning({ loadId: labReagentLowAlert.reagentLoadId });
+      if (!raised) continue;
+      await this.events.record(tx, {
+        type: "LaboratoryReagentLow",
+        organizationId,
+        aggregateType: "lab_instrument",
+        aggregateId: load.instrumentId,
+        facilityId: load.facilityId,
+        payload: { loadId: load.id, capacity: use.capacity, remaining: use.remaining },
+      });
+    }
+  }
+
+  /** What a low-reagent notice names: the instrument, the reagent and its lot (no patient or run data). */
+  async lowAlertSummary(organizationId: string, loadId: string) {
+    const [row] = await this.db
+      .select({ load: labReagentLoad, instrumentCode: labInstrument.code, alert: labReagentLowAlert })
+      .from(labReagentLowAlert)
+      .innerJoin(labReagentLoad, eq(labReagentLoad.id, labReagentLowAlert.reagentLoadId))
+      .innerJoin(labInstrument, eq(labInstrument.id, labReagentLoad.instrumentId))
+      .where(and(eq(labReagentLowAlert.organizationId, organizationId), eq(labReagentLowAlert.reagentLoadId, loadId)));
+    if (!row) return undefined;
+    return {
+      instrumentCode: row.instrumentCode,
+      itemName: row.load.itemName,
+      lotNumber: row.load.lotNumber,
+      capacity: row.alert.capacityTests,
+      remaining: row.alert.remainingTests,
+      /** Unloaded since the alert was raised (nothing to replace any more). */
+      unloaded: row.load.unloadedAt !== null,
+    };
   }
 
   private facilities(executor: DbExecutor, loadIds: string[]) {

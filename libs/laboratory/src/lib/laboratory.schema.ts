@@ -1,7 +1,8 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql,
-// 0047_reference_laboratory.sql, 0050_lab_quality.sql, 0051_lab_reagent_lots.sql and 0064_lab_reagent_use.sql (the migrations are the source of
+// 0047_reference_laboratory.sql, 0050_lab_quality.sql, 0051_lab_reagent_lots.sql, 0064_lab_reagent_use.sql and
+// 0065_lab_reagent_low_alert.sql (the migrations are the source of
 // truth). Send-out tables (0047) are in send-outs/send-out.schema.ts.
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
@@ -473,6 +474,16 @@ export const labReagentUse = pgTable("lab_reagent_use", {
   reason: text("reason"),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   recordedBy: uuid("recorded_by").notNull(),
+});
+
+// 0065: one low-reagent alert per load.
+export const labReagentLowAlert = pgTable("lab_reagent_low_alert", {
+  reagentLoadId: uuid("reagent_load_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  capacityTests: integer("capacity_tests").notNull(),
+  remainingTests: integer("remaining_tests").notNull(),
+  raisedAt: timestamp("raised_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type LabReagentLoadRecord = typeof labReagentLoad.$inferSelect;

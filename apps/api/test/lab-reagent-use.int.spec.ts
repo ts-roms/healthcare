@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
 
 /**
  * Phase 9 — reagent use per test run: a loaded reagent lot holds a number of tests (stock taken × the reagent's yield,
@@ -209,5 +209,34 @@ describe("laboratory reagent use per test run", () => {
     const tomorrow = await lab("get", `/reagents/usage?from=${manilaDate(1)}&to=${manilaDate(1)}`, medtech).expect(200);
     expect(tomorrow.body.loads.map((l: { id: string }) => l.id)).toEqual([ids.load2]);
     expect(tomorrow.body.loads[0].period.total).toBe(0);
+  });
+
+  it("tells the quality managers once when a loaded lot runs low", async () => {
+    // Load 1 (100 tests, 8 used) never ran low; load 2 (10 tests) crossed with the priming above.
+    const alerts = await ctx.pool.query(`SELECT reagent_load_id, capacity_tests, remaining_tests FROM lab_reagent_low_alert WHERE organization_id = $1`, [
+      tenant.organizationId,
+    ]);
+    expect(alerts.rows).toEqual([{ reagent_load_id: ids.load2, capacity_tests: 10, remaining_tests: 1 }]);
+    await lab("post", `/reagents/${ids.load2}/uses`, medtech, { kind: "repeat", tests: 1, reason: "Repeat after a clot flag" }).expect(201);
+    const events = await ctx.pool.query(`SELECT payload FROM domain_event WHERE event_type = 'LaboratoryReagentLow' AND organization_id = $1`, [
+      tenant.organizationId,
+    ]);
+    expect(events.rows).toEqual([{ payload: { loadId: ids.load2, capacity: 10, remaining: 1 } }]);
+    await expect(ctx.pool.query(`DELETE FROM lab_reagent_low_alert WHERE reagent_load_id = $1`, [ids.load2])).rejects.toThrow();
+
+    await drainEvents(ctx);
+    const notices = async (token: string) =>
+      (await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200)).body.filter(
+        (n: { templateKey: string; subject: string }) => n.templateKey === "lab.quality-notice" && n.subject.startsWith("Reagent running low"),
+      );
+    const [notice] = await notices(pathologist);
+    expect(notice).toMatchObject({ subject: "Reagent running low — Chemistry reagent R1 on chem-1", href: "/laboratory/instruments" });
+    expect(notice.text).toBe("Chemistry reagent R1 lot R-2 on instrument chem-1 has about 1 of 10 tests left. Prepare the next lot.");
+    expect(await notices(admin)).toHaveLength(1);
+    // Staff without lab.qc.manage are not told.
+    expect(await notices(medtech)).toEqual([]);
+
+    const summary = await lab("get", "/quality/summary", medtech).expect(200);
+    expect(summary.body.reagents).toEqual({ low: 1 });
   });
 });
