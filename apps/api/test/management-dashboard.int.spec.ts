@@ -125,14 +125,21 @@ describe("management dashboard", () => {
     const body = await dashboard(admin);
     expect(body).toMatchObject({ from: manilaDate(-29), to: manilaDate(0), timeZone: "Asia/Manila", facilityIds: null, wholeOrganization: true });
     expect(body.facilities).toHaveLength(2);
-    expect(body.patients).toEqual({ registered: 2, seen: 2, returning: 1, returningRate: 0.5 });
+    // Patient counts under five are suppressed, and the rate built on them withheld (the extras spec has larger numbers).
+    expect(body.patients).toEqual({ registered: "<5", seen: "<5", returning: "<5", firstTime: "<5", returningRate: null, returningRateSuppressed: true });
     expect(body.clinic.appointments).toEqual({ booked: 2, completed: 1, noShow: 1, cancelled: 1, selfBooked: 0, noShowRate: 0.5 });
     expect(body.clinic.visits).toEqual({ checkedIn: 1, walkIns: 1, leftWithoutBeingSeen: 0, averageWaitMinutes: 30 });
-    expect(body.clinic.encounters).toEqual({ completed: 2, telemedicine: 1, patientsSeen: 2, returningPatients: 1 });
-    expect(body.clinic.providers).toEqual([expect.objectContaining({ displayName: "Dr. reyes", encounters: 2, patients: 2, appointments: 2, noShows: 1 })]);
+    expect(body.clinic.encounters).toEqual({ completed: 2, telemedicine: 1, patientsSeen: "<5", returningPatients: "<5" });
+    expect(body.clinic.providers).toEqual([
+      expect.objectContaining({ displayName: "Dr. reyes", encounters: 2, patients: "<5", appointments: 2, noShows: 1, bookedMinutes: 30 }),
+    ]);
     expect(body.laboratory).toMatchObject({ orders: { orders: 1, stat: 0, cancelled: 0 }, testsOrdered: 1, released: 1, corrections: 0, specimensRejected: 0 });
     expect(body.laboratory.topTests).toEqual([expect.objectContaining({ name: "FBS", ordered: 1 })]);
-    expect(body.dental).toEqual({ procedures: 1, patients: 1 });
+    expect(body.dental).toEqual({
+      procedures: 1,
+      patients: "<5",
+      byProcedure: [{ code: "prophylaxis", name: "Oral prophylaxis", procedures: 1, patients: "<5" }],
+    });
     expect(body.billing.invoices).toMatchObject({ issued: 1, netTotal: 50_000, voided: 0 });
     expect(body.billing).toMatchObject({ collectedTotal: 20_000, refundedTotal: 0, netCollected: 20_000 });
     expect(body.billing.collections).toEqual([expect.objectContaining({ method: "cash", collected: 20_000, payments: 1 })]);
@@ -140,14 +147,22 @@ describe("management dashboard", () => {
     expect(body.billing.topServices).toEqual([expect.objectContaining({ code: "cert", name: "Medical certificate", quantity: 1, net: 50_000 })]);
     // One row per day, today's holding today's activity.
     expect(body.daily).toHaveLength(30);
-    expect(body.daily.at(-1)).toMatchObject({ date: manilaDate(0), registered: 2, encounters: 2, labReleased: 1, invoiced: 50_000, collected: 20_000 });
+    expect(body.daily.at(-1)).toMatchObject({
+      date: manilaDate(0),
+      registered: "<5",
+      patientsSeen: "<5",
+      encounters: 2,
+      labReleased: 1,
+      invoiced: 50_000,
+      collected: 20_000,
+    });
     // Figures only: no patient is named.
     expect(JSON.stringify(body)).not.toMatch(/Dela Cruz|Juan|Garcia|Ana\b|P\d{8}/);
   });
 
   it("filters by facility and by range of local days", async () => {
     const annex = await dashboard(admin, `?facilityId=${tenant.otherFacilityId}`);
-    expect(annex).toMatchObject({ facilityIds: [tenant.otherFacilityId], patients: { registered: 1, seen: 1, returning: 0 } });
+    expect(annex).toMatchObject({ facilityIds: [tenant.otherFacilityId], patients: { registered: "<5", seen: "<5", returning: 0 } });
     expect(annex.clinic.encounters).toMatchObject({ completed: 1, telemedicine: 1 });
     expect(annex.billing.invoices.issued).toBe(0);
 
