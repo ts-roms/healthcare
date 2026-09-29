@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, DomainEventPublisher } from "@healthcare/core";
+import { type Actor, BusinessRuleError, DATABASE, type Database, type DbExecutor, DomainEventPublisher, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import type { z } from "zod";
 import type { recordPerioChartSchema } from "../dental.dto";
@@ -142,7 +142,7 @@ export class DentalPerioService {
     const charts = await this.db
       .select()
       .from(dentalPerioChart)
-      .where(and(eq(dentalPerioChart.organizationId, organizationId), eq(dentalPerioChart.patientId, patientId)))
+      .where(and(eq(dentalPerioChart.organizationId, organizationId), filedAsPatient(dentalPerioChart.patientId, patientId)))
       .orderBy(desc(dentalPerioChart.recordedAt))
       .limit(50);
     const teeth = await this.teethOf(
@@ -168,7 +168,7 @@ export class DentalPerioService {
       .where(
         and(
           eq(dentalPerioChart.organizationId, actor.organizationId),
-          eq(dentalPerioChart.patientId, chart.patientId),
+          filedAsPatient(dentalPerioChart.patientId, chart.patientId),
           eq(dentalPerioChart.status, "recorded"),
           lt(dentalPerioChart.recordedAt, chart.recordedAt),
         ),

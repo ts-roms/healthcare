@@ -10,6 +10,7 @@ import {
   localDate,
   NotFoundError,
   systemActor,
+  filedAsPatient,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
@@ -128,7 +129,13 @@ export class MedicalCertificateService {
     const rows = await this.db
       .select()
       .from(medicalCertificate)
-      .where(and(eq(medicalCertificate.organizationId, organizationId), eq(medicalCertificate.patientId, patientId), eq(medicalCertificate.status, "issued")))
+      .where(
+        and(
+          eq(medicalCertificate.organizationId, organizationId),
+          filedAsPatient(medicalCertificate.patientId, patientId),
+          eq(medicalCertificate.status, "issued"),
+        ),
+      )
       .orderBy(desc(medicalCertificate.issuedAt));
     return this.views(organizationId, rows);
   }
@@ -209,7 +216,7 @@ export class MedicalCertificateService {
         and(
           eq(medicalCertificate.organizationId, context.organizationId),
           eq(medicalCertificate.id, certificateId),
-          eq(medicalCertificate.patientId, context.patientId),
+          filedAsPatient(medicalCertificate.patientId, context.patientId),
           eq(medicalCertificate.status, "issued"),
         ),
       );

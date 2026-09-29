@@ -70,6 +70,17 @@ export interface PatientSummary {
   status: string;
   mergedIntoPatientId: string | null;
   primaryMobileMasked: string | null;
+  /** Found through a record merged into this one (its number, phone or identifier matched). */
+  resolvedFrom?: { id: string; patientNumber: string } | null;
+}
+
+/** A merge link between two records (patient merge: link, don't move). */
+export interface PatientMergeLink {
+  id: string;
+  patientNumber: string;
+  displayName: string;
+  mergedAt: string | null;
+  mergedBy: string | null;
 }
 
 export interface PatientContact {
@@ -147,6 +158,10 @@ export interface PatientDetail {
   status: string;
   deceasedAt: string | null;
   mergedIntoPatientId: string | null;
+  /** A retired record: the surviving record it was merged into (this record is read only). */
+  mergedInto: PatientMergeLink | null;
+  /** Records merged into this one: their records are shown here, marked with the number they were filed under. */
+  mergedRecords: PatientMergeLink[];
   registeredFacilityId: string;
   createdAt: string;
   updatedAt: string;
@@ -175,6 +190,8 @@ export interface RegisteredPatient {
 
 export interface AllergyRecord {
   id: string;
+  /** The record it is filed under (a record merged into this patient, or the patient). */
+  patientId?: string;
   category: "medication" | "food" | "environment" | "biologic" | "other";
   substance: string;
   reaction: string | null;
@@ -196,6 +213,7 @@ export interface AllergySummary {
 
 export interface ProblemRecord {
   id: string;
+  patientId?: string;
   code: string;
   display: string;
   codeSystemKey: string;
@@ -237,6 +255,7 @@ export interface PrescriptionItemView {
 
 export interface PrescriptionSummaryView {
   id: string;
+  patientId?: string;
   issuedAt: string;
   items: PrescriptionItemView[];
 }
@@ -252,13 +271,91 @@ export interface CarePlanSummaryView {
 export interface PatientSummaryResponse {
   allergies: AllergySummary;
   problemList: ProblemRecord[];
-  recentEncounters: Array<{ id: string; startedAt: string | null; status: string }>;
+  recentEncounters: Array<{ id: string; patientId?: string; startedAt: string | null; status: string }>;
   latestVitals: VitalsRecord[];
   upcomingAppointments: UpcomingAppointment[];
   /** null when the viewer lacks prescription.read. */
   activePrescriptions: PrescriptionSummaryView[] | null;
   /** null when the viewer lacks care-plan.read. */
   openCarePlans: CarePlanSummaryView[] | null;
+  /** Records merged into this patient: a row whose `patientId` is one of these was filed under that number. */
+  linkedRecords?: Array<{ id: string; patientNumber: string }>;
+}
+
+// ---- Patient merge (GET /patients/:id/merge-preview, POST /patients/:id/merge | unmerge, GET /patients/:id/merges) ----
+
+export type MergeWorkKind =
+  | "encounter_in_progress"
+  | "online_consultation_in_progress"
+  | "queue_visit"
+  | "upcoming_appointment"
+  | "lab_order_open"
+  | "draft_invoice"
+  | "uninvoiced_charge"
+  | "account_balance"
+  | "care_plan_active";
+
+export interface MergeWorkItem {
+  kind: MergeWorkKind;
+  id: string;
+  label: string;
+  at: string | null;
+  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan"; id: string } | null;
+}
+
+export interface MergeDifference {
+  code: string;
+  field: string;
+  retired: string | null;
+  survivor: string | null;
+}
+
+export type MergePortalHandling = "none" | "moved_to_survivor" | "retired_disabled" | "survivor_kept";
+
+export interface MergeRecordView {
+  id: string;
+  patientNumber: string;
+  displayName: string;
+  familyName: string;
+  givenName: string;
+  middleName: string | null;
+  suffix: string | null;
+  sex: PatientSex;
+  birthDate: string;
+  age: number;
+  status: string;
+  deceasedAt: string | null;
+  registeredFacilityId: string;
+  createdAt: string;
+  version: number;
+  identifiers: Array<{ type: string; value: string; issuer: string | null }>;
+  contacts: Array<{ system: string; value: string; isPrimary: boolean }>;
+  portalAccount: { status: string } | null;
+  consents: Array<{ consentType: string; decision: string; recordedAt: string }>;
+  mergedRecords: Array<{ id: string; patientNumber: string }>;
+}
+
+export interface MergePreview {
+  retired: MergeRecordView;
+  survivor: MergeRecordView;
+  ineligibility: { code: string; message: string } | null;
+  differences: MergeDifference[];
+  blockers: MergeWorkItem[];
+  warnings: MergeWorkItem[];
+  portalAccount: MergePortalHandling;
+  repointed: Array<{ id: string; patientNumber: string }>;
+  canMerge: boolean;
+}
+
+export interface MergeHistoryEntry {
+  id: string;
+  action: "merged" | "unmerged" | "repointed";
+  retired: { id: string; patientNumber: string };
+  survivor: { id: string; patientNumber: string };
+  reason: string;
+  performedAt: string;
+  performedBy: { id: string; name: string | null };
+  relatedMergeId: string | null;
 }
 
 // ---- Clinic: queue and appointments (Phase 2) -----------------------------------------------------
@@ -2930,6 +3027,8 @@ export interface PatientTimelineEntry {
   marker: "entered_in_error" | "cancelled" | "void" | null;
   flag: "abnormal" | "critical" | null;
   link: { type: PatientTimelineLinkType; id: string } | null;
+  /** The patient number of a record merged into this patient that the entry is filed under; null for the patient's own. */
+  filedUnder?: string | null;
   sourceIds: Record<string, string>;
 }
 
@@ -3235,6 +3334,8 @@ export interface WorkspaceDiagnosis {
 
 export interface WorkspaceEncounter {
   id: string;
+  /** The patient number of a merged record it is filed under; null for the patient's own. */
+  filedUnder?: string | null;
   facility: WorkspaceFacilityRef | null;
   status: "in_progress" | "completed" | "entered_in_error";
   modality: string;
@@ -3267,6 +3368,7 @@ export interface WorkspaceVisit {
 
 export interface WorkspaceCriticalResult {
   id: string;
+  filedUnder?: string | null;
   facility: WorkspaceFacilityRef | null;
   status: "open" | "communicated";
   raisedAt: string;
@@ -3277,6 +3379,7 @@ export interface WorkspaceCriticalResult {
 
 export interface WorkspaceLabOrder {
   id: string;
+  filedUnder?: string | null;
   facility: WorkspaceFacilityRef | null;
   orderNumber: string;
   priority: LabPriority;
@@ -3294,8 +3397,17 @@ export interface PatientWorkspace {
   encounterHistory: WorkspaceEncounter[] | null;
   criticalResults: WorkspaceCriticalResult[] | null;
   labOrders: WorkspaceLabOrder[] | null;
-  dentalImages: Array<{ id: string; facility: WorkspaceFacilityRef | null; kind: string; takenOn: string; teeth: string[] }> | null;
-  documents: Array<{ id: string; facility: WorkspaceFacilityRef | null; category: string; title: string; uploadedAt: string }> | null;
+  dentalImages: Array<{ id: string; filedUnder?: string | null; facility: WorkspaceFacilityRef | null; kind: string; takenOn: string; teeth: string[] }> | null;
+  documents: Array<{
+    id: string;
+    filedUnder?: string | null;
+    facility: WorkspaceFacilityRef | null;
+    category: string;
+    title: string;
+    uploadedAt: string;
+  }> | null;
+  /** Records merged into this patient, read with it. */
+  linkedRecords?: Array<{ id: string; patientNumber: string }>;
   withheld: PatientWorkspacePanel[];
 }
 

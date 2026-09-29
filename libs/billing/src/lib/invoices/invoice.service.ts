@@ -12,6 +12,7 @@ import {
   NotFoundError,
   requireFacilityId,
   systemActor,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, gte, inArray, lt, type SQL, sql } from "drizzle-orm";
@@ -545,7 +546,7 @@ export class InvoiceService {
   async list(actor: Actor, query: z.infer<typeof listInvoicesSchema>) {
     const facilityId = requireFacilityId(actor);
     const filters: SQL[] = [eq(billingInvoice.organizationId, actor.organizationId), eq(billingInvoice.facilityId, facilityId)];
-    if (query.patientId) filters.push(eq(billingInvoice.patientId, query.patientId));
+    if (query.patientId) filters.push(filedAsPatient(billingInvoice.patientId, query.patientId));
     if (query.status) filters.push(eq(billingInvoice.status, query.status));
     if (query.date) {
       const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
@@ -591,7 +592,11 @@ export class InvoiceService {
       .select({ id: billingInvoice.id })
       .from(billingInvoice)
       .where(
-        and(eq(billingInvoice.organizationId, organizationId), eq(billingInvoice.patientId, patientId), inArray(billingInvoice.status, ["issued", "void"])),
+        and(
+          eq(billingInvoice.organizationId, organizationId),
+          filedAsPatient(billingInvoice.patientId, patientId),
+          inArray(billingInvoice.status, ["issued", "void"]),
+        ),
       )
       .orderBy(desc(billingInvoice.issuedAt))
       .limit(100);

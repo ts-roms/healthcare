@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { type Actor, DATABASE, type Database, localDayBounds, NotFoundError } from "@healthcare/core";
+import { type Actor, DATABASE, type Database, localDayBounds, NotFoundError, filedAsPatient } from "@healthcare/core";
 import { facility } from "@healthcare/organization";
 import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
 import { appointment, encounter, practitioner, visit, visitType } from "../clinic.schema";
@@ -64,7 +64,7 @@ export class OnlineVisitService {
       .where(
         and(
           eq(appointment.organizationId, organizationId),
-          eq(appointment.patientId, patientId),
+          filedAsPatient(appointment.patientId, patientId),
           eq(visitType.modality, "telemedicine"),
           gte(appointment.endsAt, new Date(now.getTime() - 86_400_000)),
         ),

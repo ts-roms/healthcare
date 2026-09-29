@@ -98,3 +98,41 @@ projects in `nx.json`. The API listens on :3333 (the staff app uses :3000).
 **Follow-ups.** Align on one TypeScript major once Next.js and Storybook are
 verified on TypeScript 6; move the frontend drug–allergy demo rule to call the
 API; replace `apps/staff/src/lib/data.ts` fixtures with `/api/v1` calls.
+
+## ADR-0009 Patient merge: link, don't move
+
+**Decision.** Merging a duplicate patient record never rewrites what is filed under it. The retired record gets
+`status = 'merged'` and `merged_into_patient_id` = the surviving record; merge chains stay flat (a survivor is never
+itself merged; re-pointing happens in the merge's transaction and a deferred database check enforces it). Every
+patient view reads the survivor's records **and** those of every record merged into it, each row keeping the
+`patientId` it was filed under so screens can mark it ("Filed under P…"). An unmerge restores the stored previous
+status and clears the link; it is exact because nothing moved. See `docs/domains/patient.md`.
+
+**How domains read linked records.** The Patient Master owns two SQL functions (migration 0068):
+`patient_record_ids(id)` (the record and every record merged into it) and `patient_canonical_id(id)` (the survivor a
+record is filed as). `libs/core` wraps them as `filedAsPatient(column, patientId)`, `canonicalPatientId(column)` and
+`isFiledAs(executor, rowPatientId, patientId)`. Domain libraries call these helpers in their patient-scoped reads
+(allergies, clinical summary, prescriptions, laboratory, encounters, vitals, care plans, dental, documents,
+notifications, billing views, PhilHealth answers, portal access classes, timeline and workspace queries, reporting
+counts); writes keep the single id. No library reads the `patient` table.
+
+**Why a database function rather than a port.** About 120 read sites in a dozen libraries filter by patient. A
+TypeScript port (`PatientLinks`) would add a round trip and a constructor dependency to each service, and the link
+set would be read outside the query's own snapshot. The function is evaluated inside the same statement (one
+snapshot, index-friendly: `col = ANY(patient_record_ids($1))` is a stable, constant-argument expression), keeps
+boundaries (the contract is the function, owned and migrated by the Patient Master, not its table) and is trivially
+mockable in SQL. Per-domain ports were rejected for the same cost multiplied by each domain.
+
+**Writes to a merged record.** A trigger (`refuse_record_for_merged_patient`, SQLSTATE `PM001`) refuses new care
+filed under a merged record in the tables where care starts (appointments, visits, triage, vitals, allergies,
+encounters, prescriptions, care plans, laboratory orders, dental records, imported history, PhilHealth answers,
+package enrollments); `HttpExceptionFilter` maps it to `422 patient_merged` with the survivor's id. Corrections of
+existing records and asynchronous work of earlier events (charges, report archives) are not refused. Blockers (work
+in progress under the record to retire) come from the domains through the `PatientMergeContext` port so the merge
+cannot strand an open encounter, a queue visit, an upcoming appointment, an active laboratory order, draft billing
+or a balance.
+
+**Consequences.** Balances shown for a survivor add the retired record's ledger; applying and refunding use the
+record's own ledger (the preview blocks merging a record that still holds a balance). Identifiers stay active on the
+retired record, so the survivor cannot hold the same identifier as well. Records created on the survivor after a
+merge stay there when it is undone.

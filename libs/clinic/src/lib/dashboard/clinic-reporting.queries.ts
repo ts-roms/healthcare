@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
+import { canonicalPatientId, DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { appointment, encounter, practitioner, visit } from "../clinic.schema";
 
@@ -40,19 +40,19 @@ export class ClinicReportingQueries {
         .select({
           completed: sql<number>`count(*)::int`,
           telemedicine: sql<number>`count(*) filter (where ${encounter.modality} = 'telemedicine')::int`,
-          patientsSeen: sql<number>`count(distinct ${encounter.patientId})::int`,
+          patientsSeen: sql<number>`count(distinct ${canonicalPatientId(encounter.patientId)})::int`,
         })
         .from(encounter)
         .where(this.completedEncounters(organizationId, window)),
       // Patients seen in the window who had a completed encounter before it (anywhere in the organization).
       this.db
-        .select({ patients: sql<number>`count(distinct ${encounter.patientId})::int` })
+        .select({ patients: sql<number>`count(distinct ${canonicalPatientId(encounter.patientId)})::int` })
         .from(encounter)
         .where(
           and(
             this.completedEncounters(organizationId, window),
             sql`exists (select 1 from ${encounter} earlier where earlier.organization_id = ${encounter.organizationId}
-              and earlier.patient_id = ${encounter.patientId} and earlier.status = 'completed'
+              and earlier.patient_id = ANY(patient_record_ids(${canonicalPatientId(encounter.patientId)})) and earlier.status = 'completed'
               and earlier.completed_at < ${window.from.toISOString()}::timestamptz)`,
           ),
         ),
@@ -61,7 +61,7 @@ export class ClinicReportingQueries {
         .select({
           date: reportingDay(encounter.completedAt, window),
           encounters: sql<number>`count(*)::int`,
-          patientsSeen: sql<number>`count(distinct ${encounter.patientId})::int`,
+          patientsSeen: sql<number>`count(distinct ${canonicalPatientId(encounter.patientId)})::int`,
         })
         .from(encounter)
         .where(this.completedEncounters(organizationId, window))
@@ -97,7 +97,7 @@ export class ClinicReportingQueries {
         .select({
           practitionerId: encounter.practitionerId,
           encounters: sql<number>`count(*)::int`,
-          patients: sql<number>`count(distinct ${encounter.patientId})::int`,
+          patients: sql<number>`count(distinct ${canonicalPatientId(encounter.patientId)})::int`,
         })
         .from(encounter)
         .where(this.completedEncounters(organizationId, window))
@@ -198,22 +198,22 @@ export class ClinicReportingQueries {
     const localDay = (column: string) => sql`(${sql.raw(column)} at time zone ${window.timeZone})::date`;
     const result = await this.db.execute<{ seen: number; retained: number; return_cohort: number; returned: number }>(sql`
       with idx as (
-        select e.patient_id, min(e.completed_at) as first_at
+        select patient_canonical_id(e.patient_id) as patient_id, min(e.completed_at) as first_at
         from encounter e
         where ${scope} and ${reportingRange(sql.raw("e.completed_at"), window)}
-        group by e.patient_id
+        group by 1
       ),
       flagged as (
         select idx.patient_id,
                exists (
                  select 1 from encounter e
-                 where ${scope} and e.patient_id = idx.patient_id
+                 where ${scope} and e.patient_id = ANY(patient_record_ids(idx.patient_id))
                    and e.completed_at >= ${params.lookbackStart.toISOString()}::timestamptz and e.completed_at < ${window.from.toISOString()}::timestamptz
                ) as retained,
                ${localDay("idx.first_at")} + ${params.returnWindowDays}::int < ${params.asOfDate}::date as eligible,
                exists (
                  select 1 from encounter e
-                 where ${scope} and e.patient_id = idx.patient_id
+                 where ${scope} and e.patient_id = ANY(patient_record_ids(idx.patient_id))
                    and ${localDay("e.completed_at")} > ${localDay("idx.first_at")}
                    and ${localDay("e.completed_at")} <= ${localDay("idx.first_at")} + ${params.returnWindowDays}::int
                ) as returned

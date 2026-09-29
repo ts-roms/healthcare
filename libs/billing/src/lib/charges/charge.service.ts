@@ -10,6 +10,7 @@ import {
   localDate,
   requireFacilityId,
   systemActor,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
@@ -213,7 +214,7 @@ export class ChargeService {
   async list(actor: Actor, query: z.infer<typeof listChargesSchema>) {
     const facilityId = requireFacilityId(actor);
     const filters: SQL[] = [eq(billingCharge.organizationId, actor.organizationId), eq(billingCharge.facilityId, facilityId)];
-    if (query.patientId) filters.push(eq(billingCharge.patientId, query.patientId));
+    if (query.patientId) filters.push(filedAsPatient(billingCharge.patientId, query.patientId));
     if (query.status) filters.push(eq(billingCharge.status, query.status));
     const rows = await this.db
       .select({ charge: billingCharge, serviceCode: billingService.code, category: billingService.category })

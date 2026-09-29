@@ -22,9 +22,10 @@ patient's own **portal account** (sign-in to MyHealth).
 | `patient_communication_preference` | Opt-in/out per channel × category                                                                                                                                                                             |
 | `patient_portal_account`           | One per patient: `invited` (hashed one-time code, expiry, attempts) → `active` (email, argon2id password, lockout) → `disabled` (who, when, reason). Email unique per organization                            |
 | `patient_portal_session`           | Portal refresh sessions (hashed, rotated; reuse of a rotated token revokes the session)                                                                                                                       |
+| `patient_merge`                    | Append-only merge history (migration 0068): `merged` (with the retired record's previous status), `unmerged`, `repointed` (chains kept flat); reason, who, when, a small snapshot of what was reviewed        |
 
-Sub-records are **retired**, never deleted. `merged_into_patient_id` exists so
-merging can be added without schema changes.
+Sub-records are **retired**, never deleted. A merged record has `status = 'merged'` and `merged_into_patient_id` = its
+survivor (see [Patient merge](#patient-merge-link-dont-move)).
 
 ## Commands
 
@@ -38,15 +39,19 @@ merging can be added without schema changes.
 | Set communication preferences                           | Upsert; before/after audited                                                                                                                                                                                                                                                                                             |
 | Invite to portal / disable portal access                | Invite requires an active patient and granted `portal_access` consent; returns the activation code once. Disable requires a reason and revokes all portal sessions. See `docs/architecture/portal-app.md`                                                                                                                |
 | Portal activate / login / refresh / logout              | Patient-facing, `@Public()` to the staff guard, protected by `PatientAccessGuard` (session, account and consent re-checked on every request). Rate-limited; failures audited                                                                                                                                             |
+| Merge / unmerge                                         | `patient.merge`; see [Patient merge](#patient-merge-link-dont-move)                                                                                                                                                                                                                                                      |
 
 ## Queries
 
 - **Lookup** `GET /patients`: `q` is interpreted as patient number (`P123`),
   phone (any PH format) or name (trigram, accent-insensitive: "pena" finds
   "Peña"); plus birth date and identifier filters. Returns summaries with masked
-  mobile only. Inactive and merged records are hidden unless `includeInactive=true`.
+  mobile only. Inactive and merged records are hidden unless `includeInactive=true`. A patient number, phone or
+  identifier held by a merged record resolves to its survivor (`resolvedFrom: { id, patientNumber }` on the row).
 - **Duplicate check** `POST /patients/duplicate-check`.
-- **Detail** `GET /patients/:id` (audited view), **consent history**.
+- **Detail** `GET /patients/:id` (audited view), **consent history**. A retired record is returned read only with
+  `mergedInto`; a survivor lists `mergedRecords` (id, number, name, when and by whom).
+- **Merge preview** `GET /patients/:id/merge-preview?into=`, **merge history** `GET /patients/:id/merges`.
 - **Portal account status** `GET /patients/:id/portal-account` (`patient.read`), **portal profile** `GET /portal/me` (the signed-in patient's identity only).
 - `resolveContact` — used by notifications through the app's `RecipientDirectory`.
 
@@ -66,16 +71,83 @@ merging can be added without schema changes.
 administrative messages are allowed and outreach requires opt-in; deceased and
 merged records are never contacted; inactive patients get no outreach.
 
+Duplicate detection resolves an identifier or contact still held by a merged record to its survivor (the candidate
+carries `resolvedFrom`), so registering someone with a retired record's PhilHealth PIN finds the surviving record
+(`identifier_in_use`).
+
+## Patient merge (link, don't move)
+
+Decision: [ADR-0009](../architecture/decisions.md#adr-0009-patient-merge-link-dont-move). Merging a duplicate never
+rewrites what is filed under it. The duplicate (the **retired** record) gets `status = 'merged'` and
+`merged_into_patient_id` = the **survivor**; every patient view reads the survivor's records and those of every record
+merged into it, and marks rows filed under another number. An unmerge is exact because nothing moved.
+
+**Preview** (`GET /patients/:id/merge-preview?into=:survivorId`, `patient.read` + `patient.merge`, audited
+`patient.merge-preview`): both records side by side (demographics, identifiers, contacts, MyHealth account, current
+consent, records already merged into each), `ineligibility` (same record, other organization, retired already
+merged, survivor merged), flagged `differences` (family/given/middle name and suffix — case and accents ignored —,
+birth date, sex, deceased vs not, identifiers of the same type and issuer with different values), `blockers` and
+`warnings` from the `PatientMergeContext` port (adapter `apps/api/src/app/adapters/patient-merge-adapters.ts`), the
+MyHealth handling and the records that will be re-pointed. Pure rules in `merge/patient-merge.rules.ts` (unit-tested).
+
+| Work under the record to retire                                      | Kind                                                       | Why it blocks                                                 |
+| -------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| Encounter in progress (in person or online)                          | `encounter_in_progress`, `online_consultation_in_progress` | New notes, orders and prescriptions cannot be filed under it  |
+| Queue visit not ended                                                | `queue_visit`                                              | Triage and the consultation would start under it              |
+| Booked or confirmed appointment not yet ended                        | `upcoming_appointment`                                     | Reminders are never sent to a merged record; check-in refused |
+| Laboratory order still active (to collect, receive, result, release) | `lab_order_open`                                           | Results would be released to a retired record                 |
+| Draft invoice; charge not yet invoiced                               | `draft_invoice`, `uninvoiced_charge`                       | Invoices of the survivor cannot take the retired's charges    |
+| Deposit or credit balance at a facility                              | `account_balance`                                          | Applying and refunding use one record's own ledger            |
+| Active care plan                                                     | `care_plan_active` (warning only)                          | Stays under the retired number; its reminders are not sent    |
+
+**Merge** (`POST /patients/:id/merge`, body `survivorPatientId`, `reason`, `retiredVersion`, `survivorVersion`,
+`acknowledgedDifferences`): refused unless both records are in the caller's organization (404 otherwise), neither is
+merged, the versions match (`409 version_conflict`), every flagged difference is acknowledged
+(`422 differences_not_acknowledged`) and no blocker remains (`409 merge_blocked` with the blockers). In one
+transaction (both rows locked in id order): the `merged` history row with the retired record's previous status and a
+snapshot (numbers, versions, differences, acknowledgements, MyHealth handling); records merged into the retired
+record re-pointed to the survivor (`repointed` rows naming the merge — chains stay flat, a deferred check in the
+database enforces it); the retired record set `merged`; both versions bumped; MyHealth: an account only the retired
+record has moves to the survivor (sessions revoked; the survivor's consent governs), with two accounts the retired
+one is disabled (reason `merged`); `PatientMerged` recorded (ids only); `patient.merge` audited on both records with
+the reason.
+
+Identifiers, contacts, addresses, relationships, consents and communication preferences stay on the retired record
+as history; the survivor's current consent and preferences govern. An identifier the retired record holds stays
+active there, so it cannot be added to the survivor as well (`identifier_in_use`).
+
+**Unmerge** (`POST /patients/:id/unmerge`, `reason`): only while the record is merged (its latest history entry is
+`merged` or `repointed`). Restores the status stored with its latest merge, clears the link, re-points back the
+records that the merge had re-pointed (if that is still their latest history), moves a MyHealth account that was
+moved at the merge back (if it is still on the survivor; sessions revoked), records `PatientUnmerged`, audits
+`patient.unmerge` on both records. **Records created on the survivor after the merge stay on the survivor**; staff
+check and correct them.
+
+**Writes to a merged record.** The Patient Master refuses its own changes (`422 patient_merged`, details
+`survivorPatientId`). New care filed under a merged record is refused by the database (migration 0068 trigger on
+appointments, waitlist, visits, triage, vitals, allergies and allergy reviews, encounters, prescriptions, care plans,
+laboratory orders, dental examinations, plans, images and periodontal charts, imported history, PhilHealth answers
+and package enrollments; SQLSTATE `PM001` → `422 patient_merged`), and staff uploads by the documents service.
+Corrections to what already exists (amendments, entered in error, results of work finished before the merge, billing
+of existing charges, generated reports) are not refused.
+
+**Reading linked records.** Domains read "the ids filed as this patient" through `filedAsPatient(column, patientId)`
+from `libs/core` (the SQL function `patient_record_ids`); counts of distinct patients use `canonicalPatientId`.
+Portal ownership checks of documents use `isFiledAs`. The API composers mark rows: timeline entries and Patient 360
+panels carry `filedUnder` (the retired patient number), the summary lists `linkedRecords`, domain rows keep their
+`patientId`.
+
 ## Events
 
-None published yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`,
-`PatientMerged` (via outbox).
+`PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
 
 `patient.search`, `patient.read`, `patient.register` (+ facility context),
 `patient.update`, `patient.consent.manage`, `patient.portal.manage` (invite and
-disable portal accounts; org admin, receptionist, records officer).
+disable portal accounts; org admin, receptionist, records officer), `patient.merge`
+(merge and unmerge; org admin, records officer; migration 0068).
 
 ## Integration points
 
@@ -90,7 +162,9 @@ disable portal accounts; org admin, receptionist, records officer).
 - `sex` captures sex assigned at birth (`male`, `female`, `intersex`, `unknown`); gender identity is free text.
 - Identifier formats are normalized but not validated against issuer rules
   (e.g. PhilHealth PIN check digits) until official specifications are confirmed.
-- Patient merge (with survivor selection and record re-pointing) is not implemented.
+- Merging never moves records, so a domain's own write paths keep the retired id (e.g. amending an old note). Reads
+  of a retired record show only its own records; its timeline and Patient 360 open the survivor's in the staff app.
+- Care plans left active under a retired record keep their activities but are not reminded; the preview warns.
 - Portal: no self-service password reset, email verification, patient MFA, or
   guardian/dependent proxy access yet. One portal deployment serves one
   organization (`PORTAL_ORGANIZATION_CODE`).

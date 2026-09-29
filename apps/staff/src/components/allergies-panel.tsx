@@ -9,13 +9,26 @@ import { addAllergy, changeAllergyStatus, reviewAllergies } from "@/app/(staff)/
 import type { AllergyRecord, AllergySummary } from "@/lib/api/types";
 import { type AllergyForm, type AllergyStatusChange, BLANK_ALLERGY, CATEGORY_LABEL, reviewState, STATUS_CHANGE_LABEL } from "@/lib/allergy-form";
 import { bannerSeverity, label, sortByDanger } from "@/lib/patient-mapping";
+import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 
 /**
  * The patient's allergies with recording and review (allergy.manage). Used on
  * the patient record, at triage and in the encounter workspace, so allergies
  * can be recorded wherever they are asked about. The API audits every change.
  */
-export function AllergiesPanel({ patientId, summary, canManage }: { patientId: string; summary: AllergySummary; canManage: boolean }) {
+export function AllergiesPanel({
+  patientId,
+  summary,
+  canManage,
+  linkedRecords,
+}: {
+  patientId: string;
+  summary: AllergySummary;
+  canManage: boolean;
+  /** Records merged into this patient: an allergy filed under one of them says so. */
+  linkedRecords?: ReadonlyArray<{ id: string; patientNumber: string }>;
+}) {
+  const filedUnder = filedUnderLookup(linkedRecords);
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [adding, setAdding] = React.useState(false);
@@ -63,6 +76,7 @@ export function AllergiesPanel({ patientId, summary, canManage }: { patientId: s
                   {a.criticality === "high" ? " · high criticality" : ""}
                 </span>
                 {a.verification === "unconfirmed" ? <Badge variant="warning">Unconfirmed</Badge> : null}
+                {filedUnder(a.patientId) ? <Badge variant="outline">{filedUnderText(filedUnder(a.patientId))}</Badge> : null}
                 {a.source === "external_import" ? (
                   <Badge variant="outline" title={a.sourceReference ?? undefined}>
                     External record

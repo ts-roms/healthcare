@@ -17,6 +17,7 @@ import {
   pageOffset,
   PgErrorCode,
   toPage,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, gte, isNull, lt, lte, notInArray, or, sql, type SQL } from "drizzle-orm";
@@ -144,7 +145,7 @@ export class AppointmentService {
     const filters: SQL[] = [eq(appointment.organizationId, actor.organizationId)];
     if (query.facilityId) filters.push(eq(appointment.facilityId, query.facilityId));
     if (query.practitionerId) filters.push(eq(appointment.practitionerId, query.practitionerId));
-    if (query.patientId) filters.push(eq(appointment.patientId, query.patientId));
+    if (query.patientId) filters.push(filedAsPatient(appointment.patientId, query.patientId));
     if (query.status) filters.push(eq(appointment.status, query.status));
     if (query.date) {
       const timeZone = query.facilityId ? (await this.organizations.getFacility(actor.organizationId, query.facilityId)).timezone : "Asia/Manila";

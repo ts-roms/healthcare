@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { ZodValidationException } from "nestjs-zod";
 import { ZodError } from "zod";
 import { asPgError, PgErrorCode } from "../database/database";
+import { patientMergedError } from "../database/patient-links";
 import { DomainError } from "../errors";
 import "./request-augmentation";
 
@@ -50,6 +51,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const status = exception.getStatus();
       return envelope(status, httpCode(status), exception.message);
     }
+    // New care addressed to a merged record, refused by the database (migration 0068).
+    const merged = patientMergedError(exception);
+    if (merged) return envelope(merged.httpStatus, merged.code, merged.message, merged.details);
     const pgError = asPgError(exception);
     if (pgError?.code === PgErrorCode.uniqueViolation || pgError?.code === PgErrorCode.exclusionViolation) {
       return envelope(409, "conflict", "The request conflicts with an existing record", { constraint: pgError.constraint });

@@ -32,10 +32,12 @@ export class PatientSummaryController {
     if (!patient) throw new NotFoundError("Patient");
     const canSeePrescriptions = actor.permissions.has("prescription.read");
     const canSeeCarePlans = actor.permissions.has("care-plan.read");
-    const [clinical, active, carePlans] = await Promise.all([
+    // Records merged into this patient are read with it (ADR-0009); rows carry the `patientId` they were filed under.
+    const [clinical, active, carePlans, filedUnder] = await Promise.all([
       this.clinic.clinicalSummary(actor.organizationId, patientId),
       canSeePrescriptions ? this.prescriptions.activeForPatient(actor.organizationId, patientId) : Promise.resolve(null),
       canSeeCarePlans ? this.carePlans.openPlansSummary(actor.organizationId, patientId) : Promise.resolve(null),
+      this.patients.filedUnderNumbers(actor.organizationId, patientId),
     ]);
     // The prescriber's display name (the Patient 360 workspace shows who prescribed what).
     const prescribers = active?.length
@@ -49,6 +51,13 @@ export class PatientSummaryController {
       patientId,
       metadata: { sections: ["clinical", ...(medications ? ["prescriptions"] : []), ...(carePlans ? ["care_plans"] : [])] },
     });
-    return { patient: { id: patientId, ...patient }, ...clinical, activePrescriptions: medications, openCarePlans: carePlans };
+    return {
+      patient: { id: patientId, ...patient },
+      ...clinical,
+      activePrescriptions: medications,
+      openCarePlans: carePlans,
+      /** Records merged into this patient: a row whose `patientId` is one of these was filed under that number. */
+      linkedRecords: [...filedUnder].map(([id, patientNumber]) => ({ id, patientNumber })),
+    };
   }
 }

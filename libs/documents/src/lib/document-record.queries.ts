@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { document, type DocumentCategory } from "./document.schema";
 
@@ -37,7 +37,14 @@ export class DocumentRecordQueries {
         uploadedAt: document.uploadedAt,
       })
       .from(document)
-      .where(and(eq(document.organizationId, organizationId), eq(document.patientId, patientId), eq(document.status, "available"), isNull(document.managedBy)))
+      .where(
+        and(
+          eq(document.organizationId, organizationId),
+          filedAsPatient(document.patientId, patientId),
+          eq(document.status, "available"),
+          isNull(document.managedBy),
+        ),
+      )
       .orderBy(asc(document.uploadedAt), asc(document.id));
     // An available document always has its upload time (set when the upload is verified).
     return rows.flatMap((r) => (r.uploadedAt ? [{ ...r, uploadedAt: r.uploadedAt }] : []));
@@ -50,12 +57,19 @@ export class DocumentRecordQueries {
    */
   recentForPatient(organizationId: string, patientId: string, limit: number) {
     return this.db
-      .select({ id: document.id, facilityId: document.facilityId, category: document.category, title: document.title, uploadedAt: document.uploadedAt })
+      .select({
+        id: document.id,
+        patientId: document.patientId,
+        facilityId: document.facilityId,
+        category: document.category,
+        title: document.title,
+        uploadedAt: document.uploadedAt,
+      })
       .from(document)
       .where(
         and(
           eq(document.organizationId, organizationId),
-          eq(document.patientId, patientId),
+          filedAsPatient(document.patientId, patientId),
           eq(document.status, "available"),
           eq(document.source, "upload"),
           isNull(document.managedBy),
@@ -75,12 +89,12 @@ export class DocumentRecordQueries {
   timeline(organizationId: string, patientId: string, window: TimelineWindow) {
     const at = document.uploadedAt;
     return this.db
-      .select({ id: document.id, at: timelineInstant(at), facilityId: document.facilityId, category: document.category })
+      .select({ id: document.id, patientId: document.patientId, at: timelineInstant(at), facilityId: document.facilityId, category: document.category })
       .from(document)
       .where(
         and(
           eq(document.organizationId, organizationId),
-          eq(document.patientId, patientId),
+          filedAsPatient(document.patientId, patientId),
           eq(document.status, "available"),
           eq(document.source, "upload"),
           isNull(document.managedBy),

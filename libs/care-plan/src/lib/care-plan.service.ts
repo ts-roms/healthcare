@@ -15,6 +15,7 @@ import {
   type TimelineWindow,
   todayInPhilippines,
   VersionConflictError,
+  filedAsPatient,
 } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
@@ -130,7 +131,7 @@ export class CarePlanService {
   }
 
   async listForPatient(actor: Actor, patientId: string, includeClosed: boolean) {
-    const conditions: SQL[] = [eq(carePlan.organizationId, actor.organizationId), eq(carePlan.patientId, patientId)];
+    const conditions: SQL[] = [eq(carePlan.organizationId, actor.organizationId), filedAsPatient(carePlan.patientId, patientId)];
     if (!includeClosed) conditions.push(inArray(carePlan.status, [...OPEN_PLAN_STATUSES]));
     const rows = await this.db
       .select()
@@ -146,7 +147,7 @@ export class CarePlanService {
     const plans = await this.db
       .select()
       .from(carePlan)
-      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId)))
+      .where(and(eq(carePlan.organizationId, organizationId), filedAsPatient(carePlan.patientId, patientId)))
       .orderBy(asc(carePlan.startDate));
     if (plans.length === 0) return [];
     const activities = await this.db
@@ -170,7 +171,7 @@ export class CarePlanService {
     const plans = await this.db
       .select()
       .from(carePlan)
-      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId), inArray(carePlan.status, [...OPEN_PLAN_STATUSES])))
+      .where(and(eq(carePlan.organizationId, organizationId), filedAsPatient(carePlan.patientId, patientId), inArray(carePlan.status, [...OPEN_PLAN_STATUSES])))
       .orderBy(desc(carePlan.startDate));
     if (plans.length === 0) return [];
     const activities = await this.db
@@ -198,7 +199,7 @@ export class CarePlanService {
     const plans = await this.db
       .select()
       .from(carePlan)
-      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId), eq(carePlan.status, "active")))
+      .where(and(eq(carePlan.organizationId, organizationId), filedAsPatient(carePlan.patientId, patientId), eq(carePlan.status, "active")))
       .orderBy(desc(carePlan.startDate));
     if (plans.length === 0) return [];
     const planIds = plans.map((p) => p.id);
@@ -240,9 +241,18 @@ export class CarePlanService {
     if (window.facilityIds) return [];
     const at = carePlan.createdAt;
     return this.db
-      .select({ id: carePlan.id, at: timelineInstant(at), title: carePlan.title, category: carePlan.category, status: carePlan.status })
+      .select({
+        id: carePlan.id,
+        patientId: carePlan.patientId,
+        at: timelineInstant(at),
+        title: carePlan.title,
+        category: carePlan.category,
+        status: carePlan.status,
+      })
       .from(carePlan)
-      .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.patientId, patientId), timelineRange("care_plan", at, carePlan.id, window)))
+      .where(
+        and(eq(carePlan.organizationId, organizationId), filedAsPatient(carePlan.patientId, patientId), timelineRange("care_plan", at, carePlan.id, window)),
+      )
       .orderBy(desc(at), desc(carePlan.id))
       .limit(window.limit);
   }
@@ -254,6 +264,7 @@ export class CarePlanService {
     return this.db
       .select({
         id: carePlanActivity.id,
+        patientId: carePlanActivity.patientId,
         at: timelineInstant(at),
         carePlanId: carePlanActivity.carePlanId,
         kind: carePlanActivity.kind,
@@ -263,7 +274,7 @@ export class CarePlanService {
       .where(
         and(
           eq(carePlanActivity.organizationId, organizationId),
-          eq(carePlanActivity.patientId, patientId),
+          filedAsPatient(carePlanActivity.patientId, patientId),
           isNotNull(at),
           timelineRange("care_plan_activity", at, carePlanActivity.id, window),
         ),

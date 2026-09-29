@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { labCriticalAlert, labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
 import { labReferenceLaboratory } from "../send-outs/send-out.schema";
@@ -20,7 +20,7 @@ export class LabRecordQueries {
     const orders = await this.db
       .select()
       .from(labOrder)
-      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.patientId, patientId)))
+      .where(and(eq(labOrder.organizationId, organizationId), filedAsPatient(labOrder.patientId, patientId)))
       .orderBy(asc(labOrder.orderedAt));
     if (orders.length === 0) return [];
     const orderIds = orders.map((o) => o.id);
@@ -71,7 +71,9 @@ export class LabRecordQueries {
         storedAt: labReportArchive.storedAt,
       })
       .from(labReportArchive)
-      .where(and(eq(labReportArchive.organizationId, organizationId), eq(labReportArchive.patientId, patientId), eq(labReportArchive.status, "stored")))
+      .where(
+        and(eq(labReportArchive.organizationId, organizationId), filedAsPatient(labReportArchive.patientId, patientId), eq(labReportArchive.status, "stored")),
+      )
       .orderBy(asc(labReportArchive.orderId), asc(labReportArchive.archiveVersion));
     return rows.flatMap((r) =>
       r.documentId && r.storedAt ? [{ orderId: r.orderId, documentId: r.documentId, archiveVersion: r.archiveVersion, storedAt: r.storedAt }] : [],
@@ -88,6 +90,7 @@ export class LabRecordQueries {
     return this.db
       .select({
         id: labCriticalAlert.id,
+        patientId: labCriticalAlert.patientId,
         facilityId: labCriticalAlert.facilityId,
         status: labCriticalAlert.status,
         raisedAt: labCriticalAlert.raisedAt,
@@ -99,7 +102,13 @@ export class LabRecordQueries {
       .innerJoin(labResult, eq(labResult.id, labCriticalAlert.resultId))
       .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
       .innerJoin(labOrder, eq(labOrder.id, labResult.orderId))
-      .where(and(eq(labCriticalAlert.organizationId, organizationId), eq(labCriticalAlert.patientId, patientId), ne(labCriticalAlert.status, "acknowledged")))
+      .where(
+        and(
+          eq(labCriticalAlert.organizationId, organizationId),
+          filedAsPatient(labCriticalAlert.patientId, patientId),
+          ne(labCriticalAlert.status, "acknowledged"),
+        ),
+      )
       .orderBy(asc(labCriticalAlert.raisedAt), asc(labCriticalAlert.id))
       .limit(limit);
   }
@@ -112,6 +121,7 @@ export class LabRecordQueries {
     const orders = await this.db
       .select({
         id: labOrder.id,
+        patientId: labOrder.patientId,
         facilityId: labOrder.facilityId,
         orderNumber: labOrder.orderNumber,
         priority: labOrder.priority,
@@ -120,7 +130,7 @@ export class LabRecordQueries {
         encounterId: labOrder.encounterId,
       })
       .from(labOrder)
-      .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.patientId, patientId), eq(labOrder.status, "active")))
+      .where(and(eq(labOrder.organizationId, organizationId), filedAsPatient(labOrder.patientId, patientId), eq(labOrder.status, "active")))
       .orderBy(desc(labOrder.orderedAt), desc(labOrder.id))
       .limit(limit);
     if (orders.length === 0) return [];
@@ -151,6 +161,7 @@ export class LabRecordQueries {
     return this.db
       .select({
         id: labOrder.id,
+        patientId: labOrder.patientId,
         at: timelineInstant(at),
         facilityId: labOrder.facilityId,
         orderNumber: labOrder.orderNumber,
@@ -164,7 +175,7 @@ export class LabRecordQueries {
       .where(
         and(
           eq(labOrder.organizationId, organizationId),
-          eq(labOrder.patientId, patientId),
+          filedAsPatient(labOrder.patientId, patientId),
           timelineFacility(labOrder.facilityId, window),
           timelineRange("lab_order", at, labOrder.id, window),
         ),
@@ -185,6 +196,7 @@ export class LabRecordQueries {
     return this.db
       .select({
         id: sql<string>`${id}`,
+        patientId: labResult.patientId,
         at: timelineInstant(at),
         orderId: labResult.orderId,
         facilityId: labResult.facilityId,
@@ -202,12 +214,13 @@ export class LabRecordQueries {
       .where(
         and(
           eq(labResult.organizationId, organizationId),
-          eq(labResult.patientId, patientId),
+          filedAsPatient(labResult.patientId, patientId),
           isNotNull(labResult.releasedAt),
           timelineFacility(labResult.facilityId, window),
         ),
       )
       .groupBy(
+        labResult.patientId,
         labResult.orderId,
         labResult.facilityId,
         labOrder.orderNumber,

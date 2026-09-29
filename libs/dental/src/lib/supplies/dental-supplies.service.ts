@@ -11,6 +11,7 @@ import {
   DomainEventPublisher,
   NotFoundError,
   requireFacilityId,
+  filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -348,7 +349,7 @@ export class DentalSuppliesService {
     const uses = await this.db
       .select()
       .from(dentalSupplyUse)
-      .where(and(eq(dentalSupplyUse.organizationId, organizationId), eq(dentalSupplyUse.patientId, patientId)))
+      .where(and(eq(dentalSupplyUse.organizationId, organizationId), filedAsPatient(dentalSupplyUse.patientId, patientId)))
       .orderBy(asc(dentalSupplyUse.recordedAt));
     return this.views(organizationId, uses);
   }
