@@ -1,4 +1,4 @@
-import { type AnyColumn, inArray, type SQL, sql } from "drizzle-orm";
+import { type AnyColumn, inArray, SQL, sql } from "drizzle-orm";
 
 /**
  * Shared vocabulary for management reporting (composed in apps/api from each domain's aggregate query). Every domain
@@ -21,9 +21,10 @@ export function reportingRange(column: AnyColumn | SQL, window: ReportingWindow)
 }
 
 /** The window's facility filter for a facility column. */
-export function reportingFacility(column: AnyColumn, window: ReportingWindow): SQL | undefined {
+export function reportingFacility(column: AnyColumn | SQL, window: ReportingWindow): SQL | undefined {
   if (!window.facilityIds) return undefined;
-  return window.facilityIds.length ? inArray(column, window.facilityIds) : sql`false`;
+  if (!window.facilityIds.length) return sql`false`;
+  return column instanceof SQL ? inArray(column, window.facilityIds) : inArray(column, window.facilityIds);
 }
 
 /**

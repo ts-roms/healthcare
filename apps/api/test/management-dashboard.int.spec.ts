@@ -125,14 +125,21 @@ describe("management dashboard", () => {
     const body = await dashboard(admin);
     expect(body).toMatchObject({ from: manilaDate(-29), to: manilaDate(0), timeZone: "Asia/Manila", facilityIds: null, wholeOrganization: true });
     expect(body.facilities).toHaveLength(2);
-    expect(body.patients).toEqual({ registered: 2, seen: 2, returning: 1, returningRate: 0.5 });
+    // Patient counts under five are suppressed, and the rate built on them withheld (the extras spec has larger numbers).
+    expect(body.patients).toEqual({ registered: "<5", seen: "<5", returning: "<5", firstTime: "<5", returningRate: null, returningRateSuppressed: true });
     expect(body.clinic.appointments).toEqual({ booked: 2, completed: 1, noShow: 1, cancelled: 1, selfBooked: 0, noShowRate: 0.5 });
     expect(body.clinic.visits).toEqual({ checkedIn: 1, walkIns: 1, leftWithoutBeingSeen: 0, averageWaitMinutes: 30 });
-    expect(body.clinic.encounters).toEqual({ completed: 2, telemedicine: 1, patientsSeen: 2, returningPatients: 1 });
-    expect(body.clinic.providers).toEqual([expect.objectContaining({ displayName: "Dr. reyes", encounters: 2, patients: 2, appointments: 2, noShows: 1 })]);
+    expect(body.clinic.encounters).toEqual({ completed: 2, telemedicine: 1, patientsSeen: "<5", returningPatients: "<5" });
+    expect(body.clinic.providers).toEqual([
+      expect.objectContaining({ displayName: "Dr. reyes", encounters: 2, patients: "<5", appointments: 2, noShows: 1, bookedMinutes: 30 }),
+    ]);
     expect(body.laboratory).toMatchObject({ orders: { orders: 1, stat: 0, cancelled: 0 }, testsOrdered: 1, released: 1, corrections: 0, specimensRejected: 0 });
     expect(body.laboratory.topTests).toEqual([expect.objectContaining({ name: "FBS", ordered: 1 })]);
-    expect(body.dental).toEqual({ procedures: 1, patients: 1 });
+    expect(body.dental).toEqual({
+      procedures: 1,
+      patients: "<5",
+      byProcedure: [{ code: "prophylaxis", name: "Oral prophylaxis", procedures: 1, patients: "<5" }],
+    });
     expect(body.billing.invoices).toMatchObject({ issued: 1, netTotal: 50_000, voided: 0 });
     expect(body.billing).toMatchObject({ collectedTotal: 20_000, refundedTotal: 0, netCollected: 20_000 });
     expect(body.billing.collections).toEqual([expect.objectContaining({ method: "cash", collected: 20_000, payments: 1 })]);
@@ -140,16 +147,25 @@ describe("management dashboard", () => {
     expect(body.billing.topServices).toEqual([expect.objectContaining({ code: "cert", name: "Medical certificate", quantity: 1, net: 50_000 })]);
     // One row per day, today's holding today's activity.
     expect(body.daily).toHaveLength(30);
-    expect(body.daily.at(-1)).toMatchObject({ date: manilaDate(0), registered: 2, encounters: 2, labReleased: 1, invoiced: 50_000, collected: 20_000 });
+    expect(body.daily.at(-1)).toMatchObject({
+      date: manilaDate(0),
+      registered: "<5",
+      patientsSeen: "<5",
+      encounters: 2,
+      labReleased: 1,
+      invoiced: 50_000,
+      collected: 20_000,
+    });
     // Figures only: no patient is named.
     expect(JSON.stringify(body)).not.toMatch(/Dela Cruz|Juan|Garcia|Ana\b|P\d{8}/);
   });
 
   it("compares the key figures with the period of the same length just before", async () => {
     const body = await dashboard(admin);
+    // Patient counts under five are suppressed.
     expect(body.keyFigures).toEqual({
-      patientsSeen: 2,
-      newPatients: 2,
+      patientsSeen: "<5",
+      newPatients: "<5",
       consultations: 2,
       noShowRate: 0.5,
       averageWaitMinutes: 30,
@@ -158,13 +174,23 @@ describe("management dashboard", () => {
       labTestsReleased: 1,
       labTurnaroundMinutes: expect.any(Number),
       dentalProcedures: 1,
+      specimenRejectionRate: 0,
+      retentionRate: null,
     });
     // Juan's visit 40 days ago falls in the 30 days before the range.
     expect(body.previous).toMatchObject({
       from: manilaDate(-59),
       to: manilaDate(-30),
-      keyFigures: { patientsSeen: 1, consultations: 1, newPatients: 0, netInvoiced: 0, noShowRate: null },
+      keyFigures: { patientsSeen: "<5", consultations: 1, newPatients: 0, netInvoiced: 0, noShowRate: null },
     });
+    // Each change with its direction of improvement; none for suppressed or missing values.
+    expect(body.previous.changes.consultations).toEqual({
+      unit: "count",
+      better: "up",
+      change: { absolute: 1, relative: 1, direction: "up", assessment: "better" },
+    });
+    expect(body.previous.changes.patientsSeen).toEqual({ unit: "patients", better: "up", change: null });
+    expect(body.previous.changes.noShowRate).toEqual({ unit: "rate", better: "down", change: null });
   });
 
   it("exports each table as CSV (pesos, formula-safe) and audits the export", async () => {
@@ -175,29 +201,30 @@ describe("management dashboard", () => {
     expect(summary.headers["content-disposition"]).toBe(`attachment; filename="management-summary-${manilaDate(-29)}-to-${manilaDate(0)}.csv"`);
     expect(summary.text.charCodeAt(0)).toBe(0xfeff);
     const lines = summary.text.slice(1).split("\r\n");
-    expect(lines[0]).toBe(`Figure,${manilaDate(-29)} to ${manilaDate(0)},${manilaDate(-59)} to ${manilaDate(-30)}`);
-    expect(lines).toContain(`"Invoiced, net (PHP)",500.00,0.00`);
-    expect(lines).toContain("Consultations completed,2,1");
+    expect(lines[0]).toBe(`Figure,${manilaDate(-29)} to ${manilaDate(0)},${manilaDate(-59)} to ${manilaDate(-30)},Change,Better when,Assessment`);
+    expect(lines).toContain(`"Invoiced, net (PHP)",500.00,0.00,500.00,higher,better`);
+    expect(lines).toContain("Consultations completed,2,1,1,higher,better");
+    expect(lines).toContain("Patients seen,<5,<5,,higher,");
 
     const services = await api(admin).get("/management/dashboard/export?table=services").expect(200);
-    expect(services.text).toContain("cert,Medical certificate,other,1,500.00");
+    expect(services.text).toContain("cert,Medical certificate,other,1,500.00,<5");
     const daily = await api(admin)
       .get(`/management/dashboard/export?table=daily&from=${manilaDate(0)}&to=${manilaDate(0)}`)
       .expect(200);
-    expect(daily.text.slice(1).split("\r\n")[1]).toBe(`${manilaDate(0)},2,2,1,500.00,200.00`);
+    expect(daily.text.slice(1).split("\r\n")[1]).toBe(`${manilaDate(0)},<5,<5,2,1,500.00,200.00`);
     const providers = await api(admin).get("/management/dashboard/export?table=providers").expect(200);
-    expect(providers.text).toContain("Dr. reyes,2,2,2,1");
+    expect(providers.text).toContain("Dr. reyes,2,<5,2,1,30,0,");
     // A facility-scoped manager exports only their facility.
     await api(annexManager, tenant.otherFacilityId).get(`/management/dashboard/export?table=summary&facilityId=${tenant.facilityId}`).expect(403);
 
-    const audits = await auditRows(ctx.pool, "action = 'management.dashboard.export'");
+    const audits = await auditRows(ctx.pool, "action = 'management.dashboard.export' AND organization_id = $1", [tenant.organizationId]);
     expect(audits.map((a) => (a.metadata as { table: string }).table).sort()).toEqual(["daily", "providers", "services", "summary"]);
     expect(JSON.stringify([summary.text, services.text, daily.text, providers.text])).not.toMatch(/Dela Cruz|Juan|Garcia/);
   });
 
   it("filters by facility and by range of local days", async () => {
     const annex = await dashboard(admin, `?facilityId=${tenant.otherFacilityId}`);
-    expect(annex).toMatchObject({ facilityIds: [tenant.otherFacilityId], patients: { registered: 1, seen: 1, returning: 0 } });
+    expect(annex).toMatchObject({ facilityIds: [tenant.otherFacilityId], patients: { registered: "<5", seen: "<5", returning: 0 } });
     expect(annex.clinic.encounters).toMatchObject({ completed: 1, telemedicine: 1 });
     expect(annex.billing.invoices.issued).toBe(0);
 

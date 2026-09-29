@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparison, percentOf, previousLabel, rangePresets } from "./management-mapping";
+import { comparison, countLabel, patientRateLabel, percentOf, previousLabel, rangePresets, verdict } from "./management-mapping";
 
 describe("rangePresets", () => {
   it("offers ranges ending today, and last month across a year boundary", () => {
@@ -31,10 +31,37 @@ describe("comparison", () => {
     expect(comparison(0.15, 0.125, "rate")).toBe("▲ 2.5 pts");
     expect(comparison(25, 40, "minutes")).toBe("▼ 15 min");
     expect(comparison(null, 40, "minutes")).toBe("no comparison");
+    expect(comparison("<5", 6, "count")).toBe("no comparison");
   });
 
   it("names the previous period", () => {
     expect(previousLabel("2026-09-01", "2026-09-30")).toBe("the previous 30 days");
     expect(previousLabel("2026-09-29", "2026-09-29")).toBe("the previous day");
+  });
+});
+
+describe("verdict", () => {
+  it("says whether a change is better or worse by the figure's direction", () => {
+    const change = (assessment: "better" | "worse" | "unchanged" | "neutral") => ({
+      unit: "rate" as const,
+      better: "down" as const,
+      change: { absolute: 0.05, relative: null, direction: "up" as const, assessment },
+    });
+    expect(verdict(change("worse"))).toEqual({ text: "worse", tone: "worse" });
+    expect(verdict(change("better"))).toEqual({ text: "better", tone: "better" });
+    expect(verdict(change("neutral"))).toEqual({ text: "neither better nor worse", tone: "neutral" });
+    expect(verdict(change("unchanged"))).toBeNull();
+    expect(verdict({ unit: "patients", better: "up", change: null })).toBeNull();
+    expect(verdict(undefined)).toBeNull();
+  });
+});
+
+describe("suppressed counts and rates", () => {
+  it("keeps <5 and formats numbers", () => {
+    expect(countLabel("<5")).toBe("<5");
+    expect(countLabel(1234)).toBe("1,234");
+    expect(countLabel(0)).toBe("0");
+    expect(patientRateLabel(null, true)).toBe("withheld (<5)");
+    expect(patientRateLabel(0.875, false)).toBe("87.5%");
   });
 });

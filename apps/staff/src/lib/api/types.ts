@@ -2924,15 +2924,38 @@ export interface ManagementDashboard {
   facilityIds: string[] | null;
   facilities: Array<{ id: string; name: string }>;
   wholeOrganization: boolean;
+  /** Patient counts from 1 to this − 1 are shown as "<5". */
+  suppressionThreshold: number;
+  /** Sections left out for lack of permission ("billing": needs billing.report.read on every facility in scope). */
+  withheld: Array<"billing">;
   keyFigures: ManagementKeyFigures;
-  /** The period of the same length just before the range. */
-  previous: { from: string; to: string; keyFigures: ManagementKeyFigures };
-  patients: { registered: number; seen: number; returning: number; returningRate: number | null };
+  /** The period of the same length just before the range, with each key figure's change. */
+  previous: { from: string; to: string; keyFigures: ManagementKeyFigures; changes: Record<keyof ManagementKeyFigures, ManagementFigureChange> };
+  patients: {
+    registered: ManagementPatientCount;
+    seen: ManagementPatientCount;
+    returning: ManagementPatientCount;
+    firstTime: ManagementPatientCount;
+    returningRate: number | null;
+    returningRateSuppressed: boolean;
+  };
   clinic: {
     appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
     visits: { checkedIn: number; walkIns: number; leftWithoutBeingSeen: number; averageWaitMinutes: number | null };
-    encounters: { completed: number; telemedicine: number; patientsSeen: number; returningPatients: number };
-    providers: Array<{ practitionerId: string; displayName: string; encounters: number; patients: number; appointments: number; noShows: number }>;
+    encounters: { completed: number; telemedicine: number; patientsSeen: ManagementPatientCount; returningPatients: ManagementPatientCount };
+    providers: Array<{
+      practitionerId: string;
+      displayName: string;
+      encounters: number;
+      patients: ManagementPatientCount;
+      appointments: number;
+      noShows: number;
+      bookedMinutes: number;
+      availableMinutes: number;
+      /** Booked ÷ available minutes; may exceed 1. */
+      utilization: number | null;
+    }>;
+    utilization: { bookedMinutes: number; availableMinutes: number; rate: number | null };
   };
   laboratory: {
     orders: { orders: number; stat: number; cancelled: number };
@@ -2942,9 +2965,29 @@ export interface ManagementDashboard {
     averageTurnaroundMinutes: number | null;
     withinTargetRate: number | null;
     specimensRejected: number;
+    specimens: { collected: number; rejected: number; rejectionRate: number | null };
+    byInstrument: Array<{ instrumentId: string | null; name: string | null; results: number }>;
     topTests: Array<{ testId: string; name: string; ordered: number }>;
   };
-  dental: { procedures: number; patients: number };
+  dental: {
+    procedures: number;
+    patients: ManagementPatientCount;
+    byProcedure: Array<{ code: string; name: string; procedures: number; patients: ManagementPatientCount }>;
+  };
+  telemedicine: { started: number; ended: number; escalated: number; inProgress: number; escalationRate: number | null };
+  retention: {
+    lookbackMonths: number;
+    returnWindowDays: number;
+    seen: ManagementPatientCount;
+    retained: ManagementPatientCount;
+    retentionRate: number | null;
+    retentionRateSuppressed: boolean;
+    returnCohort: ManagementPatientCount;
+    returned: ManagementPatientCount;
+    returnRate: number | null;
+    returnRateSuppressed: boolean;
+  };
+  /** Null when withheld (see `withheld`). */
   billing: {
     invoices: { issued: number; grossTotal: number; discountTotal: number; netTotal: number; payerTotal: number; patientTotal: number; voided: number };
     creditNotesTotal: number;
@@ -2954,23 +2997,85 @@ export interface ManagementDashboard {
     netCollected: number;
     collections: Array<{ method: PaymentMethod; collected: number; refunded: number; payments: number }>;
     byCategory: Array<{ category: BillingCategory; net: number; quantity: number }>;
-    topServices: Array<{ serviceId: string; code: string; name: string; category: BillingCategory; quantity: number; net: number }>;
-  };
-  daily: Array<{ date: string; registered: number; encounters: number; labReleased: number; invoiced: number; collected: number }>;
+    topServices: Array<{
+      serviceId: string;
+      code: string;
+      name: string;
+      category: BillingCategory;
+      quantity: number;
+      net: number;
+      patients: ManagementPatientCount;
+    }>;
+  } | null;
+  daily: Array<{
+    date: string;
+    registered: ManagementPatientCount;
+    patientsSeen: ManagementPatientCount;
+    encounters: number;
+    labReleased: number;
+    /** Null when billing is withheld. */
+    invoiced: number | null;
+    collected: number | null;
+  }>;
+  /** "How is this calculated?" text per figure. */
+  definitions: Record<ManagementMetricKey, string>;
 }
 
-/** Headline figures of the management dashboard (amounts in centavos). */
+// ---- Management dashboard extras (suppression, comparison, definitions) ----------------------------------------
+
+/** A patient count as disclosed: exact from 5 up (and 0), otherwise "<5". */
+export type ManagementPatientCount = number | "<5";
+
+export type ManagementMetricKey =
+  | "patientsSeen"
+  | "newPatients"
+  | "returningPatients"
+  | "consultations"
+  | "noShowRate"
+  | "averageWait"
+  | "utilization"
+  | "invoicedNet"
+  | "collected"
+  | "labReleased"
+  | "labTurnaround"
+  | "labWithinTarget"
+  | "specimenRejectionRate"
+  | "resultsPerInstrument"
+  | "dentalProcedures"
+  | "telemedicine"
+  | "retentionRate"
+  | "returnRate"
+  | "comparison"
+  | "suppression";
+
+/** A key figure's change against the previous period, and which direction is an improvement. */
+export interface ManagementFigureChange {
+  unit: "count" | "patients" | "rate" | "minutes" | "centavos";
+  better: "up" | "down" | "neither";
+  /** Null when either value is unknown, withheld or suppressed. */
+  change: {
+    /** For a rate a fraction (0.05 = 5 percentage points). */
+    absolute: number;
+    relative: number | null;
+    direction: "up" | "down" | "flat";
+    assessment: "better" | "worse" | "unchanged" | "neutral";
+  } | null;
+}
+
+/** Headline figures of the management dashboard (amounts in centavos; null when billing is withheld). */
 export interface ManagementKeyFigures {
-  patientsSeen: number;
-  newPatients: number;
+  patientsSeen: ManagementPatientCount;
+  newPatients: ManagementPatientCount;
   consultations: number;
   noShowRate: number | null;
   averageWaitMinutes: number | null;
-  netInvoiced: number;
-  netCollected: number;
+  netInvoiced: number | null;
+  netCollected: number | null;
   labTestsReleased: number;
   labTurnaroundMinutes: number | null;
   dentalProcedures: number;
+  specimenRejectionRate: number | null;
+  retentionRate: number | null;
 }
 
 // ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------
