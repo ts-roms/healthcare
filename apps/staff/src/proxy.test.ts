@@ -23,6 +23,18 @@ describe("staff proxy", () => {
     for (const path of ["/login"]) expect((await proxy(request(path))).headers.get("location")).toBeNull();
   });
 
+  it("serves the landing page to everyone without touching the session", async () => {
+    for (const cookies of [{}, SIGNED_IN, { hc_rt: "refresh" }] as Record<string, string>[]) {
+      const response = await proxy(request("/welcome", cookies));
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.cookies.getAll()).toHaveLength(0);
+    }
+  });
+
+  it("does not treat paths below the landing page as public", async () => {
+    expect((await proxy(request("/welcome/patients"))).headers.get("location")).toContain("/login");
+  });
+
   it("skips the sign-in form for a signed-in user", async () => {
     expect((await proxy(request("/login", SIGNED_IN))).headers.get("location")).toBe("http://localhost:3000/");
   });

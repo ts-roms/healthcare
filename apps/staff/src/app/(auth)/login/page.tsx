@@ -1,4 +1,3 @@
-import { ActivityIcon } from "lucide-react";
 import { safeNextPath } from "@healthcare/web-session";
 import { LoginForm } from "./login-form";
 
@@ -11,19 +10,13 @@ const NOTICES: Record<string, string> = {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
   const { next, reason } = await searchParams;
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <ActivityIcon className="size-4" aria-hidden />
-          </span>
-          <div>
-            <h1 className="text-section-lg font-semibold">Healthcare Platform</h1>
-            <p className="text-meta text-muted-foreground">Staff sign-in</p>
-          </div>
-        </div>
-        <LoginForm next={safeNextPath(next)} notice={reason ? NOTICES[reason] : undefined} />
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-page-lg font-semibold tracking-tight">Welcome back</h1>
+        <p className="text-body text-muted-foreground">Sign in to your staff account to continue.</p>
       </div>
-    </main>
+      <LoginForm next={safeNextPath(next)} notice={reason ? NOTICES[reason] : undefined} />
+      <p className="text-meta text-muted-foreground">Trouble signing in? Ask your organization administrator to reset your password or authenticator.</p>
+    </div>
   );
 }

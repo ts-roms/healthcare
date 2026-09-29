@@ -13,11 +13,17 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api
  * Proxy is not the only check: every API call is authorized by the API itself,
  * and `api()` sends the user to sign in on a 401.
  */
+/** Pages anyone may open, signed in or not. They must not call the API. */
+const PUBLIC_PATHS = new Set(["/welcome"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
   const refreshToken = request.cookies.get(COOKIES.refresh)?.value;
   const accessToken = request.cookies.get(COOKIES.access)?.value;
+
+  // Public pages (the landing page) render for everyone and never touch the session.
+  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
 
   if (isLogin) {
     // The API ended the session (a call returned 401): drop the stale cookies and show the form,
