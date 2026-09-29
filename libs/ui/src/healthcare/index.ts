@@ -9,6 +9,7 @@ export * from "./diagnosis-selector";
 export * from "./encounter-timeline";
 export * from "./lab-result";
 export * from "./lab-result-table";
+export * from "./daily-series-chart";
 export * from "./lab-trend-chart";
 export * from "./lab-worklist";
 export * from "./medical-document";

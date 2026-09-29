@@ -4,6 +4,7 @@ import { DentalCatalogService } from "./catalog/dental-catalog.service";
 import { DentalChartService } from "./chart/dental-chart.service";
 import { DentalPlanController, DentalRecordController, DentalSettingsController, DentalSuppliesController } from "./dental.controllers";
 import { DentalRecordQueries } from "./dental-record.queries";
+import { DentalReportingQueries } from "./dental-reporting.queries";
 import { DentalRecordService } from "./dental-record.service";
 import { DentalImagingService } from "./imaging/dental-imaging.service";
 import { DentalPerioService } from "./periodontal/dental-perio.service";
@@ -44,10 +45,11 @@ export class DentalModule {
         DentalPatientAccess,
         DentalSuppliesService,
         DentalRecordQueries,
+        DentalReportingQueries,
         { provide: DENTAL_CONTEXT, useClass: options.context },
         { provide: DENTAL_SUPPLIES, useClass: options.supplies },
       ],
-      exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries],
+      exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries, DentalReportingQueries],
     };
   }
 }
