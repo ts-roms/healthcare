@@ -54,12 +54,16 @@ export class FhirRecordComposer {
     };
   }
 
-  /** The patient's whole record. Throws NotFoundError for a patient outside the actor's organization. */
-  async record(actor: Actor, patientId: string): Promise<PatientRecordSource> {
+  /**
+   * The patient's whole record. Throws NotFoundError for a patient outside the actor's organization. `include` overrides
+   * the caller's own document and dental access for a workflow that has authorized it (a records office's copy of the
+   * record, which answers the patient's own request).
+   */
+  async record(actor: Actor, patientId: string, include: { documents?: boolean; dental?: boolean } = {}): Promise<PatientRecordSource> {
     const organizationId = actor.organizationId;
     const patient = await this.patients.getDetail(actor, patientId);
-    const withDocuments = canReadDocuments(actor);
-    const withDental = canReadDental(actor);
+    const withDocuments = include.documents ?? canReadDocuments(actor);
+    const withDental = include.dental ?? canReadDental(actor);
     const [clinic, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages] = await Promise.all([
       this.clinic.patientRecord(organizationId, patientId),
       this.lab.patientRecord(organizationId, patientId),

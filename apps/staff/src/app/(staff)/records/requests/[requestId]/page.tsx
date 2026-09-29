@@ -8,6 +8,7 @@ import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { RecordsRequestDetail } from "@/lib/api/types";
 import { periodText, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
+import { RecordCopyCard } from "./record-copy";
 import { RequestAnswer } from "./request-answer";
 
 export const metadata = { title: "Records request" };
@@ -108,6 +109,7 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
             </CardContent>
           </Card>
         )}
+        <RecordCopyCard request={request} open={open} />
       </div>
     </>
   );

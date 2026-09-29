@@ -3459,4 +3459,19 @@ export interface RecordsRequestDetail extends RecordsRequest {
   shared: Array<{ documentId: string; title: string; category: string; sharedAt: string; status: string }>;
   /** Available documents of the patient's record that can be shared (while the request is open). */
   available: Array<{ id: string; title: string; category: string; fileName: string; createdAt: string }>;
+  /** Copies of the record prepared for this request (record_copy documents; shared like any other). */
+  copies: RecordCopy[];
+  /** Where a new copy starts from: the sections matching what the patient asked for. */
+  suggestedSections: RecordCopySection[];
+}
+
+export type RecordCopySection = "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents";
+
+/** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
+export interface RecordCopy {
+  documentId: string;
+  sections: RecordCopySection[];
+  periodFrom: string | null;
+  periodTo: string | null;
+  createdAt: string;
 }

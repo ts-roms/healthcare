@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { RECORDS_REQUEST_SCOPES } from "./records-request.schema";
+import { RECORD_COPY_SECTIONS, RECORDS_REQUEST_SCOPES } from "./records-request.schema";
 
 const calendarDate = z.iso.date();
 const version = z.number().int().positive();
@@ -40,3 +40,14 @@ export const declineRecordsRequestSchema = z.object({
   version,
 });
 export class DeclineRecordsRequestDto extends createZodDto(declineRecordsRequestSchema) {}
+
+export const prepareRecordCopySchema = z
+  .object({
+    /** What the copy contains (the patient's identification is always on its cover). */
+    sections: z.array(z.enum(RECORD_COPY_SECTIONS)).min(1, "Choose what the copy contains").max(RECORD_COPY_SECTIONS.length),
+    /** Records dated in this period, in the facility's time zone (allergies are the current list whatever the period). */
+    periodFrom: calendarDate.optional(),
+    periodTo: calendarDate.optional(),
+  })
+  .refine((v) => !v.periodFrom || !v.periodTo || v.periodTo >= v.periodFrom, { message: "The period ends before it starts", path: ["periodTo"] });
+export class PrepareRecordCopyDto extends createZodDto(prepareRecordCopySchema) {}

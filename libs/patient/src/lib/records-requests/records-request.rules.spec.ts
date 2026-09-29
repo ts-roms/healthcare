@@ -1,4 +1,4 @@
-import { daysWaiting, recordsRequestOpen } from "./records-request.rules";
+import { copySectionsForScope, daysWaiting, recordsRequestOpen } from "./records-request.rules";
 
 describe("records request rules", () => {
   it("is open while submitted or in review", () => {
@@ -14,5 +14,11 @@ describe("records request rules", () => {
     expect(daysWaiting(new Date("2026-10-10T07:00:00Z"), now)).toBe(0);
     expect(daysWaiting(new Date("2026-10-07T09:00:00Z"), now)).toBe(2);
     expect(daysWaiting(new Date("2026-10-11T09:00:00Z"), now)).toBe(0);
+  });
+
+  it("starts a copy of the record from what the patient asked for, in the copy's order", () => {
+    expect(copySectionsForScope(["laboratory", "consultations"])).toEqual(["allergies", "consultations", "laboratory", "care_plans"]);
+    expect(copySectionsForScope(["imaging", "dental", "certificates"])).toEqual(["dental", "certificates", "documents"]);
+    expect(copySectionsForScope(["other"])).toEqual([]);
   });
 });

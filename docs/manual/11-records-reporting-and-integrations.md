@@ -27,12 +27,23 @@ administrators). You get a message under the bell for each new request.
    medical certificates or something else), the period, details and purpose. Opening it is recorded.
 3. Select **Take into review** so colleagues see someone is working on it (optional).
 4. Confirm the requester as your organization's Data Privacy Act procedures require. The platform encodes no deadline, fee or disclosure rule.
-5. To share copies: upload them to the patient's record first if they are not there (see [Patients](02-patients.md)), tick the documents under
-   **Documents to share**, add a **Note to the patient** if useful, and select **Share**. The patient downloads them in MyHealth.
-6. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
+5. To give a copy of the record itself, use **Copy of the record** (below the request): the sections matching what the patient asked for and the
+   request's period are already filled in. Tick or untick sections (allergies, consultations, laboratory results, prescriptions, care plans, dental
+   treatment, medical certificates, documents on file), change the dates if needed (leave them empty for the whole record), and select **Prepare
+   copy**. The platform compiles one PDF and stores it in the patient's record; select **Open** to check it. It is not sent to the patient yet.
+6. To share copies: upload scans to the patient's record first if they are not there (see [Patients](02-patients.md)), tick the documents under
+   **Documents to share** (including a copy of the record you prepared), add a **Note to the patient** if useful, and select **Share**. The patient
+   downloads them in MyHealth.
+7. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
 
 The patient is told by message (and SMS or email) that the request was answered, without details. An answered request cannot be changed; the patient
 can send a new one. Patients can have at most 3 open requests and can withdraw an open one.
+
+**What a copy of the record contains.** Only the record as it stands: signed consultation notes (as last amended, never drafts) with diagnoses and
+vital signs, laboratory results that have been released, issued medical certificates (listed; each is its own document) and a list of documents on
+file (the files themselves are shared separately). Drafts, consultations still in progress and entries marked as made in error are left out; records
+received from other providers are labelled. Allergies are always the current list. Dates follow your facility's time zone. Preparing a copy is
+recorded. Billing records and dental charts are not included; whether a copy must be signed or certified is your organization's procedure.
 
 ## How to review records sent by another provider (FHIR imports)
 
