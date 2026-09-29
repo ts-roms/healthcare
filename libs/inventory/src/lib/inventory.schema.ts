@@ -1,8 +1,11 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0026_inventory.sql and 0052_inventory_procurement.sql (and 0057 for the dental_procedure source; the migrations are the source of truth).
+// Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source) and
+// 0061 (costs on every movement, supplier invoices); the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
+/** Integer centavos (PHP). */
+const money = (name: string) => bigint(name, { mode: "number" });
 
 export const ITEM_CATEGORIES = ["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "other"] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
@@ -141,6 +144,51 @@ export const inventoryPurchaseOrderLine = pgTable("inventory_purchase_order_line
   quantityReceived: integer("quantity_received").notNull().default(0),
 });
 
+export const SUPPLIER_INVOICE_STATUSES = ["recorded", "approved", "paid", "void"] as const;
+export type SupplierInvoiceStatus = (typeof SUPPLIER_INVOICE_STATUSES)[number];
+
+export const inventorySupplierInvoice = pgTable("inventory_supplier_invoice", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  purchaseOrderId: uuid("purchase_order_id").notNull(),
+  supplierId: uuid("supplier_id").notNull(),
+  invoiceNumber: text("invoice_number").notNull(),
+  invoiceDate: date("invoice_date").notNull(),
+  dueDate: date("due_date"),
+  linesTotal: money("lines_total").notNull(),
+  vatAmount: money("vat_amount").notNull().default(0),
+  total: money("total").notNull(),
+  notes: text("notes"),
+  status: text("status").$type<SupplierInvoiceStatus>().notNull().default("recorded"),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  approvedBy: uuid("approved_by"),
+  approvedAt: ts("approved_at"),
+  approvalNote: text("approval_note"),
+  paidOn: date("paid_on"),
+  paymentReference: text("payment_reference"),
+  paidRecordedBy: uuid("paid_recorded_by"),
+  paidRecordedAt: ts("paid_recorded_at"),
+  voidedBy: uuid("voided_by"),
+  voidedAt: ts("voided_at"),
+  voidReason: text("void_reason"),
+  version: integer("version").notNull().default(1),
+});
+
+export const inventorySupplierInvoiceLine = pgTable("inventory_supplier_invoice_line", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  purchaseOrderId: uuid("purchase_order_id").notNull(),
+  purchaseOrderLineId: uuid("purchase_order_line_id").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: money("unit_price").notNull(),
+  amount: money("amount").notNull(),
+});
+
+export type SupplierInvoiceRecord = typeof inventorySupplierInvoice.$inferSelect;
+export type SupplierInvoiceLineRecord = typeof inventorySupplierInvoiceLine.$inferSelect;
 export type PurchaseOrderRecord = typeof inventoryPurchaseOrder.$inferSelect;
 export type PurchaseOrderLineRecord = typeof inventoryPurchaseOrderLine.$inferSelect;
 export type ItemRecord = typeof inventoryItem.$inferSelect;

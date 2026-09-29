@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReorderSuggestion } from "./api/types";
-import { linesFromSuggestions, purchaseOrderActions, quantityWithUnit } from "./inventory-mapping";
+import { linesFromSuggestions, purchaseOrderActions, quantityWithUnit, supplierInvoiceActions, usageLabel } from "./inventory-mapping";
 
 describe("purchase order actions", () => {
   const officer = ["inventory.read", "inventory.move", "inventory.procurement.manage"];
@@ -56,5 +56,28 @@ describe("quantity with unit", () => {
   it("keeps whole numbers whole", () => {
     expect(quantityWithUnit(30, "capsules")).toBe("30 capsules");
     expect(quantityWithUnit(1.5, "bottle")).toBe("1.50 bottle");
+  });
+});
+
+describe("supplier invoice actions", () => {
+  const officer = ["inventory.read", "inventory.procurement.manage"];
+  const approver = ["inventory.read", "inventory.procurement.manage", "inventory.procurement.approve"];
+
+  it("offers approval to someone other than the recorder, payment after approval, and voiding before payment", () => {
+    expect(supplierInvoiceActions({ status: "recorded", recordedByYou: false }, approver)).toEqual(["approve", "void"]);
+    expect(supplierInvoiceActions({ status: "recorded", recordedByYou: true }, approver)).toEqual(["void"]);
+    expect(supplierInvoiceActions({ status: "recorded", recordedByYou: false }, officer)).toEqual(["void"]);
+    expect(supplierInvoiceActions({ status: "approved", recordedByYou: true }, officer)).toEqual(["pay", "void"]);
+    expect(supplierInvoiceActions({ status: "paid", recordedByYou: false }, approver)).toEqual([]);
+  });
+});
+
+describe("usageLabel", () => {
+  it("names each kind of movement and the workflow behind it", () => {
+    expect(usageLabel("receipt", "purchase_order_line")).toBe("Received on purchase orders");
+    expect(usageLabel("issue", "prescription_dispense")).toBe("Dispensed on prescriptions");
+    expect(usageLabel("issue", null)).toBe("Issued");
+    expect(usageLabel("return", "dental_procedure")).toBe("Returned from dental procedures");
+    expect(usageLabel("write_off", null)).toBe("Written off");
   });
 });

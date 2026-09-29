@@ -43,6 +43,7 @@ interface Posting {
   /** Signed change at the location. */
   delta: number;
   supplierId?: string | null;
+  /** Receipts: the purchase price. Other movements take the lot's cost when posted (see lotUnitCost). */
   unitCost?: number | null;
   reference?: string | null;
   issuedTo?: string | null;
@@ -698,7 +699,14 @@ export class InventoryStockService {
       if (!before.has(key)) before.set(key, await this.usableTotal(tx, p.locationId, p.itemId, today));
     }
     let first = true;
+    const lotCosts = new Map<string, number | null>();
     for (const p of postings) {
+      // Every movement other than a receipt records the lot's cost now, so the value of what was used never shifts.
+      let unitCost = p.unitCost ?? null;
+      if (p.kind !== "receipt" && p.unitCost === undefined) {
+        if (!lotCosts.has(p.lotId)) lotCosts.set(p.lotId, await lotUnitCost(tx, p.lotId));
+        unitCost = lotCosts.get(p.lotId) ?? null;
+      }
       const current = await this.lockBalance(tx, actor.organizationId, p.locationId, p.itemId, p.lotId);
       const next = current + p.delta;
       if (next < 0) throw new BusinessRuleError(`Not enough stock in this lot (${current} on hand)`, "insufficient_stock");
@@ -716,7 +724,7 @@ export class InventoryStockService {
         quantity: p.delta,
         balanceAfter: next,
         supplierId: p.supplierId ?? null,
-        unitCost: p.unitCost ?? null,
+        unitCost,
         reference: p.reference ?? null,
         issuedTo: p.issuedTo ?? null,
         reason: p.reason ?? null,
@@ -921,4 +929,20 @@ export class InventoryStockService {
 
 function movementView(row: MovementRecord) {
   return { ...strip(row), recordedAt: row.recordedAt.toISOString() };
+}
+
+/**
+ * A lot's cost per stock unit (centavos): the weighted average of its priced receipts, rounded to the centavo; null when
+ * no receipt of the lot carried a cost. The same rule values stock on hand (InventoryValuationService).
+ */
+export async function lotUnitCost(executor: DbExecutor, lotId: string): Promise<number | null> {
+  const [row] = await executor
+    .select({
+      cost: sql<
+        number | null
+      >`round(sum(${inventoryMovement.quantity}::numeric * ${inventoryMovement.unitCost}) / nullif(sum(${inventoryMovement.quantity}), 0))::float8`,
+    })
+    .from(inventoryMovement)
+    .where(and(eq(inventoryMovement.lotId, lotId), eq(inventoryMovement.kind, "receipt"), sql`${inventoryMovement.unitCost} is not null`));
+  return row?.cost ?? null;
 }

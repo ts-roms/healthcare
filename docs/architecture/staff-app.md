@@ -198,7 +198,13 @@ write off with `inventory.adjust`). `/inventory/movements`: the ledger. `/invent
 (`inventory.catalog.manage`): items, storage locations, suppliers, reorder levels and reorder quantities.
 `/inventory/purchase-orders`: open and past orders, what to reorder, a new order (`inventory.procurement.manage`, lines
 can be filled from the reorder list); `/inventory/purchase-orders/[id]`: lines and totals, submit, approve (someone
-else), receive a delivery (lots, expiry, delivery reference), cancel or close short. See `docs/domains/inventory.md`.
+else), receive a delivery (lots, expiry, delivery reference), cancel or close short, invoiced quantities per line, the
+order's supplier invoices and **Record a supplier invoice** (`inventory.procurement.manage`; lines prefilled with what was
+received and not yet invoiced, at the order's price). `/inventory/supplier-invoices` (open, overdue, paid, void, all) and
+`/inventory/supplier-invoices/[id]`: lines with order and invoiced prices (differences marked with ▲/▼ and text), VAT as
+stated, total, history, **Approve** (someone else; a note when prices differ), **Mark paid**, **Void**.
+`/inventory/valuation` (`inventory.valuation.read`): stock value, unvalued stock, value by category and location, stock at
+cost per item, and received and used in a period. See `docs/domains/inventory.md`.
 
 ## Pharmacy
 

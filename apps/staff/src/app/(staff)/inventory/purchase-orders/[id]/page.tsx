@@ -1,23 +1,26 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Card, CardContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { PurchaseOrder } from "@/lib/api/types";
+import type { PurchaseOrder, PurchaseOrderInvoicing, SupplierInvoice } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { purchaseOrderActions } from "@/lib/inventory-mapping";
 import { InventoryNav } from "../../inventory-nav";
+import { SupplierInvoiceStatusBadge } from "../../supplier-invoices/status-badge";
 import { PurchaseOrderStatusBadge } from "../status-badge";
 import { PurchaseOrderActions } from "./purchase-order-actions";
+import { RecordSupplierInvoice } from "./record-invoice";
 
 export const metadata = { title: "Purchase order" };
 
 export default async function PurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} />;
+  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
   if (!facility) {
     return (
       <>
@@ -26,7 +29,13 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
       </>
     );
   }
-  const order = await api<PurchaseOrder>(`/inventory/purchase-orders/${id}`);
+  const [order, invoicing, invoices] = await Promise.all([
+    api<PurchaseOrder>(`/inventory/purchase-orders/${id}`),
+    api<PurchaseOrderInvoicing>(`/inventory/purchase-orders/${id}/invoicing`),
+    api<SupplierInvoice[]>("/inventory/supplier-invoices", { query: { purchaseOrderId: id } }),
+  ]);
+  const canInvoice = can(session, "inventory.procurement.manage");
+  const invoicedByLine = new Map(invoicing.lines.map((l) => [l.purchaseOrderLineId, l.quantityInvoiced]));
   const actions = purchaseOrderActions(order, session.permissions);
   const history = [
     { label: "Drafted", at: order.createdAt },
@@ -57,6 +66,7 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
                   <TableHead>Item</TableHead>
                   <TableHead className="text-right">Ordered</TableHead>
                   <TableHead className="text-right">Received</TableHead>
+                  <TableHead className="text-right">Invoiced</TableHead>
                   <TableHead className="text-right">Unit cost</TableHead>
                   <TableHead className="text-right">Line total</TableHead>
                 </TableRow>
@@ -79,12 +89,13 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
                       {l.quantityReceived}
                       {l.outstanding > 0 && l.quantityReceived > 0 ? <div className="text-meta text-muted-foreground">{l.outstanding} to come</div> : null}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">{invoicedByLine.get(l.id) ?? 0}</TableCell>
                     <TableCell className="text-right tabular-nums">{l.unitCost === null ? "—" : peso(l.unitCost)}</TableCell>
                     <TableCell className="text-right tabular-nums">{l.unitCost === null ? "—" : peso(l.unitCost * l.quantityOrdered)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
-                  <TableCell colSpan={5} className="text-right font-medium">
+                  <TableCell colSpan={6} className="text-right font-medium">
                     Total{order.unpricedLines ? ` (${order.unpricedLines} line${order.unpricedLines === 1 ? "" : "s"} without a price)` : ""}
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{peso(order.totalCost)}</TableCell>
@@ -93,6 +104,28 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
             </Table>
           </Card>
           {order.notes ? <p className="text-body whitespace-pre-line">{order.notes}</p> : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>Supplier invoices</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <p className="text-table text-muted-foreground">No supplier invoice recorded for this order.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {invoices.map((i) => (
+                    <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 text-table">
+                      <Link href={`/inventory/supplier-invoices/${i.id}`} className="font-medium text-primary hover:underline">
+                        {i.invoiceNumber}
+                      </Link>
+                      <span className="tabular-nums">{peso(i.total)}</span>
+                      <SupplierInvoiceStatusBadge invoice={i} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
           <Card>
             <CardContent>
               <ol className="flex flex-col gap-1 text-body">
@@ -106,7 +139,10 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
             </CardContent>
           </Card>
         </div>
-        {actions.length > 0 ? <PurchaseOrderActions order={order} actions={actions} /> : null}
+        <div className="flex h-fit flex-col gap-3">
+          {actions.length > 0 ? <PurchaseOrderActions order={order} actions={actions} /> : null}
+          {canInvoice ? <RecordSupplierInvoice invoicing={invoicing} /> : null}
+        </div>
       </div>
     </>
   );

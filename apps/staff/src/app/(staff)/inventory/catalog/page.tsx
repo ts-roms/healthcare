@@ -18,7 +18,11 @@ export default async function InventoryCatalogPage() {
   ]);
   return (
     <>
-      <PageHeader title="Inventory catalog" description="Items, suppliers, storage locations and reorder levels." actions={<InventoryNav canConfigure />} />
+      <PageHeader
+        title="Inventory catalog"
+        description="Items, suppliers, storage locations and reorder levels."
+        actions={<InventoryNav canConfigure canValue={can(session, "inventory.valuation.read")} />}
+      />
       <InventoryCatalog items={items} suppliers={suppliers} locations={locations} facility={facility ? { id: facility.id, name: facility.name } : null} />
     </>
   );

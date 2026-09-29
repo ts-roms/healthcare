@@ -34,7 +34,7 @@ const SOURCE: Record<NonNullable<InventoryMovement["sourceType"]>, string> = {
 export default async function MovementsPage() {
   const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} />;
+  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
   if (!facility) {
     return (
       <>

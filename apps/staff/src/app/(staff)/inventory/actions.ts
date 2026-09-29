@@ -21,6 +21,8 @@ async function run<T>(schema: z.ZodType, input: unknown, path: string, body: unk
     revalidatePath("/inventory/movements");
     revalidatePath("/inventory/catalog");
     revalidatePath("/inventory/purchase-orders", "layout");
+    revalidatePath("/inventory/supplier-invoices", "layout");
+    revalidatePath("/inventory/valuation");
   }
   return result;
 }
@@ -177,4 +179,42 @@ const deliverySchema = z.object({
 export async function receivePurchaseOrder(input: z.input<typeof deliverySchema>) {
   const { id: orderId, ...body } = input;
   return run(deliverySchema, input, `/purchase-orders/${orderId}/receipts`, body);
+}
+
+// ---- Supplier invoices -------------------------------------------------------------------------------------------
+
+const isoDate = z.iso.date("Use a valid date.");
+const centavos = z.number().int().min(0, "Amounts cannot be negative.");
+
+const supplierInvoiceSchema = z.object({
+  purchaseOrderId: id,
+  invoiceNumber: z.string().trim().min(1, "Enter the supplier's invoice number.").max(60),
+  invoiceDate: isoDate,
+  dueDate: isoDate.optional(),
+  vatAmount: centavos,
+  notes: text(1000),
+  lines: z.array(z.object({ purchaseOrderLineId: id, quantity: qty, unitPrice: centavos })).min(1, "Enter what the invoice covers."),
+});
+export async function recordSupplierInvoice(input: z.input<typeof supplierInvoiceSchema>) {
+  const { purchaseOrderId, ...body } = input;
+  return run<{ id: string }>(supplierInvoiceSchema, input, `/purchase-orders/${purchaseOrderId}/invoices`, body);
+}
+
+const invoiceRef = { id, version: z.number().int().positive() };
+const approveSchema = z.object({ ...invoiceRef, note: text(500) });
+export async function approveSupplierInvoice(input: z.input<typeof approveSchema>) {
+  const { id: invoiceId, ...body } = input;
+  return run(approveSchema, input, `/supplier-invoices/${invoiceId}/approve`, { ...body, note: body.note || undefined });
+}
+
+const paySchema = z.object({ ...invoiceRef, paidOn: isoDate, paymentReference: z.string().trim().min(1, "Enter the payment reference.").max(80) });
+export async function paySupplierInvoice(input: z.input<typeof paySchema>) {
+  const { id: invoiceId, ...body } = input;
+  return run(paySchema, input, `/supplier-invoices/${invoiceId}/payment`, body);
+}
+
+const voidSchema = z.object({ ...invoiceRef, reason: z.string().trim().min(5, "Say why (at least 5 characters).").max(500) });
+export async function voidSupplierInvoice(input: z.input<typeof voidSchema>) {
+  const { id: invoiceId, ...body } = input;
+  return run(voidSchema, input, `/supplier-invoices/${invoiceId}/void`, body);
 }

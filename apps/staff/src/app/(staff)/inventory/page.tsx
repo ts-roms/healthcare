@@ -22,7 +22,7 @@ const FILTERS = [
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ show?: string; location?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} />;
+  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
   if (!facility) {
     return (
       <>
