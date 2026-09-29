@@ -364,6 +364,29 @@ export async function setPortalDentalRecords(portalDentalRecords: boolean, setti
   );
 }
 
+const decisionsSchema = z.object({
+  portalDentalRecords: z.literal(true),
+  portalPlanDecisions: z.boolean(),
+  portalPlanAcknowledgement: z.string().trim().min(20, "Write at least 20 characters.").max(1000).nullable(),
+  version: z.number().int().min(0),
+});
+/** Lets patients decide plan items in MyHealth, with the organization's own acknowledgement text (or stops it). */
+export async function setPortalPlanDecisions(input: z.input<typeof decisionsSchema>) {
+  return run<DentalPortalSetting>(decisionsSchema, input, "/dental/settings/portal", { method: "PUT", revalidate: ["/dental/settings"] });
+}
+
+/** Shares an image with the patient in MyHealth (`dental.imaging.release`). */
+export async function releaseDentalImage(patientId: string, imageId: string) {
+  if (!id.safeParse(imageId).success) return { ok: false as const, message: "Unknown image." };
+  return run(z.object({}), {}, `/dental/images/${imageId}/release`, { revalidate: record(patientId) });
+}
+
+/** Stops sharing an image in MyHealth, with a reason. */
+export async function withdrawDentalImage(patientId: string, imageId: string, why: string) {
+  if (!id.safeParse(imageId).success) return { ok: false as const, message: "Unknown image." };
+  return run(z.object({ reason }), { reason: why }, `/dental/images/${imageId}/withdraw`, { revalidate: record(patientId) });
+}
+
 const templateSchema = z.object({ items: z.array(z.object({ itemId: id, quantity: supplyQuantity })).max(30) });
 
 /** The supplies a procedure usually uses (an empty list clears the template). */

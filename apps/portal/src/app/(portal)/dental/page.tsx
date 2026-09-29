@@ -31,6 +31,8 @@ import {
 } from "@/lib/dental";
 import { formatCalendarDate } from "@/lib/greeting";
 import { toothLabel } from "@healthcare/domain";
+import { DentalImages } from "./dental-images";
+import { PlanDecision } from "./plan-decision";
 
 export const metadata = { title: "Dental" };
 
@@ -68,7 +70,8 @@ export default async function DentalPage() {
     }
     throw e;
   }
-  const empty = !record.plans.length && !record.procedures.length && !record.chart.length;
+  const empty = !record.plans.length && !record.procedures.length && !record.chart.length && !record.images.length;
+  const acknowledgement = record.decisions.enabled ? record.decisions.acknowledgement : null;
   return (
     <div className="flex flex-col gap-6">
       <Header />
@@ -81,7 +84,7 @@ export default async function DentalPage() {
           <section className="flex flex-col gap-3">
             <h2 className="text-section-lg font-semibold">Treatment plans</h2>
             {record.plans.length ? (
-              record.plans.map((plan) => <Plan key={plan.id} plan={plan} notation={record.notation} />)
+              record.plans.map((plan) => <Plan key={plan.id} plan={plan} notation={record.notation} acknowledgement={acknowledgement} />)
             ) : (
               <EmptyState icon={ClipboardListIcon} title="No treatment plans">
                 If your dentist proposes treatment, the plan appears here.
@@ -112,12 +115,22 @@ export default async function DentalPage() {
           </section>
 
           <Chart record={record} />
+
+          {record.images.length ? (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h2 className="text-section-lg font-semibold">X-rays and photos</h2>
+                <p className="text-meta text-muted-foreground">Images your dentist shared with you. Ask your dentist to explain what they show.</p>
+              </div>
+              <DentalImages images={record.images} notation={record.notation} />
+            </section>
+          ) : null}
         </>
       )}
       <p className="flex items-start gap-2 text-meta text-muted-foreground">
         <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-        Your dentist&apos;s notes and X-rays are not shown here, and fees are not part of a plan — ask the clinic. If something looks wrong, tell your dentist
-        at your next visit.
+        Your dentist&apos;s notes are not shown here, X-rays and photos only when your dentist shares them, and fees are not part of a plan — ask the clinic. If
+        something looks wrong, tell your dentist at your next visit.
       </p>
     </div>
   );
@@ -151,7 +164,7 @@ function Site({
   );
 }
 
-function Plan({ plan, notation }: { plan: PortalDentalPlan; notation: PortalDentalRecord["notation"] }) {
+function Plan({ plan, notation, acknowledgement }: { plan: PortalDentalPlan; notation: PortalDentalRecord["notation"]; acknowledgement: string | null }) {
   const phases = [...new Set(plan.items.map((i) => i.phase))];
   return (
     <article className="flex flex-col gap-3 rounded-xl border bg-card p-4">
@@ -159,7 +172,7 @@ function Plan({ plan, notation }: { plan: PortalDentalPlan; notation: PortalDent
         <h3 className="font-semibold">{plan.title}</h3>
         <p className="text-meta text-muted-foreground">
           {PLAN_STATUS_TEXT[plan.status]} · proposed {formatCalendarDate(plan.proposedOn)}
-          {plan.decidedOn ? `, decided ${formatCalendarDate(plan.decidedOn)}` : ""}
+          {plan.decidedOn ? `, decided ${formatCalendarDate(plan.decidedOn)}${plan.decidedIn === "myhealth" ? " by you in MyHealth" : ""}` : ""}
         </p>
         <p className="text-meta text-muted-foreground">{[plan.dentistName, plan.facilityName].filter(Boolean).join(" · ")}</p>
       </div>
@@ -186,7 +199,9 @@ function Plan({ plan, notation }: { plan: PortalDentalPlan; notation: PortalDent
           </ul>
         </div>
       ))}
-      {plan.status === "proposed" ? (
+      {plan.canDecide && acknowledgement ? (
+        <PlanDecision plan={plan} acknowledgement={acknowledgement} />
+      ) : plan.items.some((i) => i.decision === "awaiting") ? (
         <p className="text-meta text-muted-foreground">To decide, talk to your dentist or the clinic — decisions are recorded at the clinic.</p>
       ) : null}
     </article>

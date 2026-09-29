@@ -60,24 +60,24 @@ Not in scope yet: orthodontic records and a licensed procedure code set.
 
 ## Commands
 
-| Command                      | Endpoint                                                                            | Rules                                                                                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Record examination           | `POST /dental/patients/:patientId/examinations`                                     | Actor is a dentist (practitioner profession); the encounter is the patient's, in progress, at the selected facility; teeth and surfaces valid; each charted tooth appended.     |
-| Propose treatment plan       | `POST /dental/treatment-plans`                                                      | Dentist; at least one item; each item's tooth/surfaces match the procedure's site; active procedure types.                                                                      |
-| Add plan item                | `POST /dental/treatment-plans/:id/items`                                            | Dentist; open plan; the item awaits the patient's decision.                                                                                                                     |
-| Record patient's decision    | `POST /dental/treatment-plans/:id/decision`                                         | Every item awaiting a decision is decided (listed ones accepted, others declined); a note is required; optimistic `version`.                                                    |
-| Cancel plan item             | `POST /dental/treatment-plans/:id/items/:itemId/cancel`                             | Proposed or accepted items only; not the plan's last open item (decline or discontinue instead).                                                                                |
-| Discontinue plan             | `POST /dental/treatment-plans/:id/discontinue`                                      | Accepted or in-progress plans; reason; open items are cancelled, completed ones stay.                                                                                           |
-| Record procedure             | `POST /dental/patients/:patientId/procedures`                                       | Dentist; encounter in progress; site rules; a plan item must be accepted, of an active plan, same type and tooth. Chart effect applied to the tooth's current state (appended). |
-| Add image                    | `POST /dental/patients/:patientId/images`                                           | The document is this patient's, uploaded (`available`), category `imaging`, an image or DICOM type; once per document.                                                          |
-| Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                     | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
-| Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`   | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
-| Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation` | Settings permission.                                                                                                                                                            |
-| MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, version }`                    | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                              |
-| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                          | Settings permission; active inventory items dentistry uses, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                           |
-| Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                | Settings permission; an active inventory location of that facility, or `null`.                                                                                                  |
-| Record supplies used         | `POST /dental/procedures/:id/supplies`                                              | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                           |
-| Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                      | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                     |
+| Command                      | Endpoint                                                                                                           | Rules                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Record examination           | `POST /dental/patients/:patientId/examinations`                                                                    | Actor is a dentist (practitioner profession); the encounter is the patient's, in progress, at the selected facility; teeth and surfaces valid; each charted tooth appended.     |
+| Propose treatment plan       | `POST /dental/treatment-plans`                                                                                     | Dentist; at least one item; each item's tooth/surfaces match the procedure's site; active procedure types.                                                                      |
+| Add plan item                | `POST /dental/treatment-plans/:id/items`                                                                           | Dentist; open plan; the item awaits the patient's decision.                                                                                                                     |
+| Record patient's decision    | `POST /dental/treatment-plans/:id/decision`                                                                        | Every item awaiting a decision is decided (listed ones accepted, others declined); a note is required; optimistic `version`.                                                    |
+| Cancel plan item             | `POST /dental/treatment-plans/:id/items/:itemId/cancel`                                                            | Proposed or accepted items only; not the plan's last open item (decline or discontinue instead).                                                                                |
+| Discontinue plan             | `POST /dental/treatment-plans/:id/discontinue`                                                                     | Accepted or in-progress plans; reason; open items are cancelled, completed ones stay.                                                                                           |
+| Record procedure             | `POST /dental/patients/:patientId/procedures`                                                                      | Dentist; encounter in progress; site rules; a plan item must be accepted, of an active plan, same type and tooth. Chart effect applied to the tooth's current state (appended). |
+| Add image                    | `POST /dental/patients/:patientId/images`                                                                          | The document is this patient's, uploaded (`available`), category `imaging`, an image or DICOM type; once per document.                                                          |
+| Record periodontal chart     | `POST /dental/patients/:patientId/perio-charts`                                                                    | Dentist (`dental.chart.write`); encounter in progress at the selected facility; per tooth sites, measurements and furcation validated (see below).                              |
+| Mark entered in error        | `POST /dental/{examinations,procedures,images,perio-charts}/:id/entered-in-error`                                  | Reason ≥ 5 characters. A procedure's plan item opens again; billing cancels its charge if not yet invoiced.                                                                     |
+| Procedure catalog / notation | `POST/PATCH /dental/procedure-types`, `PUT /dental/facilities/:facilityId/notation`                                | Settings permission.                                                                                                                                                            |
+| MyHealth dental records      | `PUT /dental/settings/portal` `{ portalDentalRecords, portalPlanDecisions?, portalPlanAcknowledgement?, version }` | `dental.settings.manage`; `version` is the current setting's (0 when never set), else 409. Audited `dental.settings.portal` with before and after.                              |
+| Supply template              | `PUT /dental/procedure-types/:id/supplies`                                                                         | Settings permission; active inventory items dentistry uses, each once, quantity 1–1000; an empty list clears it. See [supplies used](#supplies-used).                           |
+| Default supply location      | `PUT /dental/facilities/:facilityId/supply-location`                                                               | Settings permission; an active inventory location of that facility, or `null`.                                                                                                  |
+| Record supplies used         | `POST /dental/procedures/:id/supplies`                                                                             | `dental.procedure.record`; procedure recorded, at the selected facility; issued by inventory in the same transaction; idempotent by `idempotencyKey`.                           |
+| Return unused supplies       | `POST /dental/procedures/:id/supplies/returns`                                                                     | `dental.procedure.record`; issued lines of this procedure, never more than is still out, one location, reason; also after entered in error.                                     |
 
 Examinations and procedures accept an `Idempotency-Key` header (the staff app sends one per form).
 
@@ -134,9 +134,9 @@ invoice (an invoiced one needs a void, as for laboratory orders). Capture is ide
 | `dental.imaging.read`                                 | org_admin, dentist, dental_assistant                                |
 | `dental.imaging.upload`                               | org_admin, dentist, dental_assistant (also needs `document.upload`) |
 | `dental.settings.manage`                              | org_admin                                                           |
+| `dental.imaging.release` (share images in MyHealth)   | org_admin, dentist (migration `0058`)                               |
 
-MyHealth dental records need no new permission: the setting uses `dental.settings.manage`; patients are authorized by
-the portal's own guard.
+The MyHealth settings use `dental.settings.manage`; patients are authorized by the portal's own guard.
 
 New system roles (migration `0027`): **dentist** (a physician's clinical permissions — appointments, queue,
 encounters, prescriptions, laboratory orders — plus dental ones) and **dental_assistant** (a nurse's plus the dental
@@ -153,7 +153,7 @@ Endpoints above under `/api/v1/dental` (OpenAPI tag `dental`). Errors: `invalid_
 
 ## Database relationships
 
-Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
+Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
 `practitioner`, `encounter (patient_id, id)` and `document`; tooth states reference their examination or procedure
 by `(patient_id, id)`, so a state cannot belong to another patient's record. Triggers: `dental_record_guard`
 (examinations, procedures, images: only `recorded → entered_in_error` with reason, author and time; no deletes),
@@ -232,9 +232,11 @@ dedicated read model — staff shapes are never reused):
 | **Completed procedures** — recorded, never entered in error                                                     | date performed, tooth, surfaces, procedure name, dentist and facility name                                                               |
 | **Current tooth chart** — the same derivation the staff see, so entered-in-error sources are already excluded   | per charted tooth: conditions with surfaces, date of the state                                                                           |
 
-Never shown: examination notes and oral hygiene, tooth notes, plan and item notes, decision notes, discontinuation
-and correction reasons, periodontal charts, images and radiographs (they would need an explicit per-image release),
-procedure codes, staff users, and anything entered in error. **Plans carry no prices** (fees are billing's), so no
+| **Released images** — shared one by one by a dentist, not entered in error | kind, teeth, date taken, date shared, facility name; opened through a 5-minute signed link |
+
+Never shown: examination notes and oral hygiene, tooth notes, plan and item notes, decision notes (except the
+organization's own acknowledgement), discontinuation and correction reasons, periodontal charts, image notes and
+unreleased images, procedure codes, staff users, and anything entered in error. **Plans carry no prices** (fees are billing's), so no
 estimate is shown; MyHealth tells the patient to ask the clinic. Dates are the facility's local calendar dates.
 Teeth are stored in FDI and shown in **one notation for the whole record** — that of the facility of the patient's
 latest dental care (plan, procedure or examination) — so a tooth reads the same in every section.
@@ -242,13 +244,44 @@ latest dental care (plan, procedure or examination) — so a tooth reads the sam
 - `GET /portal/dental/availability` — `{ available }`: records are shared **and** the patient has a plan, a recorded
   procedure or a charted tooth. A yes/no for the navigation without clinical content (like the unread-message count,
   not audited).
-- `GET /portal/dental/record` — `{ notation, plans, procedures, chart }`; audited `portal.dental-view` with actor type
-  `patient` and counts only. The patient guard re-checks session, account and `portal_access` consent on every call.
+- `GET /portal/dental/record` — `{ notation, plans, procedures, chart, images, decisions }`; audited `portal.dental-view`
+  with actor type `patient` and counts only. The patient guard re-checks session, account and `portal_access` consent on
+  every call. Plans carry `decidedIn` (`clinic` | `myhealth`) and `canDecide`.
+- `GET /portal/dental/images/:id/link` — a short-lived signed link to a released image of the patient's (404 otherwise;
+  403 while records are not shared), issued by `DocumentsService.downloadUrlForPatient` and audited `document.download`
+  with actor type `patient`.
+- `POST /portal/dental/plans/:id/decision` `{ acceptedItemIds, awaitingItemIds, acknowledged: true }` — see below.
 - MyHealth `/dental` (`apps/portal`): plans with each item's tooth (notation plus plain name), procedure, decision and
   status (icon, words and colour), treatments done, and a read-only odontogram summary (charted teeth by tone —
   no problems noted, treated, needs treatment, being watched, missing — with a key and a plain-language list; teeth not
-  charted are dashed). Wording in `apps/portal/src/lib/dental.ts`. Patients cannot decide plan items in MyHealth; they
-  are told to talk to the dentist.
+  charted are dashed), and the X-rays and photos shared with them (Open). Wording in `apps/portal/src/lib/dental.ts`.
+
+### Released images
+
+A dentist (`dental.imaging.release`) shares an image from the patient's dental record ("Share in MyHealth",
+`POST /dental/images/:id/release`) and can stop sharing it with a reason (`POST /dental/images/:id/withdraw`).
+Releases are history (`dental_image_release`, migration `0058`): one active release per image, a withdrawal ends it
+(who, when, why), nothing is deleted (trigger). Marking an image entered in error ends its release ("Image entered in
+error"). The patient sees a released image only while the organization shows dental records in MyHealth; the staff
+record marks shared images ("Shared in MyHealth", "(records off)" while the organization does not show them). Audited
+`dental.image.release`, `dental.image.withdraw`.
+
+### Treatment plan decisions in MyHealth
+
+**Also opt-in and off by default** (`portalPlanDecisions`, needs dental records shown; turning records off turns it
+off). The organization writes **its own acknowledgement** (20–1000 characters) that the patient confirms before
+deciding; the platform supplies no consent wording. Whether an online acknowledgement is enough for a given treatment,
+and any written informed-consent requirement, is a **compliance dependency** each organization validates.
+
+- MyHealth shows the decision form on a plan whose items await the patient's decision (`canDecide`): tick the items to
+  accept (the others are declined), read a plain summary ("You accept … and decline …"), confirm the acknowledgement,
+  send. The same rules as a decision recorded by staff (`DentalPlanService`, shared `applyDecision`).
+- Instead of the plan's internal version, the patient sends the items that were awaiting a decision when they looked;
+  if the dentist changed them since, nothing is decided (`409 plan_changed`) and the page reloads.
+- The plan records `decision_channel = 'portal'`, the portal account (`decided_by_portal_account`, no staff user) and
+  the acknowledgement as the decision note (check constraint: in person ⇒ a staff user; portal ⇒ a portal account).
+  Audited `dental.plan.decide` with actor type `patient`; `DentalTreatmentPlanAccepted` carries `channel`. Staff see
+  "Decided by the patient in MyHealth".
 
 ## Supplies used
 
@@ -300,7 +333,9 @@ The supplies a procedure used are taken from inventory stock (`libs/dental/src/l
 - Images uploaded through the staff app are limited to 10 MB (the staff server relays the file); large CBCT studies
   need a direct-to-storage or PACS integration.
 - MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
-  status; confirm with the clinics. Releasing images, deciding plan items online and fee estimates are follow-ups.
+  status; confirm with the clinics. Fee estimates are a follow-up (plans carry no prices). Patients are not notified
+  when an image is shared or a plan awaits their decision (a notification template is a follow-up); a DICOM file opens
+  as a download (no viewer in MyHealth).
 - Supplies: dental assistants cannot record supply use (they lack `dental.procedure.record`); a narrower permission
   for them is a follow-up if clinics want it. Charging supplies separately and a recall search screen by lot are
   follow-ups.

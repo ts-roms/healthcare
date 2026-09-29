@@ -1722,6 +1722,8 @@ export interface DentalTreatmentPlan {
   status: DentalPlanStatus;
   decisionNote: string | null;
   decidedAt: string | null;
+  /** Where the latest decision was taken: told to staff, or by the patient in MyHealth. */
+  decisionChannel: "in_person" | "portal" | null;
   discontinuedReason: string | null;
   createdAt: string;
   version: number;
@@ -1762,6 +1764,8 @@ export interface DentalImage {
   enteredInErrorReason: string | null;
   recordedAt: string;
   recordedByName: string | null;
+  /** Shared with the patient in MyHealth (null when not). */
+  release: { releasedAt: string; releasedBy: string } | null;
 }
 
 export interface DentalRecord {
@@ -2733,6 +2737,10 @@ export interface LabCompetencyOverview {
 export interface DentalPortalSetting {
   /** Patients see their treatment plans, completed procedures and tooth chart in MyHealth (off by default). */
   portalDentalRecords: boolean;
+  /** Patients accept or decline plan items in MyHealth (needs dental records shown). */
+  portalPlanDecisions: boolean;
+  /** The organization's own text patients confirm before deciding online. */
+  portalPlanAcknowledgement: string | null;
   /** 0 until first set. */
   version: number;
   updatedAt: string | null;

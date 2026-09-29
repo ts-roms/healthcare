@@ -219,7 +219,9 @@ function PlanCard({ patientId, plan, notation, canManage }: { patientId: string;
       </ul>
       {plan.decisionNote ? (
         <p className="border-t px-3 py-1.5 text-meta text-muted-foreground">
-          Patient&apos;s decision{plan.decidedAt ? ` (${clinicalDate(plan.decidedAt)})` : ""}: {plan.decisionNote}
+          {plan.decisionChannel === "portal" ? "Decided by the patient in MyHealth" : "Patient's decision"}
+          {plan.decidedAt ? ` (${clinicalDate(plan.decidedAt)})` : ""}
+          {plan.decisionChannel === "portal" ? `, confirming: “${plan.decisionNote}”` : `: ${plan.decisionNote}`}
         </p>
       ) : null}
       {plan.discontinuedReason ? <p className="border-t px-3 py-1.5 text-meta text-muted-foreground">Discontinued: {plan.discontinuedReason}</p> : null}

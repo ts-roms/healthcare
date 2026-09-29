@@ -19,6 +19,8 @@ const plan: DentalTreatmentPlanRecord = {
   decisionNote: "Options and fees explained",
   decidedAt: late,
   decidedBy: "u1",
+  decisionChannel: "in_person" as const,
+  decidedByPortalAccount: null,
   discontinuedReason: null,
   createdBy: "u1",
   createdAt: late,
@@ -78,6 +80,8 @@ describe("dental patient access (what MyHealth shows)", () => {
       id: "p1",
       title: "Restorative plan",
       status: "accepted",
+      decidedIn: "clinic",
+      canDecide: false,
       proposedOn: "2026-03-02",
       decidedOn: "2026-03-02",
       facilityName: "Makati Dental",
@@ -89,6 +93,16 @@ describe("dental patient access (what MyHealth shows)", () => {
     });
     const text = JSON.stringify(view);
     for (const secret of ["anxious", "fees explained", "symptoms persist", org, "u1", "pr1", "t1", "version"]) expect(text).not.toContain(secret);
+  });
+
+  it("offers an online decision only when allowed, on an open plan with items awaiting one", () => {
+    const names = new Map([["t1", "Composite restoration"]]);
+    const awaiting = [item("i1", "proposed")];
+    expect(toPatientPlan({ ...plan, status: "proposed", decidedAt: null }, awaiting, names, facility, null, true).canDecide).toBe(true);
+    expect(toPatientPlan({ ...plan, status: "proposed", decidedAt: null }, awaiting, names, facility, null, false).canDecide).toBe(false);
+    expect(toPatientPlan({ ...plan, status: "discontinued" }, awaiting, names, facility, null, true).canDecide).toBe(false);
+    expect(toPatientPlan(plan, [item("i1", "accepted")], names, facility, null, true).canDecide).toBe(false);
+    expect(toPatientPlan({ ...plan, decisionChannel: "portal" }, awaiting, names, facility, null).decidedIn).toBe("myhealth");
   });
 
   it("shows recorded procedures without notes or codes, and never one entered in error", () => {

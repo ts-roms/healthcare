@@ -1,15 +1,16 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { ForbiddenError, Public } from "@healthcare/core";
-import { DentalPatientAccess } from "@healthcare/dental";
+import { DentalPatientAccess, PatientPlanDecisionDto } from "@healthcare/dental";
 import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's dental record in MyHealth — only when their organization turned MyHealth dental records on (dental
  * settings), and only what is patient-facing: treatment plans (items, the patient's decision, status), completed
- * procedures and the current tooth chart. Examination notes, periodontal measurements, remarks, images and anything
- * entered in error are never returned (`DentalPatientAccess`). The patient guard re-checks the session, account and
+ * procedures, the current tooth chart and the images a dentist released. Examination notes, periodontal measurements,
+ * remarks, unreleased images and anything entered in error are never returned (`DentalPatientAccess`). When the
+ * organization also allows it, the patient accepts or declines plan items awaiting their decision here. The patient guard re-checks the session, account and
  * portal consent on every request; each read of the record is audited with actor type "patient".
  */
 @ApiTags("portal")
@@ -53,5 +54,19 @@ export class PortalDentalController {
       metadata: { plans: record.plans.length, procedures: record.procedures.length, teeth: record.chart.length },
     });
     return record;
+  }
+
+  @Get("images/:imageId/link")
+  @ApiOperation({ summary: "A short-lived link to a dental image the dentist shared (audited as the patient's access)" })
+  imageLink(@CurrentPatient() patient: PortalPrincipal, @Param("imageId", ParseUUIDPipe) imageId: string) {
+    return this.dental.imageLink(patientAuditContext(patient), imageId);
+  }
+
+  @Post("plans/:planId/decision")
+  @ApiOperation({
+    summary: "Accept the listed items of a plan awaiting the patient's decision (others declined), after confirming the clinic's acknowledgement",
+  })
+  decide(@CurrentPatient() patient: PortalPrincipal, @Param("planId", ParseUUIDPipe) planId: string, @Body() body: PatientPlanDecisionDto) {
+    return this.dental.decidePlan(patientAuditContext(patient), planId, body);
   }
 }

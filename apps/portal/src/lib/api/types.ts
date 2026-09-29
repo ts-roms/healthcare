@@ -273,6 +273,10 @@ export interface PortalDentalPlan {
   id: string;
   title: string;
   status: PortalDentalPlanStatus;
+  /** Where the latest decision was taken. */
+  decidedIn: "clinic" | "myhealth" | null;
+  /** The patient can accept or decline items awaiting their decision here. */
+  canDecide: boolean;
   /** Calendar dates (YYYY-MM-DD). */
   proposedOn: string;
   decidedOn: string | null;
@@ -308,9 +312,22 @@ export interface PortalDentalTooth {
   updatedOn: string;
 }
 
+/** An X-ray or photo the dentist shared (opened through a short-lived link). */
+export interface PortalDentalImage {
+  id: string;
+  kind: "periapical" | "bitewing" | "panoramic" | "cephalometric" | "occlusal" | "cbct" | "intraoral_photo" | "extraoral_photo" | "other";
+  teeth: string[];
+  takenOn: string;
+  sharedOn: string;
+  facilityName: string | null;
+}
+
 export interface PortalDentalRecord {
   notation: "fdi" | "universal" | "palmer";
   chart: PortalDentalTooth[];
   plans: PortalDentalPlan[];
   procedures: PortalDentalProcedure[];
+  images: PortalDentalImage[];
+  /** Online plan decisions: allowed or not, and the clinic's text the patient confirms. */
+  decisions: { enabled: boolean; acknowledgement: string | null };
 }

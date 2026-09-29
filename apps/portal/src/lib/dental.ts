@@ -1,5 +1,6 @@
 import { PERMANENT_ROWS, PRIMARY_ROWS, surfaceName, toothLabel, toothName } from "@healthcare/domain";
 import type {
+  PortalDentalImage,
   PortalDentalItemStatus,
   PortalDentalPlanStatus,
   PortalDentalRecord,
@@ -112,4 +113,25 @@ export function chartRows(chart: readonly PortalDentalTooth[]): Array<{ label: s
     rows.push({ label: "Lower baby teeth", teeth: [...PRIMARY_ROWS.lower[0], ...PRIMARY_ROWS.lower[1]] });
   }
   return rows;
+}
+
+export const IMAGE_KIND_TEXT: Record<PortalDentalImage["kind"], string> = {
+  periapical: "X-ray of a tooth (periapical)",
+  bitewing: "Bitewing X-ray",
+  panoramic: "Panoramic X-ray",
+  cephalometric: "Skull side view X-ray (cephalometric)",
+  occlusal: "Occlusal X-ray",
+  cbct: "3D scan (CBCT)",
+  intraoral_photo: "Photo inside the mouth",
+  extraoral_photo: "Photo of the face or smile",
+  other: "Dental image",
+};
+
+/** What a decision will record, in words: which items are accepted and which declined. */
+export function decisionSummary(items: ReadonlyArray<{ id: string; procedureName: string }>, accepted: ReadonlySet<string>): string {
+  const yes = items.filter((i) => accepted.has(i.id)).map((i) => i.procedureName);
+  const no = items.filter((i) => !accepted.has(i.id)).map((i) => i.procedureName);
+  if (yes.length === 0) return `You decline ${no.length === 1 ? "this treatment" : `all ${no.length} treatments`}.`;
+  if (no.length === 0) return `You accept ${yes.length === 1 ? "this treatment" : `all ${yes.length} treatments`}.`;
+  return `You accept ${yes.join(", ")} and decline ${no.join(", ")}.`;
 }

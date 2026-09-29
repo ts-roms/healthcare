@@ -34,19 +34,19 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 
 ## Data
 
-| Area                          | Source                                                                                                                      |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                        |
-| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                                  |
-| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                      |
-| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}`     |
-| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                                  |
-| Medicines                     | `GET /portal/prescriptions` (active)                                                                                        |
-| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                          |
-| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                  |
-| Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts) |
-| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                               |
-| Dental (when shared)          | `GET /portal/dental/availability` (navigation), `GET /portal/dental/record` (plans, treatments done, tooth chart)           |
+| Area                          | Source                                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                                           |
+| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                                                     |
+| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                                         |
+| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}`                        |
+| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                                                     |
+| Medicines                     | `GET /portal/prescriptions` (active)                                                                                                           |
+| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                                             |
+| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                                     |
+| Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts)                    |
+| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                                                  |
+| Dental (when shared)          | `GET /portal/dental/availability`, `GET /portal/dental/record`, `GET /portal/dental/images/:id/link`, `POST /portal/dental/plans/:id/decision` |
 
 The records endpoints are composed in the API (`apps/api/src/app/portal/portal-records.controller.ts`) from the domains' patient-facing queries, behind `PatientAccessGuard`; every read is audited with actor type `patient` (`portal.appointments-view`, `portal.results-view`, `portal.results-trend`, `portal.prescriptions-view`, `portal.care-plans-view`, `portal.dental-view`). They return only what is meant for the patient: no staff names other than the practitioner, no internal comments, instruments, allergy override reasons or progress notes.
 
@@ -82,7 +82,10 @@ sides, dentist, clinic) and a read-only tooth chart summary with a key and a pla
 library's patient read model is returned (`libs/dental/src/lib/portal/dental-patient-access.ts`): never examination or
 tooth notes, decision notes, periodontal charts, images, procedure codes or anything entered in error; plans carry no
 fees. `GET /portal/dental/record` is audited `portal.dental-view` (actor type `patient`) and refused (403, audited as
-denied) while records are not shared. Wording: `lib/dental.ts`. See `docs/domains/dental.md`.
+denied) while records are not shared. Images a dentist shared are listed and opened through a short-lived link
+(audited as the patient). When the organization also allows online decisions, a plan awaiting the patient's decision
+shows a form (tick items to accept, confirm the clinic's own acknowledgement, send). Wording: `lib/dental.ts`. See
+`docs/domains/dental.md`.
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
 

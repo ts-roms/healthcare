@@ -1,9 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { type AuditActor, AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
   BusinessRuleError,
+  ConflictError,
   DATABASE,
   type Database,
   type DbExecutor,
@@ -149,55 +150,98 @@ export class DentalPlanService {
   }
 
   /**
-   * Records the patient's decision on every item awaiting one: the listed items are accepted, the others declined.
-   * A proposed plan becomes accepted (or declined when nothing was accepted).
+   * Records the patient's decision on every item awaiting one, as told to staff: the listed items are accepted, the
+   * others declined. A proposed plan becomes accepted (or declined when nothing was accepted).
    */
   async decide(actor: Actor, planId: string, input: z.infer<typeof decidePlanSchema>) {
     return this.db.transaction(async (tx) => {
       const plan = await this.lock(tx, actor.organizationId, planId);
-      assertVersion(plan.version, input.version, "Treatment plan");
-      if (!OPEN.has(plan.status)) throw new BusinessRuleError("The plan is closed", "plan_closed");
-      const items = await this.items(tx, plan.id);
-      const awaiting = items.filter((i) => i.status === "proposed");
-      if (!awaiting.length) throw new BusinessRuleError("No items are awaiting the patient's decision", "nothing_to_decide");
-      const accepted = new Set(input.acceptedItemIds);
-      const unknown = input.acceptedItemIds.filter((id) => !awaiting.some((i) => i.id === id));
-      if (unknown.length) throw new BusinessRuleError("Only items awaiting a decision can be accepted", "item_not_proposed", { itemIds: unknown });
-      for (const item of awaiting) {
-        await tx
-          .update(dentalTreatmentPlanItem)
-          .set({ status: accepted.has(item.id) ? "accepted" : "declined", updatedAt: new Date(), version: sql`${dentalTreatmentPlanItem.version} + 1` })
-          .where(eq(dentalTreatmentPlanItem.id, item.id));
-      }
-      const statuses = items.map((i) => (i.status === "proposed" ? (accepted.has(i.id) ? "accepted" : "declined") : i.status));
-      const updated = await this.touch(tx, plan, {
-        status: planStatusFromItems(statuses),
-        decisionNote: input.note,
-        decidedAt: new Date(),
-        decidedBy: actor.userId,
-      });
-      await this.audit.record(tx, actor, {
-        action: "dental.plan.decide",
-        resourceType: "dental_treatment_plan",
-        resourceId: plan.id,
-        patientId: plan.patientId,
-        reason: input.note,
-        changes: { status: { from: plan.status, to: updated.status } },
-        metadata: { accepted: [...accepted], declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id) },
-      });
-      if (accepted.size) {
-        await this.events.record(tx, {
-          type: "DentalTreatmentPlanAccepted",
-          organizationId: actor.organizationId,
-          aggregateType: "dental_treatment_plan",
-          aggregateId: plan.id,
-          facilityId: plan.facilityId,
-          patientId: plan.patientId,
-          payload: { acceptedItems: accepted.size },
-        });
-      }
+      const updated = await this.applyDecision(tx, actor, plan, input, { channel: "in_person", decidedBy: actor.userId, decidedByPortalAccount: null });
       return this.view(tx, updated);
     });
+  }
+
+  /**
+   * The patient's own decision in MyHealth, when the organization allows it (checked by the caller, which also passes
+   * the organization's acknowledgement the patient confirmed — kept as the decision note). The same rules as a decision
+   * recorded by staff; the plan must be the patient's own. Instead of the plan's version, the patient sends the items
+   * that were awaiting their decision when they looked: if the dentist changed them since, nothing is decided.
+   * Audited with the patient as the actor.
+   */
+  async decideByPatient(
+    tx: DbExecutor,
+    context: PatientAuditContext,
+    planId: string,
+    input: { acceptedItemIds: string[]; awaitingItemIds: string[]; acknowledgement: string },
+  ): Promise<DentalTreatmentPlanRecord> {
+    const plan = await this.lock(tx, context.organizationId, planId);
+    if (plan.patientId !== context.patientId) throw new NotFoundError("Treatment plan");
+    const awaiting = (await this.items(tx, plan.id)).filter((i) => i.status === "proposed").map((i) => i.id);
+    const seen = new Set(input.awaitingItemIds);
+    if (awaiting.length !== seen.size || awaiting.some((id) => !seen.has(id))) {
+      throw new ConflictError("Your dentist changed this plan since you opened it. Please review it again.", undefined, "plan_changed");
+    }
+    return this.applyDecision(
+      tx,
+      context,
+      plan,
+      { acceptedItemIds: input.acceptedItemIds, note: input.acknowledgement, version: plan.version },
+      { channel: "portal", decidedBy: null, decidedByPortalAccount: context.accountId },
+    );
+  }
+
+  /** Accepts the listed items awaiting a decision and declines the others, then updates, audits and announces the plan. */
+  private async applyDecision(
+    tx: DbExecutor,
+    actor: AuditActor,
+    plan: DentalTreatmentPlanRecord,
+    input: { acceptedItemIds: string[]; note: string; version: number },
+    by: { channel: "in_person" | "portal"; decidedBy: string | null; decidedByPortalAccount: string | null },
+  ): Promise<DentalTreatmentPlanRecord> {
+    assertVersion(plan.version, input.version, "Treatment plan");
+    if (!OPEN.has(plan.status)) throw new BusinessRuleError("The plan is closed", "plan_closed");
+    const items = await this.items(tx, plan.id);
+    const awaiting = items.filter((i) => i.status === "proposed");
+    if (!awaiting.length) throw new BusinessRuleError("No items are awaiting the patient's decision", "nothing_to_decide");
+    const accepted = new Set(input.acceptedItemIds);
+    const unknown = input.acceptedItemIds.filter((id) => !awaiting.some((i) => i.id === id));
+    if (unknown.length) throw new BusinessRuleError("Only items awaiting a decision can be accepted", "item_not_proposed", { itemIds: unknown });
+    for (const item of awaiting) {
+      await tx
+        .update(dentalTreatmentPlanItem)
+        .set({ status: accepted.has(item.id) ? "accepted" : "declined", updatedAt: new Date(), version: sql`${dentalTreatmentPlanItem.version} + 1` })
+        .where(eq(dentalTreatmentPlanItem.id, item.id));
+    }
+    const statuses = items.map((i) => (i.status === "proposed" ? (accepted.has(i.id) ? "accepted" : "declined") : i.status));
+    const updated = await this.touch(tx, plan, {
+      status: planStatusFromItems(statuses),
+      decisionNote: input.note,
+      decidedAt: new Date(),
+      decidedBy: by.decidedBy,
+      decisionChannel: by.channel,
+      decidedByPortalAccount: by.decidedByPortalAccount,
+    });
+    await this.audit.record(tx, actor, {
+      action: "dental.plan.decide",
+      resourceType: "dental_treatment_plan",
+      resourceId: plan.id,
+      patientId: plan.patientId,
+      reason: input.note,
+      changes: { status: { from: plan.status, to: updated.status } },
+      metadata: { accepted: [...accepted], declined: awaiting.filter((i) => !accepted.has(i.id)).map((i) => i.id), channel: by.channel },
+    });
+    if (accepted.size) {
+      await this.events.record(tx, {
+        type: "DentalTreatmentPlanAccepted",
+        organizationId: plan.organizationId,
+        aggregateType: "dental_treatment_plan",
+        aggregateId: plan.id,
+        facilityId: plan.facilityId,
+        patientId: plan.patientId,
+        payload: { acceptedItems: accepted.size, channel: by.channel },
+      });
+    }
+    return updated;
   }
 
   /** Withdraws an item not yet carried out (proposed or accepted). */
