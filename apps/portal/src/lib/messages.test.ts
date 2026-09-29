@@ -4,6 +4,7 @@ import { messageAction, messageSource, messageTime } from "./messages";
 describe("messages", () => {
   it("points each kind of message to the right place", () => {
     expect(messageAction({ templateKey: "lab.results-available" })).toEqual({ href: "/results", label: "See your results" });
+    expect(messageAction({ templateKey: "dental.record-update" })).toEqual({ href: "/dental", label: "See your dental record" });
     expect(messageAction({ templateKey: "care-plan.follow-up-due" })?.href).toBe("/appointments/book");
     expect(messageAction({ templateKey: "appointment.no-show" })?.href).toBe("/appointments/book");
     expect(messageAction({ templateKey: "clinic.message" })).toBeNull();

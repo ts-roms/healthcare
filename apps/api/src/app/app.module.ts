@@ -42,6 +42,7 @@ import { ManagementDashboardController } from "./management-dashboard/management
 import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
+import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -188,6 +189,7 @@ export class AppModule implements NestModule {
         LaboratoryQualityNotifications,
         LaboratoryQualityReminders,
         PatientResultNotices,
+        PatientDentalNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

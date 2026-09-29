@@ -84,7 +84,9 @@ tooth notes, decision notes, periodontal charts, images, procedure codes or anyt
 fees. `GET /portal/dental/record` is audited `portal.dental-view` (actor type `patient`) and refused (403, audited as
 denied) while records are not shared. Images a dentist shared are listed and opened through a short-lived link
 (audited as the patient). When the organization also allows online decisions, a plan awaiting the patient's decision
-shows a form (tick items to accept, confirm the clinic's own acknowledgement, send). Wording: `lib/dental.ts`. See
+shows a form (tick items to accept, confirm the clinic's own acknowledgement, send). A shared image or a plan awaiting
+the patient's decision is announced in the inbox and by SMS or email (`dental.record-update`, no clinical detail; the
+inbox links to `/dental`). Wording: `lib/dental.ts`. See
 `docs/domains/dental.md`.
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
