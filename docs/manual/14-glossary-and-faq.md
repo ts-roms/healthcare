@@ -77,19 +77,23 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 
 ### Laboratory quality
 
-| Term                  | Meaning                                                                                                                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| CAPA                  | Corrective and preventive action. Part of a **nonconformance**: what was fixed now and what prevents it happening again, followed by an effectiveness check.                   |
-| Competency assessment | A recorded assessment of a staff member for a test or section. A facility may require a current "competent" state before a person can enter results.                           |
-| Control (QC) material | A sample with known expected values, run like a patient sample to check the instrument. Each lot has a target mean and SD per test and instrument.                             |
-| EQA                   | External quality assessment (proficiency testing): an outside provider sends samples; you report results and record the provider's evaluation. Unacceptable opens an NC.       |
-| Levey-Jennings chart  | A chart of control values over time against the target mean and ±1, 2, 3 SD lines (`/laboratory/qc`).                                                                          |
-| Nonconformance (NC)   | A recorded quality incident (numbered `NC` plus 8 digits), with investigation, root cause, CAPA and effectiveness check before closing.                                        |
-| QC run                | One recorded control result, evaluated by the facility's **Westgard rules** as accepted, warning or rejected.                                                                  |
-| Reagent lot           | An inventory lot of a reagent loaded on an instrument. Results record which lots were in use. An expired lot in use blocks QC and results for its tests.                       |
-| SD                    | Standard deviation: how far control values usually spread around the target mean.                                                                                              |
-| Temperature excursion | A storage-unit reading outside its allowed range. It needs a note and opens a nonconformance.                                                                                  |
-| Westgard rules        | Standard rules for judging QC runs. Available: 1-2s (always only a warning), 1-3s, 2-2s, R-4s, 4-1s, 10-x. The facility chooses which rules reject (default 1-3s, 2-2s, R-4s). |
+| Term                  | Meaning                                                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CAPA                  | Corrective and preventive action. Part of a **nonconformance**: what was fixed now and what prevents it happening again, followed by an effectiveness check.                    |
+| Competency assessment | A recorded assessment of a staff member for a test or section. A facility may require a current "competent" state before a person can enter results.                            |
+| Control (QC) material | A sample with known expected values, run like a patient sample to check the instrument. Each lot has a target mean and SD per test and instrument.                              |
+| EQA                   | External quality assessment (proficiency testing): an outside provider sends samples; you report results and record the provider's evaluation. Unacceptable opens an NC.        |
+| Levey-Jennings chart  | A chart of control values over time against the target mean and ±1, 2, 3 SD lines (`/laboratory/qc`).                                                                           |
+| Nonconformance (NC)   | A recorded quality incident (numbered `NC` plus 8 digits), with investigation, root cause, CAPA and effectiveness check before closing.                                         |
+| QC run                | One recorded control result, evaluated by the facility's **Westgard rules** as accepted, warning or rejected.                                                                   |
+| Cost per patient run  | A loaded reagent lot's stock cost divided by its patient runs, shown once the lot is unloaded (QC, repeats, waste and unused tests are included in the cost). Operational only. |
+| Patient run           | One order measured on an instrument: the tests of one order entered together count once against the reagent lot; a correction entered on the instrument is a re-run.            |
+| Reagent lot           | An inventory lot of a reagent loaded on an instrument. Results record which lots were in use. An expired lot in use blocks QC and results for its tests.                        |
+| Running low (reagent) | A loaded reagent lot with a tenth or less of its tests left. Shown on the lot and the dashboard; quality managers get one in-app notice per lot.                                |
+| Tests per unit        | How many tests one stock unit of a reagent performs (its yield). Used to work out what a lot taken from stock holds when **Tests it holds** is not given.                       |
+| SD                    | Standard deviation: how far control values usually spread around the target mean.                                                                                               |
+| Temperature excursion | A storage-unit reading outside its allowed range. It needs a note and opens a nonconformance.                                                                                   |
+| Westgard rules        | Standard rules for judging QC runs. Available: 1-2s (always only a warning), 1-3s, 2-2s, R-4s, 4-1s, 10-x. The facility chooses which rules reject (default 1-3s, 2-2s, R-4s).  |
 
 ### Dental
 
@@ -199,6 +203,11 @@ default) and electronic exchange with reference laboratories. See [Records, repo
 **11. Why won't the system let me issue stock from a lot?**
 Expired lots are never issued — "…expired on …; write it off instead". Stock cannot go below zero ("Not enough stock in this lot"). Issues use the lot
 that expires first unless you name one. See [Pharmacy and inventory](09-pharmacy-and-inventory.md).
+
+**11a. How do I see how much of a reagent lot is left, or what it costs per test?**
+Open **Laboratory → Instruments**: each loaded lot shows the tests used and left ("42 of 100 tests used · 58 left"). Record repeats, calibration,
+priming or waste with **Record use…**. **Laboratory → Reagent use** shows use over a period, lots running low, and the cost per patient run of lots
+already unloaded. See [Laboratory quality](07-laboratory-quality.md#how-to-follow-reagent-use-per-test-run).
 
 **12. A patient forgot their MyHealth password. What do I do?**
 There is no self-service reset. On the patient record's portal access panel, choose **Disable access** (reason, e.g. "Patient request"), then
