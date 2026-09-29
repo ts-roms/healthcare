@@ -313,3 +313,11 @@ export function documentNumber(prefix: string, year: number, value: number): str
 function sum(values: readonly number[]): number {
   return values.reduce((a, b) => a + b, 0);
 }
+
+/**
+ * The quantity a captured charge records: one, or — for a service priced per surface — the surfaces the dental
+ * procedure treated, at least one (a whole-tooth procedure mapped to such a service counts as one).
+ */
+export function chargeQuantity(chargeUnit: "each" | "surface", surfaceCount: number): number {
+  return chargeUnit === "surface" ? Math.max(Math.trunc(surfaceCount), 1) : 1;
+}

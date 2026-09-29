@@ -22,6 +22,8 @@ export interface BillableDentalProcedure {
   description: string;
   /** Local service date (YYYY-MM-DD, facility time). */
   serviceDate: string;
+  /** Surfaces treated (0 when recorded against the tooth or the whole mouth). */
+  surfaceCount: number;
 }
 
 /**
@@ -191,6 +193,7 @@ export class DentalProcedureService {
       procedureCode: row.code,
       description: procedureLabel(row.name, row.procedure.tooth, row.procedure.surfaces),
       serviceDate: localDate(row.procedure.performedAt, facility.timezone),
+      surfaceCount: row.procedure.surfaces.length,
     };
   }
 }

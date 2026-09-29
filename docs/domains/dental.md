@@ -165,7 +165,7 @@ Endpoints above under `/api/v1/dental` (OpenAPI tag `dental`). Errors: `invalid_
 
 ## Database relationships
 
-Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions, `0060` fee estimates, `0066` fee ranges). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
+Migration `0027_dental.sql` (`0041` periodontal charts, `0056` the MyHealth setting, `0058` image releases and online plan decisions, `0060` fee estimates, `0066` fee ranges; billing's `0067` charge unit). Composite same-organization and same-patient foreign keys to `patient`, `facility`,
 `practitioner`, `encounter (patient_id, id)` and `document`; tooth states reference their examination or procedure
 by `(patient_id, id)`, so a state cannot belong to another patient's record. Triggers: `dental_record_guard`
 (examinations, procedures, images: only `recorded → entered_in_error` with reason, author and time; no deletes),
@@ -393,6 +393,17 @@ holds), set in dental settings.
   option use `dental.settings.manage` (`PUT /dental/settings/portal`, fields `portalPlanEstimates`,
   `feeEstimateNote`). Billing staff without dental access do not read estimates.
 
+### Per-surface prices
+
+When billing charges a procedure's service per surface (`charge_unit = 'surface'`, migration `0067`; see
+[billing.md](billing.md)), the `DentalFees` port says so (`perSurface`) and an item's estimate is its listed unit price
+times its surfaces, at least one (`surfaceQuantity`, mirroring billing's `chargeQuantity`; `itemFee` in
+`dental-fee-lookup.ts`). Items carry `quantity` and `amount` next to `listed`; totals, the range of an item that may turn
+out to be another procedure (each alternative priced for the item's surfaces), the amount recorded with a decision, the
+PDF ("PHP 5,400.00 (3 surfaces at PHP 1,800.00)") and MyHealth all use the item's amount. A procedure recorded against
+the tooth or the whole mouth counts as one. Billing captures the charge with the procedure's surface count
+(`BillableDentalProcedure.surfaceCount`), so the charge matches the estimate at the same price.
+
 ### Fee ranges
 
 Some procedures are only known for certain once under way. The catalog lists, per procedure, the procedures it may
@@ -428,8 +439,8 @@ keeps none. Rules:
 - MyHealth dental records are all-or-nothing per organization (not per facility, plan or patient) and show every plan
   status; confirm with the clinics. A DICOM file opens as a download (no viewer in MyHealth).
 - Fee estimates use the organization's price list as it stands: one listed price per procedure code, with ranges only
-  through procedures a procedure may turn out to be (no per-surface or per-canal pricing unless the organization
-  defines separate procedure codes), VAT-inclusive as billing
+  through procedures a procedure may turn out to be, and per surface when billing prices the service that way (no
+  per-canal pricing unless the organization defines separate procedure codes), VAT-inclusive as billing
   stores prices, without discounts, packages or HMO/PhilHealth coverage. Whether an estimate or its validity must be
   given in writing for particular treatments, and any consumer or DOH requirement on its content, is a **compliance
   dependency** each organization validates; the platform supplies only the statement of what an estimate is not.

@@ -112,6 +112,11 @@ export class AppDentalFees implements DentalFees {
 
   async listedFees(organizationId: string, procedureCodes: readonly string[], onDate: string): Promise<Map<string, DentalListedFee>> {
     const listed = await this.prices.listedPrices(organizationId, "dental_procedure", procedureCodes, onDate);
-    return new Map([...listed].map(([code, p]) => [code, { serviceCode: p.serviceCode, serviceName: p.serviceName, unitPrice: p.unitPrice }]));
+    return new Map(
+      [...listed].map(([code, p]) => [
+        code,
+        { serviceCode: p.serviceCode, serviceName: p.serviceName, unitPrice: p.unitPrice, perSurface: p.chargeUnit === "surface" },
+      ]),
+    );
   }
 }

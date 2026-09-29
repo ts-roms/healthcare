@@ -1,4 +1,5 @@
 import {
+  chargeQuantity,
   accountBalance,
   applicationProblem,
   computeInvoice,
@@ -266,5 +267,13 @@ describe("deposits across facilities", () => {
         { kind: "transfer_in", amount: 1_000 },
       ]),
     ).toBe(7_000);
+  });
+});
+
+describe("chargeQuantity", () => {
+  it("charges one item, or each surface treated (at least one)", () => {
+    expect(chargeQuantity("each", 3)).toBe(1);
+    expect(chargeQuantity("surface", 3)).toBe(3);
+    expect(chargeQuantity("surface", 0)).toBe(1);
   });
 });

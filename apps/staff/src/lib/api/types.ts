@@ -1022,6 +1022,8 @@ export interface BillingService {
   prices: BillingServicePrice[];
   isPackage?: boolean;
   taxClass?: "vatable" | "vat_exempt" | "zero_rated" | null;
+  /** What the price is for: one item, or each surface treated (a service charged for a dental procedure; migration 0067). */
+  chargeUnit?: "each" | "surface";
 }
 
 export interface BillingPayer {
@@ -1735,13 +1737,17 @@ export interface DentalPlanEstimate {
     status: DentalPlanItemStatus;
     /** In the estimate: awaiting the patient's decision, or accepted and not yet done; null: not part of it. */
     part: "awaiting" | "accepted" | null;
-    listed: { serviceCode: string; serviceName: string; unitPrice: number } | null;
+    listed: { serviceCode: string; serviceName: string; unitPrice: number; perSurface: boolean } | null;
+    /** Surfaces charged when priced per surface (at least one), else 1; null without a listed price. */
+    quantity: number | null;
+    /** The listed price times the quantity; null without a listed price. */
+    amount: number | null;
     /** With procedures it may turn out to be: the range of listed prices and each of them (null: a single price). */
     range: {
       low: number;
       high: number;
       unpricedAlternatives: number;
-      alternatives: Array<{ code: string; name: string; unitPrice: number | null }>;
+      alternatives: Array<{ code: string; name: string; unitPrice: number | null; amount: number | null }>;
     } | null;
     atDecision: { amount: number | null; high: number | null; pricedOn: string } | null;
   }>;

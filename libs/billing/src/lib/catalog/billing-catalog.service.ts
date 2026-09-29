@@ -36,7 +36,7 @@ import { assertVersion, found, previousDay, publicView } from "../billing-suppor
 
 export const DEFAULT_PREFIXES = { invoice: "INV", receipt: "AR", credit_note: "CN", debit_note: "DN" } as const;
 
-const SERVICE_FIELDS = ["name", "status", "taxClass"] as const;
+const SERVICE_FIELDS = ["name", "status", "taxClass", "chargeUnit"] as const;
 const TAX_PROFILE_FIELDS = [
   "registeredName",
   "tin",
@@ -96,7 +96,14 @@ export class BillingCatalogService {
           action: "billing.service.create",
           resourceType: "billing_service",
           resourceId: row.id,
-          metadata: { code: row.code, category: row.category, unitPrice, effectiveFrom, source: row.sourceKind ? `${row.sourceKind}:${row.sourceCode}` : null },
+          metadata: {
+            code: row.code,
+            category: row.category,
+            unitPrice,
+            effectiveFrom,
+            source: row.sourceKind ? `${row.sourceKind}:${row.sourceCode}` : null,
+            chargeUnit: row.chargeUnit,
+          },
         });
         return publicView(row);
       });
@@ -118,6 +125,9 @@ export class BillingCatalogService {
         .for("update");
       const current = found(before, "Service");
       assertVersion(current.version, version, "Service");
+      if (changes.chargeUnit === "surface" && current.sourceKind !== "dental_procedure") {
+        throw new BusinessRuleError("Only a service charged for a dental procedure can be priced per surface", "invalid_charge_unit");
+      }
       const [updated] = await tx
         .update(billingService)
         .set({ ...changes, version: sql`${billingService.version} + 1` })

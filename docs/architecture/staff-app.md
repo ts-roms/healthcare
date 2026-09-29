@@ -235,7 +235,7 @@ dentition; each tooth shows glyph + chart code, never colour alone), a tooth's s
 the patient's dental visit in progress (or **Start dental visit**, which opens an encounter for the signed-in dentist),
 **Chart examination** edits a draft copy and sends only the changed teeth; treatment plans (propose phased items,
 record the patient's decision item by item, cancel items, discontinue; an open plan shows its fee estimate — listed
-price per item ahead or a fee range with "may become …", "No listed price", totals (both ends), the estimate each decided item carried — and **Print estimate**); procedures (optionally from an accepted plan
+price per item ahead (per surface: "3 surfaces × ₱1,800.00") or a fee range with "may become …", "No listed price", totals (both ends), the estimate each decided item carried — and **Print estimate**); procedures (optionally from an accepted plan
 item), each with a **Supplies used** panel (opened after recording: prefilled from the procedure's template, stock
 location, issued from inventory with the lots shown, refusals inline next to the supply; return unused supplies);
 examinations; periodontal charts (a row per present tooth: six probing depths and margins, bleeding, plaque,

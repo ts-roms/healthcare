@@ -16,6 +16,7 @@ import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { cancelChargeSchema, listChargesSchema, manualChargeSchema } from "../billing.dto";
 import { billingCharge, type BillingChargeRecord, billingService, type ChargeSourceType, type ServiceSourceKind } from "../billing.schema";
+import { chargeQuantity } from "../billing.rules";
 import { assertVersion, found, publicView } from "../billing-support";
 import { BillingCatalogService } from "../catalog/billing-catalog.service";
 import { PackageService } from "../packages/package.service";
@@ -32,6 +33,8 @@ interface CaptureInput {
   sourceCode: string;
   description: string;
   serviceDate: string;
+  /** Surfaces treated, for a service charged per surface (dental procedures). */
+  surfaceCount?: number;
 }
 
 /**
@@ -110,6 +113,7 @@ export class ChargeService {
       sourceCode: procedure.procedureCode,
       description: procedure.description,
       serviceDate: procedure.serviceDate,
+      surfaceCount: procedure.surfaceCount,
     });
   }
 
@@ -157,12 +161,13 @@ export class ChargeService {
         this.logger.warn(`No price for service ${service.code} on ${input.serviceDate}; charge not captured`);
         return;
       }
+      const quantity = chargeQuantity(service.chargeUnit, input.surfaceCount ?? 0);
       const cover = await this.packages.coverFor(tx, {
         organizationId: input.organizationId,
         facilityId: input.facilityId,
         patientId: input.patientId,
         serviceId: service.id,
-        quantity: 1,
+        quantity,
         onDate: input.serviceDate,
       });
       const description = input.description || service.name;
@@ -178,6 +183,7 @@ export class ChargeService {
           sourceGroupId: input.sourceGroupId,
           description: cover ? coveredDescription(description, cover.packageName) : description,
           unitPrice: cover ? 0 : price.unitPrice,
+          quantity,
           priceId: cover ? null : price.id,
           packageEnrollmentId: cover?.enrollmentId ?? null,
           serviceDate: input.serviceDate,
@@ -194,6 +200,7 @@ export class ChargeService {
           source: `${row.sourceType}:${row.sourceId}`,
           serviceCode: service.code,
           unitPrice: row.unitPrice,
+          quantity: row.quantity,
           packageEnrollmentId: row.packageEnrollmentId,
         },
       });
