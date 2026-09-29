@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, asc, eq, gt, gte, inArray, isNull, or, sql } from "drizzle-orm";
-import { inventoryBalance, inventoryItem, type ItemCategory, inventoryLocation, inventoryLot } from "../inventory.schema";
+import { inventoryBalance, inventoryItem, type ItemCategory, inventoryLocation, inventoryLot, inventoryMovement } from "../inventory.schema";
 
 export interface InventoryLotInfo {
   lotId: string;
@@ -117,6 +117,30 @@ export class InventoryQueries {
         ),
       )
       .groupBy(inventoryBalance.locationId, inventoryBalance.itemId);
+  }
+
+  /**
+   * The cost of the stock that left inventory in each movement group (issues, at the cost recorded on each movement;
+   * centavos), e.g. what a reagent load took. Null for a group with a movement that has no cost (an unvalued lot).
+   */
+  async issuedCost(organizationId: string, movementGroupIds: string[]): Promise<Map<string, number | null>> {
+    if (movementGroupIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({
+        groupId: inventoryMovement.movementGroupId,
+        value: sql<number>`coalesce(-sum(${inventoryMovement.quantity}::numeric * ${inventoryMovement.unitCost}), 0)::float8`,
+        unvalued: sql<number>`count(*) filter (where ${inventoryMovement.unitCost} is null)::int`,
+      })
+      .from(inventoryMovement)
+      .where(
+        and(
+          eq(inventoryMovement.organizationId, organizationId),
+          inArray(inventoryMovement.movementGroupId, [...new Set(movementGroupIds)]),
+          eq(inventoryMovement.kind, "issue"),
+        ),
+      )
+      .groupBy(inventoryMovement.movementGroupId);
+    return new Map(rows.map((r) => [r.groupId, r.unvalued > 0 ? null : r.value]));
   }
 }
 

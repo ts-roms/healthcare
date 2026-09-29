@@ -16,7 +16,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
     }),
   ]);
   return (
-    <PortalShell givenName={me.patient.givenName} unreadMessages={unread} dental={dental.available} signOut={signOut}>
+    <PortalShell givenName={me.patient.givenName} timeZone={me.timeZone} unreadMessages={unread} dental={dental.available} signOut={signOut}>
       {children}
     </PortalShell>
   );

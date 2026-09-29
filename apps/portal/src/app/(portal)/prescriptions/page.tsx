@@ -1,12 +1,15 @@
 import { PillIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
+import { getMe } from "@/lib/api/session";
 import type { PortalPrescription } from "@/lib/api/types";
 import { howToTake, resultDate } from "@/lib/records";
 
 export const metadata = { title: "Prescriptions" };
 
 export default async function PrescriptionsPage() {
+  // Dates and times are shown in the patient\'s clinic\'s time zone.
+  const { timeZone } = await getMe();
   const prescriptions = await portalApi<PortalPrescription[]>("/portal/prescriptions");
   return (
     <div className="flex flex-col gap-5">
@@ -24,7 +27,7 @@ export default async function PrescriptionsPage() {
         prescriptions.map((rx) => (
           <section key={rx.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
             <p className="text-meta text-muted-foreground">
-              {rx.prescriberName ?? "Your doctor"} · {resultDate(rx.issuedAt)} · <span className="font-mono">{rx.prescriptionNumber}</span>
+              {rx.prescriberName ?? "Your doctor"} · {resultDate(rx.issuedAt, timeZone)} · <span className="font-mono">{rx.prescriptionNumber}</span>
             </p>
             <ul className="flex flex-col gap-3">
               {rx.items.map((item, index) => (

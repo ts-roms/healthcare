@@ -30,10 +30,23 @@ import type {
   LabInstrument,
   LabInstrumentEventKind,
   LabInstrumentLogEntry,
+  LabManualReagentUseKind,
   LabReagentLoad,
+  LabReagentUse,
+  LabReagentYield,
   LabTest,
 } from "@/lib/api/types";
-import { createInstrument, loadInstrumentLog, loadReagentHistory, loadReagentLot, logInstrument, unloadReagentLot } from "../quality-actions";
+import { REAGENT_USE_KIND_LABEL, reagentUseText } from "@/lib/lab-mapping";
+import {
+  createInstrument,
+  loadInstrumentLog,
+  loadReagentHistory,
+  loadReagentLot,
+  loadReagentUses,
+  logInstrument,
+  recordReagentUse,
+  unloadReagentLot,
+} from "../quality-actions";
 
 const KIND_LABEL: Record<LabInstrumentEventKind, string> = {
   maintenance: "Maintenance",
@@ -82,6 +95,7 @@ export function InstrumentRegister({
   availableLots,
   stockLocations,
   tests,
+  yields,
   includeRetired,
   canLog,
   canManage,
@@ -94,6 +108,7 @@ export function InstrumentRegister({
   /** Storage locations a loaded lot's stock can be taken from (empty: the user cannot take stock). */
   stockLocations: InventoryLocation[];
   tests: LabTest[];
+  yields: LabReagentYield[];
   includeRetired: boolean;
   canLog: boolean;
   canManage: boolean;
@@ -194,6 +209,7 @@ export function InstrumentRegister({
                               availableLots={availableLots}
                               stockLocations={stockLocations}
                               tests={tests}
+                              yields={yields}
                               canLog={canLog}
                             />
                             <InstrumentLog instrument={i} canLog={canLog} canManage={canManage} />
@@ -320,6 +336,7 @@ function ReagentSummary({ loads }: { loads: LabReagentLoad[] }) {
           {l.expired ? <TriangleAlertIcon className="mr-1 inline size-3.5" aria-hidden /> : null}
           {l.itemName} · lot {l.lotNumber ?? "—"}
           {l.expired ? " (expired)" : ""}
+          {l.use.low ? " · running low" : ""}
         </li>
       ))}
     </ul>
@@ -333,6 +350,7 @@ function ReagentPanel({
   availableLots,
   stockLocations,
   tests,
+  yields,
   canLog,
 }: {
   instrument: LabInstrument;
@@ -340,14 +358,20 @@ function ReagentPanel({
   availableLots: LabAvailableReagentLot[];
   stockLocations: InventoryLocation[];
   tests: LabTest[];
+  /** Tests per stock unit of each reagent, to show the capacity a load will get. */
+  yields: LabReagentYield[];
   canLog: boolean;
 }) {
   const { pending, run } = useRun();
-  const blank = { inventoryLotId: "", testId: "", locationId: "", quantity: "" };
+  const blank = { inventoryLotId: "", testId: "", locationId: "", quantity: "", capacity: "" };
   const [f, setF] = React.useState(blank);
   const [unloading, setUnloading] = React.useState<{ loadId: string; reason: string } | null>(null);
   const [history, setHistory] = React.useState<LabReagentLoad[] | null>(null);
   const canLoad = canLog && instrument.status !== "retired";
+  const chosenLot = availableLots.find((l) => l.lotId === f.inventoryLotId);
+  const chosenYield = chosenLot ? yields.find((y) => y.inventoryItemId === chosenLot.itemId) : undefined;
+  const quantity = Number.parseInt(f.quantity, 10);
+  const derivedCapacity = chosenYield && f.locationId && quantity > 0 ? quantity * chosenYield.testsPerUnit : null;
 
   return (
     <div className="mb-3 flex flex-col gap-2 border-b p-1 pb-3">
@@ -375,6 +399,13 @@ function ReagentPanel({
               {l.testName ? `for ${l.testName}` : "all tests"} · loaded {clinicalDateTime(l.loadedAt)} by {l.loadedByName}
               {l.stockQuantity ? ` · ${l.stockQuantity} taken from stock` : ""}
             </span>
+            <span className="tabular text-meta">{reagentUseText(l.use)}</span>
+            {l.use.low ? (
+              <Badge variant="warning">
+                <TriangleAlertIcon aria-hidden /> Running low
+              </Badge>
+            ) : null}
+            <ReagentUses load={l} canLog={canLog} />
             {canLog ? (
               unloading?.loadId === l.id ? (
                 <form
@@ -423,7 +454,8 @@ function ReagentPanel({
                   instrumentId: instrument.id,
                   inventoryLotId: f.inventoryLotId,
                   testId: f.testId || undefined,
-                  takeFromStock: f.locationId ? { locationId: f.locationId, quantity: Number.parseInt(f.quantity, 10) } : undefined,
+                  takeFromStock: f.locationId ? { locationId: f.locationId, quantity } : undefined,
+                  capacityTests: f.capacity ? Number.parseInt(f.capacity, 10) : undefined,
                 }),
               f.locationId ? "Reagent lot loaded; stock taken" : "Reagent lot loaded",
               () => setF(blank),
@@ -483,9 +515,27 @@ function ReagentPanel({
               ) : null}
             </>
           ) : null}
+          <div className="grid gap-1">
+            <Label htmlFor={`reagent-capacity-${instrument.id}`}>Tests it holds</Label>
+            <Input
+              id={`reagent-capacity-${instrument.id}`}
+              inputMode="numeric"
+              className="w-28"
+              placeholder={derivedCapacity ? String(derivedCapacity) : "Optional"}
+              value={f.capacity}
+              onChange={(e) => setF({ ...f, capacity: e.target.value.replace(/\D/g, "") })}
+            />
+          </div>
           <Button type="submit" size="sm" disabled={pending || !f.inventoryLotId || (Boolean(f.locationId) && !f.quantity)}>
             <PlusIcon /> Load lot
           </Button>
+          {chosenLot ? (
+            <p className="basis-full text-meta text-muted-foreground">
+              {chosenYield
+                ? `${chosenLot.itemName}: ${chosenYield.testsPerUnit} tests per ${chosenYield.stockUnit}.${derivedCapacity && !f.capacity ? ` The load will hold ${derivedCapacity} tests.` : ""}`
+                : "No yield is set for this reagent (Reagent use); give the tests it holds to see what is left."}
+            </p>
+          ) : null}
         </form>
       ) : null}
       <div>
@@ -510,6 +560,102 @@ function ReagentPanel({
         ) : null}
       </div>
     </div>
+  );
+}
+
+const MANUAL_KINDS: LabManualReagentUseKind[] = ["repeat", "calibration", "priming", "waste", "other"];
+
+/** Runs counted against a load, and use recorded by staff (repeats not entered as results, calibration, priming, waste). */
+function ReagentUses({ load, canLog }: { load: LabReagentLoad; canLog: boolean }) {
+  const { pending, run } = useRun();
+  const blank = { kind: "repeat" as LabManualReagentUseKind, tests: "1", reason: "" };
+  const [form, setForm] = React.useState<typeof blank | null>(null);
+  const [uses, setUses] = React.useState<LabReagentUse[] | null>(null);
+  const loaded = load.unloadedAt === null;
+  return (
+    <span className="flex basis-full flex-col gap-1 pl-4">
+      <span className="flex flex-wrap gap-1">
+        <span className="text-meta text-muted-foreground">
+          Patient {load.use.patientRuns} · QC {load.use.qcRuns} · other {load.use.otherRuns} · wasted {load.use.wasted}
+        </span>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => (uses ? setUses(null) : void loadReagentUses(load.id).then((r) => (r.ok ? setUses(r.data) : toast.error(r.message))))}
+        >
+          {uses ? "Hide runs" : "Runs"}
+        </Button>
+        {canLog && loaded && !form ? (
+          <Button size="xs" variant="ghost" onClick={() => setForm(blank)}>
+            Record use…
+          </Button>
+        ) : null}
+      </span>
+      {form ? (
+        <form
+          className="flex flex-wrap items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(
+              () => recordReagentUse({ loadId: load.id, kind: form.kind, tests: Number.parseInt(form.tests, 10), reason: form.reason }),
+              "Reagent use recorded",
+              () => setForm(null),
+            );
+          }}
+        >
+          <NativeSelect
+            aria-label="Use"
+            className="h-7"
+            value={form.kind}
+            onChange={(e) => setForm({ ...form, kind: e.target.value as LabManualReagentUseKind })}
+          >
+            {MANUAL_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {REAGENT_USE_KIND_LABEL[k]}
+              </option>
+            ))}
+          </NativeSelect>
+          <Input
+            aria-label="Tests"
+            inputMode="numeric"
+            className="h-7 w-16"
+            value={form.tests}
+            onChange={(e) => setForm({ ...form, tests: e.target.value.replace(/\D/g, "") })}
+          />
+          <Input
+            aria-label="What for"
+            placeholder="What for (e.g. calibration after maintenance)"
+            className="h-7 w-72"
+            maxLength={500}
+            value={form.reason}
+            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+          />
+          <Button type="submit" size="xs" disabled={pending || !form.tests || form.reason.trim().length < 3}>
+            Record
+          </Button>
+          <Button type="button" size="xs" variant="ghost" onClick={() => setForm(null)}>
+            Cancel
+          </Button>
+        </form>
+      ) : null}
+      {uses ? (
+        uses.length === 0 ? (
+          <span className="text-meta text-muted-foreground">No runs counted yet.</span>
+        ) : (
+          <ul className="flex flex-col gap-0.5 text-meta">
+            {uses.map((u) => (
+              <li key={u.id}>
+                <span className="tabular">{clinicalDateTime(u.recordedAt)}</span> · {REAGENT_USE_KIND_LABEL[u.kind]}
+                {u.tests > 1 ? ` × ${u.tests}` : ""}
+                {u.runNumber && u.runNumber > 1 ? ` (re-run, version ${u.runNumber})` : ""}
+                {u.reason ? ` · ${u.reason}` : ""}
+                <span className="text-muted-foreground"> — {u.recordedByName}</span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+    </span>
   );
 }
 

@@ -9,6 +9,7 @@ export * from "./lib/orders/lab-worklist.service";
 export * from "./lib/ports";
 export * from "./lib/quality/lab-quality.service";
 export * from "./lib/quality/lab-reagent.service";
+export * from "./lib/quality/reagent-use.rules";
 export * from "./lib/quality/lab-competency.service";
 export * from "./lib/quality/lab-eqa.service";
 export * from "./lib/quality/lab-nonconformance.service";

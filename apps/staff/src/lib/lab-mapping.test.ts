@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { LabSendOut, LabTrend, PatientLabResult } from "./api/types";
 import {
+  percent,
+  reagentUseText,
   byReferenceLaboratory,
   bySpecimenType,
   formatDuration,
@@ -127,5 +129,18 @@ describe("send-outs", () => {
       ["Alpha Lab", ["2"]],
       ["Beta Lab", ["1", "3"]],
     ]);
+  });
+});
+
+describe("reagent use", () => {
+  const use = { patientRuns: 10, qcRuns: 2, otherRuns: 0, wasted: 0, total: 12, capacity: 100, remaining: 88, usedShare: 0.12, low: false };
+  it("describes use against the capacity", () => {
+    expect(reagentUseText(use)).toBe("12 of 100 tests used · 88 left");
+    expect(reagentUseText({ ...use, total: 110, remaining: -10 })).toBe("110 of 100 tests used · 10 beyond the stated capacity");
+    expect(reagentUseText({ ...use, total: 1, capacity: null, remaining: null })).toBe("1 test used");
+  });
+  it("formats shares", () => {
+    expect(percent(0.857)).toBe("86%");
+    expect(percent(null)).toBe("—");
   });
 });

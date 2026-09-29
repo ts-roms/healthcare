@@ -158,6 +158,16 @@ export function qualityAttentionItems(q: LabQualitySummary): AttentionItem[] {
       href: "/laboratory/instruments",
     });
   }
+  if (q.reagents.low) {
+    items.push({
+      id: "quality-reagents-low",
+      severity: "warning",
+      count: q.reagents.low,
+      title: "Reagent lots running low",
+      detail: "a tenth of their tests or less left",
+      href: "/laboratory/reagents",
+    });
+  }
   if (q.eqa.overdue || q.eqa.awaitingEvaluation) {
     items.push({
       id: "quality-eqa",

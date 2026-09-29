@@ -47,6 +47,8 @@ Quality managers (users with `lab.qc.manage` at the facility) receive in-app mes
 - When a nonconformance is opened (by a colleague, by a temperature excursion or by an unacceptable EQA result). The person who raised it is not
   notified.
 - When a QC run is rejected. The message names the instrument, test and rules — never patient details or control values.
+- Once for each loaded reagent lot that runs low (a tenth or less of the tests it holds is left), naming the instrument, reagent, lot and the tests
+  left. Prepare the next lot; lots loaded without **Tests it holds** (and no tests per unit) never raise it.
 - Once for each missed temperature reading (checked hourly).
 - When a competency reassessment is due. The person assessed is told too.
 
@@ -88,7 +90,9 @@ Reagent lots come from inventory: only active items in the **reagent** category,
 3. In **For**, choose **All tests on this instrument** or one test.
 4. Optional, if you also have `inventory.move`: in **Take from stock**, choose the storage location and enter the **Quantity**. The stock is issued
    from inventory at the same time. Leave **No (issued separately)** if stock is issued another way.
-5. Click **Load lot**.
+5. Optional: in **Tests it holds**, enter how many tests the lot can perform. Left empty, a lot taken from stock gets the stock quantity times the
+   reagent's **tests per unit** (set on **Reagent use**); the hint under the form says what the load will hold.
+6. Click **Load lot**.
 
 Loading a new lot of the same reagent replaces the lot in use (it is unloaded with "Replaced by lot …"). To unload without a replacement, click
 **Unload…**, give a reason (for example used up, expired) and click **Unload**. Click **Lot history** to see every load and unload.
@@ -98,6 +102,27 @@ lot or unload it.
 
 By default, loading a new lot restarts the QC window for the test: QC must be run again before patient results are covered. The QC board then shows
 "Since the reagent lot change …". Your facility can turn this off in the policy.
+
+## How to follow reagent use per test run
+
+Every lot in use shows how many tests it has used and how many are left, for example "42 of 100 tests used · 58 left", and **Running low** when a
+tenth or less is left. Quality managers then get one in-app notice for that lot, and the dashboard lists **Reagent lots running low**. Under it: patient, QC, other and wasted runs.
+
+- A **patient run** is counted when a result is entered with the instrument: the tests of one order entered together count once; a correction
+  entered on the instrument counts as a re-run.
+- A **QC run** is counted when a control is recorded.
+- Click **Record use…** for anything else: choose **Repeat** (a re-run not entered as a result), **Calibration**, **Priming**, **Waste** or
+  **Other**, enter the number of tests and what for, and click **Record**. You need `lab.qc.enter`; an unloaded lot cannot take more use.
+- Click **Runs** to see every run counted against the lot, with who and when.
+
+Counting never moves stock (stock leaves inventory when the lot is loaded) and never blocks a result: use beyond the tests the lot was said to hold
+shows as "beyond the stated capacity".
+
+**Reagent use** (menu **Laboratory → Reagent use**, `lab.qc.read`) shows a period (default the last 30 days): patient runs, QC and other use and
+their share, lots running low, use per reagent, and per lot the runs in the period and over its life, what its stock cost, the **cost per patient
+run** once the lot is unloaded (everything the lot cost spread over its patient runs) and what was left unused. With `lab.qc.manage`, set each
+reagent's **tests per unit** in **Tests per unit** (it applies to lots loaded from then on). These are operational figures, not an accounting
+valuation.
 
 ## How to set up control materials, lots and targets
 
@@ -287,6 +312,8 @@ results.
 - Calibration and verification entries need an outcome. Out of service, repair and retirement need notes.
 - QC runs need a target for that lot, test and instrument. Retired or expired control lots take no runs.
 - Only reagent-category inventory lots that have not expired can be loaded. An expired lot in use refuses QC runs and results on that test.
+- Reagent use is counted automatically for patient results entered with the instrument and for QC runs; other use needs a reason and is kept
+  as history (it cannot be changed or deleted).
 - When the facility requires QC, a result on an instrument is refused if no QC run is in the window or a control level is rejected.
 - When the facility requires competency, a result is refused from staff whose assessment is missing, due, or not yet competent.
 - A temperature outside the range needs a note and opens a nonconformance.

@@ -621,7 +621,7 @@ export class LabResultService {
       })
       .returning();
     const created = found(row, "Laboratory result");
-    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created.id, qc.reagentLoadIds);
+    if (qc) await this.quality.recordResultReagents(tx, actor.organizationId, created, qc.reagentLoadIds);
     return created;
   }
 

@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { INSTRUMENT_EVENT_KINDS } from "../laboratory.schema";
+import { INSTRUMENT_EVENT_KINDS, MANUAL_REAGENT_USE_KINDS } from "../laboratory.schema";
 
 const code = z
   .string()
@@ -66,6 +66,8 @@ export const loadReagentSchema = z.object({
   testId: z.uuid().optional(),
   /** Take this quantity of the lot from a storage location of the facility (an inventory issue in the same transaction). */
   takeFromStock: z.object({ locationId: z.uuid(), quantity: z.number().int().positive().max(100_000) }).optional(),
+  /** Tests the load holds; left out: the stock taken times the reagent's yield, when both are known. */
+  capacityTests: z.number().int().positive().max(100_000_000).optional(),
 });
 export class LoadReagentDto extends createZodDto(loadReagentSchema) {}
 
@@ -74,6 +76,22 @@ export class UnloadReagentDto extends createZodDto(unloadReagentSchema) {}
 
 export const reagentQuerySchema = z.object({ instrumentId: z.uuid().optional() });
 export class ReagentQueryDto extends createZodDto(reagentQuerySchema) {}
+
+// ---- Reagent use per test run (migration 0064) ----------------------------------------------
+
+export const recordReagentUseSchema = z.object({
+  /** Patient and QC runs are counted when results and QC runs are entered. */
+  kind: z.enum(MANUAL_REAGENT_USE_KINDS),
+  tests: z.number().int().positive().max(100_000),
+  reason: text(500).refine((v) => v.length >= 3, "Say what the reagent was used for"),
+});
+export class RecordReagentUseDto extends createZodDto(recordReagentUseSchema) {}
+
+export const setReagentYieldSchema = z.object({ testsPerUnit: z.number().int().positive().max(1_000_000) });
+export class SetReagentYieldDto extends createZodDto(setReagentYieldSchema) {}
+
+export const reagentUsageQuerySchema = z.object({ from: isoDate, to: isoDate, instrumentId: z.uuid().optional() });
+export class ReagentUsageQueryDto extends createZodDto(reagentUsageQuerySchema) {}
 
 // ---- QC runs --------------------------------------------------------------------------------
 

@@ -93,6 +93,14 @@ inbox links to `/dental`). Wording: `lib/dental.ts`. See
 
 Patients cannot edit their record; Profile tells them to ask the clinic.
 
+## Time zone
+
+Visits and online consultations are shown in their own facility's time zone (each row carries it). Everything else —
+results, prescriptions, bills, messages, the greeting and the design system's dates (the result trend chart) — is shown
+in the patient's clinic's zone: `GET /portal/me` returns `timeZone`, the zone of the facility where the patient was
+registered. Pages pass it to the formatters in `lib/records.ts`, `lib/messages.ts` and `lib/greeting.ts` (a required
+argument), and `PortalShell` sets it for `@healthcare/ui` before the page renders.
+
 ## Help
 
 `/help` (open to everyone, signed in or not, so a patient who cannot sign in can still read it; `OPEN_PATHS` in `proxy.ts`)

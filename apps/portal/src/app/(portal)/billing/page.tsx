@@ -1,6 +1,7 @@
 import { BanIcon, CheckCircle2Icon, CircleDollarSignIcon, FileDownIcon, PiggyBankIcon, ReceiptIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
+import { getMe } from "@/lib/api/session";
 import type { PortalAccount, PortalInvoice, PortalInvoiceCredits, PortalInvoiceNotes, PortalOnlinePayment } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import { ACCOUNT_ENTRY, invoiceStatus, ONLINE_PAYMENT_STATUS, PAYER_STATUS, peso, totalDue } from "@/lib/billing";
@@ -13,6 +14,8 @@ const ICON = { due: CircleDollarSignIcon, paid: CheckCircle2Icon, void: BanIcon 
 const TONE = { due: "text-warning-foreground", paid: "text-success-foreground", void: "text-muted-foreground" } as const;
 
 export default async function BillsPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
+  // Dates and times are shown in the patient\'s clinic\'s time zone.
+  const { timeZone } = await getMe();
   const [invoices, accounts, online, params] = await Promise.all([
     portalApi<Array<PortalInvoice & PortalInvoiceCredits & PortalInvoiceNotes>>("/portal/billing"),
     portalApi<PortalAccount[]>("/portal/billing/account"),
@@ -57,7 +60,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
               {account.entries.map((e, i) => (
                 <Row
                   key={i}
-                  label={`${ACCOUNT_ENTRY[e.kind].label}${e.invoiceNumber ? ` ${e.invoiceNumber}` : ""}${e.creditNoteNumber ? ` ${e.creditNoteNumber}` : ""} · ${resultDate(e.recordedAt)}${e.receiptNumber ? ` · ${e.receiptNumber}` : ""}`}
+                  label={`${ACCOUNT_ENTRY[e.kind].label}${e.invoiceNumber ? ` ${e.invoiceNumber}` : ""}${e.creditNoteNumber ? ` ${e.creditNoteNumber}` : ""} · ${resultDate(e.recordedAt, timeZone)}${e.receiptNumber ? ` · ${e.receiptNumber}` : ""}`}
                   value={`${ACCOUNT_ENTRY[e.kind].adds ? "+" : "−"}${peso(e.amount)}`}
                 />
               ))}
@@ -84,7 +87,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                       <span className="font-semibold tabular-nums">{peso(inv.patientTotal)}</span>
                     </span>
                     <span className="flex items-center justify-between gap-2 text-meta">
-                      <span className="text-muted-foreground">{resultDate(inv.issuedAt)}</span>
+                      <span className="text-muted-foreground">{resultDate(inv.issuedAt, timeZone)}</span>
                       <span className={`flex items-center gap-1 font-medium ${TONE[status.tone]}`}>
                         <Icon className="size-3.5" aria-hidden /> {status.label}
                       </span>
@@ -106,7 +109,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                           <span>
                             {item.description}
                             {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-                            <span className="block text-meta text-muted-foreground">{resultDate(item.serviceDate)}</span>
+                            <span className="block text-meta text-muted-foreground">{resultDate(item.serviceDate, timeZone)}</span>
                           </span>
                           <span className="tabular-nums">{peso(item.grossAmount)}</span>
                         </li>
@@ -123,14 +126,14 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                       {inv.payments.map((p, i) => (
                         <Row
                           key={i}
-                          label={`${p.kind === "refund" ? "Refund" : "Paid"} ${resultDate(p.recordedAt)}${p.receiptNumber ? ` · ${p.receiptNumber}` : ""}`}
+                          label={`${p.kind === "refund" ? "Refund" : "Paid"} ${resultDate(p.recordedAt, timeZone)}${p.receiptNumber ? ` · ${p.receiptNumber}` : ""}`}
                           value={p.kind === "refund" ? `+${peso(p.amount)}` : `−${peso(p.amount)}`}
                         />
                       ))}
                       {inv.depositApplications.map((d, i) => (
                         <Row
                           key={`deposit-${i}`}
-                          label={`${d.kind === "release" ? "Deposit returned" : "Paid from deposit"} ${resultDate(d.recordedAt)}`}
+                          label={`${d.kind === "release" ? "Deposit returned" : "Paid from deposit"} ${resultDate(d.recordedAt, timeZone)}`}
                           value={d.kind === "release" ? `+${peso(d.amount)}` : `−${peso(d.amount)}`}
                         />
                       ))}
@@ -143,7 +146,11 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                       {inv.onlinePayments
                         .filter((o) => o.status !== "succeeded")
                         .map((o) => (
-                          <Row key={o.id} label={`Online payment ${resultDate(o.createdAt)}: ${ONLINE_PAYMENT_STATUS[o.status]}`} value={peso(o.amount)} />
+                          <Row
+                            key={o.id}
+                            label={`Online payment ${resultDate(o.createdAt, timeZone)}: ${ONLINE_PAYMENT_STATUS[o.status]}`}
+                            value={peso(o.amount)}
+                          />
                         ))}
                       {inv.status === "issued" ? <Row label="Balance" value={peso(inv.balance)} strong /> : null}
                     </dl>

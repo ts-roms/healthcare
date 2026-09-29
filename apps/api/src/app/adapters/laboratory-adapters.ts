@@ -47,6 +47,15 @@ export class AppLaboratoryContext implements LaboratoryContext {
     return this.inventory.lot(organizationId, lotId);
   }
 
+  async inventoryItem(organizationId: string, itemId: string) {
+    const [item] = await this.inventory.items(organizationId, [itemId]);
+    return item ? { itemId: item.id, code: item.code, name: item.name, category: item.category, stockUnit: item.stockUnit, status: item.status } : undefined;
+  }
+
+  reagentStockCosts(organizationId: string, movementGroupIds: string[]) {
+    return this.inventory.issuedCost(organizationId, movementGroupIds);
+  }
+
   reagentLotsInStock(organizationId: string, facilityId: string) {
     return this.inventory.lotsInStock(organizationId, facilityId, [REAGENT_CATEGORY]);
   }

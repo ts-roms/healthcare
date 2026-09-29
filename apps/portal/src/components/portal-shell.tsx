@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarIcon, CircleHelpIcon, FlaskConicalIcon, HeartPulseIcon, HomeIcon, LogOutIcon, MessageSquareIcon, SmileIcon, UserIcon } from "lucide-react";
 import { PatientLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import { Button } from "@healthcare/ui/primitives";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
@@ -20,18 +21,23 @@ const NAV = [
 
 export function PortalShell({
   givenName,
+  timeZone,
   unreadMessages,
   dental,
   signOut,
   children,
 }: {
   givenName: string;
+  /** The patient's clinic's time zone: design-system dates (e.g. the result trend chart) are shown in it. */
+  timeZone: string;
   unreadMessages: number;
   /** The clinic shares dental records and there is something to show. */
   dental: boolean;
   signOut: () => Promise<void>;
   children: React.ReactNode;
 }) {
+  // Set during render, before the page below renders (one patient per page).
+  setClinicTimeZone(timeZone);
   const nav = NAV.filter((n) => dental || n.href !== "/dental").map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
   return (
     <PatientLayout
