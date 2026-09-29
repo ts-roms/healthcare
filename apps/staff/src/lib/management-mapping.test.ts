@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { percentOf, rangePresets } from "./management-mapping";
+import { comparison, percentOf, previousLabel, rangePresets } from "./management-mapping";
 
 describe("rangePresets", () => {
   it("offers ranges ending today, and last month across a year boundary", () => {
@@ -19,5 +19,22 @@ describe("percentOf", () => {
     expect(percentOf(0.125)).toBe("12.5%");
     expect(percentOf(1)).toBe("100%");
     expect(percentOf(null)).toBe("—");
+  });
+});
+
+describe("comparison", () => {
+  it("describes the change against the previous period in words", () => {
+    expect(comparison(112, 100, "count")).toBe("▲ 12%");
+    expect(comparison(90, 100, "count")).toBe("▼ 10%");
+    expect(comparison(5, 0, "count")).toBe("▲ from none");
+    expect(comparison(0, 0, "count")).toBe("no change");
+    expect(comparison(0.15, 0.125, "rate")).toBe("▲ 2.5 pts");
+    expect(comparison(25, 40, "minutes")).toBe("▼ 15 min");
+    expect(comparison(null, 40, "minutes")).toBe("no comparison");
+  });
+
+  it("names the previous period", () => {
+    expect(previousLabel("2026-09-01", "2026-09-30")).toBe("the previous 30 days");
+    expect(previousLabel("2026-09-29", "2026-09-29")).toBe("the previous day");
   });
 });

@@ -61,3 +61,101 @@ export function dailySeries<K extends string>(
 export function rate(part: number, whole: number): number | null {
   return whole ? Math.round((part / whole) * 1000) / 1000 : null;
 }
+
+/** The period of the same length ending the day before `from` — what the range is compared with. */
+export function previousRange(from: string, to: string): { from: string; to: string } {
+  const days = daysBetween(from, to).length;
+  return { from: shiftDate(from, -days), to: shiftDate(from, -1) };
+}
+
+/** The headline figures, the same for the range and the period before it. Amounts in centavos. */
+export interface KeyFigures {
+  patientsSeen: number;
+  newPatients: number;
+  consultations: number;
+  noShowRate: number | null;
+  averageWaitMinutes: number | null;
+  netInvoiced: number;
+  netCollected: number;
+  labTestsReleased: number;
+  labTurnaroundMinutes: number | null;
+  dentalProcedures: number;
+}
+
+export function keyFigures(parts: {
+  patients: { registered: number };
+  clinic: {
+    appointments: { noShowRate: number | null };
+    visits: { averageWaitMinutes: number | null };
+    encounters: { completed: number; patientsSeen: number };
+  };
+  laboratory: { released: number; averageTurnaroundMinutes: number | null };
+  dental: { procedures: number };
+  billing: { invoices: { netTotal: number }; netCollected: number };
+}): KeyFigures {
+  return {
+    patientsSeen: parts.clinic.encounters.patientsSeen,
+    newPatients: parts.patients.registered,
+    consultations: parts.clinic.encounters.completed,
+    noShowRate: parts.clinic.appointments.noShowRate,
+    averageWaitMinutes: parts.clinic.visits.averageWaitMinutes,
+    netInvoiced: parts.billing.invoices.netTotal,
+    netCollected: parts.billing.netCollected,
+    labTestsReleased: parts.laboratory.released,
+    labTurnaroundMinutes: parts.laboratory.averageTurnaroundMinutes,
+    dentalProcedures: parts.dental.procedures,
+  };
+}
+
+// ---- CSV export ----------------------------------------------------------------------------------------------------
+
+export const EXPORT_TABLES = ["summary", "daily", "services", "categories", "providers"] as const;
+export type ExportTable = (typeof EXPORT_TABLES)[number];
+
+type Cell = string | number | null;
+
+/**
+ * RFC 4180 CSV (CRLF, quoted when needed). A cell starting with = + - @ (or a tab / carriage return) is prefixed with
+ * an apostrophe so spreadsheets never run it as a formula — names come from staff-entered data.
+ */
+export function toCsv(rows: ReadonlyArray<ReadonlyArray<Cell>>): string {
+  const cell = (value: Cell) => {
+    if (value === null) return "";
+    if (typeof value === "number") return String(value);
+    const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+    return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+  return rows.map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+/** Centavos as pesos with two decimals (a plain number for spreadsheets). */
+export const pesos = (centavos: number) => (centavos / 100).toFixed(2);
+
+const SUMMARY_ROWS: Array<[keyof KeyFigures, string, (v: number) => Cell]> = [
+  ["patientsSeen", "Patients seen", (v) => v],
+  ["newPatients", "New patients registered", (v) => v],
+  ["consultations", "Consultations completed", (v) => v],
+  ["noShowRate", "No-show rate", (v) => v],
+  ["averageWaitMinutes", "Average wait, check-in to consultation (minutes)", (v) => v],
+  ["netInvoiced", "Invoiced, net (PHP)", pesos],
+  ["netCollected", "Collected less refunds (PHP)", pesos],
+  ["labTestsReleased", "Laboratory tests released", (v) => v],
+  ["labTurnaroundMinutes", "Laboratory turnaround, collection to release (minutes)", (v) => v],
+  ["dentalProcedures", "Dental procedures", (v) => v],
+];
+
+/** Summary rows: each key figure for the range and the period before it. */
+export function summaryRows(
+  current: KeyFigures,
+  previous: KeyFigures,
+  ranges: { from: string; to: string; previousFrom: string; previousTo: string },
+): Cell[][] {
+  return [
+    ["Figure", `${ranges.from} to ${ranges.to}`, `${ranges.previousFrom} to ${ranges.previousTo}`],
+    ...SUMMARY_ROWS.map(([key, label, format]): Cell[] => {
+      const a = current[key];
+      const b = previous[key];
+      return [label, a === null ? null : format(a), b === null ? null : format(b)];
+    }),
+  ];
+}

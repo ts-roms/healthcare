@@ -80,7 +80,9 @@ uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record
 self-assessed.
 Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
 a facility-scoped grant limits the figures to that facility; audited
-`management.dashboard.view` (range and facilities). Counts and amounts only.
+`management.dashboard.view` (range and facilities) and `management.dashboard.export`
+(table, range, facilities, rows). Counts and amounts only; CSV cells are
+formula-safe.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.

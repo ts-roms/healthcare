@@ -1,8 +1,9 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Query, StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
+import { EXPORT_TABLES } from "./management-dashboard.rules";
 import { ManagementDashboardService } from "./management-dashboard.service";
 
 const localDate = z
@@ -19,6 +20,9 @@ export const managementDashboardQuerySchema = z.object({
 });
 export class ManagementDashboardQueryDto extends createZodDto(managementDashboardQuerySchema) {}
 
+export const managementExportQuerySchema = managementDashboardQuerySchema.extend({ table: z.enum(EXPORT_TABLES) });
+export class ManagementExportQueryDto extends createZodDto(managementExportQuerySchema) {}
+
 @ApiTags("management")
 @ApiBearerAuth()
 @Controller({ path: "management", version: "1" })
@@ -33,5 +37,19 @@ export class ManagementDashboardController {
   })
   get(@CurrentActor() actor: Actor, @Query() query: ManagementDashboardQueryDto) {
     return this.dashboards.dashboard(actor, query);
+  }
+
+  @Get("dashboard/export")
+  @RequirePermissions("management.dashboard.read")
+  @ApiOperation({
+    summary:
+      "One table of the management dashboard as CSV (summary with the previous period, daily, services, categories, providers); amounts in pesos; audited",
+  })
+  async export(@CurrentActor() actor: Actor, @Query() query: ManagementExportQueryDto): Promise<StreamableFile> {
+    const { table, ...range } = query;
+    const { filename, csv } = await this.dashboards.export(actor, range, table);
+    // A byte-order mark so spreadsheet programs read the peso sign and names as UTF-8.
+    const body = Buffer.from(`\uFEFF${csv}`, "utf8");
+    return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
   }
 }
