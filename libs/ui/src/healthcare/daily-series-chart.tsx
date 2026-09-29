@@ -89,12 +89,14 @@ export function DailySeriesChart({ title, data, series, formatValue = (v) => v.t
               itemStyle={{ color: "var(--popover-foreground)" }}
               labelStyle={{ color: "var(--popover-foreground)", fontWeight: 600 }}
               labelFormatter={(d) => dayOf(String(d))}
+              // Same order as the legend.
+              itemSorter={(item) => shown.findIndex((x) => x.key === item.dataKey)}
               formatter={(v, name) => [formatValue(Number(v)), shown.find((s) => s.key === name)?.label ?? String(name)]}
             />
             {shown.map((s, i) => (
               <Line
                 key={s.key}
-                type="monotone"
+                type="linear"
                 dataKey={s.key}
                 stroke={SERIES_COLORS[i]}
                 strokeWidth={2}
