@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { RecordsRequest } from "@/lib/api/types";
+import { documentDownloadUrl } from "@/lib/api/documents";
+import type { RecordCopy, RecordsRequest } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
@@ -41,4 +42,28 @@ export async function declineRequest(input: z.input<typeof declineSchema>) {
   if (!parsed.success) return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Invalid request." };
   const { requestId, ...body } = parsed.data;
   return post(requestId, "decline", body);
+}
+
+const SECTIONS = ["allergies", "consultations", "laboratory", "prescriptions", "care_plans", "dental", "certificates", "documents"] as const;
+const date = z.iso.date();
+const copySchema = z.object({
+  requestId: id,
+  sections: z.array(z.enum(SECTIONS)).min(1, "Choose what the copy contains."),
+  periodFrom: date.optional(),
+  periodTo: date.optional(),
+});
+/** Compiles the chosen sections of the patient's record into one PDF, stored in the record for sharing. */
+export async function prepareCopy(input: z.input<typeof copySchema>): Promise<ActionResult<RecordCopy>> {
+  const parsed = copySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { requestId, ...body } = parsed.data;
+  const result = await actionResult(() => api<RecordCopy>(`/records-requests/${requestId}/copies`, { method: "POST", body }));
+  revalidatePath(`/records/requests/${requestId}`);
+  return result;
+}
+
+/** A short-lived link to check a document before sharing it (the API checks access and audits each link). */
+export async function documentLink(documentId: string): Promise<ActionResult<{ url: string }>> {
+  if (!id.safeParse(documentId).success) return { ok: false, message: "Unknown document." };
+  return actionResult(async () => ({ url: (await documentDownloadUrl(documentId)).url }));
 }

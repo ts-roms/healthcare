@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { periodText, waitingText } from "./records-mapping";
+import { orderedCopySections, periodText, waitingText } from "./records-mapping";
 
 describe("records request wording", () => {
   const f = (d: string) => d;
@@ -13,5 +13,10 @@ describe("records request wording", () => {
     expect(waitingText(0)).toBe("Today");
     expect(waitingText(1)).toBe("1 day");
     expect(waitingText(5)).toBe("5 days");
+  });
+
+  it("orders a copy's sections as the copy prints them", () => {
+    expect(orderedCopySections(["documents", "allergies", "laboratory"])).toEqual(["allergies", "laboratory", "documents"]);
+    expect(orderedCopySections([])).toEqual([]);
   });
 });

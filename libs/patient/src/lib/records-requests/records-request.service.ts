@@ -16,9 +16,15 @@ import { DocumentsService, type DocumentView } from "@healthcare/documents";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { PatientRecordService } from "../patient-record.service";
-import type { declineRecordsRequestSchema, fulfilRecordsRequestSchema, submitRecordsRequestSchema } from "./records-request.dto";
-import { daysWaiting, MAX_OPEN_RECORDS_REQUESTS, recordsRequestOpen } from "./records-request.rules";
-import { recordsRequest, recordsRequestDocument, recordsRequestNumberSequence, type RecordsRequestRecord } from "./records-request.schema";
+import type { declineRecordsRequestSchema, fulfilRecordsRequestSchema, prepareRecordCopySchema, submitRecordsRequestSchema } from "./records-request.dto";
+import { copySectionsForScope, daysWaiting, MAX_OPEN_RECORDS_REQUESTS, recordsRequestOpen } from "./records-request.rules";
+import {
+  recordsRequest,
+  recordsRequestDocument,
+  recordsRequestExport,
+  recordsRequestNumberSequence,
+  type RecordsRequestRecord,
+} from "./records-request.schema";
 
 const OPEN = ["submitted", "in_review"] as const;
 
@@ -189,10 +195,15 @@ export class RecordsRequestService {
   /** One request with the patient, what was shared and the documents in the patient's record that could be (audited). */
   async get(actor: Actor, requestId: string) {
     const request = await this.lock(this.db, actor.organizationId, requestId);
-    const [patients, shared, available] = await Promise.all([
+    const [patients, shared, available, copies] = await Promise.all([
       this.records.briefs(actor.organizationId, [request.patientId]),
       this.shared(actor.organizationId, [request.id]),
       recordsRequestOpen(request.status) ? this.documents.listForPatient(actor, request.patientId, false) : Promise.resolve([] as DocumentView[]),
+      this.db
+        .select()
+        .from(recordsRequestExport)
+        .where(and(eq(recordsRequestExport.organizationId, actor.organizationId), eq(recordsRequestExport.requestId, request.id)))
+        .orderBy(asc(recordsRequestExport.createdAt)),
     ]);
     await this.audit.recordStandalone(actor, {
       action: "patient.records-request.view",
@@ -207,7 +218,65 @@ export class RecordsRequestService {
       available: available
         .filter((d) => d.status === "available")
         .map((d) => ({ id: d.id, title: d.title, category: d.category, fileName: d.fileName, createdAt: d.createdAt })),
+      /** Copies of the record prepared for this request (each a record_copy document, shared like any other). */
+      copies: copies.map((c) => ({ documentId: c.id, sections: c.sections, periodFrom: c.periodFrom, periodTo: c.periodTo, createdAt: c.createdAt })),
+      /** Where a new copy starts from: the sections matching what the patient asked for. */
+      suggestedSections: copySectionsForScope(request.scope),
     };
+  }
+
+  /** The request a copy of the record is prepared for: open, with its patient (the caller compiles and stores the copy). */
+  async copyTarget(actor: Actor, requestId: string): Promise<RecordsRequestView> {
+    const request = await this.lock(this.db, actor.organizationId, requestId);
+    if (!recordsRequestOpen(request.status)) throw new BusinessRuleError("This request is closed", "request_closed");
+    return view(request);
+  }
+
+  /**
+   * Records a copy of the record stored as document `documentId` for the request, in the document's transaction (audited
+   * once; idempotent, as a stored document's bookkeeping must be).
+   */
+  async recordCopy(
+    tx: DbExecutor,
+    actor: Actor,
+    request: Pick<RecordsRequestView, "id" | "patientId" | "requestNumber">,
+    documentId: string,
+    input: z.infer<typeof prepareRecordCopySchema>,
+  ): Promise<void> {
+    const [current] = await tx
+      .select({ status: recordsRequest.status })
+      .from(recordsRequest)
+      .where(and(eq(recordsRequest.organizationId, actor.organizationId), eq(recordsRequest.id, request.id)))
+      .for("update");
+    if (!current || !recordsRequestOpen(current.status)) throw new BusinessRuleError("This request is closed", "request_closed");
+    const [inserted] = await tx
+      .insert(recordsRequestExport)
+      .values({
+        id: documentId,
+        organizationId: actor.organizationId,
+        requestId: request.id,
+        patientId: request.patientId,
+        sections: [...new Set(input.sections)],
+        periodFrom: input.periodFrom ?? null,
+        periodTo: input.periodTo ?? null,
+        createdBy: actor.userId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: recordsRequestExport.id });
+    if (!inserted) return;
+    await this.audit.record(tx, actor, {
+      action: "patient.records-request.copy",
+      resourceType: "records_request",
+      resourceId: request.id,
+      patientId: request.patientId,
+      metadata: {
+        requestNumber: request.requestNumber,
+        documentId,
+        sections: input.sections,
+        periodFrom: input.periodFrom ?? null,
+        periodTo: input.periodTo ?? null,
+      },
+    });
   }
 
   async startReview(actor: Actor, requestId: string, version: number) {

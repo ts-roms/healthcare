@@ -287,6 +287,36 @@ export class ClinicQueries {
     };
   }
 
+  /**
+   * The note of each of the patient's signed consultations as it stands: the latest signed or amendment revision (never
+   * a draft), for a copy of the record. Not audited here: the caller audits.
+   */
+  async signedNotes(organizationId: string, patientId: string) {
+    const rows = await this.db
+      .selectDistinctOn([encounterNoteRevision.encounterId], {
+        encounterId: encounterNoteRevision.encounterId,
+        revisionNumber: encounterNoteRevision.revisionNumber,
+        kind: encounterNoteRevision.kind,
+        subjective: encounterNoteRevision.subjective,
+        objective: encounterNoteRevision.objective,
+        assessment: encounterNoteRevision.assessment,
+        plan: encounterNoteRevision.plan,
+        amendmentReason: encounterNoteRevision.amendmentReason,
+        authoredAt: encounterNoteRevision.authoredAt,
+      })
+      .from(encounterNoteRevision)
+      .innerJoin(encounter, eq(encounter.id, encounterNoteRevision.encounterId))
+      .where(
+        and(
+          eq(encounterNoteRevision.organizationId, organizationId),
+          eq(encounter.patientId, patientId),
+          inArray(encounterNoteRevision.kind, ["signed", "amendment"]),
+        ),
+      )
+      .orderBy(encounterNoteRevision.encounterId, desc(encounterNoteRevision.revisionNumber));
+    return new Map(rows.map((r) => [r.encounterId, r]));
+  }
+
   /** Diagnoses recorded in the given encounters (claim preparation). Not audited here. */
   diagnosesForEncounters(organizationId: string, encounterIds: string[]) {
     if (encounterIds.length === 0) return Promise.resolve([]);

@@ -65,7 +65,9 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
 Records requests (migration 0068): `patient.records-request.manage` (org_admin,
 records_officer) reviews patients' requests for copies, shares documents or declines
-with a reason; audited `patient.records-request.view | review | fulfil | decline`.
+with a reason, and prepares copies of the record (migration 0070; they include the dental record and document list
+whatever the preparer's own clinical access, because they answer the patient's own request, and nothing reaches the
+patient until shared); audited `patient.records-request.view | review | fulfil | decline | copy`.
 Medical certificates use the encounter permissions (issue: `encounter.sign` and the
 consultation's responsible practitioner; void: the issuer or `encounter.amend`).
 Inventory valuation (migration 0061): `inventory.valuation.read` (org_admin,

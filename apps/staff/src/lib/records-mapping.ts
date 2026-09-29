@@ -1,4 +1,4 @@
-import type { RecordsRequestScope, RecordsRequestStatus } from "./api/types";
+import type { RecordCopySection, RecordsRequestScope, RecordsRequestStatus } from "./api/types";
 
 export const RECORDS_SCOPE_LABEL: Record<RecordsRequestScope, string> = {
   consultations: "Consultation records",
@@ -9,6 +9,24 @@ export const RECORDS_SCOPE_LABEL: Record<RecordsRequestScope, string> = {
   certificates: "Medical certificates",
   other: "Other",
 };
+
+/** The sections a copy of the record may contain, in the copy's order. */
+export const RECORD_COPY_SECTIONS: Array<{ key: RecordCopySection; label: string; hint: string }> = [
+  { key: "allergies", label: "Allergies", hint: "The current list, whatever the period" },
+  { key: "consultations", label: "Consultations", hint: "Signed notes, diagnoses and vital signs" },
+  { key: "laboratory", label: "Laboratory results", hint: "Released results only" },
+  { key: "prescriptions", label: "Prescriptions", hint: "Including cancelled and replaced ones, marked" },
+  { key: "care_plans", label: "Care plans", hint: "Goals and activities" },
+  { key: "dental", label: "Dental treatment", hint: "Procedures done and treatment plans" },
+  { key: "certificates", label: "Medical certificates", hint: "A list; each certificate is its own document" },
+  { key: "documents", label: "Documents on file", hint: "A list; share the files themselves separately" },
+];
+
+/** The chosen sections in the copy's order (the API orders them the same way). */
+export function orderedCopySections(chosen: Iterable<RecordCopySection>): RecordCopySection[] {
+  const set = new Set(chosen);
+  return RECORD_COPY_SECTIONS.map((s) => s.key).filter((k) => set.has(k));
+}
 
 /** Status as colour + icon + text (the icon is chosen by the page). */
 export const RECORDS_STATUS: Record<RecordsRequestStatus, { label: string; variant: "info" | "warning" | "success" | "neutral" | "danger" }> = {
