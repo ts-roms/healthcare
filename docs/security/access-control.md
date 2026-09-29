@@ -63,6 +63,11 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Records requests (migration 0068): `patient.records-request.manage` (org_admin,
+records_officer) reviews patients' requests for copies, shares documents or declines
+with a reason; audited `patient.records-request.view | review | fulfil | decline`.
+Medical certificates use the encounter permissions (issue: `encounter.sign` and the
+consultation's responsible practitioner; void: the issuer or `encounter.amend`).
 Inventory valuation (migration 0061): `inventory.valuation.read` (org_admin,
 inventory_officer). Supplier invoices use the procurement permissions (approval
 never by the recorder — database constraint); audited

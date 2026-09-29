@@ -1,5 +1,15 @@
 import Link from "next/link";
-import { CalendarIcon, CalendarPlusIcon, CheckCircle2Icon, ClipboardListIcon, FlaskConicalIcon, PillIcon, ReceiptIcon, type LucideIcon } from "lucide-react";
+import {
+  CalendarIcon,
+  CalendarPlusIcon,
+  CheckCircle2Icon,
+  ClipboardListIcon,
+  FileTextIcon,
+  FlaskConicalIcon,
+  PillIcon,
+  ReceiptIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ResultMeaning } from "@/components/result-meaning";
 import { VisitCard } from "@/components/visit-card";
@@ -15,6 +25,7 @@ const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[]
   { label: "Lab results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
   { label: "Bills", href: "/billing", icon: ReceiptIcon, tone: "bg-warning-subtle text-warning-foreground" },
+  { label: "Documents", href: "/documents", icon: FileTextIcon, tone: "bg-muted text-foreground" },
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {

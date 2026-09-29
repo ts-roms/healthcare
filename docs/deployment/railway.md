@@ -22,8 +22,9 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
   backend app therefore depends on its own `typecheck` (which depends on `^typecheck`), declared in the app's
   `package.json`, and `typecheck` declares `dist`/`out-tsc` as outputs in `nx.json` so a cache hit restores them. A plain
   `nx run api:build` works from a clean checkout, so the build command is just that.
-- **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff` and `apps/portal` hard-code ports 3000 and
-  3001 for local development. The Railway start command runs `next start --port $PORT` instead.
+- **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff` and `apps/portal` use `${PORT:-3000}` and
+  `${PORT:-3001}`: Railway's `$PORT` when set, the local development ports otherwise. The Railway start command also
+  passes `--port $PORT` explicitly, so a service still deploys if Railpack falls back to the `start` script.
 - `pnpm db:migrate` runs as the API's pre-deploy command. It needs dev dependencies (`@swc-node/register`), so do not
   enable `RAILPACK_PRUNE_DEPS`.
 

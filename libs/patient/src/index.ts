@@ -17,3 +17,7 @@ export * from "./lib/merge/patient-merge.schema";
 export * from "./lib/merge/patient-merge.service";
 export * from "./lib/merge/patient-merge.module";
 export * from "./lib/merge/ports";
+export * from "./lib/records-requests/records-request.schema";
+export * from "./lib/records-requests/records-request.service";
+export * from "./lib/records-requests/records-request.rules";
+export { SubmitRecordsRequestDto } from "./lib/records-requests/records-request.dto";

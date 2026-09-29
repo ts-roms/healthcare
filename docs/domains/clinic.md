@@ -34,6 +34,32 @@ Appointment (or walk-in) → check-in → queue (visit) → triage + vitals → 
 All references use composite keys so a record can only point at the same organization's — and where relevant the same
 patient's — rows.
 
+## Medical certificates
+
+`medical_certificate` (migration `0068`; `libs/clinic/src/lib/certificates`) — issued from a **signed** consultation, in
+person or online, by its **responsible practitioner** (`encounter.sign`; `encounter_not_signed`, 403 otherwise). The
+practitioner writes the purpose, the findings or diagnosis as they will be printed (prefilled in the staff app from the
+consultation's active diagnoses), optional recommendations and an optional rest period (both dates included, at most a
+year); the platform supplies no wording any agency or employer requires. Numbered per organization `MC########`
+(`medical_certificate_number_sequence`), with the consultation's local date (`examined_on`). **Immutable** (guard
+trigger: content never changes, never deleted); a mistaken certificate is **voided** once with a reason (≥ 5 characters)
+by the issuing practitioner or staff with `encounter.amend`, and another issued.
+
+- **Printable copy**: a PDF (facility letterhead, number, date issued, patient name, number, age and sex, examined / seen
+  online on, purpose, findings, recommendations, rest days, the practitioner's name and license number, a footer that the
+  facility can confirm the number) stored once through `DocumentsService.storeGenerated` as a `medical_certificate`
+  document of the patient **whose id is the certificate's** — idempotent, so a retry or a later request never makes a
+  second copy. It appears with the patient's documents, in the timeline, Patient 360 and FHIR `DocumentReference`s like
+  any document. Voiding archives it; the staff copy of a voided certificate is rendered fresh with a VOID watermark (not
+  stored).
+- **MyHealth**: the patient lists issued certificates (purpose, date, practitioner, rest days — not the findings) and
+  downloads them through a short-lived link (`GET /portal/certificates/:id/link`, audited as the patient's download).
+  `MedicalCertificateIssued` sends the `records.update` notice (in-app and SMS/email, no clinical detail).
+- API: `GET|POST /encounters/:id/certificates` (`encounter.read` | `encounter.sign`), `GET /medical-certificates/:id`,
+  `GET /medical-certificates/:id/certificate.pdf` (`encounter.read`, audited as a download or, for a void one,
+  `encounter.certificate.print`), `POST /medical-certificates/:id/void`. Audit `encounter.certificate.issue | void`;
+  events `MedicalCertificateIssued`, `MedicalCertificateVoided` (ids and the number only).
+
 ## Rules
 
 - Queue order: priority (`emergency`, `urgent`, `routine`), then arrival. Transitions are a state machine

@@ -9,10 +9,12 @@ import { PatientAccessGuard } from "./portal/patient-access.guard";
 import { PatientPortalAccountController, PortalController } from "./portal/portal.controller";
 import { PortalAccountService } from "./portal/portal-account.service";
 import { PortalTokenService } from "./portal/portal-tokens";
+import { RecordsRequestController } from "./records-requests/records-request.controller";
+import { RecordsRequestService } from "./records-requests/records-request.service";
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [PatientController, PortalController, PatientPortalAccountController],
+  controllers: [PatientController, PortalController, PatientPortalAccountController, RecordsRequestController],
   providers: [
     PatientRecordService,
     PatientReportingQueries,
@@ -21,7 +23,8 @@ import { PortalTokenService } from "./portal/portal-tokens";
     PortalAccountService,
     PortalTokenService,
     PatientAccessGuard,
+    RecordsRequestService,
   ],
-  exports: [PatientRecordService, PatientReportingQueries, PatientRegistrationService, PortalAccountService, PatientAccessGuard],
+  exports: [PatientRecordService, PatientReportingQueries, PatientRegistrationService, PortalAccountService, PatientAccessGuard, RecordsRequestService],
 })
 export class PatientModule {}

@@ -196,6 +196,40 @@ export const TEMPLATES = [
     },
   }),
   defineTemplate({
+    key: "records.update",
+    version: 1,
+    category: "administrative",
+    // Leaves the platform (SMS/email): no diagnosis, purpose or document title — only a pointer to MyHealth.
+    channels: ["sms", "email", "in_app"],
+    variables: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("certificate-ready"), organizationName: shortText }),
+      z.object({ kind: z.literal("request-answered"), organizationName: shortText, requestNumber: z.string().regex(/^RR\d{8}$/) }),
+    ]),
+    render: (v) =>
+      v.kind === "certificate-ready"
+        ? {
+            subject: "Your medical certificate is ready",
+            text: `${v.organizationName}: a medical certificate from your visit is ready in MyHealth. Sign in to download it.`,
+          }
+        : {
+            subject: `Your records request ${v.requestNumber} was answered`,
+            text: `${v.organizationName}: the records office answered your request ${v.requestNumber}. Sign in to MyHealth to see the answer.`,
+          },
+  }),
+  defineTemplate({
+    key: "records.request-new",
+    version: 1,
+    category: "administrative",
+    // In-app to the records office. The request number only: what was asked is read in the request, behind access control.
+    channels: ["in_app"],
+    variables: z.object({ requestId: z.uuid(), requestNumber: z.string().regex(/^RR\d{8}$/) }),
+    render: (v) => ({
+      subject: `New records request ${v.requestNumber}`,
+      text: `A patient asked for copies of their records (${v.requestNumber}). Review it and share the documents or decline with a reason.`,
+      href: `/records/requests/${v.requestId}`,
+    }),
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",

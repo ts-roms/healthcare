@@ -162,6 +162,21 @@ You need `appointment.manage`.
 Only the responsible practitioner — the one who started the consultation — can sign, and needs `encounter.sign`. If the organization has linked
 a billing service to the visit type, signing also creates the consultation charge (see [Billing](10-billing.md)).
 
+## How to issue a medical certificate
+
+Certificates are issued once the consultation is signed — in person or online — by its responsible practitioner (`encounter.sign`).
+
+1. On the signed encounter, find **Medical certificates** and select **Issue a certificate**.
+2. Write the **Purpose** (for example "Absence from work"), check the **Findings / diagnosis** — filled in from the consultation's diagnoses; edit
+   it to what should be printed — and add **Recommendations** if any.
+3. For a rest period, choose **Rest from** and **to** (both days included).
+4. Select **Issue certificate**. It gets a number (`MC########`); select **Print** for the printed copy with your name and license number. The
+   patient can also download it in MyHealth (**Documents**) and gets a message that it is ready — without the findings.
+
+An issued certificate cannot be edited. If it is wrong, select **Void…**, give the reason and issue a new one. The issuing practitioner, or staff
+who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
+an employer, school or agency may require — write what they need in your own words.
+
 ## How to amend a signed encounter
 
 1. Open the signed encounter and select **Amend note** (needs `encounter.amend`).

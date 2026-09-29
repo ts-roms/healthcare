@@ -17,8 +17,9 @@ Telemedicine owns what is specific to being online: the session, questionnaire, 
 Patients book online consultations themselves in MyHealth when the clinic opens the telemedicine visit type for online
 booking (see [portal-app.md](../architecture/portal-app.md)); staff can also book them.
 
-Not in scope yet: online payment (Phase 7 billing; a payment gateway is an integration dependency), medical certificates
-as generated documents, and in-app chat.
+Not in scope yet: online payment (Phase 7 billing; a payment gateway is an integration dependency) and in-app chat.
+Medical certificates are issued from the signed online consultation like any other (see
+[clinic.md](clinic.md#medical-certificates)); the printed certificate says the patient was seen online.
 
 ## Entities
 

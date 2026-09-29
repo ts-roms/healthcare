@@ -96,7 +96,10 @@ export const STAFF_NAVIGATION: NavItem[] = [
     href: "/records",
     icon: FileInputIcon,
     roles: ["admin"],
-    children: [{ label: "Imports", href: "/records/imports" }],
+    children: [
+      { label: "Requests", href: "/records/requests" },
+      { label: "Imports", href: "/records/imports" },
+    ],
   },
   {
     label: "Administration",

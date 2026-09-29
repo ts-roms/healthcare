@@ -1,4 +1,4 @@
-import { boolean, date, integer, jsonb, numeric, pgTable, primaryKey, smallint, text, time, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, jsonb, numeric, pgTable, primaryKey, smallint, text, time, timestamp, uuid } from "drizzle-orm/pg-core";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -366,3 +366,33 @@ export type VitalSignSetRecord = typeof vitalSignSet.$inferSelect;
 export type AllergyRecord = typeof allergyIntolerance.$inferSelect;
 export type ExternalHistoryRecord = typeof externalHistoryEntry.$inferSelect;
 export type ScheduleRecord = typeof practitionerSchedule.$inferSelect;
+
+// ---- Medical certificates (0068) --------------------------------------------------------------
+
+export const medicalCertificateNumberSequence = pgTable("medical_certificate_number_sequence", {
+  organizationId: uuid("organization_id").primaryKey(),
+  nextValue: bigint("next_value", { mode: "number" }).notNull(),
+});
+
+export const medicalCertificate = pgTable("medical_certificate", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  encounterId: uuid("encounter_id").notNull(),
+  practitionerId: uuid("practitioner_id").notNull(),
+  certificateNumber: text("certificate_number").notNull(),
+  examinedOn: date("examined_on", { mode: "string" }).notNull(),
+  purpose: text("purpose").notNull(),
+  findings: text("findings").notNull(),
+  recommendations: text("recommendations"),
+  restFrom: date("rest_from", { mode: "string" }),
+  restTo: date("rest_to", { mode: "string" }),
+  status: text("status").$type<"issued" | "void">().notNull().default("issued"),
+  issuedAt: ts("issued_at").notNull().defaultNow(),
+  issuedBy: uuid("issued_by").notNull(),
+  voidedAt: ts("voided_at"),
+  voidedBy: uuid("voided_by"),
+  voidReason: text("void_reason"),
+});
+export type MedicalCertificateRecord = typeof medicalCertificate.$inferSelect;

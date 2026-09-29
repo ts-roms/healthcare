@@ -16,3 +16,5 @@ export type { VisitView, QueueEntryView } from "./lib/queue/visit.service";
 export type { EncounterView } from "./lib/encounters/encounter.service";
 export type { AppointmentListItem, AppointmentView } from "./lib/appointments/appointment.service";
 export { PatientBookDto, PatientCancelDto, PatientRescheduleDto, PatientSlotsDto } from "./lib/clinic.dto";
+export * from "./lib/certificates/medical-certificate.service";
+export * from "./lib/certificates/medical-certificate.rules";

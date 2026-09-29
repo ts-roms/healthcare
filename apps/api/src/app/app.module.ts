@@ -46,10 +46,12 @@ import { PatientTimelineService } from "./patient-timeline/patient-timeline.serv
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
+import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
+import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
 import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
@@ -192,6 +194,7 @@ export class AppModule implements NestModule {
         PortalBillingController,
         PortalBookingController,
         PortalDentalController,
+        PortalDocumentsController,
         PortalMessagesController,
         PortalRecordsController,
         PortalTeleconsultController,
@@ -207,6 +210,7 @@ export class AppModule implements NestModule {
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,
+        PatientRecordsNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

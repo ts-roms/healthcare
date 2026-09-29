@@ -3514,3 +3514,61 @@ export interface LabReagentUsage {
     nonPatientShare: number | null;
   }>;
 }
+
+// ---- Medical certificates and records requests (migration 0068) ----------------------------------------------------
+
+/** GET /encounters/:id/certificates, GET /medical-certificates/:id */
+export interface MedicalCertificate {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  practitionerId: string;
+  practitionerName: string | null;
+  certificateNumber: string;
+  examinedOn: string;
+  purpose: string;
+  findings: string;
+  recommendations: string | null;
+  restFrom: string | null;
+  restTo: string | null;
+  restDays: number | null;
+  status: "issued" | "void";
+  issuedAt: string;
+  issuedBy: string;
+  voidedAt: string | null;
+  voidedBy: string | null;
+  voidReason: string | null;
+}
+
+export type RecordsRequestScope = "consultations" | "laboratory" | "prescriptions" | "dental" | "imaging" | "certificates" | "other";
+export type RecordsRequestStatus = "submitted" | "in_review" | "fulfilled" | "declined" | "withdrawn";
+
+/** GET /records-requests */
+export interface RecordsRequest {
+  id: string;
+  patientId: string;
+  requestNumber: string;
+  scope: RecordsRequestScope[];
+  periodFrom: string | null;
+  periodTo: string | null;
+  details: string | null;
+  purpose: string | null;
+  status: RecordsRequestStatus;
+  submittedAt: string;
+  reviewStartedAt: string | null;
+  reviewStartedBy: string | null;
+  responseNote: string | null;
+  closedAt: string | null;
+  closedBy: string | null;
+  version: number;
+  daysWaiting: number;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+}
+
+/** GET /records-requests/:id */
+export interface RecordsRequestDetail extends RecordsRequest {
+  shared: Array<{ documentId: string; title: string; category: string; sharedAt: string; status: string }>;
+  /** Available documents of the patient's record that can be shared (while the request is open). */
+  available: Array<{ id: string; title: string; category: string; fileName: string; createdAt: string }>;
+}

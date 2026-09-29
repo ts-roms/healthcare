@@ -34,19 +34,20 @@ Names differ from the staff app's (`hc_*`) so the two sessions never mix on one 
 
 ## Data
 
-| Area                          | Source                                                                                                                                         |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                                           |
-| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                                                     |
-| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                                         |
-| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}`                        |
-| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                                                     |
-| Medicines                     | `GET /portal/prescriptions` (active)                                                                                                           |
-| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                                             |
-| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                                     |
-| Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts)                    |
-| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                                                  |
-| Dental (when shared)          | `GET /portal/dental/availability`, `GET /portal/dental/record`, `GET /portal/dental/images/:id/link`, `POST /portal/dental/plans/:id/decision` |
+| Area                          | Source                                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in, activation, sign-out | API `/portal/auth/*`                                                                                                                                                                           |
+| Greeting, Profile             | API `GET /portal/me` (identity only: name, patient number, birth date, sex, clinic, email)                                                                                                     |
+| Home, Visits                  | `GET /portal/appointments` (upcoming and the past year; clinic time zone; `canCancel`/`canReschedule`)                                                                                         |
+| Book, change, cancel          | `GET /portal/booking/{options,slots}`, `POST /portal/appointments`, `POST /portal/appointments/:id/{reschedule,cancel}`                                                                        |
+| Results, result detail        | `GET /portal/results`, `GET /portal/results/trend?testId=`                                                                                                                                     |
+| Medicines                     | `GET /portal/prescriptions` (active)                                                                                                                                                           |
+| Care plan                     | `GET /portal/care-plans` (active plans: goals, what you can do, what is coming up)                                                                                                             |
+| Online consultation           | `GET/PUT/POST /portal/teleconsults/*` (questionnaire, waiting room, video)                                                                                                                     |
+| Bills                         | `GET /portal/billing` and `/account`: invoices, coverage, payments, deposits and credit, credit notes, balances (no drafts)                                                                    |
+| Messages                      | `GET /portal/messages`, `GET /portal/messages/unread-count`, `POST /portal/messages/:id/read`                                                                                                  |
+| Dental (when shared)          | `GET /portal/dental/availability`, `GET /portal/dental/record`, `GET /portal/dental/images/:id/link`, `POST /portal/dental/plans/:id/decision`                                                 |
+| Documents                     | `GET /portal/documents`, `GET /portal/certificates/:id/link`, `POST /portal/records-requests`, `POST /portal/records-requests/:id/withdraw`, `GET /portal/records-requests/documents/:id/link` |
 
 **Patient merge.** After a merge the MyHealth account belongs to the surviving record (moved when only the retired
 record had one; otherwise the retired record's account is disabled with reason `merged`; its sessions are revoked, so
@@ -80,6 +81,8 @@ confirmations, "we missed you" after a no-show, care-plan follow-up reminders an
 record ("Message in MyHealth", `clinic.message`). New ones are labelled and marked read once shown; the navigation shows
 the unread count. Each message links to where to act (results, visits, booking; `lib/messages.ts`). Messages are
 one-way: the page tells patients to call the clinic, or 911 in an emergency.
+
+**Documents** (`/documents`, a **Documents** button on Home; `portal-documents.controller.ts`, audited `portal.documents-view`): the patient's issued medical certificates (purpose, visit date, practitioner, rest days — never the findings) and their records requests with the records office's note or reason and the documents shared, each opened through a short-lived audited link; a form to ask for copies (what, period, details, purpose; at most 3 open) and **Withdraw this request**. The `records.update` message links here.
 
 **Dental.** Off unless the organization turns on "Dental records in MyHealth" (`/dental/settings`, `dental.settings.manage`;
 off by default). The navigation shows **Dental** only when `GET /portal/dental/availability` says records are shared and

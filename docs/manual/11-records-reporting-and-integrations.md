@@ -7,7 +7,8 @@ with a short note on the FHIR read interface other systems can use.
 
 **Who uses it.**
 
-- **Records officers** and organization administrators: merging duplicate patient records (`patient.merge`) and record imports (`/records/imports`).
+- **Records officers** and organization administrators: merging duplicate patient records (`patient.merge`), patients' records requests
+  (`/records/requests`) and record imports (`/records/imports`).
 - **Physicians**, records officers and organization administrators: disease case reports (`/reporting`).
 - **Organization administrators**: reportable-condition settings (`/reporting/settings`) and integration review (`/admin/integrations`).
 - **Platform administrators** (the people who run the platform's servers): payload encryption keys.
@@ -72,6 +73,23 @@ If a record already had other records merged into it and is itself merged, those
 On the surviving record, under **Merged records**, select **Unmerge…** next to the retired number, give the reason and confirm. The retired record
 gets its previous status and everything filed under it back as a separate patient; a MyHealth account moved at the merge moves back. What was
 recorded on the surviving record **after** the merge stays there — check it and correct anything that belongs to the other person.
+
+## How to answer a patient's records request
+
+Patients ask for copies of their records in MyHealth (**Documents**). You need `patient.records-request.manage` (records officers and organization
+administrators). You get a message under the bell for each new request.
+
+1. Open **Records** → **Requests**. Open requests are listed oldest first, with how long each has waited.
+2. Open one to see what the patient asked for (consultation records, laboratory results, prescriptions, dental records, X-rays and images,
+   medical certificates or something else), the period, details and purpose. Opening it is recorded.
+3. Select **Take into review** so colleagues see someone is working on it (optional).
+4. Confirm the requester as your organization's Data Privacy Act procedures require. The platform encodes no deadline, fee or disclosure rule.
+5. To share copies: upload them to the patient's record first if they are not there (see [Patients](02-patients.md)), tick the documents under
+   **Documents to share**, add a **Note to the patient** if useful, and select **Share**. The patient downloads them in MyHealth.
+6. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
+
+The patient is told by message (and SMS or email) that the request was answered, without details. An answered request cannot be changed; the patient
+can send a new one. Patients can have at most 3 open requests and can withdraw an open one.
 
 ## How to review records sent by another provider (FHIR imports)
 

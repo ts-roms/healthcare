@@ -14,7 +14,7 @@ import {
   PgErrorCode,
   filedAsPatient,
 } from "@healthcare/core";
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
 import { document, type DocumentCategory, type DocumentManager, type DocumentRecord } from "./document.schema";
@@ -147,6 +147,22 @@ export class DocumentsService {
 
   async get(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
     return toView(await this.find(actor.organizationId, documentId, scope));
+  }
+
+  /**
+   * Titles, categories and statuses of documents by id (no content, no link), for a domain that lists documents it
+   * refers to (e.g. those shared in answer to a records request). Not audited: opening one is.
+   */
+  async describe(
+    organizationId: string,
+    documentIds: readonly string[],
+  ): Promise<Map<string, Pick<DocumentView, "title" | "category" | "status" | "patientId">>> {
+    if (!documentIds.length) return new Map();
+    const rows = await this.db
+      .select({ id: document.id, title: document.title, category: document.category, status: document.status, patientId: document.patientId })
+      .from(document)
+      .where(and(eq(document.organizationId, organizationId), inArray(document.id, [...new Set(documentIds)])));
+    return new Map(rows.map(({ id, ...rest }) => [id, rest]));
   }
 
   async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
