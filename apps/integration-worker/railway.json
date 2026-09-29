@@ -1,0 +1,23 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "NX_DAEMON=false pnpm nx run-many -t typecheck -p integration-worker --output-style=static && NX_DAEMON=false pnpm nx run integration-worker:build --output-style=static",
+    "watchPatterns": [
+      "apps/integration-worker/**",
+      "libs/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "nx.json",
+      "tsconfig.base.json",
+      "tsconfig.node.json",
+      ".nvmrc"
+    ]
+  },
+  "deploy": {
+    "startCommand": "node apps/integration-worker/dist/main.js",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
