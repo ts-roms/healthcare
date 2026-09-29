@@ -8,7 +8,7 @@ payments, communications, imported history and documents — newest first, each 
 the record.
 
 The timeline is a **read model composed in the API** (`apps/api/src/app/patient-timeline`), like the Patient 360
-summary and the FHIR record. It owns no tables and changes nothing. It is not a copy of the record: each row is a short,
+summary and workspace ([patient-360.md](patient-360.md)) and the FHIR record. It owns no tables and changes nothing. It is not a copy of the record: each row is a short,
 non-sensitive summary (ids, times, statuses, codes, names), and the linked screen — with its own permission check and
 audit — shows the rest. It is not a patient-facing view (MyHealth has its own released-only screens).
 

@@ -2,11 +2,11 @@
 
 **What this is for.** Every patient has exactly one record in your organization, shared by the clinic, laboratory, dental, telemedicine, pharmacy and billing.
 This chapter shows how to find a patient, register a new one without creating a duplicate, read the patient record, record allergies and consent, give the
-patient access to MyHealth (the patient portal), send them a MyHealth message, and use the timeline. It also covers the PhilHealth eligibility and YAKAP
-answers kept on the record, and the laboratory reports archived there.
+patient access to MyHealth (the patient portal), send them a MyHealth message, use the Patient 360 workspace and the timeline. It also covers the PhilHealth
+eligibility and YAKAP answers kept on the record, and the laboratory reports archived there.
 
 **Who uses it.** Receptionists and records officers (search, registration, consent, MyHealth access), nurses and physicians (allergies, clinical summary,
-timeline), cashiers and receptionists (PhilHealth answers), and anyone who needs to look up a patient.
+timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and anyone who needs to look up a patient.
 
 ## How to find a patient
 
@@ -15,7 +15,8 @@ timeline), cashiers and receptionists (PhilHealth answers), and anyone who needs
    Philippine format. Accents don't matter: "pena" finds "Peña".
 3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.
 4. Select **Search**.
-5. Select the patient's name to open their record. Use **Previous** and **Next** when there is more than one page (25 per page).
+5. Select the patient's name to open their record, or **360** next to it to open the Patient 360 workspace. Use **Previous** and **Next** when there is more
+   than one page (25 per page).
 
 The results show only what you need to pick the right person: name, **Patient no.**, **Birth date**, **Age / Sex**, a masked **Mobile** number and
 **Status**. Inactive and merged records are not listed.
@@ -70,6 +71,7 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
 - **Patient banner** at the top: name, patient number, age, sex and the allergy statement.
 - A yellow **Record status** line if the patient is not active (for example deceased, with the date, or merged, with **Open the surviving record**).
 - **Action buttons** (each only if you have the permission):
+  - **Patient 360** — the doctor's one-screen workspace (see below).
   - **Timeline** — the whole record in date order (see below).
   - **Check in (walk-in)** — put the patient in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
   - **Book appointment** (`appointment.manage`).
@@ -191,6 +193,33 @@ The patient reads it after signing in to MyHealth and cannot reply. The text nev
 call the patient.
 
 If you don't see **Message in MyHealth**, you need the `notification.send` permission (receptionists by default), and the patient needs an active account.
+
+## How to use the Patient 360 workspace
+
+Patient 360 (`/patients/[id]/360`) puts what a clinician needs before and during a consultation on one screen. Open it with **Patient 360** on the patient
+record, **360** in the search results, **Patient 360** on a queue ticket, or **Patient 360** in the encounter workspace's banner.
+
+- **Banner** — name, patient number, age, sex, the allergy statement and the PhilHealth PIN masked to its last four digits. **Open consultation** appears when a
+  consultation is in progress; **Patient record** and **Timeline** go to those screens.
+- **Alerts** under the banner, each with an icon and words (never colour alone): critical results not yet acknowledged by the care team (select one to open
+  **Critical results**), chronic problems, a refused or withdrawn treatment, data-processing or telemedicine consent, no MyHealth consent, and the record's
+  status when it is not active.
+- **Current consultation** — the consultation in progress (yours at your facility first), with its note state (draft saved or not started), diagnoses, open
+  laboratory orders and active prescriptions. Select **Open in the encounter workspace** to write the note, add diagnoses, order tests or prescribe. When none
+  is in progress and the patient is in today's queue at your facility, you can **Start consultation** (or open Telemedicine for an online visit); otherwise it
+  says "No consultation in progress."
+- **Recent consultations** — the last five, with their diagnoses. Select one to open it.
+- **Recent activity** — the latest timeline entries; **Full timeline** opens the timeline.
+- **Laboratory results** — the latest released value of the patient's most relevant tests (critical and abnormal first, then tests with earlier results), with
+  **Trend** for each and a small chart for up to two tests. **All results** goes to the record's laboratory section.
+- **Open laboratory orders** — each order's priority, when it was ordered and each test's stage (for example "To collect").
+- **Images and documents** — dental radiographs and photos and the documents uploaded for the patient. Select one to open it (a link valid for a few minutes;
+  each opening is recorded).
+- **Problem list**, **Active medications** (with prescriber, prescription number and date), **Care plans** (with the next due activity and **Overdue** when it
+  is past) and **Latest vitals**.
+
+Every panel shows only what your role may read. A panel you may not see says "Not available to you." — it never means "none". Nothing is edited here: each
+panel links to the screen where the work is done. Opening Patient 360 is recorded in the audit trail.
 
 ## How to use the timeline
 

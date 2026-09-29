@@ -23,7 +23,7 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 | MFA                       | Multi-factor authentication. Staff may be asked for a 6-digit code from an authenticator app (TOTP) after the password.                                                   |
 | MyHealth                  | The patient portal: patients see visits, released results, medicines, care plans, bills, messages and (if shared) dental records. See [chapter 12](12-patient-portal.md). |
 | Organization              | Your clinic group as a whole. Settings such as tax profile, dental sharing and reportable conditions are set per organization.                                            |
-| Patient 360               | The patient record page (`/patients/[id]`) that brings together demographics, allergies, clinical summary, consent and recent activity.                                   |
+| Patient 360               | The clinician's one-screen workspace (`/patients/[id]/360`): alerts, current consultation, problems, medicines, care plans, results and trends, images and history.       |
 | Patient number            | The patient's identifier within your organization (format `P` followed by 8 digits). Printed on cards and receipts; patients use it to set up MyHealth.                   |
 | Permission                | A single right such as `encounter.sign`. **Roles** are sets of permissions. A missing button usually means a missing permission.                                          |
 | Placeholder page          | A menu item for a module not built yet. It shows that the module is not available; it holds no data.                                                                      |
