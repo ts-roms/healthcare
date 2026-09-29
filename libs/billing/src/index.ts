@@ -16,3 +16,4 @@ export * from "./lib/payments/online-payment.service";
 export * from "./lib/payments/payment-gateway";
 export * from "./lib/payments/payment.service";
 export * from "./lib/ports";
+export * from "./lib/catalog/billing-price.queries";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortalDentalTooth, PortalToothCondition, PortalToothSurface } from "./api/types";
-import { chartRows, conditionsText, decisionSummary, planItemState, surfacesText, toothText, toothTone } from "./dental";
+import { chartRows, conditionsText, decisionSummary, planItemState, selectionEstimate, surfacesText, toothText, toothTone } from "./dental";
 
 const tooth = (t: string, conditions: Array<[PortalToothCondition, PortalToothSurface[]]>): PortalDentalTooth => ({
   tooth: t,
@@ -57,5 +57,15 @@ describe("plan decision summary", () => {
     expect(decisionSummary(items, new Set(["a", "b"]))).toBe("You accept all 2 treatments.");
     expect(decisionSummary(items, new Set())).toBe("You decline all 2 treatments.");
     expect(decisionSummary(items.slice(0, 1), new Set(["a"]))).toBe("You accept this treatment.");
+  });
+
+  it("adds up the estimate of the ticked treatments, counting those without a listed price", () => {
+    const priced = [
+      { id: "a", estimatedFee: 150_000 },
+      { id: "b", estimatedFee: 80_000 },
+      { id: "c", estimatedFee: null },
+    ];
+    expect(selectionEstimate(priced, new Set(["a", "c"]))).toEqual({ total: 150_000, unpriced: 1 });
+    expect(selectionEstimate(priced, new Set())).toEqual({ total: 0, unpriced: 0 });
   });
 });

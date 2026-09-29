@@ -128,7 +128,11 @@ does **not** stage or grade periodontitis — record your diagnosis in the visit
 4. Click **Add item** for more items; remove one with the bin icon.
 5. Click **Propose plan**. The plan appears as **Proposed — awaiting the patient's decision**.
 
-Plans carry **no prices**. Fees come from billing; explain them to the patient separately.
+Plans carry no prices of their own: fees come from billing's price list. An open plan shows a **Fee estimate** of the work still ahead — each
+item awaiting a decision or accepted and not yet done at today's listed price, the totals, and "No listed price" for a procedure whose code has
+no priced billing service (map it in billing settings). Discounts, packages and HMO or PhilHealth coverage are not applied. Click **Print
+estimate** for a copy the patient can take home and sign. Once the patient decides, each item shows "Estimate at decision" — the price it had
+that day.
 
 ## How to record the patient's decision
 

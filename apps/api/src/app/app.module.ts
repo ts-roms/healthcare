@@ -10,7 +10,7 @@ import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor
 import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
-import { BillingModule } from "@healthcare/billing";
+import { BillingModule, BillingPricesModule } from "@healthcare/billing";
 import { DohReportingModule, FhirImportModule, IntegrationModule, ReferenceLabIntegrationModule } from "@healthcare/interoperability";
 import { NotificationModule } from "@healthcare/notification";
 import { OrganizationModule } from "@healthcare/organization";
@@ -22,7 +22,7 @@ import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
-import { AppDentalContext, AppDentalSupplies } from "./adapters/dental-adapters";
+import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
 import { AppFhirImportTargets } from "./adapters/fhir-import-adapters";
 import { AppExchangePatients } from "./adapters/integration-adapters";
@@ -92,8 +92,14 @@ export class AppModule implements NestModule {
       archiveQueue: overrides.labReportArchiveQueue,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
-    // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction.
-    const dental = DentalModule.forRoot({ imports: [PatientModule, AuthModule, InventoryModule], context: AppDentalContext, supplies: AppDentalSupplies });
+    // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction; fee estimates read
+    // billing's listed prices through another (only the price read: billing imports dentistry).
+    const dental = DentalModule.forRoot({
+      imports: [PatientModule, AuthModule, InventoryModule, BillingPricesModule],
+      context: AppDentalContext,
+      supplies: AppDentalSupplies,
+      fees: AppDentalFees,
+    });
     // Imported by the app and by the PhilHealth claims module (which reads invoices through an adapter).
     const billing = BillingModule.forRoot({
       imports: [PatientModule, laboratory, dental],

@@ -1,7 +1,8 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql,
-// 0057_dental_supplies.sql and 0058_dental_portal_images_decisions.sql (the migrations are the source of truth).
+// 0057_dental_supplies.sql, 0058_dental_portal_images_decisions.sql
+// and 0060_dental_fee_estimates.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -120,6 +121,9 @@ export const dentalTreatmentPlanItem = pgTable("dental_treatment_plan_item", {
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  // 0060: the listed price (centavos; null: none) the item carried when the patient decided it, and the date priced on.
+  decisionEstimate: bigint("decision_estimate", { mode: "number" }),
+  decisionEstimateOn: date("decision_estimate_on", { mode: "string" }),
 });
 export type DentalTreatmentPlanItemRecord = typeof dentalTreatmentPlanItem.$inferSelect;
 
@@ -237,6 +241,9 @@ export const dentalOrganizationSetting = pgTable("dental_organization_setting", 
   // 0058: patients decide plans in MyHealth, after confirming the organization's own acknowledgement text.
   portalPlanDecisions: boolean("portal_plan_decisions").notNull().default(false),
   portalPlanAcknowledgement: text("portal_plan_acknowledgement"),
+  // 0060: MyHealth shows fee estimates on plans; the organization's own note under every estimate.
+  portalPlanEstimates: boolean("portal_plan_estimates").notNull().default(false),
+  feeEstimateNote: text("fee_estimate_note"),
   version: integer("version").notNull().default(1),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),

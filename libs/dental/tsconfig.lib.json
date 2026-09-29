@@ -18,6 +18,9 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../pdf/tsconfig.lib.json"
+    },
+    {
       "path": "../organization/tsconfig.lib.json"
     },
     {

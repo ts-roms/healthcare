@@ -8,6 +8,7 @@ import type {
   DentalSupplyOptions,
   DentalSupplyUse,
   DentalSupplyUseLine,
+  DentalTreatmentPlan,
   DentalVisit,
 } from "./api/types";
 
@@ -155,4 +156,15 @@ export function supplyErrors(code: string | undefined, message: string, details:
     );
   }
   return {};
+}
+
+/** Plans with work still ahead (open, with items awaiting a decision or accepted and not yet done): these get a fee estimate. */
+export function plansWithEstimate(plans: readonly Pick<DentalTreatmentPlan, "id" | "status" | "items">[]): string[] {
+  return plans
+    .filter(
+      (p) =>
+        (p.status === "proposed" || p.status === "accepted" || p.status === "in_progress") &&
+        p.items.some((i) => i.status === "proposed" || i.status === "accepted"),
+    )
+    .map((p) => p.id);
 }

@@ -1,9 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { UsersService } from "@healthcare/auth";
+import { BillingPriceQueries } from "@healthcare/billing";
 import { ClinicQueries } from "@healthcare/clinic";
 import { type Actor, type DbExecutor, localDate } from "@healthcare/core";
 import {
   type DentalContext,
+  type DentalFees,
+  type DentalListedFee,
   type DentalPatientBrief,
   DENTAL_SUPPLY_CATEGORIES,
   DENTAL_SUPPLY_SOURCE,
@@ -99,5 +102,16 @@ export class AppDentalSupplies implements DentalSupplies {
       lines: input.lines,
       idempotencyKey: input.idempotencyKey,
     });
+  }
+}
+
+/** Dental → billing: listed prices for fee estimates, with the service mapping charge capture uses. */
+@Injectable()
+export class AppDentalFees implements DentalFees {
+  constructor(private readonly prices: BillingPriceQueries) {}
+
+  async listedFees(organizationId: string, procedureCodes: readonly string[], onDate: string): Promise<Map<string, DentalListedFee>> {
+    const listed = await this.prices.listedPrices(organizationId, "dental_procedure", procedureCodes, onDate);
+    return new Map([...listed].map(([code, p]) => [code, { serviceCode: p.serviceCode, serviceName: p.serviceName, unitPrice: p.unitPrice }]));
   }
 }

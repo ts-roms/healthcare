@@ -7,9 +7,17 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { DentalPortalSetting, DentalRecord, DentalRecordSupplies, DentalSettings, DentalSupplyOptions, DentalVisits } from "@/lib/api/types";
+import type {
+  DentalPlanEstimate,
+  DentalPortalSetting,
+  DentalRecord,
+  DentalRecordSupplies,
+  DentalSettings,
+  DentalSupplyOptions,
+  DentalVisits,
+} from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
-import { openVisit } from "@/lib/dental-mapping";
+import { openVisit, plansWithEstimate } from "@/lib/dental-mapping";
 import { DentalChartPanel } from "./dental-chart-panel";
 import { DentalImages } from "./dental-images";
 import { Examinations } from "./examinations";
@@ -39,11 +47,13 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
     throw e;
   }
   const canRecordProcedure = can(session, "dental.procedure.record");
-  const [settings, portal, visits, supplyOptions] = await Promise.all([
+  const [settings, portal, visits, supplyOptions, estimates] = await Promise.all([
     api<DentalSettings>("/dental/settings"),
     api<DentalPortalSetting>("/dental/settings/portal"),
     facility ? api<DentalVisits>("/dental/visits").then((v) => v.visits) : Promise.resolve([]),
     facility && canRecordProcedure ? api<DentalSupplyOptions>("/dental/supplies/options") : Promise.resolve(null),
+    // Fee estimates (billing's listed prices today) for plans with work still ahead.
+    Promise.all(plansWithEstimate(record.plans).map((planId) => api<DentalPlanEstimate>(`/dental/treatment-plans/${planId}/estimate`))),
   ]);
   const visit = openVisit(visits, id);
   const encounterId = visit?.encounterId ?? null;
@@ -97,6 +107,7 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
             types={types}
             notation={record.notation}
             canManage={can(session, "dental.treatment-plan.manage")}
+            estimates={Object.fromEntries(estimates.map((e) => [e.planId, e]))}
           />
           <Procedures
             patientId={id}

@@ -23,6 +23,7 @@
     "@healthcare/audit": "workspace:*",
     "@healthcare/core": "workspace:*",
     "@healthcare/documents": "workspace:*",
-    "@healthcare/organization": "workspace:*"
+    "@healthcare/organization": "workspace:*",
+    "@healthcare/pdf": "workspace:*"
   }
 }

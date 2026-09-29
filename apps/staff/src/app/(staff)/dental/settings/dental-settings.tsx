@@ -8,7 +8,7 @@ import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
-import { createProcedureType, setNotation, setPortalDentalRecords, setPortalPlanDecisions, setProcedureTypeStatus } from "../actions";
+import { createProcedureType, setFeeEstimates, setNotation, setPortalDentalRecords, setPortalPlanDecisions, setProcedureTypeStatus } from "../actions";
 
 const EFFECTS: Record<DentalChartEffect, string> = {
   restoration: "Restoration (on the treated surfaces)",
@@ -206,8 +206,8 @@ export function DentalSettingsForm({
             </p>
             <p className="text-meta text-muted-foreground">
               Never shown: examination and plan notes, tooth notes, decision notes, periodontal charts, procedure codes, and anything entered in error.
-              Radiographs and photos are shown only when a dentist shares them one by one from the patient&apos;s dental record. Plans carry no fees; patients
-              are told to ask the clinic.
+              Radiographs and photos are shown only when a dentist shares them one by one from the patient&apos;s dental record. Plans show fee estimates only
+              if you turn them on under Fee estimates.
             </p>
             <p className="text-meta text-muted-foreground">
               While this is on, patients who use MyHealth get a message in MyHealth and by SMS (or email) when a dentist shares an image or a plan awaits their
@@ -239,6 +239,7 @@ export function DentalSettingsForm({
         </Card>
 
         {portal.portalDentalRecords ? <PlanDecisions portal={portal} canManage={canManage} pending={pending} act={act} /> : null}
+        <FeeEstimates portal={portal} canManage={canManage} pending={pending} act={act} />
       </div>
     </div>
   );
@@ -319,6 +320,92 @@ function PlanDecisions({
                 Allow online decisions
               </Button>
             )}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Fee estimates on treatment plans: the organization's own note printed and shown under every estimate, and whether
+ * MyHealth shows estimates (only while dental records are shown). Prices come from billing's price list.
+ */
+function FeeEstimates({
+  portal,
+  canManage,
+  pending,
+  act,
+}: {
+  portal: DentalPortalSetting;
+  canManage: boolean;
+  pending: boolean;
+  act: (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) => void;
+}) {
+  const [note, setNote] = React.useState(portal.feeEstimateNote ?? "");
+  const save = (portalPlanEstimates: boolean | undefined, done: string) =>
+    act(
+      () =>
+        setFeeEstimates({
+          portalDentalRecords: portal.portalDentalRecords,
+          portalPlanEstimates,
+          feeEstimateNote: note.trim() || null,
+          version: portal.version,
+        }),
+      done,
+    );
+  const noteValid = note.trim().length === 0 || note.trim().length >= 10;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fee estimates</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 text-body">
+        <p className="text-meta text-muted-foreground">
+          An open treatment plan shows an estimate of the work still ahead at today&apos;s listed prices: the billing service mapped to each procedure code and
+          its price (billing settings). Discounts, packages and HMO or PhilHealth coverage are not applied. Dentists print it for the patient from the plan, and
+          each decision keeps the estimate the items had at the time.
+        </p>
+        <label htmlFor="fee-estimate-note" className="text-label font-medium">
+          Your note under every estimate (optional)
+        </label>
+        <Textarea
+          id="fee-estimate-note"
+          rows={2}
+          maxLength={500}
+          value={note}
+          disabled={!canManage}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Estimates hold for 30 days. Laboratory fees for crowns are charged separately."
+        />
+        {portal.portalDentalRecords ? (
+          portal.portalPlanEstimates ? (
+            <Badge variant="info" className="w-fit">
+              <SmartphoneIcon aria-hidden /> Shown in MyHealth
+            </Badge>
+          ) : (
+            <Badge variant="neutral" className="w-fit">
+              <EyeOffIcon aria-hidden /> Not shown in MyHealth
+            </Badge>
+          )
+        ) : (
+          <p className="text-meta text-muted-foreground">Estimates can be shown in MyHealth once dental records are shown there.</p>
+        )}
+        {canManage ? (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={pending || !noteValid} onClick={() => save(undefined, "Estimate note saved")}>
+              Save note
+            </Button>
+            {portal.portalDentalRecords ? (
+              <Button
+                size="sm"
+                variant={portal.portalPlanEstimates ? "outline" : "default"}
+                disabled={pending || !noteValid}
+                onClick={() => save(!portal.portalPlanEstimates, portal.portalPlanEstimates ? "Estimates hidden from MyHealth" : "Estimates shown in MyHealth")}
+              >
+                {portal.portalPlanEstimates ? "Stop showing in MyHealth" : "Show estimates in MyHealth"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </CardContent>
