@@ -38,10 +38,10 @@ messages. See `docs/domains/notification.md`.
 
 ## Data
 
-| Area                                                                                                                                                                             | Source                                                     |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
-| `/preview/patient-360` (including its dental tab)                                                                                                                                | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                                                               | Source                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, patient timeline, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
+| `/preview/patient-360` (including its dental tab)                                                                                                                                                  | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -52,6 +52,17 @@ Real patient pages show only API data: allergies and the clinical summary come f
 The record also has a **Patient portal (MyHealth)** card (`GET /patients/:id/portal-account`): status for anyone who can read the patient, and for `patient.portal.manage` an invite button that shows the one-time activation code once, and "Disable access" with a reason. See [portal-app.md](portal-app.md).
 
 Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects may not import backend libraries. Move them into `type:contract` libraries, or generate them from the OpenAPI document, as domains grow.
+
+## Patient timeline
+
+The patient record has a **Timeline** button and a **Recent activity** card (the latest five entries) from `GET /patients/:id/timeline` ([patient-timeline.md](../domains/patient-timeline.md)). `/patients/[id]/timeline` is a page of its own rather than a tab of the record, because the record is one long server-rendered page and the timeline needs its own URL state (filters), paging and audit per view:
+
+- **Grouped by day**, newest first, times from the `libs/ui` format helpers (facility time zone), drawn by the design system's `RecordTimeline`.
+- **Filters in the URL**: kind chips (Visits, Prescriptions, Laboratory, Dental, Care plans, Billing, Messages, Imported history, Documents → the API's `kinds`) and a date range (`from`/`to`, local dates). **Load more** fetches the next page by cursor in a server action (`timeline-actions.ts`).
+- **Links to existing screens only** (`lib/timeline-mapping.ts`): encounter workspace (encounters, prescriptions, laboratory orders from a consultation), day schedule of the practitioner (appointments), teleconsultation, the record's laboratory and imported-history sections, dental record, care plan, invoice. Messages and documents have no screen and are not linked.
+- **Status is icon + text** (`entryStatus`); entries entered in error, cancelled or void are struck through with a marker instead of a status; laboratory releases carry an Abnormal/Critical badge when flagged.
+- **Withheld kinds**: when the API leaves kinds out for the user's role, the page says "Some records are not shown to you" — without naming or counting them.
+- Every timeline request (including the record's Recent activity card) is audited by the API as `patient.timeline.view`. The design system's demo `PatientTimeline` stays on `/preview/patient-360` with fixtures only.
 
 ## Queue and appointments
 

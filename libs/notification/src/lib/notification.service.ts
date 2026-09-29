@@ -1,6 +1,18 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, actorUserId, BusinessRuleError, DATABASE, type Database, maskEmail, maskPhone, NotFoundError } from "@healthcare/core";
+import {
+  type Actor,
+  actorUserId,
+  BusinessRuleError,
+  DATABASE,
+  type Database,
+  maskEmail,
+  maskPhone,
+  NotFoundError,
+  timelineInstant,
+  timelineRange,
+  type TimelineWindow,
+} from "@healthcare/core";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { sendNotificationSchema } from "./notification.dto";
@@ -155,6 +167,36 @@ export class NotificationService {
       .limit(200);
     await this.audit.recordStandalone(actor, { action: "notification.list", resourceType: "notification", patientId });
     return rows.map(toNotificationView);
+  }
+
+  /**
+   * The patient's communications for the patient timeline (composed in apps/api), when requested: channel, category,
+   * template and delivery status only — never the message, its variables or the destination. Suppressed requests
+   * (preferences, consent) are included with their status. Notifications have no facility, so a facility filter
+   * leaves them out. Not audited here: the caller audits.
+   */
+  timelineForPatient(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return Promise.resolve([]);
+    const at = notification.createdAt;
+    return this.db
+      .select({
+        id: notification.id,
+        at: timelineInstant(at),
+        channel: notification.channel,
+        category: notification.category,
+        templateKey: notification.templateKey,
+        status: notification.status,
+      })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, organizationId),
+          eq(notification.recipientPatientId, patientId),
+          timelineRange("communication", at, notification.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(notification.id))
+      .limit(window.limit);
   }
 
   /** In-app inbox of the signed-in staff member. */

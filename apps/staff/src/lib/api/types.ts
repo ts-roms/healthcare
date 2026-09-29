@@ -2818,3 +2818,54 @@ export interface LabQualitySummary {
   eqa: { overdue: number; awaitingEvaluation: number };
   competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
 }
+
+// ---- Patient timeline (GET /patients/:id/timeline) ----------------------------------------------------------------
+
+export type PatientTimelineKind =
+  | "appointment"
+  | "encounter"
+  | "vitals"
+  | "prescription"
+  | "lab_order"
+  | "lab_result_release"
+  | "dental"
+  | "care_plan"
+  | "invoice"
+  | "payment"
+  | "communication"
+  | "external_history"
+  | "document";
+
+export type PatientTimelineLinkType =
+  | "appointment"
+  | "telemedicine"
+  | "encounter"
+  | "patient_laboratory"
+  | "dental_record"
+  | "care_plan"
+  | "invoice"
+  | "patient_external_history"
+  | "patient_record";
+
+/** One timeline row: short display text only (no notes, values or message content); the link opens the record. */
+export interface PatientTimelineEntry {
+  id: string;
+  kind: PatientTimelineKind;
+  occurredAt: string;
+  facility: { id: string; name: string } | null;
+  title: string;
+  detail: string | null;
+  status: string | null;
+  marker: "entered_in_error" | "cancelled" | "void" | null;
+  flag: "abnormal" | "critical" | null;
+  link: { type: PatientTimelineLinkType; id: string } | null;
+  sourceIds: Record<string, string>;
+}
+
+export interface PatientTimelinePage {
+  items: PatientTimelineEntry[];
+  nextCursor: string | null;
+  /** Kinds the user may not see (no counts). */
+  withheld: PatientTimelineKind[];
+  timeZone: string;
+}

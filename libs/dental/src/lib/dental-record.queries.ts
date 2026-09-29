@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { type ChartTooth, DentalChartService } from "./chart/dental-chart.service";
 import {
   dentalExamination,
@@ -134,6 +134,84 @@ export class DentalRecordQueries {
       chart: currentChart,
       perioCharts: await this.perioCharts(perioCharts),
     };
+  }
+
+  // ---- Patient timeline (composed in apps/api): ids, times, statuses, codes and names only — no notes -------------
+
+  /** Dental examinations when recorded (entered-in-error ones included, with their status). Not audited here. */
+  timelineExaminations(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalExamination.recordedAt;
+    return this.db
+      .select({
+        id: dentalExamination.id,
+        at: timelineInstant(at),
+        facilityId: dentalExamination.facilityId,
+        encounterId: dentalExamination.encounterId,
+        status: dentalExamination.status,
+      })
+      .from(dentalExamination)
+      .where(
+        and(
+          eq(dentalExamination.organizationId, organizationId),
+          eq(dentalExamination.patientId, patientId),
+          timelineFacility(dentalExamination.facilityId, window),
+          timelineRange("dental_exam", at, dentalExamination.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalExamination.id))
+      .limit(window.limit);
+  }
+
+  /** Dental procedures when performed, with the procedure's code and name (entered-in-error ones included). Not audited here. */
+  timelineProcedures(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalProcedure.performedAt;
+    return this.db
+      .select({
+        id: dentalProcedure.id,
+        at: timelineInstant(at),
+        facilityId: dentalProcedure.facilityId,
+        encounterId: dentalProcedure.encounterId,
+        code: dentalProcedureType.code,
+        name: dentalProcedureType.name,
+        status: dentalProcedure.status,
+      })
+      .from(dentalProcedure)
+      .innerJoin(dentalProcedureType, eq(dentalProcedureType.id, dentalProcedure.procedureTypeId))
+      .where(
+        and(
+          eq(dentalProcedure.organizationId, organizationId),
+          eq(dentalProcedure.patientId, patientId),
+          timelineFacility(dentalProcedure.facilityId, window),
+          timelineRange("dental_procedure", at, dentalProcedure.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalProcedure.id))
+      .limit(window.limit);
+  }
+
+  /** Treatment plans when the patient's decision was recorded, with the title and current status (no notes). Not audited here. */
+  timelinePlanDecisions(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalTreatmentPlan.decidedAt;
+    return this.db
+      .select({
+        id: dentalTreatmentPlan.id,
+        at: timelineInstant(at),
+        facilityId: dentalTreatmentPlan.facilityId,
+        title: dentalTreatmentPlan.title,
+        status: dentalTreatmentPlan.status,
+      })
+      .from(dentalTreatmentPlan)
+      .where(
+        and(
+          eq(dentalTreatmentPlan.organizationId, organizationId),
+          eq(dentalTreatmentPlan.patientId, patientId),
+          isNotNull(at),
+          timelineFacility(dentalTreatmentPlan.facilityId, window),
+          timelineRange("dental_plan", at, dentalTreatmentPlan.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalTreatmentPlan.id))
+      .limit(window.limit);
   }
 
   /** The descriptions of the patient's dental images (one per document), including those entered in error. */
