@@ -37,7 +37,7 @@ export function AllergyList({ allergies, recorded = true, className }: { allergi
   if (!recorded) {
     return (
       <Badge variant="warning" className={className}>
-        <AlertTriangleIcon aria-hidden /> Allergies not recorded
+        <AlertTriangleIcon aria-hidden /> Allergies not recorded — ask the patient
       </Badge>
     );
   }

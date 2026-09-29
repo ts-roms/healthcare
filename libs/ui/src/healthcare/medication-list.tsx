@@ -2,6 +2,7 @@ import * as React from "react";
 import { PillIcon } from "lucide-react";
 import type { Medication } from "@healthcare/domain";
 import { Badge } from "../primitives/badge";
+import { clinicalDate } from "../lib/format";
 import { cn } from "../lib/utils";
 
 export function MedicationList({ medications, dense = false, className }: { medications: Medication[]; dense?: boolean; className?: string }) {
@@ -21,7 +22,11 @@ export function MedicationList({ medications, dense = false, className }: { medi
                 {m.frequency}
               </span>
             </div>
-            {!dense && m.prescriber ? <p className="text-meta text-muted-foreground">{m.prescriber}</p> : null}
+            {!dense && (m.prescriber || m.startedOn) ? (
+              <p className="text-meta text-muted-foreground">
+                {[m.prescriber, m.startedOn ? `since ${clinicalDate(m.startedOn)}` : null].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
           </div>
           {m.status !== "active" ? <Badge variant="neutral">{m.status}</Badge> : null}
         </li>

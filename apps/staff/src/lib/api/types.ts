@@ -3181,3 +3181,105 @@ export interface PurchaseOrderInvoicing {
     invoiceable: number;
   }>;
 }
+
+// ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
+
+export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents";
+
+export interface WorkspaceFacilityRef {
+  id: string;
+  name: string;
+}
+
+export interface WorkspaceDiagnosis {
+  id: string;
+  codeSystemKey: string | null;
+  code: string | null;
+  display: string;
+  rank: "primary" | "secondary";
+  certainty: "provisional" | "confirmed" | "refuted";
+  isChronic: boolean;
+  status: "active" | "resolved" | "entered_in_error";
+}
+
+export interface WorkspaceEncounter {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  status: "in_progress" | "completed" | "entered_in_error";
+  modality: string;
+  appointmentId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  practitionerName: string;
+  visitTypeName: string | null;
+  diagnoses: WorkspaceDiagnosis[];
+}
+
+export interface WorkspaceCurrentEncounter extends WorkspaceEncounter {
+  /** The viewer is the responsible clinician. */
+  mine: boolean;
+  atSelectedFacility: boolean;
+  /** A note draft has been saved (never its content). */
+  hasNoteDraft: boolean;
+}
+
+export interface WorkspaceVisit {
+  id: string;
+  status: VisitStatus;
+  queueNumber: number;
+  priority: string;
+  modality: "in_person" | "telemedicine";
+  visitTypeName: string;
+  appointmentId: string | null;
+  checkedInAt: string;
+}
+
+export interface WorkspaceCriticalResult {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  status: "open" | "communicated";
+  raisedAt: string;
+  orderId: string;
+  orderNumber: string;
+  testName: string;
+}
+
+export interface WorkspaceLabOrder {
+  id: string;
+  facility: WorkspaceFacilityRef | null;
+  orderNumber: string;
+  priority: LabPriority;
+  status: string;
+  orderedAt: string;
+  encounterId: string | null;
+  tests: Array<{ id: string; testName: string; status: LabItemStatus }>;
+}
+
+export interface PatientWorkspace {
+  patientId: string;
+  facility: WorkspaceFacilityRef | null;
+  timeZone: string;
+  currentEncounter: { encounters: WorkspaceCurrentEncounter[]; visit: WorkspaceVisit | null } | null;
+  encounterHistory: WorkspaceEncounter[] | null;
+  criticalResults: WorkspaceCriticalResult[] | null;
+  labOrders: WorkspaceLabOrder[] | null;
+  dentalImages: Array<{ id: string; facility: WorkspaceFacilityRef | null; kind: string; takenOn: string; teeth: string[] }> | null;
+  documents: Array<{ id: string; facility: WorkspaceFacilityRef | null; category: string; title: string; uploadedAt: string }> | null;
+  withheld: PatientWorkspacePanel[];
+}
+
+/** GET /patients/:id/summary as the workspace reads it: active prescriptions carry number, encounter and prescriber. */
+export interface WorkspacePrescription extends PrescriptionSummaryView {
+  prescriptionNumber: string;
+  encounterId: string;
+  prescriberName: string | null;
+}
+
+export interface WorkspaceCarePlan extends Omit<CarePlanSummaryView, "openActivities"> {
+  openActivities: Array<{ id: string; kind: string; description: string; dueDate: string | null; status: string }>;
+}
+
+export interface PatientWorkspaceSummary extends Omit<PatientSummaryResponse, "activePrescriptions" | "openCarePlans"> {
+  activePrescriptions: WorkspacePrescription[] | null;
+  openCarePlans: WorkspaceCarePlan[] | null;
+}
