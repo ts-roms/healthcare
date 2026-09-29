@@ -62,6 +62,10 @@ none`): a snapshot of the QC in force at entry, immutable like the value (trigge
 - **Reagent yield** (`lab_reagent_yield`, migration `0064`) — per reagent item of the organization: the tests one stock
   unit holds (1–1,000,000), with a snapshot of the item's code, name and stock unit; set by `lab.qc.manage` (audited
   with the previous value). Applies to loads made afterwards.
+- **Tests per run** (`lab_reagent_test_usage`, migration `0067`) — per reagent item and test: the tests one run of the
+  test uses from the reagent (2–100; no row means 1), for tests run in duplicate or with a dilution or a blank. Set by
+  `lab.qc.manage` (setting 1 removes the row; audited `lab.reagent.tests-per-run` with the previous value). Applies to
+  runs counted afterwards; runs already counted keep their tests (append-only).
 - **Load capacity** (`lab_reagent_load.capacity_tests`, migration `0064`) — the tests a load holds: the number given at
   the load, else the stock taken times the reagent's yield, else unknown (null). Fixed with the load (guard trigger).
 - **Reagent use** (`lab_reagent_use`, migration `0064`, append-only) — each test run counted against a load: `patient`
@@ -129,7 +133,12 @@ for it, so only runs after a lot change count — the board shows "No QC" until 
 **Reagent use per test run.** A patient run is an order measured on the instrument: when a result is entered (or
 corrected) with `instrumentId`, each load that applies counts one run for the order and the result version, so the
 tests of a panel entered for one order count once and a correction entered on the instrument counts as a re-run. Each
-QC run counts one run on each load that applies. Repeats not entered as results, calibration, priming and waste are
+QC run counts one run on each load that applies. A run uses one test of the lot unless the reagent's **tests per run**
+for the test says more (`reagent-use.rules.ts#patientRunTests`): a QC run and a later result version (a re-run or a
+re-test) count their own test's number; the first run of an order (version 1) counts the most among the ordered tests
+that lot serves (a lot loaded for one test serves only it). Runs and tests are reported apart (`patientRuns` /
+`patientTests`, `qcRuns` / `qcTests`); capacity, remaining and totals are in tests, and the cost per patient run divides
+by runs. Repeats not entered as results, calibration, priming and waste are
 recorded by staff on a loaded lot (never on an unloaded one: `reagent_lot_unloaded`), with a reason. Runs never move
 stock — stock leaves inventory when the lot is loaded — and never refuse a result or a QC run: use beyond the stated
 capacity is shown as such. A loaded lot with a tenth of its capacity or less left is **running low**
@@ -258,7 +267,7 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory quality`): `GET/POST instrum
 `POST qc/lots/:id/targets`, `GET qc/status`, `GET qc/runs?instrumentId=&testId=&qcLotId=&days=`, `POST qc/runs`,
 `POST qc/runs/:id/actions`, `GET reagents?instrumentId=`, `GET reagents/available`, `GET/POST instruments/:id/reagents`,
 `POST reagents/:loadId/unload`, `GET/POST reagents/:loadId/uses`, `GET reagents/yields`, `PUT reagents/yields/:itemId`
-(`lab.qc.manage`), `GET reagents/usage?from=&to=&instrumentId=`, `GET/POST storage-units`, `PATCH storage-units/:id`,
+(`lab.qc.manage`), `GET reagents/tests-per-run`, `PUT reagents/yields/:itemId/tests/:testId` (`lab.qc.manage`), `GET reagents/usage?from=&to=&instrumentId=`, `GET/POST storage-units`, `PATCH storage-units/:id`,
 `GET/POST storage-units/:id/readings`, `GET/POST nonconformances?status=`, `GET nonconformances/:id`,
 `POST nonconformances/:id/entries | reclassify | close`, `GET/POST eqa/schemes`, `GET/POST eqa/surveys`,
 `POST eqa/surveys/:id/results`, `POST eqa/results/:id/evaluation`, `GET/POST competency`,
@@ -267,7 +276,7 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory quality`): `GET/POST instrum
 `POST order-items/:itemId/results` and `POST results/:id/correct` accept `instrumentId`.
 
 Audit: `lab.instrument.create | update | log`, `lab.qc.material.create`, `lab.qc.lot.create | retire`,
-`lab.qc.target.set`, `lab.qc.run.record`, `lab.qc.action.record`, `lab.reagent.load | unload | use | yield`, `lab.policy.update`,
+`lab.qc.target.set`, `lab.qc.run.record`, `lab.qc.action.record`, `lab.reagent.load | unload | use | yield | tests-per-run`, `lab.policy.update`,
 `lab.storage-unit.create | update`, `lab.temperature.record`, `lab.nonconformance.open | entry | reclassify | close`,
 `lab.eqa.scheme.create`, `lab.eqa.survey.create`, `lab.eqa.result.report | evaluate`, `lab.competency.record`.
 

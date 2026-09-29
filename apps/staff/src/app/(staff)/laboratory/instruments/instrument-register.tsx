@@ -36,7 +36,7 @@ import type {
   LabReagentYield,
   LabTest,
 } from "@/lib/api/types";
-import { REAGENT_USE_KIND_LABEL, reagentUseText } from "@/lib/lab-mapping";
+import { REAGENT_USE_KIND_LABEL, reagentUseText, runsText } from "@/lib/lab-mapping";
 import {
   createInstrument,
   loadInstrumentLog,
@@ -576,7 +576,8 @@ function ReagentUses({ load, canLog }: { load: LabReagentLoad; canLog: boolean }
     <span className="flex basis-full flex-col gap-1 pl-4">
       <span className="flex flex-wrap gap-1">
         <span className="text-meta text-muted-foreground">
-          Patient {load.use.patientRuns} · QC {load.use.qcRuns} · other {load.use.otherRuns} · wasted {load.use.wasted}
+          Patient {runsText(load.use.patientRuns, load.use.patientTests)} · QC {runsText(load.use.qcRuns, load.use.qcTests)} · other {load.use.otherRuns} ·
+          wasted {load.use.wasted}
         </span>
         <Button
           size="xs"

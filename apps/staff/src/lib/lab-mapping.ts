@@ -215,6 +215,12 @@ export function reagentUseText(use: LabReagentUseSummary): string {
   return `${use.total} of ${use.capacity} tests used · ${left}`;
 }
 
+/** "2 runs", or "2 runs (3 tests)" when the runs used more than one test each. */
+export function runsText(runs: number, tests: number): string {
+  const label = `${runs} ${runs === 1 ? "run" : "runs"}`;
+  return tests === runs ? label : `${label} (${tests} tests)`;
+}
+
 /** "86%" (whole percent), or "—". */
 export function percent(share: number | null): string {
   return share === null ? "—" : `${Math.round(share * 100)}%`;

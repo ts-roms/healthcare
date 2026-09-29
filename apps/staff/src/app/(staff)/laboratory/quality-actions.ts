@@ -12,6 +12,7 @@ import type {
   LabQcTarget,
   LabReagentLoad,
   LabReagentUse,
+  LabReagentTestsPerRun,
   LabReagentYield,
 } from "@/lib/api/types";
 
@@ -125,6 +126,15 @@ export async function setReagentYield(input: z.input<typeof yieldSchema>): Promi
   return actionResult(() =>
     api<LabReagentYield>(`/laboratory/reagents/yields/${parsed.data.itemId}`, { method: "PUT", body: { testsPerUnit: parsed.data.testsPerUnit } }),
   );
+}
+
+const testsPerRunSchema = z.object({ itemId: id, testId: id, testsPerRun: z.number().int().min(1, "At least 1.").max(100, "At most 100.") });
+/** Sets how many tests one run of a test uses from a reagent; 1 (the default) removes the setting. */
+export async function setReagentTestsPerRun(input: z.input<typeof testsPerRunSchema>): Promise<ActionResult<LabReagentTestsPerRun[]>> {
+  const parsed = testsPerRunSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { itemId, testId, testsPerRun } = parsed.data;
+  return actionResult(() => api<LabReagentTestsPerRun[]>(`/laboratory/reagents/yields/${itemId}/tests/${testId}`, { method: "PUT", body: { testsPerRun } }));
 }
 
 // ---- QC setup ----------------------------------------------------------------------------------

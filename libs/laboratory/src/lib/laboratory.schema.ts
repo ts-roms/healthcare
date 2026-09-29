@@ -1,8 +1,8 @@
 import { bigint, boolean, date, integer, numeric, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0015_laboratory.sql, 0030_lab_report_archive.sql, 0040_lab_result_attachments.sql,
-// 0047_reference_laboratory.sql, 0050_lab_quality.sql, 0051_lab_reagent_lots.sql, 0064_lab_reagent_use.sql and
-// 0065_lab_reagent_low_alert.sql (the migrations are the source of
+// 0047_reference_laboratory.sql, 0050_lab_quality.sql, 0051_lab_reagent_lots.sql, 0064_lab_reagent_use.sql,
+// 0065_lab_reagent_low_alert.sql and 0067_lab_reagent_tests_per_run.sql (the migrations are the source of
 // truth). Send-out tables (0047) are in send-outs/send-out.schema.ts.
 
 export const RESULT_TYPES = ["numeric", "text", "coded"] as const;
@@ -444,6 +444,20 @@ export const REAGENT_USE_KINDS = ["patient", "qc", "repeat", "calibration", "pri
 export type ReagentUseKind = (typeof REAGENT_USE_KINDS)[number];
 /** Use recorded by staff (the others are recorded with results and QC runs). */
 export const MANUAL_REAGENT_USE_KINDS = ["repeat", "calibration", "priming", "waste", "other"] as const satisfies readonly ReagentUseKind[];
+
+/** 0067: tests one run of a test uses from a reagent (default 1 without a row). */
+export const labReagentTestUsage = pgTable(
+  "lab_reagent_test_usage",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    inventoryItemId: uuid("inventory_item_id").notNull(),
+    testId: uuid("test_id").notNull(),
+    testsPerRun: smallint("tests_per_run").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.inventoryItemId, t.testId] })],
+);
 
 export const labReagentYield = pgTable(
   "lab_reagent_yield",
