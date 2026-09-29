@@ -5,8 +5,13 @@ import type { BookingOptions, BookingSlots } from "./api/types";
  * enforces every rule; these only shape choices and words for the screen.
  */
 
-/** Local calendar dates (YYYY-MM-DD) patients can pick, from the first day with bookable time. */
-export function bookingDays(now: Date, rules: Pick<BookingOptions["rules"], "minLeadMinutes" | "maxAdvanceDays">, timeZone: string, count = 14): string[] {
+/** Local calendar dates (YYYY-MM-DD) patients can pick, from the first day with bookable time up to the booking horizon. */
+export function bookingDays(
+  now: Date,
+  rules: Pick<BookingOptions["rules"], "minLeadMinutes" | "maxAdvanceDays">,
+  timeZone: string,
+  count = Infinity,
+): string[] {
   const first = new Date(now.getTime() + rules.minLeadMinutes * 60_000);
   const last = new Date(now.getTime() + rules.maxAdvanceDays * 86_400_000);
   const days: string[] = [];
@@ -18,6 +23,13 @@ export function bookingDays(now: Date, rules: Pick<BookingOptions["rules"], "min
   const lastDay = localDate(last, timeZone);
   if (days.length < count && days.at(-1) !== lastDay) days.push(lastDay);
   return days;
+}
+
+/** The days in pages of `size` (a week at a time fits a phone). */
+export function dayPages(days: string[], size = 7): string[][] {
+  const pages: string[][] = [];
+  for (let i = 0; i < days.length; i += size) pages.push(days.slice(i, i + size));
+  return pages;
 }
 
 export function localDate(at: Date, timeZone: string): string {
