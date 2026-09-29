@@ -140,8 +140,8 @@ Select **Refresh** to reload at any time.
    button again to confirm, or **Keep in queue**.
 
 Calling and moving need `clinic.queue.manage`. From the panel you can also open **Triage & vitals** (or **Update triage** once the patient is
-ready for the provider), **Start consultation** or **Open consultation**, and **Open patient record** — each only if you have the permission for
-it.
+ready for the provider), **Start consultation** or **Open consultation**, **Patient 360** and **Open patient record** — each only if you have the permission
+for it.
 
 Once the patient is **With provider**, the panel says "With the provider. The encounter closes the visit." The visit moves to **Done** when the
 physician signs the encounter.

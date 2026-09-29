@@ -59,7 +59,7 @@ messages. See `docs/domains/notification.md`.
 | Area                                                                                                                                                                                               | Source                                                     |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | Sign-in, navigation, facility, patient lookup, patient record, clinical summary, patient timeline, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
-| `/preview/patient-360` (including its dental tab)                                                                                                                                                  | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| `/preview/patient-360` (including its dental tab): the design demo; the real workspace is `/patients/[id]/360`                                                                                     | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
@@ -81,6 +81,16 @@ The patient record has a **Timeline** button and a **Recent activity** card (the
 - **Status is icon + text** (`entryStatus`); entries entered in error, cancelled or void are struck through with a marker instead of a status; laboratory releases carry an Abnormal/Critical badge when flagged.
 - **Withheld kinds**: when the API leaves kinds out for the user's role, the page says "Some records are not shown to you" — without naming or counting them.
 - Every timeline request (including the record's Recent activity card) is audited by the API as `patient.timeline.view`. The design system's demo `PatientTimeline` stays on `/preview/patient-360` with fixtures only.
+
+## Patient 360 workspace
+
+`/patients/[id]/360` is the doctor's one-screen view ([patient-360.md](../domains/patient-360.md)), a page of its own so the administrative record (`/patients/[id]`: demographics, consent, portal, PhilHealth) stays the front desk's and records staff's screen. It is linked from the record's action bar, the search results (**360**), the queue ticket panel and the encounter workspace banner.
+
+- **Data, in parallel on the server**: the patient, `GET /patients/:id/summary` (when the user has `clinical.read`), `GET /patients/:id/workspace`, `GET /laboratory/patients/:id/results` (with `lab.result.read`) and `GET /patients/:id/timeline?limit=8`. No streaming (the app does not use Suspense); every list is bounded by the API or the page.
+- **Withholding**: the page asks only for what the user's permissions allow (`workspaceAccess` in `lib/patient-workspace.ts`) and the workspace endpoint returns withheld panels as null; either way the panel says "Not available to you." — never an empty list, never fixture data.
+- **Presentation rules in `lib/patient-workspace.ts`** (unit tested): the allergy wording, the masked PhilHealth PIN, alerts (critical results awaiting acknowledgement, chronic problems, consent decisions, record status), the most relevant tests (critical, abnormal, trended, recent) and same-test trends, medicines and encounter history in the design system's shapes.
+- **Design system**: `PatientHeader` (new `details` slot for the masked PIN), `ProblemList`, `MedicationList` (now shows the start date), `VitalSigns`, `EncounterTimeline` (new `href`/`linkComponent`, rendered from a small client component because it takes a link renderer), `LabTrendChart`, `MedicalDocument` (new `onOpen` for signed links), and the record's own `PatientLabResults`, `PatientTimelineView` and the queue's `StartConsultationButton`.
+- **No editing** on the page: consultations open in the encounter workspace, orders and results in the laboratory screens, images in the dental record; images and documents open through short-lived signed links (`dentalImageLink`, `workspaceDocumentLink` server actions), each audited by the API.
 
 ## Queue and appointments
 

@@ -44,6 +44,29 @@ export class DocumentRecordQueries {
   }
 
   /**
+   * The patient's latest documents staff uploaded (available, not domain-managed), newest first, for the Patient 360
+   * workspace: category, title and when uploaded. Opening one issues a signed link (audited by DocumentsService).
+   * Not audited here: the caller audits.
+   */
+  recentForPatient(organizationId: string, patientId: string, limit: number) {
+    return this.db
+      .select({ id: document.id, facilityId: document.facilityId, category: document.category, title: document.title, uploadedAt: document.uploadedAt })
+      .from(document)
+      .where(
+        and(
+          eq(document.organizationId, organizationId),
+          eq(document.patientId, patientId),
+          eq(document.status, "available"),
+          eq(document.source, "upload"),
+          isNull(document.managedBy),
+          isNotNull(document.uploadedAt),
+        ),
+      )
+      .orderBy(desc(document.uploadedAt), desc(document.id))
+      .limit(limit);
+  }
+
+  /**
    * Documents staff uploaded for the patient, for the patient timeline (composed in apps/api): when the upload was
    * verified, with the category only (titles and file names are free text). Documents the platform generated (e.g.
    * archived laboratory reports, which the laboratory's own entries cover), domain-managed, pending and archived

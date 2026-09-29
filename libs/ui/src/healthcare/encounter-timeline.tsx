@@ -11,11 +11,17 @@ export function EncounterTimeline({
   encounters,
   selectedId,
   onSelect,
+  href,
+  linkComponent = "a",
   className,
 }: {
   encounters: Encounter[];
   selectedId?: string;
   onSelect?: (e: Encounter) => void;
+  /** When given, each encounter is a link to this address instead of a button (e.g. the encounter workspace). */
+  href?: (e: Encounter) => string | undefined;
+  /** The link element for `href` (e.g. Next's Link); a plain anchor by default. */
+  linkComponent?: React.ElementType;
   className?: string;
 }) {
   const sorted = [...encounters].sort((a, b) => b.date.localeCompare(a.date));
@@ -23,10 +29,11 @@ export function EncounterTimeline({
     <ol className={cn("flex flex-col", className)}>
       {sorted.map((e) => (
         <li key={e.id}>
-          <button
-            type="button"
+          <Item
+            href={href?.(e)}
+            linkComponent={linkComponent}
             onClick={() => onSelect?.(e)}
-            aria-current={e.id === selectedId ? "true" : undefined}
+            current={e.id === selectedId}
             className={cn(
               "flex w-full flex-col gap-0.5 border-l-2 border-transparent px-2.5 py-1.5 text-left outline-none hover:bg-accent focus-visible:bg-accent",
               e.id === selectedId && "border-primary bg-primary-subtle",
@@ -43,9 +50,38 @@ export function EncounterTimeline({
             <span className="truncate text-meta text-muted-foreground">
               {e.provider} · {e.facility}
             </span>
-          </button>
+          </Item>
         </li>
       ))}
     </ol>
+  );
+}
+
+function Item({
+  href,
+  linkComponent: LinkComponent,
+  onClick,
+  current,
+  className,
+  children,
+}: {
+  href?: string;
+  linkComponent: React.ElementType;
+  onClick: () => void;
+  current: boolean;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if (href) {
+    return (
+      <LinkComponent href={href} aria-current={current ? "true" : undefined} className={className}>
+        {children}
+      </LinkComponent>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} aria-current={current ? "true" : undefined} className={className}>
+      {children}
+    </button>
   );
 }

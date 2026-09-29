@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow } from "@healthcare/core";
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { type ChartTooth, DentalChartService } from "./chart/dental-chart.service";
 import {
   dentalExamination,
@@ -134,6 +134,28 @@ export class DentalRecordQueries {
       chart: currentChart,
       perioCharts: await this.perioCharts(perioCharts),
     };
+  }
+
+  // ---- Patient 360 workspace (composed in apps/api) ------------------------------------------------------------
+
+  /**
+   * The patient's latest radiographs and photos (entered-in-error ones left out), newest first: kind, date taken and
+   * teeth — no notes. Opening one goes through the dental imaging link (signed, audited). Not audited here.
+   */
+  workspaceImages(organizationId: string, patientId: string, limit: number) {
+    return this.db
+      .select({
+        id: dentalImage.id,
+        facilityId: dentalImage.facilityId,
+        documentId: dentalImage.documentId,
+        kind: dentalImage.kind,
+        takenOn: dentalImage.takenOn,
+        teeth: dentalImage.teeth,
+      })
+      .from(dentalImage)
+      .where(and(eq(dentalImage.organizationId, organizationId), eq(dentalImage.patientId, patientId), ne(dentalImage.status, "entered_in_error")))
+      .orderBy(desc(dentalImage.takenOn), desc(dentalImage.recordedAt), desc(dentalImage.id))
+      .limit(limit);
   }
 
   // ---- Patient timeline (composed in apps/api): ids, times, statuses, codes and names only — no notes -------------

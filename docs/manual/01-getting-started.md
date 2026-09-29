@@ -119,7 +119,8 @@ The small indicator next to **Clinic today** tells you how the figures update:
 - **Status is never shown by colour alone.** Every clinical status has a colour, an icon and a word, for example **Critical high** with a warning icon. Read the
   word, not just the colour.
 - **Allergy statements are precise.** "No known allergies" appears only after someone recorded that review with the patient. A patient never asked shows
-  "Allergies not recorded". If you may not see clinical data, you see "Allergies: no access". Never read a missing allergy badge as "no allergies".
+  "Allergies not recorded — ask the patient". If you may not see clinical data, you see "Allergies: no access". Never read a missing allergy badge as "no
+  allergies".
 - **Dates** are written like `27 Sep 2026`. **Times** use the 24-hour clock (`14:05`) in the time zone of the facility you selected (Asia/Manila unless your organization set another for that facility; also Asia/Manila
   before you select one). Birth dates and due dates are calendar
   dates and do not shift.
