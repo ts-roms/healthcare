@@ -17,8 +17,8 @@ describe("messages", () => {
 
   it("formats times relative to today in Manila", () => {
     const now = new Date("2026-09-28T04:00:00Z"); // 12:00 Manila
-    expect(messageTime("2026-09-28T01:30:00Z", now)).toBe("Today, 9:30 AM");
-    expect(messageTime("2026-09-27T08:05:00Z", now)).toBe("Yesterday, 4:05 PM");
-    expect(messageTime("2026-09-20T08:05:00Z", now)).toBe("Sep 20, 2026");
+    expect(messageTime("2026-09-28T01:30:00Z", "Asia/Manila", now)).toBe("Today, 9:30 AM");
+    expect(messageTime("2026-09-27T08:05:00Z", "Asia/Manila", now)).toBe("Yesterday, 4:05 PM");
+    expect(messageTime("2026-09-20T08:05:00Z", "Asia/Manila", now)).toBe("Sep 20, 2026");
   });
 });

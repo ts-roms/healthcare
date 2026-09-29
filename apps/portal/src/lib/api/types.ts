@@ -18,6 +18,8 @@ export interface PortalMe {
   };
   organization: { name: string };
   account: { email: string };
+  /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
+  timeZone: string;
 }
 
 /** `GET /portal/appointments` row */

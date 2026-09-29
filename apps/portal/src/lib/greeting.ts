@@ -1,6 +1,6 @@
-/** "Good morning" / "Good afternoon" / "Good evening" by the hour in the Philippines. */
-export function greeting(now: Date = new Date()): string {
-  const hour = Number(new Intl.DateTimeFormat("en-PH", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Manila" }).format(now));
+/** "Good morning" / "Good afternoon" / "Good evening" by the hour at the patient's clinic. */
+export function greeting(timeZone: string, now: Date = new Date()): string {
+  const hour = Number(new Intl.DateTimeFormat("en-PH", { hour: "numeric", hourCycle: "h23", timeZone }).format(now));
   if (hour >= 5 && hour < 12) return "Good morning";
   if (hour >= 12 && hour < 18) return "Good afternoon";
   return "Good evening";

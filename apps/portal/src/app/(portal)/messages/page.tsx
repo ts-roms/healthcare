@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRightIcon, MessageSquareIcon, PhoneIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
+import { getMe } from "@/lib/api/session";
 import type { PortalMessage } from "@/lib/api/types";
 import { messageAction, messageSource, messageTime } from "@/lib/messages";
 import { MarkRead } from "./mark-read";
@@ -9,6 +10,8 @@ import { MarkRead } from "./mark-read";
 export const metadata = { title: "Messages" };
 
 export default async function MessagesPage() {
+  // Dates and times are shown in the patient\'s clinic\'s time zone.
+  const { timeZone } = await getMe();
   const messages = await portalApi<PortalMessage[]>("/portal/messages");
   const unread = messages.filter((m) => !m.readAt).map((m) => m.id);
   return (
@@ -36,7 +39,7 @@ export default async function MessagesPage() {
                     )}
                     {messageSource(m)}
                   </span>
-                  <time dateTime={m.createdAt}>{messageTime(m.createdAt)}</time>
+                  <time dateTime={m.createdAt}>{messageTime(m.createdAt, timeZone)}</time>
                 </p>
                 {m.subject ? <h2 className="font-semibold">{m.subject}</h2> : null}
                 <p className="text-body whitespace-pre-line">{m.text}</p>
