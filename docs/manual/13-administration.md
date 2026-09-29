@@ -280,9 +280,8 @@ ones or resolve others with a note. It needs `integration.exchange.manage` (orga
 payload key ids stored values still need. Because no PhilHealth, DOH, payment or reference-laboratory adapter is configured by default, nothing is actually
 transmitted to those systems. Details are in [Records, reporting and integrations](11-records-reporting-and-integrations.md).
 
-> The **Administration** menu entry is shown to anyone with `user.read`, `user.manage`, `role.manage`, `organization.manage` or
-> `integration.exchange.manage`, but its only page needs `integration.exchange.manage`. Without it, selecting **Administration** returns you to the
-> dashboard.
+> The **Administration** menu entry appears only for people who can open one of its pages. Today that is **Integrations**, which needs
+> `integration.exchange.manage`.
 
 ## The audit trail
 

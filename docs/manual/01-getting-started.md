@@ -42,6 +42,8 @@ open it with the menu button (**Open navigation**) at the top left.
 
 - Selecting a module that has sub-pages (for example **Laboratory**) opens its first sub-page. The sub-pages appear under the module while you are in it.
 - **Dashboard** is always shown.
+- Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
+  reach is not shown at all.
 - A few menu entries lead to a page that says "This module is part of the platform roadmap and is not built yet." These are **Clinic → Prescriptions**,
   **Clinic → Referrals** and **Communications**. Nothing is lost. The work is done elsewhere (for example, prescribing is in the encounter workspace).
 
