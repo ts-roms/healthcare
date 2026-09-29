@@ -47,7 +47,9 @@ An online appointment is an appointment whose visit type has `modality = 'teleme
   before production use.
 - **Start** needs the patient in the waiting room, `telemedicine.conduct` and `encounter.write`, and a practitioner
   linked to the account; it opens the telemedicine encounter for the visit (retrying adopts an encounter already
-  opened). **End** closes the call; the encounter stays open for documentation and is signed in the workspace.
+  opened). It is the only way to open an online visit's encounter: the ordinary `POST /encounters` refuses a visit
+  whose visit type is online (`online_consultation`), and the queue marks each visit's `modality` so the staff app
+  offers **Open in Telemedicine** there. Online appointments are checked in by the waiting room, not at the desk. **End** closes the call; the encounter stays open for documentation and is signed in the workspace.
 - **Escalate to in-person care** (reason required) ends the online consultation; the clinician books the in-person
   visit with the usual booking flow. The patient sees that in-person care is recommended and the instructions, not the
   internal reason.

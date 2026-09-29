@@ -11,6 +11,8 @@ describe("access control", () => {
     await createStaff(ctx.pool, tenant, "auditor@example.ph", ["auditor"]);
     // Receptionist only at the main facility.
     await createStaff(ctx.pool, tenant, "frontdesk@example.ph", [{ role: "receptionist", facilityId: tenant.facilityId }]);
+    await createStaff(ctx.pool, tenant, "cashier@example.ph", ["cashier"]);
+    await createStaff(ctx.pool, tenant, "branch-cashier@example.ph", [{ role: "cashier", facilityId: tenant.otherFacilityId }]);
   });
 
   afterAll(() => ctx.close());
@@ -29,6 +31,34 @@ describe("access control", () => {
     await ctx.http().get("/api/v1/patients?q=juan").set(as(accessToken)).expect(403);
     await ctx.http().get("/api/v1/patients?q=juan").set(as(accessToken, tenant.facilityId)).expect(200);
     await ctx.http().get("/api/v1/patients?q=juan").set(as(accessToken, tenant.otherFacilityId)).expect(403);
+  });
+
+  it("lists the facilities a user can work in for the facility selector, without organization.read", async () => {
+    const ids = async (email: string) => {
+      const { accessToken } = await login(ctx, email);
+      const response = await ctx.http().get("/api/v1/auth/me/facilities").set(as(accessToken)).expect(200);
+      return (response.body as Array<{ id: string }>).map((f) => f.id).sort();
+    };
+    // An organization-wide cashier (no organization.read) sees every active facility.
+    expect(await ids("cashier@example.ph")).toEqual([tenant.facilityId, tenant.otherFacilityId].sort());
+    // Facility-scoped roles see only their facility.
+    expect(await ids("branch-cashier@example.ph")).toEqual([tenant.otherFacilityId]);
+    expect(await ids("frontdesk@example.ph")).toEqual([tenant.facilityId]);
+    // …and can work there: the cashier's billing permissions apply once the facility is selected.
+    const { accessToken } = await login(ctx, "branch-cashier@example.ph");
+    await ctx.http().get("/api/v1/billing/invoices").set(as(accessToken, tenant.otherFacilityId)).expect(200);
+    // The organization's facility directory itself still needs organization.read.
+    await ctx.http().get("/api/v1/facilities").set(as(accessToken)).expect(403);
+  });
+
+  it("leaves inactive facilities out of the facility selector", async () => {
+    const archived = await ctx.pool.query<{ id: string }>(
+      `INSERT INTO facility (organization_id, code, name, facility_type, status) VALUES ($1, 'old', 'Closed branch', 'clinic', 'archived') RETURNING id`,
+      [tenant.organizationId],
+    );
+    const { accessToken } = await login(ctx, "cashier@example.ph");
+    const response = await ctx.http().get("/api/v1/auth/me/facilities").set(as(accessToken)).expect(200);
+    expect((response.body as Array<{ id: string }>).map((f) => f.id)).not.toContain(archived.rows[0]!.id);
   });
 
   it("rejects facilities of another organization", async () => {

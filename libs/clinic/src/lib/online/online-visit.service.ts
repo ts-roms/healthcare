@@ -88,7 +88,7 @@ export class OnlineVisitService {
 
   /** Starts the telemedicine encounter for a checked-in online visit (the clinician's permission and identity are checked by the encounter service). */
   startEncounter(actor: Actor, visitId: string) {
-    return this.encounters.start(actor, { visitId, modality: "telemedicine" });
+    return this.encounters.startOnline(actor, visitId);
   }
 
   async encounterStatus(organizationId: string, encounterId: string) {

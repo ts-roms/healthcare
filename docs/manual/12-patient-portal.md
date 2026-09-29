@@ -80,7 +80,8 @@ available" — please call the clinic.
 2. **What kind of visit?** — choose one. Each shows whether it is **At the clinic** or **Online, by video**, and about how long it takes.
 3. **Where?** — choose the clinic branch (only asked if there is more than one).
 4. **Which doctor?** — choose **Any available doctor** or a doctor by name.
-5. **When?** — choose a day, then an open time under **Morning** or **Afternoon**. If you chose "any doctor", each time shows the doctor's name. If a
+5. **When?** — choose a day, then an open time under **Morning** or **Afternoon**. Days are shown a week at a time; use the arrows beside them to see
+   earlier or later weeks, up to the furthest day the clinic allows. If you chose "any doctor", each time shows the doctor's name. If a
    day is full you see "No open times on this day. Try another day."
 6. **Confirm** — check the date, time, visit and place. You may add a **Reason for the visit (optional)**. Only the clinic sees this. Do not use it
    for emergencies.
@@ -96,7 +97,7 @@ Below an upcoming visit you can change, choose **Change or cancel** (or **Cancel
 
 **To move it to another time** (same doctor):
 
-1. Under **Choose a new time**, choose a day and an open time.
+1. Under **Choose a new time**, choose a day (the arrows show other weeks) and an open time.
 2. Choose the button **Move to …** with the new time.
 
 You see "Your visit was moved." To see a different doctor, cancel and book again.

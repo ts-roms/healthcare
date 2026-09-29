@@ -29,6 +29,17 @@ export function effectivePermissions(grants: ScopedGrant[], context: AccessConte
   return new Set(grants.filter((grant) => grantApplies(grant, context)).map((grant) => grant.permissionKey));
 }
 
+/**
+ * The facilities a user can work in: every facility for an organization-wide grant, otherwise the facilities of
+ * their facility- or department-scoped grants. Lets the staff app offer a facility to anyone holding a role there,
+ * without granting `organization.read`.
+ */
+export function facilitiesInReach<F extends { id: string }>(grants: Pick<ScopedGrant, "facilityId">[], facilities: F[]): F[] {
+  if (grants.some((grant) => grant.facilityId === null)) return facilities;
+  const scoped = new Set(grants.map((grant) => grant.facilityId));
+  return facilities.filter((facility) => scoped.has(facility.id));
+}
+
 @Injectable()
 export class AccessService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}

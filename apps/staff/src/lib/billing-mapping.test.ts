@@ -1,5 +1,17 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { addsToAccount, coverageCreditable, creditableLeft, invoiceState, parsePesos, percent, peso, pesoInput, refundableAmount } from "./billing-mapping";
+import {
+  CHARGE_SOURCE_LABEL,
+  addsToAccount,
+  coverageCreditable,
+  creditableLeft,
+  invoiceState,
+  parsePesos,
+  percent,
+  peso,
+  pesoInput,
+  refundableAmount,
+} from "./billing-mapping";
 
 describe("money display and input", () => {
   it("formats centavos as pesos", () => {
@@ -71,5 +83,16 @@ describe("deposits and credit notes", () => {
   it("credits payer coverage only while the claim is open", () => {
     expect(coverageCreditable({ amount: 30_000, status: "submitted", creditedAmount: 10_000 })).toBe(20_000);
     expect(coverageCreditable({ amount: 30_000, status: "settled", creditedAmount: 0 })).toBe(0);
+  });
+});
+
+describe("charge source labels", () => {
+  it("label every charge source the billing domain records", () => {
+    // Read from libs/billing (the staff app may not import it) so a new source cannot show up without a label.
+    const schema = readFileSync(new URL("../../../../libs/billing/src/lib/billing.schema.ts", import.meta.url), "utf8");
+    const union = /export type ChargeSourceType = ([^;]+);/.exec(schema)?.[1] ?? "";
+    const sources = [...union.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(sources.length).toBeGreaterThan(0);
+    expect(Object.keys(CHARGE_SOURCE_LABEL).sort()).toEqual(sources.sort());
   });
 });

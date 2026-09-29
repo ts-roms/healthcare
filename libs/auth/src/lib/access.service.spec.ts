@@ -1,4 +1,4 @@
-import { effectivePermissions, grantApplies, type ScopedGrant } from "./access.service";
+import { effectivePermissions, facilitiesInReach, grantApplies, type ScopedGrant } from "./access.service";
 
 const FACILITY_A = "facility-a";
 const FACILITY_B = "facility-b";
@@ -32,5 +32,21 @@ describe("effectivePermissions", () => {
   it("unions applicable grants", () => {
     expect([...effectivePermissions(grants, { facilityId: FACILITY_A })].sort()).toEqual(["patient.register", "patient.search"]);
     expect([...effectivePermissions(grants, { facilityId: FACILITY_B })]).toEqual(["patient.search"]);
+  });
+});
+
+describe("facilitiesInReach", () => {
+  const facilities = [{ id: FACILITY_A }, { id: FACILITY_B }];
+
+  it("offers every facility to an organization-wide grant", () => {
+    expect(facilitiesInReach([grants[0]!, grants[1]!], facilities)).toEqual(facilities);
+  });
+
+  it("offers only the facilities of facility- and department-scoped grants", () => {
+    expect(facilitiesInReach([grants[1]!, grants[2]!], facilities)).toEqual([{ id: FACILITY_A }]);
+  });
+
+  it("offers nothing without a grant", () => {
+    expect(facilitiesInReach([], facilities)).toEqual([]);
   });
 });

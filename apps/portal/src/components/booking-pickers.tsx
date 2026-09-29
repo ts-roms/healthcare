@@ -1,33 +1,56 @@
 "use client";
 
-import { LoaderIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, LoaderIcon } from "lucide-react";
+import * as React from "react";
 import { cn } from "@healthcare/ui/lib/utils";
-import { dayChip, type Slot, slotsByPartOfDay, slotTime } from "@/lib/booking";
+import { dayChip, dayPages, type Slot, slotsByPartOfDay, slotTime } from "@/lib/booking";
 
 const chip = "rounded-xl border bg-card transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none";
 const chosen = "border-primary bg-primary-subtle text-primary";
 
-/** Horizontal list of bookable days. */
+/** Bookable days a week at a time, with earlier and later weeks up to the clinic's booking horizon. */
 export function DayPicker({ days, value, onChange }: { days: string[]; value: string; onChange: (day: string) => void }) {
+  const pages = dayPages(days);
+  const [page, setPage] = React.useState(() =>
+    Math.max(
+      0,
+      pages.findIndex((p) => p.includes(value)),
+    ),
+  );
+  const shown = pages[page] ?? [];
+  const turn = (to: number) => {
+    setPage(to);
+    const first = pages[to]?.[0];
+    if (first) onChange(first);
+  };
+  const nav = "flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card disabled:opacity-40";
   return (
-    <div role="group" aria-label="Day" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-      {days.map((day) => {
-        const { weekday, day: n, month } = dayChip(day);
-        const selected = day === value;
-        return (
-          <button
-            key={day}
-            type="button"
-            aria-pressed={selected}
-            onClick={() => onChange(day)}
-            className={cn(chip, "flex min-w-16 shrink-0 flex-col items-center px-3 py-2", selected && chosen)}
-          >
-            <span className="text-meta">{weekday}</span>
-            <span className="text-lg leading-tight font-semibold">{n}</span>
-            <span className="text-meta text-muted-foreground">{month}</span>
-          </button>
-        );
-      })}
+    <div className="flex items-center gap-1">
+      <button type="button" className={nav} onClick={() => turn(page - 1)} disabled={page === 0} aria-label="Earlier days">
+        <ChevronLeftIcon className="size-5" aria-hidden />
+      </button>
+      <div role="group" aria-label="Day" className="grid min-w-0 flex-1 grid-cols-7 gap-1">
+        {shown.map((day) => {
+          const { weekday, day: n, month } = dayChip(day);
+          const selected = day === value;
+          return (
+            <button
+              key={day}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(day)}
+              className={cn(chip, "flex min-w-0 flex-col items-center px-0.5 py-2", selected && chosen)}
+            >
+              <span className="text-meta">{weekday}</span>
+              <span className="text-lg leading-tight font-semibold">{n}</span>
+              <span className="text-meta text-muted-foreground">{month}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" className={nav} onClick={() => turn(page + 1)} disabled={page >= pages.length - 1} aria-label="Later days">
+        <ChevronRightIcon className="size-5" aria-hidden />
+      </button>
     </div>
   );
 }
