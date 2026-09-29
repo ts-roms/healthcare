@@ -41,7 +41,8 @@ Always search first. Registration also checks for existing records, but searchin
 If you don't see **Register patient**, you need the `patient.register` permission (receptionists, nurses, physicians, dentists and dental assistants have it by
 default).
 
-> Barangay and province are saved only when a city or municipality is also entered.
+> An address needs its **City / municipality**. If you enter a barangay or province without one, the form asks for it ("Enter the city or
+> municipality to save the address") instead of registering the patient without the address.
 
 ## How to review possible duplicates
 
