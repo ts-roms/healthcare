@@ -6,7 +6,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { RecordsRequestDetail } from "@/lib/api/types";
+import type { RecordsRequestDetail, RecordsRequestSetting } from "@/lib/api/types";
 import { periodText, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
 import { RecordCopyCard } from "./record-copy";
 import { RequestAnswer } from "./request-answer";
@@ -21,6 +21,7 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
   if (!can(session, "patient.records-request.manage")) redirect("/");
   if (!UUID.test(requestId)) notFound();
   let request: RecordsRequestDetail;
+  const settingPromise = api<RecordsRequestSetting>("/records-requests/setting");
   try {
     request = await api<RecordsRequestDetail>(`/records-requests/${requestId}`);
   } catch (e) {
@@ -28,6 +29,7 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
     throw e;
   }
   const open = request.status === "submitted" || request.status === "in_review";
+  const setting = await settingPromise;
   return (
     <>
       <PageHeader title={`Records request ${request.requestNumber}`} description="What the patient asked for in MyHealth, and your answer." />
@@ -55,6 +57,19 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
               {clinicalDateTime(request.submittedAt)}
               {open ? ` · waiting ${waitingText(request.daysWaiting).toLowerCase()}` : ""}
             </p>
+            {request.respondBy ? (
+              <p className={request.overdue ? "font-medium text-destructive" : undefined}>
+                <span className="text-muted-foreground">Respond by: </span>
+                {day(request.respondBy)}
+                {request.overdue ? " (past your response date)" : ""}
+              </p>
+            ) : null}
+            {request.identityCheckMethod ? (
+              <p>
+                <span className="text-muted-foreground">Identity confirmed: </span>
+                {request.identityCheckMethod}
+              </p>
+            ) : null}
             <p>
               <span className="text-muted-foreground">Asked for: </span>
               {request.scope.map((s) => RECORDS_SCOPE_LABEL[s]).join(", ")}
@@ -101,7 +116,7 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
         {open ? (
-          <RequestAnswer request={request} />
+          <RequestAnswer request={request} identityCheckRequired={setting.identityCheckRequired} />
         ) : (
           <Card>
             <CardContent className="py-4 text-table text-muted-foreground">

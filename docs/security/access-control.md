@@ -68,6 +68,15 @@ records_officer) reviews patients' requests for copies, shares documents or decl
 with a reason, and prepares copies of the record (migration 0070; they include the dental record and document list
 whatever the preparer's own clinical access, because they answer the patient's own request, and nothing reaches the
 patient until shared); audited `patient.records-request.view | review | fulfil | decline | copy`.
+Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md):
+`compliance.review.manage` (org_admin) records who validated each area; `inventory.controlled-register.read`
+(org_admin, pharmacist, inventory_officer) reads and exports the register of controlled items (audited
+`inventory.controlled-register.view | export`); `document.retention.manage` (org_admin, records_officer) sets retention
+periods and reviews documents past them (audited `document.retention.*`; nothing is deleted). Withholding codes and
+procurement methods need `inventory.procurement.approve`; the laboratory licence `lab.qc.manage`; the records-request
+procedure `patient.records-request.manage` and `organization.manage`; audited `compliance.review.record`,
+`inventory.withholding-code.*`, `inventory.procurement-method.*`, `inventory.controlled-register.setting`,
+`lab.licence.record`, `patient.records-request.setting`, `dental.plan.estimate.signed`.
 Medical certificates use the encounter permissions (issue: `encounter.sign` and the
 consultation's responsible practitioner; void: the issuer or `encounter.amend`).
 Inventory valuation (migration 0061): `inventory.valuation.read` (org_admin,

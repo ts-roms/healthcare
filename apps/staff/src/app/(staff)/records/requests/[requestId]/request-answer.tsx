@@ -4,16 +4,17 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { RecordsRequestDetail } from "@/lib/api/types";
 import { declineRequest, fulfilRequest, startReview } from "../actions";
 
 /** Answering a request: take it into review, share documents from the patient's record, or decline with a reason. */
-export function RequestAnswer({ request }: { request: RecordsRequestDetail }) {
+export function RequestAnswer({ request, identityCheckRequired }: { request: RecordsRequestDetail; identityCheckRequired: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [chosen, setChosen] = React.useState<Set<string>>(new Set());
   const [note, setNote] = React.useState("");
+  const [identity, setIdentity] = React.useState("");
   const [declining, setDeclining] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const run = (call: () => Promise<{ ok: boolean; message?: string }>, done: string) =>
@@ -71,12 +72,29 @@ export function RequestAnswer({ request }: { request: RecordsRequestDetail }) {
           <Label htmlFor="share-note">Note to the patient (optional)</Label>
           <Textarea id="share-note" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
+        <div className="grid gap-1">
+          <Label htmlFor="identity-check">How the requester&apos;s identity was confirmed{identityCheckRequired ? "" : " (optional)"}</Label>
+          <Input
+            id="identity-check"
+            maxLength={200}
+            placeholder="e.g. Valid ID shown at the counter"
+            value={identity}
+            onChange={(e) => setIdentity(e.target.value)}
+          />
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={pending || chosen.size === 0}
+            disabled={pending || chosen.size === 0 || (identityCheckRequired && identity.trim().length < 3)}
             onClick={() =>
               run(
-                () => fulfilRequest({ requestId: request.id, documentIds: [...chosen], note: note.trim() || undefined, version: request.version }),
+                () =>
+                  fulfilRequest({
+                    requestId: request.id,
+                    documentIds: [...chosen],
+                    note: note.trim() || undefined,
+                    identityCheckMethod: identity.trim() || undefined,
+                    version: request.version,
+                  }),
                 "Shared — the patient can download the documents in MyHealth",
               )
             }

@@ -275,6 +275,9 @@ Choose **Documents** on **Home**.
      something else — then say what in **Details**), and optionally the period and what you need them for.
   3. Choose **Send request**. It gets a number (`RR########`).
 
+  The clinic may show a note above the form (for example its fees or what identification to bring) and how many days it aims to take to answer;
+  each waiting request then shows the date the clinic aims to answer by.
+
 The records office checks your request and either shares the copies — they appear under the request with **Download** — or tells you why it cannot.
 You get a message either way. You can **Withdraw this request** while it is waiting. You can have up to 3 requests waiting at once. Results,
 prescriptions and care plans already in MyHealth do not need a request.

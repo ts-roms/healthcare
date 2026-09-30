@@ -288,6 +288,21 @@ and **Stop online decisions** to turn it off. Whether an online acknowledgement 
 
 What patients see is described in [MyHealth patient portal](12-patient-portal.md).
 
+## How to record a signed written estimate
+
+If your organization uses written estimates (**Dental → Settings → Fee estimates**), the printed estimate shows **Valid until** and the plan's
+fee estimate says how long a printed estimate holds.
+
+1. Print the estimate from the plan (**Print estimate**) and have the patient sign it.
+2. Click **Patient signed today's printed estimate** under the plan's fee estimate. The plan lists the signed estimate with its items, total and
+   validity.
+3. If your organization requires a signed estimate, a decision is refused until one covers every item awaiting the decision and has not
+   expired. After changing the plan, print and record a new one.
+
+Administrators set, under **Settings → Fee estimates**, how many days a printed estimate holds and whether a signed estimate is required.
+Decisions patients make in MyHealth confirm your acknowledgement text instead. What a written estimate must contain is not built in: have it
+checked and record the review under **Admin → Compliance**.
+
 ## Rules the system enforces
 
 - Charting, periodontal charts and procedures need a dental visit **in progress** for that patient at your selected facility, and a user linked to

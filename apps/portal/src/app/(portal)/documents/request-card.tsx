@@ -37,6 +37,9 @@ export function RequestCard({ request }: { request: PortalRecordsRequest }) {
         </p>
       ) : null}
       {request.details ? <p className="text-meta text-muted-foreground">{request.details}</p> : null}
+      {request.respondBy && (request.status === "submitted" || request.status === "in_review") ? (
+        <p className="text-meta text-muted-foreground">The clinic aims to answer by {formatCalendarDate(request.respondBy)}.</p>
+      ) : null}
       <span className={`inline-flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-meta font-medium ${className}`}>
         <Icon className="size-4 shrink-0" aria-hidden />
         {state.text}

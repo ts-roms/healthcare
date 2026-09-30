@@ -6,7 +6,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { InventoryItem, InventoryLocation, InventorySupplier, PurchaseOrder, ReorderSuggestion } from "@/lib/api/types";
+import type { InventoryItem, InventoryLocation, InventorySupplier, PurchaseOrder, ReorderSuggestion, ProcurementMethod } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { InventoryNav } from "../inventory-nav";
 import { NewPurchaseOrder } from "./new-purchase-order";
@@ -18,7 +18,13 @@ export const metadata = { title: "Purchase orders" };
 export default async function PurchaseOrdersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
+  const nav = (
+    <InventoryNav
+      canConfigure={can(session, "inventory.catalog.manage")}
+      canValue={can(session, "inventory.valuation.read")}
+      canRegister={can(session, "inventory.controlled-register.read")}
+    />
+  );
   if (!facility) {
     return (
       <>
@@ -29,12 +35,13 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
   }
   const show = params.show === "all" ? "all" : "open";
   const canManage = can(session, "inventory.procurement.manage");
-  const [orders, suggestions, items, suppliers, locations] = await Promise.all([
+  const [orders, suggestions, items, suppliers, locations, methods] = await Promise.all([
     api<PurchaseOrder[]>("/inventory/purchase-orders", { query: show === "open" ? { status: "open" } : {} }),
     api<ReorderSuggestion[]>("/inventory/reorder-suggestions"),
     canManage ? api<InventoryItem[]>("/inventory/items") : Promise.resolve([]),
     canManage ? api<InventorySupplier[]>("/inventory/suppliers") : Promise.resolve([]),
     canManage ? api<InventoryLocation[]>("/inventory/locations", { query: { scope: "facility" } }) : Promise.resolve([]),
+    canManage ? api<ProcurementMethod[]>("/inventory/procurement-methods") : Promise.resolve([]),
   ]);
   return (
     <>
@@ -128,6 +135,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
             suppliers={suppliers.filter((s) => s.status === "active")}
             locations={locations.filter((l) => l.status === "active")}
             suggestions={suggestions}
+            methods={methods.filter((m) => m.status === "active")}
           />
         ) : null}
       </div>

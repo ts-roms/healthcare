@@ -7,7 +7,7 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { SupplierInvoiceDetail } from "@/lib/api/types";
+import type { SupplierInvoiceDetail, WithholdingCode } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { quantityWithUnit, supplierInvoiceActions } from "@/lib/inventory-mapping";
 import { InventoryNav } from "../../inventory-nav";
@@ -21,7 +21,13 @@ const day = (d: string) => clinicalDate(`${d}T12:00:00Z`);
 export default async function SupplierInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
+  const nav = (
+    <InventoryNav
+      canConfigure={can(session, "inventory.catalog.manage")}
+      canValue={can(session, "inventory.valuation.read")}
+      canRegister={can(session, "inventory.controlled-register.read")}
+    />
+  );
   if (!facility) {
     return (
       <>
@@ -30,7 +36,10 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
       </>
     );
   }
-  const invoice = await api<SupplierInvoiceDetail>(`/inventory/supplier-invoices/${id}`);
+  const [invoice, withholdingCodes] = await Promise.all([
+    api<SupplierInvoiceDetail>(`/inventory/supplier-invoices/${id}`),
+    api<WithholdingCode[]>("/inventory/withholding-codes"),
+  ]);
   const actions = supplierInvoiceActions(invoice, session.permissions);
   const variances = invoice.lines.filter((l) => l.variance !== null && l.variance !== 0).length;
   const history = [
@@ -119,6 +128,23 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{peso(invoice.total)}</TableCell>
                 </TableRow>
+                {invoice.withholdingCode ? (
+                  <>
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-right">
+                        Withheld ({invoice.withholdingCode.code}
+                        {invoice.withholdingReference ? `, certificate ${invoice.withholdingReference}` : ""})
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">−{peso(invoice.withheldAmount)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-right font-medium">
+                        Paid to the supplier
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{peso(invoice.netPaid ?? invoice.total)}</TableCell>
+                    </TableRow>
+                  </>
+                ) : null}
               </TableBody>
             </Table>
           </Card>
@@ -137,7 +163,14 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
             </CardContent>
           </Card>
         </div>
-        {actions.length ? <SupplierInvoiceActions invoice={invoice} actions={actions} needsNote={variances > 0} /> : null}
+        {actions.length ? (
+          <SupplierInvoiceActions
+            invoice={invoice}
+            actions={actions}
+            needsNote={variances > 0}
+            withholdingCodes={withholdingCodes.filter((c) => c.status === "active")}
+          />
+        ) : null}
       </div>
     </>
   );

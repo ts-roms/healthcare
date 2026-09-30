@@ -28,3 +28,16 @@ export function copySectionsForScope(scope: readonly RecordsRequestScope[]): Rec
   const wanted = new Set(scope.flatMap((s) => SECTIONS_FOR_SCOPE[s] ?? []));
   return RECORD_COPY_SECTIONS.filter((s) => wanted.has(s));
 }
+
+/** The response date from the organization's own response time (none: null), counted from the local submission date. */
+export function respondByDate(submittedOn: string, responseDays: number | null | undefined): string | null {
+  if (!responseDays) return null;
+  const d = new Date(`${submittedOn}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + responseDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/** An open request past the organization's own response date. */
+export function recordsRequestOverdue(request: { status: RecordsRequestStatus; respondBy: string | null }, today: string): boolean {
+  return recordsRequestOpen(request.status) && request.respondBy !== null && today > request.respondBy;
+}

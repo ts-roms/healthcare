@@ -51,6 +51,13 @@ optional `{ managedBy }` scope: without it (the documents API, consent forms, FH
 so managed documents are never listed, served or archived through the generic API; the managing domain passes its
 name after applying its own checks.
 
+## Retention
+
+The organization sets a retention period (years) per category from its own retention schedule
+(`document_retention_policy`, migration `0074`; `document.retention.manage`) and reviews the available ordinary documents
+stored longer than it (`/document-retention`, staff `/records/retention`). Nothing is deleted; a document is archived
+with a reason as usual. See `docs/architecture/compliance-configuration.md`.
+
 ## Permissions
 
 `document.upload`, `document.read`, `document.archive`.

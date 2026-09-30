@@ -20,7 +20,13 @@ export const metadata = { title: "Purchase order" };
 export default async function PurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} />;
+  const nav = (
+    <InventoryNav
+      canConfigure={can(session, "inventory.catalog.manage")}
+      canValue={can(session, "inventory.valuation.read")}
+      canRegister={can(session, "inventory.controlled-register.read")}
+    />
+  );
   if (!facility) {
     return (
       <>
@@ -47,7 +53,11 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
     <>
       <PageHeader
         title={`Purchase order ${order.poNumber}`}
-        description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}`}
+        description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}${
+          order.procurementMethod
+            ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
+            : ""
+        }`}
         actions={nav}
       />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">

@@ -8,6 +8,7 @@ import { uploadPatientDocument } from "@/lib/api/documents";
 import type {
   DentalExamination,
   DentalPerioChartDetail,
+  DentalPlanEstimate,
   DentalPortalSetting,
   DentalImage,
   DentalProcedure,
@@ -168,6 +169,14 @@ const decisionSchema = z.object({
 export async function decideTreatmentPlan(patientId: string, planId: string, input: z.input<typeof decisionSchema>) {
   if (!id.safeParse(planId).success) return { ok: false as const, message: "Unknown plan." };
   return run<DentalTreatmentPlan>(decisionSchema, input, `/dental/treatment-plans/${planId}/decision`, { revalidate: record(patientId) });
+}
+
+/** The patient signed today's printed estimate (recorded with the items it listed; the organization may require it before a decision). */
+export async function recordWrittenEstimate(patientId: string, planId: string, planVersion: number) {
+  if (!id.safeParse(planId).success) return { ok: false as const, message: "Unknown plan." };
+  return run<DentalPlanEstimate>(z.object({ version }), { version: planVersion }, `/dental/treatment-plans/${planId}/written-estimates`, {
+    revalidate: record(patientId),
+  });
 }
 
 export async function cancelPlanItem(patientId: string, planId: string, itemId: string, planVersion: number) {
@@ -398,9 +407,11 @@ const estimatesSchema = z.object({
     .max(500)
     .nullable()
     .refine((v) => !v || v.length >= 10, "Write at least 10 characters, or leave it empty."),
+  writtenEstimateValidityDays: z.number().int().min(1, "Give at least 1 day.").max(365).nullable().optional(),
+  writtenEstimateRequired: z.boolean().optional(),
   version: z.number().int().min(0),
 });
-/** The organization's note under fee estimates, and whether MyHealth shows estimates on plans. */
+/** The organization's note under fee estimates, how long they hold, whether a signed one is required, and MyHealth. */
 export async function setFeeEstimates(input: z.input<typeof estimatesSchema>) {
   return run<DentalPortalSetting>(estimatesSchema, input, "/dental/settings/portal", { method: "PUT", revalidate: ["/dental/settings"] });
 }

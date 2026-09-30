@@ -30,3 +30,15 @@ export class ListDocumentsDto extends createZodDto(listDocumentsSchema) {}
 
 export const archiveDocumentSchema = z.object({ reason: z.string().trim().min(5).max(500) });
 export class ArchiveDocumentDto extends createZodDto(archiveDocumentSchema) {}
+
+export const retentionPolicySchema = z.object({
+  category: z.enum(DOCUMENT_CATEGORIES),
+  /** From the organization's own retention schedule; the platform suggests none. */
+  retainYears: z.number().int().min(1).max(100),
+  /** Where the period comes from (the schedule, issuance or advice the organization follows). */
+  basisNote: z.string().trim().min(3).max(500),
+});
+export class RetentionPolicyDto extends createZodDto(retentionPolicySchema) {}
+
+export const retentionReviewQuerySchema = z.object({ category: z.enum(DOCUMENT_CATEGORIES) });
+export class RetentionReviewQueryDto extends createZodDto(retentionReviewQuerySchema) {}

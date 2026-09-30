@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { TriangleAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -55,6 +56,7 @@ export default async function ReportingPage({ searchParams }: { searchParams: Pr
                   <TableHead>Condition</TableHead>
                   <TableHead>Diagnosis</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Due</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -86,6 +88,19 @@ export default async function ReportingPage({ searchParams }: { searchParams: Pr
                     <TableCell>
                       <CaseStatus status={c.status} />
                       {c.externalReference ? <span className="ml-2 text-meta text-muted-foreground">Ref. {c.externalReference}</span> : null}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {c.dueAt ? (
+                        c.overdue ? (
+                          <Badge variant="danger">
+                            <TriangleAlertIcon aria-hidden /> Overdue · {clinicalDateTime(c.dueAt)}
+                          </Badge>
+                        ) : (
+                          clinicalDateTime(c.dueAt)
+                        )
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

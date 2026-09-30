@@ -1,3 +1,4 @@
+import type { CsvCell } from "@healthcare/core";
 /**
  * Pure rules of the management dashboard (apps/api composes the figures; each domain counts its own rows).
  */
@@ -277,21 +278,9 @@ export type ExportTable = (typeof EXPORT_TABLES)[number];
 /** Tables that need the billing report permission on every facility in scope. */
 export const REVENUE_EXPORT_TABLES: readonly ExportTable[] = ["services", "categories", "revenue", "collections"];
 
-type Cell = string | number | null;
-
-/**
- * RFC 4180 CSV (CRLF, quoted when needed). A cell starting with = + - @ (or a tab / carriage return) is prefixed with
- * an apostrophe so spreadsheets never run it as a formula — names come from staff-entered data.
- */
-export function toCsv(rows: ReadonlyArray<ReadonlyArray<Cell>>): string {
-  const cell = (value: Cell) => {
-    if (value === null) return "";
-    if (typeof value === "number") return String(value);
-    const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-    return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-  };
-  return rows.map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n";
-}
+/** Formula-safe CSV (moved to libs/core for reuse). */
+export { toCsv } from "@healthcare/core";
+type Cell = CsvCell;
 
 /** Centavos as pesos with two decimals (a plain number for spreadsheets). */
 export const pesos = (centavos: number) => (centavos / 100).toFixed(2);

@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
-import { DeclineRecordsRequestDto, FulfilRecordsRequestDto, RecordsRequestQueryDto, StartReviewDto } from "./records-request.dto";
+import { DeclineRecordsRequestDto, FulfilRecordsRequestDto, RecordsRequestQueryDto, RecordsRequestSettingDto, StartReviewDto } from "./records-request.dto";
 import { RecordsRequestService } from "./records-request.service";
 
 /** The records office's side of patients' records requests (`patient.records-request.manage`). */
@@ -16,6 +16,20 @@ export class RecordsRequestController {
   @ApiOperation({ summary: "Records requests: open (oldest first), closed or all" })
   list(@CurrentActor() actor: Actor, @Query() query: RecordsRequestQueryDto) {
     return this.requests.list(actor, query.status);
+  }
+
+  @Get("setting")
+  @RequirePermissions("patient.records-request.manage")
+  @ApiOperation({ summary: "The organization's own records-request procedure: response time, identity check, notice to patients" })
+  setting(@CurrentActor() actor: Actor) {
+    return this.requests.setting(actor.organizationId);
+  }
+
+  @Put("setting")
+  @RequirePermissions("patient.records-request.manage", "organization.manage")
+  @ApiOperation({ summary: "Set the organization's records-request procedure (no deadline, fee or disclosure rule is encoded)" })
+  setSetting(@CurrentActor() actor: Actor, @Body() body: RecordsRequestSettingDto) {
+    return this.requests.setSetting(actor, body);
   }
 
   @Get(":requestId")

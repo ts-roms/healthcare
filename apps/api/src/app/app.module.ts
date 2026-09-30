@@ -45,6 +45,7 @@ import { PatientTimelineController } from "./patient-timeline/patient-timeline.c
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
+import { ControlledRegisterController } from "./controlled-register/controlled-register.controller";
 import { RecordCopyController } from "./record-copy/record-copy.controller";
 import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
@@ -202,6 +203,7 @@ export class AppModule implements NestModule {
         PortalRecordsController,
         PortalTeleconsultController,
         RecordCopyController,
+        ControlledRegisterController,
       ],
       providers: [
         FhirRecordComposer,
