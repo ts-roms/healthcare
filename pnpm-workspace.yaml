@@ -17,3 +17,8 @@ onlyBuiltDependencies:
 overrides:
   # @nestjs/swagger 11.4.7 pins js-yaml 5.3.0 (GHSA: merge keys not bounded); 5.4.1+ is patched, same major.
   "@nestjs/swagger>js-yaml": ^5.4.2
+  # @storybook/addon-docs takes `react` and `react-dom` as its own dependencies. Since apps/mobile pins the React its React
+  # Native version needs (19.2.3), pnpm would otherwise reuse that version for addon-docs and split the pair in libs/ui's
+  # Storybook. Keep addon-docs on the React the web projects use.
+  "@storybook/addon-docs>react": ^19.3.0
+  "@storybook/addon-docs>react-dom": ^19.3.0
