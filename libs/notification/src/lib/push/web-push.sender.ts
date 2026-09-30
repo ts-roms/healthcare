@@ -1,7 +1,7 @@
 import { Logger } from "@nestjs/common";
 import type { AppConfig } from "@healthcare/core";
 import { PermanentDeliveryError } from "../notification.dispatcher";
-import type { ChannelSender, SendResult } from "../ports";
+import type { ChannelSender, SendContext, SendResult } from "../ports";
 import type { RenderedMessage } from "../templates";
 import { type ExpoPushTransport, expoTokenIsGone } from "./expo-push.transport";
 import { PushSubscriptionService } from "./push-subscription.service";
@@ -60,7 +60,7 @@ export class WebPushSender implements ChannelSender {
     private readonly expo?: ExpoPushTransport,
   ) {}
 
-  async send(destination: string, message: RenderedMessage): Promise<SendResult> {
+  async send(destination: string, message: RenderedMessage, context?: SendContext): Promise<SendResult> {
     const subscriptions = (await this.devices.active(destination)).filter((s) => (s.kind === "expo" ? this.expo : this.web));
     if (subscriptions.length === 0) throw new PermanentDeliveryError("No device is registered for push any more");
     const outcome = { accepted: 0, retryable: 0 };
@@ -73,6 +73,7 @@ export class WebPushSender implements ChannelSender {
       subscriptions.filter((s) => s.kind === "expo"),
       message,
       outcome,
+      context,
     );
     if (outcome.accepted > 0) return { provider: "push", providerMessageId: `${outcome.accepted}/${subscriptions.length} devices` };
     if (outcome.retryable > 0) throw new Error("The push service did not accept the message; it will be retried");
@@ -106,7 +107,12 @@ export class WebPushSender implements ChannelSender {
     }
   }
 
-  private async sendExpo(subscriptions: PushSubscriptionRecord[], message: RenderedMessage, outcome: { accepted: number; retryable: number }): Promise<void> {
+  private async sendExpo(
+    subscriptions: PushSubscriptionRecord[],
+    message: RenderedMessage,
+    outcome: { accepted: number; retryable: number },
+    context: SendContext | undefined,
+  ): Promise<void> {
     if (!this.expo || subscriptions.length === 0) return;
     const { title, body, url } = JSON.parse(pushPayload(message)) as { title: string; body: string; url: string };
     try {
@@ -118,6 +124,8 @@ export class WebPushSender implements ChannelSender {
         if (ticket.status === "ok") {
           outcome.accepted += 1;
           await this.devices.recordResult(s.id, "sent");
+          // Whether Apple or Google then took it comes later, in the ticket's receipt (ExpoPushReceipts).
+          if (ticket.id) await this.devices.recordTicket(s, ticket.id, context?.notificationId ?? null);
         } else if (expoTokenIsGone(ticket)) {
           await this.devices.recordResult(s.id, "gone");
         } else {
