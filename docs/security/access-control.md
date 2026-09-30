@@ -12,6 +12,25 @@
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
 
+### Credential resets by an administrator
+
+Migration `0088`. With `user.manage`, an administrator can help a member of the organization sign in (`libs/auth`,
+`UsersService`); both need a reason, end every session of the person at once and are audited (`user.password-reset`,
+`user.mfa-reset`, with the sessions ended):
+
+- **Temporary password** (`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password):
+  the administrator gives it to the person directly. It also clears a lockout. `app_user.password_change_required` is
+  set: until the person changes it (`POST /auth/password`, which clears it), the `AccessGuard` refuses every route not
+  marked `@AllowPendingPasswordChange()` (`/auth/me`, `/auth/me/facilities`, `/auth/password`, `/auth/logout`) with
+  `403 password_change_required`, and the staff app shows only "Choose your own password".
+- **Two-step verification off** (`POST /users/:id/mfa-reset`, `{ reason }`): for a lost phone; the secret (and any
+  unfinished enrolment) is removed and the person can enrol again under My account (`mfa_not_enabled` when it is off).
+- Never your own account (`self_modification`; use My account). A staff account's credentials are shared by every
+  organization it belongs to, so an account that is also a member elsewhere, or a platform administrator's, is refused
+  (`account_shared`) unless the administrator is a platform administrator. Another organization's member is not found.
+- No emailed reset link for staff: there is no verified staff email channel yet. The administrator should confirm the
+  person's identity in person before a reset (the reason records how).
+
 ## Authorization model
 
 ```

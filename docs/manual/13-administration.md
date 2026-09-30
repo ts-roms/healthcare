@@ -255,9 +255,20 @@ yourself can be ticked. Roles cannot be changed or retired from the screen yet; 
 - To link a staff account to a practitioner (needed to sign encounters, prescribe and record dental work), use the clinic set-up calls below.
 
 **Passwords and two-step verification.** Each person changes their own password and turns two-step verification on or off under **My account** (click
-their name in the top bar; see [Getting started](01-getting-started.md)). There is no self-service password reset and no way for an administrator to reset
-someone else's password or two-step verification yet. Two-step verification is optional; an organization-wide "require MFA" policy does not exist yet.
-Changing a password signs out the person's other sessions.
+their name in the top bar; see [Getting started](01-getting-started.md)). Two-step verification is optional; an organization-wide "require MFA" policy
+does not exist yet. Changing a password signs out the person's other sessions. There is no self-service password reset for staff.
+
+**How to help someone who cannot sign in** (needs `user.manage`; check who they are in person first):
+
+- **Forgotten password:** on the person's page, under **Account**, select **Reset password…**. Enter a **Temporary password** (at least 12 characters)
+  twice and a **Reason** (for example "forgot password, confirmed in person"), then **Set temporary password**. Give it to them directly — never by email
+  or chat. They are signed out everywhere, a lockout is cleared, and their page shows **Temporary password**. When they sign in with it, every page asks
+  them to **Choose your own password** first.
+- **Lost phone:** select **Turn off two-step verification…**, give a reason and select **Turn off**. They are signed out and their next sign-in asks only
+  for the password; ask them to turn it on again under **My account**.
+
+Both are audited with your reason. You cannot reset your own account, and an account also used in another organization can only be reset by a platform
+administrator ("This account is also used outside your organization").
 
 ## How facilities and departments are managed
 
@@ -392,18 +403,19 @@ entries.
 
 ## Troubleshooting / common messages
 
-| Message                                                                           | Meaning                                                                  | What to do                                                                                |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| You do not have permission to perform this action                                 | The user's roles do not include the permission at the selected facility. | Check their role grants and whether the grant is limited to another facility.             |
-| A staff member sees no facility selector                                          | They hold no role in any active facility.                                | Grant a role for the organization or for their facility.                                  |
-| Facility is not accessible                                                        | The selected facility is inactive or not in the organization.            | Select an active facility.                                                                |
-| You cannot grant permissions you do not hold                                      | The role contains permissions the granting user lacks.                   | Ask an organization administrator to grant it.                                            |
-| The user already has this role in this scope                                      | The same role is already granted at that level.                          | No action needed.                                                                         |
-| This person is already a member of the organization                               | The email is already a member.                                           | Grant roles instead of adding them again.                                                 |
-| This email has no account yet: set a first password for them.                     | The email is new to the platform.                                        | Set a first password of at least 12 characters and give it to them in person.             |
-| You cannot change your own membership status                                      | Self-suspension or self-reactivation is blocked.                         | Ask another administrator.                                                                |
-| Facility was modified by someone else (expected version …). Reload and try again. | Someone changed the facility at the same time.                           | Read the facility again and repeat the change with the new version.                       |
-| Too many failed attempts. Try again later.                                        | The account is locked for 15 minutes.                                    | Wait, then have the user sign in again. Investigate repeated lockouts in the audit trail. |
+| Message                                                                                 | Meaning                                                                  | What to do                                                                                |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| You do not have permission to perform this action                                       | The user's roles do not include the permission at the selected facility. | Check their role grants and whether the grant is limited to another facility.             |
+| A staff member sees no facility selector                                                | They hold no role in any active facility.                                | Grant a role for the organization or for their facility.                                  |
+| Facility is not accessible                                                              | The selected facility is inactive or not in the organization.            | Select an active facility.                                                                |
+| You cannot grant permissions you do not hold                                            | The role contains permissions the granting user lacks.                   | Ask an organization administrator to grant it.                                            |
+| The user already has this role in this scope                                            | The same role is already granted at that level.                          | No action needed.                                                                         |
+| This person is already a member of the organization                                     | The email is already a member.                                           | Grant roles instead of adding them again.                                                 |
+| This email has no account yet: set a first password for them.                           | The email is new to the platform.                                        | Set a first password of at least 12 characters and give it to them in person.             |
+| You cannot change your own membership status                                            | Self-suspension or self-reactivation is blocked.                         | Ask another administrator.                                                                |
+| Facility was modified by someone else (expected version …). Reload and try again.       | Someone changed the facility at the same time.                           | Read the facility again and repeat the change with the new version.                       |
+| Too many failed attempts. Try again later.                                              | The account is locked for 15 minutes.                                    | Wait, then have the user sign in again. Investigate repeated lockouts in the audit trail. |
+| This account is also used outside your organization; a platform administrator resets it | The person's account belongs to another organization too.                | Ask a platform administrator to reset it.                                                 |
 
 ## Related chapters
 

@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuditService } from "@healthcare/audit";
-import { ACCESS_METADATA, BadRequestError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import { ACCESS_METADATA, BadRequestError, DomainError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
 import type { Request } from "express";
 import { ActorResolver } from "./actor-resolver";
 
@@ -13,6 +13,14 @@ import { ActorResolver } from "./actor-resolver";
  * The session is checked on every request so logout, password change and
  * membership suspension take effect immediately, not at token expiry.
  */
+export class PasswordChangeRequiredError extends DomainError {
+  readonly code = "password_change_required";
+  readonly httpStatus = 403;
+  constructor() {
+    super("Choose a new password before continuing");
+  }
+}
+
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
@@ -36,6 +44,10 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
+    // A temporary password from an administrator must be replaced before anything else (migration 0088).
+    if (actor.passwordChangeRequired && !this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.pendingPasswordChange, targets)) {
+      throw new PasswordChangeRequiredError();
+    }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(ACCESS_METADATA.permissions, targets) ?? [];
     const needsPlatformAdmin = this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.platformAdmin, targets) ?? false;

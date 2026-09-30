@@ -6,18 +6,19 @@ import {
   ConflictError,
   DATABASE,
   type Database,
+  type DbExecutor,
   ForbiddenError,
   NotFoundError,
   type Permission,
   PERMISSIONS,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { appUser, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
-import type { createRoleSchema, createUserSchema, grantRoleSchema, updateMembershipSchema } from "./users.dto";
+import type { createRoleSchema, createUserSchema, grantRoleSchema, resetMfaSchema, resetPasswordSchema, updateMembershipSchema } from "./users.dto";
 
 export interface StaffUserView {
   id: string;
@@ -26,6 +27,8 @@ export interface StaffUserView {
   accountStatus: string;
   membershipStatus: string;
   mfaEnabled: boolean;
+  /** Has a temporary password from an administrator that is not yet replaced. */
+  passwordChangeRequired: boolean;
   lastLoginAt: Date | null;
   roleAssignments: Array<{
     id: string;
@@ -105,6 +108,7 @@ export class UsersService {
         accountStatus: appUser.status,
         membershipStatus: organizationMembership.status,
         mfaEnabled: appUser.mfaEnabled,
+        passwordChangeRequired: appUser.passwordChangeRequired,
         lastLoginAt: appUser.lastLoginAt,
       })
       .from(organizationMembership)
@@ -197,6 +201,91 @@ export class UsersService {
       });
     });
     return this.get(actor.organizationId, userId);
+  }
+
+  /**
+   * Gives a member a temporary password (the administrator hands it over directly) that must be replaced at the next
+   * sign-in: every session ends, a lockout is cleared, and until the person chooses a new password the API refuses all
+   * but their own account routes (migration 0088). Audited with the reason.
+   */
+  async resetPassword(actor: Actor, userId: string, input: z.infer<typeof resetPasswordSchema>): Promise<StaffUserView> {
+    const passwordHash = await hashPassword(input.temporaryPassword);
+    await this.db.transaction(async (tx) => {
+      await this.lockResettable(tx, actor, userId);
+      await tx
+        .update(appUser)
+        .set({
+          passwordHash,
+          passwordChangedAt: new Date(),
+          passwordChangeRequired: true,
+          failedLoginCount: 0,
+          lockedUntil: null,
+          updatedAt: new Date(),
+          version: sql`${appUser.version} + 1`,
+        })
+        .where(eq(appUser.id, userId));
+      const revoked = await this.sessions.revokeAllForUser(tx, userId, "password_reset");
+      await this.audit.record(tx, actor, {
+        action: "user.password-reset",
+        resourceType: "app_user",
+        resourceId: userId,
+        reason: input.reason,
+        metadata: { sessionsRevoked: revoked },
+      });
+    });
+    return this.get(actor.organizationId, userId);
+  }
+
+  /**
+   * Turns off a member's two-step verification (a lost phone): the next sign-in needs only the password, and the person
+   * can set it up again under My account. Every session ends. Audited with the reason.
+   */
+  async resetMfa(actor: Actor, userId: string, input: z.infer<typeof resetMfaSchema>): Promise<StaffUserView> {
+    await this.db.transaction(async (tx) => {
+      const user = await this.lockResettable(tx, actor, userId);
+      if (!user.mfaEnabled && !user.mfaPendingSecretEncrypted) {
+        throw new BusinessRuleError("Two-step verification is not turned on for this person", "mfa_not_enabled");
+      }
+      await tx
+        .update(appUser)
+        .set({ mfaEnabled: false, mfaSecretEncrypted: null, mfaPendingSecretEncrypted: null, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
+        .where(eq(appUser.id, userId));
+      const revoked = await this.sessions.revokeAllForUser(tx, userId, "mfa_reset");
+      await this.audit.record(tx, actor, {
+        action: "user.mfa-reset",
+        resourceType: "app_user",
+        resourceId: userId,
+        reason: input.reason,
+        metadata: { sessionsRevoked: revoked, wasEnabled: user.mfaEnabled },
+      });
+    });
+    return this.get(actor.organizationId, userId);
+  }
+
+  /**
+   * A member of the actor's organization whose sign-in this organization may reset: not the actor (My account is for
+   * that), and — unless the actor is a platform administrator — an account used only in this organization and not a
+   * platform administrator's, because a staff account's credentials are shared by every organization it belongs to.
+   */
+  private async lockResettable(tx: DbExecutor, actor: Actor, userId: string) {
+    if (userId === actor.userId) throw new BusinessRuleError("Change your own sign-in under My account", "self_modification");
+    const [user] = await tx.select().from(appUser).where(eq(appUser.id, userId)).for("update");
+    const [member] = await tx
+      .select({ userId: organizationMembership.userId })
+      .from(organizationMembership)
+      .where(and(eq(organizationMembership.organizationId, actor.organizationId), eq(organizationMembership.userId, userId)));
+    if (!user || !member) throw new NotFoundError("User");
+    if (!actor.isPlatformAdmin) {
+      const [elsewhere] = await tx
+        .select({ organizationId: organizationMembership.organizationId })
+        .from(organizationMembership)
+        .where(and(eq(organizationMembership.userId, userId), ne(organizationMembership.organizationId, actor.organizationId)))
+        .limit(1);
+      if (elsewhere || user.isPlatformAdmin) {
+        throw new BusinessRuleError("This account is also used outside your organization; a platform administrator resets it", "account_shared");
+      }
+    }
+    return user;
   }
 
   async grantRole(actor: Actor, userId: string, input: z.infer<typeof grantRoleSchema>): Promise<StaffUserView> {

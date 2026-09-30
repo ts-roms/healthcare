@@ -36,7 +36,15 @@ export interface OrganizationChoice {
 }
 
 export interface Me {
-  user: { id: string; email: string; displayName: string; mfaEnabled: boolean; isPlatformAdmin: boolean };
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+    mfaEnabled: boolean;
+    isPlatformAdmin: boolean;
+    /** Signed in with a temporary password from an administrator: every page asks for a new one first. */
+    passwordChangeRequired?: boolean;
+  };
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
   permissions: string[];
@@ -4418,6 +4426,8 @@ export interface StaffUser {
   accountStatus: string;
   membershipStatus: "active" | "suspended" | string;
   mfaEnabled: boolean;
+  /** Has a temporary password from an administrator, not yet replaced. */
+  passwordChangeRequired: boolean;
   lastLoginAt: string | null;
   roleAssignments: StaffRoleAssignment[];
 }

@@ -13,7 +13,8 @@ function FormError({ message }: { message: string | null }) {
   ) : null;
 }
 
-export function PasswordForm() {
+export function PasswordForm({ temporary = false }: { temporary?: boolean } = {}) {
+  const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [form, setForm] = React.useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -29,12 +30,13 @@ export function PasswordForm() {
           if (result.ok) {
             toast.success("Password changed; your other sessions were signed out");
             setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+            if (temporary) router.refresh();
           } else setError(result.message);
         });
       }}
     >
       <div className="grid gap-1">
-        <Label htmlFor="current-password">Current password</Label>
+        <Label htmlFor="current-password">{temporary ? "Temporary password" : "Current password"}</Label>
         <Input id="current-password" type="password" autoComplete="current-password" required value={form.currentPassword} onChange={set("currentPassword")} />
       </div>
       <div className="grid gap-1">
@@ -60,7 +62,7 @@ export function PasswordForm() {
       </div>
       <FormError message={error} />
       <Button type="submit" size="sm" className="self-start" disabled={pending}>
-        {pending ? "Changing…" : "Change password"}
+        {pending ? "Changing…" : temporary ? "Choose this password" : "Change password"}
       </Button>
     </form>
   );

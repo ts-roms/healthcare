@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
+import { KeyRoundIcon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
@@ -9,7 +9,7 @@ import { can, getSession } from "@/lib/api/session";
 import type { StaffRoleDefinition, StaffUser } from "@/lib/api/types";
 import { ApiError } from "@healthcare/web-session";
 import { organizationDirectory, scopeLabel } from "../directory";
-import { GrantRoleForm, MembershipControl, RevokeRoleButton } from "./user-controls";
+import { GrantRoleForm, MembershipControl, RevokeRoleButton, SignInResets } from "./user-controls";
 
 export const metadata = { title: "Staff user" };
 
@@ -99,7 +99,15 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
               )}
             </p>
             <p className="text-muted-foreground">Last sign-in: {user.lastLoginAt ? clinicalDateTime(user.lastLoginAt) : "never"}</p>
+            {user.passwordChangeRequired ? (
+              <p>
+                <Badge variant="warning">
+                  <KeyRoundIcon aria-hidden /> Temporary password — must choose their own at the next sign-in
+                </Badge>
+              </p>
+            ) : null}
             {manage && !self ? <MembershipControl userId={user.id} status={user.membershipStatus === "active" ? "active" : "suspended"} /> : null}
+            {manage && !self ? <SignInResets userId={user.id} mfaEnabled={user.mfaEnabled} /> : null}
             {self ? <p className="text-meta text-muted-foreground">You cannot suspend yourself. Change your own password under My account.</p> : null}
           </CardContent>
         </Card>

@@ -11,6 +11,8 @@ export interface Actor {
   /** Facility the request is acting in, from the X-Facility-Id header. */
   facilityId?: string;
   isPlatformAdmin: boolean;
+  /** Signed in with a temporary password an administrator gave: only account routes are allowed until it is changed. */
+  passwordChangeRequired?: boolean;
   permissions: ReadonlySet<string>;
   request: RequestMetadata;
 }

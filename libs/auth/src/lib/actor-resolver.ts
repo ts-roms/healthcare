@@ -60,6 +60,7 @@ export class ActorResolver {
       organizationId: claims.org,
       facilityId,
       isPlatformAdmin: user.isPlatformAdmin,
+      passwordChangeRequired: user.passwordChangeRequired,
       permissions,
       request,
     };

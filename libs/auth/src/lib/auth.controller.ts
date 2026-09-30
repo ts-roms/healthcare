@@ -1,7 +1,16 @@
 import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { type Actor, CurrentActor, ForbiddenError, Public, RequireFacility, requestMetadataFrom, requireFacilityId } from "@healthcare/core";
+import {
+  type Actor,
+  AllowPendingPasswordChange,
+  CurrentActor,
+  ForbiddenError,
+  Public,
+  RequireFacility,
+  requestMetadataFrom,
+  requireFacilityId,
+} from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
 import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from "./auth.dto";
@@ -62,6 +71,7 @@ export class AuthController {
   }
 
   @Post("logout")
+  @AllowPendingPasswordChange()
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentActor() actor: Actor): Promise<void> {
@@ -69,6 +79,7 @@ export class AuthController {
   }
 
   @Get("me")
+  @AllowPendingPasswordChange()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Current user, organization, facility context and effective permissions" })
   async me(@CurrentActor() actor: Actor) {
@@ -80,6 +91,8 @@ export class AuthController {
         displayName: user.displayName,
         mfaEnabled: user.mfaEnabled,
         isPlatformAdmin: user.isPlatformAdmin,
+        /** Signed in with a temporary password from an administrator: choose a new one first. */
+        passwordChangeRequired: user.passwordChangeRequired,
       },
       organization: { id: organization.id, code: organization.code, name: organization.name },
       facilityId: actor.facilityId ?? null,
@@ -88,6 +101,7 @@ export class AuthController {
   }
 
   @Get("me/facilities")
+  @AllowPendingPasswordChange()
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Active facilities the current user can work in (holds a role there, or an organization-wide role); for the facility selector",
@@ -109,6 +123,7 @@ export class AuthController {
   }
 
   @Post("password")
+  @AllowPendingPasswordChange()
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)

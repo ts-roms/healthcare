@@ -90,7 +90,9 @@ Click your name in the top bar to open **My account** (`/account`).
   and click **Turn on**. From then on, signing in also asks for a code. To turn it off, click **Turn off…** and enter your password and a current
   code.
 
-If you lose your phone, ask your administrator: there is no screen yet to reset someone else's two-step verification, so IT has to help.
+If you lose your phone or forget your password, ask your administrator. They can turn off two-step verification or give you a temporary password in
+person. After signing in with a temporary password, every page shows **Choose your own password**: enter the temporary password, then your new one twice,
+and select **Choose this password**.
 
 ## How to read your notifications
 
