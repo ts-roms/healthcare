@@ -77,6 +77,24 @@ The **Instruments** list shows each instrument's status (**In service**, **Out o
 next due — **Overdue since** when past due), last **Maintenance** and **Reagent lots** in use. Click **Show retired** to include retired instruments.
 An instrument that is out of service cannot be used for QC or patient results. An overdue calibration is a reminder only; it does not block use.
 
+## How to connect an analyzer
+
+An analyzer sends its results over the facility's network to the **instrument gateway**, a small program your IT staff run at the facility (see
+`docs/domains/laboratory-instruments.md`); the gateway passes each message to the platform. Staff then review the results (Chapter 6, "How to
+review results sent by an analyzer"). Check your analyzer's interface manual for its protocol and where it puts the specimen barcode.
+
+You need `lab.qc.manage`.
+
+1. Open **Instruments**, then the instrument (**Log**). Under **Analyzer interface**:
+2. Choose the **Protocol**: **HL7 v2 (ORU^R01)** or **ASTM E1394 / E1381**.
+3. Choose where the analyzer puts the **Specimen barcode** (the accession number on the tube label): for HL7 **OBR-2**, **OBR-3** or **SPM-2**; for
+   ASTM **O-3** or **O-4**.
+4. Tick **Accept messages** and click **Save**. Untick it to stop taking messages from this instrument.
+5. Under **Analyzer test codes**, enter each **Analyzer code** the analyzer uses and choose the **Test** it is, then **Map**. **Remove** unmaps a
+   code. Results with a code that is not mapped wait as **Not matched**.
+
+Run test samples and compare with manual entry before relying on the interface.
+
 ## How to record maintenance, calibration or a status change
 
 You need `lab.qc.enter`. Retiring needs `lab.qc.manage`.

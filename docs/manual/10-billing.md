@@ -267,7 +267,8 @@ and balance.
 ## How to see online payments
 
 Patients can pay issued invoices online in MyHealth **only once a payment provider is configured** — none is by default, so patients see no pay
-button and pay at the clinic. When online payments exist, the invoice shows an **Online payments** card with each attempt and its status
+button and pay at the clinic. The platform supports PayMongo (card and e-wallets on PayMongo's own page); your administrator turns it on with the
+clinic's PayMongo account. When online payments exist, the invoice shows an **Online payments** card with each attempt and its status
 (**Waiting for the provider**, **Paid**, **Failed**, **Cancelled**, **Expired**). A successful online payment appears in **Payments** with its own
 receipt number; if the invoice was paid at the counter in the meantime, the extra amount goes to the patient's deposit balance.
 

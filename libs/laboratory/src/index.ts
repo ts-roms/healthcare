@@ -32,3 +32,7 @@ export * from "./lib/send-outs/send-out.service";
 export * from "./lib/quality/lab-quality-summary.service";
 export * from "./lib/quality/lab-quality-due";
 export * from "./lib/results/lab-reporting.queries";
+export * from "./lib/instruments/instrument-interface.ports";
+export * from "./lib/instruments/instrument-interface.schema";
+export * from "./lib/instruments/instrument-interface.rules";
+export * from "./lib/instruments/lab-instrument-interface.service";

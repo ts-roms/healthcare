@@ -3779,3 +3779,46 @@ export interface DentalWrittenEstimate {
   validUntil: string | null;
   recordedAt: string;
 }
+
+// ---- Laboratory analyzer interfaces ----
+
+export type InstrumentProtocol = "hl7v2" | "astm";
+
+export interface LabInstrumentInterfaceSettings {
+  instrumentId: string;
+  instrumentCode: string;
+  interface: { protocol: InstrumentProtocol; specimenIdField: string; enabled: boolean; updatedAt: string; version: number } | null;
+  testCodes: Array<{ analyzerCode: string; testId: string; testCode: string; testName: string }>;
+}
+
+export type InstrumentMatchProblem = "no_specimen_id" | "unknown_specimen" | "no_test_code" | "unmapped_code" | "test_not_ordered";
+
+export interface LabInstrumentResultRow {
+  id: string;
+  instrumentId: string;
+  instrumentCode: string;
+  receivedAt: string;
+  specimenCode: string | null;
+  analyzerCode: string | null;
+  value: string;
+  units: string | null;
+  referenceRange: string | null;
+  /** As sent by the analyzer; never interpreted. */
+  flags: string | null;
+  status: string | null;
+  observedAt: string | null;
+  matchProblem: InstrumentMatchProblem | null;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+  patientId: string | null;
+  orderItemId: string | null;
+  orderNumber: string | null;
+  accessionNumber: string | null;
+  testName: string | null;
+  testUnit: string | null;
+  itemStatus: string | null;
+  state: "pending" | "accepted" | "dismissed";
+  resultId: string | null;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  dismissReason: string | null;
+}
