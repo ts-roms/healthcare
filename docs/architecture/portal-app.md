@@ -210,4 +210,4 @@ A person with their own MyHealth account may act for another person's record (a 
 
 ## Not yet
 
-guardian access and everything but notifications in the mobile app (the app is a notifications client, see [mobile-app.md](mobile-app.md); browser push and mobile push are built).
+guardian access and everything but results and notifications in the mobile app (`apps/mobile`: sign-in, results and push — [mobile-app.md](mobile-app.md); browser push is built too).

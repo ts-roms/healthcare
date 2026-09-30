@@ -1,51 +1,85 @@
-import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { router, Stack } from "expo-router";
+import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import * as React from "react";
-import { ActivityIndicator, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Body, Button, useTheme } from "@/components/ui";
+import { ErrorState, Loading } from "@/components/screen-states";
+import { SessionProvider, useSession } from "@/components/session-provider";
+import { colors } from "@/components/theme";
+import { configured } from "@/lib/config";
 import { configureForegroundNotices } from "@/lib/native-push";
-import { SessionProvider, useSession } from "@/lib/session";
 
 configureForegroundNotices();
-
-function Routes() {
-  const { state, retry } = useSession();
-  const t = useTheme();
-  if (state.status === "loading") {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.background }}>
-        <ActivityIndicator color={t.primary} />
-      </View>
-    );
-  }
-  if (state.status === "offline") {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 24, backgroundColor: t.background }}>
-        <Body>Could not reach MyHealth. You are still signed in.</Body>
-        <Button title="Try again" onPress={retry} />
-      </View>
-    );
-  }
-  return (
-    <Stack screenOptions={{ headerStyle: { backgroundColor: t.card }, headerTintColor: t.text, contentStyle: { backgroundColor: t.background } }}>
-      <Stack.Protected guard={state.status === "signed_in"}>
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={state.status === "signed_out"}>
-        <Stack.Screen name="sign-in" options={{ title: "Sign in", headerShown: false }} />
-      </Stack.Protected>
-    </Stack>
-  );
-}
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <StatusBar style="auto" />
-        <Routes />
-      </SessionProvider>
+      <StatusBar style="dark" />
+      {configured ? (
+        <SessionProvider>
+          <Screens />
+        </SessionProvider>
+      ) : (
+        <ErrorState message="This build of MyHealth is not set up yet (EXPO_PUBLIC_API_BASE_URL and EXPO_PUBLIC_ORGANIZATION_CODE)." />
+      )}
     </SafeAreaProvider>
+  );
+}
+
+/** Signed-in screens exist only with a session; sign-in only without one. */
+function Screens() {
+  const { state, retry } = useSession();
+  if (state.status === "starting") return <Loading label="Opening MyHealth" />;
+  if (state.status === "unavailable") return <ErrorState message={state.message} onRetry={retry} />;
+  const signedIn = state.status === "signed_in";
+  return (
+    <>
+      <OpenFromNotification signedIn={signedIn} />
+      <Stack screenOptions={{ headerStyle: { backgroundColor: colors.card }, headerTintColor: colors.primary, headerTitleStyle: { color: colors.foreground } }}>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="index" options={{ title: "Your results", headerRight: () => <HeaderButtons /> }} />
+          <Stack.Screen name="results/[testId]" options={{ title: "Result", headerBackTitle: "Results" }} />
+          <Stack.Screen name="notifications" options={{ title: "Notifications", headerBackTitle: "Results" }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+        </Stack.Protected>
+      </Stack>
+    </>
+  );
+}
+
+/**
+ * Tapping a notification opens the app. A notice names a page of MyHealth on the web (`data.url`); the app shows only
+ * results, so it opens the results list for a results notice and stays where it is for anything else.
+ */
+function OpenFromNotification({ signedIn }: { signedIn: boolean }) {
+  const response = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!signedIn || !response) return;
+    const url = response.notification.request.content.data?.["url"];
+    if (typeof url === "string" && url.startsWith("/results")) router.navigate("/");
+  }, [response, signedIn]);
+  return null;
+}
+
+function HeaderButtons() {
+  return (
+    <View style={{ flexDirection: "row", gap: 16 }}>
+      <Pressable onPress={() => router.push("/notifications")} accessibilityRole="button" accessibilityLabel="Notifications on this phone" hitSlop={8}>
+        <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "500" }}>Notifications</Text>
+      </Pressable>
+      <SignOutButton />
+    </View>
+  );
+}
+
+function SignOutButton() {
+  const { signOut } = useSession();
+  return (
+    <Pressable onPress={() => void signOut()} accessibilityRole="button" hitSlop={8}>
+      <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "500" }}>Sign out</Text>
+    </Pressable>
   );
 }

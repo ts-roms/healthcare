@@ -357,20 +357,19 @@ You can use up to 5 devices. If the browser says notifications are blocked, allo
 
 ## How to use the MyHealth app on your phone
 
-If your clinic has the MyHealth app, install it from the app store the clinic points you to. The app is for **notifications**: it shows your notices and
-tells you when something is waiting. Visits, results and bills are on the MyHealth website, which the app links to.
+If your clinic has the MyHealth app, install it from the app store the clinic points you to. The app shows your **released results** and can tell you
+when something is waiting in MyHealth. Visits, bills, messages and everything else are on the MyHealth website.
 
 1. Open the app and sign in with your MyHealth email and password (and the code from your authenticator app, if you use two-step verification). To activate a
    new account, or if you forgot your password, use the MyHealth website first.
-2. Choose **Settings**, then **Turn on notifications**, and allow notifications when your phone asks.
-3. Choose **Send a test notice** to check it works. From now on a short notice appears on your phone when a message, result, document or dental item is waiting.
-   It never says what it is: open the app or the website to read it. With the app turned on you get the notice there **instead of** a text message or email.
-4. Tap a notification to open the app; if it points to a page of the website, choose **Open in MyHealth**.
-5. **Notices** lists what the clinic sent you, newest first; tap one to mark it read. Pull down to refresh.
+2. **Your results** lists the latest result of each test; tap one to see its history. Pull down to refresh.
+3. To get notifications on the phone, choose **Notifications**, then **Turn on notifications**, and allow notifications when your phone asks. Choose **Send a
+   test notification** to check it works.
+4. From now on a short notice appears on your phone when a result, message, document or dental item is waiting. It never says what it is. With notifications on
+   in the app you get the notice there **instead of** a text message or email. Tapping a results notice opens your results.
 
-To stop notifications on a phone, choose **Turn off on this phone**, or remove it from your other devices in **Settings** or in **Notification settings** on the
-website. **Sign out** in the app also turns notifications off on that phone. You can use up to 5 devices in total, browsers included. If the app says
-notifications are blocked, turn them on for MyHealth in the phone's settings.
+To stop notifications on a phone, choose **Turn off on this phone**, or remove it from another device. **Sign out** also turns notifications off on that
+phone. You can use up to 5 devices in total, browsers included. If the app says notifications are blocked, turn them on for MyHealth in the phone's settings.
 
 ## How to see and withdraw your consents
 

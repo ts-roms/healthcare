@@ -3,11 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "isolatedModules": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "app.config.ts", "expo-env.d.ts", ".expo/types/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".expo"]
+  "include": ["src", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
 }

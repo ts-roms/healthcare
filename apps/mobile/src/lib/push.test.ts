@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, type ApiClient } from "./api";
-import { enableMessage, enablePush, pushState, type PushPlatform, unregisterThisPhone } from "./push";
-import type { PushStatus } from "./types";
+import { ApiError } from "./api-error";
+import type { PushStatus } from "./api-types";
+import { enableMessage, enablePush, type PushApi, pushState, type PushPlatform, unregisterThisPhone } from "./push";
 
 const TOKEN = "ExponentPushToken[abcdefghijkl]";
 
@@ -36,7 +36,7 @@ function fakeApi(status: Partial<PushStatus> = {}, post?: (path: string, body: u
       posts.push({ path, body });
       return post ? post(path, body) : { id: "device-1" };
     },
-  } as unknown as ApiClient;
+  } as unknown as PushApi;
   return { api, posts, gets };
 }
 
@@ -106,7 +106,7 @@ describe("signing out", () => {
     const { api, posts } = fakeApi();
     await unregisterThisPhone(api, platform({ permissionNow: "granted" }));
     expect(posts).toEqual([]);
-    const broken = { get: async () => Promise.reject(new Error("offline")), post: async () => undefined } as unknown as ApiClient;
+    const broken = { get: async () => Promise.reject(new Error("offline")), post: async () => undefined } as unknown as PushApi;
     await expect(unregisterThisPhone(broken, platform({ permissionNow: "granted" }))).resolves.toBeUndefined();
   });
 });

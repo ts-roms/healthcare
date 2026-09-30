@@ -72,38 +72,8 @@ export interface PortalAppointments {
   past: PortalAppointment[];
 }
 
-export type PortalResultFlag = "normal" | "low" | "high" | "critical_low" | "critical_high" | "abnormal";
-
-/** `GET /portal/results` row: a released result the laboratory allows patients to see. */
-export interface PortalResult {
-  id: string;
-  testId: string;
-  testName: string;
-  orderId: string;
-  orderNumber: string;
-  resultType: "numeric" | "text" | "coded";
-  valueNumeric: number | null;
-  valueText: string | null;
-  valueCoded: string | null;
-  unit: string | null;
-  flag: PortalResultFlag | null;
-  refLow: number | null;
-  refHigh: number | null;
-  refText: string | null;
-  collectedAt: string | null;
-  releasedAt: string | null;
-  corrected: boolean;
-  /** The partner (reference) laboratory that performed the test; null: the clinic's own laboratory. */
-  performingLaboratory: string | null;
-}
-
-/** `GET /portal/results/trend?testId=` */
-export interface PortalTrend {
-  analyte: string;
-  testName: string;
-  unit: string | null;
-  points: PortalResult[];
-}
+// Results and their wording are shared with the mobile app.
+export type { PortalResult, PortalResultFlag, PortalTrend } from "@healthcare/domain/portal-results";
 
 /** `GET /portal/prescriptions` row */
 export interface PortalPrescription {

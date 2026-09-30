@@ -1,6 +1,11 @@
-import type { ApiClient } from "./api";
-import { ApiError } from "./api";
-import type { PushDevice, PushStatus } from "./types";
+import { ApiError } from "./api-error";
+import type { PushDevice, PushStatus } from "./api-types";
+
+/** What push needs of the session: authenticated GET and POST (`PatientSession`, or a fake in tests). */
+export interface PushApi {
+  get<T>(path: string): Promise<T>;
+  post<T>(path: string, body?: unknown): Promise<T>;
+}
 
 /** What the operating system and Expo provide; faked in tests. */
 export interface PushPlatform {
@@ -17,7 +22,7 @@ export interface PushPlatform {
 export type PushState = { kind: "unavailable"; reason: "not_offered" | "simulator" } | { kind: "off"; canAsk: boolean } | { kind: "on"; deviceId: string };
 
 /** Whether this phone receives notifications now: offered by the clinic's platform, allowed on the phone, and registered. */
-export async function pushState(api: ApiClient, platform: PushPlatform): Promise<{ state: PushState; devices: PushDevice[] }> {
+export async function pushState(api: PushApi, platform: PushPlatform): Promise<{ state: PushState; devices: PushDevice[] }> {
   if (!platform.isPhysicalDevice) return { state: { kind: "unavailable", reason: "simulator" }, devices: [] };
   const permission = await platform.permission();
   const token = permission === "granted" ? await platform.token().catch(() => null) : null;
@@ -31,7 +36,7 @@ export type EnableResult =
   { ok: true; deviceId: string } | { ok: false; reason: "denied" | "simulator" | "too_many_devices" | "not_offered" | "failed"; message?: string };
 
 /** Asks the phone's permission if needed, then registers this installation's token with the clinic's platform. */
-export async function enablePush(api: ApiClient, platform: PushPlatform): Promise<EnableResult> {
+export async function enablePush(api: PushApi, platform: PushPlatform): Promise<EnableResult> {
   if (!platform.isPhysicalDevice) return { ok: false, reason: "simulator" };
   let permission = await platform.permission();
   if (permission !== "granted") permission = await platform.requestPermission();
@@ -54,12 +59,12 @@ export async function enablePush(api: ApiClient, platform: PushPlatform): Promis
 }
 
 /** Stops notifications on one device (this phone, or another one the patient no longer uses). */
-export async function removeDevice(api: ApiClient, deviceId: string): Promise<void> {
+export async function removeDevice(api: PushApi, deviceId: string): Promise<void> {
   await api.post(`/portal/push/subscriptions/${deviceId}/remove`);
 }
 
 /** Before signing out: this phone stops receiving the patient's notices. Failing to reach the API must not block signing out. */
-export async function unregisterThisPhone(api: ApiClient, platform: PushPlatform): Promise<void> {
+export async function unregisterThisPhone(api: PushApi, platform: PushPlatform): Promise<void> {
   try {
     if (!platform.isPhysicalDevice || (await platform.permission()) !== "granted") return;
     const { state } = await pushState(api, platform);

@@ -1,134 +1,180 @@
-import * as React from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
+import { type ReactNode, useState } from "react";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Body, Button, ErrorText, Heading, Muted, useTheme } from "@/components/ui";
-import { ApiError } from "@/lib/api";
-import { signInMessage } from "@/lib/messages";
-import { useSession } from "@/lib/session";
-import { settings } from "@/lib/settings";
+import { useSession } from "@/components/session-provider";
+import { colors } from "@/components/theme";
+import { patientMessage } from "@/lib/api-error";
+import { session } from "@/lib/session-instance";
 
-export default function SignIn() {
-  const { api, completeSignIn } = useSession();
-  const t = useTheme();
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [challenge, setChallenge] = React.useState<string | null>(null);
-  const [code, setCode] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
+/** Sign-in: the password, then — for accounts with two-step verification — the code (as MyHealth on the web). */
+export default function SignInScreen() {
+  const { state, signedIn } = useSession();
+  const [step, setStep] = useState<"password" | "code">("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const notice = state.status === "signed_out" ? state.notice : null;
 
-  const run = async (work: () => Promise<void>) => {
-    setBusy(true);
+  async function submitPassword() {
+    if (!email.trim() || !password) return setError("Enter your email and password.");
+    setPending(true);
     setError(null);
     try {
-      await work();
+      const result = await session.signIn(email.trim(), password);
+      setPassword("");
+      if (result === "code_required") setStep("code");
+      else await signedIn();
     } catch (e) {
-      setError(e instanceof ApiError ? signInMessage(e.code, e.message) : e instanceof Error ? e.message : "Something went wrong. Try again.");
+      setError(patientMessage(e));
     } finally {
-      setBusy(false);
+      setPending(false);
     }
-  };
+  }
 
-  const submitPassword = () =>
-    run(async () => {
-      const result = await api.login(email, password);
-      if (result.kind === "mfa_required") setChallenge(result.challengeToken);
-      else await completeSignIn();
-    });
-  const submitCode = () =>
-    run(async () => {
-      await api.verifyMfa(challenge ?? "", code);
-      await completeSignIn();
-    });
+  async function submitCode() {
+    if (code.trim().length < 6) return setError("Enter the 6-digit code from your authenticator app, or a recovery code.");
+    setPending(true);
+    setError(null);
+    try {
+      await session.verifyCode(code.trim());
+      await signedIn();
+    } catch (e) {
+      setError(patientMessage(e));
+    } finally {
+      setPending(false);
+    }
+  }
 
-  const input = {
-    borderWidth: 1,
-    borderColor: t.border,
-    backgroundColor: t.card,
-    color: t.text,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    minHeight: 48,
-    fontSize: 16,
-  } as const;
+  function startOver() {
+    setStep("password");
+    setCode("");
+    setError(null);
+  }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: t.background }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: 24, gap: 16, flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
-          <Heading>MyHealth</Heading>
-          {challenge === null ? (
-            <>
-              <Muted>Sign in with the email and password of your MyHealth account.</Muted>
-              <View style={{ gap: 6 }}>
-                <Body>Email</Body>
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.title} accessibilityRole="header">
+            MyHealth
+          </Text>
+          {notice && !error ? <Text style={styles.notice}>{notice}</Text> : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {error}
+            </Text>
+          ) : null}
+
+          {step === "password" ? (
+            <View style={styles.form}>
+              <Field label="Email">
                 <TextInput
-                  accessibilityLabel="Email"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect={false}
-                  inputMode="email"
-                  keyboardType="email-address"
-                  textContentType="username"
                   value={email}
                   onChangeText={setEmail}
-                  style={input}
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Body>Password</Body>
-                <TextInput
-                  accessibilityLabel="Password"
+                  style={styles.input}
+                  keyboardType="email-address"
                   autoCapitalize="none"
-                  autoComplete="current-password"
-                  secureTextEntry
-                  textContentType="password"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="username"
+                  accessibilityLabel="Email"
+                />
+              </Field>
+              <Field label="Password">
+                <TextInput
                   value={password}
                   onChangeText={setPassword}
-                  onSubmitEditing={submitPassword}
-                  style={input}
+                  style={styles.input}
+                  secureTextEntry
+                  autoComplete="current-password"
+                  textContentType="password"
+                  accessibilityLabel="Password"
+                  onSubmitEditing={() => void submitPassword()}
                 />
-              </View>
-              {error ? <ErrorText>{error}</ErrorText> : null}
-              <Button title="Sign in" onPress={submitPassword} busy={busy} disabled={!email.trim() || !password} />
-              <Muted>
-                First time? Ask the clinic for an activation code and activate your account on the MyHealth website
-                {settings.portalUrl ? ` (${settings.portalUrl})` : ""}. Forgot your password? Use “Forgot password” there.
-              </Muted>
-            </>
+              </Field>
+              <Button label={pending ? "Signing in…" : "Sign in"} disabled={pending} onPress={() => void submitPassword()} />
+            </View>
           ) : (
-            <>
-              <Muted>Enter the 6-digit code from your authenticator app, or a recovery code.</Muted>
-              <View style={{ gap: 6 }}>
-                <Body>Code</Body>
+            <View style={styles.form}>
+              <Text style={styles.body}>Your password is right. Now enter the 6-digit code from your authenticator app.</Text>
+              <Field label="Code" hint="Lost your phone? Enter a recovery code instead, like K7M2P-X9QRT.">
                 <TextInput
-                  accessibilityLabel="Verification code"
-                  autoCapitalize="none"
-                  autoComplete="one-time-code"
-                  autoCorrect={false}
-                  inputMode="numeric"
-                  textContentType="oneTimeCode"
                   value={code}
                   onChangeText={setCode}
-                  onSubmitEditing={submitCode}
-                  style={input}
+                  style={styles.input}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  autoComplete="one-time-code"
+                  textContentType="oneTimeCode"
+                  accessibilityLabel="Code"
+                  onSubmitEditing={() => void submitCode()}
                 />
-              </View>
-              {error ? <ErrorText>{error}</ErrorText> : null}
-              <Button title="Verify" onPress={submitCode} busy={busy} disabled={code.trim().length < 6} />
-              <Button
-                title="Back"
-                variant="secondary"
-                onPress={() => {
-                  setChallenge(null);
-                  setCode("");
-                  setError(null);
-                }}
-              />
-            </>
+              </Field>
+              <Button label={pending ? "Checking…" : "Sign in"} disabled={pending} onPress={() => void submitCode()} />
+              <Pressable onPress={startOver} accessibilityRole="button" style={styles.link}>
+                <Text style={styles.linkText}>Start over</Text>
+              </Pressable>
+            </View>
           )}
+
+          <Text style={styles.meta}>Setting up MyHealth for the first time, or forgot your password? Use MyHealth on the web, or ask the clinic.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      {children}
+      {hint ? <Text style={styles.meta}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+function Button({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      style={[styles.button, disabled && styles.buttonDisabled]}
+    >
+      <Text style={styles.buttonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, justifyContent: "center", gap: 16, padding: 24 },
+  title: { fontSize: 28, fontWeight: "700", color: colors.foreground },
+  body: { fontSize: 16, color: colors.mutedForeground },
+  notice: { fontSize: 15, color: colors.foreground, backgroundColor: colors.muted, borderRadius: 8, padding: 12 },
+  error: { fontSize: 15, color: colors.dangerForeground, backgroundColor: colors.dangerSubtle, borderRadius: 8, padding: 12 },
+  form: { gap: 16 },
+  field: { gap: 6 },
+  label: { fontSize: 15, fontWeight: "600", color: colors.foreground },
+  input: {
+    fontSize: 17,
+    color: colors.foreground,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  button: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: colors.primaryForeground, fontSize: 17, fontWeight: "600" },
+  link: { alignItems: "center", paddingVertical: 8 },
+  linkText: { color: colors.primary, fontSize: 16, fontWeight: "500" },
+  meta: { fontSize: 14, color: colors.mutedForeground },
+});

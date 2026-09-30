@@ -36,7 +36,7 @@ app → feature → ui → data-access → contract → domain → util
 | -------------------------------------- | ------------------------------------------------------------------------------ |
 | `scope:shared`                         | `scope:shared`                                                                 |
 | `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope                       |
-| `scope:mobile`                         | its own scope only (it reaches the API over HTTP and shares no code)           |
+| `scope:mobile`                         | `type:domain` libraries only (platform-neutral; today `@healthcare/domain`)    |
 | `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib**                 |
 | `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root)    |
 | `scope:worker`                         | its own scope, `scope:shared`, `scope:interoperability` (integration adapters) |
@@ -63,7 +63,7 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | --------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | `apps/staff`                                                                                  | `scope:staff`, `type:app`                |
 | `apps/portal`                                                                                 | `scope:portal`, `type:app`               |
-| `apps/mobile`                                                                                 | `scope:mobile`, `type:app`               |
+| `apps/mobile` (Expo; API client)                                                              | `scope:mobile`, `type:app`               |
 | `apps/api`                                                                                    | `scope:api`, `type:app`                  |
 | `apps/e2e` (imports no workspace project; drives the built apps through the browser and HTTP) | `scope:e2e`, `type:e2e`                  |
 | `libs/ui`                                                                                     | `scope:shared`, `type:ui`                |
