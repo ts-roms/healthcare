@@ -456,6 +456,7 @@ function NewCarePlanDialog({
                     <option value="patient">Patient</option>
                   </NativeSelect>
                   <NativeSelect
+                    emptyText="This plan has no goals yet"
                     aria-label={`Activity ${i + 1} goal`}
                     className="sm:col-span-2"
                     value={a.goalKey}

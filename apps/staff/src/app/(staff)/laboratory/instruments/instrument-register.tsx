@@ -477,7 +477,12 @@ function ReagentPanel({
           </div>
           <div className="grid gap-1">
             <Label htmlFor={`reagent-test-${instrument.id}`}>For</Label>
-            <NativeSelect id={`reagent-test-${instrument.id}`} value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value })}>
+            <NativeSelect
+              emptyText="No tests in the catalogue"
+              id={`reagent-test-${instrument.id}`}
+              value={f.testId}
+              onChange={(e) => setF({ ...f, testId: e.target.value })}
+            >
               <option value="">All tests on this instrument</option>
               {tests.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -490,7 +495,12 @@ function ReagentPanel({
             <>
               <div className="grid gap-1">
                 <Label htmlFor={`reagent-location-${instrument.id}`}>Take from stock</Label>
-                <NativeSelect id={`reagent-location-${instrument.id}`} value={f.locationId} onChange={(e) => setF({ ...f, locationId: e.target.value })}>
+                <NativeSelect
+                  emptyText="No stock locations set up"
+                  id={`reagent-location-${instrument.id}`}
+                  value={f.locationId}
+                  onChange={(e) => setF({ ...f, locationId: e.target.value })}
+                >
                   <option value="">No (issued separately)</option>
                   {stockLocations.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -684,7 +694,12 @@ function NewInstrument({ departments }: { departments: LabCatalogEntry[] }) {
         >
           <Input aria-label="Code" placeholder="Code, e.g. chem-1" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} />
           <Input aria-label="Name" placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-          <NativeSelect aria-label="Department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
+          <NativeSelect
+            emptyText="No departments set up"
+            aria-label="Department"
+            value={f.departmentId}
+            onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+          >
             <option value="">Department (optional)</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>

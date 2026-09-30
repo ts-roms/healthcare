@@ -105,7 +105,7 @@ export function WalkInForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor="practitioner">Assign to</Label>
-          <NativeSelect id="practitioner" value={practitionerId} onChange={(e) => setPractitionerId(e.target.value)}>
+          <NativeSelect emptyText="No practitioners set up" id="practitioner" value={practitionerId} onChange={(e) => setPractitionerId(e.target.value)}>
             <option value="">Next available</option>
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>

@@ -80,7 +80,12 @@ export function SupplierInvoiceActions({
                 <legend className="px-1 text-meta text-muted-foreground">Withheld from this payment (as your accountant determined)</legend>
                 <div className="grid gap-1">
                   <Label htmlFor="withholding-code">Withholding code</Label>
-                  <NativeSelect id="withholding-code" value={withholding.codeId} onChange={(e) => setWithholding({ ...withholding, codeId: e.target.value })}>
+                  <NativeSelect
+                    emptyText="No withholding codes set up"
+                    id="withholding-code"
+                    value={withholding.codeId}
+                    onChange={(e) => setWithholding({ ...withholding, codeId: e.target.value })}
+                  >
                     <option value="">Nothing withheld</option>
                     {withholdingCodes.map((c) => (
                       <option key={c.id} value={c.id}>

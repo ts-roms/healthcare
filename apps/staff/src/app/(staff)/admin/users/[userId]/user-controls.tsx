@@ -57,7 +57,12 @@ export function GrantRoleForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor="grant-facility">Where</Label>
-          <NativeSelect id="grant-facility" value={form.facilityId} onChange={(e) => setForm((f) => ({ ...f, facilityId: e.target.value, departmentId: "" }))}>
+          <NativeSelect
+            emptyText="No facilities set up"
+            id="grant-facility"
+            value={form.facilityId}
+            onChange={(e) => setForm((f) => ({ ...f, facilityId: e.target.value, departmentId: "" }))}
+          >
             <option value="">Organization-wide</option>
             {facilities.map((f) => (
               <option key={f.id} value={f.id}>
@@ -69,6 +74,7 @@ export function GrantRoleForm({
         <div className="grid gap-1">
           <Label htmlFor="grant-department">Department</Label>
           <NativeSelect
+            emptyText="No departments in this facility"
             id="grant-department"
             disabled={!form.facilityId || inFacility.length === 0}
             value={form.departmentId}

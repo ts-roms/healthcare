@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Label, Textarea } from "@healthcare/ui/primitives";
+import { Button, Label, RadioGroup, RadioGroupTile, Textarea } from "@healthcare/ui/primitives";
 import { DayPicker, SlotPicker } from "@/components/booking-pickers";
-import { cn } from "@healthcare/ui/lib/utils";
 import type { BookingRulesView, PortalAppointment } from "@/lib/api/types";
 import { bookingDays, bookingMessage, lengthText, longDate, slotTime } from "@/lib/booking";
 import { cancelAppointment, rescheduleAppointment } from "../actions";
@@ -73,20 +72,16 @@ function Reschedule({ visit, rules, practitioners }: { visit: PortalAppointment;
     <section className="flex flex-col gap-3">
       <h2 className="text-section-lg font-semibold">Choose a new time</h2>
       {others.length > 0 ? (
-        <div role="radiogroup" aria-label="Doctor" className="flex flex-wrap gap-2">
-          <Pill selected={doctor === SAME} onSelect={() => setDoctor(SAME)}>
-            {visit.practitionerName}
-          </Pill>
-          <Pill selected={doctor === ANY} onSelect={() => setDoctor(ANY)}>
-            Any doctor at this clinic
-          </Pill>
+        <RadioGroup aria-label="Doctor" value={doctor} onValueChange={setDoctor} className="flex flex-wrap gap-2">
+          <Pill value={SAME}>{visit.practitionerName}</Pill>
+          <Pill value={ANY}>Any doctor at this clinic</Pill>
           {others.map((p) => (
-            <Pill key={p.id} selected={doctor === p.id} onSelect={() => setDoctor(p.id)}>
+            <Pill key={p.id} value={p.id}>
               {p.displayName}
               {p.specialty ? <span className="text-muted-foreground"> · {p.specialty}</span> : null}
             </Pill>
           ))}
-        </div>
+        </RadioGroup>
       ) : (
         <p className="text-body text-muted-foreground">With {visit.practitionerName}.</p>
       )}
@@ -114,20 +109,11 @@ function Reschedule({ visit, rules, practitioners }: { visit: PortalAppointment;
   );
 }
 
-function Pill({ selected, onSelect, children }: { selected: boolean; onSelect: () => void; children: React.ReactNode }) {
+function Pill({ value, children }: { value: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "rounded-full border bg-card px-4 py-2 text-body outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        selected && "border-primary bg-primary-subtle text-primary",
-      )}
-    >
+    <RadioGroupTile value={value} className="rounded-full px-4 py-2 text-body">
       {children}
-    </button>
+    </RadioGroupTile>
   );
 }
 

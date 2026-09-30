@@ -149,7 +149,12 @@ function ReportForm({ instruments }: { instruments: LabInstrument[] }) {
           </div>
           <div className="grid gap-1">
             <Label htmlFor="nc-instrument">Instrument (optional)</Label>
-            <NativeSelect id="nc-instrument" value={f.instrumentId} onChange={(e) => setF({ ...f, instrumentId: e.target.value })}>
+            <NativeSelect
+              emptyText="No instruments registered"
+              id="nc-instrument"
+              value={f.instrumentId}
+              onChange={(e) => setF({ ...f, instrumentId: e.target.value })}
+            >
               <option value="">None</option>
               {instruments.map((i) => (
                 <option key={i.id} value={i.id}>

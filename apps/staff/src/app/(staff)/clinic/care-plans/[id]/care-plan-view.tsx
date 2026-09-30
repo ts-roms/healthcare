@@ -317,7 +317,13 @@ function AddActivityForm({ plan, today }: { plan: CarePlanDetail; today: string 
         <option value="care_team">Care team</option>
         <option value="patient">Patient</option>
       </NativeSelect>
-      <NativeSelect aria-label="Goal" className="sm:col-span-2" value={goalId} onChange={(e) => setGoalId(e.target.value)}>
+      <NativeSelect
+        emptyText="This plan has no goals yet"
+        aria-label="Goal"
+        className="sm:col-span-2"
+        value={goalId}
+        onChange={(e) => setGoalId(e.target.value)}
+      >
         <option value="">No goal</option>
         {plan.goals.map((g) => (
           <option key={g.id} value={g.id}>

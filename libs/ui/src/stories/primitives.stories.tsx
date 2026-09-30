@@ -13,6 +13,7 @@ import {
   NativeSelect,
   RadioGroup,
   RadioGroupItem,
+  RadioGroupTile,
   Tabs,
   TabsContent,
   TabsList,
@@ -84,6 +85,16 @@ export const FormControls: StoryObj = {
           <Label className="font-normal">
             <RadioGroupItem value="stat" /> STAT
           </Label>
+        </RadioGroup>
+      </div>
+      <div className="grid gap-1">
+        <Label>Open slots (tiles)</Label>
+        <RadioGroup aria-label="Open slots" defaultValue="09:30" className="flex flex-wrap gap-1.5">
+          {["09:00", "09:30", "10:00"].map((t) => (
+            <RadioGroupTile key={t} value={t} className="tabular px-2.5 py-1 text-table">
+              {t}
+            </RadioGroupTile>
+          ))}
         </RadioGroup>
       </div>
       <div className="grid gap-1">

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { hasSelectableOptions, NativeSelect } from "./select";
 
 const options = (select: string) =>
-  [...select.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)].map(([, attrs, text]) => ({ text, disabled: attrs.includes("disabled") }));
+  [...select.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)].map(([, attrs, text]) => ({ text, disabled: (attrs ?? "").includes("disabled") }));
 const render = (props: Record<string, unknown>, ...children: unknown[]) =>
   renderToStaticMarkup(h(NativeSelect, { value: "", onChange: () => undefined, ...props }, ...(children as [])));
 

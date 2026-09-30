@@ -27,4 +27,22 @@ function RadioGroupItem({ className, ...props }: React.ComponentProps<typeof Rad
   );
 }
 
-export { RadioGroup, RadioGroupItem };
+/**
+ * A whole card or pill that is one choice of a radio group (e.g. a visit type or a doctor), for
+ * choices that need more than a label. Arrow keys move between tiles, like radio buttons.
+ */
+function RadioGroupTile({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+  return (
+    <RadioGroupPrimitive.Item
+      data-slot="radio-group-tile"
+      className={cn(
+        "rounded-md border bg-card text-left transition-colors outline-none hover:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50",
+        "data-[state=checked]:border-primary data-[state=checked]:bg-primary-subtle data-[state=checked]:text-primary",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export { RadioGroup, RadioGroupItem, RadioGroupTile };
