@@ -114,6 +114,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     children: [
       { label: "Integrations", href: "/admin/integrations" },
       { label: "Compliance", href: "/admin/compliance" },
+      { label: "Consent wording", href: "/admin/consent-wording" },
     ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },

@@ -438,6 +438,18 @@ export interface PortalConsentDecision {
   expiresAt: string | null;
   recordedAt: string;
   recordedVia: "clinic" | "myhealth";
+  /** The version of the clinic's wording the patient read, for a consent given online. */
+  wordingVersion: number | null;
+}
+
+/** `GET /portal/consents/:type/wording`: the organization's own words a patient reads before giving a consent online. */
+export interface PortalConsentWording {
+  id: string;
+  consentType: ConsentType;
+  version: number;
+  title: string;
+  body: string;
+  acknowledgement: string;
 }
 
 export interface PortalConsent {
@@ -445,6 +457,8 @@ export interface PortalConsent {
   current: PortalConsentDecision | null;
   inEffect: boolean;
   canWithdraw: boolean;
+  /** The patient may give this consent now, in MyHealth (the clinic offers it online with its own wording). */
+  canGive: boolean;
   history: PortalConsentDecision[];
 }
 

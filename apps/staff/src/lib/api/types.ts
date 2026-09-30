@@ -139,6 +139,8 @@ export interface PatientConsent {
   recordedAt: string;
   /** Recorded by staff, or by the patient in MyHealth (a withdrawal). */
   recordedVia: "staff" | "myhealth";
+  /** The version of the organization's wording the patient read, for a consent given online. */
+  wordingVersion?: number | null;
 }
 
 export interface PatientDetail {
@@ -3893,4 +3895,24 @@ export interface LabInstrumentResultRow {
   decidedAt: string | null;
   decidedByName: string | null;
   dismissReason: string | null;
+}
+
+export type OnlineConsentType = "telemedicine" | "data_sharing_hmo" | "data_sharing_philhealth" | "research";
+
+/** `GET /consent-texts`: the organization's own wording for a consent patients may give online. */
+export interface ConsentTextVersion {
+  id: string;
+  consentType: OnlineConsentType;
+  version: number;
+  offered: boolean;
+  title: string | null;
+  body: string | null;
+  acknowledgement: string | null;
+  createdAt: string;
+}
+
+export interface ConsentTextStatus {
+  consentType: OnlineConsentType;
+  current: ConsentTextVersion | null;
+  history: ConsentTextVersion[];
 }

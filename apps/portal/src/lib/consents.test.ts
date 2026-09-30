@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consentMessage, consentState } from "./consents";
+import { canGiveOnline, consentMessage, consentState } from "./consents";
 
 const decision = (d: "granted" | "refused" | "withdrawn") => ({
   id: "c1",
@@ -8,6 +8,7 @@ const decision = (d: "granted" | "refused" | "withdrawn") => ({
   expiresAt: null,
   recordedAt: "2026-01-01T00:00:00Z",
   recordedVia: "clinic" as const,
+  wordingVersion: null,
 });
 
 describe("consents", () => {
@@ -22,5 +23,12 @@ describe("consents", () => {
   it("explains refusals in the patient's words", () => {
     expect(consentMessage("consent_withdraw_at_clinic", "x")).toContain("withdrawn at the clinic");
     expect(consentMessage(undefined, "Something went wrong")).toBe("Something went wrong");
+  });
+
+  it("offers a consent online only when the clinic does and it is not already given", () => {
+    expect(canGiveOnline({ canGive: true, inEffect: false })).toBe(true);
+    expect(canGiveOnline({ canGive: true, inEffect: true })).toBe(false);
+    expect(canGiveOnline({ canGive: false, inEffect: false })).toBe(false);
+    expect(consentMessage("consent_wording_changed", "x")).toContain("read it again");
   });
 });

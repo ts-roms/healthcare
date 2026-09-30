@@ -351,8 +351,17 @@ never names a test or a result. To change the number or address the clinic uses,
 
 You can withdraw here your consent to **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth**, **Research** and
 **MyHealth** itself. Withdrawing **MyHealth** signs you out at once, and you cannot sign in again until you give your consent at the clinic. Consent
-to the use of your information and to general treatment is changed with the clinic, which explains what it means for your care. To give a consent,
-talk to the clinic.
+to the use of your information and to general treatment is changed with the clinic, which explains what it means for your care.
+
+**To give a consent here.** If your clinic offers it online, the consent shows **Read and give consent** (a consent you have not given yet also appears on the list).
+
+1. Choose **Read and give consent**. The clinic's own wording opens. Read it all; nothing is given by opening the page.
+2. Tick the statement under it (the clinic's own words, for example "I have read this and I agree") and choose **Give my consent** (or **Not now**).
+3. It is recorded from now on, with the version of the wording you read. The history shows "by you in MyHealth · you read version …".
+
+If the clinic changes the wording while you are reading you see "The clinic changed the wording while you were reading. Please read it again." and the new
+wording. You can give **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth** and **Research** here if your clinic offers them;
+consent to the use of your information, to general treatment and to MyHealth itself is given at the clinic.
 
 ## How to check your profile
 

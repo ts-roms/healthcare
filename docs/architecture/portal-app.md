@@ -138,8 +138,18 @@ the organization's data protection officer). A withdrawal is a new, append-only 
 (`recorded_by_portal_account`, electronic, effective at once; audited `portal.consent-withdraw`; event `PatientConsentWithdrawn`); the database
 allows a patient's account to record only electronic withdrawals and every decision exactly one recorder. Withdrawing MyHealth revokes every
 session of the account in the same transaction and signs the patient out (`/login?reason=access_withdrawn`); signing in is refused until the clinic
-records a new grant. Staff see the decision on the patient record marked "by the patient in MyHealth". Granting consent online is not offered: it
-needs the organization's own consent wording. Wording: `lib/consents.ts`.
+records a new grant. Staff see the decision on the patient record marked "by the patient in MyHealth". Wording: `lib/consents.ts`.
+
+**Giving a consent online** (migration `0078`; `libs/patient/src/lib/consents`). The platform ships **no consent wording**. An organization writes its own for
+telemedicine, HMO sharing, PhilHealth sharing and research (staff `/admin/consent-wording`, `consent.wording.manage`, org_admin): a title, the text and the
+statement the patient confirms, each save an immutable version (`consent_text`), and "stop offering online" is a version too. A consent is offered in MyHealth
+only while its latest version is offered and it is not already in effect (`canGive`). The patient opens **Read and give consent** (`/privacy/[type]`;
+`GET /portal/consents/:type/wording`, audited `portal.consent-wording-view`), ticks the confirmation and gives it (`POST /portal/consents/:type/give`,
+`acknowledged: true` and the version id): recorded electronically by their account as an ordinary append-only consent that keeps the wording version
+(`patient_consent.consent_text_id`), effective at once, audited `portal.consent-give`, event `PatientConsentGiven` (ids only). If the wording changed while
+they read, the give is refused (`409 consent_wording_changed`) and they read the new one. The database allows the patient's account to record only
+electronic withdrawals, or grants against a wording version. Consent to data processing and general treatment, and to MyHealth itself, are still given at the
+clinic. Whether an electronic consent meets the organization's legal needs is for its data protection officer to decide; nothing here states it does.
 
 **Dental.** Off unless the organization turns on "Dental records in MyHealth" (`/dental/settings`, `dental.settings.manage`;
 off by default). The navigation shows **Dental** only when `GET /portal/dental/availability` says records are shared and
@@ -186,4 +196,4 @@ The **API** also needs `PORTAL_BASE_URL` (the portal's public address, e.g. `htt
 
 ## Not yet
 
-giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, push notifications (needs the mobile app).
+proxy access for guardians and dependents, push notifications (needs the mobile app).

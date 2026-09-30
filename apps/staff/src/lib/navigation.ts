@@ -52,6 +52,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/records/requests": ["patient.records-request.manage"],
   "/admin/integrations": ["integration.exchange.manage"],
   "/admin/compliance": ["compliance.review.manage"],
+  "/admin/consent-wording": ["consent.wording.manage"],
 };
 
 /**

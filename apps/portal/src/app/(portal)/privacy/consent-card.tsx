@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { CheckCircle2Icon, CircleSlashIcon, HistoryIcon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
 import type { PortalConsent } from "@/lib/api/types";
-import { CONSENT_STATE_TEXT, CONSENT_TEXT, consentMessage, consentState, WITHDRAW_EFFECT } from "@/lib/consents";
+import { canGiveOnline, CONSENT_STATE_TEXT, CONSENT_TEXT, consentMessage, consentState, WITHDRAW_EFFECT } from "@/lib/consents";
 import { resultDate } from "@/lib/records";
 import { withdrawConsent } from "./actions";
 
@@ -45,10 +46,16 @@ export function ConsentCard({ consent, timeZone }: { consent: PortalConsent; tim
             <li key={h.id} className="text-meta text-muted-foreground">
               {DECISION[h.decision]} {resultDate(h.effectiveAt, timeZone)}
               {h.expiresAt ? ` · until ${resultDate(h.expiresAt, timeZone)}` : ""} · {h.recordedVia === "myhealth" ? "by you in MyHealth" : "at the clinic"}
+              {h.wordingVersion ? ` · you read version ${h.wordingVersion} of the clinic's wording` : ""}
             </li>
           ))}
         </ul>
       </details>
+      {canGiveOnline(consent) ? (
+        <Link href={`/privacy/${consent.consentType}`} className="self-start rounded-lg border px-3 py-2 text-body font-medium text-primary hover:bg-muted">
+          Read and give consent
+        </Link>
+      ) : null}
       {consent.canWithdraw ? (
         confirming ? (
           <div role="group" aria-label="Confirm withdrawal" className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-subtle p-3">
