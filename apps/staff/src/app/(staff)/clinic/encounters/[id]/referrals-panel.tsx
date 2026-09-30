@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PlusIcon, PrinterIcon, SendIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Checkbox, Input, Label, NativeSelect, RadioGroup, RadioGroupItem, Textarea, toast } from "@healthcare/ui/primitives";
 import type { Practitioner, Referral } from "@/lib/api/types";
 import { REFERRAL_STATUS, REFERRAL_URGENCY_LABEL, referralRecipient } from "@/lib/clinic-mapping";
 import { fileHref } from "@/lib/files";
@@ -120,21 +120,25 @@ export function ReferralsPanel({
             submit();
           }}
         >
-          <fieldset className="flex flex-wrap gap-3 text-table">
-            <legend className="sr-only">Refer to</legend>
+          <RadioGroup
+            aria-label="Refer to"
+            name="referral-kind"
+            value={form.kind}
+            onValueChange={(value) => setForm({ ...form, kind: value as typeof form.kind })}
+            className="flex flex-wrap gap-3 text-table"
+          >
             {(["internal", "external"] as const).map((kind) => (
               <label key={kind} className="flex items-center gap-1.5">
-                <input type="radio" name="referral-kind" checked={form.kind === kind} onChange={() => setForm({ ...form, kind })} />
+                <RadioGroupItem value={kind} />
                 {kind === "internal" ? "A practitioner here" : "An outside provider"}
               </label>
             ))}
-          </fieldset>
+          </RadioGroup>
           <div className="grid gap-2 sm:grid-cols-2">
             {form.kind === "internal" ? (
               <div className="grid gap-1">
                 <Label htmlFor="referral-to">Practitioner</Label>
-                <NativeSelect id="referral-to" value={form.toPractitionerId} onChange={set("toPractitionerId")}>
-                  <option value="">Choose…</option>
+                <NativeSelect placeholder="Choose…" id="referral-to" value={form.toPractitionerId} onChange={set("toPractitionerId")}>
                   {targets.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.displayName}
@@ -187,11 +191,9 @@ export function ReferralsPanel({
               <legend className="text-label mb-1 font-medium">Diagnoses on the letter</legend>
               {diagnoses.map((d) => (
                 <label key={d.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="size-4"
+                  <Checkbox
                     checked={chosen.has(d.id)}
-                    onChange={() => setChosen((prev) => (prev.has(d.id) ? new Set([...prev].filter((x) => x !== d.id)) : new Set([...prev, d.id])))}
+                    onCheckedChange={() => setChosen((prev) => (prev.has(d.id) ? new Set([...prev].filter((x) => x !== d.id)) : new Set([...prev, d.id])))}
                   />
                   {d.label}
                 </label>

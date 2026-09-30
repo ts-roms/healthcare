@@ -41,8 +41,7 @@ export function RetentionPolicyForm() {
     >
       <div className="grid gap-1">
         <Label htmlFor="ret-category">Document category</Label>
-        <NativeSelect id="ret-category" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-          <option value="">Choose…</option>
+        <NativeSelect placeholder="Choose…" id="ret-category" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
           {Object.entries(DOCUMENT_CATEGORY_LABEL).map(([key, label]) => (
             <option key={key} value={key}>
               {label}

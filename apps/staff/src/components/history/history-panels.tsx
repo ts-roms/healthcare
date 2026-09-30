@@ -379,8 +379,12 @@ export function FamilyFormView({ patientId, encounterId, onDone }: { patientId: 
       }}
     >
       <Field id={`${id}-relationship`} label="Relative *" span={2}>
-        <NativeSelect id={`${id}-relationship`} value={form.relationship} onChange={(e) => set("relationship", e.target.value as FamilyForm["relationship"])}>
-          <option value="">Choose…</option>
+        <NativeSelect
+          placeholder="Choose…"
+          id={`${id}-relationship`}
+          value={form.relationship}
+          onChange={(e) => set("relationship", e.target.value as FamilyForm["relationship"])}
+        >
           {Object.entries(RELATIONSHIP_LABEL).map(([v, l]) => (
             <option key={v} value={v}>
               {l}
@@ -470,12 +474,12 @@ export function FamilyReviewButtons({ patientId, encounterId, hasEntries }: { pa
             Why not known
           </Label>
           <NativeSelect
+            placeholder="Why not known…"
             id={`unknown-${encounterId ?? "record"}`}
             className="h-7 w-60"
             value={reason}
             onChange={(e) => setReason(e.target.value as typeof reason)}
           >
-            <option value="">Why not known…</option>
             {Object.entries(UNKNOWN_REASON_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ComplianceArea } from "@/lib/api/types";
 import { recordComplianceReview } from "./actions";
 
@@ -47,10 +47,10 @@ export function ComplianceReviewForm({ area, today }: { area: ComplianceArea; to
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-1">
           <Label htmlFor={id("outcome")}>Outcome</Label>
-          <select id={id("outcome")} className="h-9 rounded-md border bg-background px-2 text-table" value={form.outcome} onChange={set("outcome")}>
+          <NativeSelect id={id("outcome")} value={form.outcome} onChange={set("outcome")}>
             <option value="validated">Validated</option>
             <option value="changes_needed">Changes needed</option>
-          </select>
+          </NativeSelect>
         </div>
         <div className="grid gap-1">
           <Label htmlFor={id("date")}>Reviewed on</Label>

@@ -56,7 +56,8 @@ pnpm nx start mobile                                # Expo dev server; open in E
 pnpm nx run-many -t lint typecheck test -p mobile    # what CI runs for it
 ```
 
-Sign in with a MyHealth account activated on the web portal (above). CI does not build store binaries; that needs EAS or native toolchains.
+Sign in with a MyHealth account activated on the web portal (above). CI does not build store binaries; development, test and store builds go
+through EAS Build per organization — see [mobile-release.md](mobile-release.md).
 
 ### End-to-end journeys (`apps/e2e`)
 

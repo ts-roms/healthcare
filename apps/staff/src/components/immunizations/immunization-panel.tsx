@@ -284,8 +284,12 @@ export function RecordGivenDose({
     <form onSubmit={submit} noValidate className="grid gap-2 rounded-md border p-2.5 sm:grid-cols-6" aria-label="Record a dose given here">
       <div className="grid gap-1 sm:col-span-4">
         <Label htmlFor={id("vaccine")}>Vaccine *</Label>
-        <NativeSelect id={id("vaccine")} value={form.vaccineId} onChange={(e) => setForm({ ...form, vaccineId: e.target.value, route: "", site: "" })}>
-          <option value="">Choose…</option>
+        <NativeSelect
+          placeholder="Choose…"
+          id={id("vaccine")}
+          value={form.vaccineId}
+          onChange={(e) => setForm({ ...form, vaccineId: e.target.value, route: "", site: "" })}
+        >
           {vaccines.map((v) => (
             <option key={v.id} value={v.id}>
               {vaccineLabel(v)}
@@ -366,8 +370,12 @@ export function RecordGivenDose({
         <>
           <div className="grid gap-1 sm:col-span-2">
             <Label htmlFor={id("reason")}>Why not given *</Label>
-            <NativeSelect id={id("reason")} value={form.notDoneReason} onChange={(e) => set("notDoneReason", e.target.value as GivenForm["notDoneReason"])}>
-              <option value="">Choose…</option>
+            <NativeSelect
+              placeholder="Choose…"
+              id={id("reason")}
+              value={form.notDoneReason}
+              onChange={(e) => set("notDoneReason", e.target.value as GivenForm["notDoneReason"])}
+            >
               {Object.entries(NOT_DONE_REASON_LABEL).map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}

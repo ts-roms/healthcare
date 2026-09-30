@@ -46,11 +46,11 @@ export function ProcedureFields({
       <div className="flex min-w-56 flex-1 flex-col gap-1.5">
         <Label htmlFor={`${id}-procedure`}>Procedure</Label>
         <NativeSelect
+          placeholder="Choose…"
           id={`${id}-procedure`}
           value={value.procedureTypeId}
           onChange={(e) => onChange({ ...value, procedureTypeId: e.target.value, surfaces: [] })}
         >
-          <option value="">Choose…</option>
           {types.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name} ({PROCEDURE_SITES[t.site].toLowerCase()})

@@ -386,8 +386,13 @@ function NewService({ sources }: { sources: Sources }) {
       </NativeSelect>
       {f.sourceKind ? (
         options.length ? (
-          <NativeSelect aria-label="Visit type, test or procedure" value={f.sourceCode} onChange={(e) => setF({ ...f, sourceCode: e.target.value })} required>
-            <option value="">Choose…</option>
+          <NativeSelect
+            placeholder="Choose…"
+            aria-label="Visit type, test or procedure"
+            value={f.sourceCode}
+            onChange={(e) => setF({ ...f, sourceCode: e.target.value })}
+            required
+          >
             {options.map((o) => (
               <option key={o.code} value={o.code}>
                 {o.name}

@@ -197,8 +197,7 @@ function AddCharge({ patientId, services }: { patientId: string; services: Billi
     <form onSubmit={submit} className="mx-4 grid gap-3 rounded-lg border p-3 sm:grid-cols-[2fr_80px_1fr]">
       <div className="flex flex-col gap-1">
         <Label htmlFor="charge-service">Service</Label>
-        <NativeSelect id="charge-service" value={serviceId} onChange={(e) => choose(e.target.value)} required>
-          <option value="">Choose…</option>
+        <NativeSelect placeholder="Choose…" id="charge-service" value={serviceId} onChange={(e) => choose(e.target.value)} required>
           {services.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name} {s.currentPrice !== null ? `— ${peso(s.currentPrice)}` : "— no price set"}

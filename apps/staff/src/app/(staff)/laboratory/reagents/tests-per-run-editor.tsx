@@ -81,8 +81,7 @@ export function TestsPerRunEditor({
         >
           <div className="grid gap-1">
             <Label htmlFor="per-run-item">Reagent</Label>
-            <NativeSelect id="per-run-item" value={form.itemId} onChange={(e) => setForm({ ...form, itemId: e.target.value })}>
-              <option value="">Choose a reagent…</option>
+            <NativeSelect placeholder="Choose a reagent…" id="per-run-item" value={form.itemId} onChange={(e) => setForm({ ...form, itemId: e.target.value })}>
               {reagents.map((r) => (
                 <option key={r.itemId} value={r.itemId}>
                   {r.itemName}
@@ -92,8 +91,7 @@ export function TestsPerRunEditor({
           </div>
           <div className="grid gap-1">
             <Label htmlFor="per-run-test">Test</Label>
-            <NativeSelect id="per-run-test" value={form.testId} onChange={(e) => setForm({ ...form, testId: e.target.value })}>
-              <option value="">Choose a test…</option>
+            <NativeSelect placeholder="Choose a test…" id="per-run-test" value={form.testId} onChange={(e) => setForm({ ...form, testId: e.target.value })}>
               {tests.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

@@ -3,6 +3,7 @@
 import { ChevronLeftIcon, ChevronRightIcon, LoaderIcon } from "lucide-react";
 import * as React from "react";
 import { cn } from "@healthcare/ui/lib/utils";
+import { Button } from "@healthcare/ui/primitives";
 import { dayChip, dayPages, type Slot, slotsByPartOfDay, slotTime } from "@/lib/booking";
 
 const chip = "rounded-xl border bg-card transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none";
@@ -23,12 +24,12 @@ export function DayPicker({ days, value, onChange }: { days: string[]; value: st
     const first = pages[to]?.[0];
     if (first) onChange(first);
   };
-  const nav = "flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card disabled:opacity-40";
+  const nav = "size-10 rounded-xl";
   return (
     <div className="flex items-center gap-1">
-      <button type="button" className={nav} onClick={() => turn(page - 1)} disabled={page === 0} aria-label="Earlier days">
+      <Button type="button" variant="outline" size="icon" className={nav} onClick={() => turn(page - 1)} disabled={page === 0} aria-label="Earlier days">
         <ChevronLeftIcon className="size-5" aria-hidden />
-      </button>
+      </Button>
       <div role="group" aria-label="Day" className="grid min-w-0 flex-1 grid-cols-7 gap-1">
         {shown.map((day) => {
           const { weekday, day: n, month } = dayChip(day);
@@ -48,9 +49,17 @@ export function DayPicker({ days, value, onChange }: { days: string[]; value: st
           );
         })}
       </div>
-      <button type="button" className={nav} onClick={() => turn(page + 1)} disabled={page >= pages.length - 1} aria-label="Later days">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={nav}
+        onClick={() => turn(page + 1)}
+        disabled={page >= pages.length - 1}
+        aria-label="Later days"
+      >
         <ChevronRightIcon className="size-5" aria-hidden />
-      </button>
+      </Button>
     </div>
   );
 }

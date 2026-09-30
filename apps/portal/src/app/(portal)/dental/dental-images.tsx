@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ImageIcon } from "lucide-react";
 import { toothLabel } from "@healthcare/domain";
+import { Button } from "@healthcare/ui/primitives";
 import type { PortalDentalImage, PortalDentalRecord } from "@/lib/api/types";
 import { IMAGE_KIND_TEXT } from "@/lib/dental";
 import { formatCalendarDate } from "@/lib/greeting";
@@ -43,14 +44,9 @@ export function DentalImages({ images, notation }: { images: PortalDentalImage[]
                 {image.facilityName ? ` · ${image.facilityName}` : ""}
               </span>
             </span>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => open(image.id)}
-              className="shrink-0 rounded-lg border px-3 py-1.5 text-body font-medium disabled:opacity-60"
-            >
+            <Button type="button" disabled={pending} onClick={() => open(image.id)} variant="outline" className="h-9 shrink-0 px-3">
               Open
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

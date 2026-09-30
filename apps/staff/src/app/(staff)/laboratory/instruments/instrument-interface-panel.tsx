@@ -184,8 +184,12 @@ export function InstrumentInterfacePanel({ instrumentId, tests, canManage }: { i
             </div>
             <div className="grid gap-1">
               <Label htmlFor={`test-${instrumentId}`}>Test</Label>
-              <NativeSelect id={`test-${instrumentId}`} value={code.testId} onChange={(e) => setCode({ ...code, testId: e.target.value })}>
-                <option value="">Choose a test…</option>
+              <NativeSelect
+                placeholder="Choose a test…"
+                id={`test-${instrumentId}`}
+                value={code.testId}
+                onChange={(e) => setCode({ ...code, testId: e.target.value })}
+              >
                 {tests.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}

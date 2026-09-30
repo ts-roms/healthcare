@@ -195,8 +195,7 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
             </NativeSelect>
           </Field>
           <Field id="rl-item" label="Item">
-            <NativeSelect id="rl-item" value={f.itemId} onChange={(e) => setF({ ...f, itemId: e.target.value })}>
-              <option value="">Choose…</option>
+            <NativeSelect placeholder="Choose…" id="rl-item" value={f.itemId} onChange={(e) => setF({ ...f, itemId: e.target.value })}>
               {items.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}

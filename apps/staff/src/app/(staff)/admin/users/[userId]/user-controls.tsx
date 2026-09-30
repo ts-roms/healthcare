@@ -47,8 +47,7 @@ export function GrantRoleForm({
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="grid gap-1">
           <Label htmlFor="grant-role">Role</Label>
-          <NativeSelect id="grant-role" required value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))}>
-            <option value="">Choose…</option>
+          <NativeSelect placeholder="Choose…" id="grant-role" required value={form.roleId} onChange={(e) => setForm((f) => ({ ...f, roleId: e.target.value }))}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}

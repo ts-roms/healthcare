@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { InvoiceBadge } from "@/components/invoice-badge";
 import { PageHeader } from "@/components/page-header";
@@ -59,7 +59,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
           ))}
           <form className="ml-auto flex items-center gap-1" action="/billing/invoices">
             <input type="hidden" name="show" value="all" />
-            <input type="date" name="date" defaultValue={date} aria-label="Date" className="h-8 rounded-md border bg-card px-2 text-table" />
+            <Input type="date" name="date" defaultValue={date} aria-label="Date" className="w-auto" />
             <Button type="submit" size="sm" variant="outline">
               Show day
             </Button>

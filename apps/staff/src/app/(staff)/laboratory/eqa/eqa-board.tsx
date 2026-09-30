@@ -165,8 +165,7 @@ function SurveyForm({ schemes }: { schemes: LabEqaScheme[] }) {
             );
           }}
         >
-          <NativeSelect aria-label="Scheme" value={f.schemeId} onChange={(e) => setF({ ...f, schemeId: e.target.value })}>
-            <option value="">Scheme…</option>
+          <NativeSelect placeholder="Scheme…" aria-label="Scheme" value={f.schemeId} onChange={(e) => setF({ ...f, schemeId: e.target.value })}>
             {schemes.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} · {s.provider}
@@ -209,8 +208,7 @@ function ResultForm({ surveyId, tests }: { surveyId: string; tests: LabTest[] })
       }}
     >
       <Input aria-label="Sample code" placeholder="Sample" className="w-24" value={f.sampleCode} onChange={(e) => setF({ ...f, sampleCode: e.target.value })} />
-      <NativeSelect aria-label="Test" value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value })}>
-        <option value="">Test…</option>
+      <NativeSelect placeholder="Test…" aria-label="Test" value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value })}>
         {tests.map((t) => (
           <option key={t.id} value={t.id}>
             {t.name}

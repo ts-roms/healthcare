@@ -360,8 +360,7 @@ function NewTestForm({ departments, specimenTypes }: { departments: LabCatalogEn
       <TextField label="Name *" value={f.name} onChange={(v) => setF({ ...f, name: v })} placeholder="Fasting blood sugar" className="sm:col-span-3" />
       <div className="grid gap-1">
         <Label htmlFor="test-department">Department *</Label>
-        <NativeSelect id="test-department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
-          <option value="">Choose…</option>
+        <NativeSelect placeholder="Choose…" id="test-department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -371,8 +370,7 @@ function NewTestForm({ departments, specimenTypes }: { departments: LabCatalogEn
       </div>
       <div className="grid gap-1">
         <Label htmlFor="test-specimen">Specimen *</Label>
-        <NativeSelect id="test-specimen" value={f.specimenTypeId} onChange={(e) => setF({ ...f, specimenTypeId: e.target.value })}>
-          <option value="">Choose…</option>
+        <NativeSelect placeholder="Choose…" id="test-specimen" value={f.specimenTypeId} onChange={(e) => setF({ ...f, specimenTypeId: e.target.value })}>
           {specimenTypes.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}

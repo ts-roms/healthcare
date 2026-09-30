@@ -63,8 +63,7 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-1">
           <Label htmlFor="schedule-practitioner">Practitioner</Label>
-          <NativeSelect id="schedule-practitioner" required value={form.practitionerId} onChange={set("practitionerId")}>
-            <option value="">Choose…</option>
+          <NativeSelect placeholder="Choose…" id="schedule-practitioner" required value={form.practitionerId} onChange={set("practitionerId")}>
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}

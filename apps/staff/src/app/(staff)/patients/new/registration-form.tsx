@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangleIcon, ExternalLinkIcon, UserPlusIcon } from "lucide-react";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
@@ -112,7 +112,14 @@ export function RegistrationFormView() {
               <div className="grid gap-1">
                 {field("birthDate", "Birth date *", <Input id="birthDate" type="date" aria-invalid={!!errors.birthDate} {...form.register("birthDate")} />)}
                 <label className="flex items-center gap-2 text-table">
-                  <input type="checkbox" className="size-4" {...form.register("birthDateIsEstimated")} /> Estimated (exact date unknown)
+                  <Controller
+                    control={form.control}
+                    name="birthDateIsEstimated"
+                    render={({ field }) => (
+                      <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(v === true)} onBlur={field.onBlur} ref={field.ref} />
+                    )}
+                  />{" "}
+                  Estimated (exact date unknown)
                 </label>
               </div>
             </CardContent>

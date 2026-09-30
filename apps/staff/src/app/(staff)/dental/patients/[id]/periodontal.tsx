@@ -4,7 +4,25 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PERIO_SITES, type PerioSite, perioHasFurcation, perioSiteName, perioTeeth, type ToothNotation, toothLabel, toothName } from "@healthcare/domain";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+  toast,
+} from "@healthcare/ui/primitives";
 import type { DentalChartTooth, DentalPerioChartDetail, DentalPerioChartSummaryItem, DentalPerioSummary, DentalPerioTooth } from "@/lib/api/types";
 import { deepPocket, emptyPerioRow, type PerioRow, perioPayload } from "@/lib/perio-form";
 import { loadPerioChart, markPerioChartEnteredInError, recordPerioChart } from "../../actions";
@@ -129,25 +147,25 @@ function PerioDetail({ detail, notation }: { detail: DentalPerioChartDetail; not
   return (
     <div className="flex flex-col gap-2 rounded-md border bg-card p-2">
       <div className="overflow-x-auto">
-        <table className="tabular w-full text-table">
-          <thead>
-            <tr className="text-left text-meta text-muted-foreground">
-              <th className="pr-2">Tooth</th>
-              <th className="px-1">Buccal MB · B · DB</th>
-              <th className="px-1">Lingual ML · L · DL</th>
-              <th className="px-1">Margin buccal / lingual</th>
-              <th className="px-1">Mobility</th>
-              <th className="px-1">Furcation</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pr-2">Tooth</TableHead>
+              <TableHead className="px-1">Buccal MB · B · DB</TableHead>
+              <TableHead className="px-1">Lingual ML · L · DL</TableHead>
+              <TableHead className="px-1">Margin buccal / lingual</TableHead>
+              <TableHead className="px-1">Mobility</TableHead>
+              <TableHead className="px-1">Furcation</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {detail.teeth.map((t) => (
-              <tr key={t.tooth} className="border-t">
-                <td className="pr-2 font-mono font-semibold" title={toothName(t.tooth)}>
+              <TableRow key={t.tooth}>
+                <TableCell className="pr-2 font-mono font-semibold" title={toothName(t.tooth)}>
                   {toothLabel(t.tooth, notation)}
-                </td>
+                </TableCell>
                 {[BUCCAL, LINGUAL].map((sites, i) => (
-                  <td key={i} className="px-1">
+                  <TableCell key={i} className="px-1">
                     <span className="flex gap-2">
                       {sites.map((site) => (
                         <span key={site} className="w-8">
@@ -155,17 +173,17 @@ function PerioDetail({ detail, notation }: { detail: DentalPerioChartDetail; not
                         </span>
                       ))}
                     </span>
-                  </td>
+                  </TableCell>
                 ))}
-                <td className="px-1 text-muted-foreground">
+                <TableCell className="px-1 text-muted-foreground">
                   {margins(t, BUCCAL)} / {margins(t, LINGUAL)}
-                </td>
-                <td className="px-1">{t.mobility ?? "—"}</td>
-                <td className="px-1">{t.furcation ?? "—"}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-1">{t.mobility ?? "—"}</TableCell>
+                <TableCell className="px-1">{t.furcation ?? "—"}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {detail.previous ? (
         <div className="text-meta">
@@ -238,26 +256,26 @@ function PerioForm({
         Teeth left empty are not recorded as examined. Missing or unerupted teeth on the odontogram are not listed.
       </p>
       <div className="max-h-[32rem] overflow-auto">
-        <table className="w-full text-table">
-          <thead className="sticky top-0 bg-card">
-            <tr className="text-left text-meta text-muted-foreground">
-              <th className="pr-2">Tooth</th>
-              <th>Depth (mm) {PERIO_SITES.join(" · ")}</th>
-              <th>Margin (mm)</th>
-              <th>Bleeding · plaque · suppuration</th>
-              <th>Mob.</th>
-              <th>Furc.</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader className="bg-card">
+            <TableRow>
+              <TableHead className="pr-2">Tooth</TableHead>
+              <TableHead>Depth (mm) {PERIO_SITES.join(" · ")}</TableHead>
+              <TableHead>Margin (mm)</TableHead>
+              <TableHead>Bleeding · plaque · suppuration</TableHead>
+              <TableHead>Mob.</TableHead>
+              <TableHead>Furc.</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => (
-              <tr key={row.tooth} className={`border-t align-top ${errors[row.tooth] ? "bg-danger-subtle" : ""}`}>
-                <td className="py-1 pr-2 font-mono font-semibold" title={toothName(row.tooth)}>
+              <TableRow key={row.tooth} className={`align-top ${errors[row.tooth] ? "bg-danger-subtle" : ""}`}>
+                <TableCell className="py-1 pr-2 font-mono font-semibold whitespace-normal" title={toothName(row.tooth)}>
                   {toothLabel(row.tooth, notation)}
                   {errors[row.tooth] ? <span className="block font-sans text-meta font-normal text-danger-foreground">{errors[row.tooth]}</span> : null}
-                </td>
+                </TableCell>
                 {(["depth", "margin"] as const).map((field) => (
-                  <td key={field} className="py-1">
+                  <TableCell key={field} className="py-1">
                     <span className="flex gap-0.5">
                       {PERIO_SITES.map((site) => (
                         <Input
@@ -270,9 +288,9 @@ function PerioForm({
                         />
                       ))}
                     </span>
-                  </td>
+                  </TableCell>
                 ))}
-                <td className="py-1">
+                <TableCell className="py-1">
                   <span className="flex flex-col gap-0.5">
                     {(["bleeding", "plaque", "suppuration"] as const).map((flag) => (
                       <span key={flag} className="flex items-center gap-1">
@@ -288,8 +306,8 @@ function PerioForm({
                       </span>
                     ))}
                   </span>
-                </td>
-                <td className="py-1">
+                </TableCell>
+                <TableCell className="py-1">
                   <Input
                     aria-label={`${toothLabel(row.tooth, notation)} mobility (0–3)`}
                     inputMode="numeric"
@@ -297,8 +315,8 @@ function PerioForm({
                     value={row.mobility}
                     onChange={(e) => update(row.tooth, (r) => ({ ...r, mobility: e.target.value }))}
                   />
-                </td>
-                <td className="py-1">
+                </TableCell>
+                <TableCell className="py-1">
                   {perioHasFurcation(row.tooth) ? (
                     <Input
                       aria-label={`${toothLabel(row.tooth, notation)} furcation (0–3)`}
@@ -310,11 +328,11 @@ function PerioForm({
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <Label htmlFor="perio-notes">Notes</Label>
       <Textarea id="perio-notes" rows={2} maxLength={4000} value={notes} onChange={(e) => setNotes(e.target.value)} />
