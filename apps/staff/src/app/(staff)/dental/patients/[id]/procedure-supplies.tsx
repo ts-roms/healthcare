@@ -163,12 +163,12 @@ function IssueForm({
           <div key={index} className="flex flex-col gap-1 rounded-md border bg-background p-2">
             <div className="flex flex-wrap items-end gap-2">
               <NativeSelect
+                placeholder="Choose a supply…"
                 aria-label={`Supply ${index + 1}`}
                 className="min-w-56 flex-1"
                 value={line.itemId}
                 onChange={(e) => update(index, { itemId: e.target.value })}
               >
-                <option value="">Choose a supply…</option>
                 {options.items.map((i) => (
                   <option key={i.id} value={i.id}>
                     {i.name}

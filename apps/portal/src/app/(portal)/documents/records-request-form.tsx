@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SendIcon } from "lucide-react";
+import { Button, Checkbox, Input, Textarea } from "@healthcare/ui/primitives";
 import type { PortalRecordsScope } from "@/lib/api/types";
 import { SCOPE_TEXT } from "@/lib/documents";
 import { submitRecordsRequest } from "./actions";
@@ -30,13 +31,9 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
             Request {sent} sent. You will get a message when the records office answers.
           </p>
         ) : null}
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-primary-foreground"
-        >
+        <Button type="button" onClick={() => setOpen(true)} className="h-10 w-fit gap-2 px-4">
           Ask for copies of my records
-        </button>
+        </Button>
       </div>
     );
   }
@@ -81,7 +78,7 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
         <legend className="mb-1 font-semibold">What do you need copies of?</legend>
         {SCOPES.map((s) => (
           <label key={s} className="flex items-center gap-2 text-body">
-            <input type="checkbox" className="size-4" checked={scope.has(s)} onChange={() => toggle(s)} />
+            <Checkbox checked={scope.has(s)} onCheckedChange={() => toggle(s)} />
             {SCOPE_TEXT[s]}
           </label>
         ))}
@@ -89,41 +86,20 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col gap-1 text-meta">
           From (optional)
-          <input
-            type="date"
-            className="rounded-lg border px-2 py-1.5 text-body"
-            value={f.periodFrom}
-            onChange={(e) => setF({ ...f, periodFrom: e.target.value })}
-          />
+          <Input type="date" className="h-10" value={f.periodFrom} onChange={(e) => setF({ ...f, periodFrom: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-meta">
           To (optional)
-          <input
-            type="date"
-            className="rounded-lg border px-2 py-1.5 text-body"
-            value={f.periodTo}
-            onChange={(e) => setF({ ...f, periodTo: e.target.value })}
-          />
+          <Input type="date" className="h-10" value={f.periodTo} onChange={(e) => setF({ ...f, periodTo: e.target.value })} />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-meta">
         Details {scope.has("other") ? "(say what else you need)" : "(optional)"}
-        <textarea
-          rows={2}
-          maxLength={1000}
-          className="rounded-lg border px-2 py-1.5 text-body"
-          value={f.details}
-          onChange={(e) => setF({ ...f, details: e.target.value })}
-        />
+        <Textarea rows={2} maxLength={1000} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} />
       </label>
       <label className="flex flex-col gap-1 text-meta">
         What you need them for (optional)
-        <input
-          maxLength={300}
-          className="rounded-lg border px-2 py-1.5 text-body"
-          value={f.purpose}
-          onChange={(e) => setF({ ...f, purpose: e.target.value })}
-        />
+        <Input maxLength={300} className="h-10" value={f.purpose} onChange={(e) => setF({ ...f, purpose: e.target.value })} />
       </label>
       {error ? (
         <p role="alert" className="text-meta text-danger-foreground">
@@ -131,16 +107,12 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
         </p>
       ) : null}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending || scope.size === 0}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-primary-foreground disabled:opacity-60"
-        >
+        <Button type="submit" disabled={pending || scope.size === 0} className="h-10 gap-2 px-4">
           <SendIcon className="size-4" aria-hidden /> Send request
-        </button>
-        <button type="button" className="rounded-lg px-4 py-2 text-body" onClick={() => setOpen(false)}>
+        </Button>
+        <Button type="button" variant="ghost" className="h-10 px-4" onClick={() => setOpen(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

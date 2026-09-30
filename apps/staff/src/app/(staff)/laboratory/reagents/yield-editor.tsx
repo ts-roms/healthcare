@@ -96,8 +96,12 @@ export function YieldEditor({
         >
           <div className="grid gap-1">
             <Label htmlFor="yield-item">Reagent</Label>
-            <NativeSelect id="yield-item" value={adding.itemId} onChange={(e) => setAdding({ ...adding, itemId: e.target.value })}>
-              <option value="">Choose a reagent…</option>
+            <NativeSelect
+              placeholder="Choose a reagent…"
+              id="yield-item"
+              value={adding.itemId}
+              onChange={(e) => setAdding({ ...adding, itemId: e.target.value })}
+            >
               {unset.map((r) => (
                 <option key={r.itemId} value={r.itemId}>
                   {r.itemName} ({r.stockUnit})

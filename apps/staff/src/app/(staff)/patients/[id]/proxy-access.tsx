@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, Textarea } from "@healthcare/ui/primitives";
+import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import type { StaffProxyGrant, StaffProxyOverview } from "@/lib/api/types";
 import { grantProxy, revokeProxy } from "./proxy-actions";
 
@@ -156,33 +156,23 @@ export function ProxyAccess({ patientId, overview, canManage }: { patientId: str
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="proxy-rel">Relationship</Label>
-                <select
-                  id="proxy-rel"
-                  className="h-9 rounded-md border bg-background px-2"
-                  value={form.relationship}
-                  onChange={(e) => setForm({ ...form, relationship: e.target.value })}
-                >
+                <NativeSelect id="proxy-rel" value={form.relationship} onChange={(e) => setForm({ ...form, relationship: e.target.value })}>
                   {RELATIONSHIPS.map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="proxy-basis">Right to act</Label>
-                <select
-                  id="proxy-basis"
-                  className="h-9 rounded-md border bg-background px-2"
-                  value={form.basis}
-                  onChange={(e) => setForm({ ...form, basis: e.target.value })}
-                >
+                <NativeSelect id="proxy-basis" value={form.basis} onChange={(e) => setForm({ ...form, basis: e.target.value })}>
                   {BASES.map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             </div>
             <div className="flex flex-col gap-1">
@@ -200,7 +190,7 @@ export function ProxyAccess({ patientId, overview, canManage }: { patientId: str
             </div>
             <div className="flex flex-wrap items-end gap-4">
               <label className="flex items-center gap-2 text-body">
-                <input type="checkbox" checked={form.canAct} onChange={(e) => setForm({ ...form, canAct: e.target.checked })} />
+                <Checkbox checked={form.canAct} onCheckedChange={(v) => setForm({ ...form, canAct: v === true })} />
                 May also make changes (book, message, request records), not only look
               </label>
               <div className="flex flex-col gap-1">

@@ -306,8 +306,7 @@ function NewReferral({ tests, referenceLabs, referrals }: { tests: LabTest[]; re
     >
       <div className="grid gap-1">
         <Label htmlFor="referral-test">Test</Label>
-        <NativeSelect id="referral-test" value={testId} onChange={(e) => setTestId(e.target.value)}>
-          <option value="">Choose…</option>
+        <NativeSelect placeholder="Choose…" id="referral-test" value={testId} onChange={(e) => setTestId(e.target.value)}>
           {tests.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
