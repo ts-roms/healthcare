@@ -5,10 +5,12 @@ import {
   entryHref,
   entryStatus,
   groupByDay,
+  KIND_LABELS,
   markerLabel,
   parseTimelineFilters,
   timelineApiQuery,
   timelineHref,
+  TIMELINE_GROUPS,
   toggleGroup,
   withheldNote,
 } from "./timeline-mapping";
@@ -41,7 +43,7 @@ describe("timeline filters", () => {
 
   it("builds the API query from the chosen groups (all kinds when none)", () => {
     expect(timelineApiQuery({ groups: ["laboratory", "billing"], from: null, to: "2026-09-30" }, 50)).toEqual({
-      kinds: "lab_order,lab_result_release,invoice,payment",
+      kinds: "lab_order,specimen,lab_result_release,critical_value,invoice,payment,billing_note,deposit",
       from: undefined,
       to: "2026-09-30",
       limit: 50,
@@ -68,6 +70,16 @@ describe("entry links", () => {
     expect(entryHref(entry({ link: null }), PATIENT, "Asia/Manila")).toBeNull();
   });
 
+  it("opens the screens of the further kinds", () => {
+    expect(entryHref(entry({ kind: "deposit", link: { type: "billing_account", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/billing/patients/${PATIENT}`);
+    expect(entryHref(entry({ kind: "doh_case_report", link: { type: "doh_case_report", id: "c1" } }), PATIENT, "Asia/Manila")).toBe("/reporting/c1");
+    expect(entryHref(entry({ kind: "records_request", link: { type: "records_request", id: "r1" } }), PATIENT, "Asia/Manila")).toBe("/records/requests/r1");
+    expect(entryHref(entry({ kind: "allergy", link: { type: "patient_record", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/patients/${PATIENT}`);
+    expect(entryHref(entry({ kind: "specimen", link: { type: "patient_laboratory", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(
+      `/patients/${PATIENT}#laboratory`,
+    );
+  });
+
   it("opens an appointment on its local day (facility time zone) and practitioner", () => {
     // 16:30 UTC on 27 September is 00:30 on 28 September in Manila.
     const appointment = entry({ kind: "appointment", link: { type: "appointment", id: "a1" }, sourceIds: { practitionerId: "p1" } });
@@ -81,6 +93,25 @@ describe("entry status", () => {
     expect(entryStatus(entry({ kind: "care_plan", status: "completed" }))).toMatchObject({ label: "Completed" });
     expect(entryStatus(entry({ kind: "communication", status: "suppressed" }))).toMatchObject({ label: "Not sent (preferences)" });
     expect(entryStatus(entry({ kind: "dental", status: "recorded" }))).toBeNull();
+  });
+
+  it("labels the further kinds' statuses, the same code differently where the kinds differ", () => {
+    expect(entryStatus(entry({ kind: "specimen", status: "rejected" }))).toEqual({ label: "Rejected", variant: "danger", tone: "failed" });
+    expect(entryStatus(entry({ kind: "critical_value", status: "communicated" }))).toMatchObject({ label: "Awaiting acknowledgement" });
+    expect(entryStatus(entry({ kind: "dispense", status: "reversed" }))).toMatchObject({ label: "Reversed", tone: "stopped" });
+    expect(entryStatus(entry({ kind: "consent", status: "withdrawn" }))).toMatchObject({ label: "Withdrawn" });
+    expect(entryStatus(entry({ kind: "records_request", status: "withdrawn" }))).toMatchObject({ label: "Withdrawn" });
+    expect(entryStatus(entry({ kind: "deposit", status: "refund" }))).toMatchObject({ label: "Refunded" });
+    expect(entryStatus(entry({ kind: "philhealth_eligibility", status: "eligible" }))).toMatchObject({ label: "Eligible", tone: "done" });
+    expect(entryStatus(entry({ kind: "doh_case_report", status: "pending_review" }))).toMatchObject({ label: "Awaiting review" });
+    expect(entryStatus(entry({ kind: "triage", status: "final" }))).toBeNull();
+    expect(entryStatus(entry({ kind: "allergy", status: null }))).toBeNull();
+  });
+
+  it("covers every kind in one filter group, once", () => {
+    const kinds = TIMELINE_GROUPS.flatMap((g) => g.kinds);
+    expect(new Set(kinds).size).toBe(kinds.length);
+    expect([...kinds].sort()).toEqual(Object.keys(KIND_LABELS).sort());
   });
 
   it("marks records that are not valid care instead of showing a status", () => {
