@@ -43,7 +43,7 @@ type NativeSelectProps = React.ComponentProps<"select"> & {
 };
 
 /**
- * Native select styled to match inputs. Native is faster for keyboard-heavy
+ * Native select styled to match inputs; in browsers with customizable selects (`appearance: base-select`) the dropdown panel and options are themed in theme.css too. Native is faster for keyboard-heavy
  * staff workflows (type-ahead, no portal) and works everywhere.
  *
  * When there is nothing to choose (e.g. an API returned no rows) the select
@@ -60,7 +60,7 @@ function NativeSelect({ className, children, placeholder, emptyText = SELECT_EMP
       <select
         data-slot="native-select"
         data-empty={empty || undefined}
-        className="h-8 w-full appearance-none rounded-md border border-input bg-card py-1 pr-7 pl-2.5 text-body shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50 data-[empty]:text-muted-foreground"
+        className="h-8 w-full appearance-none rounded-lg border border-input bg-card py-1 pr-7 pl-2.5 text-body shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50 data-[empty]:text-muted-foreground"
         {...props}
       >
         {empty && !hasOwnOptions ? (

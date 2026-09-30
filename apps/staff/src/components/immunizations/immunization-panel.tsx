@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, BanIcon, CheckCircle2Icon, FileInputIcon, MinusCircleIcon, PackageIcon, PlusIcon, ShieldAlertIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import {
   addImmunizationReaction,
   markImmunizationInError,
@@ -306,7 +306,7 @@ export function RecordGivenDose({
       </div>
       <div className="grid gap-1 sm:col-span-2">
         <Label htmlFor={id("date")}>Date given</Label>
-        <Input id={id("date")} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+        <DateInput id={id("date")} value={form.date} onChange={(e) => set("date", e.target.value)} />
         <span className="text-meta text-muted-foreground">Leave empty for now.</span>
       </div>
       <div className="grid gap-1 sm:col-span-2">
@@ -348,7 +348,7 @@ export function RecordGivenDose({
               </div>
               <div className="grid gap-1 sm:col-span-3">
                 <Label htmlFor={id("expiry")}>Expiry</Label>
-                <Input id={id("expiry")} type="date" value={form.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
+                <DateInput id={id("expiry")} value={form.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
               </div>
             </>
           ) : (

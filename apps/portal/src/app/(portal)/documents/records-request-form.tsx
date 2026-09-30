@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SendIcon } from "lucide-react";
-import { Button, Checkbox, Input, Textarea } from "@healthcare/ui/primitives";
+import { Button, Checkbox, DateInput, Input, Textarea } from "@healthcare/ui/primitives";
 import type { PortalRecordsScope } from "@/lib/api/types";
 import { SCOPE_TEXT } from "@/lib/documents";
 import { submitRecordsRequest } from "./actions";
@@ -86,11 +86,11 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col gap-1 text-meta">
           From (optional)
-          <Input type="date" className="h-10" value={f.periodFrom} onChange={(e) => setF({ ...f, periodFrom: e.target.value })} />
+          <DateInput className="h-10" value={f.periodFrom} onChange={(e) => setF({ ...f, periodFrom: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-meta">
           To (optional)
-          <Input type="date" className="h-10" value={f.periodTo} onChange={(e) => setF({ ...f, periodTo: e.target.value })} />
+          <DateInput className="h-10" value={f.periodTo} onChange={(e) => setF({ ...f, periodTo: e.target.value })} />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-meta">

@@ -6,7 +6,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
+  DateInput,
   Label,
   Table,
   TableBody,
@@ -83,11 +83,11 @@ export default async function ControlledRegisterPage({ searchParams }: { searchP
         <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Period">
           <div className="grid gap-1">
             <Label htmlFor="reg-from">From</Label>
-            <Input id="reg-from" name="from" type="date" defaultValue={from} className="w-40" />
+            <DateInput id="reg-from" name="from" defaultValue={from} className="w-40" />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="reg-to">To</Label>
-            <Input id="reg-to" name="to" type="date" defaultValue={to} className="w-40" />
+            <DateInput id="reg-to" name="to" defaultValue={to} className="w-40" />
           </div>
           <Button type="submit" variant="outline">
             Show

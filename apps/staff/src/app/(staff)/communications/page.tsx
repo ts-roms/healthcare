@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DownloadIcon, InfoIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Button, DateInput, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { DeliveryStatus } from "@/components/communications/delivery-status";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
@@ -63,11 +63,11 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
         <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className="grid gap-1">
             <Label htmlFor="comm-from">From (day)</Label>
-            <Input id="comm-from" name="from" type="date" defaultValue={filters.from} />
+            <DateInput id="comm-from" name="from" defaultValue={filters.from} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="comm-to">To (day)</Label>
-            <Input id="comm-to" name="to" type="date" defaultValue={filters.to} />
+            <DateInput id="comm-to" name="to" defaultValue={filters.to} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="comm-status">Status</Label>

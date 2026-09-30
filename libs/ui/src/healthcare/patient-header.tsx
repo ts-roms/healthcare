@@ -2,7 +2,7 @@ import * as React from "react";
 import { BadgeCheckIcon, BadgeXIcon, DropletIcon, EyeOffIcon, PhoneIcon } from "lucide-react";
 import { Badge } from "../primitives/badge";
 import type { Patient } from "@healthcare/domain";
-import { ageFrom, fullName, sexLabel } from "../lib/format";
+import { ageFrom, clinicalDate, fullName, sexLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { AllergyList } from "./allergy-badge";
 import { PatientAvatar } from "./patient-avatar";
@@ -53,7 +53,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
   }
 
   return (
-    <header className={cn("flex flex-wrap items-start gap-4 border-b bg-card px-4 py-3", className)} aria-label="Patient banner">
+    <header className={cn("flex flex-wrap items-start gap-4 border-b bg-card px-4 py-4", className)} aria-label="Patient banner">
       <PatientAvatar patient={patient} size="lg" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex flex-wrap items-baseline gap-x-3">
@@ -68,23 +68,6 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
             <dt className="sr-only">Allergies</dt>
             <dd>{allergiesHidden ? <AllergiesHidden /> : <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />}</dd>
           </div>
-          {patient.bloodType ? (
-            <div className="flex items-center gap-1.5">
-              <dt className="sr-only">Blood type</dt>
-              <dd>
-                <BloodType value={patient.bloodType} />
-              </dd>
-            </div>
-          ) : null}
-          {patient.philHealth ? (
-            <div className="flex items-center gap-1">
-              <dt className="text-muted-foreground">PhilHealth</dt>
-              <dd className={cn("flex items-center gap-1 font-medium", patient.philHealth.verified ? "text-success-foreground" : "text-warning-foreground")}>
-                {patient.philHealth.verified ? <BadgeCheckIcon className="size-3.5" aria-hidden /> : <BadgeXIcon className="size-3.5" aria-hidden />}
-                {patient.philHealth.verified ? "Verified" : "Unverified"}
-              </dd>
-            </div>
-          ) : null}
           {patient.phone ? (
             <div className="flex items-center gap-1 text-muted-foreground">
               <dt>
@@ -95,9 +78,41 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
           ) : null}
           {details}
         </dl>
+        <dl className="mt-1 flex flex-wrap gap-2" aria-label="Key facts">
+          <FactTile label="Age & sex" value={`${age} / ${sexLabel(patient.sex)}`} />
+          <FactTile label="Date of birth" value={clinicalDate(`${patient.birthDate}T12:00:00Z`)} />
+          {patient.bloodType ? (
+            <FactTile label="Blood type" value={patient.bloodType} icon={<DropletIcon className="size-3.5 text-danger" aria-hidden />} />
+          ) : null}
+          {patient.philHealth ? (
+            <FactTile
+              label="PhilHealth"
+              value={patient.philHealth.verified ? "Verified" : "Unverified"}
+              icon={
+                patient.philHealth.verified ? (
+                  <BadgeCheckIcon className="size-3.5 text-success-foreground" aria-hidden />
+                ) : (
+                  <BadgeXIcon className="size-3.5 text-warning-foreground" aria-hidden />
+                )
+              }
+            />
+          ) : null}
+        </dl>
       </div>
       {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
     </header>
+  );
+}
+
+function FactTile({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/60 px-3 py-1.5">
+      <dt className="text-meta text-muted-foreground">{label}</dt>
+      <dd className="flex items-center gap-1 text-table font-semibold">
+        {icon}
+        {value}
+      </dd>
+    </div>
   );
 }
 

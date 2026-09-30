@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ExternalLinkIcon, SmartphoneIcon, UploadIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { DentalImage, DentalImageKind } from "@/lib/api/types";
 import { IMAGE_KINDS } from "@/lib/dental-mapping";
 import { addDentalImage, dentalImageLink, markImageEnteredInError, releaseDentalImage, withdrawDentalImage } from "../../actions";
@@ -106,7 +106,7 @@ export function DentalImages({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="image-date">Taken on</Label>
-              <Input id="image-date" name="takenOn" type="date" defaultValue={today} max={today} />
+              <DateInput id="image-date" name="takenOn" defaultValue={today} max={today} />
             </div>
             <div className="flex min-w-48 flex-1 flex-col gap-1.5">
               <Label htmlFor="image-notes">Notes</Label>

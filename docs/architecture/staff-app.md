@@ -303,3 +303,7 @@ visit's encounter workspace. `/dental/settings`: the procedure catalog, supply t
 default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
 `docs/domains/dental.md`.
+
+## Visual theme (Medlink-style)
+
+Teal tokens, rounded corners, a light sidebar with a filled pill for the active item, pill buttons and badges, tinted table headers and Plus Jakarta Sans are set in `libs/ui/src/styles/theme.css` and the primitives. Dark hero surfaces (login, welcome) use the `surface-deep` class. Overview components in `libs/ui/src/healthcare`: `StatCard` (footer states a fact from the data, never an invented trend), `PractitionerCard`, `MiniCalendar` and `AgendaList`. Staff `/doctors` and `/doctors/[id]` show practitioners, their weekly schedule and today's appointments from existing APIs. Satisfaction scores, department performance and doctor photos have no data source and are not shown.

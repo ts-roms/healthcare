@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon, Trash2Icon, WandSparklesIcon } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { InventoryItem, InventoryLocation, InventorySupplier, ProcurementMethod, ReorderSuggestion } from "@/lib/api/types";
 import { parsePesos, pesoInput } from "@/lib/billing-mapping";
 import { linesFromSuggestions } from "@/lib/inventory-mapping";
@@ -107,7 +107,7 @@ export function NewPurchaseOrder({
               </NativeSelect>
             </Field>
             <Field id="po-expected" label="Expected by (optional)">
-              <Input id="po-expected" type="date" value={f.expectedDate} onChange={(e) => setF({ ...f, expectedDate: e.target.value })} />
+              <DateInput id="po-expected" value={f.expectedDate} onChange={(e) => setF({ ...f, expectedDate: e.target.value })} />
             </Field>
             {methods.length ? (
               <Field id="po-method" label="Procurement method">

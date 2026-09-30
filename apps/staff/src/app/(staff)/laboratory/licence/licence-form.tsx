@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, DateInput, Input, Label, toast } from "@healthcare/ui/primitives";
 import { recordLabLicence } from "./actions";
 
 const FIELDS = [
@@ -49,11 +49,11 @@ export function LicenceForm() {
       ))}
       <div className="grid gap-1">
         <Label htmlFor="licence-from">Valid from</Label>
-        <Input id="licence-from" type="date" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
+        <DateInput id="licence-from" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
       </div>
       <div className="grid gap-1">
         <Label htmlFor="licence-until">Valid until</Label>
-        <Input id="licence-until" type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
+        <DateInput id="licence-until" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
       </div>
       <div className="grid gap-1">
         <Label htmlFor="licence-reminder">Remind this many days before it ends</Label>

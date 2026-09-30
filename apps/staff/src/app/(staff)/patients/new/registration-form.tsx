@@ -7,7 +7,21 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangleIcon, ExternalLinkIcon, UserPlusIcon } from "lucide-react";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  DateInput,
+  Input,
+  Label,
+  NativeSelect,
+  Textarea,
+  toast,
+} from "@healthcare/ui/primitives";
 import type { DuplicateCandidate } from "@/lib/api/types";
 import { label } from "@/lib/patient-mapping";
 import { type RegistrationForm, registrationFormSchema } from "@/lib/patient-registration";
@@ -36,6 +50,8 @@ export function RegistrationFormView() {
   // One key per logical attempt: a network retry of the same attempt is de-duplicated by the API.
   const [attemptKey, setAttemptKey] = React.useState(() => crypto.randomUUID());
   const errors = form.formState.errors;
+  // DateInput takes string min/max; register() also types them as numbers, which it never sets here.
+  const { min: _min, max: _max, ...birthDateField } = form.register("birthDate");
 
   const submit = (values: RegistrationForm, override?: { reviewedCandidateIds: string[]; reason: string }) => {
     setError(null);
@@ -110,7 +126,7 @@ export function RegistrationFormView() {
                 </NativeSelect>,
               )}
               <div className="grid gap-1">
-                {field("birthDate", "Birth date *", <Input id="birthDate" type="date" aria-invalid={!!errors.birthDate} {...form.register("birthDate")} />)}
+                {field("birthDate", "Birth date *", <DateInput id="birthDate" aria-invalid={!!errors.birthDate} {...birthDateField} />)}
                 <label className="flex items-center gap-2 text-table">
                   <Controller
                     control={form.control}

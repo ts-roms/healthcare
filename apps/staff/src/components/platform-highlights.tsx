@@ -49,7 +49,12 @@ export function BrandMark({ className, inverted = false }: { className?: string;
 /** The dark "details" half of a split page: brand, one-line promise, highlights, privacy note. */
 export function PlatformHighlightsPanel({ className }: { className?: string }) {
   return (
-    <aside className={cn("relative isolate flex flex-col justify-between gap-10 overflow-hidden bg-sidebar p-10 text-sidebar-foreground xl:p-14", className)}>
+    <aside
+      className={cn(
+        "surface-deep relative isolate flex flex-col justify-between gap-10 overflow-hidden bg-sidebar p-10 text-sidebar-foreground xl:p-14",
+        className,
+      )}
+    >
       {/* Soft brand glow; decorative only. */}
       <div aria-hidden className="pointer-events-none absolute -top-32 -right-24 -z-10 size-[28rem] rounded-full bg-primary/30 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 -z-10 size-[26rem] rounded-full bg-teal/25 blur-3xl" />

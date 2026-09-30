@@ -11,6 +11,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DateInput,
   Input,
   Label,
   Table,
@@ -250,9 +251,8 @@ function EarlierDiagnoses({ rescans, today, timeZone, hasActiveRules }: { rescan
         >
           <div className="flex flex-col gap-1">
             <Label htmlFor="rescan-from">Recorded from</Label>
-            <Input
+            <DateInput
               id="rescan-from"
-              type="date"
               value={range.from}
               min={addDays(range.to, -(MAX_RESCAN_DAYS - 1))}
               max={range.to}
@@ -261,7 +261,7 @@ function EarlierDiagnoses({ rescans, today, timeZone, hasActiveRules }: { rescan
           </div>
           <div className="flex flex-col gap-1">
             <Label htmlFor="rescan-to">to</Label>
-            <Input id="rescan-to" type="date" value={range.to} min={range.from} max={today} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+            <DateInput id="rescan-to" value={range.to} min={range.from} max={today} onChange={(e) => setRange({ ...range, to: e.target.value })} />
           </div>
           <Button type="submit" size="sm" disabled={pending || inProgress || !hasActiveRules}>
             <SearchCheckIcon /> Check
