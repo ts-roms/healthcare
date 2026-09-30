@@ -35,8 +35,9 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 /**
  * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
  * immutable once issued (cancel/replace records its time), exported documents never change after upload (a dental
- * image's description only when added or marked entered in error), external history entries (the only
- * MedicationStatements, and imported document descriptions), dental procedures and past procedures (the Procedures)
+ * image's description only when added or marked entered in error), external history entries (imported
+ * MedicationStatements and document descriptions), medications taken (the other MedicationStatements: also when
+ * marked stopped, which their lastUpdated includes), dental procedures and past procedures (the Procedures)
  * and family history entries change only when marked entered in error (database triggers), and immunizations only
  * when marked entered in error or when a reaction is added (database trigger). The other records are updated in place without a trustworthy
  * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
@@ -83,7 +84,7 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   // Dental record (withheld, with a notice, from callers who may not read it); dental images are documents, above.
   if (src.dental) clinical.push(...dentalResources(ctx, patientId, src.dental));
   for (const i of src.immunizations) clinical.push(toImmunization(ctx, patientId, i));
-  // Past procedures and conditions, family and social history (substance use and sexual history only when included).
+  // Past procedures and conditions, medications taken, family and social history (substance use and sexual history only when included).
   clinical.push(...historyResources(ctx, patientId, src.history));
 
   const supporting: FhirResource[] = [
@@ -221,7 +222,7 @@ const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
   Condition: `Diagnoses recorded in encounters, past conditions diagnosed elsewhere as reported (local category past-medical-history, always unconfirmed; never the problem list), and conditions from other systems (always unconfirmed). ${IMPORTED}`,
   AllergyIntolerance: `${IMPORTED} Imported allergies are always unconfirmed.`,
   Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), observations from other systems, dental observations (category exam: examinations, the current tooth chart, periodontal charts), and social history (category social-history, one per part of each version, local codes; substance use and sexual history also need history.read and encounter.write). ${IMPORTED} ${DENTAL}`,
-  MedicationStatement: `Medication history from other systems only (never a prescription of this organization). ${IMPORTED}`,
+  MedicationStatement: `Medicines the patient takes that were not prescribed here, from the patient's history (local category medication-taken; status active, stopped or unknown; reported ones tagged record-source#reported), and medication history from other systems (never a prescription of this organization). ${IMPORTED}`,
   CarePlan: `Care plans, and dental treatment plans (category dental; the patient's decision per item as the activity's status reason). ${DENTAL}`,
   DocumentReference: `Available documents only (not archived ones; dental images with their kind, teeth and visit), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
   Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces), and past procedures from the patient's history (local category past-procedure; reported ones tagged record-source#reported, the asserter who told the organization). ${IMPORTED} ${DENTAL}`,

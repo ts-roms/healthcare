@@ -28,6 +28,17 @@ interface History {
   sensitiveAccess: boolean;
   procedures: Array<{ id: string; patientId: string; description: string; performed: string | null; source: string; enteredInError: object | null }>;
   conditions: Array<{ id: string; description: string; onset: string | null; status: string }>;
+  medications: Array<{
+    id: string;
+    medication: string;
+    dose: string | null;
+    started: string | null;
+    reportedStatus: string;
+    status: string;
+    stopped: string | null;
+    stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+    enteredInError: object | null;
+  }>;
   family: {
     state: string;
     latestReview: { outcome: string; unknownReason: string | null } | null;
@@ -388,6 +399,116 @@ describe("patient history", () => {
     );
   });
 
+  it("records medications taken that were not prescribed here; marks them stopped once; corrects by entered in error", async () => {
+    const losartan = {
+      medication: "Losartan 50 mg tablet",
+      dose: "1 tablet every morning",
+      reason: "High blood pressure",
+      prescribedBy: "Cardiologist at another hospital",
+      started: "2019-05",
+      status: "taking",
+      reportedBy: "patient",
+      encounterId,
+    };
+    await staff(cashier).post(`/patients/${patientId}/history/medications`, losartan).expect(403);
+    await staff(officer).post(`/patients/${patientId}/history/medications`, losartan).expect(403);
+    await staff(nurse)
+      .post(`/patients/${patientId}/history/medications`, { ...losartan, stopped: "2020" })
+      .expect(400);
+    const future = await staff(nurse)
+      .post(`/patients/${patientId}/history/medications`, { ...losartan, started: "2099" })
+      .expect(422);
+    expect(future.body.error.code).toBe("date_in_future");
+    const backwards = await staff(nurse)
+      .post(`/patients/${patientId}/history/medications`, { ...losartan, status: "stopped", started: "2020-05", stopped: "2019" })
+      .expect(422);
+    expect(backwards.body.error.code).toBe("stop_before_start");
+
+    const created = (await staff(nurse).post(`/patients/${patientId}/history/medications`, losartan).expect(201)).body;
+    ids.losartan = created.id;
+    expect(created).toMatchObject({
+      medication: "Losartan 50 mg tablet",
+      dose: "1 tablet every morning",
+      started: "2019-05",
+      startedPrecision: "month",
+      reportedStatus: "taking",
+      status: "taking",
+      stopRecorded: null,
+      source: "reported",
+      reportedBy: "patient",
+      encounterId,
+      recordedByName: expect.any(String),
+    });
+    ids.metformin = (
+      await staff(doctor)
+        .post(`/patients/${patientId}/history/medications`, {
+          medication: "Metformin 500 mg",
+          started: "2018",
+          status: "stopped",
+          stopped: "2020",
+          reportedBy: "patient",
+        })
+        .expect(201)
+    ).body.id;
+    ids.lagundi = (
+      await staff(doctor)
+        .post(`/patients/${patientId}/history/medications`, {
+          medication: "Lagundi syrup",
+          status: "unknown",
+          source: "recorded_here",
+          sourceDescription: "Medicine bag the patient brought",
+        })
+        .expect(201)
+    ).body.id;
+    ids.aspirin = (
+      await staff(doctor)
+        .post(`/patients/${patientId}/history/medications`, { medication: "Aspirin 80 mg", started: "2021", status: "taking", reportedBy: "relative" })
+        .expect(201)
+    ).body.id;
+
+    // Stopped once, with the stop date as known; never before the start.
+    expect((await staff(nurse).post(`/history/medications/${ids.aspirin}/stopped`, { stopped: "2020" }).expect(422)).body.error.code).toBe("stop_before_start");
+    await staff(cashier).post(`/history/medications/${ids.losartan}/stopped`, {}).expect(403);
+    const stopped = (
+      await staff(nurse).post(`/history/medications/${ids.losartan}/stopped`, { stopped: "2025", note: "Switched by her cardiologist" }).expect(200)
+    ).body;
+    expect(stopped).toMatchObject({
+      status: "stopped",
+      reportedStatus: "taking",
+      stopped: "2025",
+      stopRecorded: { byName: expect.any(String), note: "Switched by her cardiologist" },
+    });
+    expect((await staff(nurse).post(`/history/medications/${ids.losartan}/stopped`, {}).expect(422)).body.error.code).toBe("already_stopped");
+    expect((await staff(nurse).post(`/history/medications/${ids.metformin}/stopped`, {}).expect(422)).body.error.code).toBe("already_stopped");
+
+    // Entered in error through the history's own endpoint; nothing else changes afterwards.
+    const marked = (await staff(doctor).post(`/history/${ids.lagundi}/entered-in-error`, { reason: "Another patient's medicine bag" }).expect(200)).body;
+    expect(marked).toMatchObject({ section: "medication" });
+    expect((await staff(nurse).post(`/history/medications/${ids.lagundi}/stopped`, {}).expect(422)).body.error.code).toBe("already_entered_in_error");
+
+    const history = await read();
+    const byId = new Map(history.medications.map((m) => [m.id, m]));
+    expect(byId.get(ids.metformin)).toMatchObject({ status: "stopped", started: "2018", stopped: "2020", stopRecorded: null });
+    expect(byId.get(ids.lagundi)).toMatchObject({ status: "unknown", enteredInError: expect.any(Object) });
+    expect(byId.get(ids.aspirin)).toMatchObject({ status: "taking" });
+
+    // The database keeps the rules too.
+    await expect(ctx.pool.query(`UPDATE reported_medication SET medication = 'Changed' WHERE id = $1`, [ids.aspirin])).rejects.toThrow(/only marking stopped/);
+    await expect(ctx.pool.query(`UPDATE reported_medication SET stop_note = 'Again' WHERE id = $1`, [ids.losartan])).rejects.toThrow(/marked stopped once/);
+    await expect(
+      ctx.pool.query(`UPDATE reported_medication SET stop_recorded_at = now(), stop_recorded_by = recorded_by WHERE id = $1`, [ids.metformin]),
+    ).rejects.toThrow(/marked stopped once/);
+    await expect(ctx.pool.query(`DELETE FROM reported_medication WHERE id = $1`, [ids.aspirin])).rejects.toThrow(/never deleted/);
+
+    expect(await events("PatientHistoryRecorded")).toEqual(expect.arrayContaining([{ entryId: ids.losartan, section: "medication" }]));
+    expect(await events("PatientHistoryMedicationStopped")).toEqual([{ entryId: ids.losartan, section: "medication" }]);
+    const audit = await auditRows(ctx.pool, "action = 'history.medication-stopped' AND resource_id = $1", [ids.losartan]);
+    expect(audit[0]).toMatchObject({ patient_id: patientId, metadata: { section: "medication", stoppedPrecision: "year" } });
+    const changes = await ctx.pool.query("SELECT changes FROM audit_event WHERE action = 'history.medication-stopped' AND resource_id = $1", [ids.losartan]);
+    expect(changes.rows[0].changes).toEqual({ status: { from: "taking", to: "stopped" } });
+    expect(JSON.stringify(await events("PatientHistoryMedicationStopped"))).not.toMatch(/Losartan|cardiologist/);
+  });
+
   it("refuses new history under a merged record and reads the retired record's history with the survivor", async () => {
     ids.otherProcedure = (
       await staff(nurse)
@@ -421,6 +542,9 @@ describe("patient history", () => {
     expect(workspace.history.procedures.map((p: { id: string }) => p.id)).not.toContain(ids.wrong);
     expect(workspace.history.procedures.find((p: { id: string }) => p.id === ids.otherProcedure)).toMatchObject({ filedUnder: expect.any(String) });
     expect(workspace.history.family).toMatchObject({ state: "recorded", total: 2 });
+    // Medicines still taken (or not known) only: stopped ones and entries in error stay in the full history.
+    expect(workspace.history.medications.map((m: { id: string }) => m.id)).toEqual([ids.aspirin]);
+    expect(workspace.history.medicationsTotal).toBe(1);
     expect(workspace.history.social).toMatchObject({
       tobacco: "Former — Cigarettes, 10 sticks a day, quit 2025",
       substanceUse: "Cannabis in college, none since",
@@ -461,7 +585,18 @@ describe("patient history", () => {
       e.resource.category?.some((c) => c.coding.some((x) => x.code === "social-history")),
     );
     expect(social.map((e: { resource: { id: string } }) => e.resource.id)).toContain(`${ids.social2}-substance-use`);
-    for (const e of [...procedures.entry, ...conditions.entry, ...family.entry, ...social]) expect(schemaErrors(e.resource)).toEqual([]);
+    const medications = await search("MedicationStatement");
+    const losartanStatement = medications.entry.find((e: { resource: { id: string } }) => e.resource.id === ids.losartan).resource;
+    expect(losartanStatement).toMatchObject({
+      status: "stopped",
+      effectivePeriod: { start: "2019-05", end: "2025" },
+      medicationCodeableConcept: { text: "Losartan 50 mg tablet" },
+      informationSource: { reference: `Patient/${patientId}` },
+    });
+    expect(losartanStatement.category.coding[0].code).toBe("medication-taken");
+    expect(JSON.stringify(losartanStatement)).not.toContain("Switched by her cardiologist");
+    expect(medications.entry.find((e: { resource: { id: string } }) => e.resource.id === ids.lagundi).resource.status).toBe("entered-in-error");
+    for (const e of [...procedures.entry, ...conditions.entry, ...family.entry, ...social, ...medications.entry]) expect(schemaErrors(e.resource)).toEqual([]);
 
     const limited = await search("Observation", integration);
     expect(JSON.stringify(limited)).not.toMatch(/Cannabis|One partner|substance-use|sexual-history/);
@@ -564,6 +699,17 @@ describe("patient history", () => {
       source: "reported",
     });
     expect(mine.family.state).toBe("recorded");
+    expect(mine.medications.map((m: { id: string }) => m.id)).not.toContain(ids.lagundi);
+    expect(mine.medications.find((m: { id: string }) => m.id === ids.losartan)).toEqual({
+      id: ids.losartan,
+      medication: "Losartan 50 mg tablet",
+      dose: "1 tablet every morning",
+      reason: "High blood pressure",
+      started: "2019-05",
+      status: "stopped",
+      stopped: "2025",
+      source: "reported",
+    });
     expect(mine.social).toMatchObject({ diet: "Low salt", substanceUse: "Cannabis in college, none since", sensitiveWithheld: false });
     expect(JSON.stringify(mine)).not.toMatch(/recordedBy|Discharge summary the patient brought|Told about another patient/);
     expect(await auditRows(ctx.pool, "action = 'portal.health-history-view' AND patient_id = $1", [patientId])).toHaveLength(1);
@@ -599,7 +745,9 @@ describe("patient history", () => {
       .replace(/·/g, "")
       .replace(/\s+/g, " ");
     for (const expected of [
-      "Medical, family and social history",
+      "Medical, medication, family and social history",
+      "Losartan 50 mg tablet",
+      "Stopped 2025",
       "Appendectomy",
       "Pulmonary tuberculosis",
       "Father",
@@ -612,5 +760,6 @@ describe("patient history", () => {
     // Entries in error are left out (the procedure, and version 3 with "Farmer").
     expect(text).not.toContain("Tonsillectomy");
     expect(text).not.toContain("Farmer");
+    expect(text).not.toContain("Lagundi");
   });
 });

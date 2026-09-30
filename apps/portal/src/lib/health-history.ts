@@ -23,6 +23,13 @@ export const CONDITION_STATUS_TEXT: Record<PortalHealthHistory["conditions"][num
   unknown: "Status not known",
 };
 
+/** "Taking since May 2019" / "Stopped 2020" / "Not known whether still taking". */
+export function medicationStatusText(m: Pick<PortalHealthHistory["medications"][number], "status" | "started" | "stopped">): string {
+  if (m.status === "stopped") return m.stopped ? `Stopped ${pastDate(m.stopped)}` : "Stopped";
+  if (m.status === "taking") return m.started ? `Taking since ${pastDate(m.started)}` : "Taking";
+  return "Not known whether still taking";
+}
+
 /** The family history state in plain words ("no known illness in the family" only after the clinic asked). */
 export function familyStateText(family: Pick<PortalHealthHistory["family"], "state" | "unknownReason">): string {
   switch (family.state) {

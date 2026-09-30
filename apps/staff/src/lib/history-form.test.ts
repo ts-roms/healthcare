@@ -3,12 +3,16 @@ import {
   alcoholText,
   BLANK_CONDITION,
   BLANK_FAMILY,
+  BLANK_MEDICATION,
   BLANK_PROCEDURE,
   conditionFormSchema,
   conditionPayload,
   familyFormSchema,
   familyPayload,
   familyStateView,
+  medicationFormSchema,
+  medicationPayload,
+  medicationPeriodLabel,
   partialDateLabel,
   procedureFormSchema,
   procedurePayload,
@@ -73,6 +77,35 @@ describe("history forms", () => {
   it("builds a condition with its reported status", () => {
     const parsed = conditionFormSchema.parse({ ...BLANK_CONDITION, description: "Tuberculosis", status: "resolved", onset: "2015-03" });
     expect(conditionPayload(parsed)).toEqual({ description: "Tuberculosis", status: "resolved", onset: "2015-03", source: "reported", reportedBy: "patient" });
+  });
+
+  it("builds a medicine taken, with a stop date only for a medicine already stopped", () => {
+    const taking = medicationFormSchema.parse({ ...BLANK_MEDICATION, medication: "Losartan 50 mg", dose: "1 tab daily", started: "2019-05" });
+    expect(medicationPayload(taking)).toEqual({
+      medication: "Losartan 50 mg",
+      dose: "1 tab daily",
+      started: "2019-05",
+      status: "taking",
+      source: "reported",
+      reportedBy: "patient",
+    });
+    expect(medicationFormSchema.safeParse({ ...BLANK_MEDICATION, medication: "X", stopped: "2020" }).success).toBe(false);
+    const stopped = medicationFormSchema.parse({ ...BLANK_MEDICATION, medication: "Metformin", status: "stopped", stopped: "2020", source: "recorded_here" });
+    expect(medicationPayload(stopped)).toEqual({ medication: "Metformin", status: "stopped", stopped: "2020", source: "recorded_here" });
+    expect(medicationFormSchema.safeParse({ ...BLANK_MEDICATION }).success).toBe(false);
+  });
+
+  it("describes when a medicine was taken", () => {
+    const base = { started: null, startedPrecision: null, stopped: null, stoppedPrecision: null, status: "taking" as const };
+    expect(medicationPeriodLabel(base, format)).toBeNull();
+    expect(medicationPeriodLabel({ ...base, started: "2019-05-01", startedPrecision: "month" }, format)).toBe("since May 2019");
+    expect(
+      medicationPeriodLabel(
+        { ...base, status: "stopped", started: "2019-05-01", startedPrecision: "month", stopped: "2025-01-01", stoppedPrecision: "year" },
+        format,
+      ),
+    ).toBe("May 2019 – 2025");
+    expect(medicationPeriodLabel({ ...base, status: "stopped", stopped: "2025-03-04", stoppedPrecision: "day" }, format)).toBe("stopped D:2025-03-04");
   });
 
   it("builds a family history entry: the relative, age at onset, and a cause of death only for a relative who died", () => {

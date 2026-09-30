@@ -1,4 +1,4 @@
-import type { CodeableConcept, Coding, Condition, FamilyMemberHistory, Meta, Observation, Procedure, Reference } from "fhir/r4";
+import type { CodeableConcept, Coding, Condition, FamilyMemberHistory, MedicationStatement, Meta, Observation, Procedure, Reference } from "fhir/r4";
 import type {
   FamilyHistorySource,
   FhirContext,
@@ -6,6 +6,7 @@ import type {
   PastConditionSource,
   PastProcedureSource,
   PatientHistorySource,
+  ReportedMedicationSource,
   SocialHistorySource,
 } from "./sources";
 import { codeSystem, compact, concept, externalMeta, localSystem, ref, text } from "./support";
@@ -19,6 +20,9 @@ import { SYSTEMS } from "./terminology";
  * - past conditions → `Condition` with a local category "past medical history (as reported)" and verificationStatus
  *   `unconfirmed` — deliberately not `problem-list-item` (the problem list is the diagnoses of consultations) nor
  *   `encounter-diagnosis`;
+ * - medications taken (not prescribed here) → `MedicationStatement` (status active, stopped or unknown as it stands;
+ *   `effectivePeriod` at the precisions known; a local category "medication taken (as reported)" so they are never
+ *   taken for prescriptions of the organization);
  * - family history → `FamilyMemberHistory` (relationship coded in HL7 v3 RoleCode; a cause of death as a condition
  *   that contributed to death);
  * - social history → one `Observation` per part of each version (category `social-history`; local codes and values:
@@ -161,6 +165,41 @@ export function toPastCondition(ctx: FhirContext, patientId: string, c: PastCond
   });
 }
 
+const MEDICATION_STATUS: Record<ReportedMedicationSource["status"], MedicationStatement["status"]> = {
+  taking: "active",
+  stopped: "stopped",
+  unknown: "unknown",
+};
+
+export function toReportedMedication(ctx: FhirContext, patientId: string, m: ReportedMedicationSource): MedicationStatement {
+  const start = partialDateTime(m.startedDate, m.startedPrecision);
+  const end = partialDateTime(m.stoppedDate, m.stoppedPrecision);
+  // A stop recorded later changes the row as well: the latest change is the last-updated time.
+  const lastUpdated = [m.enteredInErrorAt, m.stopRecordedAt, m.recordedAt]
+    .filter((t): t is string => Boolean(t))
+    .sort()
+    .at(-1)!;
+  return compact<MedicationStatement>({
+    resourceType: "MedicationStatement",
+    id: m.id,
+    meta: { ...historyMeta(ctx, m), lastUpdated },
+    status: m.enteredInErrorAt ? "entered-in-error" : MEDICATION_STATUS[m.status],
+    category: historyCategory(ctx, "medication-taken", "Medication taken (as reported; not prescribed here)"),
+    medicationCodeableConcept: coded(ctx, m, m.medication),
+    subject: ref("Patient", patientId),
+    effectivePeriod: start || end ? compact({ start, end }) : undefined,
+    dateAsserted: m.recordedAt,
+    informationSource: asserter(patientId, m),
+    reasonCode: m.reason ? [text(m.reason)] : undefined,
+    dosage: m.dose ? [{ text: m.dose }] : undefined,
+    note: [
+      { text: "A medicine the patient takes, as reported to this organization; not a prescription of this organization." },
+      ...(m.prescribedBy ? [{ text: `Prescribed by or obtained from: ${m.prescribedBy}` }] : []),
+      ...(m.sourceDescription ? [{ text: `Source: ${m.sourceDescription}` }] : []),
+    ],
+  });
+}
+
 export function toFamilyMemberHistory(ctx: FhirContext, patientId: string, f: FamilyHistorySource): FamilyMemberHistory {
   const role = ROLE_CODES[f.relationship] ?? ROLE_CODES["other"]!;
   const label = f.relationship === "other" ? (f.relationshipText ?? RELATIONSHIP_TEXT["other"]!) : RELATIONSHIP_TEXT[f.relationship]!;
@@ -259,6 +298,7 @@ export function historyResources(ctx: FhirContext, patientId: string, h: Patient
   return [
     ...h.procedures.map((p) => toPastProcedure(ctx, patientId, p)),
     ...h.conditions.map((c) => toPastCondition(ctx, patientId, c)),
+    ...h.medications.map((m) => toReportedMedication(ctx, patientId, m)),
     ...h.family.map((f) => toFamilyMemberHistory(ctx, patientId, f)),
     ...h.social.flatMap((s) => toSocialHistoryObservations(ctx, patientId, s, h.sensitiveIncluded)),
   ];

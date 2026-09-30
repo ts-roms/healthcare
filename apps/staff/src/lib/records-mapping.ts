@@ -21,7 +21,7 @@ export const RECORD_COPY_SECTIONS: Array<{ key: RecordCopySection; label: string
   { key: "certificates", label: "Medical certificates", hint: "A list; each certificate is its own document" },
   { key: "documents", label: "Documents on file", hint: "A list; share the files themselves separately" },
   { key: "immunizations", label: "Immunizations", hint: "Doses given, not given, reported and imported" },
-  { key: "history", label: "Medical, family and social history", hint: "The current history as reported, whatever the period" },
+  { key: "history", label: "Medical, medication, family and social history", hint: "The current history as reported, whatever the period" },
 ];
 
 /** The chosen sections in the copy's order (the API orders them the same way). */

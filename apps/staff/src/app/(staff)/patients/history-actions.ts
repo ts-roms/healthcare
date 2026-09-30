@@ -11,12 +11,17 @@ import {
   familyFormSchema,
   familyPayload,
   type FamilyForm,
+  medicationFormSchema,
+  medicationPayload,
+  type MedicationForm,
   procedureFormSchema,
   procedurePayload,
   type ProcedureForm,
   reviewFormSchema,
   reviewPayload,
   type ReviewForm,
+  stopMedicationFormSchema,
+  type StopMedicationForm,
 } from "@/lib/history-form";
 
 const uuid = z.uuid();
@@ -53,6 +58,34 @@ export async function recordPastCondition(patientId: string, form: ConditionForm
     api<{ id: string }>(`/patients/${patientId}/history/conditions`, { method: "POST", body: conditionPayload(parsed.data) }),
   );
   if (result.ok) refresh(patientId, parsed.data.encounterId);
+  return result;
+}
+
+/** Records a medicine taken that was not prescribed here, as reported (never a prescription of the organization). */
+export async function recordReportedMedication(patientId: string, form: MedicationForm): Promise<ActionResult<{ id: string }>> {
+  if (!uuid.safeParse(patientId).success) return invalid();
+  const parsed = medicationFormSchema.safeParse(form);
+  if (!parsed.success) return invalid(parsed.error.issues[0]?.message ?? "Check the medicine.");
+  const result = await actionResult(() =>
+    api<{ id: string }>(`/patients/${patientId}/history/medications`, { method: "POST", body: medicationPayload(parsed.data) }),
+  );
+  if (result.ok) refresh(patientId, parsed.data.encounterId);
+  return result;
+}
+
+/** Marks a medicine taken as stopped (once): when, as precise as known, and an optional note. */
+export async function stopReportedMedication(
+  patientId: string,
+  entryId: string,
+  form: StopMedicationForm,
+  encounterId?: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!uuid.safeParse(patientId).success || !uuid.safeParse(entryId).success || (encounterId && !uuid.safeParse(encounterId).success)) return invalid();
+  const parsed = stopMedicationFormSchema.safeParse(form);
+  if (!parsed.success) return invalid(parsed.error.issues[0]?.message ?? "Check the stop date.");
+  const body = { ...(parsed.data.stopped ? { stopped: parsed.data.stopped } : {}), ...(parsed.data.note ? { note: parsed.data.note } : {}) };
+  const result = await actionResult(() => api<{ id: string }>(`/history/medications/${entryId}/stopped`, { method: "POST", body }));
+  if (result.ok) refresh(patientId, encounterId);
   return result;
 }
 

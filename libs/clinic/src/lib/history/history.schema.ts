@@ -1,11 +1,11 @@
 import { boolean, date, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0082_patient_history.sql (the migration is the source of truth).
+// Mirrors database/migrations/0082_patient_history.sql and 0083_reported_medications.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 /** The sections of a patient's history. */
-export const HISTORY_SECTIONS = ["procedure", "condition", "family", "family_review", "social"] as const;
+export const HISTORY_SECTIONS = ["procedure", "condition", "medication", "family", "family_review", "social"] as const;
 export type HistorySection = (typeof HISTORY_SECTIONS)[number];
 
 /** How precisely a past date is known (a year is kept as 1 January, a month as its first day). */
@@ -22,6 +22,12 @@ export const PAST_CONDITION_SOURCES = ["reported", "recorded_here"] as const;
 export type PastConditionSource = (typeof PAST_CONDITION_SOURCES)[number];
 export const PAST_CONDITION_STATUSES = ["active", "resolved", "unknown"] as const;
 export type PastConditionStatus = (typeof PAST_CONDITION_STATUSES)[number];
+
+export const REPORTED_MEDICATION_SOURCES = ["reported", "recorded_here"] as const;
+export type ReportedMedicationSource = (typeof REPORTED_MEDICATION_SOURCES)[number];
+/** As reported when recorded: still taking, already stopped, or not known. */
+export const REPORTED_MEDICATION_STATUSES = ["taking", "stopped", "unknown"] as const;
+export type ReportedMedicationStatus = (typeof REPORTED_MEDICATION_STATUSES)[number];
 
 /** The relative, from a fixed clinical list (exported as HL7 v3 RoleCode); free text adds detail or names "other". */
 export const FAMILY_RELATIONSHIPS = [
@@ -108,6 +114,36 @@ export const pastCondition = pgTable("past_condition", {
   recordedAt: ts("recorded_at").notNull().defaultNow(),
 });
 
+/** A medicine the patient takes that was not prescribed here (prescribed elsewhere, over the counter, supplements). */
+export const reportedMedication = pgTable("reported_medication", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  encounterId: uuid("encounter_id"),
+  medication: text("medication").notNull(),
+  codeSystem: text("code_system"),
+  code: text("code"),
+  doseText: text("dose_text"),
+  reason: text("reason"),
+  prescribedBy: text("prescribed_by"),
+  startedDate: date("started_date", { mode: "string" }),
+  startedPrecision: text("started_precision").$type<HistoryDatePrecision>(),
+  reportedStatus: text("reported_status").$type<ReportedMedicationStatus>().notNull(),
+  stoppedDate: date("stopped_date", { mode: "string" }),
+  stoppedPrecision: text("stopped_precision").$type<HistoryDatePrecision>(),
+  notes: text("notes"),
+  source: text("source").$type<ReportedMedicationSource>().notNull(),
+  reportedBy: text("reported_by").$type<HistoryInformant>(),
+  sourceDescription: text("source_description"),
+  recorderPractitionerId: uuid("recorder_practitioner_id"),
+  stopRecordedAt: ts("stop_recorded_at"),
+  stopRecordedBy: uuid("stop_recorded_by"),
+  stopNote: text("stop_note"),
+  ...enteredInError,
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+
 export const familyHistoryEntry = pgTable("family_history_entry", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull(),
@@ -171,6 +207,7 @@ export const socialHistory = pgTable("social_history", {
 
 export type PastProcedureRecord = typeof pastProcedure.$inferSelect;
 export type PastConditionRecord = typeof pastCondition.$inferSelect;
+export type ReportedMedicationRecord = typeof reportedMedication.$inferSelect;
 export type FamilyHistoryRecord = typeof familyHistoryEntry.$inferSelect;
 export type FamilyReviewRecord = typeof familyHistoryReview.$inferSelect;
 export type SocialHistoryRecord = typeof socialHistory.$inferSelect;

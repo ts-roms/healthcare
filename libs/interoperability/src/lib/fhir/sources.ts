@@ -562,6 +562,31 @@ export interface PastConditionSource {
   enteredInErrorAt: string | null;
 }
 
+/** A medicine the patient takes that was not prescribed here, as reported or documented (never a prescription). */
+export interface ReportedMedicationSource {
+  id: string;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  medication: string;
+  codeSystem: string | null;
+  code: string | null;
+  dose: string | null;
+  reason: string | null;
+  prescribedBy: string | null;
+  startedDate: string | null;
+  startedPrecision: "year" | "month" | "day" | null;
+  /** As it stands: stopped once marked stopped, otherwise as reported. */
+  status: "taking" | "stopped" | "unknown";
+  stoppedDate: string | null;
+  stoppedPrecision: "year" | "month" | "day" | null;
+  sourceDescription: string | null;
+  recorderPractitionerId: string | null;
+  recordedAt: string;
+  /** When it was marked stopped after being recorded (the row changes then too). */
+  stopRecordedAt: string | null;
+  enteredInErrorAt: string | null;
+}
+
 /** A relative's condition, as reported or imported. */
 export interface FamilyHistorySource {
   id: string;
@@ -601,13 +626,14 @@ export interface SocialHistorySource {
 }
 
 /**
- * The patient history (clinic): rows change only when marked entered in error (database trigger), so that time or
- * `recordedAt` is a reliable last-updated time. `sensitiveIncluded` is false when substance use and sexual history
+ * The patient history (clinic): rows change only when marked entered in error (database trigger) — and a medication
+ * taken also when marked stopped — so the latest of those times and `recordedAt` is a reliable last-updated time. `sensitiveIncluded` is false when substance use and sexual history
  * were withheld from the caller (their Observations are then left out, with a notice).
  */
 export interface PatientHistorySource {
   procedures: PastProcedureSource[];
   conditions: PastConditionSource[];
+  medications: ReportedMedicationSource[];
   family: FamilyHistorySource[];
   /** The latest family history review (none known, not known, or reviewed as listed), or null. */
   familyReview: { outcome: "reviewed" | "none_known" | "unknown"; unknownReason: string | null; reviewedAt: string } | null;

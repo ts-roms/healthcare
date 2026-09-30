@@ -580,7 +580,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <Card className="lg:col-span-2" id="history">
             <CardHeader>
               <NotebookTextIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Medical, family and social history</CardTitle>
+              <CardTitle>Medical, medication, family and social history</CardTitle>
               <Button asChild size="sm" variant="ghost" className="ml-auto">
                 <Link href={`/patients/${p.id}/history`}>{can(session, "history.record") ? "Open and record" : "Open history"}</Link>
               </Button>

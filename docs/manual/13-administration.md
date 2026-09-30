@@ -104,10 +104,10 @@ pharmacists) through your own roles, as your policy allows.
 
 ### Patient history
 
-| Permission       | What it allows                                                                                                                            | Default roles (besides Organization administrator) |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `history.read`   | View a patient's past procedures and conditions, family and social history (substance use and sexual history also need `encounter.write`) | Dentist, Medical records officer, Nurse, Physician |
-| `history.record` | Record past procedures and conditions, family history and its review, new social history versions, and mark entries entered in error      | Dentist, Nurse, Physician                          |
+| Permission       | What it allows                                                                                                                                                                  | Default roles (besides Organization administrator) |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `history.read`   | View a patient's past procedures and conditions, medications taken, family and social history (substance use and sexual history also need `encounter.write`)                    | Dentist, Medical records officer, Nurse, Physician |
+| `history.record` | Record past procedures and conditions, medications taken (and mark them stopped), family history and its review, new social history versions, and mark entries entered in error | Dentist, Nurse, Physician                          |
 
 Who sees the private parts of the social history follows `encounter.write`; change it through your own roles, as your data protection officer
 advises.

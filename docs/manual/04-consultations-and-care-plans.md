@@ -185,7 +185,8 @@ history. It works the same as on the patient record (see [Patients](02-patients.
 
 ## How to review and record the history in the consultation
 
-The encounter workspace has a **Medical, family and social history** section: past procedures and conditions, the family history with its state,
+The encounter workspace has a **Medical, medication, family and social history** section: past procedures and conditions, medicines taken that
+were not prescribed here (with **Mark stopped…**), the family history with its state,
 and the current social history, with the same buttons as on the patient record (see [Patients](02-patients.md)). What you record there is linked
 to this consultation. Entries in error and earlier social history versions are on the full history page (**Full history**). Private parts
 (substance use, sexual history) are shown only to clinicians who write consultation notes.

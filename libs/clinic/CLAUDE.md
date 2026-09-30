@@ -28,12 +28,12 @@ Walk-in / Appointment → Check-in → Queue → Triage (vitals, chief complaint
 - **Orders to other domains** (lab, imaging, referral) go through that domain's application contract — clinic never writes laboratory tables.
 - **Care plans** are a separate domain (`libs/care-plan`); clinic creates/links them via its contract.
 - **Telemedicine** encounters reuse the same encounter model with a `modality` field; providers can escalate to in-person.
-- **Patient history** (`src/lib/history`) keeps past procedures and conditions as reported, family history with its review, and social history as versions; a past condition is never a diagnosis (the problem list is the diagnoses of consultations). Never score or infer anything from it. Rows are immutable (entered in error); substance use and sexual history need `encounter.write` besides `history.read`.
+- **Patient history** (`src/lib/history`) keeps past procedures and conditions as reported, medications taken that were not prescribed here (never a prescription; marked stopped once), family history with its review, and social history as versions; a past condition is never a diagnosis (the problem list is the diagnoses of consultations). Never score or infer anything from it. Rows are immutable (entered in error); substance use and sexual history need `encounter.write` besides `history.read`.
 - **Immunizations** (`src/lib/immunizations`) record what was given, not given or reported; never encode a schedule, a due dose or an official code set. Records are immutable (entered in error, a reaction added once); stock goes through the `ImmunizationContext` port in the same transaction.
 
 ## Key events
 
-`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`, `ImmunizationRecorded`, `ImmunizationEnteredInError`, `PatientHistoryRecorded`, `PatientHistoryEnteredInError`.
+`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`, `ImmunizationRecorded`, `ImmunizationEnteredInError`, `PatientHistoryRecorded`, `PatientHistoryMedicationStopped`, `PatientHistoryEnteredInError`.
 
 ## Permissions
 
