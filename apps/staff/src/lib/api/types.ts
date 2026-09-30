@@ -3593,3 +3593,38 @@ export interface RecordCopy {
   periodTo: string | null;
   createdAt: string;
 }
+
+export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
+
+/** `GET /patient-messages` row: a MyHealth conversation as the clinic sees it. */
+export interface PatientThread {
+  id: string;
+  topic: MessageTopic;
+  subject: string;
+  status: "open" | "closed";
+  startedBy: "patient" | "staff";
+  messageCount: number;
+  lastMessageAt: string;
+  lastMessageFrom: "patient" | "staff";
+  patientId: string;
+  patientNumber: string;
+  patientName: string;
+  facilityId: string;
+  assignedTo: { id: string; displayName: string } | null;
+  /** Open, and the patient wrote last. */
+  awaitingClinic: boolean;
+  closedAt: string | null;
+  version: number;
+}
+
+export interface PatientThreadMessage {
+  id: string;
+  sender: "patient" | "staff";
+  senderName: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface PatientThreadDetail extends PatientThread {
+  messages: PatientThreadMessage[];
+}

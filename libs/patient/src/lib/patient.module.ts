@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import { PatientMessagesController, PortalMessageThreadsController } from "./messaging/patient-message.controller";
+import { PatientMessageService } from "./messaging/patient-message.service";
 import { PortalEmailService } from "./security/portal-email.service";
 import { PortalMfaService } from "./security/portal-mfa.service";
 import { PortalMfaLoginController, PortalSecurityController } from "./security/portal-security.controller";
@@ -31,6 +33,8 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalConsentsController,
     PortalPreferencesController,
     PortalSecurityController,
+    PortalMessageThreadsController,
+    PatientMessagesController,
     PortalMfaLoginController,
   ],
   providers: [
@@ -47,6 +51,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalPasswordResetService,
     PortalEmailService,
     PortalMfaService,
+    PatientMessageService,
     PortalSecurityMailers,
   ],
   exports: [
@@ -57,6 +62,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PatientAccessGuard,
     RecordsRequestService,
     PortalSecurityMailers,
+    PatientMessageService,
   ],
 })
 export class PatientModule {}

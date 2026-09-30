@@ -44,9 +44,10 @@ the message read and goes to its page).
 In-app messages to a patient are delivered only when the patient has an active MyHealth account with `portal_access`
 consent (otherwise `suppressed: no_portal_account`); recorded preferences apply as for other channels. The patient reads
 them at `GET /portal/messages` (audited `portal.messages-view`), sees an unread count, and marks them read
-(`POST /portal/messages/:id/read`, own messages only). Messages are one-way: patients cannot reply yet (a monitored,
-triaged two-way channel is a clinical-safety decision still to be made). Free text written by staff exists only as
-`clinic.message`, which cannot leave the platform.
+(`POST /portal/messages/:id/read`, own messages only). These are notices: replies happen in conversations (`docs/domains/patient-messaging.md`), whose
+messages are not notifications and never leave MyHealth. Free text written by staff exists only as `clinic.message`
+(notices) and conversation messages, neither of which can leave the platform. `portal.message-received` (SMS/email, no
+content) and `portal.message-new` (in-app to staff) announce conversation messages.
 
 ## Ports
 

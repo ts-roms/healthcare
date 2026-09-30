@@ -8,8 +8,8 @@ your dental treatment plans and tooth chart.
 **Who uses it.** Patients of the clinic who have been given an activation code at the clinic. You can only see your own record. You cannot change your
 record in MyHealth — clinic staff make corrections so your record stays accurate.
 
-> **In an emergency, do not use MyHealth. Call 911 or go to the nearest emergency room.** Messages in MyHealth are one-way, and online booking is not
-> for urgent care.
+> **In an emergency, do not use MyHealth. Call 911 or go to the nearest emergency room.** Messages in MyHealth are read during clinic hours, not all day, and online
+> booking is not for urgent care.
 
 ## How to set up your account (first time)
 
@@ -251,16 +251,28 @@ Your bill updates once the provider confirms the payment.
 
 Questions about a bill? Ask the clinic's cashier and bring your invoice number.
 
-## How to read messages
+## How to write to the clinic
 
-1. Choose **Messages**. The number next to it shows new messages.
-2. Messages are listed newest first. New ones are marked **New** and count as read once you have seen them.
-3. Some messages have a link such as **See your results**, **See your visits** or **Book a visit**.
+> Messages are read during clinic hours, not all day, and are **not for urgent problems**. In an emergency call 911 or go to the nearest emergency
+> room.
 
-You may receive booking confirmations, reminders, results-ready notices, "we missed you" notices after a missed visit, care plan follow-up reminders
-and messages from clinic staff.
+1. Choose **Messages**, then **New message**.
+2. Choose **What is it about?** (a general question, your appointment, test results, medicines, a bill, or something else), write a **Subject** and your
+   message (up to 2,000 characters). Please do not send photos or documents here. Choose **Send message**.
+3. The clinic's reply appears in the same conversation. You get a text or an email saying **a message is waiting** (it never says what it is);
+   sign in to read it. New replies are marked and counted next to **Messages**.
+4. Open a conversation to read it and write back. When the clinic closes a conversation you can still read it, but to write again choose
+   **Start a new message**.
 
-You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by text message or email, change your
+You can have up to 5 open conversations, and send up to 10 messages an hour. The clinic can also start a conversation with you.
+
+## How to read notices
+
+1. Under **Notices** on **Messages** you see booking confirmations, reminders, results-ready notices, "we missed you" notices, care plan reminders and
+   short messages from clinic staff, newest first. New ones are marked **New** and count as read once you have seen them.
+2. Some have a link such as **See your results**, **See your visits** or **Book a visit**.
+
+Notices are not conversations: to ask something, use **New message**. To stop reminders by text message or email, change your
 [notification settings](#how-to-choose-which-messages-you-get).
 
 ## How to get your medical certificates and copies of your records
@@ -357,7 +369,7 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - For an online consultation, you must answer the questions before you can enter the waiting room, and the video opens only when the doctor starts.
 - Only released results the clinic allows patients to see are shown; results far outside the usual range appear only after your care team has seen
   them.
-- Messages are one-way.
+- You can write to the clinic in conversations: at most 5 open at a time and 10 messages an hour, text only. A closed conversation takes no more messages.
 - You choose text message and email for each kind of message; MyHealth messages cannot be switched off (withdrawing MyHealth is done under Privacy and consents).
 - You cannot edit your record, prescriptions or bills in MyHealth.
 

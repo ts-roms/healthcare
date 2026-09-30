@@ -236,7 +236,8 @@ Your clinic may not have opened that kind of visit for online booking. You must 
 That is on purpose, for your privacy. Sign in to MyHealth and open **Results**. Talk to your doctor about what they mean.
 
 **17. Can I reply to a message in MyHealth?**
-Not yet. Messages are one-way. Call the clinic for questions, and 911 in an emergency.
+Yes. Open the conversation under **Messages** and write in it, or start a new one with **New message**. Messages are read during clinic hours, not all
+day, and are not for urgent problems: call the clinic, and 911 in an emergency. See [MyHealth](12-patient-portal.md#how-to-write-to-the-clinic).
 
 **18. Why don't I see Dental in MyHealth?**
 Your clinic has not turned on sharing of dental records, or there is nothing to show yet. Ask the clinic if you need a copy of your dental record.

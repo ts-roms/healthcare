@@ -19,6 +19,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
   "/records": ["interop.fhir.import.review", "patient.records-request.manage"],
+  "/messages": ["patient.message.read"],
   "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
 };
 

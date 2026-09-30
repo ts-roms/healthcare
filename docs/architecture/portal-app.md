@@ -113,11 +113,13 @@ confirmed by SMS (`appointment.self-service`: facility, date and time only); the
 shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
 waiting room above.
 
-**Messages.** `/messages` lists the patient's in-app messages newest first — results-ready notices, booking
+**Conversations (two-way messaging, migration `0074`; `libs/patient/src/lib/messaging`, `docs/domains/patient-messaging.md`).** `/messages` starts with **Your conversations** and **New message** (`/messages/new`: topic, subject, text up to 2,000 characters; `/messages/[threadId]`: the exchange and a reply box). Every place the patient writes says MyHealth is not for emergencies and that messages are read during clinic hours. At most 5 open conversations and 10 messages an hour; text only; a conversation the clinic closed takes no more messages (start a new one). The clinic replies from staff `/messages` (`patient.message.read|manage`); the patient gets a text or email that a message is waiting (`portal.message-received`, no name, subject or content) and the navigation badge counts unread replies together with notices.
+
+**Notices.** Below the conversations, `/messages` lists the patient's in-app notices newest first — results-ready notices, booking
 confirmations, "we missed you" after a no-show, care-plan follow-up reminders and messages staff send from the patient
 record ("Message in MyHealth", `clinic.message`). New ones are labelled and marked read once shown; the navigation shows
 the unread count. Each message links to where to act (results, visits, booking; `lib/messages.ts`). Messages are
-one-way: the page tells patients to call the clinic, or 911 in an emergency.
+read-only: a notice is not a conversation; questions go through **New message**.
 
 **Documents** (`/documents`, a **Documents** button on Home; `portal-documents.controller.ts`, audited `portal.documents-view`): the patient's issued medical certificates (purpose, visit date, practitioner, rest days — never the findings) and their records requests with the records office's note or reason and the documents shared, each opened through a short-lived audited link; a form to ask for copies (what, period, details, purpose; at most 3 open) and **Withdraw this request**. The `records.update` message links here.
 
@@ -180,4 +182,4 @@ The **API** also needs `PORTAL_BASE_URL` (the portal's public address, e.g. `htt
 
 ## Not yet
 
-giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, replying to messages (two-way messaging), push notifications (needs the mobile app).
+giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, push notifications (needs the mobile app).

@@ -308,6 +308,31 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "portal.message-received",
+    version: 1,
+    category: "administrative",
+    // Leaves the platform (SMS/email): no name, subject or words of the message — only that one is waiting in MyHealth.
+    channels: ["sms", "email"],
+    variables: z.object({ organizationName: shortText }),
+    render: (v) => ({
+      subject: "You have a new message",
+      text: `${v.organizationName}: you have a new message in MyHealth. Sign in to read it.`,
+    }),
+  }),
+  defineTemplate({
+    key: "portal.message-new",
+    version: 1,
+    category: "administrative",
+    // In-app to the clinic's staff. No name and no text: the conversation is read behind access control.
+    channels: ["in_app"],
+    variables: z.object({ threadId: z.uuid() }),
+    render: (v) => ({
+      subject: "New message from a patient",
+      text: "A patient wrote to the clinic in MyHealth. Open the conversation to read it and reply.",
+      href: `/messages/${v.threadId}`,
+    }),
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",

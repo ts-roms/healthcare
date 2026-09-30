@@ -24,3 +24,7 @@ export * from "./lib/records-requests/records-request.rules";
 export { PrepareRecordCopyDto, SubmitRecordsRequestDto } from "./lib/records-requests/records-request.dto";
 export * from "./lib/consents/portal-consent.rules";
 export * from "./lib/consents/portal-consent.views";
+export * from "./lib/messaging/patient-message.rules";
+export * from "./lib/messaging/patient-message.schema";
+export * from "./lib/messaging/patient-message.service";
+export * from "./lib/messaging/patient-message.views";

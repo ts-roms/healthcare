@@ -462,3 +462,31 @@ export interface PortalMfaSetup {
   secret: string;
   otpauthUri: string;
 }
+
+export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
+
+/** `GET /portal/message-threads` row: a conversation with the clinic. */
+export interface PortalThread {
+  id: string;
+  topic: MessageTopic;
+  subject: string;
+  status: "open" | "closed";
+  startedBy: "patient" | "staff";
+  messageCount: number;
+  lastMessageAt: string;
+  lastMessageFrom: "patient" | "staff";
+  /** The clinic wrote and the patient has not read it. */
+  unread: boolean;
+}
+
+export interface PortalThreadMessage {
+  id: string;
+  sender: "patient" | "staff";
+  senderName: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface PortalThreadDetail extends PortalThread {
+  messages: PortalThreadMessage[];
+}

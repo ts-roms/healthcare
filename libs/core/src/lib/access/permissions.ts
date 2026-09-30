@@ -123,6 +123,9 @@ export const PERMISSIONS = [
   "inventory.valuation.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
   "patient.records-request.manage",
+  // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0074).
+  "patient.message.read",
+  "patient.message.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
