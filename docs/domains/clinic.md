@@ -68,6 +68,13 @@ here (optionally from vaccine stock, in the same transaction), not given with th
 partial date, and accepted from FHIR imports; immutable, corrected by entered in error. No schedule or due dose is
 encoded. See [immunizations](immunizations.md).
 
+## Patient history
+
+Past procedures and surgeries, past conditions diagnosed elsewhere (never diagnoses: the problem list is the diagnoses of
+consultations), family history with its review state and social history as versions live in `libs/clinic/src/lib/history`
+(migration `0082`; permissions `history.read`, `history.record`; substance use and sexual history also need
+`encounter.write`); immutable, corrected by entered in error; nothing is scored. See [patient history](patient-history.md).
+
 ## Referrals
 
 `referral` (migration `0079`; `libs/clinic/src/lib/referrals`) — made from a consultation (in progress or signed; not one
@@ -202,7 +209,8 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 - No-show automation (marking at end of day), online self check-in and room scheduling views are not built.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
-- Procedures and referrals are not modeled yet.
+- Procedures performed here are not modelled (dental procedures excepted, `libs/dental`); referrals are (below). Past
+  procedures reported or documented from elsewhere are part of the [patient history](patient-history.md).
 
 ## Online booking rules and the waiting list
 

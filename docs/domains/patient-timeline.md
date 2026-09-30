@@ -51,6 +51,10 @@ None. Every entry has one shape:
 | `document`           | Uploaded document (upload verified)                                                     | Category                                                                                             | Title, file name (free text); generated and archived documents |
 | `immunization`       | Dose given, not given, reported or imported (at the time given, else when recorded)     | Vaccine name, dose as recorded, date given when partial, status (entered in error marked), source    | Notes, the not-given reason text, reactions, lot               |
 
+The patient history (past procedures and conditions, family and social history; [patient history](patient-history.md)) is
+deliberately **not** a timeline kind: it describes the past as reported, often only by year, and must never carry its
+sensitive parts; the history page lists it.
+
 The status history of care plans is not stored, so a plan appears once (when created) with its current status. Draft
 invoices are not part of the record until issued. Telemedicine consultations are encounters (`modality`), and online
 appointments open the teleconsultation screen.

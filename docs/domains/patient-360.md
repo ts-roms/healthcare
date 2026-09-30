@@ -76,12 +76,17 @@ that gates the domain's own reads:
 | `documents`         | `document.read`                                           | physician, nurse, dentist, dental_assistant, records_officer, org_admin |
 | `referrals`         | `encounter.read`                                          | as `current_encounter`                                                  |
 | `immunizations`     | `immunization.read`                                       | physician, nurse, dentist, records_officer, org_admin                   |
+| `history`           | `history.read` (sensitive parts also `encounter.write`)   | physician, nurse, dentist, records_officer, org_admin                   |
 
 On the page, the summary panels need `patient.read` + `clinical.read` (prescriptions also `prescription.read`, care plans
 `care-plan.read`) and laboratory results `lab.result.read` (`lib/patient-workspace.ts` → `workspaceAccess`). A withheld
 panel shows "Not available to you." — never an empty list. No permission was added. The `immunizations` panel (migration
 `0081`, [immunizations](immunizations.md)) lists the latest 8 records not in error: vaccine, dose as recorded, date at
-its precision, given / not given, source and whether a reaction is recorded — never notes or reasons.
+its precision, given / not given, source and whether a reaction is recorded — never notes or reasons. The `history`
+panel (migration `0082`, [patient history](patient-history.md)) shows the family history state with the latest relatives'
+conditions, the latest 5 past procedures and past conditions (not in error) with totals, and the current social history
+(tobacco, alcohol, occupation); substance use and sexual history only for a viewer who also holds `encounter.write`
+(`sensitiveWithheld` otherwise) — never notes.
 
 ## API
 

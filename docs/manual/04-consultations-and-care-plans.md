@@ -183,6 +183,13 @@ The encounter workspace has an **Immunizations** section: doses recorded in this
 consultation; from stock or with the lot number typed; or **Not given** with the reason) and the earlier history, with a link to the full
 history. It works the same as on the patient record (see [Patients](02-patients.md)). Nothing in it says which dose is due.
 
+## How to review and record the history in the consultation
+
+The encounter workspace has a **Medical, family and social history** section: past procedures and conditions, the family history with its state,
+and the current social history, with the same buttons as on the patient record (see [Patients](02-patients.md)). What you record there is linked
+to this consultation. Entries in error and earlier social history versions are on the full history page (**Full history**). Private parts
+(substance use, sexual history) are shown only to clinicians who write consultation notes.
+
 ## How to refer a patient
 
 The consultation's responsible practitioner refers from the encounter workspace, during the consultation or after signing.

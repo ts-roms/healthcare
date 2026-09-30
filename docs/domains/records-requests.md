@@ -28,10 +28,13 @@ answer; **no deadline, fee or disclosure rule is encoded** (compliance dependenc
   offered to the patient.
 - **Copy of the record** (`records_request_export`, append-only) — a PDF compiled from the patient's record for the
   request: its id is the stored document's (category `record_copy`, generated, of the same patient — composite key),
-  the sections (1–9 of allergies, consultations, laboratory, prescriptions, care_plans, dental, certificates,
-  documents, immunizations — the last added by migration `0081`: doses given, reported and imported, and doses not
+  the sections (1–10 of allergies, consultations, laboratory, prescriptions, care_plans, dental, certificates,
+  documents, immunizations — added by migration `0081`: doses given, reported and imported, and doses not
   given with the kind of reason, whose date falls in the period, or whose year or month overlaps it; entries in error
-  and staff notes left out), the optional period, who prepared it and when. A new copy is a new document; none is ever replaced.
+  and staff notes left out — and history — added by migration `0082`: the patient history as it stands whatever the
+  period, like allergies: past procedures and conditions, the family history or its review state, and the current
+  social history **including substance use and sexual history** (the copy answers the patient's own request); entries
+  in error and staff notes left out), the optional period, who prepared it and when. A new copy is a new document; none is ever replaced.
 
 ## Copy of the record
 

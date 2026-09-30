@@ -385,6 +385,38 @@ With `immunization.record` (physicians and nurses by default):
 Doses filed under a record merged into this one say **Filed under P…**; new doses are recorded on the surviving record. Doses accepted from an
 imported record are marked **Imported** (see [Records, reporting and integrations](11-records-reporting-and-integrations.md)).
 
+## How to record the medical, family and social history
+
+Staff with `history.read` see a **Medical, family and social history** card on the patient record (the family history state, past procedures and
+conditions, tobacco and alcohol use) and the full history at **Open history** (`/patients/[id]/history`). It holds what the patient, a relative or
+another provider told you, or what you documented from records you saw. It is **not** a diagnosis: past conditions here are never on the problem
+list, never billed and never reported. Nothing in it is scored.
+
+With `history.record` (physicians, nurses and dentists by default):
+
+1. **Add procedure** — a past operation or procedure: its name, **When** as `2019`, `2019-05` or `2019-05-12` (or empty when not known), where or
+   by whom, the side or body site, an optional code of your organization's code system, and the **Source**: **Reported to us** (say who: the
+   patient, a relative or another provider) or **Documented here** (for example from a discharge summary the patient brought).
+2. **Add condition** — an illness diagnosed elsewhere, with **Since** and its **Status as reported** (still present, resolved, not known). To make
+   a diagnosis yourself, record it in the consultation instead.
+3. **Add relative's condition** — the relative from the list (**Other relative** needs who), the condition, the age it began, and whether the
+   relative has died (with the cause, as reported).
+4. The family history state is shown with colour, icon and words: **Family history not recorded — ask the patient**, **No known family history**
+   (only after you record it), **Family history not known** (adopted, not known to the patient, or declined to answer) or **Family history
+   recorded**. After asking, choose **No known family history**, **Reviewed: complete as listed** or **Not known…** with the reason.
+5. **Record social history** (or **Record new version**) — tobacco (never, former, current, not known; type, amount per day, year stopped),
+   alcohol (and how often), occupation and exposures at work, living situation, physical activity, diet and notes, **As of** a date (empty for
+   today). The form starts from the current version; each save is a new version and earlier versions stay listed under **Earlier versions**. If
+   someone else saved a version while you were typing you are asked to reopen the page.
+6. A mistake: **Entered in error…** with a reason. The entry stays listed, struck through; for the social history the previous version becomes
+   current again. Nothing is edited or deleted.
+
+**Other substance use** and **Sexual history** are private (a lock icon). Only staff who also hold `encounter.write` (physicians and dentists by
+default) see and change them; others see "Substance use and sexual history are not shown to you", and a version they save keeps those parts
+unchanged. They never appear in the timeline, messages or search. The patient sees them in MyHealth; a guardian acting for the patient does not.
+
+Entries filed under a record merged into this one say **Filed under P…**; entries accepted from an imported record are marked **Imported**.
+
 ## External history (imported)
 
 If records from another provider were imported and accepted, **External history (imported)** lists them, each marked **External** with its kind (Condition,

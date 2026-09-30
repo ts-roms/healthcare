@@ -56,10 +56,10 @@ messages. See `docs/domains/notification.md`.
 
 ## Data
 
-| Area                                                                                                                                                                                                              | Source                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, patient timeline, immunizations, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
-| `/preview/patient-360` (including its dental tab): the design demo; the real workspace is `/patients/[id]/360`                                                                                                    | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
+| Area                                                                                                                                                                                                                                             | Source                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Sign-in, navigation, facility, patient lookup, patient record, clinical summary, patient timeline, immunizations, medical/family/social history, portal access, registration, queue, triage/vitals, appointments, encounters, laboratory, dental | API                                                        |
+| `/preview/patient-360` (including its dental tab): the design demo; the real workspace is `/patients/[id]/360`                                                                                                                                   | `lib/demo-data.ts` fixtures, badged **Demo** with a banner |
 
 Real patient pages show only API data: allergies and the clinical summary come from `GET /patients/:id/summary` (users without clinical access see "Allergies: no access"). Fixture clinical data is never shown next to a real patient.
 
