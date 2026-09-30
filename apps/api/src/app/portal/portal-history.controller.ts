@@ -35,7 +35,7 @@ export class PortalHistoryController {
       patientId: patient.patientId,
       metadata: {
         sensitiveShown: sensitive,
-        counts: { procedures: view.procedures.length, conditions: view.conditions.length, family: view.family.entries.length },
+        counts: { procedures: view.procedures.length, conditions: view.conditions.length, medications: view.medications.length, family: view.family.entries.length },
       },
     });
     return view;

@@ -1,7 +1,7 @@
-import { HeartHandshakeIcon, InfoIcon, LockIcon, NotebookTextIcon, ScissorsIcon, StethoscopeIcon, UsersIcon } from "lucide-react";
+import { HeartHandshakeIcon, InfoIcon, LockIcon, NotebookTextIcon, PillIcon, ScissorsIcon, StethoscopeIcon, UsersIcon } from "lucide-react";
 import { portalApi } from "@/lib/api/client";
 import type { PortalHealthHistory } from "@/lib/api/types";
-import { CONDITION_STATUS_TEXT, familyStateText, historySourceText, pastDate } from "@/lib/health-history";
+import { CONDITION_STATUS_TEXT, familyStateText, historySourceText, medicationStatusText, pastDate } from "@/lib/health-history";
 
 export const metadata = { title: "Health history" };
 
@@ -21,7 +21,7 @@ function Section({ icon: Icon, title, children }: { icon: typeof NotebookTextIco
 
 /**
  * The patient's health history as the clinic recorded it (read-only): past operations and procedures, past illnesses
- * diagnosed elsewhere, family history and the current social history. Substance use and sexual history are shown to
+ * diagnosed elsewhere, medicines taken that the clinic did not prescribe, family history and the current social history. Substance use and sexual history are shown to
  * the patient, never to someone acting for them. Mistakes are corrected by the clinic.
  */
 export default async function HealthHistoryPage() {
@@ -79,6 +79,29 @@ export default async function HealthHistoryPage() {
                 <p className="font-medium">{c.description}</p>
                 <p className="text-meta text-muted-foreground">
                   {[c.onset ? `Since ${pastDate(c.onset)}` : null, CONDITION_STATUS_TEXT[c.status], historySourceText(c.source)].filter(Boolean).join(" · ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-body text-muted-foreground">None recorded.</p>
+        )}
+      </Section>
+
+      <Section icon={PillIcon} title="Medicines from elsewhere">
+        <p className="text-meta text-muted-foreground">
+          Medicines, vitamins and herbal remedies you told the clinic about that it did not prescribe. Prescriptions from the clinic are under Prescriptions.
+        </p>
+        {history.medications.length ? (
+          <ul className="flex flex-col divide-y">
+            {history.medications.map((m) => (
+              <li key={m.id} className="flex flex-col gap-0.5 py-2">
+                <p className="font-medium">
+                  {m.medication}
+                  {m.dose ? <span className="font-normal text-muted-foreground"> · {m.dose}</span> : null}
+                </p>
+                <p className="text-meta text-muted-foreground">
+                  {[m.reason ? `For ${m.reason}` : null, medicationStatusText(m), historySourceText(m.source)].filter(Boolean).join(" · ")}
                 </p>
               </li>
             ))}

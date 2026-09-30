@@ -338,7 +338,7 @@ const source: PatientRecordSource = {
   externalHistory: [],
   dental: { procedures: [], plans: [], examinations: [], chart: [], perioCharts: [] },
   immunizations: [],
-  history: { procedures: [], conditions: [], family: [], familyReview: null, social: [], sensitiveIncluded: true },
+  history: { procedures: [], conditions: [], medications: [], family: [], familyReview: null, social: [], sensitiveIncluded: true },
 };
 
 function errors(resource: { resourceType: string }): unknown[] {

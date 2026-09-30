@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CarePlanService } from "@healthcare/care-plan";
-import { canReadSensitiveHistory, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
+import { canReadSensitiveHistory, ClinicQueries, ImmunizationService, medicationState, PatientHistoryService } from "@healthcare/clinic";
 import { type Actor, APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -117,7 +117,7 @@ export class FhirRecordComposer {
       if (i.performerPractitionerId) practitionerIds.add(i.performerPractitionerId);
       if (i.facilityId) facilityIds.add(i.facilityId);
     }
-    for (const h of [...history.procedures, ...history.conditions]) if (h.recorderPractitionerId) practitionerIds.add(h.recorderPractitionerId);
+    for (const h of [...history.procedures, ...history.conditions, ...history.medications]) if (h.recorderPractitionerId) practitionerIds.add(h.recorderPractitionerId);
     const practitioners = await this.clinic.practitioners(organizationId, [...practitionerIds]);
 
     return {
@@ -348,6 +348,27 @@ export class FhirRecordComposer {
           recorderPractitionerId: c.recorderPractitionerId,
           recordedAt: c.recordedAt.toISOString(),
           enteredInErrorAt: iso(c.enteredInErrorAt),
+        })),
+        medications: history.medications.map((m) => ({
+          id: m.id,
+          source: m.source,
+          reportedBy: m.reportedBy,
+          medication: m.medication,
+          codeSystem: m.codeSystem,
+          code: m.code,
+          dose: m.doseText,
+          reason: m.reason,
+          prescribedBy: m.prescribedBy,
+          startedDate: m.startedDate,
+          startedPrecision: m.startedPrecision,
+          status: medicationState(m),
+          stoppedDate: m.stoppedDate,
+          stoppedPrecision: m.stoppedPrecision,
+          sourceDescription: m.sourceDescription,
+          recorderPractitionerId: m.recorderPractitionerId,
+          recordedAt: m.recordedAt.toISOString(),
+          stopRecordedAt: iso(m.stopRecordedAt),
+          enteredInErrorAt: iso(m.enteredInErrorAt),
         })),
         family: history.family.map((f) => ({
           id: f.id,

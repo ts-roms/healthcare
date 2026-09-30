@@ -399,6 +399,30 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
 
           <Panel title="Active medications" icon={PillIcon}>
             {summary?.activePrescriptions ? <MedicationList medications={toMedications(summary.activePrescriptions, filedUnder)} /> : <Withheld />}
+            {workspace?.history?.medications.length ? (
+              <div className="mt-3 flex flex-col gap-1 border-t pt-2">
+                <p className="text-meta font-medium text-muted-foreground">Also taking (not prescribed here, as reported)</p>
+                <ul className="flex flex-col gap-0.5 text-table">
+                  {workspace.history.medications.map((m) => (
+                    <li key={m.id}>
+                      {[
+                        m.medication,
+                        m.dose ? `— ${m.dose}` : null,
+                        m.status === "unknown" ? "(not known whether still taking)" : null,
+                        filedUnderText(m.filedUnder),
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </li>
+                  ))}
+                </ul>
+                {workspace.history.medicationsTotal > workspace.history.medications.length ? (
+                  <p className="text-meta text-muted-foreground">
+                    and {workspace.history.medicationsTotal - workspace.history.medications.length} more in the history
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </Panel>
 
           <Panel title="Care plans" icon={ClipboardListIcon}>
@@ -489,7 +513,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
           </Panel>
 
           <Panel
-            title="Medical, family and social history"
+            title="Medical, medication, family and social history"
             icon={NotebookTextIcon}
             action={
               can(session, "history.read") ? (
@@ -531,6 +555,13 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
                   {workspace.history.conditions.length ? workspace.history.conditions.map((h) => h.description).join("; ") : "none recorded"}
                   {workspace.history.conditionsTotal > workspace.history.conditions.length
                     ? ` and ${workspace.history.conditionsTotal - workspace.history.conditions.length} more`
+                    : ""}
+                </p>
+                <p className="text-table">
+                  <span className="text-muted-foreground">Medicines from elsewhere (taking):</span>{" "}
+                  {workspace.history.medications.length ? workspace.history.medications.map((m) => m.medication).join("; ") : "none recorded"}
+                  {workspace.history.medicationsTotal > workspace.history.medications.length
+                    ? ` and ${workspace.history.medicationsTotal - workspace.history.medications.length} more`
                     : ""}
                 </p>
                 {workspace.history.social ? (

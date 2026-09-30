@@ -7,12 +7,14 @@ import {
   RecordFamilyHistoryDto,
   RecordPastConditionDto,
   RecordPastProcedureDto,
+  RecordReportedMedicationDto,
   RecordSocialHistoryDto,
+  StopReportedMedicationDto,
 } from "./history.dto";
 import { PatientHistoryService } from "./history.service";
 
 /**
- * Patient history (docs/domains/patient-history.md): past procedures and conditions, family history with its review,
+ * Patient history (docs/domains/patient-history.md): past procedures and conditions, medications taken, family history with its review,
  * and social history versions. Organization-scoped; not tied to a facility. Substance use and sexual history also need
  * encounter.write (withheld otherwise).
  */
@@ -43,6 +45,21 @@ export class PatientHistoryController {
     return this.history.recordCondition(actor, patientId, body);
   }
 
+  @Post("patients/:patientId/history/medications")
+  @RequirePermissions("history.record")
+  @ApiOperation({ summary: "Record a medicine the patient takes that was not prescribed here (prescribed elsewhere, over the counter, supplements), as reported" })
+  medication(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RecordReportedMedicationDto) {
+    return this.history.recordMedication(actor, patientId, body);
+  }
+
+  @Post("history/medications/:entryId/stopped")
+  @HttpCode(200)
+  @RequirePermissions("history.record")
+  @ApiOperation({ summary: "Record that the patient no longer takes a medicine (once; with the stop date as known)" })
+  stopMedication(@CurrentActor() actor: Actor, @Param("entryId", ParseUUIDPipe) entryId: string, @Body() body: StopReportedMedicationDto) {
+    return this.history.stopMedication(actor, entryId, body);
+  }
+
   @Post("patients/:patientId/history/family")
   @RequirePermissions("history.record")
   @ApiOperation({ summary: "Record a relative's condition, as reported" })
@@ -68,7 +85,7 @@ export class PatientHistoryController {
   @Post("history/:entryId/entered-in-error")
   @HttpCode(200)
   @RequirePermissions("history.record")
-  @ApiOperation({ summary: "Mark a history entry (procedure, condition, family history entry or social history version) entered in error" })
+  @ApiOperation({ summary: "Mark a history entry (procedure, condition, medication taken, family history entry or social history version) entered in error" })
   enteredInError(@CurrentActor() actor: Actor, @Param("entryId", ParseUUIDPipe) entryId: string, @Body() body: HistoryInErrorDto) {
     return this.history.markEnteredInError(actor, entryId, body.reason);
   }

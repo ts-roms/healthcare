@@ -542,6 +542,17 @@ export interface PortalHealthHistory {
     source: "reported" | "recorded_here" | "external_import";
   }>;
   conditions: Array<{ id: string; description: string; onset: string | null; status: "active" | "resolved" | "unknown"; source: "reported" | "recorded_here" }>;
+  /** Medicines taken that the clinic did not prescribe (prescribed elsewhere, over the counter, supplements), as told to it. */
+  medications: Array<{
+    id: string;
+    medication: string;
+    dose: string | null;
+    reason: string | null;
+    started: string | null;
+    status: "taking" | "stopped" | "unknown";
+    stopped: string | null;
+    source: "reported" | "recorded_here";
+  }>;
   family: {
     state: "not_recorded" | "recorded" | "none_known" | "unknown";
     unknownReason: "adopted" | "not_known" | "declined_to_answer" | null;

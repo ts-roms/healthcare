@@ -254,7 +254,8 @@ the clinic at your next visit — bring your vaccination card.
 
 1. On Home, choose **Health history**.
 2. **Your health history** shows what your clinic recorded: **Operations and procedures** and **Past illnesses** (with when, as precisely as it is
-   known), your **Family history** (or that none is known, or that it has not been recorded yet), and **Daily life** — tobacco and alcohol use,
+   known), **Medicines from elsewhere** (medicines, vitamins and herbal remedies you told the clinic about that it did not prescribe — taking,
+   stopped or not known), your **Family history** (or that none is known, or that it has not been recorded yet), and **Daily life** — tobacco and alcohol use,
    work, home, activity and diet, as of a date. Each entry says where it came from (told to the clinic, from your records, or from another
    provider).
 

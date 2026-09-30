@@ -6,6 +6,7 @@ import type {
   FamilyUnknownReason,
   HistoryDatePrecision,
   HistoryInformant,
+  ReportedMedicationStatus,
   SocialHistoryFields,
   SocialHistoryVersion,
   UseStatus,
@@ -46,6 +47,12 @@ export const CONDITION_STATUS_LABEL: Record<"active" | "resolved" | "unknown", s
   active: "Still present (as reported)",
   resolved: "Resolved (as reported)",
   unknown: "Not known",
+};
+
+export const MEDICATION_STATUS_LABEL: Record<ReportedMedicationStatus, string> = {
+  taking: "Taking (as reported)",
+  stopped: "Stopped",
+  unknown: "Not known whether still taking",
 };
 
 export const USE_STATUS_LABEL: Record<UseStatus, string> = { never: "Never", former: "Former", current: "Current", unknown: "Not known" };
@@ -191,6 +198,64 @@ export const BLANK_CONDITION: ConditionForm = {
   sourceDescription: "",
 };
 
+export const medicationFormSchema = z
+  .object({
+    medication: z.string().trim().min(1, "Name the medicine").max(200),
+    codeSystem: codeSystemKey,
+    code: optional(60),
+    dose: optional(200),
+    reason: optional(300),
+    prescribedBy: optional(300),
+    started: partialDate,
+    status: z.enum(["taking", "stopped", "unknown"]),
+    stopped: partialDate,
+    notes: optional(2000),
+    ...provenance,
+  })
+  .superRefine(provenanceCheck)
+  .superRefine(codeCheck)
+  .superRefine((v, ctx) => {
+    if (v.stopped && v.status !== "stopped") ctx.addIssue({ code: "custom", message: "A stop date is for a medicine that was stopped", path: ["stopped"] });
+  });
+export type MedicationForm = z.input<typeof medicationFormSchema>;
+export const BLANK_MEDICATION: MedicationForm = {
+  medication: "",
+  codeSystem: "",
+  code: "",
+  dose: "",
+  reason: "",
+  prescribedBy: "",
+  started: "",
+  status: "taking",
+  stopped: "",
+  notes: "",
+  source: "reported",
+  reportedBy: "patient",
+  sourceDescription: "",
+};
+
+export const stopMedicationFormSchema = z.object({ stopped: partialDate, note: optional(500) });
+export type StopMedicationForm = z.input<typeof stopMedicationFormSchema>;
+
+/** "Since May 2019" / "Stopped 2025" / "May 2019 – 2025"; null when no date is known. */
+export function medicationPeriodLabel(
+  m: {
+    started: string | null;
+    startedPrecision: HistoryDatePrecision | null;
+    stopped: string | null;
+    stoppedPrecision: HistoryDatePrecision | null;
+    status: ReportedMedicationStatus;
+  },
+  formatDate: (isoDate: string) => string,
+): string | null {
+  const start = m.started ? partialDateLabel(m.started, m.startedPrecision, formatDate) : null;
+  const stop = m.stopped ? partialDateLabel(m.stopped, m.stoppedPrecision, formatDate) : null;
+  if (start && stop) return `${start} – ${stop}`;
+  if (stop) return `stopped ${stop}`;
+  if (start) return m.status === "stopped" ? `from ${start}` : `since ${start}`;
+  return null;
+}
+
 export const familyFormSchema = z
   .object({
     relationship: z.union([z.literal(""), z.enum(Object.keys(RELATIONSHIP_LABEL) as [FamilyRelationship, ...FamilyRelationship[]])]),
@@ -254,6 +319,11 @@ export function procedurePayload(f: z.output<typeof procedureFormSchema>) {
 export function conditionPayload(f: z.output<typeof conditionFormSchema>) {
   const { reportedBy, source, ...rest } = f;
   return { ...present(rest), source, ...(source === "reported" ? { reportedBy } : {}) };
+}
+
+export function medicationPayload(f: z.output<typeof medicationFormSchema>) {
+  const { reportedBy, source, stopped, ...rest } = f;
+  return { ...present(rest), ...(f.status === "stopped" && stopped ? { stopped } : {}), source, ...(source === "reported" ? { reportedBy } : {}) };
 }
 
 export function familyPayload(f: z.output<typeof familyFormSchema>) {

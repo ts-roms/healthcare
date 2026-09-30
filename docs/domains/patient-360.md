@@ -84,7 +84,8 @@ panel shows "Not available to you." — never an empty list. No permission was a
 `0081`, [immunizations](immunizations.md)) lists the latest 8 records not in error: vaccine, dose as recorded, date at
 its precision, given / not given, source and whether a reaction is recorded — never notes or reasons. The `history`
 panel (migration `0082`, [patient history](patient-history.md)) shows the family history state with the latest relatives'
-conditions, the latest 5 past procedures and past conditions (not in error) with totals, and the current social history
+conditions, the latest 5 past procedures and past conditions (not in error) with totals, medications taken that were not
+prescribed here and not stopped (migration `0083`; also listed as "Also taking" under the active medications), and the current social history
 (tobacco, alcohol, occupation); substance use and sexual history only for a viewer who also holds `encounter.write`
 (`sensitiveWithheld` otherwise) — never notes.
 

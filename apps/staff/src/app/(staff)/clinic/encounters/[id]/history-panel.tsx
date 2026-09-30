@@ -6,7 +6,7 @@ import { HistorySections } from "@/components/history/history-panels";
 import type { PatientHistory } from "@/lib/api/types";
 
 /**
- * Medical, family and social history in the encounter workspace: review what is on file and record what the patient
+ * Medical, medication, family and social history in the encounter workspace: review what is on file and record what the patient
  * tells you during the consultation (entries are linked to it). Entries in error and earlier social history versions
  * are on the full history page.
  */
@@ -27,9 +27,9 @@ export function HistoryPanel({
 }) {
   if (!history) return null;
   return (
-    <section className="flex flex-col gap-2" aria-label="Medical, family and social history">
+    <section className="flex flex-col gap-2" aria-label="Medical, medication, family and social history">
       <h3 className="flex items-center gap-1.5 text-meta font-semibold tracking-wide text-muted-foreground uppercase">
-        <NotebookTextIcon className="size-3.5" aria-hidden /> Medical, family and social history
+        <NotebookTextIcon className="size-3.5" aria-hidden /> Medical, medication, family and social history
       </h3>
       <HistorySections patientId={patientId} history={history} canRecord={canRecord && open} encounterId={encounterId} compact />
       <Link href={`/patients/${patientId}/history`} className="text-table text-primary hover:underline">

@@ -1,9 +1,9 @@
-# Patient history (medical, surgical, family and social)
+# Patient history (medical, surgical, medications taken, family and social)
 
 ## Purpose
 
 The patient's background as one longitudinal record (root `CLAUDE.md` §6): **past procedures and surgeries**, **past
-conditions diagnosed elsewhere**, **family history** with its review state, and **social history** kept as versions.
+conditions diagnosed elsewhere**, **medications taken** that were not prescribed here, **family history** with its review state, and **social history** kept as versions.
 What the patient, a relative or another provider **reported**, what a clinician **documented here** from records they
 saw, or what staff **accepted from a FHIR import**.
 
@@ -15,7 +15,10 @@ calculation, no pack-years, no hereditary-risk rule, no alert. In particular:
   never billed, never matched by DOH reporting rules and never shown as a problem-list item (FHIR: local category,
   `unconfirmed`);
 - a **past procedure is not a procedure performed by the organization**: procedures done here are dental procedures
-  (`libs/dental`); other procedures performed here are not modelled yet.
+  (`libs/dental`); other procedures performed here are not modelled yet;
+- a **medication taken is never a prescription** of the organization: it is not dispensed, billed or charged, is not
+  checked by drug–allergy decision support (names are as written; no drug terminology is assumed) and is exported as a
+  `MedicationStatement`, never a `MedicationRequest`. Prescriptions issued here stay in `libs/prescription`.
 
 **Placement.** The history lives in `libs/clinic` (`src/lib/history`), next to allergies and immunizations: it is
 taken at triage and in the consultation (entries may be linked to the encounter), read in the encounter workspace and
@@ -38,6 +41,17 @@ consultation, `encounter_id` (same-patient FK `(patient_id, encounter_id)` → `
 - **`past_condition`** — the condition as written, optional code, onset at the precision known, `reported_status`
   `active` | `resolved` | `unknown` (as reported), where it was diagnosed or treated, notes, `source` `reported` |
   `recorded_here`, recorder.
+- **`reported_medication`** (migration `0083`) — a medicine the patient takes that was **not prescribed here**
+  (prescribed elsewhere, over the counter, a supplement or a traditional remedy): the medicine as written
+  (`medication`, e.g. "Losartan 50 mg tablet", "Lagundi syrup"), an optional code, how it is taken as said
+  (`dose_text`), what for (`reason`), who prescribed it or where it came from (`prescribed_by`), since when
+  (`started_date` + precision), `reported_status` `taking` | `stopped` | `unknown` as reported when recorded, when it was
+  stopped (`stopped_date` + precision; only for a medicine recorded as stopped, or later when marked stopped), notes,
+  `source` `reported` (by whom) | `recorded_here`, recorder; and, once, **marked stopped** after it was recorded
+  (`stop_recorded_at`/`_by`, an optional `stop_note`, the stop date as known) — not for a medicine recorded as stopped.
+  The status as it stands is `stopped` once marked stopped, otherwise as reported. A stop date is not before the start
+  at the precisions known ("2019" may follow "May 2019"; checked by the API, `stop_before_start`); neither is in the
+  future.
 - **`family_history_entry`** — the relative from a fixed clinical list (mother, father, sister, brother, sibling,
   half-sibling, daughter, son, child, maternal/paternal grandmother and grandfather, maternal/paternal aunt and uncle,
   cousin, other) plus free text (detail, or who for "other" — required then), the condition as written with an optional
@@ -54,7 +68,8 @@ consultation, `encounter_id` (same-patient FK `(patient_id, encounter_id)` → `
   notes. At least one part is recorded.
 
 Every row of `past_procedure`, `past_condition`, `family_history_entry` and `social_history` is immutable except being
-marked **entered in error** once with a reason (`patient_history_guard` trigger; no DELETE or TRUNCATE); a correction is
+marked **entered in error** once with a reason (`patient_history_guard` trigger; no DELETE or TRUNCATE); a
+`reported_medication` also accepts being marked stopped once (`reported_medication_guard`); a correction is
 the mistake marked in error plus a new entry. Reviews are append-only (`prevent_mutation`). New rows are refused under a
 merged patient record (`PM001` → `422 patient_merged`, ADR-0009); reads include records merged into the patient
 (`filedAsPatient`), each row keeping the record it is filed under.
@@ -93,6 +108,8 @@ sensitive personal information under the Data Privacy Act is its own policy (com
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Record a past procedure   | `history.record`; reported (who) or documented here; partial date not in the future; encounter (if any) of the patient                | `PatientHistoryRecorded` (section `procedure`); audited `history.record`                                     |
 | Record a past condition   | as above, with the status as reported                                                                                                 | `PatientHistoryRecorded` (`condition`)                                                                       |
+| Record a medication taken | as above, with the status as reported; a stop date only when stopped, not before the start                                            | `PatientHistoryRecorded` (`medication`)                                                                      |
+| Mark a medication stopped | `history.record`; taken or not known, not marked stopped before, not in error; stop date not in the future nor before the start       | `PatientHistoryMedicationStopped`; audited `history.medication-stopped` (status from → `stopped`)            |
 | Record a relative's entry | `history.record`; relative ("other" needs the text); cause of death only when deceased                                                | `PatientHistoryRecorded` (`family`)                                                                          |
 | Review the family history | `history.record`; no contradiction with the list; the reason when not known                                                           | `PatientHistoryRecorded` (`family_review`); audited with the outcome                                         |
 | Record a social history   | `history.record`; `basedOn` is the current version; sensitive parts only with `encounter.write`                                       | `PatientHistoryRecorded` (`social`); audited with the changed field names                                    |
@@ -106,42 +123,46 @@ sensitive personal information under the Data Privacy Act is its own policy (com
 - `patientRecord(organizationId, patientId)` — every row, for the FHIR export and the copy of the record (callers audit).
 - `patientView(…, { sensitive })` — MyHealth: entries not in error, the family state and the current social history;
   no staff notes, no one's names, no import references.
-- `workspace(…, limit, { sensitive })` — Patient 360: the latest procedures and conditions, family state and entries,
+- `workspace(…, limit, { sensitive })` — Patient 360: the latest procedures and conditions, medications taken (not
+  stopped, not in error; also shown under "Also taking" in the active medications panel), family state and entries,
   and the current social history (tobacco, alcohol, occupation; sensitive parts only with the permission).
 
 ## Events
 
-`PatientHistoryRecorded` `{ entryId, section }` and `PatientHistoryEnteredInError` `{ entryId, section }` (outbox, ids and
+`PatientHistoryRecorded` `{ entryId, section }`, `PatientHistoryMedicationStopped` `{ entryId, section: "medication" }`
+and `PatientHistoryEnteredInError` `{ entryId, section }` (outbox, ids and
 the section only — never content). No handler subscribes yet.
 
 ## Permissions
 
-| Permission       | Default roles                                         | Allows                                                                                    |
-| ---------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `history.read`   | physician, nurse, dentist, records_officer, org_admin | Read the history (substance use and sexual history also need `encounter.write`)           |
-| `history.record` | physician, nurse, dentist, org_admin                  | Record entries, family reviews and social history versions; mark entries entered in error |
+| Permission       | Default roles                                         | Allows                                                                                                                         |
+| ---------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `history.read`   | physician, nurse, dentist, records_officer, org_admin | Read the history (substance use and sexual history also need `encounter.write`)                                                |
+| `history.record` | physician, nurse, dentist, org_admin                  | Record entries (and mark medications taken stopped), family reviews and social history versions; mark entries entered in error |
 
 Organization-scoped (not tied to a facility). Migration `0082` adds both (and the `PERMISSIONS` catalogue in
 `libs/core`).
 
 ## API
 
-| Method and path                                   | Permission       | Notes                                                                                              |
-| ------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/patients/:id/history`                | `history.read`   | Every section; audited                                                                             |
-| `POST /api/v1/patients/:id/history/procedures`    | `history.record` | `description`, `performed` (`YYYY` / `YYYY-MM` / `YYYY-MM-DD`), `source` …                         |
-| `POST /api/v1/patients/:id/history/conditions`    | `history.record` | `description`, `status`, `onset` …                                                                 |
-| `POST /api/v1/patients/:id/history/family`        | `history.record` | `relationship`, `condition`, `onsetAge`, `deceased`, `causeOfDeath` …                              |
-| `POST /api/v1/patients/:id/history/family/review` | `history.record` | `outcome`, `unknownReason`                                                                         |
-| `POST /api/v1/patients/:id/history/social`        | `history.record` | `basedOn` + changed fields (`null` clears); `effectiveDate`                                        |
-| `POST /api/v1/history/:entryId/entered-in-error`  | `history.record` | `reason`; any section but reviews                                                                  |
-| `GET /api/v1/portal/health-history`               | patient          | MyHealth (guardians may read it without the sensitive parts); audited `portal.health-history-view` |
+| Method and path                                   | Permission       | Notes                                                                                                           |
+| ------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/patients/:id/history`                | `history.read`   | Every section; audited                                                                                          |
+| `POST /api/v1/patients/:id/history/procedures`    | `history.record` | `description`, `performed` (`YYYY` / `YYYY-MM` / `YYYY-MM-DD`), `source` …                                      |
+| `POST /api/v1/patients/:id/history/conditions`    | `history.record` | `description`, `status`, `onset` …                                                                              |
+| `POST /api/v1/patients/:id/history/medications`   | `history.record` | `medication`, `status` (`taking`/`stopped`/`unknown`), `dose`, `reason`, `prescribedBy`, `started`, `stopped` … |
+| `POST /api/v1/history/medications/:id/stopped`    | `history.record` | `stopped` (partial date, optional), `note`; once                                                                |
+| `POST /api/v1/patients/:id/history/family`        | `history.record` | `relationship`, `condition`, `onsetAge`, `deceased`, `causeOfDeath` …                                           |
+| `POST /api/v1/patients/:id/history/family/review` | `history.record` | `outcome`, `unknownReason`                                                                                      |
+| `POST /api/v1/patients/:id/history/social`        | `history.record` | `basedOn` + changed fields (`null` clears); `effectiveDate`                                                     |
+| `POST /api/v1/history/:entryId/entered-in-error`  | `history.record` | `reason`; any section but reviews                                                                               |
+| `GET /api/v1/portal/health-history`               | patient          | MyHealth (guardians may read it without the sensitive parts); audited `portal.health-history-view`              |
 
 ## Database relationships
 
 See Entities. Indexes on `(organization_id, patient_id, recorded_at DESC)` per table; the reviews by `reviewed_at`.
 `fhir_import_entry` kinds gain `procedure` and `family_history` and result types `past_procedure` and
-`family_history_entry`; `records_request_export.sections` gains `history`.
+`family_history_entry`; `records_request_export.sections` gains `history` (which also lists medications taken).
 
 ## Integration points
 
@@ -158,7 +179,8 @@ See Entities. Indexes on `(organization_id, patient_id, recorded_at DESC)` per t
   `problem-list-item`; family history → `FamilyMemberHistory` (relationship in HL7 v3 RoleCode, age at onset in UCUM
   `a`, cause of death as a condition with `contributedToDeath`); social history → one `Observation` per part of each
   version (category `social-history`, local codes `…/codesystem/social-history`, statuses under
-  `…/codesystem/use-status`; no LOINC/SNOMED CT code is assumed). Reported entries carry `record-source#reported`,
+  `…/codesystem/use-status`; no LOINC/SNOMED CT code is assumed); medications taken → `MedicationStatement` (local
+  category `medication-taken`, `active`/`stopped`/`unknown`, `effectivePeriod` at its precisions). Reported entries carry `record-source#reported`,
   imported ones `record-source#external-import`. `FamilyMemberHistory` and `Procedure` support `_lastUpdated`. The
   family history review and staff notes are not exported. A Procedure search now answers without `dental.record.read`
   (past procedures), withholding the dental ones with a notice. See [FHIR](../interoperability/fhir.md).
@@ -181,5 +203,6 @@ See Entities. Indexes on `(organization_id, patient_id, recorded_at DESC)` per t
 - Triage does not have its own history form: nurses record the history from the patient record or the encounter
   workspace.
 - The sensitive-field rule (`encounter.write`) is a platform default; organizations change who sees them through roles.
-- A structured obstetric history, a medication history of the platform's own (beyond imported statements) and
-  history questionnaires in MyHealth are not built.
+- A structured obstetric history and history questionnaires in MyHealth are not built. Medications taken are recorded
+  by staff only (patients cannot add them in MyHealth), are not reconciled against prescriptions issued here, and
+  imported `MedicationStatement`s stay external history.

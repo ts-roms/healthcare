@@ -7,6 +7,7 @@ import {
   FAMILY_UNKNOWN_REASONS,
   HISTORY_INFORMANTS,
   PAST_CONDITION_STATUSES,
+  REPORTED_MEDICATION_STATUSES,
   USE_STATUSES,
 } from "./history.schema";
 
@@ -73,6 +74,37 @@ export const recordPastConditionSchema = z
   .refine(codeTogether, codeMessage)
   .refine(informantCheck, informantMessage);
 export class RecordPastConditionDto extends createZodDto(recordPastConditionSchema) {}
+
+export const recordReportedMedicationSchema = z
+  .object({
+    /** The medicine as written (e.g. "Losartan 50 mg tablet", "Lagundi syrup"). */
+    medication: text(200),
+    ...coded,
+    /** How the patient takes it, as said (e.g. "1 tablet every morning"). */
+    dose: optionalText(200),
+    /** What it is for, as reported. */
+    reason: optionalText(300),
+    /** Who prescribed it or where it came from (e.g. "Cardiologist at another hospital", "Over the counter"). */
+    prescribedBy: optionalText(300),
+    started: partialDate.optional(),
+    /** As reported: still taking, already stopped, or not known. */
+    status: z.enum(REPORTED_MEDICATION_STATUSES),
+    /** When it was stopped, as precise as known (only for a medicine already stopped). */
+    stopped: partialDate.optional(),
+    notes: optionalText(2000),
+    ...provenance,
+  })
+  .refine(codeTogether, codeMessage)
+  .refine(informantCheck, informantMessage)
+  .refine((v) => !v.stopped || v.status === "stopped", { message: "A stop date is given for a medicine that was stopped", path: ["stopped"] });
+export class RecordReportedMedicationDto extends createZodDto(recordReportedMedicationSchema) {}
+
+/** The patient no longer takes a medicine recorded as taken (or not known): when, as precise as known, and an optional note. */
+export const stopReportedMedicationSchema = z.object({
+  stopped: partialDate.optional(),
+  note: optionalText(500),
+});
+export class StopReportedMedicationDto extends createZodDto(stopReportedMedicationSchema) {}
 
 export const recordFamilyHistorySchema = z
   .object({

@@ -28,7 +28,9 @@ import type {
   recordFamilyHistorySchema,
   recordPastConditionSchema,
   recordPastProcedureSchema,
+  recordReportedMedicationSchema,
   recordSocialHistorySchema,
+  stopReportedMedicationSchema,
 } from "./history.dto";
 import {
   alcoholText,
@@ -36,6 +38,7 @@ import {
   familyHistoryState,
   type FamilyHistoryState,
   isPartialDateText,
+  medicationState,
   nextSocialVersion,
   type PartialDate,
   partialDateInFuture,
@@ -48,6 +51,7 @@ import {
   SOCIAL_FIELDS,
   type SocialFields,
   socialHasContent,
+  stopBeforeStart,
   tobaccoText,
 } from "./history.rules";
 import {
@@ -62,6 +66,8 @@ import {
   type PastConditionRecord,
   pastProcedure,
   type PastProcedureRecord,
+  reportedMedication,
+  type ReportedMedicationRecord,
   socialHistory,
   type SocialHistoryRecord,
 } from "./history.schema";
@@ -105,6 +111,29 @@ export interface PastConditionView extends EntryMeta {
   notes: string | null;
   source: PastConditionRecord["source"];
   reportedBy: PastConditionRecord["reportedBy"];
+  sourceDescription: string | null;
+}
+
+export interface ReportedMedicationView extends EntryMeta {
+  medication: string;
+  codeSystem: string | null;
+  code: string | null;
+  dose: string | null;
+  reason: string | null;
+  prescribedBy: string | null;
+  started: string | null;
+  startedPrecision: HistoryDatePrecision | null;
+  /** As reported when recorded. */
+  reportedStatus: ReportedMedicationRecord["reportedStatus"];
+  /** As it stands: stopped once marked stopped, otherwise as reported. */
+  status: ReportedMedicationRecord["reportedStatus"];
+  stopped: string | null;
+  stoppedPrecision: HistoryDatePrecision | null;
+  /** Marked stopped after it was recorded. */
+  stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+  notes: string | null;
+  source: ReportedMedicationRecord["source"];
+  reportedBy: ReportedMedicationRecord["reportedBy"];
   sourceDescription: string | null;
 }
 
@@ -152,6 +181,8 @@ export interface PatientHistoryView {
   sensitiveAccess: boolean;
   procedures: PastProcedureView[];
   conditions: PastConditionView[];
+  /** Medicines taken that were not prescribed here (never prescriptions of the organization). */
+  medications: ReportedMedicationView[];
   family: {
     state: FamilyHistoryState;
     latestReview: FamilyReviewView | null;
@@ -194,6 +225,7 @@ export type ImportedFamilyHistoryInput = z.input<typeof importedFamilyHistorySch
 export interface PatientHistoryRecord {
   procedures: PastProcedureRecord[];
   conditions: PastConditionRecord[];
+  medications: ReportedMedicationRecord[];
   family: FamilyHistoryRecord[];
   familyReviews: FamilyReviewRecord[];
   social: SocialHistoryRecord[];
@@ -258,6 +290,7 @@ export class PatientHistoryService {
         counts: {
           procedures: record.procedures.length,
           conditions: record.conditions.length,
+          medications: record.medications.length,
           family: record.family.length,
           familyReviews: record.familyReviews.length,
           social: record.social.length,
@@ -269,7 +302,7 @@ export class PatientHistoryService {
 
   /** Every row of the patient (entries in error included), for record exports. Not audited here: the caller audits. */
   async patientRecord(organizationId: string, patientId: string): Promise<PatientHistoryRecord> {
-    const [procedures, conditions, family, familyReviews, social] = await Promise.all([
+    const [procedures, conditions, medications, family, familyReviews, social] = await Promise.all([
       this.db
         .select()
         .from(pastProcedure)
@@ -281,6 +314,12 @@ export class PatientHistoryService {
         .from(pastCondition)
         .where(and(eq(pastCondition.organizationId, organizationId), filedAsPatient(pastCondition.patientId, patientId)))
         .orderBy(sql`${pastCondition.onsetDate} DESC NULLS LAST`, desc(pastCondition.recordedAt))
+        .limit(MAX_ROWS),
+      this.db
+        .select()
+        .from(reportedMedication)
+        .where(and(eq(reportedMedication.organizationId, organizationId), filedAsPatient(reportedMedication.patientId, patientId)))
+        .orderBy(desc(reportedMedication.recordedAt))
         .limit(MAX_ROWS),
       this.db
         .select()
@@ -301,7 +340,7 @@ export class PatientHistoryService {
         .orderBy(desc(socialHistory.recordedAt))
         .limit(MAX_ROWS),
     ]);
-    return { procedures, conditions, family, familyReviews, social };
+    return { procedures, conditions, medications, family, familyReviews, social };
   }
 
   /**
@@ -313,6 +352,7 @@ export class PatientHistoryService {
     const record = await this.patientRecord(organizationId, patientId);
     const procedures = record.procedures.filter((r) => !r.enteredInErrorAt);
     const conditions = record.conditions.filter((r) => !r.enteredInErrorAt);
+    const medications = record.medications.filter((r) => !r.enteredInErrorAt);
     const family = record.family.filter((r) => !r.enteredInErrorAt);
     const latestReview = record.familyReviews[0] ?? null;
     const current = record.social.find((r) => !r.enteredInErrorAt) ?? null;
@@ -330,6 +370,16 @@ export class PatientHistoryService {
         description: r.description,
         onset: partialDateText(r.onsetDate, r.onsetPrecision),
         status: r.reportedStatus,
+        source: r.source,
+      })),
+      medications: medications.map((r) => ({
+        id: r.id,
+        medication: r.medication,
+        dose: r.doseText,
+        reason: r.reason,
+        started: partialDateText(r.startedDate, r.startedPrecision),
+        status: medicationState(r),
+        stopped: partialDateText(r.stoppedDate, r.stoppedPrecision),
         source: r.source,
       })),
       family: {
@@ -371,6 +421,8 @@ export class PatientHistoryService {
     const current = record.social.find((r) => !r.enteredInErrorAt) ?? null;
     const procedures = record.procedures.filter((r) => !r.enteredInErrorAt);
     const conditions = record.conditions.filter((r) => !r.enteredInErrorAt);
+    // Medicines the patient still takes (or may: not known); stopped ones stay in the full history.
+    const medications = record.medications.filter((r) => !r.enteredInErrorAt && medicationState(r) !== "stopped");
     return {
       procedures: procedures.slice(0, limit).map((r) => ({
         id: r.id,
@@ -388,6 +440,14 @@ export class PatientHistoryService {
         status: r.reportedStatus,
       })),
       conditionsTotal: conditions.length,
+      medications: medications.slice(0, limit).map((r) => ({
+        id: r.id,
+        patientId: r.patientId,
+        medication: r.medication,
+        dose: r.doseText,
+        status: medicationState(r),
+      })),
+      medicationsTotal: medications.length,
       family: {
         state: familyHistoryState(family.length, record.familyReviews[0] ?? null),
         entries: family.slice(0, limit).map((r) => ({
@@ -483,6 +543,101 @@ export class PatientHistoryService {
       }),
     );
     return (await this.conditionViews(actor.organizationId, [row]))[0]!;
+  }
+
+  /** A medicine the patient takes that was not prescribed here, as reported or documented (never a prescription). */
+  async recordMedication(actor: Actor, patientId: string, input: z.output<typeof recordReportedMedicationSchema>): Promise<ReportedMedicationView> {
+    const started = await this.pastDate(actor, input.started, "The start date is in the future");
+    const stopped = await this.pastDate(actor, input.stopped, "The stop date is in the future");
+    if (stopBeforeStart(started, stopped)) throw new BusinessRuleError("The stop date is before the start date", "stop_before_start");
+    const practitioner = await this.config.practitionerForUser(actor.organizationId, actor.userId);
+    const row = await this.patientScoped(() =>
+      this.db.transaction(async (tx) => {
+        if (input.encounterId) await this.checkEncounter(tx, actor.organizationId, input.encounterId, patientId);
+        const [inserted] = await tx
+          .insert(reportedMedication)
+          .values({
+            organizationId: actor.organizationId,
+            patientId,
+            encounterId: input.encounterId ?? null,
+            medication: input.medication,
+            codeSystem: input.code ? (input.codeSystem ?? null) : null,
+            code: input.code ?? null,
+            doseText: input.dose ?? null,
+            reason: input.reason ?? null,
+            prescribedBy: input.prescribedBy ?? null,
+            startedDate: started?.date ?? null,
+            startedPrecision: started?.precision ?? null,
+            reportedStatus: input.status,
+            stoppedDate: stopped?.date ?? null,
+            stoppedPrecision: stopped?.precision ?? null,
+            notes: input.notes ?? null,
+            source: input.source,
+            reportedBy: input.source === "reported" ? (input.reportedBy ?? null) : null,
+            sourceDescription: input.sourceDescription ?? null,
+            recorderPractitionerId: practitioner?.id ?? null,
+            recordedBy: actor.userId,
+          })
+          .returning();
+        const created = found(inserted, "Medication taken");
+        await this.recorded(tx, actor, "medication", created.id, patientId, {
+          source: created.source,
+          status: created.reportedStatus,
+          encounterId: created.encounterId,
+        });
+        return created;
+      }),
+    );
+    return (await this.medicationViews(actor.organizationId, [row]))[0]!;
+  }
+
+  /** The patient no longer takes a medicine recorded as taken or not known: once, with the stop date as known. */
+  async stopMedication(actor: Actor, entryId: string, input: z.output<typeof stopReportedMedicationSchema>): Promise<ReportedMedicationView> {
+    const stopped = await this.pastDate(actor, input.stopped, "The stop date is in the future");
+    const row = await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(reportedMedication)
+        .where(and(eq(reportedMedication.organizationId, actor.organizationId), eq(reportedMedication.id, entryId)))
+        .for("update");
+      const entry = found(current, "Medication taken");
+      if (entry.enteredInErrorAt) throw new BusinessRuleError("The entry is marked entered in error", "already_entered_in_error");
+      if (medicationState(entry) === "stopped") throw new BusinessRuleError("The medicine is already recorded as stopped", "already_stopped");
+      const started = entry.startedDate && entry.startedPrecision ? { date: entry.startedDate, precision: entry.startedPrecision } : null;
+      if (stopBeforeStart(started, stopped)) throw new BusinessRuleError("The stop date is before the start date", "stop_before_start");
+      const now = new Date();
+      const [updated] = await tx
+        .update(reportedMedication)
+        .set({
+          stopRecordedAt: now,
+          stopRecordedBy: actor.userId,
+          stopNote: input.note ?? null,
+          stoppedDate: stopped?.date ?? null,
+          stoppedPrecision: stopped?.precision ?? null,
+        })
+        .where(eq(reportedMedication.id, entryId))
+        .returning();
+      const result = found(updated, "Medication taken");
+      await this.audit.record(tx, actor, {
+        action: "history.medication-stopped",
+        resourceType: "patient_history",
+        resourceId: entryId,
+        patientId: result.patientId,
+        changes: { status: { from: entry.reportedStatus, to: "stopped" } },
+        metadata: { section: "medication", stoppedPrecision: result.stoppedPrecision },
+      });
+      await this.events.record(tx, {
+        type: "PatientHistoryMedicationStopped",
+        organizationId: actor.organizationId,
+        aggregateType: "patient_history",
+        aggregateId: entryId,
+        facilityId: actor.facilityId ?? null,
+        patientId: result.patientId,
+        payload: { entryId, section: "medication" },
+      });
+      return result;
+    });
+    return (await this.medicationViews(actor.organizationId, [row]))[0]!;
   }
 
   async recordFamily(actor: Actor, patientId: string, input: z.output<typeof recordFamilyHistorySchema>): Promise<FamilyHistoryView> {
@@ -700,7 +855,7 @@ export class PatientHistoryService {
   }
 
   /**
-   * Marks a procedure, condition, family history entry or social history version entered in error with a reason (never
+   * Marks a procedure, condition, medication taken, family history entry or social history version entered in error with a reason (never
    * deleted; once). A social history version in error stops being current: the previous version is current again.
    */
   async markEnteredInError(actor: Actor, entryId: string, reason: string) {
@@ -721,6 +876,12 @@ export class PatientHistoryService {
           .where(and(eq(pastCondition.organizationId, org), eq(pastCondition.id, entryId)))
           .for("update");
         if (c) return { section: "condition", patientId: c.patientId, alreadyInError: c.enteredInErrorAt !== null };
+        const [m] = await tx
+          .select()
+          .from(reportedMedication)
+          .where(and(eq(reportedMedication.organizationId, org), eq(reportedMedication.id, entryId)))
+          .for("update");
+        if (m) return { section: "medication", patientId: m.patientId, alreadyInError: m.enteredInErrorAt !== null };
         const [f] = await tx
           .select()
           .from(familyHistoryEntry)
@@ -738,8 +899,8 @@ export class PatientHistoryService {
       const target = await locate();
       if (!target) throw new NotFoundError("History entry");
       if (target.alreadyInError) throw new BusinessRuleError("The entry is already marked entered in error", "already_entered_in_error");
-      const table = { procedure: pastProcedure, condition: pastCondition, family: familyHistoryEntry, social: socialHistory }[
-        target.section as "procedure" | "condition" | "family" | "social"
+      const table = { procedure: pastProcedure, condition: pastCondition, medication: reportedMedication, family: familyHistoryEntry, social: socialHistory }[
+        target.section as "procedure" | "condition" | "medication" | "family" | "social"
       ];
       await tx.update(table).set(set).where(eq(table.id, entryId));
       await this.audit.record(tx, actor, {
@@ -848,9 +1009,10 @@ export class PatientHistoryService {
   }
 
   private async compose(organizationId: string, patientId: string, record: PatientHistoryRecord, sensitive: boolean): Promise<PatientHistoryView> {
-    const all = [...record.procedures, ...record.conditions, ...record.family, ...record.social];
+    const all = [...record.procedures, ...record.conditions, ...record.medications, ...record.family, ...record.social];
     const names = await this.names(organizationId, [
       ...all.flatMap((r) => [r.recordedBy, r.enteredInErrorBy]),
+      ...record.medications.map((r) => r.stopRecordedBy),
       ...record.familyReviews.map((r) => r.reviewedBy),
     ]);
     const current = record.social.find((r) => !r.enteredInErrorAt) ?? null;
@@ -862,6 +1024,7 @@ export class PatientHistoryService {
       sensitiveAccess: sensitive,
       procedures: record.procedures.map((r) => procedureView(r, names)),
       conditions: record.conditions.map((r) => conditionView(r, names)),
+      medications: record.medications.map((r) => medicationView(r, names)),
       family: {
         state: familyHistoryState(record.family.filter((r) => !r.enteredInErrorAt).length, record.familyReviews[0] ?? null),
         latestReview: reviews[0] ?? null,
@@ -886,6 +1049,14 @@ export class PatientHistoryService {
       rows.flatMap((r) => [r.recordedBy, r.enteredInErrorBy]),
     );
     return rows.map((r) => conditionView(r, names));
+  }
+
+  private async medicationViews(organizationId: string, rows: ReportedMedicationRecord[]) {
+    const names = await this.names(
+      organizationId,
+      rows.flatMap((r) => [r.recordedBy, r.enteredInErrorBy, r.stopRecordedBy]),
+    );
+    return rows.map((r) => medicationView(r, names));
   }
 
   private async familyViews(organizationId: string, rows: FamilyHistoryRecord[]) {
@@ -963,6 +1134,31 @@ function conditionView(r: PastConditionRecord, names: Map<string, string>): Past
     onsetPrecision: r.onsetPrecision,
     status: r.reportedStatus,
     diagnosedBy: r.diagnosedBy,
+    notes: r.notes,
+    source: r.source,
+    reportedBy: r.reportedBy,
+    sourceDescription: r.sourceDescription,
+  };
+}
+
+function medicationView(r: ReportedMedicationRecord, names: Map<string, string>): ReportedMedicationView {
+  return {
+    ...meta(r, names),
+    medication: r.medication,
+    codeSystem: r.codeSystem,
+    code: r.code,
+    dose: r.doseText,
+    reason: r.reason,
+    prescribedBy: r.prescribedBy,
+    started: partialDateText(r.startedDate, r.startedPrecision),
+    startedPrecision: r.startedPrecision,
+    reportedStatus: r.reportedStatus,
+    status: medicationState(r),
+    stopped: partialDateText(r.stoppedDate, r.stoppedPrecision),
+    stoppedPrecision: r.stoppedPrecision,
+    stopRecorded: r.stopRecordedAt
+      ? { at: iso(r.stopRecordedAt), byName: r.stopRecordedBy ? (names.get(r.stopRecordedBy) ?? null) : null, note: r.stopNote }
+      : null,
     notes: r.notes,
     source: r.source,
     reportedBy: r.reportedBy,
