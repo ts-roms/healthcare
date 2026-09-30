@@ -256,7 +256,10 @@ yourself can be ticked. Roles cannot be changed or retired from the screen yet; 
 
 **Passwords and two-step verification.** Each person changes their own password and turns two-step verification on or off under **My account** (click
 their name in the top bar; see [Getting started](01-getting-started.md)). Two-step verification is optional; an organization-wide "require MFA" policy
-does not exist yet. Changing a password signs out the person's other sessions. There is no self-service password reset for staff.
+can be required for everyone under **Administration → Company settings** (**Require two-step verification for all staff**, `organization.manage`): staff
+without it are then asked to set it up before anything else, and nobody can turn it off. Set yours up first. Changing a password signs out the person's
+other sessions. Staff who forget their password can reset it themselves with **Forgot your password?** on the sign-in page (a link to their sign-in
+email; the platform's `STAFF_BASE_URL` must be set).
 
 **How to help someone who cannot sign in** (needs `user.manage`; check who they are in person first):
 

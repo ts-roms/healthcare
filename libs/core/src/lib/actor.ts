@@ -13,6 +13,8 @@ export interface Actor {
   isPlatformAdmin: boolean;
   /** Signed in with a temporary password an administrator gave: only account routes are allowed until it is changed. */
   passwordChangeRequired?: boolean;
+  /** The organization requires two-step verification and the caller has not set it up: only account routes are allowed. */
+  mfaEnrollmentRequired?: boolean;
   permissions: ReadonlySet<string>;
   request: RequestMetadata;
 }

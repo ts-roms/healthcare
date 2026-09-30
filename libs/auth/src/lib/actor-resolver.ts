@@ -49,6 +49,7 @@ export class ActorResolver {
     if (user.status !== "active" || !(await this.auth.hasActiveMembership(user.id, claims.org))) {
       throw new UnauthenticatedError("Account access has been revoked", "access_revoked");
     }
+    const organization = await this.organizations.getOrganization(claims.org);
     const facilityId = await this.resolveFacility(context.facilityId, claims.org);
     const departmentId = await this.resolveDepartment(context.departmentId, claims.org, facilityId);
     const permissions = await this.access.resolvePermissions(user.id, claims.org, { facilityId, departmentId });
@@ -61,6 +62,7 @@ export class ActorResolver {
       facilityId,
       isPlatformAdmin: user.isPlatformAdmin,
       passwordChangeRequired: user.passwordChangeRequired,
+      mfaEnrollmentRequired: organization.staffMfaRequired && !user.mfaEnabled,
       permissions,
       request,
     };

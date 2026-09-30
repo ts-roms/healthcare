@@ -1,10 +1,12 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const organization = pgTable("organization", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),
   name: text("name").notNull(),
   status: text("status").$type<"active" | "suspended" | "archived">().notNull().default("active"),
+  /** Staff must use two-step verification (0089): members without it can only set it up after signing in. */
+  staffMfaRequired: boolean("staff_mfa_required").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   version: integer("version").notNull().default(1),

@@ -219,6 +219,8 @@ export class AuthService {
   async disableMfa(actor: Actor, password: string, code: string): Promise<void> {
     const user = await this.getUser(actor.userId);
     if (!user.mfaEnabled || !user.mfaSecretEncrypted) throw new BusinessRuleError("Multi-factor authentication is not enabled", "mfa_not_enabled");
+    const [org] = await this.db.select({ required: organization.staffMfaRequired }).from(organization).where(eq(organization.id, actor.organizationId));
+    if (org?.required) throw new BusinessRuleError("Your organization requires two-step verification", "mfa_required_by_organization");
     const validPassword = await verifyPassword(user.passwordHash, password);
     const validCode = verifyTotp(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code);
     if (!validPassword || !validCode) {

@@ -12,6 +12,28 @@
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
 
+### Password reset by email
+
+Migration `0089` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
+(`/forgot-password`): `POST /auth/password-reset/request { email }` answers `204` whether or not the account exists; a link
+goes only to an active staff account with an active membership, at most 3 per hour, to its sign-in email through
+`NotificationService` (template `staff.password-reset`, internal, the link blanked once sent; recorded under the
+organization joined first). The link is `STAFF_BASE_URL/reset-password#token=…` (the fragment never reaches a server);
+only the token's SHA-256 is stored; it works once, for 30 minutes, and a new request supersedes it. `POST
+/auth/password-reset { token, password, code? }`: with two-step verification on, a current code is required
+(`401 mfa_code_required`; five wrong codes burn the link). A reset ends every session, clears a lockout and a temporary
+password, is audited (`auth.password-reset`, failures with their reason) and the account's email is told
+(`staff.password-changed`). Without `STAFF_BASE_URL` no link is sent. Both endpoints are rate limited like sign-in.
+
+### Required two-step verification
+
+An organization can require two-step verification of its staff (`organization.staff_mfa_required`, migration `0089`;
+Company settings, `organization.manage`, audited in `organization.update`). A member without it who signs in gets a
+session in which only the account routes (`@AllowAccountSetup()`: me, password, two-step set-up, sign-out) answer; the
+rest refuse with `403 mfa_enrollment_required` and the staff app shows only "Set up two-step verification". While the
+rule is on, turning it off is refused (`mfa_required_by_organization`). An administrator can still turn off a member's
+two-step verification after a lost phone (below); the member then sets it up again at the next sign-in.
+
 ### Credential resets by an administrator
 
 Migration `0088`. With `user.manage`, an administrator can help a member of the organization sign in (`libs/auth`,
@@ -21,7 +43,7 @@ Migration `0088`. With `user.manage`, an administrator can help a member of the 
 - **Temporary password** (`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password):
   the administrator gives it to the person directly. It also clears a lockout. `app_user.password_change_required` is
   set: until the person changes it (`POST /auth/password`, which clears it), the `AccessGuard` refuses every route not
-  marked `@AllowPendingPasswordChange()` (`/auth/me`, `/auth/me/facilities`, `/auth/password`, `/auth/logout`) with
+  marked `@AllowAccountSetup()` (`/auth/me`, `/auth/me/facilities`, `/auth/password`, `/auth/logout`) with
   `403 password_change_required`, and the staff app shows only "Choose your own password".
 - **Two-step verification off** (`POST /users/:id/mfa-reset`, `{ reason }`): for a lost phone; the secret (and any
   unfinished enrolment) is removed and the person can enrol again under My account (`mfa_not_enabled` when it is off).

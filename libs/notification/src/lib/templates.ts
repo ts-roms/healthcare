@@ -150,6 +150,33 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "staff.password-reset",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    secretVariables: ["link"],
+    variables: z.object({ link: z.url().max(500), validMinutes: z.number().int().min(1).max(240) }),
+    render: (v) => ({
+      subject: "Reset your staff password",
+      text:
+        `Someone asked to reset the password of your staff account. To choose a new password, open this link within ${v.validMinutes} minutes (it works once):\n\n${v.link}\n\n` +
+        "If two-step verification is on, you will also need a code from your authenticator app. If you did not ask for this, ignore this message; your password stays as it is.",
+    }),
+  }),
+  defineTemplate({
+    key: "staff.password-changed",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    variables: z.object({}),
+    render: () => ({
+      subject: "Your staff password was changed",
+      text: "The password of your staff account was just reset, and you were signed out everywhere. If this was not you, contact your administrator right away.",
+    }),
+  }),
+  defineTemplate({
     key: "portal.password-reset",
     version: 1,
     category: "security",
@@ -530,6 +557,8 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "clinic.message": "Notice from the clinic (MyHealth)",
   "security.mfa-enabled": "Two-step verification turned on",
   "portal.password-reset": "MyHealth password reset link",
+  "staff.password-reset": "Staff password reset link",
+  "staff.password-changed": "Staff password changed",
   "portal.password-changed": "MyHealth password changed",
   "portal.email-verification": "MyHealth email verification code",
   "portal.security-alert": "MyHealth security alert",

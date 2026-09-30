@@ -14,7 +14,7 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api
  * and `api()` sends the user to sign in on a 401.
  */
 /** Pages anyone may open, signed in or not. They must not call the API. */
-const PUBLIC_PATHS = new Set(["/welcome"]);
+const PUBLIC_PATHS = new Set(["/welcome", "/forgot-password", "/reset-password"]);
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

@@ -6,3 +6,5 @@ export * from "./lib/auth.service";
 export * from "./lib/password";
 export * from "./lib/totp";
 export * from "./lib/users.service";
+export * from "./lib/staff-security-mailer";
+export * from "./lib/staff-password-reset.service";

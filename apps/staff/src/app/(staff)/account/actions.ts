@@ -40,7 +40,8 @@ export async function confirmTwoStep(input: string): Promise<ActionResult> {
   const parsed = code.safeParse(input.replace(/\s/g, ""));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the code." };
   const result = await actionResult(() => api<void>("/auth/mfa/confirm", { method: "POST", body: { code: parsed.data } }));
-  if (result.ok) revalidatePath("/account");
+  // Every page, not only this one: a required set-up no longer blocks the others.
+  if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
 }
 

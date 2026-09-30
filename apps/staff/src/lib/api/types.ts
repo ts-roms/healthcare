@@ -44,7 +44,11 @@ export interface Me {
     isPlatformAdmin: boolean;
     /** Signed in with a temporary password from an administrator: every page asks for a new one first. */
     passwordChangeRequired?: boolean;
+    /** The organization requires two-step verification and it is not set up: every page asks for it first. */
+    mfaEnrollmentRequired?: boolean;
   };
+  /** The organization requires two-step verification of its staff (it cannot be turned off). */
+  staffMfaRequired?: boolean;
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
   permissions: string[];
@@ -4446,6 +4450,8 @@ export interface Organization {
   code: string;
   name: string;
   status: "active" | "suspended" | "archived";
+  /** Staff must use two-step verification. */
+  staffMfaRequired: boolean;
   version: number;
   updatedAt: string;
 }

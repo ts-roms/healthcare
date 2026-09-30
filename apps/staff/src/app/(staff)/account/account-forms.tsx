@@ -69,7 +69,7 @@ export function PasswordForm({ temporary = false }: { temporary?: boolean } = {}
 }
 
 /** Turn two-step verification on (scan or type the setup key, then confirm a code) or off (password and a code). */
-export function TwoStepSettings({ enabled }: { enabled: boolean }) {
+export function TwoStepSettings({ enabled, required = false }: { enabled: boolean; required?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
@@ -79,6 +79,7 @@ export function TwoStepSettings({ enabled }: { enabled: boolean }) {
   const [password, setPassword] = React.useState("");
 
   if (enabled) {
+    if (required) return <p className="text-meta text-muted-foreground">Your organization requires it, so it cannot be turned off.</p>;
     if (!turningOff) {
       return (
         <Button size="sm" variant="outline" className="self-start" onClick={() => setTurningOff(true)}>

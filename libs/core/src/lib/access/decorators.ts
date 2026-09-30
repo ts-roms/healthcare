@@ -14,7 +14,7 @@ export const ACCESS_METADATA = {
   permissions: "access:permissions",
   platformAdmin: "access:platform-admin",
   facility: "access:facility",
-  pendingPasswordChange: "access:pending-password-change",
+  accountSetup: "access:account-setup",
 } as const;
 
 /** No authentication (login, health checks). Use sparingly. */
@@ -26,8 +26,11 @@ export const RequirePermissions = (...permissions: [Permission, ...Permission[]]
 /** Platform-level operations (e.g. creating organizations). */
 export const RequirePlatformAdmin = () => SetMetadata(ACCESS_METADATA.platformAdmin, true);
 
-/** Allowed while the caller must still replace a temporary password (their own account: me, password change, sign-out). */
-export const AllowPendingPasswordChange = () => SetMetadata(ACCESS_METADATA.pendingPasswordChange, true);
+/**
+ * Allowed while the caller must still finish their account set-up — replace a temporary password, or set up two-step
+ * verification their organization requires: their own account routes (me, password, two-step set-up, sign-out).
+ */
+export const AllowAccountSetup = () => SetMetadata(ACCESS_METADATA.accountSetup, true);
 
 /** Request must carry an X-Facility-Id header the caller has access to. */
 export const RequireFacility = () => SetMetadata(ACCESS_METADATA.facility, true);

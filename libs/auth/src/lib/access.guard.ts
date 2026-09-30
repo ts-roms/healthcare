@@ -21,6 +21,14 @@ export class PasswordChangeRequiredError extends DomainError {
   }
 }
 
+export class MfaEnrollmentRequiredError extends DomainError {
+  readonly code = "mfa_enrollment_required";
+  readonly httpStatus = 403;
+  constructor() {
+    super("Your organization requires two-step verification: set it up before continuing");
+  }
+}
+
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
@@ -44,9 +52,11 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
-    // A temporary password from an administrator must be replaced before anything else (migration 0088).
-    if (actor.passwordChangeRequired && !this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.pendingPasswordChange, targets)) {
-      throw new PasswordChangeRequiredError();
+    // Account set-up comes first: a temporary password from an administrator is replaced (0088), and two-step verification
+    // the organization requires is set up (0089); until then only the person's own account routes answer.
+    if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.accountSetup, targets)) {
+      if (actor.passwordChangeRequired) throw new PasswordChangeRequiredError();
+      if (actor.mfaEnrollmentRequired) throw new MfaEnrollmentRequiredError();
     }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(ACCESS_METADATA.permissions, targets) ?? [];

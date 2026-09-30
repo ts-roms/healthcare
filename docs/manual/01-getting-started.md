@@ -90,7 +90,13 @@ Click your name in the top bar to open **My account** (`/account`).
   and click **Turn on**. From then on, signing in also asks for a code. To turn it off, click **Turn off…** and enter your password and a current
   code.
 
-If you lose your phone or forget your password, ask your administrator. They can turn off two-step verification or give you a temporary password in
+**Forgot your password?** On the sign-in page, select **Forgot your password?**, enter the email you sign in with and select **Send me a link**. Open
+the link in the email within 30 minutes (it works once), enter the new password twice — and, if you use two-step verification, a code from your app —
+then **Save new password**. You are signed out everywhere and sign in with the new password.
+
+If your organization requires two-step verification and you have not set it up, every page shows **Set up two-step verification** until you do.
+
+If you lose your phone, or the email does not arrive, ask your administrator. They can turn off two-step verification or give you a temporary password in
 person. After signing in with a temporary password, every page shows **Choose your own password**: enter the temporary password, then your new one twice,
 and select **Choose this password**.
 

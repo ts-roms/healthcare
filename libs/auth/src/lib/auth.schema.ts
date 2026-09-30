@@ -84,6 +84,20 @@ export const authSession = pgTable("auth_session", {
   userAgent: text("user_agent"),
 });
 
+/** A staff password-reset link (0089): only the token's hash is stored; single use, short-lived. */
+export const staffPasswordReset = pgTable("staff_password_reset", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  consumedReason: text("consumed_reason").$type<"reset" | "superseded" | "exhausted" | "account_inactive">(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
 export type AppUserRecord = typeof appUser.$inferSelect;
 export type RoleRecord = typeof role.$inferSelect;
 export type AuthSessionRecord = typeof authSession.$inferSelect;
