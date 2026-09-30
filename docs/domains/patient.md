@@ -137,9 +137,17 @@ Portal ownership checks of documents use `isFiledAs`. The API composers mark row
 panels carry `filedUnder` (the retired patient number), the summary lists `linkedRecords`, domain rows keep their
 `patientId`.
 
+## Consents recorded by the patient (migration 0069)
+
+A `patient_consent` decision is recorded by exactly one of a staff user (`recorded_by`) or the patient's MyHealth account
+(`recorded_by_portal_account`); a patient's account records only electronic withdrawals (CHECK constraints). MyHealth
+(`GET /portal/consents`, `POST /portal/consents/:type/withdraw`; `libs/patient/src/lib/consents`) lists each consent with its
+history and withdraws those in `PATIENT_WITHDRAWABLE_CONSENTS` while in effect; withdrawing `portal_access` revokes the account's
+sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `myhealth`).
+
 ## Events
 
-`PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+`PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
 survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
