@@ -185,7 +185,18 @@ function SidebarNav({
                     href={item.children?.[0]?.href ?? item.href}
                     aria-current={exact ? "page" : undefined}
                     aria-label={collapsed ? item.label : undefined}
-                    onClick={onNavigate}
+                    onClick={(event) => {
+                      if (item.children && !collapsed) {
+                        // First click opens the group and goes to its first page; the next click closes it.
+                        if (expanded) {
+                          event.preventDefault();
+                          setOpenGroups((prev) => ({ ...prev, [item.href]: false }));
+                          return;
+                        }
+                        setOpenGroups((prev) => ({ ...prev, [item.href]: true }));
+                      }
+                      onNavigate();
+                    }}
                     className={cn(
                       "flex h-8 items-center gap-2.5 rounded-md px-2 text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
                       collapsed && "justify-center px-0",
