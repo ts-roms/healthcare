@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions, RequirePlatformAdmin } from "@healthcare/core";
-import { CreateDepartmentDto, CreateFacilityDto, CreateOrganizationDto, UpdateFacilityDto } from "./organization.dto";
+import { CreateDepartmentDto, CreateFacilityDto, CreateOrganizationDto, UpdateFacilityDto, UpdateOrganizationDto } from "./organization.dto";
 import { OrganizationService } from "./organization.service";
 
 @ApiTags("organization")
@@ -21,6 +21,13 @@ export class OrganizationController {
   @ApiOperation({ summary: "The organization of the current session" })
   current(@CurrentActor() actor: Actor) {
     return this.organizations.getOrganization(actor.organizationId);
+  }
+
+  @Patch("organization")
+  @RequirePermissions("organization.manage")
+  @ApiOperation({ summary: "Rename the organization of the current session" })
+  updateCurrent(@CurrentActor() actor: Actor, @Body() body: UpdateOrganizationDto) {
+    return this.organizations.updateOrganization(actor, body);
   }
 
   @Get("facilities")

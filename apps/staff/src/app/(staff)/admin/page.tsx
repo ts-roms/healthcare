@@ -8,6 +8,7 @@ import { navigationForPermissions } from "@/lib/navigation";
 export const metadata = { title: "Administration" };
 
 const DESCRIPTIONS: Record<string, string> = {
+  "/admin/organization": "Your organization's name and identifier.",
   "/admin/users": "Who can sign in, their roles and where each applies; suspend and reactivate.",
   "/admin/roles": "What each role allows; your organization's own roles.",
   "/admin/facilities": "Clinics, laboratories and other sites, and their departments.",

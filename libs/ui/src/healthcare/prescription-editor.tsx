@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFieldArray, useForm, type UseFormReturn } from "react-hook-form";
+import { useFieldArray, useForm, useWatch, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertOctagonIcon, CheckCircle2Icon, PlusIcon, ShieldAlertIcon, Trash2Icon } from "lucide-react";
 import {
@@ -45,7 +45,7 @@ export function PrescriptionEditor({ defaultItems, allergies = [], onSubmit, cla
     defaultValues: { items: defaultItems?.length ? defaultItems : [blank()] },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const items = form.watch("items");
+  const items = useWatch({ control: form.control, name: "items" });
   const errors = form.formState.errors.items;
   const conflicts = items.map((i) => findAllergyConflict(i.drug, allergies));
   const unresolved = conflicts.filter((c, i) => c && !isValidOverrideReason(items[i]?.overrideReason)).length;

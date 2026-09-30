@@ -3,10 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, UserRoundIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
+import { BellIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
-import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  NativeSelect,
+  toast,
+} from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
 
@@ -33,6 +43,9 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const navigation = React.useMemo(() => navigationForPermissions(permissions), [permissions]);
+
+  // Company settings are the administration pages; staff without access to any of them only see their own account.
+  const canOpenCompanySettings = navigation.some((item) => item.href === "/admin" && item.children?.some((c) => c.href === "/admin/organization"));
 
   return (
     <StaffLayout
@@ -86,24 +99,40 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               ) : null}
             </Link>
           </Button>
-          <Link
-            href="/account"
-            title="My account: password and two-step verification"
-            className="hidden rounded-md px-1 text-right leading-tight hover:bg-muted lg:block"
-          >
-            <span className="block text-table font-medium">{user.displayName}</span>
-            <span className="block text-meta text-muted-foreground">{organizationName}</span>
-          </Link>
-          <Button asChild variant="ghost" size="icon" className="lg:hidden">
-            <Link href="/account" aria-label="My account" title="My account">
-              <UserRoundIcon />
-            </Link>
-          </Button>
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" size="icon" aria-label="Sign out" title={`Sign out ${user.email}`}>
-              <LogOutIcon />
-            </Button>
-          </form>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Account menu" title={user.displayName}>
+                <UserInitials name={user.displayName} className="size-7 text-meta" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel className="flex items-center gap-3">
+                <UserInitials name={user.displayName} className="size-10 text-section" />
+                <span className="min-w-0 leading-tight">
+                  <span className="block truncate text-body font-semibold">{user.displayName}</span>
+                  <span className="block truncate text-meta font-normal text-muted-foreground">{user.email}</span>
+                  <span className="block truncate text-meta font-normal text-muted-foreground">{organizationName}</span>
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <UserRoundIcon aria-hidden /> My account
+                </Link>
+              </DropdownMenuItem>
+              {canOpenCompanySettings ? (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/organization">
+                    <SettingsIcon aria-hidden /> Company settings
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void signOut()}>
+                <LogOutIcon aria-hidden /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       }
     >
@@ -124,4 +153,21 @@ function DemoDataBanner() {
       </span>
     </div>
   );
+}
+
+/** Initials on the brand colour; solid tokens so it reads in both themes (no photo is stored for staff). */
+function UserInitials({ name, className }: { name: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground select-none ${className ?? ""}`}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
 }

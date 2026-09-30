@@ -4410,6 +4410,15 @@ export interface StaffRoleDefinition {
   permissions: string[];
 }
 
+export interface Organization {
+  id: string;
+  code: string;
+  name: string;
+  status: "active" | "suspended" | "archived";
+  version: number;
+  updatedAt: string;
+}
+
 export interface FacilityDetail extends Facility {
   addressLine: string | null;
   barangay: string | null;
