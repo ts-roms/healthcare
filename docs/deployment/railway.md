@@ -70,6 +70,10 @@ Put the settings every backend process reads in **Project → Shared Variables**
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                                                   | Optional (API and notification worker: the same values). A key pair for browser push (`npx web-push generate-vapid-keys`) and a contact (`mailto:` or `https:`). Without them MyHealth does not offer notifications on devices. Serve MyHealth over https. |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`                                                     | Optional. Without them, online consultations fall back to the callback number.                                                                                                                                                                             |
 
+A blank optional variable (`S3_ENDPOINT`, `LIVEKIT_*`, `PAYMONGO_*`, `SMTP_URL`, `VAPID_*`, `FHIR_*`, `PORTAL_BASE_URL`, `S3_*`) counts as
+unset, so a variable left empty in the dashboard does not stop start-up. Required and security-relevant settings (`NODE_ENV`,
+`DATABASE_URL`, `REDIS_URL`, the secrets and keys) are not relaxed: a blank one still fails validation.
+
 ### api only
 
 | Variable                                                                       | Value                                                                                                                                                                                                             |

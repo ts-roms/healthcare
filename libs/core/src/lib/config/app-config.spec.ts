@@ -73,3 +73,27 @@ describe("web push keys", () => {
     expect(() => loadAppConfig({ ...base, ...vapid, VAPID_SUBJECT: "privacy@example.ph" })).toThrow(/mailto/);
   });
 });
+
+describe("blank optional settings", () => {
+  it("treats blank optional variables as unset", () => {
+    const config = loadAppConfig({
+      ...base,
+      S3_ENDPOINT: "",
+      S3_FORCE_PATH_STYLE: " ",
+      LIVEKIT_URL: "",
+      LIVEKIT_API_KEY: "",
+      LIVEKIT_API_SECRET: "",
+      PAYMONGO_SECRET_KEY: "",
+    });
+    expect(config.S3_ENDPOINT).toBeUndefined();
+    expect(config.S3_FORCE_PATH_STYLE).toBe(false);
+    expect(config.LIVEKIT_URL).toBeUndefined();
+    expect(config.PAYMONGO_SECRET_KEY).toBeUndefined();
+  });
+
+  it("still rejects a blank REDIS_URL or NODE_ENV, and a malformed set value", () => {
+    expect(() => loadAppConfig({ ...base, REDIS_URL: "" })).toThrow("REDIS_URL");
+    expect(() => loadAppConfig({ ...base, NODE_ENV: "" })).toThrow("NODE_ENV");
+    expect(() => loadAppConfig({ ...base, S3_ENDPOINT: "not-a-url" })).toThrow("S3_ENDPOINT");
+  });
+});
