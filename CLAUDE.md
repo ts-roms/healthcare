@@ -124,7 +124,7 @@ Inspect the repository before every change — do not assume any file, library, 
 
 **Tooling**
 
-- Nx 23 + pnpm 10, Node 22 (`.nvmrc`). TypeScript strict everywhere: backend projects use TypeScript 6 with project references (`tsconfig.node.json`, synced by `nx sync`); frontend projects use TypeScript 5.9 with `tsconfig.base.json` (bundler resolution). The `@nx/js/typescript`, webpack and Jest plugins apply to backend projects only (see `exclude` in `nx.json`).
+- Nx 23 + pnpm 10, Node 22 (`.nvmrc`). TypeScript strict everywhere: backend projects use TypeScript 6 with project references (`tsconfig.node.json`, synced by `nx sync`); frontend projects use TypeScript 5.9 with `tsconfig.base.json` (bundler resolution); `apps/mobile` uses TypeScript 6 with `expo/tsconfig.base`, the version Expo SDK 57 expects. The `@nx/js/typescript`, webpack and Jest plugins apply to backend projects only (see `exclude` in `nx.json`).
 - Frontend: Next.js 16, React 19, Tailwind CSS 4, Storybook 10, Vitest 4 (`*.test.ts`). Backend: NestJS 11, Drizzle, Jest 30 (`*.spec.ts`), API integration tests (`apps/api/test/*.int.spec.ts`, target `integration`) against real PostgreSQL.
 - End-to-end: `apps/e2e` (Playwright, target `e2e`, `pnpm test:e2e`) runs the §31 critical journeys in a browser against the built API, staff app and portal, with its own database (`healthcare_e2e`, recreated per run) and ports. Journeys drive the real screens; the only shortcut is moving a booked teleconsultation to "now" in the database. See `docs/deployment/local-development.md`.
 - ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
