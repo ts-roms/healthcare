@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Public } from "@healthcare/core";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 import { type PatientContext, TelemedicineService } from "@healthcare/telemedicine";
 
 const context = (p: PortalPrincipal): PatientContext => ({ organizationId: p.organizationId, patientId: p.patientId, audit: patientAuditContext(p) });
@@ -11,6 +11,7 @@ const context = (p: PortalPrincipal): PatientContext => ({ organizationId: p.org
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal/teleconsults", version: "1" })
 export class PortalTeleconsultController {
   constructor(private readonly telemedicine: TelemedicineService) {}

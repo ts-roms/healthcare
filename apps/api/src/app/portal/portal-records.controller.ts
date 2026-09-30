@@ -5,7 +5,7 @@ import { CarePlanService } from "@healthcare/care-plan";
 import { ClinicQueries } from "@healthcare/clinic";
 import { pdfFile, Public } from "@healthcare/core";
 import { LabPatientAccess, LabReportService } from "@healthcare/laboratory";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 import { PrescriptionService } from "@healthcare/prescription";
 
 /**
@@ -20,6 +20,7 @@ import { PrescriptionService } from "@healthcare/prescription";
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal", version: "1" })
 export class PortalRecordsController {
   constructor(

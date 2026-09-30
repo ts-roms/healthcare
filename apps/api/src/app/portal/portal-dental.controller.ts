@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { ForbiddenError, Public } from "@healthcare/core";
 import { DentalPatientAccess, PatientPlanDecisionDto } from "@healthcare/dental";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's dental record in MyHealth — only when their organization turned MyHealth dental records on (dental
@@ -17,6 +17,7 @@ import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPri
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal/dental", version: "1" })
 export class PortalDentalController {
   constructor(

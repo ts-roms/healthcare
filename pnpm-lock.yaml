@@ -21835,7 +21835,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  webpack-cli@7.2.3(js-yaml@5.3.0)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1):
+  webpack-cli@7.2.3(js-yaml@5.4.2)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1):
     dependencies:
       '@discoveryjs/json-ext': 1.1.0
       commander: 14.0.3

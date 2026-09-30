@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { Public } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, PatientMessageService, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, PatientMessageService, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's MyHealth inbox: in-app messages from the clinic (results-ready
@@ -14,6 +14,7 @@ import { CurrentPatient, PatientAccessGuard, patientAuditContext, PatientMessage
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal/messages", version: "1" })
 export class PortalMessagesController {
   constructor(

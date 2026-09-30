@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Use
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, RequirePermissions } from "@healthcare/core";
-import { CurrentPatient, PatientAccessGuard } from "../portal/patient-access.guard";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed } from "../portal/patient-access.guard";
 import type { PortalPrincipal } from "../portal/portal-account.service";
 import { AssignThreadDto, ReplyDto, StaffStartThreadDto, StartThreadDto, ThreadQueryDto } from "./patient-message.dto";
 import { PatientMessageService } from "./patient-message.service";
@@ -12,6 +12,7 @@ import { PatientMessageService } from "./patient-message.service";
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal/message-threads", version: "1" })
 export class PortalMessageThreadsController {
   constructor(private readonly messages: PatientMessageService) {}

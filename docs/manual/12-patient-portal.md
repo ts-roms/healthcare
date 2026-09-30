@@ -377,6 +377,25 @@ If the clinic changes the wording while you are reading you see "The clinic chan
 wording. You can give **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth** and **Research** here if your clinic offers them;
 consent to the use of your information, to general treatment and to MyHealth itself is given at the clinic.
 
+## How to act for a child or a family member
+
+Some people can open another person's MyHealth, for example a parent for a child. This only works after the clinic has given you access: the front desk
+checks who you are and your right to act, and records it. You need your own MyHealth account, and the other person's MyHealth consent must be on file.
+
+1. Choose **People** (in the top bar, or under **Profile**). **People you can act for** lists each person, how you are related and whether you can only
+   look or also make changes.
+2. Select **Open (name)'s MyHealth**. A banner on every page says whose records you are looking at.
+3. Use MyHealth as usual: visits, results, booking, bills, documents and messages are theirs. Messages you write are marked as written by a parent or guardian.
+4. Select **Back to my own MyHealth** in the banner when you are done.
+
+While you act for someone, your own **Profile**, **Sign-in security**, **Notification settings** and **Privacy and consents** are not available: they
+belong to your own account.
+
+To give up access, select **Give up access** next to the person. On the same page, **People who can act for you** shows anyone who can open your MyHealth;
+you can end their access there, and you get an email when access is given or ended.
+
+If you see "You can no longer act for this person", the clinic ended the access or the person's consent changed. Ask the front desk.
+
 ## How to check your profile
 
 Choose **Profile** to see your **Name**, **Patient number**, **Date of birth**, **Sex**, **Clinic** and **Sign-in email**. If something is wrong,
@@ -405,6 +424,7 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
   them.
 - You can write to the clinic in conversations: at most 5 open at a time and 10 messages an hour, text only. A closed conversation takes no more messages.
 - You choose text message and email for each kind of message; MyHealth messages cannot be switched off (withdrawing MyHealth is done under Privacy and consents).
+- You can act for someone else only through access the clinic recorded, for at most 10 people, and only where the clinic could see the person's own MyHealth consent. It stops when the access ends, its end date passes or the consent is withdrawn. "Can only look" access never makes changes.
 - You cannot edit your record, prescriptions or bills in MyHealth.
 
 ## Troubleshooting / common messages

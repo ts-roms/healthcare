@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { forwardedHeaders } from "@healthcare/web-session";
 import { COOKIES } from "@/lib/api/config";
+import { ACTING_COOKIE, isOwnAccountScreen } from "@/lib/proxy-access";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
 
 /** Pages that work without a session. */
@@ -46,6 +47,8 @@ export async function proxy(request: NextRequest) {
   };
 
   if (!refreshToken) return toLogin();
+  // While acting for someone else, the account holder's own settings are not theirs to change: back to the person switcher.
+  if (request.cookies.get(ACTING_COOKIE)?.value && isOwnAccountScreen(pathname)) return NextResponse.redirect(new URL("/people?own=1", request.url));
   if (accessToken) return NextResponse.next();
 
   const refreshed = await refreshTokens(refreshToken, fetch, Date.now(), forwardedHeaders(request.headers));

@@ -26,6 +26,7 @@ import { ACTIVATION_TTL_HOURS, generateActivationCode, hashActivationCode, MAX_A
 import type { PortalMfaRequiredResponse, PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
 import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
 import { PortalTokenService } from "./portal-tokens";
+import type { ProxyContext } from "../proxy/proxy.rules";
 
 /** The authenticated patient on a portal request. */
 export interface PortalPrincipal {
@@ -33,6 +34,8 @@ export interface PortalPrincipal {
   patientId: string;
   organizationId: string;
   sessionId: string;
+  /** Set when the request acts for another person's record (guardian access); `patientId` is then that person's. */
+  proxy?: ProxyContext;
   request: RequestMetadata;
 }
 
@@ -584,6 +587,8 @@ export class PortalAccountService {
       account: { email: row.email, emailVerified: Boolean(row.emailVerifiedAt), mfaEnabled: row.mfaEnabled },
       /** The patient's clinic (where they were registered): MyHealth shows dates and times in its zone; a visit uses its own facility's. */
       timeZone: row.timeZone,
+      /** Set when the request acts for another person: the patient above is that person, the account is the guardian's own. */
+      acting: principal.proxy ? { relationship: principal.proxy.relationship, scopes: principal.proxy.scopes } : null,
     };
   }
 
@@ -700,5 +705,12 @@ export class PortalAccountService {
 
 /** Audit context for something a signed-in patient does (actor type "patient"). */
 export function patientAuditContext(p: PortalPrincipal): PatientAuditContext {
-  return { kind: "patient", accountId: p.accountId, patientId: p.patientId, organizationId: p.organizationId, request: p.request };
+  return {
+    kind: "patient",
+    accountId: p.accountId,
+    patientId: p.patientId,
+    organizationId: p.organizationId,
+    ...(p.proxy ? { proxyGrantId: p.proxy.grantId } : {}),
+    request: p.request,
+  };
 }

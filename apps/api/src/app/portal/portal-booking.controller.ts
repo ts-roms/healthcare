@@ -11,7 +11,7 @@ import {
   PatientWaitlistService,
 } from "@healthcare/clinic";
 import { Public } from "@healthcare/core";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 const context = (p: PortalPrincipal): PatientBookingContext => ({ organizationId: p.organizationId, patientId: p.patientId, audit: patientAuditContext(p) });
 
@@ -24,6 +24,7 @@ const context = (p: PortalPrincipal): PatientBookingContext => ({ organizationId
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal", version: "1" })
 export class PortalBookingController {
   constructor(

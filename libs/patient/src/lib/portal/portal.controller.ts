@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
 import type { Request } from "express";
-import { CurrentPatient, PatientAccessGuard } from "./patient-access.guard";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
 import {
   DisablePortalAccountDto,
   PortalActivateDto,
@@ -84,6 +84,7 @@ export class PortalController {
   @Get("me")
   @Public()
   @UseGuards(PatientAccessGuard)
+  @ProxyAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: "The signed-in patient's profile" })
   me(@CurrentPatient() patient: PortalPrincipal) {

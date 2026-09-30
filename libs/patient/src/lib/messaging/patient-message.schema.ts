@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MessageSender, MessageTopic, ThreadStatus } from "./patient-message.rules";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -33,6 +33,8 @@ export const patientMessage = pgTable("patient_message", {
   senderPortalAccountId: uuid("sender_portal_account_id"),
   senderUserId: uuid("sender_user_id"),
   body: text("body").notNull(),
+  /** Written by a guardian acting for the patient (migration 0080), not by the patient. */
+  viaGuardian: boolean("via_guardian").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 

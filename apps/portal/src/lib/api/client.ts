@@ -2,6 +2,7 @@ import "server-only";
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { forwardedHeaders, toApiError } from "@healthcare/web-session";
+import { ACTING_COOKIE, actingForHeader } from "../proxy-access";
 import { API_BASE_URL, COOKIES } from "./config";
 
 /**
@@ -11,12 +12,15 @@ import { API_BASE_URL, COOKIES } from "./config";
  * errors throw `ApiError`.
  */
 export async function portalApi<T>(path: string, { method = "GET", body }: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
-  const accessToken = (await cookies()).get(COOKIES.access)?.value;
+  const jar = await cookies();
+  const accessToken = jar.get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");
+  const acting = actingForHeader(path, jar.get(ACTING_COOKIE)?.value);
   const headers: Record<string, string> = {
     ...forwardedHeaders(await requestHeaders()),
     accept: "application/json",
     authorization: `Bearer ${accessToken}`,
+    ...acting,
   };
   if (body !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -26,17 +30,28 @@ export async function portalApi<T>(path: string, { method = "GET", body }: { met
     cache: "no-store",
   });
   if (response.status === 401) redirect("/login?reason=session");
-  if (!response.ok) throw await toApiError(response);
+  if (!response.ok) {
+    const error = await toApiError(response);
+    // The grant ended (or the person's consent changed) while acting: go back to the person's own account.
+    if (acting["x-acting-for"] && error.code === "proxy_not_allowed") redirect("/people/stop?ended=1");
+    throw error;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
 /** Fetches a file (a PDF) from the API as the signed-in patient, for route handlers that pass it on. */
 export async function portalFile(path: string): Promise<Response> {
-  const accessToken = (await cookies()).get(COOKIES.access)?.value;
+  const jar = await cookies();
+  const accessToken = jar.get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { ...forwardedHeaders(await requestHeaders()), accept: "application/pdf", authorization: `Bearer ${accessToken}` },
+    headers: {
+      ...forwardedHeaders(await requestHeaders()),
+      accept: "application/pdf",
+      authorization: `Bearer ${accessToken}`,
+      ...actingForHeader(path, jar.get(ACTING_COOKIE)?.value),
+    },
     cache: "no-store",
   });
   if (response.status === 401) redirect("/login?reason=session");
