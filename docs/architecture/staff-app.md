@@ -233,7 +233,11 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
   (only roles whose every permission the administrator holds are offered — the API refuses the others), revoke with a reason, suspend or reactivate
-  with a reason (not oneself). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+  with a reason (not oneself); with `user.mfa.manage`, exempt from the two-step verification requirement (reason) or reset two-step verification
+  (reason; ends their sessions). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+- `/admin/security` (`user.read`; changes `user.mfa.manage`): the staff two-step verification requirement (on only once the administrator's own is on),
+  member figures, who still lacks it, exempt accounts. Actions and controls in `app/(staff)/admin/security/`. While `GET /auth/me` says
+  `mfaPolicy.enrollmentRequired`, the `(staff)` layout renders `MfaEnrollmentGate` (set-up only) instead of the page: the API refuses everything else.
 - `/admin/roles` (`user.read`; `role.manage` to create): roles with their permissions grouped by area; a new organization role can only include
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
@@ -241,9 +245,9 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
-  (setup key and `otpauth:` link; no QR image) or off (password and code).
+  (setup key and `otpauth:` link; no QR image) or off (password and code; not while the organization requires it).
 
-Not built: resetting another person's password or two-step verification (no API), editing roles, coding systems.
+Not built: resetting another person's password (no API), editing roles, coding systems.
 
 ## Integrations (administration)
 

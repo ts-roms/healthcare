@@ -88,7 +88,7 @@ device). One listener per instrument:
   2 min, then logged.
 
 It stores nothing and logs JSON lines without message content. Configuration (environment): `GATEWAY_API_URL`,
-`GATEWAY_EMAIL` / `GATEWAY_PASSWORD` (an integration account without MFA holding `lab.instrument.message.submit`),
+`GATEWAY_EMAIL` / `GATEWAY_PASSWORD` (an integration account without MFA holding `lab.instrument.message.submit`; exempt it under **Administration → Sign-in security** if the organization requires two-step verification),
 `GATEWAY_ORGANIZATION_ID` (only for an account in several organizations), `GATEWAY_INSTRUMENTS`
 (`[{ "instrumentId", "protocol": "hl7v2" | "astm", "port", "host"? }]`). Build `pnpm nx build instrument-gateway`, run
 `node apps/instrument-gateway/dist/main.js`. Run it on the facility's private network only: the analyzer side has no

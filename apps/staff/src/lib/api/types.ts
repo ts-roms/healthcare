@@ -39,6 +39,8 @@ export interface Me {
   user: { id: string; email: string; displayName: string; mfaEnabled: boolean; isPlatformAdmin: boolean };
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
+  /** The organization's two-step verification requirement for this member; with `enrollmentRequired`, permissions are empty. */
+  mfaPolicy: { required: boolean; exempt: boolean; enrollmentRequired: boolean };
   permissions: string[];
 }
 
@@ -4399,6 +4401,16 @@ export interface StaffUser {
   mfaEnabled: boolean;
   lastLoginAt: string | null;
   roleAssignments: StaffRoleAssignment[];
+}
+
+export interface MfaPolicy {
+  required: boolean;
+  version: number;
+  updatedAt: string | null;
+  updatedBy: { id: string; displayName: string } | null;
+  members: { active: number; withMfa: number; exempt: number; withoutMfa: number };
+  pending: Array<{ id: string; displayName: string; email: string }>;
+  exemptions: Array<{ userId: string; displayName: string; email: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
 }
 
 export interface StaffRoleDefinition {

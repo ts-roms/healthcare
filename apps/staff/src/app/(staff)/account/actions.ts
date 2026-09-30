@@ -38,7 +38,7 @@ export async function confirmTwoStep(input: string): Promise<ActionResult> {
   const parsed = code.safeParse(input.replace(/\s/g, ""));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the code." };
   const result = await actionResult(() => api<void>("/auth/mfa/confirm", { method: "POST", body: { code: parsed.data } }));
-  if (result.ok) revalidatePath("/account");
+  if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
 }
 
@@ -47,6 +47,6 @@ export async function turnOffTwoStep(password: string, input: string): Promise<A
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the code." };
   if (!password) return { ok: false, message: "Enter your password." };
   const result = await actionResult(() => api<void>("/auth/mfa/disable", { method: "POST", body: { password, code: parsed.data } }));
-  if (result.ok) revalidatePath("/account");
+  if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
 }

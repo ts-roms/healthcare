@@ -16,8 +16,8 @@ cashiers, inventory officers, records officers and administrators. Patients use 
    code** and select **Verify and sign in**. Do this within 5 minutes. After that the attempt expires and you start again with your password.
 5. You land on the **Dashboard**. If you were opening a specific page when you were asked to sign in, you usually go back to that page.
 
-> Two-step verification uses a TOTP authenticator app on your phone. There is no screen in the staff app yet to turn it on or off, or to change your password.
-> Ask your administrator. See [Administration](13-administration.md).
+> Two-step verification uses a TOTP authenticator app on your phone. Turn it on under **My account** (below). If your organization requires it and yours is
+> not on yet, every page shows **Set up two-step verification** after you sign in: set it up there, and the page you asked for opens.
 
 ## How to choose your facility
 
@@ -88,9 +88,9 @@ Click your name in the top bar to open **My account** (`/account`).
 - **Two-step verification:** click **Turn on**. In an authenticator app on your phone (for example Google Authenticator or Microsoft
   Authenticator), add an account with the setup key shown (on a phone you can open it directly in the app). Type the 6-digit code the app shows
   and click **Turn on**. From then on, signing in also asks for a code. To turn it off, click **Turn off…** and enter your password and a current
-  code.
+  code. If your organization requires two-step verification, the page says so and it cannot be turned off.
 
-If you lose your phone, ask your administrator: there is no screen yet to reset someone else's two-step verification, so IT has to help.
+If you lose your phone, ask your administrator to **reset** your two-step verification. You are signed out, and you set it up again at your next sign-in.
 
 ## How to read your notifications
 

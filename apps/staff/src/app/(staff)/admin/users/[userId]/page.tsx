@@ -6,8 +6,9 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { StaffRoleDefinition, StaffUser } from "@/lib/api/types";
+import type { MfaPolicy, StaffRoleDefinition, StaffUser } from "@/lib/api/types";
 import { ApiError } from "@healthcare/web-session";
+import { MfaExemptionControl, ResetMfaButton } from "../../security/security-controls";
 import { organizationDirectory, scopeLabel } from "../directory";
 import { GrantRoleForm, MembershipControl, RevokeRoleButton } from "./user-controls";
 
@@ -27,8 +28,14 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
   }
-  const [roles, directory] = await Promise.all([api<StaffRoleDefinition[]>("/roles"), organizationDirectory(session)]);
+  const [roles, directory, mfaPolicy] = await Promise.all([
+    api<StaffRoleDefinition[]>("/roles"),
+    organizationDirectory(session),
+    api<MfaPolicy>("/security/mfa-policy"),
+  ]);
   const manage = can(session, "user.manage");
+  const manageMfa = can(session, "user.mfa.manage");
+  const exemption = mfaPolicy.exemptions.find((e) => e.userId === user.id) ?? null;
   const self = user.id === session.user.id;
   // Only roles whose every permission the administrator holds can be handed out (the API refuses the others).
   const grantable = roles.filter((r) => session.user.isPlatformAdmin || r.permissions.every((p) => session.permissions.includes(p)));
@@ -98,6 +105,22 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
                 </Badge>
               )}
             </p>
+            {exemption ? (
+              <p>
+                <Badge variant="warning">
+                  <ShieldOffIcon aria-hidden /> Exempt
+                </Badge>{" "}
+                {exemption.reason}
+              </p>
+            ) : mfaPolicy.required && !user.mfaEnabled ? (
+              <p className="text-muted-foreground">Your organization requires it: they can only set it up until they do.</p>
+            ) : null}
+            {manageMfa && !self ? (
+              <div className="flex flex-wrap gap-2">
+                {user.mfaEnabled ? <ResetMfaButton userId={user.id} /> : null}
+                <MfaExemptionControl userId={user.id} exempt={exemption !== null} />
+              </div>
+            ) : null}
             <p className="text-muted-foreground">Last sign-in: {user.lastLoginAt ? clinicalDateTime(user.lastLoginAt) : "never"}</p>
             {manage && !self ? <MembershipControl userId={user.id} status={user.membershipStatus === "active" ? "active" : "suspended"} /> : null}
             {self ? <p className="text-meta text-muted-foreground">You cannot suspend yourself. Change your own password under My account.</p> : null}
