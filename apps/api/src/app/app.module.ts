@@ -23,7 +23,7 @@ import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-ad
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
-import { AppImmunizationContext } from "./adapters/immunization-adapters";
+import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immunization-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -162,6 +162,7 @@ export class AppModule implements NestModule {
           imports: [PatientModule, AuthModule, InventoryModule],
           patientDirectory: AppPatientDirectory,
           immunizationContext: AppImmunizationContext,
+          procedureSupplies: AppProcedureSupplies,
         }),
         prescriptions,
         carePlans,

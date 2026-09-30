@@ -2989,6 +2989,18 @@ export interface DentalSupplyUse {
   lines: DentalSupplyUseLine[];
 }
 
+/** A supply use of a dental or clinic procedure (same shape from both APIs). */
+export type SupplyUse = DentalSupplyUse;
+export type SupplyUseLine = DentalSupplyUseLine;
+
+/** What a supplies form needs: the facility's stock locations and the items with usable stock per location. */
+export type SupplyOptions = Omit<DentalSupplyOptions, "templates" | "defaultLocationId"> & { defaultLocationId?: string | null };
+
+/** `GET /clinic/procedure-supplies/options`: as for dental, with templates per catalogue entry. */
+export interface ProcedureSupplyOptions extends SupplyOptions {
+  templates: Array<{ definitionId: string; items: Array<{ itemId: string; quantity: number }> }>;
+}
+
 /** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
 export interface DentalRecordSupplies {
   supplyUses?: DentalSupplyUse[];

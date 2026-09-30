@@ -102,8 +102,23 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
 /encounters/:id/procedures`, `GET /patients/:id/procedures`, `POST /procedures/:id/entered-in-error`. Audit
   `clinic.procedure-catalog.create|update`, `encounter.procedure.record` (the late-entry reason as the audit reason),
   `encounter.procedure.entered-in-error`, `encounter.procedure.view`. No new permission.
-- **Not built**: supplies used (taken from inventory as dental procedures do), consent forms for procedures, templates of
-  procedure notes, and procedures outside a consultation.
+- **Supplies used** (migration `0087`, `ProcedureSuppliesService`, the dental pattern): each catalogue entry may list the
+  supplies it usually uses (`clinic_procedure_supply_template_item`; `PUT /clinic/procedure-definitions/:id/supplies`,
+  `clinic.configure`, audited `clinic.procedure-supply-template.update`; staff `/clinic/procedures`). After a procedure,
+  staff with `encounter.write` confirm what was used (prefilled from the template) and the stock location of the
+  selected facility: `POST /procedures/:id/supplies` issues it through inventory's own command
+  (`InventoryStockService.issueForSource`, behind the `ProcedureSupplies` port, in the clinic's transaction: first expiry
+  first out, never expired lots, all lines or none, controlled items with a reason and a reference, only
+  `CLINIC_SUPPLY_CATEGORIES` — medical supply, medicine, PPE, other; never dental supplies, reagents or vaccines).
+  Idempotent by key; a further use may follow. Unused supplies go back only through `POST /procedures/:id/supplies/returns`
+  (a reason; never more than is still out per issued line, to the same lots and location), also after the procedure
+  was entered in error; a procedure entered in error takes no new supplies (`procedure_entered_in_error`). Append-only
+  `clinic_procedure_supply_use` / `_line` (item and lot snapshot for traceability); ledger source `clinic_procedure`,
+  "Clinic procedure". `GET /encounters/:id/procedure-supplies`, `GET /clinic/procedure-supplies/options`. Audit
+  `clinic.procedure-supplies.issue|return`; events `ClinicProcedureSuppliesIssued|Returned` (ids and counts). The pure
+  rules are shared with dentistry (`libs/core`, `supplies/supply-use.ts`). No default stock location per facility (staff
+  choose each time) and supplies are not charged automatically.
+- **Not built**: consent forms for procedures, templates of procedure notes, and procedures outside a consultation.
 
 ## Patient history
 

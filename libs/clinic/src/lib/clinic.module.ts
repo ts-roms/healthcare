@@ -35,7 +35,8 @@ import { ImmunizationService } from "./immunizations/immunization.service";
 import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
 import { PatientHistoryController } from "./history/history.controller";
 import { PatientHistoryService } from "./history/history.service";
-import { PROCEDURE_STAFF_NAMES } from "./procedures/ports";
+import { PROCEDURE_STAFF_NAMES, PROCEDURE_SUPPLIES, type ProcedureSupplies } from "./procedures/ports";
+import { ProcedureSuppliesService } from "./procedures/procedure-supplies.service";
 import { ClinicProcedureController } from "./procedures/procedure.controller";
 import { ClinicProcedureService } from "./procedures/procedure.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
@@ -48,6 +49,8 @@ export interface ClinicModuleOptions {
   patientDirectory: Type<PatientDirectory>;
   /** Staff names and vaccine stock for immunizations (adapter in apps/api). */
   immunizationContext: Type<ImmunizationContext>;
+  /** Supplies used in clinic procedures, taken from inventory (apps/api/src/app/adapters). */
+  procedureSupplies: Type<ProcedureSupplies>;
 }
 
 /** Clinic / EMR: scheduling, queue, triage, encounters, diagnoses, clinic dashboard. */
@@ -101,6 +104,8 @@ export class ClinicModule {
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ClinicProcedureService,
         { provide: PROCEDURE_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
+        ProcedureSuppliesService,
+        { provide: PROCEDURE_SUPPLIES, useClass: options.procedureSupplies },
       ],
       exports: [
         AutomaticNoShows,

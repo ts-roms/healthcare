@@ -31,5 +31,7 @@ export * from "./lib/history/history.service";
 export * from "./lib/procedures/procedure.schema";
 export * from "./lib/procedures/procedure.rules";
 export * from "./lib/procedures/procedure.service";
+export * from "./lib/procedures/procedure-supplies.service";
+export { CLINIC_PROCEDURE_SUPPLY_SOURCE, CLINIC_SUPPLY_CATEGORIES, type ProcedureSupplies } from "./lib/procedures/ports";
 export * from "./lib/referrals/referral.service";
 export * from "./lib/referrals/referral.rules";

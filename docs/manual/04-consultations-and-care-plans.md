@@ -207,6 +207,23 @@ Procedures are not recorded in online consultations. After the consultation is s
 they must say **why it is recorded after signing**; it is marked **Recorded after signing**. A mistake: **Entered in error…** with a reason (the
 person who recorded it, or someone who may amend consultations). It stays listed, struck through, and a charge not yet on an invoice is cancelled.
 
+**Supplies used.** Under each procedure, **Supplies used** takes what you used from the facility's stock:
+
+1. Under **Confirm the supplies used**, check the list. It starts from the supplies your clinic listed for that procedure; change quantities,
+   **Add supply** or remove a line.
+2. Choose where they were **Taken from** (a stock location of your facility). Each line shows how much is usable there.
+3. For a controlled item, enter a **Reason** and a **Reference** (for example the register entry).
+4. Select **Issue from stock**.
+
+The oldest-expiring lots are used first and expired lots never. If anything is short, nothing is issued and the line is marked. The lots issued are
+listed for traceability. To record more later, use the form again. To give back what was not used, select **Return unused supplies…**, enter how
+many of each lot come back and a reason, then **Return to stock** — this also works after a procedure was entered in error, which never returns
+supplies by itself.
+
+An administrator lists the supplies each procedure usually uses under **Clinic → Procedures**, **Supplies per procedure** (**Edit**, **Add supply**,
+**Save**). This is only a starting list. Only medical supplies, medicines, PPE and other items can be used; dental supplies, reagents and vaccines
+cannot.
+
 ## How to review and record the history in the consultation
 
 The encounter workspace has a **Medical, medication, family and social history** section: past procedures and conditions, medicines taken that
