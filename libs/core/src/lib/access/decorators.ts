@@ -14,6 +14,7 @@ export const ACCESS_METADATA = {
   permissions: "access:permissions",
   platformAdmin: "access:platform-admin",
   facility: "access:facility",
+  mfaEnrollment: "access:mfa-enrollment",
 } as const;
 
 /** No authentication (login, health checks). Use sparingly. */
@@ -27,6 +28,12 @@ export const RequirePlatformAdmin = () => SetMetadata(ACCESS_METADATA.platformAd
 
 /** Request must carry an X-Facility-Id header the caller has access to. */
 export const RequireFacility = () => SetMetadata(ACCESS_METADATA.facility, true);
+
+/**
+ * Open to a signed-in member whose organization requires two-step verification they have not set up yet (their own
+ * account, facilities, sign-out and enrollment). Every other route answers `403 mfa_enrollment_required` until they do.
+ */
+export const AllowDuringMfaEnrollment = () => SetMetadata(ACCESS_METADATA.mfaEnrollment, true);
 
 export const CurrentActor = createParamDecorator((_: unknown, context: ExecutionContext): Actor => {
   const actor = context.switchToHttp().getRequest<Request>().actor;

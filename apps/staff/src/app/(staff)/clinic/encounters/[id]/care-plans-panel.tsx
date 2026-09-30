@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  DateInput,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -331,7 +332,7 @@ function NewCarePlanDialog({
               </div>
               <div className="grid gap-1 sm:col-span-1">
                 <Label htmlFor="cp-start">Start</Label>
-                <Input id="cp-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <DateInput id="cp-start" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div className="grid gap-1 sm:col-span-6">
                 <Label htmlFor="cp-description">Description</Label>
@@ -391,10 +392,9 @@ function NewCarePlanDialog({
                     onChange={(e) => setGoal(g.key, { targetValue: e.target.value })}
                     placeholder="Target (< 7%)"
                   />
-                  <Input
+                  <DateInput
                     aria-label={`Goal ${i + 1} target date`}
                     className="sm:col-span-2"
-                    type="date"
                     value={g.targetDate}
                     onChange={(e) => setGoal(g.key, { targetDate: e.target.value })}
                   />
@@ -475,9 +475,8 @@ function NewCarePlanDialog({
                     <Label htmlFor={`act-due-${a.key}`} className="text-meta">
                       Due
                     </Label>
-                    <Input
+                    <DateInput
                       id={`act-due-${a.key}`}
-                      type="date"
                       className="w-40"
                       min={today}
                       value={a.dueDate}

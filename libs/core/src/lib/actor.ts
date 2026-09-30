@@ -12,6 +12,8 @@ export interface Actor {
   facilityId?: string;
   isPlatformAdmin: boolean;
   permissions: ReadonlySet<string>;
+  /** The organization requires two-step verification and this member has not set it up (nor is exempt). */
+  mfaEnrollmentRequired?: boolean;
   request: RequestMetadata;
 }
 

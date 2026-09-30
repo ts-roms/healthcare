@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CircleAlertIcon, CircleCheckIcon, CircleXIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, DateInput, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -54,11 +54,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
         <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className="grid gap-1">
             <Label htmlFor="audit-from">From (day)</Label>
-            <Input id="audit-from" name="from" type="date" defaultValue={filters.from} />
+            <DateInput id="audit-from" name="from" defaultValue={filters.from} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="audit-to">To (day)</Label>
-            <Input id="audit-to" name="to" type="date" defaultValue={filters.to} />
+            <DateInput id="audit-to" name="to" defaultValue={filters.to} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="audit-action">Action</Label>

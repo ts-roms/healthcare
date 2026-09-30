@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { Badge, Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, DateInput, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
@@ -57,7 +57,7 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
         </label>
         <label className="grid gap-1">
           <span className="text-meta font-medium text-muted-foreground">Birth date</span>
-          <Input name="birthDate" type="date" defaultValue={birthDate} className="w-44" />
+          <DateInput name="birthDate" defaultValue={birthDate} className="w-44" />
         </label>
         <Button type="submit" size="sm">
           <SearchIcon /> Search

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { ActionMetric, AppointmentCard, AttentionList, QueueBoard } from "@healthcare/ui/healthcare";
+import { CalendarCheckIcon, ClockIcon, SearchIcon, StethoscopeIcon, UserCheckIcon, UserPlusIcon } from "lucide-react";
+import { ActionMetric, AgendaList, AppointmentCard, AttentionList, MiniCalendar, QueueBoard, StatCard, type AgendaEntry } from "@healthcare/ui/healthcare";
 import {
   Button,
   Card,
@@ -83,6 +83,23 @@ async function ClinicToday({ session, facility }: { session: Me; facility: { id:
     can(session, "care-plan.read") ? api<DueCareActivity[]>("/care-plans/activities/due", { query: { withinDays: 7 } }) : Promise.resolve(null),
     canQueue ? api<QueueVisit[]>("/queue") : Promise.resolve(null),
   ]);
+  const today = todayIn(facility.timezone);
+  const agenda = (due ?? [])
+    .filter((a) => a.dueDate)
+    .slice(0, 5)
+    .map((a) => {
+      const d = new Date(`${a.dueDate}T00:00:00Z`);
+      return {
+        id: a.id,
+        iso: a.dueDate as string,
+        tag: a.overdue ? "Overdue" : "Follow-up",
+        title: a.description,
+        time: a.patient?.displayName ?? a.planTitle,
+        day: String(d.getUTCDate()),
+        weekday: new Intl.DateTimeFormat("en-PH", { weekday: "short", timeZone: "UTC" }).format(d),
+        href: `/clinic/care-plans/${a.carePlanId}`,
+      } satisfies AgendaEntry & { iso: string };
+    });
   const attention = attentionItems(dashboard, { due, canOpenEncounters: can(session, "encounter.read"), canOpenQueue: canQueue });
 
   return (
@@ -96,63 +113,85 @@ async function ClinicToday({ session, facility }: { session: Me; facility: { id:
           </span>
         ) : null}
       </h2>
-      <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="p-1">
-          <ActionMetric value={dashboard.appointments.total} label="Appointments" href={canAppointments ? "/appointments" : undefined} />
-          <ActionMetric
-            value={dashboard.queue.waiting}
-            label="Waiting"
-            tone={dashboard.queue.waiting ? "warning" : "default"}
-            href={canQueue ? "/queue" : undefined}
-          />
-          <ActionMetric value={dashboard.queue.inConsultation} label="With provider" href={canQueue ? "/queue" : undefined} />
-          <ActionMetric value={dashboard.encounters.completedToday} label="Seen" href={can(session, "encounter.read") ? "/clinic/encounters" : undefined} />
-          <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 border-t px-2 py-2 text-table">
-            <dt className="text-muted-foreground">Average wait</dt>
-            <dd className="tabular text-right font-medium">{minutesLabel(dashboard.queue.averageWaitMinutes)}</dd>
-            <dt className="text-muted-foreground">No-show rate</dt>
-            <dd className="tabular text-right font-medium">{Math.round(dashboard.appointments.noShowRate * 100)}%</dd>
-          </dl>
-        </Card>
-        <AttentionList items={attention} />
-        {canAppointments ? <NextPatients session={session} facility={facility} /> : <div />}
-      </div>
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Appointments"
+              value={dashboard.appointments.total}
+              icon={CalendarCheckIcon}
+              href={canAppointments ? "/appointments" : undefined}
+              footer={`No-show rate ${Math.round(dashboard.appointments.noShowRate * 100)}%`}
+            />
+            <StatCard
+              label="Waiting"
+              value={dashboard.queue.waiting}
+              icon={ClockIcon}
+              tone={dashboard.queue.waiting ? "warning" : "default"}
+              href={canQueue ? "/queue" : undefined}
+              footer={`Average wait ${minutesLabel(dashboard.queue.averageWaitMinutes)}`}
+            />
+            <StatCard
+              label="With provider"
+              value={dashboard.queue.inConsultation}
+              icon={StethoscopeIcon}
+              href={canQueue ? "/queue" : undefined}
+              footer="In consultation now"
+            />
+            <StatCard
+              label="Seen"
+              value={dashboard.encounters.completedToday}
+              icon={UserCheckIcon}
+              href={can(session, "encounter.read") ? "/clinic/encounters" : undefined}
+              footer="Consultations completed today"
+            />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AttentionList items={attention} />
+            {canAppointments ? <NextPatients session={session} facility={facility} /> : <div />}
+          </div>
 
-      {dashboard.providerWorkload.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Provider workload</CardTitle>
-          </CardHeader>
-          <CardContent className="py-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Practitioner</TableHead>
-                  <TableHead className="text-right">Booked</TableHead>
-                  <TableHead className="text-right">Seen</TableHead>
-                  <TableHead className="text-right">Waiting</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dashboard.providerWorkload.map((w) => (
-                  <TableRow key={w.practitionerId}>
-                    <TableCell>{w.displayName}</TableCell>
-                    <TableCell className="tabular text-right">{w.booked}</TableCell>
-                    <TableCell className="tabular text-right">{w.seen}</TableCell>
-                    <TableCell className="tabular text-right">{w.waiting}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : null}
+          {dashboard.providerWorkload.length ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Provider workload</CardTitle>
+              </CardHeader>
+              <CardContent className="py-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Practitioner</TableHead>
+                      <TableHead className="text-right">Booked</TableHead>
+                      <TableHead className="text-right">Seen</TableHead>
+                      <TableHead className="text-right">Waiting</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboard.providerWorkload.map((w) => (
+                      <TableRow key={w.practitionerId}>
+                        <TableCell>{w.displayName}</TableCell>
+                        <TableCell className="tabular text-right">{w.booked}</TableCell>
+                        <TableCell className="tabular text-right">{w.seen}</TableCell>
+                        <TableCell className="tabular text-right">{w.waiting}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {queue && queue.length ? (
-        <div className="overflow-x-auto">
-          <QueueBoard entries={queue.map(toQueueEntry)} statuses={QUEUE_BOARD_STATUSES} hideDone className="min-w-[48rem]" />
+          {queue && queue.length ? (
+            <div className="overflow-x-auto">
+              <QueueBoard entries={queue.map(toQueueEntry)} statuses={QUEUE_BOARD_STATUSES} hideDone className="min-w-[48rem]" />
+            </div>
+          ) : null}
         </div>
-      ) : null}
+        <aside className="flex flex-col gap-4" aria-label="Calendar and follow-ups">
+          <MiniCalendar today={today} marked={agenda.map((e) => e.iso)} />
+          {due ? <AgendaList title="Follow-ups due" entries={agenda} empty="No follow-ups due in the next 7 days." /> : null}
+        </aside>
+      </div>
     </section>
   );
 }

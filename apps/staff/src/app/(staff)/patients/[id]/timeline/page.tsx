@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, CheckIcon, FilterXIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
-import { Button, Input, Label } from "@healthcare/ui/primitives";
+import { Button, DateInput, Label } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { WithheldNote } from "@/components/patient-timeline-view";
 import { api } from "@/lib/api/client";
@@ -75,11 +75,11 @@ export default async function PatientTimelinePage({ params, searchParams }: { pa
             {filters.groups.length ? <input type="hidden" name="groups" value={filters.groups.join(",")} /> : null}
             <div className="flex flex-col gap-1">
               <Label htmlFor="timeline-from">From</Label>
-              <Input id="timeline-from" name="from" type="date" defaultValue={filters.from ?? ""} className="w-40" />
+              <DateInput id="timeline-from" name="from" defaultValue={filters.from ?? ""} className="w-40" />
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor="timeline-to">To</Label>
-              <Input id="timeline-to" name="to" type="date" defaultValue={filters.to ?? ""} className="w-40" />
+              <DateInput id="timeline-to" name="to" defaultValue={filters.to ?? ""} className="w-40" />
             </div>
             <Button type="submit" size="sm" variant="outline">
               Apply dates

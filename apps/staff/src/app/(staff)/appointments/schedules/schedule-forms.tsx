@@ -2,7 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import {
+  Button,
+  DateInput,
+  DateTimeInput,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  NativeSelect,
+  toast,
+} from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { PractitionerDetail } from "@/lib/api/types";
 import { zonedLocalToIso } from "@/lib/clinic-mapping";
@@ -106,11 +119,11 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
         </div>
         <div className="grid gap-1">
           <Label htmlFor="schedule-from">First day</Label>
-          <Input id="schedule-from" type="date" required value={form.validFrom} onChange={set("validFrom")} />
+          <DateInput id="schedule-from" required value={form.validFrom} onChange={set("validFrom")} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="schedule-until">Last day (optional)</Label>
-          <Input id="schedule-until" type="date" min={form.validFrom} value={form.validUntil} onChange={set("validUntil")} />
+          <DateInput id="schedule-until" min={form.validFrom} value={form.validUntil} onChange={set("validUntil")} />
         </div>
       </div>
       <div className="flex gap-2">
@@ -193,11 +206,11 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-start">From</Label>
-          <Input id="closure-start" type="datetime-local" required value={form.starts} onChange={set("starts")} />
+          <DateTimeInput id="closure-start" required value={form.starts} onValueChange={(v) => setForm((f) => ({ ...f, starts: v }))} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-end">Until</Label>
-          <Input id="closure-end" type="datetime-local" required min={form.starts} value={form.ends} onChange={set("ends")} />
+          <DateTimeInput id="closure-end" required min={form.starts} value={form.ends} onValueChange={(v) => setForm((f) => ({ ...f, ends: v }))} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-reason">Reason</Label>
@@ -255,7 +268,7 @@ function PractitionerFields({
       </div>
       <div className="grid gap-1">
         <Label htmlFor={`${prefix}-valid`}>Licence valid until</Label>
-        <Input id={`${prefix}-valid`} type="date" value={form.licenseValidUntil ?? ""} onChange={(e) => set("licenseValidUntil", e.target.value)} />
+        <DateInput id={`${prefix}-valid`} value={form.licenseValidUntil ?? ""} onChange={(e) => set("licenseValidUntil", e.target.value)} />
       </div>
       {users.length > 0 ? (
         <div className="grid gap-1 sm:col-span-2">

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PlugZapIcon, SendIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { EligibilityBadge } from "@/components/eligibility-badge";
 import type { EligibilityCheck, EligibilityOverview } from "@/lib/api/types";
 import { recordEligibility, requestEligibility } from "./eligibility-actions";
@@ -89,7 +89,7 @@ export function PhilHealthEligibility({
           >
             <div className="flex flex-col gap-1">
               <Label htmlFor="elig-date">Date of service</Label>
-              <Input id="elig-date" type="date" value={f.serviceDate} onChange={(e) => setF({ ...f, serviceDate: e.target.value })} />
+              <DateInput id="elig-date" value={f.serviceDate} onChange={(e) => setF({ ...f, serviceDate: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor="elig-answer">PhilHealth&apos;s answer</Label>

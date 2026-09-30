@@ -27,6 +27,10 @@ export class AppPrescribingContext implements PrescribingContext {
     return this.patients.briefs(organizationId, patientIds);
   }
 
+  practitionerNames(organizationId: string, practitionerIds: string[]) {
+    return this.clinic.practitionerNames(organizationId, practitionerIds);
+  }
+
   async prescriber(organizationId: string, userId: string) {
     const practitioner = await this.clinic.practitionerForUser(organizationId, userId);
     return practitioner ? { id: practitioner.id, profession: practitioner.profession, displayName: practitioner.displayName } : undefined;

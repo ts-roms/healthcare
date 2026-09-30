@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, PractitionerCard } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
@@ -46,6 +46,7 @@ export default async function SchedulesPage() {
   const practitionerName = (id: string | null) => (id ? (practitioners.find((p) => p.id === id)?.displayName ?? "A practitioner") : null);
   const roomName = (id: string | null) => (id ? (rooms.find((r) => r.id === id)?.name ?? "A room") : null);
   const active = practitioners.filter((p) => p.status === "active");
+  const todayDow = new Date(`${today}T00:00:00Z`).getUTCDay();
   const byPractitioner = active
     .map((p) => ({ practitioner: p, rows: here.filter((s) => s.practitionerId === p.id) }))
     .filter((g) => g.rows.length > 0 || configure);
@@ -62,6 +63,29 @@ export default async function SchedulesPage() {
         }
       />
       <div className="flex flex-col gap-4 p-4">
+        {active.length > 0 ? (
+          <section aria-label="Practitioners at this facility" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {active.map((p) => {
+              const rows = here.filter((s) => s.practitionerId === p.id);
+              const worksToday = rows.some((s) => s.dayOfWeek === todayDow);
+              const hours = rows
+                .slice(0, 3)
+                .map((s) => `${WEEKDAYS[s.dayOfWeek]!.slice(0, 3)} ${hhmm(s.startTime)}–${hhmm(s.endTime)}`)
+                .join(" · ");
+              return (
+                <PractitionerCard
+                  key={p.id}
+                  name={p.displayName}
+                  specialty={p.specialty ?? labelOf(PROFESSIONS, p.profession)}
+                  hours={rows.length === 0 ? "No schedule here" : `${hours}${rows.length > 3 ? ` · +${rows.length - 3} more` : ""}`}
+                  available={worksToday}
+                  availableLabel="Scheduled today"
+                  unavailableLabel="Not scheduled today"
+                />
+              );
+            })}
+          </section>
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle>Weekly schedules</CardTitle>

@@ -143,9 +143,11 @@ export const PERMISSIONS = [
   // sexual history also need encounter.write.
   "history.read",
   "history.record",
-  // Staff calendar: meetings, events and blocked time beside appointments (migration 0086).
+  // Staff calendar: meetings, events and blocked time beside appointments (migration 0087).
   "calendar.read",
   "calendar.manage",
+  // Staff two-step verification policy: require it, exempt integration accounts, reset a member's (migration 0086).
+  "user.mfa.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

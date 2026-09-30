@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
+import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
 import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
 import { COOKIES } from "@/lib/api/config";
@@ -32,7 +33,8 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       timeZone={timeZone}
       unreadNotices={unread}
     >
-      {children}
+      {/* Until the member sets up the two-step verification their organization requires, the API opens nothing else. */}
+      {session.mfaPolicy.enrollmentRequired ? <MfaEnrollmentGate organizationName={session.organization.name} /> : children}
     </StaffShell>
   );
 }

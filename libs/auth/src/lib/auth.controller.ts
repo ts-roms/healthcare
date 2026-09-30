@@ -1,12 +1,22 @@
 import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { type Actor, CurrentActor, ForbiddenError, Public, RequireFacility, requestMetadataFrom, requireFacilityId } from "@healthcare/core";
+import {
+  type Actor,
+  AllowDuringMfaEnrollment,
+  CurrentActor,
+  ForbiddenError,
+  Public,
+  RequireFacility,
+  requestMetadataFrom,
+  requireFacilityId,
+} from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
 import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RefreshDto } from "./auth.dto";
 import { AccessService, facilitiesInReach } from "./access.service";
 import { AuthService } from "./auth.service";
+import { MfaPolicyService } from "./mfa-policy.service";
 import { REALTIME_TICKET_TTL_SECONDS, TokenService } from "./tokens";
 
 // Credential endpoints get a much tighter rate limit than the API default.
@@ -20,6 +30,7 @@ export class AuthController {
     private readonly access: AccessService,
     private readonly organizations: OrganizationService,
     private readonly tokens: TokenService,
+    private readonly mfaPolicy: MfaPolicyService,
   ) {}
 
   @Post("realtime-tickets")
@@ -62,6 +73,7 @@ export class AuthController {
   }
 
   @Post("logout")
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentActor() actor: Actor): Promise<void> {
@@ -69,10 +81,12 @@ export class AuthController {
   }
 
   @Get("me")
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Current user, organization, facility context and effective permissions" })
   async me(@CurrentActor() actor: Actor) {
     const [user, organization] = await Promise.all([this.auth.getUser(actor.userId), this.organizations.getOrganization(actor.organizationId)]);
+    const mfaPolicy = await this.mfaPolicy.forMember(user.id, actor.organizationId, user.mfaEnabled);
     return {
       user: {
         id: user.id,
@@ -83,11 +97,14 @@ export class AuthController {
       },
       organization: { id: organization.id, code: organization.code, name: organization.name },
       facilityId: actor.facilityId ?? null,
-      permissions: [...actor.permissions].sort(),
+      mfaPolicy,
+      // Until enrollment, the member can do nothing else; the staff app shows only the set-up.
+      permissions: mfaPolicy.enrollmentRequired ? [] : [...actor.permissions].sort(),
     };
   }
 
   @Get("me/facilities")
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Active facilities the current user can work in (holds a role there, or an organization-wide role); for the facility selector",
@@ -109,6 +126,7 @@ export class AuthController {
   }
 
   @Post("password")
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)
@@ -118,6 +136,7 @@ export class AuthController {
   }
 
   @Post("mfa/setup")
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Start TOTP enrollment; returns the secret and otpauth URI for a QR code" })
   setupMfa(@CurrentActor() actor: Actor) {
@@ -125,6 +144,7 @@ export class AuthController {
   }
 
   @Post("mfa/confirm")
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)

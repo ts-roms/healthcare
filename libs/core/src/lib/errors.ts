@@ -61,10 +61,11 @@ export class BusinessRuleError extends DomainError {
 }
 
 export class ForbiddenError extends DomainError {
-  readonly code = "forbidden";
+  readonly code: string;
   readonly httpStatus = 403;
-  constructor(message = "You do not have permission to perform this action") {
+  constructor(message = "You do not have permission to perform this action", code = "forbidden") {
     super(message);
+    this.code = code;
   }
 }
 

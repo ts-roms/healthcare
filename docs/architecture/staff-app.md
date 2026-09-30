@@ -233,7 +233,11 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
   (only roles whose every permission the administrator holds are offered — the API refuses the others), revoke with a reason, suspend or reactivate
-  with a reason (not oneself). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+  with a reason (not oneself); with `user.mfa.manage`, exempt from the two-step verification requirement (reason) or reset two-step verification
+  (reason; ends their sessions). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+- `/admin/security` (`user.read`; changes `user.mfa.manage`): the staff two-step verification requirement (on only once the administrator's own is on),
+  member figures, who still lacks it, exempt accounts. Actions and controls in `app/(staff)/admin/security/`. While `GET /auth/me` says
+  `mfaPolicy.enrollmentRequired`, the `(staff)` layout renders `MfaEnrollmentGate` (set-up only) instead of the page: the API refuses everything else.
 - `/admin/roles` (`user.read`; `role.manage` to create): roles with their permissions grouped by area; a new organization role can only include
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
@@ -241,9 +245,9 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
-  (setup key and `otpauth:` link; no QR image) or off (password and code).
+  (setup key and `otpauth:` link; no QR image) or off (password and code; not while the organization requires it).
 
-Not built: resetting another person's password or two-step verification (no API), editing roles, coding systems.
+Not built: resetting another person's password (no API), editing roles, coding systems.
 
 ## Integrations (administration)
 
@@ -270,6 +274,7 @@ cost per item, and received and used in a period. See `docs/domains/inventory.md
 
 ## Pharmacy
 
+`/clinic/prescriptions` (`prescription.read`, selected facility): prescriptions issued at the facility over a period (today by default, ≤ 92 days; `lib/prescription-list.ts`), **Everyone at this facility** or **Issued by me**, by status; each opens its consultation.
 `/pharmacy` (`prescription.dispense`): find a prescription by its number; today's dispenses at the facility.
 `/pharmacy/[prescriptionId]`: the patient's identification, allergy warnings the prescriber overrode, what was prescribed,
 dispensed and remains; dispense from stock (per item: stock item and location, quantity in its unit; needs
@@ -298,3 +303,7 @@ visit's encounter workspace. `/dental/settings`: the procedure catalog, supply t
 default supply location, and whether patients see their dental records in MyHealth, with what they would see (`dental.settings.manage`). Display helpers (notation, tooth and surface names, chart codes) live in
 `libs/domain/src/dental.ts`; the odontogram and tooth editor in `libs/ui/src/healthcare/odontogram.tsx`. See
 `docs/domains/dental.md`.
+
+## Visual theme (Medlink-style)
+
+Teal tokens, rounded corners, a light sidebar with a filled pill for the active item, pill buttons and badges, tinted table headers and Plus Jakarta Sans are set in `libs/ui/src/styles/theme.css` and the primitives. Dark hero surfaces (login, welcome) use the `surface-deep` class. Overview components in `libs/ui/src/healthcare`: `StatCard` (footer states a fact from the data, never an invented trend), `PractitionerCard`, `MiniCalendar` and `AgendaList`. Staff `/doctors` and `/doctors/[id]` show practitioners, their weekly schedule and today's appointments from existing APIs. Satisfaction scores, department performance and doctor photos have no data source and are not shown.

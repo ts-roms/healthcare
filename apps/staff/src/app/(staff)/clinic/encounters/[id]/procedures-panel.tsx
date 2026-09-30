@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CheckCircle2Icon, HandIcon, PlusIcon, ShieldAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, DateTimeInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import { markProcedureInError, recordProcedure } from "@/app/(staff)/clinic/procedure-actions";
 import type { ClinicProcedure, Practitioner, ProcedureDefinition } from "@/lib/api/types";
 import { BLANK_PROCEDURE_FORM, definitionLabel, type ProcedureForm } from "@/lib/procedure-form";
@@ -254,7 +254,7 @@ function RecordProcedureForm({
       </div>
       <div className="grid gap-1 sm:col-span-2">
         <Label htmlFor={`${id}-when`}>When</Label>
-        <Input id={`${id}-when`} type="datetime-local" value={form.performedAt} onChange={(e) => set("performedAt", e.target.value)} />
+        <DateTimeInput id={`${id}-when`} value={form.performedAt} onValueChange={(v) => set("performedAt", v)} />
         <span className="text-meta text-muted-foreground">Leave empty for now.</span>
       </div>
       <div className="grid gap-1 sm:col-span-2">

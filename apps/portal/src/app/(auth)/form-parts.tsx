@@ -1,5 +1,5 @@
 import { AlertTriangleIcon } from "lucide-react";
-import { Input, Label } from "@healthcare/ui/primitives";
+import { DateInput, Input, Label } from "@healthcare/ui/primitives";
 
 export function FormError({ message }: { message?: string }) {
   if (!message) return null;
@@ -21,7 +21,18 @@ export function Field({ name, label, hint, error, ...input }: FieldProps) {
       <Label htmlFor={name} className="text-body">
         {label}
       </Label>
-      <Input id={name} name={name} aria-invalid={error ? true : undefined} aria-describedby={described} className="h-11 text-section" {...input} />
+      {input.type === "date" ? (
+        <DateInput
+          id={name}
+          name={name}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={described}
+          className="h-11 text-section"
+          {...{ ...input, type: undefined, min: undefined, max: undefined }}
+        />
+      ) : (
+        <Input id={name} name={name} aria-invalid={error ? true : undefined} aria-describedby={described} className="h-11 text-section" {...input} />
+      )}
       {hint ? (
         <p id={`${name}-hint`} className="text-meta text-muted-foreground">
           {hint}

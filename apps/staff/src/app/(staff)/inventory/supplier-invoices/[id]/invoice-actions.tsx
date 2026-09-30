@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { SupplierInvoice, WithholdingCode } from "@/lib/api/types";
 import { parsePesos, peso } from "@/lib/billing-mapping";
 import type { SupplierInvoiceAction } from "@/lib/inventory-mapping";
@@ -69,7 +69,7 @@ export function SupplierInvoiceActions({
           <CardContent className="flex flex-col gap-2">
             <div className="grid gap-1">
               <Label htmlFor="paid-on">Paid on</Label>
-              <Input id="paid-on" type="date" value={payment.paidOn} onChange={(e) => setPayment({ ...payment, paidOn: e.target.value })} />
+              <DateInput id="paid-on" value={payment.paidOn} onChange={(e) => setPayment({ ...payment, paidOn: e.target.value })} />
             </div>
             <div className="grid gap-1">
               <Label htmlFor="payment-reference">Check number or transfer reference</Label>

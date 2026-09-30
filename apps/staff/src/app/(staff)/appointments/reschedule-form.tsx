@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Button, Checkbox, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
+import { Button, Checkbox, DateInput, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { AppointmentItem, Availability, Practitioner } from "@/lib/api/types";
 import { todayIn, zonedLocalToIso } from "@/lib/clinic-mapping";
@@ -98,9 +98,8 @@ export function RescheduleForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor={id("date")}>Day</Label>
-          <Input
+          <DateInput
             id={id("date")}
-            type="date"
             min={today}
             value={date}
             onChange={(e) => {

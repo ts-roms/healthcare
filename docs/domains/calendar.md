@@ -6,7 +6,7 @@ A staff calendar for a facility: meetings, events, blocked time, trainings and r
 
 ## Entities
 
-- `calendar_event` (migration `0086`): facility, title, kind (`meeting | event | blocked | training | reminder`), `starts_at`/`ends_at` (at most 31 days), `all_day` (whole days of the facility's time zone), location, notes, visibility (`facility | invitees`), status (`scheduled | cancelled`), organizer (user id + name as it was), cancel reason/by/at, optimistic `version`. Events are never deleted.
+- `calendar_event` (migration `0087`): facility, title, kind (`meeting | event | blocked | training | reminder`), `starts_at`/`ends_at` (at most 31 days), `all_day` (whole days of the facility's time zone), location, notes, visibility (`facility | invitees`), status (`scheduled | cancelled`), organizer (user id + name as it was), cancel reason/by/at, optimistic `version`. Events are never deleted.
 - `calendar_event_attendee`: the invited users — the organization's active clinicians (practitioners linked to a user).
 - Events carry no patient data; the form says so.
 
@@ -28,7 +28,7 @@ None published.
 
 ## Permissions
 
-`calendar.read` (org_admin, physician, nurse, dentist, dental_assistant, receptionist, records_officer) and `calendar.manage` (all of these except dental_assistant and records_officer), migration `0086`. Appointments appear only for users who also hold `appointment.read`.
+`calendar.read` (org_admin, physician, nurse, dentist, dental_assistant, receptionist, records_officer) and `calendar.manage` (all of these except dental_assistant and records_officer), migration `0087`. Appointments appear only for users who also hold `appointment.read`.
 
 ## API
 
