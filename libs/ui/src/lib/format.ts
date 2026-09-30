@@ -110,7 +110,7 @@ export function clinicalTime(iso: string) {
 }
 
 export function clinicalMonth(iso: string) {
-  return MONTHS[zoned(iso).m - 1]!;
+  return MONTHS[zoned(iso).m - 1] ?? "";
 }
 
 export function relativeDay(iso: string, now: Date = new Date()) {

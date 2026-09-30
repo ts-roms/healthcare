@@ -32,13 +32,13 @@ export const ResultEntry: StoryObj = {
   },
 };
 
-export const ReadOnlyResults: StoryObj = { render: () => <LabResultTable observations={labWorklist[3]!.observations} className="max-w-xl" /> };
+export const ReadOnlyResults: StoryObj = { render: () => <LabResultTable observations={labWorklist[3]?.observations ?? []} className="max-w-xl" /> };
 
 export const SingleResult: StoryObj = {
   render: () => (
     <div className="flex flex-col gap-2">
       <LabResult observation={{ id: "1", code: "4548-4", name: "HbA1c", value: 7.1, unit: "%", referenceHigh: 5.7, referenceText: "< 5.7", flag: "high" }} />
-      <LabResult observation={labWorklist[4]!.observations[0]!} />
+      {labWorklist[4]?.observations[0] ? <LabResult observation={labWorklist[4].observations[0]} /> : null}
     </div>
   ),
 };

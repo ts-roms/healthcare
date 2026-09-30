@@ -19,7 +19,7 @@ export const Appointments: StoryObj = {
           <AppointmentCard key={a.id} appointment={a} />
         ))}
       </div>
-      <AppointmentCard variant="card" appointment={appointments[2]!} action={<Button size="sm">Join</Button>} />
+      {appointments[2] ? <AppointmentCard variant="card" appointment={appointments[2]} action={<Button size="sm">Join</Button>} /> : null}
     </div>
   ),
 };

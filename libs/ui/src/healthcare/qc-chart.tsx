@@ -130,7 +130,7 @@ export function QcLeveyJenningsChart({ points, name, unit, height = 220, classNa
                 line={{ stroke: SERIES_COLORS[i % SERIES_COLORS.length], strokeWidth: 1.5 }}
                 isAnimationActive={false}
                 shape={(props: { cx?: number; cy?: number; payload?: QcChartPoint }) => (
-                  <QcDot cx={props.cx ?? 0} cy={props.cy ?? 0} status={props.payload?.status ?? "accepted"} color={SERIES_COLORS[i % SERIES_COLORS.length]!} />
+                  <QcDot cx={props.cx ?? 0} cy={props.cy ?? 0} status={props.payload?.status ?? "accepted"} color={SERIES_COLORS[i % SERIES_COLORS.length] ?? "var(--chart-1)"} />
                 )}
               />
             ))}

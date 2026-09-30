@@ -39,7 +39,8 @@ export function DiagnosisSelector({ catalog, value, onChange, placeholder = "Sea
   };
   const remove = (code: string) => {
     const next = value.filter((v) => v.code !== code);
-    if (next.length && !next.some((v) => v.primary)) next[0] = { ...next[0]!, primary: true };
+    const first = next[0];
+    if (first && !next.some((v) => v.primary)) next[0] = { ...first, primary: true };
     onChange(next);
   };
   const makePrimary = (code: string) => onChange(value.map((v) => ({ ...v, primary: v.code === code })));

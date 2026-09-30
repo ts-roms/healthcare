@@ -80,6 +80,8 @@ export interface LabWorklistProps {
  */
 export function LabWorklist({ orders, selectedId, onSelect, filter = "", className }: LabWorklistProps) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "priority", desc: false }]);
+  // TanStack Table returns unmemoizable functions; React Compiler skips this component by design.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: orders,
     columns,
