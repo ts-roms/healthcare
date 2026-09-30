@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { Badge, Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, Checkbox, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
@@ -8,38 +8,62 @@ import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
 import type { Page, PatientSummary } from "@/lib/api/types";
 import { label } from "@/lib/patient-mapping";
+import { IDENTIFIER_TYPE_OPTIONS } from "@/lib/patient-edit";
 
 export const metadata = { title: "Patients" };
 
 const PAGE_SIZE = 25;
 
-export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ q?: string; birthDate?: string; page?: string }> }) {
-  const { q = "", birthDate = "", page: pageParam } = await searchParams;
+export default async function PatientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; birthDate?: string; idType?: string; idValue?: string; inactive?: string; page?: string }>;
+}) {
+  const { q = "", birthDate = "", idType: idTypeParam = "", idValue: idValueParam = "", inactive, page: pageParam } = await searchParams;
+  const idType = (IDENTIFIER_TYPE_OPTIONS as readonly string[]).includes(idTypeParam) ? idTypeParam : "";
+  const idValue = idType ? idValueParam.trim().slice(0, 64) : "";
+  const includeInactive = inactive === "1";
   const session = await getSession();
   const canOpenWorkspace = can(session, "patient.read");
   const page = Math.max(1, Number(pageParam) || 1);
   const query = q.trim();
-  const hasCriteria = query.length >= 2 || Boolean(birthDate);
+  const hasCriteria = query.length >= 2 || Boolean(birthDate) || Boolean(idValue);
 
   let result: Page<PatientSummary> | undefined;
   let error: string | undefined;
   if (hasCriteria) {
     try {
       result = await api<Page<PatientSummary>>("/patients", {
-        query: { q: query.length >= 2 ? query : undefined, birthDate: birthDate || undefined, page, pageSize: PAGE_SIZE },
+        query: {
+          q: query.length >= 2 ? query : undefined,
+          birthDate: birthDate || undefined,
+          identifierType: idValue ? idType : undefined,
+          // PhilHealth PINs are stored without dashes.
+          identifierValue: idValue ? (idType === "philhealth_pin" ? idValue.replace(/-/g, "") : idValue) : undefined,
+          includeInactive: includeInactive ? "true" : undefined,
+          page,
+          pageSize: PAGE_SIZE,
+        },
       });
     } catch (e) {
       error = e instanceof ApiError && e.status === 403 ? "You don't have permission to search patients." : userMessage(e);
     }
   }
 
-  const pageHref = (p: number) => `/patients?${new URLSearchParams({ ...(query ? { q: query } : {}), ...(birthDate ? { birthDate } : {}), page: String(p) })}`;
+  const pageHref = (p: number) =>
+    `/patients?${new URLSearchParams({
+      ...(query ? { q: query } : {}),
+      ...(birthDate ? { birthDate } : {}),
+      ...(idValue ? { idType, idValue } : {}),
+      ...(includeInactive ? { inactive: "1" } : {}),
+      page: String(p),
+    })}`;
 
   return (
     <>
       <PageHeader
         title="Patients"
-        description="Look up by name, patient number or mobile number, optionally with birth date."
+        description="Look up by name, patient number, mobile number or an ID number, optionally with birth date."
         actions={
           can(session, "patient.register") ? (
             <Button asChild size="sm">
@@ -59,6 +83,25 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
           <span className="text-meta font-medium text-muted-foreground">Birth date</span>
           <Input name="birthDate" type="date" defaultValue={birthDate} className="w-44" />
         </label>
+        <label className="grid gap-1">
+          <span className="text-meta font-medium text-muted-foreground">ID</span>
+          <NativeSelect name="idType" defaultValue={idType} className="w-44">
+            <option value="">Any (no ID)</option>
+            {IDENTIFIER_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {label(t)}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="grid gap-1">
+          <span className="text-meta font-medium text-muted-foreground">ID number</span>
+          <Input name="idValue" defaultValue={idValue} className="w-44 font-mono" maxLength={64} />
+        </label>
+        <label className="flex items-center gap-2 pb-2 text-table">
+          <Checkbox name="inactive" value="1" defaultChecked={includeInactive} />
+          Include inactive records
+        </label>
         <Button type="submit" size="sm">
           <SearchIcon /> Search
         </Button>
@@ -66,7 +109,11 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
 
       {!hasCriteria ? (
         <p className="p-6 text-center text-muted-foreground">
-          {query.length === 1 ? "Enter at least 2 characters." : "Search to find a patient. Results show only what's needed to identify the right person."}
+          {query.length === 1
+            ? "Enter at least 2 characters."
+            : idValueParam.trim() && !idType
+              ? "Choose the kind of ID to search by its number."
+              : "Search to find a patient. Results show only what's needed to identify the right person."}
         </p>
       ) : error ? (
         <p role="alert" className="m-4 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2 text-danger-foreground">
@@ -74,7 +121,10 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
         </p>
       ) : result && result.items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 p-8 text-center text-muted-foreground">
-          <p>No patients match. Check the spelling, or try the birth date or mobile number.</p>
+          <p>
+            No patients match. Check the spelling, or try the birth date or mobile number.
+            {includeInactive ? null : " Inactive records are left out unless you tick Include inactive records."}
+          </p>
           {can(session, "patient.register") ? (
             <Button asChild variant="outline" size="sm">
               <Link href="/patients/new">

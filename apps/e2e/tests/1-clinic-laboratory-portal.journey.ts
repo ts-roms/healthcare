@@ -38,6 +38,20 @@ test.describe("registration to laboratory result in MyHealth", () => {
     await expect(desk.getByText(/BAUTISTA, Carmen/i).first()).toBeVisible();
   });
 
+  test("adds an emergency contact to the record", async () => {
+    await desk.getByRole("link", { name: "Edit details" }).click();
+    await desk.waitForURL(/\/patients\/[0-9a-f-]{36}\/edit$/);
+    await desk.getByRole("button", { name: "Add an emergency contact or guardian…" }).click();
+    await desk.locator("#relationship-name").fill("Jose Bautista");
+    await desk.locator("#relationship-kind").selectOption("spouse");
+    await desk.locator("#relationship-number").fill("0917 555 0100");
+    await desk.getByRole("button", { name: "Add", exact: true }).click();
+    await toast(desk, /Added/);
+    await desk.getByRole("link", { name: "Back to the record" }).click();
+    await desk.waitForURL(/\/patients\/[0-9a-f-]{36}$/);
+    await expect(desk.getByText("Jose Bautista")).toBeVisible();
+  });
+
   test("books today's appointment and checks the patient in", async () => {
     await desk.getByRole("link", { name: "Book appointment" }).click();
     // Each choice reloads the open slots through the URL.
