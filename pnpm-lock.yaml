@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@nestjs/swagger>js-yaml': ^5.4.2
+
 importers:
 
   .:
@@ -57,8 +60,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.7(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.6)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.6.5)
       nodemailer:
-        specifier: ^7.0.13
-        version: 7.0.13
+        specifier: ^10.0.12
+        version: 10.0.12
       otplib:
         specifier: ^12.0.1
         version: 12.0.1
@@ -215,7 +218,7 @@ importers:
         version: 5.111.1(@swc/core@1.15.8(@swc/helpers@0.5.18))(postcss@8.5.28)(webpack-cli@7.2.3)
       webpack-cli:
         specifier: ^7.0.0
-        version: 7.2.3(js-yaml@5.3.0)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
+        version: 7.2.3(js-yaml@5.4.2)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
       webpack-dev-server:
         specifier: ^5.2.1
         version: 5.2.6(webpack-cli@7.2.3)(webpack@5.111.1)
@@ -7628,8 +7631,8 @@ packages:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
-  js-yaml@5.3.0:
-    resolution: {integrity: sha512-muutsYr+e2+d3rTgUGslq5rxbBlUy3cJ61IsHag2QNDQV+7zXWjkUpmALIajhrlLlrgRUiymj6U3zUr/TMK84Q==}
+  js-yaml@5.4.2:
+    resolution: {integrity: sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==}
     hasBin: true
 
   jsesc@3.1.0:
@@ -8378,9 +8381,9 @@ packages:
     resolution: {integrity: sha512-kQK9LGGFiHtrWiNhZtA7Qbw17AQz+dmsEKODRIVTXA9+e5MS/2gZEBhYJt13GrAz5/IOZKddH/0Z3TP/Zgo+yw==}
     engines: {node: '>=18'}
 
-  nodemailer@7.0.13:
-    resolution: {integrity: sha512-PNDFSJdP+KFgdsG3ZzMXCgquO7I6McjY2vlqILjtJd0hy8wEvtugS9xKRF2NWlPNGxvLCXlTNIae4serI7dinw==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.12:
+    resolution: {integrity: sha512-PQ46oNbNMuH/Sno7B5IWIU9etytwrO0xdTFvWXpIQFRXhBAXtzD48243AS+BCbQQTPD8y3fqUrgLn0tSo77gvg==}
+    engines: {node: '>=20.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -12758,7 +12761,7 @@ snapshots:
       '@nestjs/common': 11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core': 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.2.6)(@nestjs/websockets@11.2.6)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/mapped-types': 2.1.1(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      js-yaml: 5.3.0
+      js-yaml: 5.4.2
       lodash: 4.18.1
       path-to-regexp: 8.4.2
       reflect-metadata: 0.2.2
@@ -13194,7 +13197,7 @@ snapshots:
       webpack-subresource-integrity: 5.1.0(webpack@5.111.1)
     optionalDependencies:
       webpack: 5.111.1(@swc/core@1.15.8(@swc/helpers@0.5.18))(postcss@8.5.28)(webpack-cli@7.2.3)
-      webpack-cli: 7.2.3(js-yaml@5.3.0)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
+      webpack-cli: 7.2.3(js-yaml@5.4.2)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
       webpack-dev-server: 5.2.6(webpack-cli@7.2.3)(webpack@5.111.1)
     transitivePeerDependencies:
       - '@babel/traverse'
@@ -18441,7 +18444,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  js-yaml@5.3.0:
+  js-yaml@5.4.2:
     dependencies:
       argparse: 2.0.1
 
@@ -19325,7 +19328,7 @@ snapshots:
 
   node-releases@2.0.57: {}
 
-  nodemailer@7.0.13: {}
+  nodemailer@10.0.12: {}
 
   normalize-path@3.0.0: {}
 
@@ -21844,7 +21847,7 @@ snapshots:
       webpack: 5.111.1(@swc/core@1.15.8(@swc/helpers@0.5.18))(postcss@8.5.28)(webpack-cli@7.2.3)
       webpack-merge: 6.0.1
     optionalDependencies:
-      js-yaml: 5.3.0
+      js-yaml: 5.4.2
       json5: 2.2.3
       webpack-dev-server: 5.2.6(webpack-cli@7.2.3)(webpack@5.111.1)
 
@@ -21891,7 +21894,7 @@ snapshots:
       ws: 8.22.0
     optionalDependencies:
       webpack: 5.111.1(@swc/core@1.15.8(@swc/helpers@0.5.18))(postcss@8.5.28)(webpack-cli@7.2.3)
-      webpack-cli: 7.2.3(js-yaml@5.3.0)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
+      webpack-cli: 7.2.3(js-yaml@5.4.2)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -21935,7 +21938,7 @@ snapshots:
       watchpack: 2.5.2
       webpack-sources: 3.6.0
     optionalDependencies:
-      webpack-cli: 7.2.3(js-yaml@5.3.0)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
+      webpack-cli: 7.2.3(js-yaml@5.4.2)(json5@2.2.3)(webpack-dev-server@5.2.6)(webpack@5.111.1)
     transitivePeerDependencies:
       - '@minify-html/node'
       - '@napi-rs/image'

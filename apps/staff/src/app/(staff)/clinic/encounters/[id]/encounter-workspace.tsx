@@ -32,6 +32,8 @@ import type {
   LabPanel,
   LabTest,
   MedicalCertificate,
+  Practitioner,
+  Referral,
   NoteRevision,
   PatientLabResult,
   PatientSummaryResponse,
@@ -54,6 +56,7 @@ import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { CertificatesPanel } from "./certificates-panel";
+import { ReferralsPanel } from "./referrals-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { LabOrdersPanel } from "./lab-orders-panel";
 import { NoteConflict, NoteEditor } from "./note-editor";
@@ -80,6 +83,7 @@ export function EncounterWorkspace({
   telemedicine,
   lab,
   certificates,
+  referrals,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -112,6 +116,8 @@ export function EncounterWorkspace({
   };
   /** Medical certificates of this consultation (items null: no access). */
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
+  /** Referrals from this consultation (items null: no access). */
+  referrals: { items: Referral[] | null; canRefer: boolean; practitioners: Practitioner[]; currentPractitionerId: string | null };
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -406,6 +412,14 @@ export function EncounterWorkspace({
                   .join("; ")
                   .slice(0, 2000)}
                 today={followUp.today}
+              />
+              <ReferralsPanel
+                encounterId={encounter.id}
+                referrals={referrals.items}
+                canRefer={referrals.canRefer}
+                practitioners={referrals.practitioners}
+                currentPractitionerId={referrals.currentPractitionerId}
+                diagnoses={encounter.diagnoses.filter((d) => d.status === "active").map((d) => ({ id: d.id, label: diagnosisLabel(d) }))}
               />
               <CarePlansPanel
                 plans={carePlans}

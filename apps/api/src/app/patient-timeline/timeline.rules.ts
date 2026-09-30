@@ -8,6 +8,7 @@ import { BadRequestError, type TimelinePosition } from "@healthcare/core";
 export const TIMELINE_KINDS = {
   appointment: { permission: "appointment.read", sources: ["appointment"] },
   encounter: { permission: "encounter.read", sources: ["encounter"] },
+  referral: { permission: "encounter.read", sources: ["referral"] },
   vitals: { permission: "clinical.read", sources: ["vitals"] },
   prescription: { permission: "prescription.read", sources: ["prescription"] },
   lab_order: { permission: "lab.order.read", sources: ["lab_order"] },

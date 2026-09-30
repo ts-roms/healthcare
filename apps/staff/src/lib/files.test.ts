@@ -23,6 +23,8 @@ describe("file routes", () => {
     expect(fileHref.dentalEstimate(id)).toBe(`/files/dental-estimates/${id}`);
     expect(fileApiPath(["medical-certificates", id])).toBe(`/medical-certificates/${id}/certificate.pdf`);
     expect(fileHref.medicalCertificate(id)).toBe(`/files/medical-certificates/${id}`);
+    expect(fileApiPath(["referral-letters", id])).toBe(`/referrals/${id}/letter.pdf`);
+    expect(fileHref.referralLetter(id)).toBe(`/files/referral-letters/${id}`);
   });
 
   it("passes nothing else through", () => {

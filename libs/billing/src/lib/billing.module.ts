@@ -21,7 +21,7 @@ export interface BillingModuleOptions {
   imports?: ModuleMetadata["imports"];
   sources: Type<BillingSources>;
   patients: Type<BillingPatientDirectory>;
-  /** The payment provider adapter (PAYMENT_GATEWAY); unconfigured by default — no provider has been chosen. */
+  /** The payment provider adapter (PAYMENT_GATEWAY); unconfigured by default. The API wires PayMongo when it is configured (apps/api/src/app/adapters/payment-adapters.ts). */
   paymentGateway?: Provider;
 }
 

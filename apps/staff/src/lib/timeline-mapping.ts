@@ -6,7 +6,7 @@ export type StatusTone = "done" | "active" | "waiting" | "stopped" | "failed" | 
 
 /** Filter chips: groups of timeline kinds, in the order shown. */
 export const TIMELINE_GROUPS = [
-  { key: "visits", label: "Visits", kinds: ["appointment", "encounter", "vitals"] },
+  { key: "visits", label: "Visits", kinds: ["appointment", "encounter", "vitals", "referral"] },
   { key: "prescriptions", label: "Prescriptions", kinds: ["prescription"] },
   { key: "laboratory", label: "Laboratory", kinds: ["lab_order", "lab_result_release"] },
   { key: "dental", label: "Dental", kinds: ["dental"] },
@@ -22,6 +22,7 @@ export type TimelineGroupKey = (typeof TIMELINE_GROUPS)[number]["key"];
 export const KIND_LABELS: Record<PatientTimelineKind, string> = {
   appointment: "Appointment",
   encounter: "Encounter",
+  referral: "Referral",
   vitals: "Vital signs",
   prescription: "Prescription",
   lab_order: "Laboratory order",
@@ -97,6 +98,8 @@ export function entryHref(entry: PatientTimelineEntry, patientId: string, timeZo
       return `/clinic/encounters/${link.id}`;
     case "telemedicine":
       return `/telemedicine/${link.id}`;
+    case "referral":
+      return `/clinic/referrals/${link.id}`;
     case "appointment": {
       const params = new URLSearchParams({ date: localDateOf(entry.occurredAt, timeZone) });
       if (entry.sourceIds.practitionerId) params.set("practitionerId", entry.sourceIds.practitionerId);
@@ -139,6 +142,8 @@ const STATUS: Record<string, { label: string; variant: Variant; tone: StatusTone
   // Encounters
   in_progress: { label: "In progress", variant: "info", tone: "active" },
   "encounter:completed": { label: "Signed", variant: "success", tone: "done" },
+  // Referrals
+  "referral:sent": { label: "Sent", variant: "info", tone: "waiting" },
   // Prescriptions, care plans, laboratory
   active: { label: "Active", variant: "info", tone: "active" },
   superseded: { label: "Superseded", variant: "neutral", tone: "stopped" },

@@ -60,6 +60,42 @@ by the issuing practitioner or staff with `encounter.amend`, and another issued.
   `encounter.certificate.print`), `POST /medical-certificates/:id/void`. Audit `encounter.certificate.issue | void`;
   events `MedicalCertificateIssued`, `MedicalCertificateVoided` (ids and the number only).
 
+## Referrals
+
+`referral` (migration `0079`; `libs/clinic/src/lib/referrals`) — made from a consultation (in progress or signed; not one
+entered in error) by its **responsible practitioner** (`encounter.write`; 403 otherwise), either **internal** — to an
+active practitioner of the organization, never oneself — or **external** — to an outside provider named as the referrer
+writes it (facility and contact optional; not verified). The referrer writes the specialty or service asked for, the
+urgency (routine, urgent, emergency — the referrer's own call), the reason (the question for the receiving provider) and
+an optional clinical summary, and picks diagnoses of the consultation to list. Numbered per organization `RF########`.
+What the referrer wrote **never changes** (guard trigger); status moves `sent → accepted | declined | completed |
+cancelled`, `accepted → completed | cancelled`; declined, completed and cancelled are final; nothing is deleted.
+
+- **Internal**: the practitioner referred to **accepts** or **declines** with a reason (`encounter.read` and being that
+  practitioner); an appointment of this patient with them may be **linked** while open (`appointment.manage`); they
+  **complete** it with a note of what came of it (`encounter.write`, after accepting).
+- **External**: the letter goes through the channel the referrer chooses (printed, handed to the patient, sent); when the
+  reply comes back it is **recorded** (`encounter.write`) with its summary and, optionally, the reply stored as a document
+  of the patient (uploaded first). No referral network, form or electronic exchange of any agency or insurer is assumed
+  (an integration dependency if one is required).
+- **Cancel** while open with a reason (≥ 5 characters): the referrer, or staff with `encounter.amend`.
+- **Letter**: a PDF (letterhead, number, date, to whom, contact, specialty, urgency, patient identification, when seen,
+  reason, clinical summary, the listed diagnoses, the patient's **active allergies**, the referrer's name and license
+  number) stored once as a `referral_letter` document of the patient whose id is the referral's; cancelling archives it
+  and the staff copy of a cancelled referral is rendered fresh with a CANCELLED watermark.
+- **Notices**: `ReferralCreated` (internal) → in-app `clinic.referral-notice` to the practitioner referred to;
+  `ReferralAccepted | Declined | Completed` (internal) → to the referrer. The number only; a practitioner without a staff
+  account is not told in the app.
+- **Timeline**: kind `referral` (`encounter.read`): number, specialty, the practitioner or provider, urgency and status —
+  never the reason or summary.
+- API: `GET|POST /encounters/:id/referrals`, `GET /referrals?view=to_me|from_me|open|all[&patientId]`,
+  `GET /referrals/:id` (audited `encounter.referral.view`), `GET /referrals/:id/letter.pdf` (audited
+  `encounter.referral.print`), `POST /referrals/:id/{answer,appointment,complete,cancel}`. Audit
+  `encounter.referral.create | accept | decline | appointment | complete | cancel`; events `ReferralCreated`,
+  `ReferralAccepted`, `ReferralDeclined`, `ReferralCompleted`, `ReferralCancelled` (ids, number, kind and status only).
+- Staff: **Referrals** in the encounter workspace; `/clinic/referrals` (referred to me, made by me, all open, all) and
+  `/clinic/referrals/[id]`. Patients do not see referrals in MyHealth yet (they receive the printed letter).
+
 ## Rules
 
 - Queue order: priority (`emergency`, `urgent`, `routine`), then arrival. Transitions are a state machine

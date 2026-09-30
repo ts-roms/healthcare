@@ -44,8 +44,8 @@ open it with the menu button (**Open navigation**) at the top left.
 - **Dashboard** is always shown.
 - Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
   reach is not shown at all.
-- A few menu entries lead to a page that says "This module is part of the platform roadmap and is not built yet." These are **Clinic → Prescriptions**,
-  **Clinic → Referrals** and **Communications**. Nothing is lost. The work is done elsewhere (for example, prescribing is in the encounter workspace).
+- A few menu entries lead to a page that says "This module is part of the platform roadmap and is not built yet." These are **Clinic → Prescriptions** and
+  **Communications**. Nothing is lost. The work is done elsewhere (for example, prescribing is in the encounter workspace).
 
 What each default role usually sees in the sidebar, besides **Dashboard**:
 

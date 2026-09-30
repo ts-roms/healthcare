@@ -13,6 +13,7 @@ import {
   PgErrorCode,
   requireFacilityId,
   filedAsPatient,
+  isFiledAs,
 } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -193,7 +194,8 @@ export class DentalPlanService {
     input: { acceptedItemIds: string[]; awaitingItemIds: string[]; acknowledgement: string },
   ): Promise<DentalTreatmentPlanRecord> {
     const plan = await this.lock(tx, context.organizationId, planId);
-    if (plan.patientId !== context.patientId) throw new NotFoundError("Treatment plan");
+    // A plan filed under a record since merged into this one is still the patient's to decide.
+    if (!(await isFiledAs(tx, plan.patientId, context.patientId))) throw new NotFoundError("Treatment plan");
     const awaiting = (await this.items(tx, plan.id)).filter((i) => i.status === "proposed").map((i) => i.id);
     const seen = new Set(input.awaitingItemIds);
     if (awaiting.length !== seen.size || awaiting.some((id) => !seen.has(id))) {

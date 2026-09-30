@@ -3022,6 +3022,7 @@ export interface LabQualitySummary {
 export type PatientTimelineKind =
   | "appointment"
   | "encounter"
+  | "referral"
   | "vitals"
   | "prescription"
   | "lab_order"
@@ -3038,6 +3039,7 @@ export type PatientTimelineLinkType =
   | "appointment"
   | "telemedicine"
   | "encounter"
+  | "referral"
   | "patient_laboratory"
   | "dental_record"
   | "care_plan"
@@ -3915,4 +3917,45 @@ export interface ConsentTextStatus {
   consentType: OnlineConsentType;
   current: ConsentTextVersion | null;
   history: ConsentTextVersion[];
+}
+
+// ---- Referrals (migration 0079; docs/domains/clinic.md "Referrals") ----
+
+export type ReferralStatus = "sent" | "accepted" | "declined" | "completed" | "cancelled";
+
+export interface Referral {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  encounterId: string;
+  referringPractitionerId: string;
+  referralNumber: string;
+  kind: "internal" | "external";
+  specialty: string | null;
+  toPractitionerId: string | null;
+  externalProvider: string | null;
+  externalFacility: string | null;
+  externalContact: string | null;
+  urgency: "routine" | "urgent" | "emergency";
+  reason: string;
+  clinicalSummary: string | null;
+  diagnosisIds: string[];
+  status: ReferralStatus;
+  issuedAt: string;
+  respondedAt: string | null;
+  responseNote: string | null;
+  appointmentId: string | null;
+  completedAt: string | null;
+  outcomeNote: string | null;
+  replyDocumentId: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  version: number;
+  referringPractitioner: { id: string; displayName: string; specialty: string | null } | null;
+  toPractitioner: { id: string; displayName: string; specialty: string | null } | null;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+  diagnoses: Array<{ id: string; code: string | null; display: string }>;
+  /** The caller is the practitioner referred to / the referrer (the API checks again). */
+  forYou: boolean;
+  byYou: boolean;
 }
