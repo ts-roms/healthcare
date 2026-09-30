@@ -11,6 +11,34 @@ import { DefaultLink, isActive, type LinkComponent } from "./link";
 import { navigationForRole, STAFF_NAVIGATION, type NavItem } from "./staff-navigation";
 
 const SIDEBAR_STORAGE_KEY = "staff.sidebar.collapsed";
+const SIDEBAR_EVENT = "staff-sidebar-change";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1";
+  } catch {
+    return false; // storage unavailable: start expanded
+  }
+}
+
+function writeSidebarCollapsed(next: boolean): void {
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
+  } catch {
+    /* per-viewer convenience only */
+  }
+  window.dispatchEvent(new Event(SIDEBAR_EVENT));
+}
+
+/** Changes in this tab (the toggle) and in other tabs (the storage event). */
+function subscribeSidebar(onChange: () => void): () => void {
+  window.addEventListener(SIDEBAR_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(SIDEBAR_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
 
 export interface StaffLayoutProps {
   /** Filters `navigation` by role. Omit when `navigation` is already filtered (e.g. by permissions). */
@@ -43,27 +71,9 @@ export function StaffLayout({
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
-  const [collapsed, setCollapsed] = React.useState(false);
-
-  React.useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1");
-    } catch {
-      /* storage unavailable: start expanded */
-    }
-  }, []);
-
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        /* per-viewer convenience only */
-      }
-      return next;
-    });
-  };
+  // Read from this browser's storage after hydration (expanded on the server and when storage is unavailable).
+  const collapsed = React.useSyncExternalStore(subscribeSidebar, readSidebarCollapsed, () => false);
+  const toggleCollapsed = () => writeSidebarCollapsed(!collapsed);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -166,8 +176,9 @@ function SidebarNav({
 }) {
   // Accordion: one group open at a time. The group holding the current page is open by default;
   // a click on a group header overrides that (`null` = all closed) until the page changes.
-  const [openGroup, setOpenGroup] = React.useState<string | null | undefined>(undefined);
-  React.useEffect(() => setOpenGroup(undefined), [pathname]);
+  const [choice, setChoice] = React.useState<{ pathname: string; group: string | null } | null>(null);
+  const openGroup = choice?.pathname === pathname ? choice.group : undefined;
+  const setOpenGroup = (group: string | null) => setChoice({ pathname, group });
   return (
     <nav aria-label="Main" className="flex-1 [scrollbar-width:none] overflow-y-auto px-2 py-2 [&::-webkit-scrollbar]:hidden">
       <ul className="flex flex-col gap-0.5">
