@@ -45,7 +45,18 @@ export async function declineRequest(input: z.input<typeof declineSchema>) {
   return post(requestId, "decline", body);
 }
 
-const SECTIONS = ["allergies", "consultations", "laboratory", "prescriptions", "care_plans", "dental", "certificates", "documents", "immunizations"] as const;
+const SECTIONS = [
+  "allergies",
+  "consultations",
+  "laboratory",
+  "prescriptions",
+  "care_plans",
+  "dental",
+  "certificates",
+  "documents",
+  "immunizations",
+  "history",
+] as const;
 const date = z.iso.date();
 const copySchema = z.object({
   requestId: id,

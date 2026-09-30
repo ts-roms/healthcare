@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CarePlanService } from "@healthcare/care-plan";
-import { ClinicQueries, ImmunizationService } from "@healthcare/clinic";
+import { canReadSensitiveHistory, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
 import { type Actor, APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -26,7 +26,9 @@ export const canReadDental = (actor: Actor) => actor.permissions.has("dental.rec
  * document descriptions, and dental images' descriptions — are included only
  * for a caller who may read documents (`document.read`); the dental record only
  * for one who may read it (`dental.record.read`). External history comes from
- * the clinic, and so does the immunization history.
+ * the clinic, and so do the immunization history and the patient history (past procedures and conditions, family and
+ * social history); substance use and sexual history only for a caller who may see them (history.read and
+ * encounter.write).
  */
 @Injectable()
 export class FhirRecordComposer {
@@ -41,6 +43,7 @@ export class FhirRecordComposer {
     private readonly documents: DocumentRecordQueries,
     private readonly dental: DentalRecordQueries,
     private readonly immunizations: ImmunizationService,
+    private readonly history: PatientHistoryService,
   ) {}
 
   async context(organizationId: string, requestBaseUrl: string): Promise<FhirContext> {
@@ -60,12 +63,17 @@ export class FhirRecordComposer {
    * the caller's own document and dental access for a workflow that has authorized it (a records office's copy of the
    * record, which answers the patient's own request).
    */
-  async record(actor: Actor, patientId: string, include: { documents?: boolean; dental?: boolean } = {}): Promise<PatientRecordSource> {
+  async record(
+    actor: Actor,
+    patientId: string,
+    include: { documents?: boolean; dental?: boolean; sensitiveHistory?: boolean } = {},
+  ): Promise<PatientRecordSource> {
     const organizationId = actor.organizationId;
     const patient = await this.patients.getDetail(actor, patientId);
     const withDocuments = include.documents ?? canReadDocuments(actor);
     const withDental = include.dental ?? canReadDental(actor);
-    const [clinic, referrals, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages, immunizations] =
+    const withSensitiveHistory = include.sensitiveHistory ?? canReadSensitiveHistory(actor.permissions);
+    const [clinic, referrals, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages, immunizations, history] =
       await Promise.all([
         this.clinic.patientRecord(organizationId, patientId),
         this.clinic.referralRecords(organizationId, patientId),
@@ -79,6 +87,7 @@ export class FhirRecordComposer {
         // Dental images are documents: their descriptions go with the documents (document.read), like any document's metadata.
         withDocuments ? this.dental.images(organizationId, patientId) : [],
         this.immunizations.patientRecord(organizationId, patientId),
+        this.history.patientRecord(organizationId, patientId),
       ]);
     const reports = reportVersions(reportArchives, new Set(documents?.map((d) => d.id)));
     const images = new Map(dentalImages.map((i) => [i.documentId, i]));
@@ -108,6 +117,7 @@ export class FhirRecordComposer {
       if (i.performerPractitionerId) practitionerIds.add(i.performerPractitionerId);
       if (i.facilityId) facilityIds.add(i.facilityId);
     }
+    for (const h of [...history.procedures, ...history.conditions]) if (h.recorderPractitionerId) practitionerIds.add(h.recorderPractitionerId);
     const practitioners = await this.clinic.practitioners(organizationId, [...practitionerIds]);
 
     return {
@@ -304,6 +314,83 @@ export class FhirRecordComposer {
         recordedAt: i.recordedAt.toISOString(),
         enteredInErrorAt: iso(i.enteredInErrorAt),
       })),
+      history: {
+        sensitiveIncluded: withSensitiveHistory,
+        procedures: history.procedures.map((p) => ({
+          id: p.id,
+          source: p.source,
+          reportedBy: p.reportedBy,
+          description: p.description,
+          codeSystem: p.codeSystem,
+          code: p.code,
+          performedDate: p.performedDate,
+          performedPrecision: p.performedPrecision,
+          performer: p.performer,
+          bodySite: p.bodySite,
+          sourceDescription: p.sourceDescription,
+          declaredSource: p.declaredSource,
+          recorderPractitionerId: p.recorderPractitionerId,
+          recordedAt: p.recordedAt.toISOString(),
+          enteredInErrorAt: iso(p.enteredInErrorAt),
+        })),
+        conditions: history.conditions.map((c) => ({
+          id: c.id,
+          source: c.source,
+          reportedBy: c.reportedBy,
+          description: c.description,
+          codeSystem: c.codeSystem,
+          code: c.code,
+          onsetDate: c.onsetDate,
+          onsetPrecision: c.onsetPrecision,
+          reportedStatus: c.reportedStatus,
+          diagnosedBy: c.diagnosedBy,
+          sourceDescription: c.sourceDescription,
+          recorderPractitionerId: c.recorderPractitionerId,
+          recordedAt: c.recordedAt.toISOString(),
+          enteredInErrorAt: iso(c.enteredInErrorAt),
+        })),
+        family: history.family.map((f) => ({
+          id: f.id,
+          source: f.source,
+          relationship: f.relationship,
+          relationshipText: f.relationshipText,
+          condition: f.condition,
+          codeSystem: f.codeSystem,
+          code: f.code,
+          onsetAge: f.onsetAge,
+          deceased: f.deceased,
+          causeOfDeath: f.causeOfDeath,
+          declaredSource: f.declaredSource,
+          recordedAt: f.recordedAt.toISOString(),
+          enteredInErrorAt: iso(f.enteredInErrorAt),
+        })),
+        familyReview: history.familyReviews[0]
+          ? {
+              outcome: history.familyReviews[0].outcome,
+              unknownReason: history.familyReviews[0].unknownReason,
+              reviewedAt: history.familyReviews[0].reviewedAt.toISOString(),
+            }
+          : null,
+        social: history.social.map((v) => ({
+          id: v.id,
+          effectiveDate: v.effectiveDate,
+          tobaccoStatus: v.tobaccoStatus,
+          tobaccoType: v.tobaccoType,
+          tobaccoAmount: v.tobaccoAmount,
+          tobaccoQuitYear: v.tobaccoQuitYear,
+          alcoholStatus: v.alcoholStatus,
+          alcoholFrequency: v.alcoholFrequency,
+          substanceUse: withSensitiveHistory ? v.substanceUse : null,
+          occupation: v.occupation,
+          occupationalExposures: v.occupationalExposures,
+          livingSituation: v.livingSituation,
+          physicalActivity: v.physicalActivity,
+          diet: v.diet,
+          sexualHistory: withSensitiveHistory ? v.sexualHistory : null,
+          recordedAt: v.recordedAt.toISOString(),
+          enteredInErrorAt: iso(v.enteredInErrorAt),
+        })),
+      },
     };
   }
 }

@@ -32,6 +32,9 @@ import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
 import { ImmunizationController } from "./immunizations/immunization.controller";
 import { ImmunizationService } from "./immunizations/immunization.service";
 import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
+import { PatientHistoryController } from "./history/history.controller";
+import { PatientHistoryService } from "./history/history.service";
+import { HISTORY_STAFF_NAMES } from "./history/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -62,6 +65,7 @@ export class ClinicModule {
         MedicalCertificateController,
         ImmunizationController,
         ReferralController,
+        PatientHistoryController,
       ],
       providers: [
         AppointmentReminders,
@@ -86,6 +90,9 @@ export class ClinicModule {
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
         ImmunizationService,
         { provide: IMMUNIZATION_CONTEXT, useClass: options.immunizationContext },
+        PatientHistoryService,
+        // The history reads staff names through the same adapter (it answers from the auth domain).
+        { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
       ],
       exports: [
         ClinicQueries,
@@ -98,6 +105,7 @@ export class ClinicModule {
         PatientWaitlistService,
         BookingRulesService,
         ImmunizationService,
+        PatientHistoryService,
       ],
     };
   }

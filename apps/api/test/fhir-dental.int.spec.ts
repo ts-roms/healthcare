@@ -350,7 +350,10 @@ describe("FHIR R4 export of the dental record", () => {
     expect(types).toContain("DocumentReference");
     expect(notices(everything)).toEqual([expect.stringContaining("dental.record.read")]);
 
-    expect((await get(`/Procedure?patient=${patientId}`, noDental).expect(403)).body.issue[0].code).toBe("forbidden");
+    // Procedures also hold the patient history's past procedures, so the search answers, with the dental ones withheld.
+    const procedures = (await get(`/Procedure?patient=${patientId}`, noDental).expect(200)).body as Bundle;
+    expect(procedures.total).toBe(0);
+    expect(notices(procedures)).toEqual([expect.stringContaining("dental.record.read")]);
     const observations = (await get(`/Observation?patient=${patientId}`, noDental).expect(200)).body as Bundle;
     expect(observations.total).toBe(0);
     expect(notices(observations)).toEqual([expect.stringContaining("dental.record.read")]);

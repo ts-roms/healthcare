@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { ClinicQueries, MedicalCertificateService, type MedicalCertificateView } from "@healthcare/clinic";
+import {
+  alcoholText,
+  ClinicQueries,
+  familyHistoryState,
+  MedicalCertificateService,
+  type MedicalCertificateView,
+  relativeText,
+  tobaccoText,
+  type FamilyRelationship,
+} from "@healthcare/clinic";
 import type { Actor } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import type { PatientRecordSource } from "@healthcare/interoperability";
@@ -33,6 +42,7 @@ const SECTION_TITLES: Record<RecordCopySection, string> = {
   certificates: "Medical certificates",
   documents: "Documents on file",
   immunizations: "Immunizations",
+  history: "Medical, family and social history",
 };
 
 type SignedNotes = Awaited<ReturnType<ClinicQueries["signedNotes"]>>;
@@ -51,7 +61,8 @@ interface CopyContent {
  * record as it stands is copied: released laboratory results, signed notes (the latest signed or amended version),
  * issued certificates; entries in error, drafts and consultations still in progress are left out. The request answers
  * the patient's own ask, so the copy includes the dental record and document list whatever the preparer's own
- * clinical access (the copy is audited, and nothing reaches the patient until it is shared).
+ * clinical access (the copy is audited, and nothing reaches the patient until it is shared) — and the whole social
+ * history, substance use and sexual history included (it is the patient's own record).
  */
 @Injectable()
 export class RecordCopyService {
@@ -73,7 +84,7 @@ export class RecordCopyService {
     ]);
     const timeZone = facility?.timezone ?? DEFAULT_TIME_ZONE;
     const [record, notes, certificates] = await Promise.all([
-      this.composer.record(actor, request.patientId, { documents: true, dental: true }),
+      this.composer.record(actor, request.patientId, { documents: true, dental: true, sensitiveHistory: true }),
       sections.includes("consultations") ? this.clinic.signedNotes(actor.organizationId, request.patientId) : Promise.resolve(new Map() as SignedNotes),
       sections.includes("certificates") ? this.certificates.issuedForPatient(actor.organizationId, request.patientId) : Promise.resolve([]),
     ]);
@@ -368,7 +379,111 @@ const RENDERERS: Record<RecordCopySection, Renderer> = {
   },
 
   immunizations: renderImmunizations,
+  history: renderHistory,
 };
+
+const UNKNOWN_REASON: Record<string, string> = { adopted: "adopted", not_known: "not known", declined_to_answer: "the patient declined to answer" };
+const INFORMANT: Record<string, string> = {
+  patient: "Reported by the patient",
+  relative: "Reported by a relative",
+  other_provider: "Reported by another provider",
+};
+const historySource = (e: { source: string; reportedBy?: string | null }) =>
+  e.source === "external_import" ? "From another provider" : e.source === "recorded_here" ? "Documented here" : (INFORMANT[e.reportedBy ?? ""] ?? "Reported");
+const printedDate = (date: string | null, precision: "year" | "month" | "day" | null) =>
+  date && precision ? occurrenceLabel(date, precision, (d) => pdfDate(d)) : "Date not known";
+
+// The history as it stands, whatever the period (like allergies: background care today must know); entries in error
+// left out, staff notes not copied. The whole social history is copied, substance use and sexual history included:
+// the copy answers the patient's own request.
+function renderHistory(w: PdfWriter, { record }: CopyContent): void {
+  const h = record.history;
+  const procedures = h.procedures.filter((p) => !p.enteredInErrorAt);
+  const conditions = h.conditions.filter((c) => !c.enteredInErrorAt);
+  const family = h.family.filter((f) => !f.enteredInErrorAt);
+  const social = h.social.find((s) => !s.enteredInErrorAt) ?? null;
+  w.paragraph("Past procedures and surgeries", { bold: true });
+  if (procedures.length) {
+    w.table(
+      [
+        { header: "When", width: 1.6 },
+        { header: "Procedure", width: 3.4 },
+        { header: "Where / by", width: 2.6 },
+        { header: "Record", width: 2 },
+      ],
+      procedures.map((p) => [
+        printedDate(p.performedDate, p.performedPrecision),
+        [p.description, p.bodySite ? `(${p.bodySite})` : null].filter(Boolean).join(" "),
+        p.performer ?? "",
+        historySource(p),
+      ]),
+    );
+  } else w.paragraph("None recorded.", { muted: true });
+  w.paragraph("Past conditions (diagnosed elsewhere, as reported)", { bold: true });
+  if (conditions.length) {
+    w.table(
+      [
+        { header: "Since", width: 1.6 },
+        { header: "Condition", width: 3.4 },
+        { header: "As reported", width: 1.6 },
+        { header: "Record", width: 2 },
+      ],
+      conditions.map((c) => [
+        printedDate(c.onsetDate, c.onsetPrecision),
+        c.description,
+        c.reportedStatus === "active" ? "Still present" : c.reportedStatus === "resolved" ? "Resolved" : "Not known",
+        historySource(c),
+      ]),
+    );
+  } else w.paragraph("None recorded.", { muted: true });
+  w.paragraph("Family history", { bold: true });
+  if (family.length) {
+    w.table(
+      [
+        { header: "Relative", width: 2.2 },
+        { header: "Condition", width: 3.4 },
+        { header: "Age at onset", width: 1.3 },
+        { header: "Deceased", width: 2.4 },
+      ],
+      family.map((f) => [
+        relativeText(f.relationship as FamilyRelationship, f.relationshipText),
+        f.condition,
+        f.onsetAge !== null ? String(f.onsetAge) : "",
+        f.deceased === true ? (f.causeOfDeath ? `Yes (${f.causeOfDeath})` : "Yes") : f.deceased === false ? "No" : "",
+      ]),
+    );
+  } else {
+    const state = familyHistoryState(0, h.familyReview);
+    w.paragraph(
+      state === "none_known"
+        ? "No known family history (asked and recorded)."
+        : state === "unknown"
+          ? `Family history not known (${UNKNOWN_REASON[h.familyReview?.unknownReason ?? ""] ?? "not known"}).`
+          : "Not recorded.",
+      {
+        muted: true,
+      },
+    );
+  }
+  w.paragraph("Social history", { bold: true });
+  if (!social) {
+    w.paragraph("Not recorded.", { muted: true });
+    return;
+  }
+  w.fields([
+    ["As of", pdfDate(social.effectiveDate)],
+    ["Tobacco", tobaccoText(social)],
+    ["Alcohol", alcoholText(social)],
+    ["Other substance use", social.substanceUse],
+    ["Occupation", social.occupation],
+    ["Occupational exposures", social.occupationalExposures],
+    ["Living situation", social.livingSituation],
+    ["Physical activity", social.physicalActivity],
+    ["Diet", social.diet],
+    ["Sexual history", social.sexualHistory],
+  ]);
+  w.paragraph("History is as reported by the patient, a relative or another provider unless marked as documented here.", { muted: true, size: 8.5 });
+}
 
 const SOURCE_LABEL: Record<string, string> = { administered_here: "Given here", historical: "Reported", external_import: "From another provider" };
 const NOT_GIVEN: Record<string, string> = { refused: "refused", contraindicated: "contraindicated", unavailable: "vaccine unavailable", other: "other reason" };

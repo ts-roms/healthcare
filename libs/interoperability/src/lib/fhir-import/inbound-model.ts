@@ -4,7 +4,18 @@
  * here is a clinical record. Accepting an entry turns it into the owning domain's own record through a port.
  */
 
-export const IMPORT_KINDS = ["patient", "allergy", "condition", "observation", "medication", "document", "immunization", "not_supported"] as const;
+export const IMPORT_KINDS = [
+  "patient",
+  "allergy",
+  "condition",
+  "observation",
+  "medication",
+  "document",
+  "immunization",
+  "procedure",
+  "family_history",
+  "not_supported",
+] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 /** FHIR resource types that can be reviewed (everything else is kept as "not supported for import"). */
@@ -17,6 +28,8 @@ export const IMPORTABLE_RESOURCE_TYPES = {
   MedicationRequest: "medication",
   DocumentReference: "document",
   Immunization: "immunization",
+  Procedure: "procedure",
+  FamilyMemberHistory: "family_history",
 } as const satisfies Record<string, Exclude<ImportKind, "not_supported">>;
 export type ImportableResourceType = keyof typeof IMPORTABLE_RESOURCE_TYPES;
 
@@ -171,6 +184,38 @@ export interface ImportedImmunization extends ImportedBase {
   location: string | null;
 }
 
+/** A procedure done elsewhere (the patient's past procedures once accepted). */
+export interface ImportedProcedure extends ImportedBase {
+  kind: "procedure";
+  subject: SubjectMatch;
+  display: string | null;
+  codes: ImportedCode[];
+  /** completed, not-done, entered-in-error, … as received. */
+  status: string;
+  /** YYYY, YYYY-MM or YYYY-MM-DD (the date part of what was sent), else null. */
+  performed: string | null;
+  /** The date as received when it is not a date (performedString, an age or a range), else null. */
+  performedText: string | null;
+  /** Who did it and where, as the sender names them. */
+  performer: string | null;
+  bodySite: string | null;
+  outcome: string | null;
+}
+
+/** A relative's conditions (the patient's family history once accepted: one entry per condition). */
+export interface ImportedFamilyHistory extends ImportedBase {
+  kind: "family_history";
+  subject: SubjectMatch;
+  /** The platform's relationship when the HL7 v3 RoleCode is one it lists, else "other". */
+  relationship: string;
+  /** The relationship as the sender wrote it (text or display). */
+  relationshipText: string | null;
+  status: string;
+  /** True when any deceased[x] was sent (true, an age, a date, …); null when not stated. */
+  deceased: boolean | null;
+  conditions: Array<{ display: string; codes: ImportedCode[]; onsetAge: number | null; onsetText: string | null; contributedToDeath: boolean }>;
+}
+
 export interface NotSupportedEntry extends ImportedBase {
   kind: "not_supported";
 }
@@ -183,6 +228,8 @@ export type ImportedItem =
   | ImportedMedication
   | ImportedDocument
   | ImportedImmunization
+  | ImportedProcedure
+  | ImportedFamilyHistory
   | NotSupportedEntry;
 
 /**
@@ -228,6 +275,31 @@ export interface ImportedImmunizationInput {
   doseUnit: string | null;
   performerName: string | null;
   sourceDescription: string | null;
+}
+
+/** A past procedure recorded from an import (the clinic validates it again). */
+export interface ImportedPastProcedureInput {
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  performed: string | null;
+  performer: string | null;
+  bodySite: string | null;
+  notes: string | null;
+  sourceDescription: string | null;
+}
+
+/** One family history entry recorded from an import (one per condition of the FamilyMemberHistory). */
+export interface ImportedFamilyHistoryInput {
+  relationship: string;
+  relationshipText: string | null;
+  condition: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetAge: number | null;
+  deceased: boolean | null;
+  causeOfDeath: string | null;
+  notes: string | null;
 }
 
 /** Where an accepted record came from: the source as declared and the import reference. */

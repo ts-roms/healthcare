@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { ClinicQueries, ImmunizationService } from "@healthcare/clinic";
+import { canReadSensitiveHistory, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
 import { type Actor, actorUserId, NotFoundError, PH_TIMEZONE } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -123,6 +123,31 @@ export interface PatientWorkspace {
     source: "administered_here" | "historical" | "external_import";
     hasReaction: boolean;
   }> | null;
+  /**
+   * The patient history: the latest past procedures and conditions (not in error), the family history state with the
+   * latest entries, and the current social history. Substance use and sexual history are null unless the viewer also
+   * holds encounter.write (`sensitiveWithheld`).
+   */
+  history: {
+    procedures: Array<{ id: string; filedUnder: string | null; description: string; performed: string | null; source: string }>;
+    proceduresTotal: number;
+    conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
+    conditionsTotal: number;
+    family: {
+      state: "not_recorded" | "recorded" | "none_known" | "unknown";
+      entries: Array<{ id: string; filedUnder: string | null; relative: string; condition: string; onsetAge: number | null }>;
+      total: number;
+    };
+    social: {
+      effectiveDate: string;
+      tobacco: string | null;
+      alcohol: string | null;
+      occupation: string | null;
+      sensitiveWithheld: boolean;
+      substanceUse: string | null;
+      sexualHistory: string | null;
+    } | null;
+  } | null;
   /** Records merged into this patient, read with it (ADR-0009). */
   linkedRecords: Array<{ id: string; patientNumber: string }>;
   withheld: WorkspacePanel[];
@@ -145,6 +170,7 @@ export class PatientWorkspaceService {
     private readonly dental: DentalRecordQueries,
     private readonly documents: DocumentRecordQueries,
     private readonly immunizations: ImmunizationService,
+    private readonly history: PatientHistoryService,
     private readonly audit: AuditService,
   ) {}
 
@@ -166,7 +192,7 @@ export class PatientWorkspaceService {
 
     const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
     const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
-    const [encounters, visit, critical, orders, images, documents, referrals, immunizations] = await Promise.all([
+    const [encounters, visit, critical, orders, images, documents, referrals, immunizations, history] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
         : none,
@@ -180,6 +206,9 @@ export class PatientWorkspaceService {
       has("documents") ? this.documents.recentForPatient(organizationId, patientId, WORKSPACE_LIMITS.documents + WORKSPACE_LIMITS.dentalImages) : none,
       has("referrals") ? this.clinic.workspaceReferrals(organizationId, patientId, WORKSPACE_LIMITS.referrals) : none,
       has("immunizations") ? this.immunizations.workspace(organizationId, patientId, WORKSPACE_LIMITS.immunizations) : none,
+      has("history")
+        ? this.history.workspace(organizationId, patientId, WORKSPACE_LIMITS.history, { sensitive: canReadSensitiveHistory(actor.permissions) })
+        : none,
     ]);
 
     const userId = actorUserId(actor);
@@ -304,6 +333,20 @@ export class PatientWorkspaceService {
       immunizations: immunizations
         ? immunizations.map(({ patientId: filedAs, facilityId, ...i }) => ({ ...i, filedUnder: filedUnder(filedAs), facility: facilityOf(facilityId) }))
         : null,
+      history: history
+        ? {
+            procedures: history.procedures.map(({ patientId: filedAs, ...p }) => ({ ...p, filedUnder: filedUnder(filedAs) })),
+            proceduresTotal: history.proceduresTotal,
+            conditions: history.conditions.map(({ patientId: filedAs, ...c }) => ({ ...c, filedUnder: filedUnder(filedAs) })),
+            conditionsTotal: history.conditionsTotal,
+            family: {
+              state: history.family.state,
+              entries: history.family.entries.map(({ patientId: filedAs, ...f }) => ({ ...f, filedUnder: filedUnder(filedAs) })),
+              total: history.family.total,
+            },
+            social: history.social,
+          }
+        : null,
       linkedRecords: [...linked].map(([id, patientNumber]) => ({ id, patientNumber })),
       withheld,
     };
@@ -325,7 +368,11 @@ export class PatientWorkspaceService {
           documents: result.documents?.length ?? null,
           referrals: result.referrals?.length ?? null,
           immunizations: result.immunizations?.length ?? null,
+          historyProcedures: result.history?.proceduresTotal ?? null,
+          historyConditions: result.history?.conditionsTotal ?? null,
+          historyFamily: result.history?.family.total ?? null,
         },
+        historySensitiveShown: result.history ? !result.history.social?.sensitiveWithheld : null,
       },
     });
     return result;

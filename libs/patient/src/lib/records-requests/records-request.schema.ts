@@ -21,6 +21,7 @@ export const RECORD_COPY_SECTIONS = [
   "certificates",
   "documents",
   "immunizations",
+  "history",
 ] as const;
 export type RecordCopySection = (typeof RECORD_COPY_SECTIONS)[number];
 

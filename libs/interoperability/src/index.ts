@@ -4,6 +4,7 @@ export * from "./lib/fhir/clinical";
 export * from "./lib/fhir/dental";
 export * from "./lib/fhir/documents";
 export * from "./lib/fhir/external";
+export * from "./lib/fhir/history";
 export * from "./lib/fhir/immunization";
 export * from "./lib/fhir/orders";
 export * from "./lib/fhir/referrals";

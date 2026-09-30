@@ -519,6 +519,102 @@ export interface ReferralSource {
 }
 
 /** Everything about one patient that the platform exports. */
+/** Who told the organization about a history entry (source `reported`). */
+export type HistoryInformant = "patient" | "relative" | "other_provider";
+
+/** A past procedure or surgery (clinic history): as reported, documented here, or accepted from an import. */
+export interface PastProcedureSource {
+  id: string;
+  source: "reported" | "recorded_here" | "external_import";
+  reportedBy: HistoryInformant | null;
+  description: string;
+  /** A code-system key of the organization, or the system URI as received for an import. */
+  codeSystem: string | null;
+  code: string | null;
+  /** YYYY-MM-DD (a year as 1 January, a month as its first day), or null when not known. */
+  performedDate: string | null;
+  performedPrecision: "year" | "month" | "day" | null;
+  performer: string | null;
+  bodySite: string | null;
+  sourceDescription: string | null;
+  declaredSource: string | null;
+  recorderPractitionerId: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** A condition diagnosed elsewhere, as reported (never a diagnosis of the organization). */
+export interface PastConditionSource {
+  id: string;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetDate: string | null;
+  onsetPrecision: "year" | "month" | "day" | null;
+  /** As reported. */
+  reportedStatus: "active" | "resolved" | "unknown";
+  diagnosedBy: string | null;
+  sourceDescription: string | null;
+  recorderPractitionerId: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** A relative's condition, as reported or imported. */
+export interface FamilyHistorySource {
+  id: string;
+  source: "reported" | "external_import";
+  relationship: string;
+  relationshipText: string | null;
+  condition: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetAge: number | null;
+  deceased: boolean | null;
+  causeOfDeath: string | null;
+  declaredSource: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** One version of the social history (a whole snapshot). Sensitive fields are null when withheld. */
+export interface SocialHistorySource {
+  id: string;
+  effectiveDate: string;
+  tobaccoStatus: "never" | "former" | "current" | "unknown" | null;
+  tobaccoType: string | null;
+  tobaccoAmount: string | null;
+  tobaccoQuitYear: number | null;
+  alcoholStatus: "never" | "former" | "current" | "unknown" | null;
+  alcoholFrequency: string | null;
+  substanceUse: string | null;
+  occupation: string | null;
+  occupationalExposures: string | null;
+  livingSituation: string | null;
+  physicalActivity: string | null;
+  diet: string | null;
+  sexualHistory: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/**
+ * The patient history (clinic): rows change only when marked entered in error (database trigger), so that time or
+ * `recordedAt` is a reliable last-updated time. `sensitiveIncluded` is false when substance use and sexual history
+ * were withheld from the caller (their Observations are then left out, with a notice).
+ */
+export interface PatientHistorySource {
+  procedures: PastProcedureSource[];
+  conditions: PastConditionSource[];
+  family: FamilyHistorySource[];
+  /** The latest family history review (none known, not known, or reviewed as listed), or null. */
+  familyReview: { outcome: "reviewed" | "none_known" | "unknown"; unknownReason: string | null; reviewedAt: string } | null;
+  social: SocialHistorySource[];
+  sensitiveIncluded: boolean;
+}
+
 export interface PatientRecordSource {
   patient: PatientSource;
   facilities: FacilitySource[];
@@ -542,4 +638,6 @@ export interface PatientRecordSource {
   dental: DentalRecordSource | null;
   /** The immunization history (entries in error included, marked). */
   immunizations: ImmunizationSource[];
+  /** Past procedures and conditions, family and social history (entries in error included, marked). */
+  history: PatientHistorySource;
 }

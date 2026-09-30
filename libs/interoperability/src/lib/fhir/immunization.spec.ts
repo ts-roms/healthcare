@@ -270,6 +270,7 @@ describe("FHIR R4 Immunization", () => {
       dental: null,
       referrals: [],
       immunizations: [given, reported, notGiven, imported],
+      history: { procedures: [], conditions: [], family: [], familyReview: null, social: [], sensitiveIncluded: true },
     };
     const everything: Bundle = patientEverything(ctx, record, { count: PAGE_SIZE.max, offset: 0 });
     const resources = (everything.entry ?? []).map((e) => e.resource as FhirResource);

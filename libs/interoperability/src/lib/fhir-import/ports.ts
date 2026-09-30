@@ -1,5 +1,12 @@
 import type { Actor, DbExecutor } from "@healthcare/core";
-import type { ExternalHistoryInput, ImportedAllergyInput, ImportedImmunizationInput, ImportOrigin } from "./inbound-model";
+import type {
+  ExternalHistoryInput,
+  ImportedAllergyInput,
+  ImportedFamilyHistoryInput,
+  ImportedImmunizationInput,
+  ImportedPastProcedureInput,
+  ImportOrigin,
+} from "./inbound-model";
 
 /** A new patient as the imported Patient describes it (the patient domain validates it like any registration). */
 export interface RegistrationDraft {
@@ -58,6 +65,10 @@ export interface FhirImportTargets {
   recordExternalHistory(tx: DbExecutor, actor: Actor, patientId: string, input: ExternalHistoryInput, origin: ImportOrigin): Promise<string>;
   /** Records an immunization (source external_import) in the clinic domain, in the caller's transaction. Returns its id. */
   recordImmunization(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedImmunizationInput, origin: ImportOrigin): Promise<string>;
+  /** Records a past procedure (source external_import) in the clinic's patient history, in the caller's transaction. Returns its id. */
+  recordPastProcedure(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedPastProcedureInput, origin: ImportOrigin): Promise<string>;
+  /** Records family history entries (source external_import), in the caller's transaction. Returns their ids, in order. */
+  recordFamilyHistory(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedFamilyHistoryInput[], origin: ImportOrigin): Promise<string[]>;
 }
 
 export const FHIR_IMPORT_TARGETS = Symbol("FHIR_IMPORT_TARGETS");

@@ -7,12 +7,16 @@ import {
   type ImportedCode,
   type ImportedCondition,
   type ImportedDocument,
+  type ImportedFamilyHistory,
+  type ImportedFamilyHistoryInput,
   type ImportedImmunization,
   type ImportedImmunizationInput,
   type ImportedItem,
   type ImportedMedication,
   type ImportedObservation,
+  type ImportedPastProcedureInput,
   type ImportedPatient,
+  type ImportedProcedure,
   type SubjectMatch,
 } from "./inbound-model";
 import type {
@@ -20,11 +24,13 @@ import type {
   InboundCodeableConcept,
   InboundCondition,
   InboundDocumentReference,
+  InboundFamilyMemberHistory,
   InboundImmunization,
   InboundMedicationRequest,
   InboundMedicationStatement,
   InboundObservation,
   InboundPatient,
+  InboundProcedure,
   InboundQuantity,
   InboundReference,
   ParsedEntry,
@@ -423,6 +429,144 @@ export function mapImmunization(r: InboundImmunization, patient: ImportPatientRe
   };
 }
 
+// ---- Procedure ---------------------------------------------------------------------------------------------------
+
+/** The date part of a FHIR dateTime (YYYY, YYYY-MM or YYYY-MM-DD as the sender wrote it), from 1900. */
+function datePart(value: string | undefined): string | null {
+  const m = value ? /^(\d{4}(-\d{2}(-\d{2})?)?)/.exec(value) : null;
+  return m && Number(m[1]!.slice(0, 4)) >= 1900 ? m[1]! : null;
+}
+
+export function mapProcedure(r: InboundProcedure, patient: ImportPatientRef | null): ImportedProcedure {
+  const subject = subjectMatch(r.subject, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const display = clip(conceptText(r.code), 300);
+  if (!display) {
+    acceptable = false;
+    notes.push("No procedure is named.");
+  }
+  if (r.status !== "completed") {
+    acceptable = false;
+    notes.push(`The sender records it as ${r.status}: only procedures that were done are added to the patient's history.`);
+  }
+  const performed = datePart(r.performedDateTime ?? r.performedPeriod?.start);
+  const performedText =
+    performed === null
+      ? clip(
+          r.performedString ?? (r.performedAge ? `at age ${quantityText(r.performedAge)}` : null) ?? (r.performedDateTime || r.performedPeriod?.start) ?? null,
+          60,
+        )
+      : null;
+  const performer = (r.performer ?? []).map((p) => p.actor.display).filter((d): d is string => Boolean(d));
+  return {
+    kind: "procedure",
+    resourceType: "Procedure",
+    acceptable,
+    notes,
+    subject,
+    display,
+    codes: codesOf(r.code),
+    status: r.status,
+    performed,
+    performedText,
+    performer: clip([...performer, r.location?.display].filter(Boolean).join(", "), 300),
+    bodySite: clip(
+      (r.bodySite ?? [])
+        .map((b) => conceptText(b))
+        .filter(Boolean)
+        .join(", "),
+      120,
+    ),
+    outcome: clip(conceptText(r.outcome), 200),
+  };
+}
+
+// ---- FamilyMemberHistory -----------------------------------------------------------------------------------------
+
+/** HL7 v3 RoleCode (FamilyMember value set) → the platform's relationship list; anything else is "other". */
+const ROLE_RELATIONSHIPS: Record<string, string> = {
+  MTH: "mother",
+  NMTH: "mother",
+  FTH: "father",
+  NFTH: "father",
+  SIS: "sister",
+  NSIS: "sister",
+  BRO: "brother",
+  NBRO: "brother",
+  SIB: "sibling",
+  NSIB: "sibling",
+  HSIB: "half_sibling",
+  HSIS: "half_sibling",
+  HBRO: "half_sibling",
+  DAU: "daughter",
+  DAUC: "daughter",
+  SON: "son",
+  SONC: "son",
+  CHILD: "child",
+  NCHILD: "child",
+  MGRMTH: "maternal_grandmother",
+  MGRFTH: "maternal_grandfather",
+  PGRMTH: "paternal_grandmother",
+  PGRFTH: "paternal_grandfather",
+  MAUNT: "maternal_aunt",
+  MUNCLE: "maternal_uncle",
+  PAUNT: "paternal_aunt",
+  PUNCLE: "paternal_uncle",
+  COUSN: "cousin",
+  MCOUSN: "cousin",
+  PCOUSN: "cousin",
+};
+
+export function mapFamilyHistory(r: InboundFamilyMemberHistory, patient: ImportPatientRef | null): ImportedFamilyHistory {
+  const subject = subjectMatch(r.patient, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const roleCode = (r.relationship.coding ?? []).find((c) => c.system === SYSTEMS.v3RoleCode && c.code)?.code;
+  const relationship = (roleCode && ROLE_RELATIONSHIPS[roleCode]) || "other";
+  const relationshipText = clip(conceptText(r.relationship) ?? r.name, 100);
+  const conditions = (r.condition ?? []).flatMap((c) => {
+    const display = clip(conceptText(c.code), 300);
+    if (!display) return [];
+    const years =
+      c.onsetAge && c.onsetAge.value !== undefined && (c.onsetAge.code === "a" || /^(a|y|yr|yrs|year|years)$/i.test(c.onsetAge.unit ?? ""))
+        ? c.onsetAge.value
+        : null;
+    const onsetAge = years !== null && Number.isInteger(years) && years >= 0 && years <= 130 ? years : null;
+    const onsetText =
+      onsetAge === null
+        ? clip(c.onsetString ?? (c.onsetAge ? quantityText(c.onsetAge) : null) ?? c.onsetPeriod?.start ?? (c.onsetRange ? "a range of ages" : null), 60)
+        : null;
+    return [{ display, codes: codesOf(c.code), onsetAge, onsetText, contributedToDeath: c.contributedToDeath === true }];
+  });
+  if (r.status === "entered-in-error") {
+    acceptable = false;
+    notes.push("The sender marks it entered-in-error.");
+  }
+  if (conditions.length === 0) {
+    acceptable = false;
+    notes.push(
+      r.status === "health-unknown"
+        ? "The sender says the relative's health is not known: record that as the family history review instead."
+        : "No condition of the relative is named.",
+    );
+  }
+  if (relationship === "other") notes.push(`The relationship is kept as written ("${relationshipText ?? "family member"}").`);
+  const deceased = r.deceasedBoolean !== undefined ? r.deceasedBoolean : r.deceasedAge || r.deceasedRange || r.deceasedDate || r.deceasedString ? true : null;
+  return {
+    kind: "family_history",
+    resourceType: "FamilyMemberHistory",
+    acceptable,
+    notes,
+    subject,
+    relationship,
+    relationshipText,
+    status: r.status,
+    deceased,
+    conditions,
+  };
+}
+
 // ---- entries -----------------------------------------------------------------------------------------------------
 
 /** The import's patient reference (its one Patient entry), for matching the subjects of the other entries. */
@@ -450,6 +594,10 @@ export function mapInboundResource(ctx: InboundContext, resource: ParsedEntry["r
       return mapDocument(resource as unknown as InboundDocumentReference, patient);
     case "Immunization":
       return mapImmunization(resource as unknown as InboundImmunization, patient);
+    case "Procedure":
+      return mapProcedure(resource as unknown as InboundProcedure, patient);
+    case "FamilyMemberHistory":
+      return mapFamilyHistory(resource as unknown as InboundFamilyMemberHistory, patient);
     default:
       return {
         kind: "not_supported",
@@ -573,6 +721,51 @@ export function toImmunizationInput(item: ImportedImmunization): ImportedImmuniz
       300,
     ),
   };
+}
+
+/**
+ * The past procedure an accepted Procedure becomes: the procedure as named and coded by the sender, the date part of
+ * what was sent (a date given only as text, an age or the outcome kept as a note), and who did it.
+ */
+export function toPastProcedureInput(item: ImportedProcedure): ImportedPastProcedureInput {
+  if (!item.display) throw new Error("A procedure without a name cannot be recorded");
+  const coded = firstCode(item.codes);
+  return {
+    description: item.display,
+    codeSystem: coded.code ? coded.codeSystem : null,
+    code: coded.code,
+    performed: item.performed,
+    performer: item.performer,
+    bodySite: item.bodySite,
+    notes: clip(
+      [item.performedText ? `Date at the source: ${item.performedText}` : null, item.outcome ? `Outcome: ${item.outcome}` : null].filter(Boolean).join(". "),
+      2000,
+    ),
+    sourceDescription: "Recorded by the sender",
+  };
+}
+
+/**
+ * The family history entries an accepted FamilyMemberHistory becomes: one per condition of the relative; a condition
+ * that contributed to death is also its cause of death.
+ */
+export function toFamilyHistoryInputs(item: ImportedFamilyHistory): ImportedFamilyHistoryInput[] {
+  if (item.conditions.length === 0) throw new Error("A family member history without a condition cannot be recorded");
+  return item.conditions.map((c) => {
+    const coded = firstCode(c.codes);
+    const deceased = c.contributedToDeath ? true : item.deceased;
+    return {
+      relationship: item.relationship,
+      relationshipText: item.relationship === "other" ? (item.relationshipText ?? "Family member") : null,
+      condition: c.display,
+      codeSystem: coded.code ? coded.codeSystem : null,
+      code: coded.code,
+      onsetAge: c.onsetAge,
+      deceased,
+      causeOfDeath: c.contributedToDeath ? clip(c.display, 300) : null,
+      notes: c.onsetText ? `Onset at the source: ${c.onsetText}` : null,
+    };
+  });
 }
 
 /**

@@ -3,6 +3,7 @@ import { as, auditRows, createClinician, createStaff, createTenant, createTestAp
 interface Workspace {
   patientId: string;
   referrals: Array<{ id: string; status: string }> | null;
+  history: { family: { state: string }; social: { sensitiveWithheld: boolean } | null } | null;
   facility: { id: string; name: string } | null;
   timeZone: string;
   currentEncounter: {
@@ -312,4 +313,5 @@ const PANEL_FIELDS: Record<string, keyof Workspace> = {
   documents: "documents",
   referrals: "referrals",
   immunizations: "immunizations",
+  history: "history",
 };

@@ -24,5 +24,8 @@ export * from "./lib/immunizations/immunization.schema";
 export * from "./lib/immunizations/immunization.rules";
 export * from "./lib/immunizations/immunization.service";
 export * from "./lib/immunizations/ports";
+export * from "./lib/history/history.schema";
+export * from "./lib/history/history.rules";
+export * from "./lib/history/history.service";
 export * from "./lib/referrals/referral.service";
 export * from "./lib/referrals/referral.rules";

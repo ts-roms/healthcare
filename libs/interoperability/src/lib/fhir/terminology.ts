@@ -16,6 +16,7 @@ export const SYSTEMS = {
   v2DiagnosticService: "http://terminology.hl7.org/CodeSystem/v2-0074",
   v3ActCode: "http://terminology.hl7.org/CodeSystem/v3-ActCode",
   v3ActReason: "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+  v3RoleCode: "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
   v3Interpretation: "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
   observationCategory: "http://terminology.hl7.org/CodeSystem/observation-category",
   conditionCategory: "http://terminology.hl7.org/CodeSystem/condition-category",

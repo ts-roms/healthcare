@@ -355,8 +355,67 @@ const immunization = obj({
   if (n !== 1) ctx.addIssue({ code: "custom", message: "exactly one of occurrenceDateTime or occurrenceString is required", path: ["occurrence[x]"] });
 });
 
+const age = quantity;
+
+const procedure = obj({
+  resourceType: z.literal("Procedure"),
+  ...resourceBase,
+  identifier: z.array(identifier).optional(),
+  status: z.enum(["preparation", "in-progress", "not-done", "on-hold", "stopped", "completed", "entered-in-error", "unknown"]),
+  category: codeableConcept.optional(),
+  code: codeableConcept.optional(),
+  subject: reference,
+  performedDateTime: dateTime.optional(),
+  performedPeriod: period.optional(),
+  performedString: str.optional(),
+  performedAge: age.optional(),
+  performedRange: range.optional(),
+  recorder: reference.optional(),
+  asserter: reference.optional(),
+  performer: z.array(obj({ function: codeableConcept.optional(), actor: reference, onBehalfOf: reference.optional() })).optional(),
+  location: reference.optional(),
+  bodySite: z.array(codeableConcept).optional(),
+  outcome: codeableConcept.optional(),
+  note: z.array(annotation).optional(),
+}).superRefine(atMostOne("performed", ["performedDateTime", "performedPeriod", "performedString", "performedAge", "performedRange"]));
+
+const familyMemberHistory = obj({
+  resourceType: z.literal("FamilyMemberHistory"),
+  ...resourceBase,
+  identifier: z.array(identifier).optional(),
+  status: z.enum(["partial", "completed", "entered-in-error", "health-unknown"]),
+  dataAbsentReason: codeableConcept.optional(),
+  patient: reference,
+  date: dateTime.optional(),
+  name: str.optional(),
+  relationship: codeableConcept,
+  sex: codeableConcept.optional(),
+  deceasedBoolean: z.boolean().optional(),
+  deceasedAge: age.optional(),
+  deceasedRange: range.optional(),
+  deceasedDate: date.optional(),
+  deceasedString: str.optional(),
+  note: z.array(annotation).optional(),
+  condition: z
+    .array(
+      obj({
+        code: codeableConcept,
+        outcome: codeableConcept.optional(),
+        contributedToDeath: z.boolean().optional(),
+        onsetAge: age.optional(),
+        onsetRange: range.optional(),
+        onsetPeriod: period.optional(),
+        onsetString: str.optional(),
+        note: z.array(annotation).optional(),
+      }).superRefine(atMostOne("onset", ["onsetAge", "onsetRange", "onsetPeriod", "onsetString"])),
+    )
+    .optional(),
+}).superRefine(atMostOne("deceased", ["deceasedBoolean", "deceasedAge", "deceasedRange", "deceasedDate", "deceasedString"]));
+
 /** The inbound schema of each importable resource type (validated output types for the mappers). */
 export const INBOUND_SCHEMAS = {
+  Procedure: procedure,
+  FamilyMemberHistory: familyMemberHistory,
   Patient: patient,
   AllergyIntolerance: allergyIntolerance,
   Condition: condition,
@@ -375,6 +434,8 @@ export type InboundMedicationStatement = z.infer<typeof medicationStatement>;
 export type InboundMedicationRequest = z.infer<typeof medicationRequest>;
 export type InboundDocumentReference = z.infer<typeof documentReference>;
 export type InboundImmunization = z.infer<typeof immunization>;
+export type InboundProcedure = z.infer<typeof procedure>;
+export type InboundFamilyMemberHistory = z.infer<typeof familyMemberHistory>;
 export type InboundCodeableConcept = z.infer<typeof codeableConcept>;
 export type InboundReference = z.infer<typeof reference>;
 export type InboundQuantity = z.infer<typeof quantity>;

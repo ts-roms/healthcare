@@ -22,7 +22,15 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { canonicalJson } from "../exchange/canonical-json";
 import { fhirImport, fhirImportContent, fhirImportEntry, type FhirImportEntryRecord, type FhirImportRecord, type FhirImportStatus } from "./fhir-import.schema";
 import { type ImportedItem, type ImportedPatient, importKind, type ImportOrigin } from "./inbound-model";
-import { mapInboundEntries, registrationDraft, toAllergyInput, toExternalHistory, toImmunizationInput } from "./inbound-mapping";
+import {
+  mapInboundEntries,
+  registrationDraft,
+  toAllergyInput,
+  toExternalHistory,
+  toFamilyHistoryInputs,
+  toImmunizationInput,
+  toPastProcedureInput,
+} from "./inbound-mapping";
 import { FhirImportError, type ParsedImport, parseImport } from "./inbound-validation";
 import { type DuplicateOverride, FHIR_IMPORT_TARGETS, type FhirImportTargets, type RegistrationDraft } from "./ports";
 
@@ -40,9 +48,11 @@ export interface ReceivedImport {
 }
 
 /** What accepting an entry of each kind creates. */
-function becomes(kind: string): "allergy" | "immunization" | "external_history" | "patient_match" | null {
+function becomes(kind: string): "allergy" | "immunization" | "past_procedure" | "family_history" | "external_history" | "patient_match" | null {
   if (kind === "allergy") return "allergy";
   if (kind === "immunization") return "immunization";
+  if (kind === "procedure") return "past_procedure";
+  if (kind === "family_history") return "family_history";
   if (kind === "patient") return "patient_match";
   if (kind === "not_supported") return null;
   return "external_history";
@@ -311,14 +321,23 @@ export class FhirImportService {
         reference: `fhir-import:${row.id}#${entry.entryIndex}`,
         declaredSource: row.declaredSource,
       };
-      let resultType: "allergy_intolerance" | "external_history_entry" | "immunization";
+      let resultType: "allergy_intolerance" | "external_history_entry" | "immunization" | "past_procedure" | "family_history_entry";
       let resultId: string;
+      let resultIds: string[] | undefined;
       if (item.kind === "allergy") {
         resultType = "allergy_intolerance";
         resultId = await this.targets.recordAllergy(tx, actor, row.patientId, toAllergyInput(item), origin);
       } else if (item.kind === "immunization") {
         resultType = "immunization";
         resultId = await this.targets.recordImmunization(tx, actor, row.patientId, toImmunizationInput(item), origin);
+      } else if (item.kind === "procedure") {
+        resultType = "past_procedure";
+        resultId = await this.targets.recordPastProcedure(tx, actor, row.patientId, toPastProcedureInput(item), origin);
+      } else if (item.kind === "family_history") {
+        // One family history entry per condition of the relative; the entry's result is the first.
+        resultType = "family_history_entry";
+        resultIds = await this.targets.recordFamilyHistory(tx, actor, row.patientId, toFamilyHistoryInputs(item), origin);
+        resultId = resultIds[0]!;
       } else if (item.kind === "condition" || item.kind === "observation" || item.kind === "medication" || item.kind === "document") {
         resultType = "external_history_entry";
         resultId = await this.targets.recordExternalHistory(tx, actor, row.patientId, toExternalHistory(item), origin);
@@ -334,7 +353,14 @@ export class FhirImportService {
         resourceType: "fhir_import",
         resourceId: row.id,
         patientId: row.patientId,
-        metadata: { entryId: entry.id, entryIndex: entry.entryIndex, resourceType: entry.resourceType, resultType, resultId },
+        metadata: {
+          entryId: entry.id,
+          entryIndex: entry.entryIndex,
+          resourceType: entry.resourceType,
+          resultType,
+          resultId,
+          ...(resultIds ? { resultIds } : {}),
+        },
       });
       await this.settle(tx, actor, row);
     });

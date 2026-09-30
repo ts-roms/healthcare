@@ -3645,7 +3645,7 @@ export interface RecordsRequestDetail extends RecordsRequest {
 }
 
 export type RecordCopySection =
-  "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations";
+  "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations" | "history";
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {

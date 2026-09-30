@@ -21,6 +21,8 @@ export const WORKSPACE_PANELS = {
   referrals: ["encounter.read"],
   /** The latest immunizations (given, not given, reported or imported). */
   immunizations: ["immunization.read"],
+  /** Past procedures and conditions, the family history state and the current social history (sensitive parts also need encounter.write). */
+  history: ["history.read"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type WorkspacePanel = keyof typeof WORKSPACE_PANELS;
@@ -36,6 +38,7 @@ export const WORKSPACE_LIMITS = {
   documents: 8,
   referrals: 8,
   immunizations: 8,
+  history: 5,
 } as const;
 
 export function visiblePanels(permissions: ReadonlySet<string>): { included: Set<WorkspacePanel>; withheld: WorkspacePanel[] } {
