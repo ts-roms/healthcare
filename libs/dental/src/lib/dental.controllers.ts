@@ -14,6 +14,7 @@ import {
   EnteredInErrorDto,
   NotationDto,
   PortalSettingDto,
+  WrittenEstimateDto,
   RecordExaminationDto,
   RecordPerioChartDto,
   RecordProcedureDto,
@@ -199,6 +200,13 @@ export class DentalPlanController {
   async estimatePdf(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string): Promise<StreamableFile> {
     const { filename, pdf } = await this.estimates.pdf(actor, id);
     return pdfFile(pdf, filename);
+  }
+
+  @Post(":planId/written-estimates")
+  @RequirePermissions("dental.treatment-plan.manage")
+  @ApiOperation({ summary: "Record that the patient signed today's printed estimate (items, total, valid until; append-only)" })
+  recordWrittenEstimate(@CurrentActor() actor: Actor, @Param("planId", ParseUUIDPipe) id: string, @Body() body: WrittenEstimateDto) {
+    return this.estimates.recordWritten(actor, id, body.version);
   }
 
   @Post(":planId/items")

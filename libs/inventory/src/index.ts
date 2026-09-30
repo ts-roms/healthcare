@@ -7,3 +7,5 @@ export * from "./lib/stock/inventory-stock.service";
 export * from "./lib/procurement/purchase-order.service";
 export * from "./lib/procurement/supplier-invoice.service";
 export * from "./lib/stock/inventory-valuation.service";
+export * from "./lib/compliance/inventory-compliance.service";
+export { ControlledRegisterQueryDto } from "./lib/procurement/procurement.dto";

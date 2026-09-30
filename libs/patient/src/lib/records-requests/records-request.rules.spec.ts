@@ -1,4 +1,4 @@
-import { copySectionsForScope, daysWaiting, recordsRequestOpen } from "./records-request.rules";
+import { copySectionsForScope, daysWaiting, recordsRequestOpen, recordsRequestOverdue, respondByDate } from "./records-request.rules";
 
 describe("records request rules", () => {
   it("is open while submitted or in review", () => {
@@ -20,5 +20,14 @@ describe("records request rules", () => {
     expect(copySectionsForScope(["laboratory", "consultations"])).toEqual(["allergies", "consultations", "laboratory", "care_plans"]);
     expect(copySectionsForScope(["imaging", "dental", "certificates"])).toEqual(["dental", "certificates", "documents"]);
     expect(copySectionsForScope(["other"])).toEqual([]);
+  });
+
+  it("dates the response from the organization's own response time, and flags open requests past it", () => {
+    expect(respondByDate("2026-09-29", 15)).toBe("2026-10-14");
+    expect(respondByDate("2026-09-29", null)).toBeNull();
+    expect(recordsRequestOverdue({ status: "in_review", respondBy: "2026-10-14" }, "2026-10-15")).toBe(true);
+    expect(recordsRequestOverdue({ status: "in_review", respondBy: "2026-10-14" }, "2026-10-14")).toBe(false);
+    expect(recordsRequestOverdue({ status: "fulfilled", respondBy: "2026-10-14" }, "2026-10-20")).toBe(false);
+    expect(recordsRequestOverdue({ status: "submitted", respondBy: null }, "2030-01-01")).toBe(false);
   });
 });

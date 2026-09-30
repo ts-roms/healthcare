@@ -3,7 +3,7 @@ import type { MessageSender, MessageTopic, ThreadStatus } from "./patient-messag
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
-/** Mirrors database/migrations/0074_patient_messaging.sql (the migration is the source of truth). */
+/** Mirrors database/migrations/0076_patient_messaging.sql (the migration is the source of truth). */
 export const patientMessageThread = pgTable("patient_message_thread", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull(),

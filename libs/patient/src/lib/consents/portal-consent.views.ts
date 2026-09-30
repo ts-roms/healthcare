@@ -11,7 +11,7 @@ export interface PatientConsentView {
   history: PatientConsentDecisionView[];
 }
 
-/** The organization's wording a patient reads before giving a consent online (migration 0076). */
+/** The organization's wording a patient reads before giving a consent online (migration 0078). */
 export interface ConsentWordingView {
   id: string;
   consentType: ConsentType;

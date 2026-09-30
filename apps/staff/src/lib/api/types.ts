@@ -1347,6 +1347,10 @@ export interface CaseReportSummary {
   version: number;
   /** Set when a check of earlier diagnoses opened it (rather than detection as the diagnosis was recorded). */
   rescanId: string | null;
+  /** When it is due under the organization's own rule (migration 0074); null: the rule sets no deadline. */
+  dueAt: string | null;
+  /** Still waiting to be reported and past its due time. */
+  overdue: boolean;
   patient: { patientNumber: string; displayName: string } | null;
 }
 
@@ -1381,6 +1385,8 @@ export interface ReportableRule {
   sourceNote: string | null;
   status: "active" | "inactive";
   createdAt: string;
+  /** The organization's own deadline: report within this many days of the diagnosis (migration 0074). */
+  reportWithinDays: number | null;
 }
 
 export interface DohFacilityCode {
@@ -1661,6 +1667,10 @@ export interface PurchaseOrder {
   version: number;
   supplier: { id: string; code: string; name: string } | null;
   location: { id: string; name: string } | null;
+  /** The organization's own procurement method and its reference (migration 0074). */
+  procurementMethodId: string | null;
+  procurementReference: string | null;
+  procurementMethod: { id: string; code: string; name: string; referenceLabel: string | null } | null;
   lines: Array<{
     id: string;
     lineNumber: number;
@@ -1865,6 +1875,12 @@ export interface DentalPlanEstimate {
   };
   disclaimer: string;
   note: string | null;
+  /** Until when a printed estimate holds (the organization's validity days; migration 0074). */
+  validUntil: string | null;
+  /** A decision recorded by staff needs a signed written estimate covering the items decided. */
+  writtenRequired: boolean;
+  /** Signed written estimates recorded for the plan, newest first. */
+  written: DentalWrittenEstimate[];
 }
 
 export interface DentalTreatmentPlan {
@@ -2905,6 +2921,10 @@ export interface DentalPortalSetting {
   portalPlanEstimates: boolean;
   /** The organization's own note under every fee estimate (printed and in MyHealth). */
   feeEstimateNote: string | null;
+  /** How long a printed estimate holds, in days (printed as "valid until"; migration 0074). */
+  writtenEstimateValidityDays: number | null;
+  /** A decision recorded by staff needs the patient's signed written estimate. */
+  writtenEstimateRequired: boolean;
   /** 0 until first set. */
   version: number;
   updatedAt: string | null;
@@ -2991,6 +3011,8 @@ export interface LabQualitySummary {
   temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
   eqa: { overdue: number; awaitingEvaluation: number };
   competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
+  /** The facility's laboratory licence as recorded (migration 0074). */
+  licence: { state: LabLicenceState; validUntil: string | null };
 }
 
 // ---- Patient timeline (GET /patients/:id/timeline) ----------------------------------------------------------------
@@ -3278,6 +3300,12 @@ export interface SupplierInvoice {
   voidedAt: string | null;
   voidReason: string | null;
   overdue: boolean;
+  /** What was withheld at payment under the organization's own code (migration 0074); entered by staff. */
+  withheldAmount: number;
+  withholdingReference: string | null;
+  withholdingCode: { id: string; code: string; description: string } | null;
+  /** The total less what was withheld, once paid. */
+  netPaid: number | null;
   version: number;
 }
 
@@ -3569,6 +3597,12 @@ export interface RecordsRequest {
   closedBy: string | null;
   version: number;
   daysWaiting: number;
+  /** The response date from the organization's own response time (migration 0074), and whether it has passed. */
+  respondBy: string | null;
+  overdue: boolean;
+  /** How the requester's identity was confirmed before sharing. */
+  identityCheckMethod: string | null;
+  identityCheckedAt: string | null;
   patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
 }
 
@@ -3664,4 +3698,199 @@ export interface FacilityBookingRules {
   rules: BookingRules;
   version: number | null;
   updatedAt: string | null;
+}
+
+// ---- Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md) ----
+
+export type ComplianceArea =
+  "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates";
+
+export interface ComplianceReview {
+  id: string;
+  area: ComplianceArea;
+  outcome: "validated" | "changes_needed";
+  reviewerName: string;
+  reviewerRole: string;
+  reference: string;
+  reviewedOn: string;
+  note: string | null;
+  recordedBy: string;
+  recordedAt: string;
+}
+
+/** GET /compliance/reviews */
+export interface ComplianceOverview {
+  areas: Array<{ area: ComplianceArea; latest: ComplianceReview | null }>;
+  history: ComplianceReview[];
+}
+
+export interface WithholdingCode {
+  id: string;
+  code: string;
+  description: string;
+  /** For reference (100 = 1%); amounts are entered at payment. */
+  rateBasisPoints: number | null;
+  status: "active" | "inactive";
+  createdAt: string;
+}
+
+export interface ProcurementMethod {
+  id: string;
+  code: string;
+  name: string;
+  referenceLabel: string | null;
+  status: "active" | "inactive";
+  createdAt: string;
+}
+
+export interface ControlledRegisterSetting {
+  facilityId: string;
+  licenceReference: string | null;
+  responsiblePerson: string | null;
+  note: string | null;
+  updatedAt: string | null;
+  version: number;
+}
+
+/** GET /inventory/controlled-register */
+export interface ControlledRegister {
+  facility: { id: string; name: string; timezone: string };
+  from: string;
+  to: string;
+  setting: ControlledRegisterSetting;
+  sections: Array<{
+    item: { id: string; code: string; name: string; stockUnit: string };
+    location: { id: string; code: string; name: string };
+    opening: number;
+    closing: number;
+    received: number;
+    removed: number;
+    lines: Array<{
+      id: string;
+      recordedAt: string;
+      kind: InventoryMovementKind;
+      quantity: number;
+      balance: number;
+      lotNumber: string | null;
+      expiryDate: string | null;
+      reference: string | null;
+      issuedTo: string | null;
+      reason: string | null;
+      recordedByName: string | null;
+    }>;
+  }>;
+}
+
+export type LabLicenceState = "missing" | "valid" | "expiring" | "expired" | "not_yet_valid";
+
+export interface LabLicence {
+  id: string;
+  facilityId: string;
+  licenceNumber: string;
+  classification: string | null;
+  issuedBy: string | null;
+  validFrom: string;
+  validUntil: string;
+  headName: string | null;
+  headLicenceNumber: string | null;
+  reminderDays: number;
+  recordedAt: string;
+}
+
+/** GET /laboratory/licence */
+export interface LabLicenceOverview {
+  facilityId: string;
+  today: string;
+  state: LabLicenceState;
+  current: LabLicence | null;
+  history: LabLicence[];
+}
+
+export interface RetentionPolicy {
+  id: string;
+  category: string;
+  retainYears: number;
+  basisNote: string;
+  status: "active" | "inactive";
+  createdAt: string;
+  endedAt: string | null;
+}
+
+/** GET /document-retention */
+export interface RetentionOverview {
+  policies: Array<RetentionPolicy & { pastPeriod: number; oldestUploadedAt: string | null }>;
+  ended: RetentionPolicy[];
+}
+
+/** GET /document-retention/review */
+export interface RetentionReview {
+  policy: RetentionPolicy | null;
+  documents: Array<{ id: string; patientId: string | null; facilityId: string | null; title: string; fileName: string; source: string; uploadedAt: string }>;
+  more: boolean;
+}
+
+/** GET /records-requests/setting */
+export interface RecordsRequestSetting {
+  responseDays: number | null;
+  identityCheckRequired: boolean;
+  patientNotice: string | null;
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface DentalWrittenEstimate {
+  id: string;
+  planId: string;
+  patientId: string;
+  itemIds: string[];
+  pricedOn: string;
+  totalLow: number;
+  totalHigh: number;
+  unpricedItems: number;
+  signedOn: string;
+  validUntil: string | null;
+  recordedAt: string;
+}
+
+// ---- Laboratory analyzer interfaces ----
+
+export type InstrumentProtocol = "hl7v2" | "astm";
+
+export interface LabInstrumentInterfaceSettings {
+  instrumentId: string;
+  instrumentCode: string;
+  interface: { protocol: InstrumentProtocol; specimenIdField: string; enabled: boolean; updatedAt: string; version: number } | null;
+  testCodes: Array<{ analyzerCode: string; testId: string; testCode: string; testName: string }>;
+}
+
+export type InstrumentMatchProblem = "no_specimen_id" | "unknown_specimen" | "no_test_code" | "unmapped_code" | "test_not_ordered";
+
+export interface LabInstrumentResultRow {
+  id: string;
+  instrumentId: string;
+  instrumentCode: string;
+  receivedAt: string;
+  specimenCode: string | null;
+  analyzerCode: string | null;
+  value: string;
+  units: string | null;
+  referenceRange: string | null;
+  /** As sent by the analyzer; never interpreted. */
+  flags: string | null;
+  status: string | null;
+  observedAt: string | null;
+  matchProblem: InstrumentMatchProblem | null;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+  patientId: string | null;
+  orderItemId: string | null;
+  orderNumber: string | null;
+  accessionNumber: string | null;
+  testName: string | null;
+  testUnit: string | null;
+  itemStatus: string | null;
+  state: "pending" | "accepted" | "dismissed";
+  resultId: string | null;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  dismissReason: string | null;
 }

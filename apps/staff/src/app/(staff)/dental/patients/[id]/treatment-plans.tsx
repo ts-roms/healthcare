@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, PrinterIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PrinterIcon, SignatureIcon, Trash2Icon } from "lucide-react";
 import type { ToothNotation } from "@healthcare/domain";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
@@ -10,7 +10,7 @@ import type { DentalPlanEstimate, DentalProcedureType, DentalTreatmentPlan } fro
 import { peso } from "@/lib/billing-mapping";
 import { PLAN_ITEM_STATUS, PLAN_STATUS, pesoRange } from "@/lib/dental-mapping";
 import { fileHref } from "@/lib/files";
-import { cancelPlanItem, createTreatmentPlan, decideTreatmentPlan, discontinueTreatmentPlan } from "../../actions";
+import { cancelPlanItem, createTreatmentPlan, decideTreatmentPlan, discontinueTreatmentPlan, recordWrittenEstimate } from "../../actions";
 import { emptySelection, itemLabel, ProcedureFields, type ProcedureSelection, selectionComplete, selectionPayload } from "./procedure-fields";
 
 type Draft = ProcedureSelection & { phase: number; note: string };
@@ -265,7 +265,7 @@ function PlanCard({
           );
         })}
       </ul>
-      {estimate ? <EstimateSummary planId={plan.id} estimate={estimate} /> : null}
+      {estimate ? <EstimateSummary patientId={patientId} plan={plan} estimate={estimate} canManage={canManage} /> : null}
       {plan.decisionNote ? (
         <p className="border-t px-3 py-1.5 text-meta text-muted-foreground">
           {plan.decisionChannel === "portal" ? "Decided by the patient in MyHealth" : "Patient's decision"}
@@ -335,8 +335,30 @@ function PlanCard({
 }
 
 /** The fee estimate of the work still ahead: totals at today's listed prices, what it is not, and the printable copy. */
-function EstimateSummary({ planId, estimate }: { planId: string; estimate: DentalPlanEstimate }) {
+function EstimateSummary({
+  patientId,
+  plan,
+  estimate,
+  canManage,
+}: {
+  patientId: string;
+  plan: DentalTreatmentPlan;
+  estimate: DentalPlanEstimate;
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+  const planId = plan.id;
   const { totals } = estimate;
+  const inEstimate = estimate.items.filter((i) => i.part).length;
+  const signed = () =>
+    startTransition(async () => {
+      const result = await recordWrittenEstimate(patientId, planId, plan.version);
+      if (result.ok) {
+        toast.success("Signed estimate recorded");
+        router.refresh();
+      } else toast.error(result.message);
+    });
   return (
     <div className="flex flex-col gap-1 border-t bg-muted/40 px-3 py-2" aria-label="Fee estimate">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -362,6 +384,26 @@ function EstimateSummary({ planId, estimate }: { planId: string; estimate: Denta
         Listed prices on {clinicalDate(estimate.pricedOn)}. {estimate.disclaimer}
       </p>
       {estimate.note ? <p className="text-meta text-muted-foreground">{estimate.note}</p> : null}
+      {estimate.validUntil ? (
+        <p className="text-meta text-muted-foreground">A printed estimate today holds until {clinicalDate(estimate.validUntil)}.</p>
+      ) : null}
+      {estimate.written.length ? (
+        <ul className="text-meta" aria-label="Signed estimates">
+          {estimate.written.map((w) => (
+            <li key={w.id}>
+              Signed by the patient {clinicalDate(w.signedOn)}: {w.itemIds.length} item{w.itemIds.length === 1 ? "" : "s"}, {pesoRange(w.totalLow, w.totalHigh)}
+              {w.validUntil ? `, valid until ${clinicalDate(w.validUntil)}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : estimate.writtenRequired ? (
+        <p className="text-meta text-warning-foreground">Your organization requires the patient&apos;s signed estimate before a decision is recorded.</p>
+      ) : null}
+      {canManage && inEstimate ? (
+        <Button size="xs" variant="outline" className="self-start" disabled={pending} onClick={signed}>
+          <SignatureIcon /> Patient signed today&apos;s printed estimate
+        </Button>
+      ) : null}
     </div>
   );
 }

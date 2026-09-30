@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { LabCompetencyService } from "./lab-competency.service";
 import { LabEqaService } from "./lab-eqa.service";
+import { LabLicenceService } from "./lab-licence.service";
 import { LabNonconformanceService } from "./lab-nonconformance.service";
 import { LabQualitySummaryService } from "./lab-quality-summary.service";
 import { LabTemperatureService } from "./lab-temperature.service";
@@ -17,6 +18,7 @@ import {
   NonconformanceQueryDto,
   ReadingQueryDto,
   ReclassifyDto,
+  RecordLicenceDto,
   RecordCompetencyDto,
   RecordReadingDto,
   ReportEqaResultDto,
@@ -37,7 +39,26 @@ export class LabQualityManagementController {
     private readonly eqa: LabEqaService,
     private readonly competency: LabCompetencyService,
     private readonly summaries: LabQualitySummaryService,
+    private readonly licences: LabLicenceService,
   ) {}
+
+  // ---- Licence ---------------------------------------------------------------------------
+
+  @Get("licence")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.read")
+  @ApiOperation({ summary: "The selected facility's laboratory licence as recorded (not verified), its state and history" })
+  licence(@CurrentActor() actor: Actor) {
+    return this.licences.overview(actor);
+  }
+
+  @Post("licence")
+  @RequireFacility()
+  @RequirePermissions("lab.qc.manage")
+  @ApiOperation({ summary: "Record the licence as issued (a renewal is a new record; append-only)" })
+  recordLicence(@CurrentActor() actor: Actor, @Body() body: RecordLicenceDto) {
+    return this.licences.record(actor, body);
+  }
 
   @Get("quality/summary")
   @RequireFacility()

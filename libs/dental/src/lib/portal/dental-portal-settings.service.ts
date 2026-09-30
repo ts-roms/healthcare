@@ -17,6 +17,10 @@ export interface DentalPortalSettingView {
   portalPlanEstimates: boolean;
   /** The organization's own note under every fee estimate (printed and in MyHealth), e.g. how long it holds. */
   feeEstimateNote: string | null;
+  /** How long a printed estimate holds, in days (printed as "valid until"); null: no date printed. */
+  writtenEstimateValidityDays: number | null;
+  /** A decision recorded by staff needs a signed written estimate covering the items decided. */
+  writtenEstimateRequired: boolean;
   /** 0 until the organization first sets it. */
   version: number;
   updatedAt: Date | null;
@@ -33,6 +37,10 @@ export interface DentalPortalSettingInput {
   portalPlanEstimates?: boolean;
   /** Left out: unchanged; empty or null removes it (10–500 characters). */
   feeEstimateNote?: string | null;
+  /** Left out: unchanged; null removes it. */
+  writtenEstimateValidityDays?: number | null;
+  /** Left out: unchanged. */
+  writtenEstimateRequired?: boolean;
   version: number;
 }
 
@@ -62,10 +70,21 @@ export class DentalPortalSettings {
       : undefined;
   }
 
-  /** The organization's note under fee estimates, and whether MyHealth shows estimates (only while records are shared). */
-  async estimates(organizationId: string, executor: DbExecutor = this.db): Promise<{ inPortal: boolean; note: string | null }> {
+  /**
+   * The organization's note under fee estimates, whether MyHealth shows estimates (only while records are shared), how
+   * long a printed estimate holds and whether staff-recorded decisions need a signed written estimate.
+   */
+  async estimates(
+    organizationId: string,
+    executor: DbExecutor = this.db,
+  ): Promise<{ inPortal: boolean; note: string | null; validityDays: number | null; writtenRequired: boolean }> {
     const row = await this.row(executor, organizationId);
-    return { inPortal: (row?.portalDentalRecords && row.portalPlanEstimates) ?? false, note: row?.feeEstimateNote ?? null };
+    return {
+      inPortal: (row?.portalDentalRecords && row.portalPlanEstimates) ?? false,
+      note: row?.feeEstimateNote ?? null,
+      validityDays: row?.writtenEstimateValidityDays ?? null,
+      writtenRequired: row?.writtenEstimateRequired ?? false,
+    };
   }
 
   async get(organizationId: string): Promise<DentalPortalSettingView> {
@@ -77,6 +96,8 @@ export class DentalPortalSettings {
         portalPlanAcknowledgement: null,
         portalPlanEstimates: false,
         feeEstimateNote: null,
+        writtenEstimateValidityDays: null,
+        writtenEstimateRequired: false,
         version: 0,
         updatedAt: null,
         updatedByName: null,
@@ -88,6 +109,8 @@ export class DentalPortalSettings {
       portalPlanAcknowledgement: row.portalPlanAcknowledgement,
       portalPlanEstimates: row.portalPlanEstimates,
       feeEstimateNote: row.feeEstimateNote,
+      writtenEstimateValidityDays: row.writtenEstimateValidityDays,
+      writtenEstimateRequired: row.writtenEstimateRequired,
       version: row.version,
       updatedAt: row.updatedAt,
       updatedByName: names.get(row.updatedBy) ?? null,
@@ -116,6 +139,9 @@ export class DentalPortalSettings {
         portalPlanAcknowledgement: acknowledgement,
         portalPlanEstimates: estimates,
         feeEstimateNote: note,
+        writtenEstimateValidityDays:
+          input.writtenEstimateValidityDays === undefined ? (current?.writtenEstimateValidityDays ?? null) : input.writtenEstimateValidityDays,
+        writtenEstimateRequired: input.writtenEstimateRequired ?? current?.writtenEstimateRequired ?? false,
         updatedBy: actor.userId,
         updatedAt: new Date(),
       };
@@ -140,6 +166,8 @@ export class DentalPortalSettings {
         portalPlanAcknowledgement: current?.portalPlanAcknowledgement ?? null,
         portalPlanEstimates: current?.portalPlanEstimates ?? false,
         feeEstimateNote: current?.feeEstimateNote ?? null,
+        writtenEstimateValidityDays: current?.writtenEstimateValidityDays ?? null,
+        writtenEstimateRequired: current?.writtenEstimateRequired ?? false,
       };
       for (const key of Object.keys(before) as Array<keyof typeof before>) {
         if (before[key] !== values[key]) changes[key] = { from: before[key], to: values[key] };

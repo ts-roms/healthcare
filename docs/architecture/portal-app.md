@@ -106,7 +106,7 @@ for online booking), the clinic (when there is more than one), the doctor ("any 
 and an open time (morning/afternoon), an optional reason, then confirm. `/appointments/[id]` moves a visit to another
 open time — with the same doctor or another one at the same clinic — or cancels it (optional reason) — offered only while the API says `canReschedule` /
 `canCancel`. The rules live in the clinic domain (`libs/clinic/src/lib/domain/patient-booking.ts`) and are re-checked on
-every call, with each clinic's own rules (`facility_booking_rule`, migration `0075`; by default at least 2 hours ahead, at most 60 days
+every call, with each clinic's own rules (`facility_booking_rule`, migration `0077`; by default at least 2 hours ahead, at most 60 days
 out, at most 3 open self-bookings, changes until 2 hours before), only on the schedule's slot grid; rescheduling only for
 online-bookable visit types. Where the clinic turns on its **waiting list**, a day with no open times offers "Tell me if a time opens"
 (`GET/POST /portal/booking/waitlist`); the patient is texted or emailed when a time may have opened (no time, doctor or reason in
@@ -117,7 +117,7 @@ confirmed by SMS (`appointment.self-service`: facility, date and time only); the
 shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
 waiting room above.
 
-**Conversations (two-way messaging, migration `0074`; `libs/patient/src/lib/messaging`, `docs/domains/patient-messaging.md`).** `/messages` starts with **Your conversations** and **New message** (`/messages/new`: topic, subject, text up to 2,000 characters; `/messages/[threadId]`: the exchange and a reply box). Every place the patient writes says MyHealth is not for emergencies and that messages are read during clinic hours. At most 5 open conversations and 10 messages an hour; text only; a conversation the clinic closed takes no more messages (start a new one). The clinic replies from staff `/messages` (`patient.message.read|manage`); the patient gets a text or email that a message is waiting (`portal.message-received`, no name, subject or content) and the navigation badge counts unread replies together with notices.
+**Conversations (two-way messaging, migration `0076`; `libs/patient/src/lib/messaging`, `docs/domains/patient-messaging.md`).** `/messages` starts with **Your conversations** and **New message** (`/messages/new`: topic, subject, text up to 2,000 characters; `/messages/[threadId]`: the exchange and a reply box). Every place the patient writes says MyHealth is not for emergencies and that messages are read during clinic hours. At most 5 open conversations and 10 messages an hour; text only; a conversation the clinic closed takes no more messages (start a new one). The clinic replies from staff `/messages` (`patient.message.read|manage`); the patient gets a text or email that a message is waiting (`portal.message-received`, no name, subject or content) and the navigation badge counts unread replies together with notices.
 
 **Notices.** Below the conversations, `/messages` lists the patient's in-app notices newest first — results-ready notices, booking
 confirmations, "we missed you" after a no-show, care-plan follow-up reminders and messages staff send from the patient

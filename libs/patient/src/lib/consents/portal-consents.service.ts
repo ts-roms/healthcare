@@ -20,7 +20,7 @@ import type { ConsentWordingView, PatientConsentDecisionView, PatientConsentView
 /**
  * The patient's consents in MyHealth (docs/architecture/portal-app.md, "Privacy and consents"): the
  * current decision and history per consent type, withdrawal of the consents MyHealth offers, and giving consents against
- * the organization's own wording (portal-consent.rules.ts; `consent_text`, migration 0076).
+ * the organization's own wording (portal-consent.rules.ts; `consent_text`, migration 0078).
  * A withdrawal or a grant is a new consent decision recorded by the patient's MyHealth account (electronic, effective at
  * once; a grant records the wording version the patient read and confirmed); consents are append-only. Withdrawing portal access ends MyHealth: every session of the account is revoked in the
  * same transaction, and signing in is refused until the clinic records a new grant.

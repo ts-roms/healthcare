@@ -1,6 +1,6 @@
 /**
  * Rules for patients booking their own appointments in MyHealth. Staff booking is not limited by these. Each facility
- * may set its own (`facility_booking_rule`, migration 0075); a facility without one uses {@link DEFAULT_BOOKING_RULES}.
+ * may set its own (`facility_booking_rule`, migration 0077); a facility without one uses {@link DEFAULT_BOOKING_RULES}.
  */
 export interface BookingRules {
   /** Book at least this long before the start, so the clinic can prepare. */

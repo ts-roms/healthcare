@@ -23,7 +23,7 @@ export function consentInEffect(c: { decision: string; effectiveAt: Date; expire
 }
 
 /**
- * Consents the patient may give in MyHealth (migration 0076), each only against the organization's own wording (the
+ * Consents the patient may give in MyHealth (migration 0078), each only against the organization's own wording (the
  * platform ships none) and only while the organization offers it online. The same four they may withdraw online:
  * consent to data processing and general treatment, and to MyHealth itself, are given at the clinic.
  */

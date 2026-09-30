@@ -270,6 +270,10 @@ and `UsersService`. Other domains order tests only through the API above; they n
 reports are stored through `DocumentsService` (`libs/documents`, a shared platform service): private S3-compatible
 storage, category `laboratory_report`, source `generated`.
 
+Analyzer interfaces (HL7 v2 / ASTM): messages from an on-site gateway wait for review and are accepted into the result
+workflow through `LabResultService.enterWithin`; the formats are read by `libs/interoperability` behind the
+`InstrumentMessageReader` port. See [laboratory-instruments.md](laboratory-instruments.md).
+
 The reference-laboratory interface is an integration dependency: `SendOutService.dispatchSource` feeds the
 `ReferenceLabSources` port of `libs/interoperability` (adapter `apps/api/src/app/adapters/reference-lab-adapters.ts`,
 which adds the patients' identity), and an acknowledged electronic submission comes back through `ReferenceLabSink`.

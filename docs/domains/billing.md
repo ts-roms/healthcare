@@ -219,6 +219,35 @@ payment intents complete once.
   request body for signature checks (`rawBody: true`).
 - `InvoiceService`, `DepositService` and `OnlinePaymentService` (exported) serve MyHealth billing.
 
+## Online payment — PayMongo
+
+The one provider adapter so far: `apps/api/src/app/adapters/paymongo-payment-gateway.ts` (provider-specific code stays
+out of `libs/billing`), selected in `payment-adapters.ts` when `PAYMONGO_SECRET_KEY` is set (start-up then also requires
+`PAYMONGO_WEBHOOK_SECRET` and `PAYMONGO_PAYMENT_METHODS`). Without it, the unconfigured adapter stays and no online
+payment is offered.
+
+- **Checkout:** `POST {PAYMONGO_API_BASE|https://api.paymongo.com/v1}/checkout_sessions`, HTTP Basic with the secret key
+  as username and a blank password; one line item for the amount (centavos, `PHP`, the invoice number as its name — no
+  clinical detail), `payment_method_types` from `PAYMONGO_PAYMENT_METHODS` (`card`, `gcash`, `grab_pay`, `paymaya`,
+  `billease`, `dob`, `qrph` — each must be enabled on the merchant account), `success_url`/`cancel_url` = the MyHealth
+  return address, `reference_number` = the platform's payment intent id. The response's `data.id` (`cs_…`) is the
+  provider reference; the patient goes to `data.attributes.checkout_url` (https only). On a refusal only the HTTP status is
+  kept (the provider's error body is not logged).
+- **Webhook:** register one webhook in PayMongo for `checkout_session.payment.paid`, pointing at
+  `POST /api/v1/billing/online-payments/notifications`; its signing secret is `PAYMONGO_WEBHOOK_SECRET`. The
+  `Paymongo-Signature` header (`t=…,te=…,li=…`) must carry, for a live key the `li` value and for a test key the `te`
+  value, equal to HMAC-SHA256(`<t>.<raw body>`) under that secret (hex, compared in constant time), with `t` within 300
+  seconds. Only `checkout_session.payment.paid` completes an intent (reference = the event's `data.attributes.data.id`);
+  the amount is the intent's (a session has one fixed line), and the method is recorded as `other`. Other events are
+  refused (400) — do not subscribe the webhook to them. Failed or abandoned checkouts leave the intent pending (nothing expires intents
+  automatically yet; the patient may start another).
+- **Not verified against PayMongo itself.** PayMongo's documentation site was not reachable from the build environment;
+  the request, response and signature details above come from its documentation as quoted in search results and an
+  independent, hand-modeled API profile. Tests use a local stand-in for PayMongo
+  (`apps/api/test/billing-paymongo.int.spec.ts`, unit tests beside the adapter). Before taking live payments: run a
+  payment in PayMongo's test mode end to end (checkout page, webhook delivery and signature), then switch to live keys.
+  PayMongo recommends its newer v2 checkout API for new integrations; this adapter uses v1.
+
 ## Screens
 
 Staff (`billing.charge.read`, facility selected): `/billing` — the cashier's desk; `/billing/patients/[id]` — pending

@@ -409,6 +409,8 @@ export interface PortalRecordsRequest {
   purpose: string | null;
   status: PortalRecordsRequestStatus;
   submittedAt: string;
+  /** When the clinic aims to answer, from its own response time (none: null). */
+  respondBy: string | null;
   closedAt: string | null;
   /** The records office's note (shared) or reason (declined). */
   responseNote: string | null;
@@ -418,6 +420,10 @@ export interface PortalRecordsRequest {
 export interface PortalDocuments {
   certificates: PortalCertificate[];
   requests: PortalRecordsRequest[];
+  /** What the clinic tells patients before they ask, in its own words (none: null). */
+  requestNotice: string | null;
+  /** The clinic's own response time in days (none: null). */
+  responseDays: number | null;
 }
 
 // ---- consents (/portal/consents) ----

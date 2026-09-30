@@ -1,4 +1,6 @@
 import {
+  caseReportDueAt,
+  caseReportOverdue,
   buildCasePackage,
   canApply,
   caseReadiness,
@@ -108,5 +110,23 @@ describe("rescanRangeProblem", () => {
     expect(rescanRangeProblem("2026-09-02", "2026-09-01", "2026-09-28")).toBe("The start date is after the end date");
     expect(rescanRangeProblem("2026-09-01", "2026-09-29", "2026-09-28")).toBe("The range cannot end in the future");
     expect(rescanRangeProblem("2026-06-30", "2026-09-28", "2026-09-28")).toBe(`A check covers at most ${MAX_RESCAN_DAYS} days; split the range`);
+  });
+});
+
+describe("case report deadlines (the organization's own)", () => {
+  it("is due the rule's days after the diagnosis, and none without a deadline", () => {
+    expect(caseReportDueAt("2026-09-01T02:00:00Z", 3)?.toISOString()).toBe("2026-09-04T02:00:00.000Z");
+    expect(caseReportDueAt("2026-09-01T02:00:00Z", null)).toBeNull();
+  });
+
+  it("is overdue only while still waiting to be reported", () => {
+    const now = new Date("2026-09-10T00:00:00Z");
+    const due = new Date("2026-09-05T00:00:00Z");
+    expect(caseReportOverdue({ status: "pending_review", dueAt: due }, now)).toBe(true);
+    expect(caseReportOverdue({ status: "failed", dueAt: due }, now)).toBe(true);
+    expect(caseReportOverdue({ status: "reported", dueAt: due }, now)).toBe(false);
+    expect(caseReportOverdue({ status: "dismissed", dueAt: due }, now)).toBe(false);
+    expect(caseReportOverdue({ status: "pending_review", dueAt: null }, now)).toBe(false);
+    expect(caseReportOverdue({ status: "pending_review", dueAt: new Date("2026-09-11T00:00:00Z") }, now)).toBe(false);
   });
 });

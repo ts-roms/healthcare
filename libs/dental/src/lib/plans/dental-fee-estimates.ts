@@ -1,16 +1,18 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import type { Actor } from "@healthcare/core";
+import { type Actor, BusinessRuleError, DATABASE, type Database } from "@healthcare/core";
+import { desc, eq } from "drizzle-orm";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, pdfDate, pdfDateTime, pdfMoney, renderPdf } from "@healthcare/pdf";
 import { DentalCatalogService } from "../catalog/dental-catalog.service";
 import { normalizeSurfaces, toothInNotation } from "../dental.rules";
-import type { PlanItemStatus, PlanStatus, Surface } from "../dental.schema";
+import { dentalWrittenEstimate, type DentalWrittenEstimateRecord, type PlanItemStatus, type PlanStatus, type Surface } from "../dental.schema";
+import { assertVersion } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext, type DentalListedFee } from "../ports";
 import { DentalPortalSettings } from "../portal/dental-portal-settings.service";
 import { DentalFeeLookup, itemFee, type ProcedureFee } from "./dental-fee-lookup";
 import { DentalPlanService } from "./dental-plan.service";
-import { ESTIMATE_DISCLAIMER, estimatePart, type EstimatePart, estimateTotals, type EstimateTotals } from "./fee-estimate.rules";
+import { ESTIMATE_DISCLAIMER, estimatePart, type EstimatePart, estimateTotals, type EstimateTotals, estimateValidUntil } from "./fee-estimate.rules";
 
 export interface DentalPlanEstimateItem {
   itemId: string;
@@ -47,6 +49,12 @@ export interface DentalPlanEstimate {
   disclaimer: string;
   /** The organization's own note. */
   note: string | null;
+  /** Until when a printed estimate holds (the organization's validity days from the pricing date); null: none set. */
+  validUntil: string | null;
+  /** Whether a decision recorded by staff needs a signed written estimate covering the items decided. */
+  writtenRequired: boolean;
+  /** Signed written estimates recorded for the plan, newest first. */
+  written: Array<Omit<DentalWrittenEstimateRecord, "organizationId">>;
 }
 
 /**
@@ -57,6 +65,7 @@ export interface DentalPlanEstimate {
 @Injectable()
 export class DentalFeeEstimates {
   constructor(
+    @Inject(DATABASE) private readonly db: Database,
     private readonly plans: DentalPlanService,
     private readonly fees: DentalFeeLookup,
     private readonly catalog: DentalCatalogService,
@@ -97,6 +106,7 @@ export class DentalFeeEstimates {
           ["Dentist", dentist],
           ["Proposed on", pdfDate(plan.createdAt, facility.timezone)],
           ["Prices listed on", pdfDate(estimate.pricedOn)],
+          ["Valid until", estimate.validUntil ? pdfDate(estimate.validUntil) : null],
         ]);
         w.space();
         if (!lines.length) {
@@ -171,17 +181,56 @@ export class DentalFeeEstimates {
     return { filename: `dental-estimate-${estimate.pricedOn}-${plan.id.slice(0, 8)}.pdf`, pdf };
   }
 
+  /**
+   * The patient signed today's printed estimate (docs/domains/dental.md, "Written estimates"): records the items it
+   * listed, its total and until when it holds (the organization's validity days). Append-only; the plan's version
+   * confirms staff recorded the estimate they printed.
+   */
+  async recordWritten(actor: Actor, planId: string, version: number) {
+    const { plan, estimate } = await this.load(actor.organizationId, planId);
+    assertVersion(plan.version, version, "Treatment plan");
+    const listed = estimate.items.filter((i) => i.part);
+    if (!listed.length) throw new BusinessRuleError("Nothing on this plan is awaiting a decision or still to be done", "nothing_to_estimate");
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(dentalWrittenEstimate)
+        .values({
+          organizationId: actor.organizationId,
+          planId: plan.id,
+          patientId: plan.patientId,
+          itemIds: listed.map((i) => i.itemId),
+          pricedOn: estimate.pricedOn,
+          totalLow: estimate.totals.remaining,
+          totalHigh: estimate.totals.remainingHigh,
+          unpricedItems: estimate.totals.unpricedItems,
+          signedOn: estimate.pricedOn,
+          validUntil: estimate.validUntil,
+          recordedBy: actor.userId,
+        })
+        .returning();
+      await this.audit.record(tx, actor, {
+        action: "dental.plan.estimate.signed",
+        resourceType: "dental_treatment_plan",
+        resourceId: plan.id,
+        patientId: plan.patientId,
+        metadata: { writtenEstimateId: row!.id, items: listed.length, totalLow: row!.totalLow, totalHigh: row!.totalHigh, validUntil: row!.validUntil },
+      });
+    });
+    return this.forPlan(actor.organizationId, planId);
+  }
+
   private async load(organizationId: string, planId: string) {
     const plan = await this.plans.get(organizationId, planId);
     const pricedOn = await this.fees.today(organizationId, plan.facilityId);
     const included = plan.items.filter((i) => estimatePart(i.status));
-    const [priced, settings] = await Promise.all([
+    const [priced, settings, written] = await Promise.all([
       this.fees.price(
         organizationId,
         included.map((i) => i.procedureTypeId),
         pricedOn,
       ),
       this.settings.estimates(organizationId),
+      this.db.select().from(dentalWrittenEstimate).where(eq(dentalWrittenEstimate.planId, plan.id)).orderBy(desc(dentalWrittenEstimate.recordedAt)),
     ]);
     const items: DentalPlanEstimateItem[] = plan.items.map((i) => {
       const part = estimatePart(i.status);
@@ -216,6 +265,9 @@ export class DentalFeeEstimates {
       ),
       disclaimer: ESTIMATE_DISCLAIMER,
       note: settings.note,
+      validUntil: estimateValidUntil(pricedOn, settings.validityDays),
+      writtenRequired: settings.writtenRequired,
+      written: written.map(({ organizationId: _o, ...rest }) => rest),
     };
     return { plan, estimate };
   }

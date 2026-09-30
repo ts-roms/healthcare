@@ -24,6 +24,7 @@ import {
   inventorySupplier,
   inventorySupplierInvoice,
   inventorySupplierInvoiceLine,
+  inventoryWithholdingCode,
   type SupplierInvoiceRecord,
 } from "../inventory.schema";
 import { assertVersion, found } from "../inventory-support";
@@ -172,18 +173,38 @@ export class SupplierInvoiceService {
       const invoice = await this.lockFor(tx, actor, invoiceId, "pay", input.version);
       if (input.paidOn < invoice.invoiceDate) throw new BusinessRuleError("The payment date is before the invoice date", "paid_before_invoice");
       if (input.paidOn > (await this.today(actor))) throw new BusinessRuleError("The payment date is in the future", "paid_in_future");
+      const withholding = input.withholding;
+      if (withholding) {
+        // The organization's own code; the amount is what its accountant determined (entered, never computed here).
+        const [code] = await tx
+          .select()
+          .from(inventoryWithholdingCode)
+          .where(and(eq(inventoryWithholdingCode.organizationId, actor.organizationId), eq(inventoryWithholdingCode.id, withholding.codeId)));
+        if (!code || code.status !== "active") throw new BusinessRuleError("Choose an active withholding code", "withholding_code_inactive");
+        if (withholding.amount > invoice.total) throw new BusinessRuleError("More is withheld than the invoice total", "withheld_above_total");
+      }
       const updated = await this.update(tx, invoice, {
         status: "paid",
         paidOn: input.paidOn,
         paymentReference: input.paymentReference,
         paidRecordedBy: actor.userId,
         paidRecordedAt: new Date(),
+        withholdingCodeId: withholding?.codeId ?? null,
+        withheldAmount: withholding?.amount ?? 0,
+        withholdingReference: withholding?.reference ?? null,
       });
       await this.audit.record(tx, actor, {
         action: "inventory.supplier-invoice.pay",
         resourceType: "inventory_supplier_invoice",
         resourceId: invoice.id,
-        metadata: { invoiceNumber: invoice.invoiceNumber, total: invoice.total, paidOn: input.paidOn, paymentReference: input.paymentReference },
+        metadata: {
+          invoiceNumber: invoice.invoiceNumber,
+          total: invoice.total,
+          paidOn: input.paidOn,
+          paymentReference: input.paymentReference,
+          withholdingCodeId: withholding?.codeId ?? null,
+          withheldAmount: withholding?.amount ?? 0,
+        },
       });
       await this.events.record(tx, this.event("InventorySupplierInvoicePaid", updated));
     });
@@ -306,7 +327,8 @@ export class SupplierInvoiceService {
 
   private async views(actor: Actor, invoices: SupplierInvoiceRecord[], today: string) {
     if (invoices.length === 0) return [];
-    const [suppliers, orders] = await Promise.all([
+    const codeIds = [...new Set(invoices.map((i) => i.withholdingCodeId).filter((id): id is string => Boolean(id)))];
+    const [suppliers, orders, codes] = await Promise.all([
       this.db
         .select({ id: inventorySupplier.id, code: inventorySupplier.code, name: inventorySupplier.name })
         .from(inventorySupplier)
@@ -315,6 +337,12 @@ export class SupplierInvoiceService {
         .select({ id: inventoryPurchaseOrder.id, poNumber: inventoryPurchaseOrder.poNumber })
         .from(inventoryPurchaseOrder)
         .where(inArray(inventoryPurchaseOrder.id, [...new Set(invoices.map((i) => i.purchaseOrderId))])),
+      codeIds.length
+        ? this.db
+            .select({ id: inventoryWithholdingCode.id, code: inventoryWithholdingCode.code, description: inventoryWithholdingCode.description })
+            .from(inventoryWithholdingCode)
+            .where(and(eq(inventoryWithholdingCode.organizationId, actor.organizationId), inArray(inventoryWithholdingCode.id, codeIds)))
+        : Promise.resolve([]),
     ]);
     return invoices.map((i) => {
       const { organizationId: _o, ...rest } = i;
@@ -327,6 +355,9 @@ export class SupplierInvoiceService {
         supplier: suppliers.find((s) => s.id === i.supplierId) ?? null,
         poNumber: orders.find((o) => o.id === i.purchaseOrderId)?.poNumber ?? null,
         overdue: invoiceOverdue(i, today),
+        withholdingCode: codes.find((c) => c.id === i.withholdingCodeId) ?? null,
+        /** Centavos paid to the supplier: the total less what was withheld (once paid). */
+        netPaid: i.status === "paid" ? i.total - i.withheldAmount : null,
         recordedByYou: i.recordedBy === actor.userId,
       };
     });

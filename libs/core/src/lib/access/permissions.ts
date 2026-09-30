@@ -123,11 +123,18 @@ export const PERMISSIONS = [
   "inventory.valuation.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
   "patient.records-request.manage",
-  // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0074).
+  // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0076).
   "patient.message.read",
   "patient.message.manage",
-  // Write the organization's consent wording that patients read before giving a consent online (migration 0076).
+  // Write the organization's consent wording that patients read before giving a consent online (migration 0078).
   "consent.wording.manage",
+  // Compliance configuration (migration 0074): who validated each area's configuration; the controlled-item register;
+  // document retention periods and their review. No government rule is encoded; values are the organization's.
+  "compliance.review.manage",
+  "inventory.controlled-register.read",
+  "document.retention.manage",
+  // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).
+  "lab.instrument.message.submit",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

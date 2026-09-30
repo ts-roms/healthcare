@@ -137,7 +137,7 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Online booking rules and the waiting list
 
-Migration `0075`.
+Migration `0077`.
 
 - **Rules per facility** (`facility_booking_rule`, `BookingRulesService`; `GET /clinic/booking-rules` needs `appointment.read`,
   `PUT /clinic/booking-rules/:facilityId` needs `clinic.configure`, versioned and audited as `facility.booking-rules-update` with

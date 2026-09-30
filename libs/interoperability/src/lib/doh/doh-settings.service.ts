@@ -47,6 +47,7 @@ export class DohSettingsService {
           codePrefix: input.codePrefix,
           category: input.category,
           sourceNote: input.sourceNote ?? null,
+          reportWithinDays: input.reportWithinDays ?? null,
           createdBy: actor.userId,
         })
         .returning()) as [ReportableRuleRecord];
@@ -54,7 +55,7 @@ export class DohSettingsService {
         action: "doh.rule.create",
         resourceType: "doh_reportable_rule",
         resourceId: row.id,
-        metadata: { codePrefix: row.codePrefix, category: row.category },
+        metadata: { codePrefix: row.codePrefix, category: row.category, reportWithinDays: row.reportWithinDays },
       });
       return strip(row);
     });

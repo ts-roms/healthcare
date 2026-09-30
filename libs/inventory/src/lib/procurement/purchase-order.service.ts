@@ -16,7 +16,14 @@ import {
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { purchaseOrderAllows, purchaseOrderNumber, type PurchaseOrderAction, reorderSuggestion, statusAfterReceipt } from "../inventory.rules";
+import {
+  procurementProblem,
+  purchaseOrderAllows,
+  purchaseOrderNumber,
+  type PurchaseOrderAction,
+  reorderSuggestion,
+  statusAfterReceipt,
+} from "../inventory.rules";
 import {
   inventoryBalance,
   inventoryItem,
@@ -24,6 +31,7 @@ import {
   inventoryLot,
   inventoryMovement,
   inventoryNumberSequence,
+  inventoryProcurementMethod,
   inventoryPurchaseOrder,
   inventoryPurchaseOrderLine,
   inventoryStockLevel,
@@ -86,6 +94,7 @@ export class PurchaseOrderService {
     const order = await this.db.transaction(async (tx) => {
       await this.checkParties(tx, actor, input.supplierId, input.locationId);
       await this.checkItems(tx, actor, input.lines);
+      await this.checkMethod(tx, actor, input.procurementMethodId);
       const [counter] = await tx
         .insert(inventoryNumberSequence)
         .values({ organizationId: actor.organizationId, series: "purchase_order", year, nextValue: 1 })
@@ -104,6 +113,8 @@ export class PurchaseOrderService {
           locationId: input.locationId,
           expectedDate: input.expectedDate ?? null,
           notes: input.notes ?? null,
+          procurementMethodId: input.procurementMethodId,
+          procurementReference: input.procurementReference,
           createdBy: actor.userId,
         })
         .returning();
@@ -126,6 +137,7 @@ export class PurchaseOrderService {
       const order = await this.lockFor(tx, actor, purchaseOrderId, "edit", input.version);
       await this.checkParties(tx, actor, input.supplierId, input.locationId);
       await this.checkItems(tx, actor, input.lines);
+      await this.checkMethod(tx, actor, input.procurementMethodId);
       await tx.delete(inventoryPurchaseOrderLine).where(eq(inventoryPurchaseOrderLine.purchaseOrderId, order.id));
       await this.insertLines(tx, actor, order.id, input.lines);
       await this.save(tx, order, {
@@ -133,6 +145,8 @@ export class PurchaseOrderService {
         locationId: input.locationId,
         expectedDate: input.expectedDate,
         notes: input.notes,
+        procurementMethodId: input.procurementMethodId,
+        procurementReference: input.procurementReference,
       });
       await this.audit.record(tx, actor, {
         action: "inventory.purchase-order.update",
@@ -147,6 +161,17 @@ export class PurchaseOrderService {
   async submit(actor: Actor, purchaseOrderId: string, version: number) {
     await this.db.transaction(async (tx) => {
       const order = await this.lockFor(tx, actor, purchaseOrderId, "submit", version);
+      // The organization's own procurement methods, once it has defined any (its configuration, not a platform rule).
+      const methods = await tx
+        .select({ id: inventoryProcurementMethod.id, status: inventoryProcurementMethod.status, referenceLabel: inventoryProcurementMethod.referenceLabel })
+        .from(inventoryProcurementMethod)
+        .where(eq(inventoryProcurementMethod.organizationId, actor.organizationId));
+      const problem = procurementProblem(
+        methods.some((m) => m.status === "active"),
+        methods.find((m) => m.id === order.procurementMethodId) ?? null,
+        order.procurementReference,
+      );
+      if (problem) throw new BusinessRuleError(problem.message, problem.code);
       await this.save(tx, order, { status: "submitted", submittedBy: actor.userId, submittedAt: new Date() });
       await this.audit.record(tx, actor, {
         action: "inventory.purchase-order.submit",
@@ -406,6 +431,15 @@ export class PurchaseOrderService {
     if (delivery.status !== "active") throw new BusinessRuleError("The location is inactive", "location_inactive");
   }
 
+  private async checkMethod(tx: DbExecutor, actor: Actor, methodId: string | null) {
+    if (!methodId) return;
+    const [method] = await tx
+      .select({ status: inventoryProcurementMethod.status })
+      .from(inventoryProcurementMethod)
+      .where(and(eq(inventoryProcurementMethod.organizationId, actor.organizationId), eq(inventoryProcurementMethod.id, methodId)));
+    if (!method || method.status !== "active") throw new BusinessRuleError("Choose an active procurement method", "procurement_method_inactive");
+  }
+
   private async checkItems(tx: DbExecutor, actor: Actor, lines: Array<{ itemId: string }>) {
     const ids = lines.map((l) => l.itemId);
     const items = await tx
@@ -449,7 +483,8 @@ export class PurchaseOrderService {
   private async views(executor: DbExecutor, actor: Actor, orders: PurchaseOrderRecord[]) {
     if (orders.length === 0) return [];
     const ids = orders.map((o) => o.id);
-    const [lines, suppliers, locations] = await Promise.all([
+    const methodIds = [...new Set(orders.map((o) => o.procurementMethodId).filter((id): id is string => Boolean(id)))];
+    const [lines, suppliers, locations, methods] = await Promise.all([
       executor
         .select({ line: inventoryPurchaseOrderLine, item: inventoryItem })
         .from(inventoryPurchaseOrderLine)
@@ -464,6 +499,17 @@ export class PurchaseOrderService {
         .select({ id: inventoryLocation.id, name: inventoryLocation.name })
         .from(inventoryLocation)
         .where(and(eq(inventoryLocation.organizationId, actor.organizationId), inArray(inventoryLocation.id, [...new Set(orders.map((o) => o.locationId))]))),
+      methodIds.length
+        ? executor
+            .select({
+              id: inventoryProcurementMethod.id,
+              code: inventoryProcurementMethod.code,
+              name: inventoryProcurementMethod.name,
+              referenceLabel: inventoryProcurementMethod.referenceLabel,
+            })
+            .from(inventoryProcurementMethod)
+            .where(and(eq(inventoryProcurementMethod.organizationId, actor.organizationId), inArray(inventoryProcurementMethod.id, methodIds)))
+        : Promise.resolve([]),
     ]);
     return orders.map((order) => {
       const own = lines.filter((l) => l.line.purchaseOrderId === order.id).map((l) => lineView(l.line, l.item));
@@ -478,6 +524,7 @@ export class PurchaseOrderService {
         endedAt: order.endedAt?.toISOString() ?? null,
         supplier: suppliers.find((s) => s.id === order.supplierId) ?? null,
         location: locations.find((l) => l.id === order.locationId) ?? null,
+        procurementMethod: methods.find((m) => m.id === order.procurementMethodId) ?? null,
         lines: own,
         /** Centavos, over the lines with a unit cost. */
         totalCost: priced.reduce((sum, l) => sum + l.quantityOrdered * l.unitCost!, 0),

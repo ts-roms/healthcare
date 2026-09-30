@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon, Trash2Icon, WandSparklesIcon } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import type { InventoryItem, InventoryLocation, InventorySupplier, ReorderSuggestion } from "@/lib/api/types";
+import type { InventoryItem, InventoryLocation, InventorySupplier, ProcurementMethod, ReorderSuggestion } from "@/lib/api/types";
 import { parsePesos, pesoInput } from "@/lib/billing-mapping";
 import { linesFromSuggestions } from "@/lib/inventory-mapping";
 import { createPurchaseOrder } from "../actions";
@@ -24,15 +24,26 @@ export function NewPurchaseOrder({
   suppliers,
   locations,
   suggestions,
+  methods,
 }: {
   items: InventoryItem[];
   suppliers: InventorySupplier[];
   locations: InventoryLocation[];
   suggestions: ReorderSuggestion[];
+  /** The organization's own active procurement methods; once any exist, an order names one to be submitted. */
+  methods: ProcurementMethod[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const [f, setF] = React.useState({ supplierId: "", locationId: locations[0]?.id ?? "", expectedDate: "", notes: "" });
+  const [f, setF] = React.useState({
+    supplierId: "",
+    locationId: locations[0]?.id ?? "",
+    expectedDate: "",
+    notes: "",
+    procurementMethodId: "",
+    procurementReference: "",
+  });
+  const method = methods.find((m) => m.id === f.procurementMethodId);
   const [lines, setLines] = React.useState<Line[]>([newLine()]);
   const suggested = linesFromSuggestions(suggestions, f.locationId);
   const setLine = (key: string, patch: Partial<Line>) => setLines(lines.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -53,6 +64,8 @@ export function NewPurchaseOrder({
         locationId: f.locationId,
         expectedDate: f.expectedDate || undefined,
         notes: f.notes || undefined,
+        procurementMethodId: f.procurementMethodId || null,
+        procurementReference: f.procurementReference.trim() || null,
         lines: filled.map((l) => ({ itemId: l.itemId, quantity: Number.parseInt(l.quantity, 10), unitCost: l.unitCost ? parsePesos(l.unitCost) : null })),
       });
       if (result.ok) {
@@ -97,6 +110,28 @@ export function NewPurchaseOrder({
             <Field id="po-expected" label="Expected by (optional)">
               <Input id="po-expected" type="date" value={f.expectedDate} onChange={(e) => setF({ ...f, expectedDate: e.target.value })} />
             </Field>
+            {methods.length ? (
+              <Field id="po-method" label="Procurement method">
+                <NativeSelect id="po-method" value={f.procurementMethodId} onChange={(e) => setF({ ...f, procurementMethodId: e.target.value })}>
+                  <option value="">Choose…</option>
+                  {methods.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.code} · {m.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            ) : null}
+            {method?.referenceLabel ? (
+              <Field id="po-procurement-reference" label={method.referenceLabel}>
+                <Input
+                  id="po-procurement-reference"
+                  maxLength={80}
+                  value={f.procurementReference}
+                  onChange={(e) => setF({ ...f, procurementReference: e.target.value })}
+                />
+              </Field>
+            ) : null}
           </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="text-label mb-1 font-medium">Items (quantities in stock units; unit cost in pesos, optional)</legend>

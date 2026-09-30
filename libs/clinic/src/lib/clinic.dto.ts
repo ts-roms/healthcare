@@ -368,7 +368,7 @@ export const patientWaitlistJoinSchema = z.object({
 });
 export class PatientWaitlistJoinDto extends createZodDto(patientWaitlistJoinSchema) {}
 
-// ---- Online booking rules per facility (migration 0075) --------------------------------------
+// ---- Online booking rules per facility (migration 0077) --------------------------------------
 
 export const updateBookingRulesSchema = z.object({
   minLeadMinutes: z.number().int().min(0).max(10_080),

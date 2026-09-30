@@ -67,7 +67,7 @@ export function ReportingSettings({
 
 function Rules({ rules }: { rules: ReportableRule[] }) {
   const { pending, submit } = useSubmit();
-  const empty = { codePrefix: "", category: "", sourceNote: "" };
+  const empty = { codePrefix: "", category: "", sourceNote: "", reportWithinDays: "" };
   const [f, setF] = React.useState(empty);
   return (
     <Card className="py-0">
@@ -86,6 +86,7 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
                 <TableHead>Code</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Source</TableHead>
+                <TableHead>Report within</TableHead>
                 <TableHead>Added</TableHead>
                 <TableHead />
               </TableRow>
@@ -96,6 +97,7 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
                   <TableCell className="font-mono">{r.codePrefix}</TableCell>
                   <TableCell>{r.category}</TableCell>
                   <TableCell className="text-muted-foreground">{r.sourceNote ?? "—"}</TableCell>
+                  <TableCell>{r.reportWithinDays ? `${r.reportWithinDays} day${r.reportWithinDays === 1 ? "" : "s"}` : "—"}</TableCell>
                   <TableCell>{clinicalDate(r.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     {r.status === "active" ? (
@@ -120,12 +122,18 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
           <p className="px-4 text-body text-muted-foreground">No reportable conditions configured.</p>
         )}
         <form
-          className="grid gap-2 px-4 sm:grid-cols-[8rem_1fr_1fr_auto] sm:items-end"
+          className="grid gap-2 px-4 sm:grid-cols-[8rem_1fr_1fr_8rem_auto] sm:items-end"
           aria-label="Add a reportable condition"
           onSubmit={(e) => {
             e.preventDefault();
             submit(
-              () => createRule({ ...f, sourceNote: f.sourceNote || undefined }),
+              () =>
+                createRule({
+                  codePrefix: f.codePrefix,
+                  category: f.category,
+                  sourceNote: f.sourceNote || undefined,
+                  reportWithinDays: f.reportWithinDays ? Number.parseInt(f.reportWithinDays, 10) : undefined,
+                }),
               `${f.codePrefix.toUpperCase()} added`,
               () => setF(empty),
             );
@@ -142,6 +150,16 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
           <div className="flex flex-col gap-1">
             <Label htmlFor="rule-source">Source (issuance)</Label>
             <Input id="rule-source" value={f.sourceNote} maxLength={500} onChange={(e) => setF({ ...f, sourceNote: e.target.value })} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="rule-days">Report within (days)</Label>
+            <Input
+              id="rule-days"
+              inputMode="numeric"
+              placeholder="Optional"
+              value={f.reportWithinDays}
+              onChange={(e) => setF({ ...f, reportWithinDays: e.target.value.replace(/\D/g, "") })}
+            />
           </div>
           <Button type="submit" size="sm" disabled={pending}>
             <PlusIcon /> Add

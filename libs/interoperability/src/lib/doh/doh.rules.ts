@@ -133,3 +133,17 @@ export function buildCasePackage(caseReport: { id: string; category: string }, s
     consultation: { date: src.encounter.startedAt, modality: src.encounter.modality, clinician: src.encounter.practitionerName },
   };
 }
+
+/**
+ * When a case report is due under the organization's own rule: the diagnosis time plus the rule's days. Null when the
+ * rule sets no deadline (the platform encodes none).
+ */
+export function caseReportDueAt(diagnosisRecordedAt: string | Date, reportWithinDays: number | null | undefined): Date | null {
+  if (!reportWithinDays) return null;
+  return new Date(new Date(diagnosisRecordedAt).getTime() + reportWithinDays * 86_400_000);
+}
+
+/** Still waiting to be reported (or retried) and past the organization's own deadline. */
+export function caseReportOverdue(report: { status: string; dueAt: Date | null }, now: Date = new Date()): boolean {
+  return report.dueAt !== null && ["pending_review", "queued", "failed", "rejected"].includes(report.status) && report.dueAt < now;
+}

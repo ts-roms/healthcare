@@ -41,7 +41,7 @@ export interface ConsentTextStatus {
 }
 
 /**
- * The organization's own consent wording for the consents patients may give in MyHealth (migration 0076). The platform
+ * The organization's own consent wording for the consents patients may give in MyHealth (migration 0078). The platform
  * ships none: a type is offered online only while the latest version says so. Versions are immutable; "stop offering" is a
  * new version. Nothing here says what a consent legally needs — that is the organization's (and its data protection
  * officer's) to decide.

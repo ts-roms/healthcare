@@ -17,7 +17,7 @@ overdue alerts beyond showing how long a conversation has waited, auto-replies, 
   clinic it is routed to), `topic` (`general | appointment | results | medication | billing | other`), `subject`
   (≤ 100), `started_by` (`patient | staff`), `status` (`open | closed`), `assigned_to`, `message_count`,
   `last_message_at` / `last_message_from`, `patient_read_through` (the clinic's messages the patient has read),
-  `closed_at` / `closed_by`, `version`. Migration `0074`.
+  `closed_at` / `closed_by`, `version`. Migration `0076`.
 - `patient_message` — append-only (`prevent_mutation` trigger): `sender_type`, exactly one of
   `sender_portal_account_id` (the patient's MyHealth account) or `sender_user_id` (staff), `body` (1–2,000).
 - A new conversation under a **merged** record is refused by the database trigger (`PM001` → `422 patient_merged`);
@@ -55,7 +55,7 @@ conversation, `awaiting-count`. Staff lists carry the patient's name and number,
 ## Permissions
 
 `patient.message.read` (see the queue and conversations) and `patient.message.manage` (reply, start, assign, close,
-reopen) — granted to org_admin, receptionist, nurse, physician, dentist and records_officer (migration `0074`). The
+reopen) — granted to org_admin, receptionist, nurse, physician, dentist and records_officer (migration `0076`). The
 patient side needs a MyHealth session (`PatientAccessGuard`).
 
 ## API

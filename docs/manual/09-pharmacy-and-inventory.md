@@ -187,7 +187,9 @@ The catalog screen has no button to deactivate an item, supplier or location; as
 
 1. Open **Purchase orders** (`/inventory/purchase-orders`). The **To reorder** card lists items at or below their reorder level (stock already on
    open orders counts), with the usual order quantity and the last supplier.
-2. In **New purchase order**, choose the **Supplier**, **Deliver to** (a location of your facility) and optionally **Expected by (optional)**.
+2. In **New purchase order**, choose the **Supplier**, **Deliver to** (a location of your facility) and optionally **Expected by (optional)**. If
+   your organization has set up procurement methods, choose the **Procurement method** and, when the method asks for one, enter its reference
+   (for example a posting reference). An order without them cannot be submitted.
 3. Add items: choose the **Item**, the **Qty** in stock units and, optionally, the **Unit cost** in pesos (for example 12.50). Use **Add item** for
    more lines, or **Fill from reorder list** to fill the lines from the reorder suggestions for that location.
 4. Add **Notes (optional)** and click **Save draft**. The order opens with the status **Draft** and a number such as `PO-2026-000001`.
@@ -221,8 +223,41 @@ The status becomes **Partly received** or **Received**. You cannot receive more 
 
 The history card on the order shows when it was drafted, submitted, approved and cancelled or closed.
 
-Purchase orders here are your internal ordering record. Public procurement rules (RA 9184, PhilGEPS), supplier invoices, payables and stock
-valuation are **not** handled by the platform.
+Purchase orders here are your internal ordering record. Public procurement rules (RA 9184, PhilGEPS) are **not** built in: the procurement
+methods and the references they ask for are your organization's own settings.
+
+### How to set up withholding codes and procurement methods
+
+Open **Tax and procurement** (`/inventory/compliance`). You need `inventory.procurement.approve` to change them.
+
+- **Withholding codes** — add each code your accountant uses, with a description and, if you like, its rate as a reminder. The platform never
+  calculates withholding; the rate is only shown when paying.
+- **Procurement methods** — add each method your procurement rules name. Fill **Reference asked for** (for example "Posting reference") when
+  orders under that method need one. Once any method is in use, every purchase order must name one before it is submitted.
+- **Stop using** retires a code or method; orders and payments that used it keep it.
+
+Have your accountant and procurement officer check these settings, then record the review under **Admin → Compliance**.
+
+### How to record a supplier payment with withholding
+
+On an approved supplier invoice, in **Record the payment**, enter **Paid on** and the check or transfer reference. If tax was withheld, choose
+the **Withholding code**, enter the **Amount withheld** in pesos (as your accountant determined it) and, optionally, the certificate reference.
+The card shows what is paid to the supplier. Click **Mark paid**. The invoice then shows the amount withheld and the amount paid; a paid invoice
+cannot be changed.
+
+### How to read the controlled register
+
+Open **Controlled register** (`/inventory/controlled-register`; pharmacists, inventory officers and administrators).
+
+1. Choose the period (**From**, **To**) and click **Show**. For each controlled item and location you see the balance before the period, every
+   movement (received, issued or dispensed, transferred, counted, written off, returned) with the lot, reference, recipient, reason and who
+   recorded it, the running balance, and the balance at the end.
+2. Click **Download CSV** for the same register as a spreadsheet. Viewing and downloading are recorded.
+3. Under **Register details**, inventory administrators record the facility's licence reference and the responsible person, as issued. The
+   platform does not verify them.
+
+This is the platform's own layout of the stock ledger. Confirm with your pharmacist or adviser that it serves as the register the regulator
+requires, and record the review under **Admin → Compliance**.
 
 ### Stock used by other modules
 

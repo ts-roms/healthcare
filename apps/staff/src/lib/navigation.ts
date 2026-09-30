@@ -18,9 +18,17 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/communications": ["notification.read", "notification.send"],
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
-  "/records": ["interop.fhir.import.review", "patient.records-request.manage"],
+  "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage"],
   "/messages": ["patient.message.read"],
-  "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage"],
+  "/admin": [
+    "user.read",
+    "user.manage",
+    "role.manage",
+    "organization.manage",
+    "integration.exchange.manage",
+    "compliance.review.manage",
+    "consent.wording.manage",
+  ],
 };
 
 /**
@@ -30,6 +38,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
 const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/clinic/care-plans": ["care-plan.read"],
   "/laboratory/critical": ["lab.result.read"],
+  "/laboratory/instrument-results": ["lab.result.read"],
   "/laboratory/qc": ["lab.qc.read"],
   "/laboratory/instruments": ["lab.qc.read"],
   "/laboratory/reagents": ["lab.qc.read"],
@@ -37,9 +46,12 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/laboratory/nonconformances": ["lab.qc.read"],
   "/laboratory/eqa": ["lab.qc.read"],
   "/laboratory/competency": ["lab.qc.read"],
+  "/laboratory/licence": ["lab.qc.read"],
   "/records/imports": ["interop.fhir.import.review"],
+  "/records/retention": ["document.retention.manage"],
   "/records/requests": ["patient.records-request.manage"],
   "/admin/integrations": ["integration.exchange.manage"],
+  "/admin/compliance": ["compliance.review.manage"],
 };
 
 /**

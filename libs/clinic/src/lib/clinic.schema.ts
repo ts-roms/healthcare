@@ -153,7 +153,7 @@ export const waitlistEntry = pgTable("appointment_waitlist_entry", {
   notes: text("notes"),
   status: text("status").$type<"waiting" | "booked" | "cancelled">().notNull().default("waiting"),
   appointmentId: uuid("appointment_id"),
-  /** Null when the patient made the entry in MyHealth (0075: exactly one of the two). */
+  /** Null when the patient made the entry in MyHealth (0077: exactly one of the two). */
   createdBy: uuid("created_by"),
   createdByPatient: boolean("created_by_patient").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
@@ -162,7 +162,7 @@ export const waitlistEntry = pgTable("appointment_waitlist_entry", {
   closeReason: text("close_reason"),
 });
 
-/** Mirrors database/migrations/0075_booking_rules_patient_waitlist.sql. */
+/** Mirrors database/migrations/0077_booking_rules_patient_waitlist.sql. */
 export const facilityBookingRule = pgTable("facility_booking_rule", {
   facilityId: uuid("facility_id").primaryKey(),
   organizationId: uuid("organization_id").notNull(),

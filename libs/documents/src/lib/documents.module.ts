@@ -1,6 +1,8 @@
 import { type DynamicModule, Module, type Provider } from "@nestjs/common";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DocumentRecordQueries } from "./document-record.queries";
+import { DocumentRetentionController } from "./document-retention.controller";
+import { DocumentRetentionService } from "./document-retention.service";
 import { DocumentsController } from "./documents.controller";
 import { DocumentsService } from "./documents.service";
 import { OBJECT_STORAGE, S3ObjectStorage } from "./object-storage";
@@ -22,8 +24,8 @@ export class DocumentsModule {
       module: DocumentsModule,
       // Global so domain modules (e.g. patient consent) can check documents without re-registering the controller.
       global: true,
-      controllers: [DocumentsController],
-      providers: [DocumentsService, DocumentRecordQueries, storage],
+      controllers: [DocumentsController, DocumentRetentionController],
+      providers: [DocumentsService, DocumentRecordQueries, DocumentRetentionService, storage],
       exports: [DocumentsService, DocumentRecordQueries],
     };
   }

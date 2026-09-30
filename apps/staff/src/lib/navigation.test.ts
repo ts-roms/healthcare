@@ -54,6 +54,8 @@ describe("navigationForPermissions", () => {
     expect(children(["lab.order.read"])).toEqual(["/laboratory/worklist", "/laboratory/send-outs", "/laboratory/catalog"]);
     expect(children(["lab.order.read", "lab.result.read", "lab.qc.read"])).toContain("/laboratory/qc");
     expect(children(["lab.order.read", "lab.result.read"])).toContain("/laboratory/critical");
+    expect(children(["lab.order.read", "lab.result.read"])).toContain("/laboratory/instrument-results");
+    expect(children(["lab.order.read"])).not.toContain("/laboratory/instrument-results");
   });
 
   it("shows record imports only to import reviewers", () => {

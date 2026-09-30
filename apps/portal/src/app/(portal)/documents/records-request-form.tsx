@@ -10,7 +10,7 @@ import { submitRecordsRequest } from "./actions";
 const SCOPES = Object.keys(SCOPE_TEXT) as PortalRecordsScope[];
 
 /** Asking the records office for copies: what, for which period, and why (optional). */
-export function RecordsRequestForm({ canSubmit }: { canSubmit: boolean }) {
+export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSubmit: boolean; notice: string | null; responseDays: number | null }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -40,6 +40,17 @@ export function RecordsRequestForm({ canSubmit }: { canSubmit: boolean }) {
       </div>
     );
   }
+  const procedure =
+    notice || responseDays ? (
+      <div className="rounded-lg bg-muted p-3 text-meta">
+        {notice ? <p className="whitespace-pre-line">{notice}</p> : null}
+        {responseDays ? (
+          <p className={notice ? "mt-1 text-muted-foreground" : "text-muted-foreground"}>
+            The clinic aims to answer within {responseDays} day{responseDays === 1 ? "" : "s"}.
+          </p>
+        ) : null}
+      </div>
+    ) : null;
   const toggle = (s: PortalRecordsScope) => setScope((prev) => (prev.has(s) ? new Set([...prev].filter((x) => x !== s)) : new Set([...prev, s])));
   return (
     <form
@@ -65,6 +76,7 @@ export function RecordsRequestForm({ canSubmit }: { canSubmit: boolean }) {
         });
       }}
     >
+      {procedure}
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 font-semibold">What do you need copies of?</legend>
         {SCOPES.map((s) => (

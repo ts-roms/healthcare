@@ -413,6 +413,8 @@ function FeeEstimates({
   act: (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) => void;
 }) {
   const [note, setNote] = React.useState(portal.feeEstimateNote ?? "");
+  const [validity, setValidity] = React.useState(portal.writtenEstimateValidityDays === null ? "" : String(portal.writtenEstimateValidityDays));
+  const [writtenRequired, setWrittenRequired] = React.useState(portal.writtenEstimateRequired);
   const save = (portalPlanEstimates: boolean | undefined, done: string) =>
     act(
       () =>
@@ -420,6 +422,8 @@ function FeeEstimates({
           portalDentalRecords: portal.portalDentalRecords,
           portalPlanEstimates,
           feeEstimateNote: note.trim() || null,
+          writtenEstimateValidityDays: validity ? Number.parseInt(validity, 10) : null,
+          writtenEstimateRequired: writtenRequired,
           version: portal.version,
         }),
       done,
@@ -448,6 +452,36 @@ function FeeEstimates({
           onChange={(e) => setNote(e.target.value)}
           placeholder="e.g. Estimates hold for 30 days. Laboratory fees for crowns are charged separately."
         />
+        <div className="grid gap-1">
+          <label htmlFor="estimate-validity" className="text-label font-medium">
+            Printed estimates hold for (days; optional)
+          </label>
+          <Input
+            id="estimate-validity"
+            inputMode="numeric"
+            className="w-32"
+            disabled={!canManage}
+            value={validity}
+            onChange={(e) => setValidity(e.target.value.replace(/\D/g, ""))}
+          />
+          <p className="text-meta text-muted-foreground">Printed as &ldquo;Valid until&rdquo; on the estimate. Leave empty to print no date.</p>
+        </div>
+        <label className="flex items-start gap-2 text-table">
+          <input
+            type="checkbox"
+            className="mt-1 size-4"
+            disabled={!canManage}
+            checked={writtenRequired}
+            onChange={(e) => setWrittenRequired(e.target.checked)}
+          />
+          <span>
+            Require the patient&apos;s signed written estimate before recording a decision
+            <span className="block text-meta text-muted-foreground">
+              Staff record that the patient signed the printed estimate; a decision on items it did not list, or after it expired, is refused. Decisions
+              patients make in MyHealth confirm your acknowledgement text instead.
+            </span>
+          </span>
+        </label>
         {portal.portalDentalRecords ? (
           portal.portalPlanEstimates ? (
             <Badge variant="info" className="w-fit">
@@ -463,8 +497,8 @@ function FeeEstimates({
         )}
         {canManage ? (
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={pending || !noteValid} onClick={() => save(undefined, "Estimate note saved")}>
-              Save note
+            <Button size="sm" variant="outline" disabled={pending || !noteValid} onClick={() => save(undefined, "Estimate settings saved")}>
+              Save estimate settings
             </Button>
             {portal.portalDentalRecords ? (
               <Button

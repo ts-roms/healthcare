@@ -28,6 +28,8 @@ export class StartReviewDto extends createZodDto(startReviewSchema) {}
 export const fulfilRecordsRequestSchema = z.object({
   /** Documents of the patient's record to share (at least one). */
   documentIds: z.array(z.uuid()).min(1, "Choose the documents to share").max(50),
+  /** How the requester's identity was confirmed (required when the organization's procedure says so). */
+  identityCheckMethod: z.string().trim().min(3).max(200).optional(),
   /** A note to the patient (optional). */
   note: z.string().trim().min(3).max(1000).optional(),
   version,
@@ -51,3 +53,15 @@ export const prepareRecordCopySchema = z
   })
   .refine((v) => !v.periodFrom || !v.periodTo || v.periodTo >= v.periodFrom, { message: "The period ends before it starts", path: ["periodTo"] });
 export class PrepareRecordCopyDto extends createZodDto(prepareRecordCopySchema) {}
+
+export const recordsRequestSettingSchema = z.object({
+  /** The organization's own response time, in days from submission (none: no response date is shown). */
+  responseDays: z.number().int().min(1).max(365).nullable(),
+  /** Staff record how they confirmed the requester's identity before sharing. */
+  identityCheckRequired: z.boolean(),
+  /** What patients read before asking (fees, identification to bring, how answers are given), in the organization's words. */
+  patientNotice: z.string().trim().min(10).max(1500).nullable(),
+  /** 0 when never set. */
+  version: z.number().int().min(0),
+});
+export class RecordsRequestSettingDto extends createZodDto(recordsRequestSettingSchema) {}

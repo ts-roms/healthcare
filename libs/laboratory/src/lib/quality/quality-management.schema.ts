@@ -164,3 +164,23 @@ export type LabNonconformanceEntryRecord = typeof labNonconformanceEntry.$inferS
 export type LabEqaSurveyRecord = typeof labEqaSurvey.$inferSelect;
 export type LabEqaResultRecord = typeof labEqaResult.$inferSelect;
 export type LabCompetencyAssessmentRecord = typeof labCompetencyAssessment.$inferSelect;
+
+// ---- Laboratory licence (0074_compliance_configuration.sql) ---------------------------------------------------------
+
+/** The facility's laboratory licence as issued (recorded by staff, not verified). Append-only: a renewal is a new row. */
+export const labFacilityLicence = pgTable("lab_facility_licence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  licenceNumber: text("licence_number").notNull(),
+  classification: text("classification"),
+  issuedBy: text("issued_by"),
+  validFrom: date("valid_from", { mode: "string" }).notNull(),
+  validUntil: date("valid_until", { mode: "string" }).notNull(),
+  headName: text("head_name"),
+  headLicenceNumber: text("head_licence_number"),
+  reminderDays: integer("reminder_days").notNull().default(60),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+});
+export type LabFacilityLicenceRecord = typeof labFacilityLicence.$inferSelect;

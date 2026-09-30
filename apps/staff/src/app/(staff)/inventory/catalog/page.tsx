@@ -21,7 +21,9 @@ export default async function InventoryCatalogPage() {
       <PageHeader
         title="Inventory catalog"
         description="Items, suppliers, storage locations and reorder levels."
-        actions={<InventoryNav canConfigure canValue={can(session, "inventory.valuation.read")} />}
+        actions={
+          <InventoryNav canConfigure canValue={can(session, "inventory.valuation.read")} canRegister={can(session, "inventory.controlled-register.read")} />
+        }
       />
       <InventoryCatalog items={items} suppliers={suppliers} locations={locations} facility={facility ? { id: facility.id, name: facility.name } : null} />
     </>

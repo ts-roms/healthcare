@@ -133,6 +133,8 @@ const orderSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   notes: text(2000),
+  procurementMethodId: id.nullable().optional(),
+  procurementReference: z.string().trim().max(80).nullable().optional(),
   lines: z
     .array(z.object({ itemId: id, quantity: qty, unitCost: z.number().int().min(0).nullable() }))
     .min(1, "Add at least one item.")
@@ -207,7 +209,12 @@ export async function approveSupplierInvoice(input: z.input<typeof approveSchema
   return run(approveSchema, input, `/supplier-invoices/${invoiceId}/approve`, { ...body, note: body.note || undefined });
 }
 
-const paySchema = z.object({ ...invoiceRef, paidOn: isoDate, paymentReference: z.string().trim().min(1, "Enter the payment reference.").max(80) });
+const paySchema = z.object({
+  ...invoiceRef,
+  paidOn: isoDate,
+  paymentReference: z.string().trim().min(1, "Enter the payment reference.").max(80),
+  withholding: z.object({ codeId: id, amount: z.number().int().positive("Enter the amount withheld."), reference: text(80) }).optional(),
+});
 export async function paySupplierInvoice(input: z.input<typeof paySchema>) {
   const { id: invoiceId, ...body } = input;
   return run(paySchema, input, `/supplier-invoices/${invoiceId}/payment`, body);
@@ -217,4 +224,47 @@ const voidSchema = z.object({ ...invoiceRef, reason: z.string().trim().min(5, "S
 export async function voidSupplierInvoice(input: z.input<typeof voidSchema>) {
   const { id: invoiceId, ...body } = input;
   return run(voidSchema, input, `/supplier-invoices/${invoiceId}/void`, body);
+}
+
+// ---- Compliance configuration: the organization's own codes and methods, the register header (migration 0074) -------
+
+const withholdingCodeSchema = z.object({
+  code: z.string().trim().min(1, "Enter a code.").max(20),
+  description: z.string().trim().min(3, "Describe the code.").max(200),
+  rateBasisPoints: z.number().int().min(0).max(10_000).nullable(),
+});
+export async function createWithholdingCode(input: z.input<typeof withholdingCodeSchema>) {
+  return run(withholdingCodeSchema, input, "/withholding-codes", input);
+}
+
+const procurementMethodSchema = z.object({
+  code: z.string().trim().min(1, "Enter a code.").max(20),
+  name: z.string().trim().min(3, "Name the method.").max(120),
+  referenceLabel: z.string().trim().min(3).max(60).nullable(),
+});
+export async function createProcurementMethod(input: z.input<typeof procurementMethodSchema>) {
+  return run(procurementMethodSchema, input, "/procurement-methods", input);
+}
+
+const deactivateSchema = z.object({ kind: z.enum(["withholding-codes", "procurement-methods"]), id });
+export async function deactivateComplianceEntry(input: z.input<typeof deactivateSchema>) {
+  return run(deactivateSchema, input, `/${input.kind}/${input.id}/deactivate`, {});
+}
+
+const registerSettingSchema = z.object({
+  licenceReference: z.string().trim().max(80).nullable(),
+  responsiblePerson: z.string().trim().max(160).nullable(),
+  note: z.string().trim().max(500).nullable(),
+  version: z.number().int().min(0),
+});
+export async function setControlledRegisterSetting(input: z.input<typeof registerSettingSchema>) {
+  const body = {
+    ...input,
+    licenceReference: input.licenceReference?.trim() || null,
+    responsiblePerson: input.responsiblePerson?.trim() || null,
+    note: input.note?.trim() || null,
+  };
+  const result = await run(registerSettingSchema, body, "/controlled-register/setting", body, "PUT");
+  if (result.ok) revalidatePath("/inventory/controlled-register");
+  return result;
 }

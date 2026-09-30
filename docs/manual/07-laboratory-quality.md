@@ -55,6 +55,16 @@ Quality managers (users with `lab.qc.manage` at the facility) receive in-app mes
 
 Reminders are in-app only. No SMS or email is sent to staff.
 
+## How to record the laboratory licence
+
+Open **Laboratory → Licence** (`/laboratory/licence`). The card shows the facility's current licence and its state: **Valid**, **Expiring soon**,
+**Expired**, **Not yet valid** or **Not recorded**. Quality managers (`lab.qc.manage`) record the licence as issued: the number, the
+classification and issuing office as written on it, the validity dates, the head of the laboratory and their licence number, and how many days
+before expiry to be reminded. A renewal is recorded the same way; earlier licences stay in the history.
+
+The dashboard's quality list shows an expired licence as critical and an expiring one as a warning. The platform checks the dates only: it does
+not verify the licence with DOH or apply licensing rules. Record your adviser's review under **Admin → Compliance**.
+
 ## How to register an instrument
 
 You need `lab.qc.manage`.
@@ -66,6 +76,24 @@ You need `lab.qc.manage`.
 The **Instruments** list shows each instrument's status (**In service**, **Out of service**, **Retired**), last **Calibration** (passed or failed,
 next due — **Overdue since** when past due), last **Maintenance** and **Reagent lots** in use. Click **Show retired** to include retired instruments.
 An instrument that is out of service cannot be used for QC or patient results. An overdue calibration is a reminder only; it does not block use.
+
+## How to connect an analyzer
+
+An analyzer sends its results over the facility's network to the **instrument gateway**, a small program your IT staff run at the facility (see
+`docs/domains/laboratory-instruments.md`); the gateway passes each message to the platform. Staff then review the results (Chapter 6, "How to
+review results sent by an analyzer"). Check your analyzer's interface manual for its protocol and where it puts the specimen barcode.
+
+You need `lab.qc.manage`.
+
+1. Open **Instruments**, then the instrument (**Log**). Under **Analyzer interface**:
+2. Choose the **Protocol**: **HL7 v2 (ORU^R01)** or **ASTM E1394 / E1381**.
+3. Choose where the analyzer puts the **Specimen barcode** (the accession number on the tube label): for HL7 **OBR-2**, **OBR-3** or **SPM-2**; for
+   ASTM **O-3** or **O-4**.
+4. Tick **Accept messages** and click **Save**. Untick it to stop taking messages from this instrument.
+5. Under **Analyzer test codes**, enter each **Analyzer code** the analyzer uses and choose the **Test** it is, then **Map**. **Remove** unmaps a
+   code. Results with a code that is not mapped wait as **Not matched**.
+
+Run test samples and compare with manual entry before relying on the interface.
 
 ## How to record maintenance, calibration or a status change
 

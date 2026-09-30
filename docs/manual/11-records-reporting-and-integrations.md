@@ -109,6 +109,8 @@ administrators). You get a message under the bell for each new request.
    downloads them in MyHealth.
 7. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
 
+If your organization requires it, write **How the requester's identity was confirmed** before sharing; sharing is refused without it.
+
 The patient is told by message (and SMS or email) that the request was answered, without details. An answered request cannot be changed; the patient
 can send a new one. Patients can have at most 3 open requests and can withdraw an open one.
 
@@ -117,6 +119,29 @@ vital signs, laboratory results that have been released, issued medical certific
 file (the files themselves are shared separately). Drafts, consultations still in progress and entries marked as made in error are left out; records
 received from other providers are labelled. Allergies are always the current list. Dates follow your facility's time zone. Preparing a copy is
 recorded. Billing records and dental charts are not included; whether a copy must be signed or certified is your organization's procedure.
+
+### Your records-request procedure
+
+**Records → Requests → Your procedure** (`/records/requests/settings`) holds your organization's own procedure; administrators change it:
+
+- **Respond within (days)** — each new request gets a response date. Open requests past it are marked in the list and on the request, and
+  patients see the date in MyHealth.
+- **Record how the requester's identity was confirmed** — staff must write how they checked it before sharing.
+- **What patients read before asking** — your own words on fees, identification to bring and how answers are given, shown in MyHealth above
+  the request form.
+
+Nothing here is a National Privacy Commission rule. Have your Data Protection Officer check it and record the review under **Admin → Compliance**.
+
+## How to set document retention periods
+
+Open **Records → Retention** (`/records/retention`; records officers and administrators).
+
+1. Under **Retention periods**, choose a **Document category**, enter **Keep for (years)** from your organization's retention schedule and say
+   **Where the period comes from**. Click **Save**. A new period for the same category replaces the old one (kept in the history).
+2. The table shows how many documents of each category are older than the period. Click the number to list them, oldest first, with a link to
+   each patient record.
+3. Nothing is deleted. To take a document out of use, archive it from the patient record with a reason. Disposal of the stored file follows
+   your organization's own procedure.
 
 ## How to review records sent by another provider (FHIR imports)
 
@@ -229,7 +254,9 @@ default).
 
 1. Under **Rules**, enter the **ICD-10 code** or prefix. A prefix covers everything under it: `A9` covers A90–A99; `A91` covers A91 and A91.x.
 2. Enter the **Category** in your organization's own wording, and the **Source (issuance)** you took it from.
-3. Click **Add**.
+3. Optionally enter **Report within (days)**: your organization's own deadline, counted from when the diagnosis was recorded. Case reports from
+   the rule then show when they are due, and **Overdue** once past it while still unreported. No deadline is suggested.
+4. Click **Add**.
 
 Take the list and categories from the official issuances your facility follows. Nothing is reportable until you add it. A rule cannot be edited:
 click **Deactivate** and add a new one. Existing case reports keep the rule they matched.

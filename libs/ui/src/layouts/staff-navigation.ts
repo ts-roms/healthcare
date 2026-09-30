@@ -65,6 +65,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Workbench", href: "/laboratory/worklist", roles: ["lab-tech", "admin"] },
       { label: "Send-outs", href: "/laboratory/send-outs", roles: ["lab-tech", "admin"] },
       { label: "Critical results", href: "/laboratory/critical" },
+      { label: "Instrument results", href: "/laboratory/instrument-results", roles: ["lab-tech", "admin"] },
       { label: "Catalog", href: "/laboratory/catalog", roles: ["lab-tech", "admin"] },
       { label: "Quality control", href: "/laboratory/qc", roles: ["lab-tech", "admin"] },
       { label: "Instruments", href: "/laboratory/instruments", roles: ["lab-tech", "admin"] },
@@ -73,6 +74,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Nonconformances", href: "/laboratory/nonconformances", roles: ["lab-tech", "admin"] },
       { label: "Proficiency testing", href: "/laboratory/eqa", roles: ["lab-tech", "admin"] },
       { label: "Competency", href: "/laboratory/competency", roles: ["lab-tech", "admin"] },
+      { label: "Licence", href: "/laboratory/licence", roles: ["lab-tech", "admin"] },
     ],
   },
   {
@@ -101,6 +103,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     children: [
       { label: "Requests", href: "/records/requests" },
       { label: "Imports", href: "/records/imports" },
+      { label: "Retention", href: "/records/retention" },
     ],
   },
   {
@@ -108,7 +111,10 @@ export const STAFF_NAVIGATION: NavItem[] = [
     href: "/admin",
     icon: BuildingIcon,
     roles: ["admin"],
-    children: [{ label: "Integrations", href: "/admin/integrations" }],
+    children: [
+      { label: "Integrations", href: "/admin/integrations" },
+      { label: "Compliance", href: "/admin/compliance" },
+    ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },
 ];

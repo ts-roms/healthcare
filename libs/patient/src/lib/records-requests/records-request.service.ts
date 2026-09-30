@@ -8,27 +8,46 @@ import {
   type Database,
   type DbExecutor,
   DomainEventPublisher,
-  NotFoundError,
   filedAsPatient,
+  localDate,
+  NotFoundError,
+  VersionConflictError,
   isFiledAs,
 } from "@healthcare/core";
 import { DocumentsService, type DocumentView } from "@healthcare/documents";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { PatientRecordService } from "../patient-record.service";
-import type { declineRecordsRequestSchema, fulfilRecordsRequestSchema, prepareRecordCopySchema, submitRecordsRequestSchema } from "./records-request.dto";
-import { copySectionsForScope, daysWaiting, MAX_OPEN_RECORDS_REQUESTS, recordsRequestOpen } from "./records-request.rules";
+import type {
+  declineRecordsRequestSchema,
+  fulfilRecordsRequestSchema,
+  prepareRecordCopySchema,
+  recordsRequestSettingSchema,
+  submitRecordsRequestSchema,
+} from "./records-request.dto";
+import {
+  copySectionsForScope,
+  daysWaiting,
+  MAX_OPEN_RECORDS_REQUESTS,
+  recordsRequestOpen,
+  recordsRequestOverdue,
+  respondByDate,
+} from "./records-request.rules";
 import {
   recordsRequest,
   recordsRequestDocument,
   recordsRequestExport,
   recordsRequestNumberSequence,
   type RecordsRequestRecord,
+  recordsRequestSetting,
 } from "./records-request.schema";
+
+/** Records requests belong to the organization, not a facility: their dates are Philippine local dates. */
+const REQUEST_TIME_ZONE = "Asia/Manila";
 
 const OPEN = ["submitted", "in_review"] as const;
 
-export type RecordsRequestView = Omit<RecordsRequestRecord, "organizationId" | "portalAccountId"> & { daysWaiting: number };
+export type RecordsRequestView = Omit<RecordsRequestRecord, "organizationId" | "portalAccountId"> & { daysWaiting: number; overdue: boolean };
 
 /** A shared document as the patient sees it: what it is and when it was shared, never storage details. */
 export interface SharedRecord {
@@ -72,6 +91,10 @@ export class RecordsRequestService {
           "too_many_open_requests",
         );
       }
+      const [setting] = await tx
+        .select({ responseDays: recordsRequestSetting.responseDays })
+        .from(recordsRequestSetting)
+        .where(eq(recordsRequestSetting.organizationId, context.organizationId));
       const [counter] = await tx
         .insert(recordsRequestNumberSequence)
         .values({ organizationId: context.organizationId, nextValue: 1 })
@@ -90,6 +113,7 @@ export class RecordsRequestService {
           details: input.details || null,
           purpose: input.purpose || null,
           portalAccountId: context.accountId,
+          respondBy: respondByDate(localDate(new Date(), REQUEST_TIME_ZONE), setting?.responseDays),
         })
         .returning();
       const request = found(row);
@@ -150,6 +174,7 @@ export class RecordsRequestService {
       purpose: r.purpose,
       status: r.status,
       submittedAt: r.submittedAt,
+      respondBy: r.respondBy,
       closedAt: r.closedAt,
       responseNote: r.responseNote,
       // Only what is still available (an archived document is no longer offered).
@@ -294,6 +319,13 @@ export class RecordsRequestService {
       input.version,
       "patient.records-request.fulfil",
       async (tx, current) => {
+        const [setting] = await tx
+          .select({ identityCheckRequired: recordsRequestSetting.identityCheckRequired })
+          .from(recordsRequestSetting)
+          .where(eq(recordsRequestSetting.organizationId, actor.organizationId));
+        if (setting?.identityCheckRequired && !input.identityCheckMethod) {
+          throw new BusinessRuleError("Record how you confirmed the requester's identity before sharing", "identity_check_required");
+        }
         for (const documentId of documentIds) {
           // Ordinary documents only (a domain that manages its documents shares them itself), of this patient, available.
           const doc = await this.documents.get(actor, documentId).catch(() => undefined);
@@ -311,10 +343,13 @@ export class RecordsRequestService {
             sharedBy: actor.userId,
           })),
         );
-        return { status: "fulfilled" as const, responseNote: input.note ?? null, closedAt: new Date(), closedBy: actor.userId };
+        const identity = input.identityCheckMethod
+          ? { identityCheckMethod: input.identityCheckMethod, identityCheckedBy: actor.userId, identityCheckedAt: new Date() }
+          : {};
+        return { status: "fulfilled" as const, responseNote: input.note ?? null, closedAt: new Date(), closedBy: actor.userId, ...identity };
       },
       "RecordsRequestFulfilled",
-      { documents: documentIds.length },
+      { documents: documentIds.length, identityChecked: Boolean(input.identityCheckMethod) },
     );
   }
 
@@ -329,6 +364,54 @@ export class RecordsRequestService {
       {},
       input.reason,
     );
+  }
+
+  // ---- the organization's procedure ----------------------------------------------------------
+
+  /** The organization's own procedure; defaults (none set) when never configured (version 0). */
+  async setting(organizationId: string) {
+    const [row] = await this.db.select().from(recordsRequestSetting).where(eq(recordsRequestSetting.organizationId, organizationId));
+    if (!row) return { responseDays: null, identityCheckRequired: false, patientNotice: null, version: 0, updatedAt: null };
+    return {
+      responseDays: row.responseDays,
+      identityCheckRequired: row.identityCheckRequired,
+      patientNotice: row.patientNotice,
+      version: row.version,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async setSetting(actor: Actor, input: z.infer<typeof recordsRequestSettingSchema>) {
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(recordsRequestSetting).where(eq(recordsRequestSetting.organizationId, actor.organizationId)).for("update");
+      if ((current?.version ?? 0) !== input.version) throw new VersionConflictError("Records request setting", input.version);
+      const values = {
+        responseDays: input.responseDays,
+        identityCheckRequired: input.identityCheckRequired,
+        patientNotice: input.patientNotice,
+        updatedBy: actor.userId,
+        updatedAt: new Date(),
+      };
+      if (current) {
+        await tx
+          .update(recordsRequestSetting)
+          .set({ ...values, version: current.version + 1 })
+          .where(eq(recordsRequestSetting.organizationId, actor.organizationId));
+      } else {
+        await tx.insert(recordsRequestSetting).values({ organizationId: actor.organizationId, ...values });
+      }
+      await this.audit.record(tx, actor, {
+        action: "patient.records-request.setting",
+        resourceType: "organization",
+        resourceId: actor.organizationId,
+        changes: {
+          responseDays: { from: current?.responseDays ?? null, to: input.responseDays },
+          identityCheckRequired: { from: current?.identityCheckRequired ?? false, to: input.identityCheckRequired },
+          patientNotice: { from: current?.patientNotice ?? null, to: input.patientNotice },
+        },
+      });
+    });
+    return this.setting(actor.organizationId);
   }
 
   // ---- internals ------------------------------------------------------------------------------
@@ -406,7 +489,11 @@ function found(row: RecordsRequestRecord | undefined): RecordsRequestRecord {
 
 function view(row: RecordsRequestRecord): RecordsRequestView {
   const { organizationId: _o, portalAccountId: _a, ...rest } = row;
-  return { ...rest, daysWaiting: daysWaiting(row.submittedAt, row.closedAt ?? new Date()) };
+  return {
+    ...rest,
+    daysWaiting: daysWaiting(row.submittedAt, row.closedAt ?? new Date()),
+    overdue: recordsRequestOverdue(row, localDate(new Date(), REQUEST_TIME_ZONE)),
+  };
 }
 
 function sharedRecord(d: { documentId: string; title: string; category: string; sharedAt: Date }): SharedRecord {

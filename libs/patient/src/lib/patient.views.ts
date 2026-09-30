@@ -108,7 +108,7 @@ export interface ConsentView {
   recordedAt: string;
   /** Recorded by staff at the clinic, or by the patient in MyHealth (a withdrawal, or a consent given online). */
   recordedVia: "staff" | "myhealth";
-  /** The wording version the patient read, for a consent given online (migration 0076). */
+  /** The wording version the patient read, for a consent given online (migration 0078). */
   consentTextId: string | null;
   wordingVersion?: number | null;
 }
