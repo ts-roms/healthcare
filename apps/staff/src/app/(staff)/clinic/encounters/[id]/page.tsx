@@ -6,7 +6,9 @@ import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import { todayIn } from "@/lib/clinic-mapping";
 import type {
+  ClinicProcedure,
   ImmunizationRecord,
+  ProcedureDefinition,
   CarePlan,
   CarePlanDetail,
   CodingSystem,
@@ -86,6 +88,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     immunizationHistory,
     referrals,
     medicalHistory,
+    procedures,
+    procedureDefinitions,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -105,6 +109,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     can(session, "immunization.read") ? optional<ImmunizationRecord[]>(`/patients/${encounter.patientId}/immunizations`) : Promise.resolve(null),
     optional<Referral[]>(`/encounters/${encounter.id}/referrals`),
     loadPatientHistory(encounter.patientId),
+    optional<ClinicProcedure[]>(`/encounters/${encounter.id}/procedures`),
+    can(session, "encounter.write") ? optional<ProcedureDefinition[]>("/clinic/procedure-definitions") : Promise.resolve([] as ProcedureDefinition[]),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -171,6 +177,18 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
               lots: immunizationData.lots,
               canRecord: immunizationData.canRecord && patient.status === "active",
               facilitySelected: immunizationData.facilitySelected,
+            }
+          : null
+      }
+      procedures={
+        procedures
+          ? {
+              items: procedures,
+              definitions: procedureDefinitions ?? [],
+              practitioners: practitioners ?? [],
+              canRecord: can(session, "encounter.write") && patient.status === "active",
+              canAmend: can(session, "encounter.amend"),
+              currentUserId: session.user.id,
             }
           : null
       }

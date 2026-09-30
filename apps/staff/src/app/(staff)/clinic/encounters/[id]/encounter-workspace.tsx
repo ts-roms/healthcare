@@ -58,6 +58,7 @@ import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEn
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { CertificatesPanel } from "./certificates-panel";
 import { type EncounterImmunizations, ImmunizationsPanel } from "./immunizations-panel";
+import { type EncounterProcedures, ProceduresPanel } from "./procedures-panel";
 import { HistoryPanel } from "./history-panel";
 import { ReferralsPanel } from "./referrals-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
@@ -87,6 +88,7 @@ export function EncounterWorkspace({
   lab,
   certificates,
   immunizations = null,
+  procedures = null,
   medicalHistory = null,
   referrals,
 }: {
@@ -123,6 +125,8 @@ export function EncounterWorkspace({
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
   /** Immunizations: this consultation's doses and the history (null: no access). */
   immunizations?: EncounterImmunizations | null;
+  /** Procedures performed in this consultation (null: no access). */
+  procedures?: EncounterProcedures | null;
   /** Past procedures and conditions, family and social history (history null: no access). */
   medicalHistory?: { history: PatientHistory | null; canRecord: boolean } | null;
   /** Referrals from this consultation (items null: no access). */
@@ -421,6 +425,13 @@ export function EncounterWorkspace({
                   .join("; ")
                   .slice(0, 2000)}
                 today={followUp.today}
+              />
+              <ProceduresPanel
+                encounterId={encounter.id}
+                patientId={encounter.patientId}
+                status={encounter.status}
+                inPerson={encounter.modality === "in_person"}
+                data={procedures}
               />
               <ImmunizationsPanel
                 encounterId={encounter.id}

@@ -36,6 +36,7 @@ export const CHARGE_SOURCE_LABEL: Record<BillingCharge["sourceType"], string> = 
   encounter: "Consultation",
   lab_order_item: "Laboratory order",
   dental_procedure: "Dental procedure",
+  clinic_procedure: "Clinic procedure",
   manual: "Added by staff",
   package: "Package sale",
 };

@@ -641,6 +641,25 @@ export interface PatientHistorySource {
   sensitiveIncluded: boolean;
 }
 
+/** A procedure performed at the clinic (not dental): the organization's own code, who performed it and when. */
+export interface ClinicProcedureSource {
+  id: string;
+  encounterId: string;
+  facilityId: string;
+  /** The organization's own code and the name as recorded. */
+  code: string;
+  name: string;
+  /** A code of a code system the organization names (a key), when the catalogue gives one. */
+  codeSystem: string | null;
+  externalCode: string | null;
+  performedAt: string;
+  performerPractitionerId: string;
+  bodySite: string | null;
+  quantity: number;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
 export interface PatientRecordSource {
   patient: PatientSource;
   facilities: FacilitySource[];
@@ -666,4 +685,6 @@ export interface PatientRecordSource {
   immunizations: ImmunizationSource[];
   /** Past procedures and conditions, family and social history (entries in error included, marked). */
   history: PatientHistorySource;
+  /** Procedures performed at the clinic, not dental (entries in error included, marked). */
+  clinicProcedures: ClinicProcedureSource[];
 }

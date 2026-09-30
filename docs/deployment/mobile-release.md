@@ -34,6 +34,10 @@ Nothing here has been run against Expo's or the stores' services yet: no EAS bui
 
 `EXPO_PUBLIC_*` values are readable in the app binary; nothing secret belongs in any of these.
 
+The app's URL **scheme** (required by expo-router in every native build) is derived from the organization's identifier —
+`ph.example.myhealth` gives `ph.example.myhealth`, underscores become hyphens — so two organizations' apps on one phone never claim the
+same one. Nothing links to it yet: which links open the app is D7.
+
 ### Build profiles (`eas.json`)
 
 | Profile       | Distribution                       | Use                                                                                                            |

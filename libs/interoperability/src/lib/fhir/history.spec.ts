@@ -266,6 +266,7 @@ describe("patient history as FHIR R4", () => {
     externalHistory: [],
     dental: null,
     immunizations: [],
+    clinicProcedures: [],
     history: {
       procedures: [procedure, imported],
       conditions: [condition],

@@ -5,6 +5,7 @@ import { dentalResources } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
 import { historyResources } from "./history";
+import { toClinicProcedure } from "./procedures";
 import { toImmunization } from "./immunization";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
 import { toReferralServiceRequest } from "./referrals";
@@ -37,7 +38,7 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
  * immutable once issued (cancel/replace records its time), exported documents never change after upload (a dental
  * image's description only when added or marked entered in error), external history entries (imported
  * MedicationStatements and document descriptions), medications taken (the other MedicationStatements: also when
- * marked stopped, which their lastUpdated includes), dental procedures and past procedures (the Procedures)
+ * marked stopped, which their lastUpdated includes), clinic, dental and past procedures (the Procedures)
  * and family history entries change only when marked entered in error (database triggers), and immunizations only
  * when marked entered in error or when a reaction is added (database trigger). The other records are updated in place without a trustworthy
  * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
@@ -84,6 +85,7 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   // Dental record (withheld, with a notice, from callers who may not read it); dental images are documents, above.
   if (src.dental) clinical.push(...dentalResources(ctx, patientId, src.dental));
   for (const i of src.immunizations) clinical.push(toImmunization(ctx, patientId, i));
+  for (const p of src.clinicProcedures) clinical.push(toClinicProcedure(ctx, patientId, p));
   // Past procedures and conditions, medications taken, family and social history (substance use and sexual history only when included).
   clinical.push(...historyResources(ctx, patientId, src.history));
 
@@ -225,7 +227,7 @@ const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
   MedicationStatement: `Medicines the patient takes that were not prescribed here, from the patient's history (local category medication-taken; status active, stopped or unknown; reported ones tagged record-source#reported), and medication history from other systems (never a prescription of this organization). ${IMPORTED}`,
   CarePlan: `Care plans, and dental treatment plans (category dental; the patient's decision per item as the activity's status reason). ${DENTAL}`,
   DocumentReference: `Available documents only (not archived ones; dental images with their kind, teeth and visit), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
-  Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces), and past procedures from the patient's history (local category past-procedure; reported ones tagged record-source#reported, the asserter who told the organization). ${IMPORTED} ${DENTAL}`,
+  Procedure: `Procedures performed at the clinic (local category clinic-procedure; the organization's own codes), performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces), and past procedures from the patient's history (local category past-procedure; reported ones tagged record-source#reported, the asserter who told the organization). ${IMPORTED} ${DENTAL}`,
   FamilyMemberHistory: `Relatives' conditions as reported (relationship in HL7 v3 RoleCode; age at onset; a cause of death as a condition that contributed to death). ${IMPORTED}`,
   Immunization: `Doses given here (primarySource true), not given (not-done with the reason), reported by the patient or another provider (primarySource false, reportOrigin as text) and accepted from imports. vaccineCode is the organization's own catalogue code (a local code system unless configured); partial dates at their precision. ${IMPORTED}`,
 };

@@ -338,6 +338,7 @@ const source: PatientRecordSource = {
   externalHistory: [],
   dental: { procedures: [], plans: [], examinations: [], chart: [], perioCharts: [] },
   immunizations: [],
+  clinicProcedures: [],
   history: { procedures: [], conditions: [], medications: [], family: [], familyReview: null, social: [], sensitiveIncluded: true },
 };
 

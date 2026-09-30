@@ -7,6 +7,7 @@ import type {
   BillingPayer,
   BillingService,
   BillingSettingsFull,
+  ProcedureDefinition,
   DentalSettings,
   DiscountRule,
   LabTest,
@@ -25,7 +26,7 @@ export default async function BillingSettingsPage() {
   if (!can(session, "billing.charge.read")) redirect("/");
   const facility = await getSelectedFacility();
   const canAccredit = can(session, "philhealth.settings.manage") && facility !== null;
-  const [services, payers, rules, settings, taxProfile, packages, visitTypes, labTests, dental, accreditation, yakap] = await Promise.all([
+  const [services, payers, rules, settings, taxProfile, packages, visitTypes, labTests, dental, accreditation, yakap, procedures] = await Promise.all([
     api<BillingService[]>("/billing/services"),
     api<BillingPayer[]>("/billing/payers"),
     api<DiscountRule[]>("/billing/discount-rules"),
@@ -42,6 +43,7 @@ export default async function BillingSettingsPage() {
     canAccredit
       ? api<{ participation: YakapParticipation | null }>(`/philhealth/facilities/${facility.id}/yakap-participation`).then((r) => r.participation)
       : Promise.resolve(null),
+    can(session, "encounter.read") ? api<ProcedureDefinition[]>("/clinic/procedure-definitions").catch(() => []) : Promise.resolve([]),
   ]);
   return (
     <>
@@ -60,6 +62,7 @@ export default async function BillingSettingsPage() {
         visitTypes={visitTypes.map((v) => ({ code: v.code, name: v.name }))}
         labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
         dentalProcedures={(dental?.procedureTypes ?? []).map((t) => ({ code: t.code, name: t.name }))}
+        clinicProcedures={procedures.map((p) => ({ code: p.code, name: p.name }))}
         canManage={can(session, "billing.pricelist.manage")}
         philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}
         yakap={canAccredit ? { facilityId: facility.id, facilityName: facility.name, participation: yakap } : null}

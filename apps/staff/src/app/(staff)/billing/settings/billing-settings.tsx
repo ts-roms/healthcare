@@ -93,6 +93,7 @@ export function BillingSettings({
   visitTypes,
   labTests,
   dentalProcedures,
+  clinicProcedures,
   canManage,
   philhealth,
   yakap,
@@ -106,6 +107,7 @@ export function BillingSettings({
   visitTypes: Source[];
   labTests: Source[];
   dentalProcedures: Source[];
+  clinicProcedures: Source[];
   canManage: boolean;
   /** The selected facility's PhilHealth accreditation (only for staff who may record it). */
   philhealth: { facilityId: string; facilityName: string; accreditation: PhilHealthAccreditation | null } | null;
@@ -117,7 +119,7 @@ export function BillingSettings({
       <div className="flex flex-col gap-4">
         <Services
           services={services}
-          sources={{ visit_type: visitTypes, lab_test: labTests, dental_procedure: dentalProcedures }}
+          sources={{ visit_type: visitTypes, lab_test: labTests, dental_procedure: dentalProcedures, clinic_procedure: clinicProcedures }}
           canManage={canManage}
           vatRegistered={taxProfile.vatStatus === "vat_registered"}
         />
@@ -137,7 +139,12 @@ export function BillingSettings({
 
 type SourceKind = NonNullable<BillingService["sourceKind"]>;
 type Sources = Record<SourceKind, Source[]>;
-const SOURCE_LABEL: Record<SourceKind, string> = { visit_type: "Signed visit", lab_test: "Lab order", dental_procedure: "Dental procedure" };
+const SOURCE_LABEL: Record<SourceKind, string> = {
+  visit_type: "Signed visit",
+  lab_test: "Lab order",
+  dental_procedure: "Dental procedure",
+  clinic_procedure: "Clinic procedure",
+};
 
 function Services({
   services,
@@ -383,6 +390,7 @@ function NewService({ sources }: { sources: Sources }) {
         <option value="visit_type">When a visit of a type is signed</option>
         <option value="lab_test">When a laboratory test is ordered</option>
         <option value="dental_procedure">When a dental procedure is performed</option>
+        <option value="clinic_procedure">When a clinic procedure is performed (by the quantity recorded)</option>
       </NativeSelect>
       {f.sourceKind ? (
         options.length ? (

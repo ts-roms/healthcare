@@ -34,6 +34,9 @@ import { ImmunizationService } from "./immunizations/immunization.service";
 import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
 import { PatientHistoryController } from "./history/history.controller";
 import { PatientHistoryService } from "./history/history.service";
+import { PROCEDURE_STAFF_NAMES } from "./procedures/ports";
+import { ClinicProcedureController } from "./procedures/procedure.controller";
+import { ClinicProcedureService } from "./procedures/procedure.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
@@ -66,6 +69,7 @@ export class ClinicModule {
         ImmunizationController,
         ReferralController,
         PatientHistoryController,
+        ClinicProcedureController,
       ],
       providers: [
         AppointmentReminders,
@@ -93,6 +97,8 @@ export class ClinicModule {
         PatientHistoryService,
         // The history reads staff names through the same adapter (it answers from the auth domain).
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
+        ClinicProcedureService,
+        { provide: PROCEDURE_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
       ],
       exports: [
         ClinicQueries,
@@ -106,6 +112,7 @@ export class ClinicModule {
         BookingRulesService,
         ImmunizationService,
         PatientHistoryService,
+        ClinicProcedureService,
       ],
     };
   }

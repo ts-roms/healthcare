@@ -41,7 +41,7 @@ organization `vatable + VAT + exempt + zero-rated = net`).
 - `billing_package_enrollment` — a package sold to a patient at a facility: `active` or `cancelled` (reason), from the
   day of sale to its end date (from the validity). What is left of each included service is derived from its charges.
 - `billing_charge` — one billable thing for a patient at a facility: source (`encounter`, `lab_order_item`,
-  `dental_procedure`, `manual`, `package` — the sale of a package), price snapshot, service date, status
+  `dental_procedure`, `clinic_procedure`, `manual`, `package` — the sale of a package), price snapshot, service date, status
   `pending → invoiced` (on a draft or issued invoice) or `cancelled` (reason). Unique per clinical source and service,
   so event redelivery charges once. A charge a package covers is at zero and points to the enrollment.
 - `billing_invoice` (+ `_item`, `_discount`, `_payer`) — `draft → issued → void`. Numbered on issue
@@ -80,7 +80,10 @@ organization `vatable + VAT + exempt + zero-rated = net`).
   only); `LaboratoryOrderCreated` → one charge per non-cancelled item with a mapped test; `LaboratoryOrderCancelled` →
   its pending charges are cancelled (invoiced ones need a void); `DentalProcedurePerformed` → the procedure's service,
   with **quantity** = the surfaces treated (at least one) when its charge unit is `surface`, else 1, at the listed unit
-  price (`chargeQuantity`; a package covers it only when enough is left for the whole quantity). Unmapped or unpriced
+  price (`chargeQuantity`; a package covers it only when enough is left for the whole quantity);
+  `ClinicProcedurePerformed` → the service mapped to the procedure's code (`source_kind = 'clinic_procedure'`, migration
+  `0085`), **quantity** as the clinician recorded it; `ClinicProcedureEnteredInError` → its pending charge is cancelled
+  ("Procedure entered in error"; an invoiced one needs a void). Unmapped or unpriced
   sources are not charged and do not fail the clinical workflow; staff add a manual charge. A changed charge unit
   applies to charges captured afterwards (audited with the service update).
 - **Manual charges** use the listed price; another price needs a reason (audited with both prices). A package is sold,

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { canReadSensitiveHistory, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
+import { canReadSensitiveHistory, ClinicProcedureService, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
 import { type Actor, actorUserId, NotFoundError, PH_TIMEZONE } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -109,6 +109,15 @@ export interface PatientWorkspace {
     issuedAt: string;
     overdue: boolean;
   }> | null;
+  /** Procedures performed at the clinic, entries in error left out: what, when and by whom (no notes). */
+  procedures: Array<{
+    id: string;
+    filedUnder: string | null;
+    encounterId: string;
+    description: string;
+    performedAt: string;
+    performerName: string | null;
+  }> | null;
   /** The latest immunizations, entries in error left out; no notes, reasons or reactions (only whether one is recorded). */
   immunizations: Array<{
     id: string;
@@ -174,6 +183,7 @@ export class PatientWorkspaceService {
     private readonly dental: DentalRecordQueries,
     private readonly documents: DocumentRecordQueries,
     private readonly immunizations: ImmunizationService,
+    private readonly procedures: ClinicProcedureService,
     private readonly history: PatientHistoryService,
     private readonly audit: AuditService,
   ) {}
@@ -196,7 +206,7 @@ export class PatientWorkspaceService {
 
     const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
     const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
-    const [encounters, visit, critical, orders, images, documents, referrals, immunizations, history] = await Promise.all([
+    const [encounters, visit, critical, orders, images, documents, referrals, immunizations, history, procedures] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
         : none,
@@ -213,6 +223,7 @@ export class PatientWorkspaceService {
       has("history")
         ? this.history.workspace(organizationId, patientId, WORKSPACE_LIMITS.history, { sensitive: canReadSensitiveHistory(actor.permissions) })
         : none,
+      has("procedures") ? this.procedures.workspace(organizationId, patientId, WORKSPACE_LIMITS.procedures) : none,
     ]);
 
     const userId = actorUserId(actor);
@@ -334,6 +345,7 @@ export class PatientWorkspaceService {
             overdue: r.overdue,
           }))
         : null,
+      procedures: procedures ? procedures.map(({ patientId: filedAs, ...p }) => ({ ...p, filedUnder: filedUnder(filedAs) })) : null,
       immunizations: immunizations
         ? immunizations.map(({ patientId: filedAs, facilityId, ...i }) => ({ ...i, filedUnder: filedUnder(filedAs), facility: facilityOf(facilityId) }))
         : null,
@@ -374,6 +386,7 @@ export class PatientWorkspaceService {
           documents: result.documents?.length ?? null,
           referrals: result.referrals?.length ?? null,
           immunizations: result.immunizations?.length ?? null,
+          procedures: result.procedures?.length ?? null,
           historyProcedures: result.history?.proceduresTotal ?? null,
           historyConditions: result.history?.conditionsTotal ?? null,
           historyMedications: result.history?.medicationsTotal ?? null,
