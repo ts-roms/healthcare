@@ -275,18 +275,24 @@ the surviving record's workspace.
 The timeline puts the patient's whole record in one list, newest first, grouped by day.
 
 1. On the patient record, select **Timeline** (or **Open timeline** in **Recent activity**).
-2. Use the chips to show only some kinds: **Visits**, **Prescriptions**, **Laboratory**, **Dental**, **Care plans**, **Billing**, **Messages**, **Imported
-   history** and **Documents**. Select a chip again to turn it off.
+2. Use the chips to show only some kinds: **Visits** (appointments, check-ins, triage, consultations, vital signs, referrals and medical certificates),
+   **Allergies and consents**, **Prescriptions** (with what was dispensed), **Laboratory** (orders, specimens collected, received or rejected, results
+   released and critical results communicated and acknowledged), **Dental** (with images and periodontal charts), **Care plans**, **Billing** (invoices,
+   payments, credit and debit notes, deposits), **PhilHealth and DOH** (claims, eligibility and YAKAP answers, case reports), **Messages**, **Imported
+   history**, **Documents and requests** (uploaded documents and records requests) and **Immunizations**. Select a chip again to turn it off.
 3. To limit the dates, fill in **From** and **To** and select **Apply dates**.
 4. Select **Clear filters** to see everything again.
 5. Select **Load more** at the bottom for older entries.
 6. Select an entry to open the full record it summarizes (for example the encounter or the laboratory results).
 
-Each entry is a short summary: codes, names, numbers and statuses, never notes, result values or message text. Records entered in error, cancelled or voided
-stay listed and are marked. Times are in the facility's time zone.
+Each entry is a short summary: codes, names, numbers and statuses, never notes, reasons, result values, vital values, reactions or message text. Records
+entered in error, cancelled or voided stay listed and are marked. Times are in the facility's time zone. Allergies, consents, records requests and PhilHealth
+claims belong to the whole record, not a facility. The patient's past history (surgeries, family and social history) is not on the timeline: open
+**Medical, family and social history** instead.
 
-You see only the kinds your role allows. For example, a cashier sees invoices and payments only, and a physician sees everything except billing. When some
-kinds are hidden, the timeline says "Some records are not shown to you because your role does not include access to them."
+You see only the kinds your role allows. For example, a cashier sees billing, consents and PhilHealth only, and a physician sees everything except billing,
+PhilHealth, dental images and records requests. When some kinds are hidden, the timeline says "Some records are not shown to you because your role does not
+include access to them."
 
 The **Recent activity** card on the patient record shows the latest five entries. Viewing the timeline is recorded in the audit trail.
 
