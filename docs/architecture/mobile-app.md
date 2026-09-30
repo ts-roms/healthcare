@@ -241,7 +241,10 @@ clinic has not turned notifications on.
   sign-out rules as `get`.
 - **Build.** Receiving push needs the app linked to an Expo project (`eas init`; the id reaches `extra.eas.projectId` through `EAS_PROJECT_ID` in `app.config.ts`, [mobile-release.md](../deployment/mobile-release.md)), a
   development or store build through EAS, an Apple Developer account and, for Android, the organization's own Firebase credentials uploaded
-  to the Expo project. Expo Go on Android cannot receive remote push.
+  to the Expo project. Expo Go cannot receive remote push (removed in SDK 53), and loading `expo-notifications` there fails on
+  Android: the first run on a phone (Expo Go, Android, 2026-09-30) did not start at all, because the root layout loaded it. Since then
+  `src/lib/native-push.ts` loads it on first use and only outside Expo Go (`pushAvailable`, from `Constants.executionEnvironment`);
+  in Expo Go the app runs without notifications and says so (`push.ts`, reason `expo_go`, unit-tested).
 - **Tests.** App: `src/lib/push.test.ts` (permission, registration, refusals, sign-out) and the session's POST tests. API:
   `apps/api/test/portal-push-mobile.int.spec.ts` (registration, limits, the database constraint, sending, gone tokens, retries). **Not yet run
   on a device.**

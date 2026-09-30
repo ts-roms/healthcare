@@ -4,7 +4,7 @@ import { colors } from "@/components/theme";
 import { patientMessage } from "@/lib/api-error";
 import type { PushDevice } from "@/lib/api-types";
 import { nativePush } from "@/lib/native-push";
-import { enableMessage, enablePush, pushState, removeDevice, type PushState } from "@/lib/push";
+import { EXPO_GO_MESSAGE, enableMessage, enablePush, pushState, removeDevice, type PushState } from "@/lib/push";
 import { session } from "@/lib/session-instance";
 
 /**
@@ -74,7 +74,11 @@ export default function NotificationsScreen() {
       {state === null ? null : state.kind === "unavailable" ? (
         <View style={styles.card}>
           <Text style={styles.body}>
-            {state.reason === "simulator" ? "Notifications work only on a real phone." : "Your clinic has not turned on notifications for the app yet."}
+            {state.reason === "simulator"
+              ? "Notifications work only on a real phone."
+              : state.reason === "expo_go"
+                ? EXPO_GO_MESSAGE
+                : "Your clinic has not turned on notifications for the app yet."}
           </Text>
         </View>
       ) : state.kind === "on" ? (

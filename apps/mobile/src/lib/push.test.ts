@@ -8,6 +8,7 @@ const TOKEN = "ExponentPushToken[abcdefghijkl]";
 function platform(over: Partial<PushPlatform> & { permissionNow?: "granted" | "denied" | "undetermined" } = {}): PushPlatform & { requested: number } {
   let permission = over.permissionNow ?? "undetermined";
   const p = {
+    pushAvailable: true,
     isPhysicalDevice: true,
     os: "ios" as const,
     deviceName: "Juan's phone",
@@ -39,6 +40,43 @@ function fakeApi(status: Partial<PushStatus> = {}, post?: (path: string, body: u
   } as unknown as PushApi;
   return { api, posts, gets };
 }
+
+describe("in Expo Go (no remote notifications since SDK 53)", () => {
+  // A platform that fails if anything touches the phone's notification system — which is what crashed the app in Expo Go.
+  const expoGo = () =>
+    platform({
+      pushAvailable: false,
+      permission: async () => {
+        throw new Error("expo-notifications must not be used in Expo Go");
+      },
+      requestPermission: async () => {
+        throw new Error("expo-notifications must not be used in Expo Go");
+      },
+      token: async () => {
+        throw new Error("expo-notifications must not be used in Expo Go");
+      },
+    });
+
+  it("reports notifications as unavailable without asking the phone or the API", async () => {
+    const { api, gets } = fakeApi();
+    expect(await pushState(api, expoGo())).toEqual({ state: { kind: "unavailable", reason: "expo_go" }, devices: [] });
+    expect(gets).toEqual([]);
+  });
+
+  it("does not try to turn them on, and says why", async () => {
+    const { api, posts } = fakeApi();
+    const result = await enablePush(api, expoGo());
+    expect(result).toEqual({ ok: false, reason: "expo_go" });
+    expect(posts).toEqual([]);
+    expect(enableMessage(result as Extract<typeof result, { ok: false }>)).toMatch(/Expo Go/);
+  });
+
+  it("signs out without touching notifications", async () => {
+    const { api, gets, posts } = fakeApi();
+    await expect(unregisterThisPhone(api, expoGo())).resolves.toBeUndefined();
+    expect([gets, posts]).toEqual([[], []]);
+  });
+});
 
 describe("push state", () => {
   it("is unavailable in a simulator and when the clinic has not turned it on", async () => {

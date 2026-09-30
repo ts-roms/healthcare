@@ -107,8 +107,9 @@ pnpm dev:mobile                                      # scan the QR code with Exp
 pnpm nx run-many -t lint typecheck test -p mobile    # what CI runs for the app
 ```
 
-- **Expo Go** should be enough for sign-in and results (not yet tried on a device). **Push** needs a development build (`eas build --profile development`) linked to an Expo
-  project, and `EXPO_PUSH_ENABLED=true` for the API and notification worker; Expo Go on Android cannot receive remote push.
+- **Expo Go** runs sign-in and results; notifications are switched off there (the Notifications screen says a development build is
+  needed), because Expo Go cannot receive remote notifications. **Push** needs a development build (`eas build --profile development`)
+  linked to an Expo project, and `EXPO_PUSH_ENABLED=true` for the API and notification worker.
 - **Code layout:** screens in `src/app` (expo-router), the session and API client in `src/lib` (platform-neutral, unit-tested with
   Vitest). The refresh token lives only in the phone's secure storage; the access token in memory.
 - **Shared code:** only platform-neutral `type:domain` libraries — today `@healthcare/domain/portal-results` (result types and wording,
