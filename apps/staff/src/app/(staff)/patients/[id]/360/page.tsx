@@ -16,6 +16,7 @@ import {
   StethoscopeIcon,
   TestTubeIcon,
   UserIcon,
+  WaypointsIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, LabTrendChart, MedicationList, PatientHeader, ProblemList, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -23,6 +24,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PatientLabResults } from "../lab-results";
 import { StartConsultationButton } from "@/app/(staff)/clinic/encounters/start-consultation-button";
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
+import { ReferralList } from "@/components/referral-list";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientLabResult, PatientTimelinePage, PatientWorkspace, PatientWorkspaceSummary } from "@/lib/api/types";
@@ -336,6 +338,24 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               </ul>
             ) : (
               <p className="text-table text-muted-foreground">No open orders.</p>
+            )}
+          </Panel>
+
+          <Panel
+            title="Referrals"
+            icon={WaypointsIcon}
+            action={
+              can(session, "encounter.read") ? (
+                <Link href="/clinic/referrals" className="text-meta text-primary hover:underline">
+                  Referrals
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "referrals") || !workspace?.referrals ? (
+              <Withheld />
+            ) : (
+              <ReferralList referrals={workspace.referrals} empty="No referrals." />
             )}
           </Panel>
 

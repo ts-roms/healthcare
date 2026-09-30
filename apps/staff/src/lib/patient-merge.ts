@@ -26,6 +26,7 @@ export const MERGE_WORK_LABELS: Record<MergeWorkKind, string> = {
   uninvoiced_charge: "Charge not yet invoiced",
   account_balance: "Deposit or credit balance",
   care_plan_active: "Active care plan",
+  referral_open: "Open referral",
 };
 
 /** What to do about each kind of work before merging. */
@@ -39,6 +40,7 @@ export const MERGE_WORK_ACTIONS: Record<MergeWorkKind, string> = {
   uninvoiced_charge: "Invoice or cancel the charge.",
   account_balance: "Apply the balance to an invoice or refund it.",
   care_plan_active: "It stays under the retired number; consider closing it and starting one on the surviving record.",
+  referral_open: "It stays under the retired number and its letter names it; answers and replies are still recorded on it.",
 };
 
 /** The existing screen that resolves a work item. */
@@ -60,6 +62,8 @@ export function mergeWorkHref(item: Pick<MergeWorkItem, "link">, retiredPatientI
       return `/billing/patients/${link.id}`;
     case "care_plan":
       return `/clinic/care-plans/${link.id}`;
+    case "referral":
+      return `/clinic/referrals/${link.id}`;
     default:
       return null;
   }

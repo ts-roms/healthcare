@@ -22,6 +22,7 @@ import {
   HistoryIcon,
   LayoutDashboardIcon,
   GitMergeIcon,
+  WaypointsIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -41,8 +42,10 @@ import type {
   PortalAccountStatus,
   YakapConsultationList,
   YakapRegistrationOverview,
+  Referral,
 } from "@/lib/api/types";
-import { todayIn } from "@/lib/clinic-mapping";
+import { referralRecipient, todayIn } from "@/lib/clinic-mapping";
+import { ReferralList } from "@/components/referral-list";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
 import { ExternalHistory } from "./external-history";
@@ -131,6 +134,16 @@ async function loadRecentActivity(id: string): Promise<PatientTimelinePage | nul
   }
 }
 
+/** The patient's referrals (records merged into it included), newest first; null when they cannot be shown (no encounter.read). */
+async function loadReferrals(id: string): Promise<Referral[] | null> {
+  try {
+    return await api<Referral[]>("/referrals", { query: { view: "all", patientId: id } });
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
 /** Merge history (as the retired record and as the survivor); null when there is none or it cannot be shown. */
 async function loadMergeHistory(p: PatientDetail): Promise<MergeHistoryEntry[] | null> {
   if (!p.mergedInto && !p.mergedRecords?.length) return null;
@@ -185,7 +198,7 @@ async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverv
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, recent, facility, session] = await Promise.all([
+  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, recent, referrals, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
@@ -195,6 +208,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     loadYakap(id),
     loadExternalHistory(id),
     loadRecentActivity(id),
+    loadReferrals(id),
     getSelectedFacility(),
     getSession(),
   ]);
@@ -495,6 +509,35 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                 <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
               )}
               <WithheldNote withheld={recent.withheld} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {referrals ? (
+          <Card className="lg:col-span-2" id="referrals">
+            <CardHeader>
+              <WaypointsIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Referrals</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href="/clinic/referrals">All referrals</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ReferralList
+                empty="No referrals. Referrals are made from a consultation."
+                referrals={referrals.slice(0, 10).map((r) => ({
+                  id: r.id,
+                  referralNumber: r.referralNumber,
+                  status: r.status,
+                  urgency: r.urgency,
+                  recipient: referralRecipient(r),
+                  specialty: r.specialty,
+                  issuedAt: r.issuedAt,
+                  overdue: r.overdue,
+                  referringPractitionerName: r.referringPractitioner?.displayName ?? null,
+                  filedUnder: r.patientId !== p.id ? (r.patient?.patientNumber ?? null) : null,
+                }))}
+              />
             </CardContent>
           </Card>
         ) : null}

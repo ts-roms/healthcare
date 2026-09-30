@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { Referral } from "@/lib/api/types";
+import type { Referral, ReferralSettings } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
@@ -83,4 +83,15 @@ export async function cancelReferral(referralId: string, input: z.input<typeof c
   const parsed = cancelSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Invalid reason." };
   return change(referralId, "cancel", parsed.data);
+}
+
+/** Sets or clears the organization's overdue threshold in days (needs clinic.configure; audited with before and after). */
+export async function saveReferralSettings(overdueAfterDays: number | null, settingsVersion: number): Promise<ActionResult<ReferralSettings>> {
+  const parsed = z
+    .object({ overdueAfterDays: z.number().int().min(1).max(365).nullable(), version: z.number().int().min(0) })
+    .safeParse({ overdueAfterDays, version: settingsVersion });
+  if (!parsed.success) return { ok: false, message: "Use a whole number of days from 1 to 365, or turn the flag off." };
+  const result = await actionResult(() => api<ReferralSettings>("/referrals/settings", { method: "PUT", body: parsed.data }));
+  if (result.ok) revalidatePath("/clinic/referrals");
+  return result;
 }

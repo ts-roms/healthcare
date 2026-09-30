@@ -1,4 +1,5 @@
-import type { PortalRecordsRequestStatus, PortalRecordsScope } from "./api/types";
+import type { PortalRecordsRequestStatus, PortalRecordsScope, PortalReferral } from "./api/types";
+import { formatCalendarDate } from "./greeting";
 
 /** What a patient may ask copies of, in their words. */
 export const SCOPE_TEXT: Record<PortalRecordsScope, string> = {
@@ -30,4 +31,27 @@ export function requestState(status: PortalRecordsRequestStatus): { tone: Reques
 
 export function requestOpen(status: PortalRecordsRequestStatus): boolean {
   return status === "submitted" || status === "in_review";
+}
+
+export type ReferralTone = "waiting" | "done" | "declined" | "closed";
+
+/** Where a referral stands, in the patient's words (no clinical detail). */
+export function referralState(status: PortalReferral["status"]): { tone: ReferralTone; text: string } {
+  switch (status) {
+    case "sent":
+      return { tone: "waiting", text: "Sent — bring the letter when you go" };
+    case "accepted":
+      return { tone: "waiting", text: "Accepted by the doctor you were referred to" };
+    case "completed":
+      return { tone: "done", text: "Completed — your doctor has the outcome" };
+    case "declined":
+      return { tone: "declined", text: "Not accepted — your doctor will advise you" };
+    case "cancelled":
+      return { tone: "closed", text: "Cancelled by your doctor" };
+  }
+}
+
+/** "October 1, 2026" for an instant: its calendar date in the clinic's time zone. */
+export function issuedOn(iso: string, timeZone = "Asia/Manila"): string {
+  return formatCalendarDate(new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(iso)));
 }
