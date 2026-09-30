@@ -65,6 +65,17 @@ case, after booking you return to where you started.
 
 > Not available in the staff app yet: recurring appointments. The waiting list is under **Waiting list** (see below).
 
+## How to use the calendar
+
+**Calendar** in the menu shows the selected facility's month, week or day. Appointments and staff events appear together (untick **Show appointments** to see events only); click an appointment to open that day's schedule.
+
+1. Choose **New event**, give it a title and a type (meeting, event, blocked time, training or reminder).
+2. Set the start and end (or tick **All day**). Times are in the facility's time zone.
+3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
+4. Choose **Add event**.
+
+Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Appointments → Schedules** for that.
+
 ## How to confirm, cancel or mark a no-show
 
 On the day schedule, each open appointment (**Booked** or **Confirmed**) shows the actions you may take:

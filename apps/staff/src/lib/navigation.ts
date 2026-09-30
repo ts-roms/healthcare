@@ -6,6 +6,7 @@ export const DEMO_MODULES: string[] = [];
 /** Which permissions reveal each top-level module (any one is enough). Unlisted modules are visible to everyone. */
 const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/patients": ["patient.search"],
+  "/calendar": ["calendar.read"],
   "/appointments": ["appointment.read"],
   "/queue": ["clinic.queue.read"],
   "/clinic": ["encounter.read"],

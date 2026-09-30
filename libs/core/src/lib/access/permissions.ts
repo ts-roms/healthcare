@@ -143,6 +143,9 @@ export const PERMISSIONS = [
   // sexual history also need encounter.write.
   "history.read",
   "history.record",
+  // Staff calendar: meetings, events and blocked time beside appointments (migration 0086).
+  "calendar.read",
+  "calendar.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

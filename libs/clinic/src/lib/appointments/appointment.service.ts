@@ -152,11 +152,12 @@ export class AppointmentService {
       const { start, end } = localDayBounds(query.date, timeZone);
       filters.push(gte(appointment.startsAt, start), lt(appointment.startsAt, end));
     }
+    if (query.from && query.to) filters.push(gte(appointment.startsAt, new Date(query.from)), lt(appointment.startsAt, new Date(query.to)));
     const rows = await this.db
       .select()
       .from(appointment)
       .where(and(...filters))
-      .orderBy(asc(appointment.startsAt))
+      .orderBy(asc(appointment.startsAt), asc(appointment.id))
       .limit(query.pageSize + 1)
       .offset(pageOffset(query));
     if (query.patientId) {
