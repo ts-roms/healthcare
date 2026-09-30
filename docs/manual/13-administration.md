@@ -92,6 +92,26 @@ not repeated. A dash (—) means only the organization administrator has it by d
 | `encounter.sign`        | Sign (complete) encounters                                                       | Dentist, Physician                                                                 |
 | `encounter.write`       | Start encounters, write notes, record diagnoses                                  | Dentist, Physician                                                                 |
 
+### Immunizations
+
+| Permission            | What it allows                                                                                | Default roles (besides Organization administrator) |
+| --------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `immunization.read`   | View a patient's immunization history and the vaccine catalogue                               | Dentist, Medical records officer, Nurse, Physician |
+| `immunization.record` | Record doses given, not given or reported, add a reaction, and mark a record entered in error | Nurse, Physician                                   |
+
+The vaccine catalogue is changed with `clinic.configure`. Give `immunization.record` to other staff who vaccinate (for example midwives or
+pharmacists) through your own roles, as your policy allows.
+
+### Patient history
+
+| Permission       | What it allows                                                                                                                            | Default roles (besides Organization administrator) |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `history.read`   | View a patient's past procedures and conditions, family and social history (substance use and sexual history also need `encounter.write`) | Dentist, Medical records officer, Nurse, Physician |
+| `history.record` | Record past procedures and conditions, family history and its review, new social history versions, and mark entries entered in error      | Dentist, Nurse, Physician                          |
+
+Who sees the private parts of the social history follows `encounter.write`; change it through your own roles, as your data protection officer
+advises.
+
 ### Prescriptions and care plans
 
 | Permission              | What it allows                                                      | Default roles (besides Organization administrator)                               |
@@ -265,6 +285,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                            | Screen: `/appointments/schedules`                                                          | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Diagnosis coding systems                                                                                                        | API only (`/api/v1/clinic/coding-systems`)                                                 | `clinic.configure`              | this chapter                                                                                              |
 | Visit types patients may book online                                                                                            | Screen: `/appointments/visit-types`                                                        | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
+| Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                               | Screen: `/clinic/vaccines` (**Clinic → Vaccines**)                                         | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
 | Services and prices, discount rules, payers, packages, tax and documents, document numbers                                      | Screen: `/billing/settings`                                                                | `billing.pricelist.manage`      | [Billing](10-billing.md)                                                                                  |
 | PhilHealth accreditation number, PhilHealth YAKAP participation reference (per facility)                                        | Screen: `/billing/settings` (facility selected)                                            | `philhealth.settings.manage`    | [Billing](10-billing.md)                                                                                  |
 | Laboratory tests, reference ranges, panels, reference laboratories and referred tests                                           | Screen: `/laboratory/catalog`                                                              | `lab.catalog.manage`            | [Laboratory](06-laboratory.md)                                                                            |

@@ -410,7 +410,22 @@ export interface PortalRecordsRequest {
   documents: Array<{ documentId: string; title: string; category: string; sharedAt: string }>;
 }
 
+/** A referral made for the patient: who it is to, when, how urgent and where it stands (the letter holds the rest). */
+export interface PortalReferral {
+  id: string;
+  referralNumber: string;
+  issuedAt: string;
+  status: "sent" | "accepted" | "declined" | "completed" | "cancelled";
+  urgency: "routine" | "urgent" | "emergency";
+  recipient: string;
+  specialty: string | null;
+  referringPractitionerName: string | null;
+  letterAvailable: boolean;
+}
+
 export interface PortalDocuments {
+  /** Older API versions leave it out. */
+  referrals?: PortalReferral[];
   certificates: PortalCertificate[];
   requests: PortalRecordsRequest[];
   /** What the clinic tells patients before they ask, in its own words (none: null). */
@@ -499,6 +514,62 @@ export interface PortalMfaSetup {
   setupKey: string;
   secret: string;
   otpauthUri: string;
+}
+
+/** `GET /portal/immunizations` row: a dose given (here, reported or from another provider), no staff notes. */
+export interface PortalImmunization {
+  id: string;
+  vaccineName: string;
+  vaccineProduct: string | null;
+  dose: string | null;
+  /** "2019", "2019-05", "2019-05-12" or an ISO instant, at the precision known. */
+  occurrence: string;
+  occurrencePrecision: "year" | "month" | "day" | "time";
+  source: "administered_here" | "historical" | "external_import";
+  /** The clinic, or who gave it as reported; null when not known. */
+  where: string | null;
+}
+
+/** `GET /portal/health-history`: the patient's history as the clinic recorded it (no staff notes, entries in error left out). */
+export interface PortalHealthHistory {
+  procedures: Array<{
+    id: string;
+    description: string;
+    /** "2019", "2019-05", "2019-05-12", or null when not known. */
+    performed: string | null;
+    performer: string | null;
+    bodySite: string | null;
+    source: "reported" | "recorded_here" | "external_import";
+  }>;
+  conditions: Array<{ id: string; description: string; onset: string | null; status: "active" | "resolved" | "unknown"; source: "reported" | "recorded_here" }>;
+  family: {
+    state: "not_recorded" | "recorded" | "none_known" | "unknown";
+    unknownReason: "adopted" | "not_known" | "declined_to_answer" | null;
+    reviewedOn: string | null;
+    entries: Array<{
+      id: string;
+      relative: string;
+      condition: string;
+      onsetAge: number | null;
+      deceased: boolean | null;
+      causeOfDeath: string | null;
+      source: "reported" | "external_import";
+    }>;
+  };
+  social: {
+    effectiveDate: string;
+    tobacco: string | null;
+    alcohol: string | null;
+    occupation: string | null;
+    occupationalExposures: string | null;
+    livingSituation: string | null;
+    physicalActivity: string | null;
+    diet: string | null;
+    /** True for someone acting for the patient: substance use and sexual history are shown only to the patient. */
+    sensitiveWithheld: boolean;
+    substanceUse: string | null;
+    sexualHistory: string | null;
+  } | null;
 }
 
 export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";

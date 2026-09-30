@@ -1,8 +1,8 @@
-import { FileSignatureIcon, FolderOpenIcon } from "lucide-react";
+import { FileSignatureIcon, FolderOpenIcon, WaypointsIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
 import type { PortalDocuments } from "@/lib/api/types";
-import { requestOpen } from "@/lib/documents";
+import { issuedOn, referralState, requestOpen } from "@/lib/documents";
 import { formatCalendarDate } from "@/lib/greeting";
 import { OpenFile } from "./open-file";
 import { RecordsRequestForm } from "./records-request-form";
@@ -10,15 +10,15 @@ import { RequestCard } from "./request-card";
 
 export const metadata = { title: "Documents" };
 
-/** The patient's medical certificates and their requests for copies of their records. */
+/** The patient's medical certificates, referral letters and their requests for copies of their records. */
 export default async function DocumentsPage() {
-  const { certificates, requests, requestNotice, responseDays } = await portalApi<PortalDocuments>("/portal/documents");
+  const { certificates, referrals = [], requests, requestNotice, responseDays } = await portalApi<PortalDocuments>("/portal/documents");
   const openCount = requests.filter((r) => requestOpen(r.status)).length;
   return (
     <div className="flex flex-col gap-7">
       <div>
         <h1 className="text-page-lg font-semibold">Documents</h1>
-        <p className="text-body text-muted-foreground">Your medical certificates, and copies of your records you asked the clinic for.</p>
+        <p className="text-body text-muted-foreground">Your medical certificates, referral letters, and copies of your records you asked the clinic for.</p>
       </div>
 
       <section className="flex flex-col gap-3" aria-labelledby="certificates">
@@ -47,6 +47,43 @@ export default async function DocumentsPage() {
                 <OpenFile kind="certificate" id={c.id} label="Download" />
               </li>
             ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3" aria-labelledby="referrals">
+        <h2 id="referrals" className="text-section font-semibold">
+          Referrals
+        </h2>
+        {referrals.length === 0 ? (
+          <EmptyState icon={WaypointsIcon} title="No referrals">
+            When your doctor refers you to another doctor or clinic, the referral letter appears here.
+          </EmptyState>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {referrals.map((r) => {
+              const state = referralState(r.status);
+              return (
+                <li key={r.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                    <WaypointsIcon className="size-4" aria-hidden />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-semibold">
+                      To {r.recipient}
+                      {r.specialty ? ` (${r.specialty})` : ""}
+                    </span>
+                    <span className="text-meta text-muted-foreground">
+                      {issuedOn(r.issuedAt)}
+                      {r.referringPractitionerName ? ` · ${r.referringPractitionerName}` : ""}
+                      {r.urgency !== "routine" ? ` · ${r.urgency}` : ""} · no. {r.referralNumber}
+                    </span>
+                    <span className="text-meta">{state.text}</span>
+                  </span>
+                  {r.letterAvailable ? <OpenFile kind="referral" id={r.id} label="Letter" /> : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

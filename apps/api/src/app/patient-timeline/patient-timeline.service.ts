@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { BillingRecordQueries, formatPeso } from "@healthcare/billing";
 import { CarePlanService } from "@healthcare/care-plan";
-import { ClinicQueries } from "@healthcare/clinic";
+import { ClinicQueries, doseText, ImmunizationService, occurrenceText } from "@healthcare/clinic";
 import { type Actor, BadRequestError, localDayBounds, NotFoundError, PH_TIMEZONE, type TimelinePosition, type TimelineWindow } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -34,6 +34,7 @@ export type TimelineLinkType =
   | "care_plan"
   | "invoice"
   | "patient_external_history"
+  | "patient_immunizations"
   | "patient_record";
 
 /**
@@ -112,6 +113,7 @@ export class PatientTimelineService {
     private readonly billing: BillingRecordQueries,
     private readonly notifications: NotificationService,
     private readonly documents: DocumentRecordQueries,
+    private readonly immunizations: ImmunizationService,
     private readonly audit: AuditService,
   ) {}
 
@@ -390,6 +392,19 @@ export class PatientTimelineService {
             sourceIds: { externalHistoryEntryId: x.id },
           }),
         );
+      case "immunization":
+        return (await this.immunizations.timeline(organizationId, patientId, window)).map((i) =>
+          row("immunization", i, {
+            title: `${i.status === "not_done" ? "Immunization not given" : IMMUNIZATION_TITLE[i.source]}: ${i.vaccineName}`,
+            detail:
+              [doseText(i), i.occurredAt ? null : `Given ${occurrenceText({ date: i.occurrenceDate, precision: i.occurrencePrecision, at: null })}`]
+                .filter(Boolean)
+                .join(" · ") || null,
+            status: i.enteredInErrorAt ? "entered_in_error" : i.status,
+            link: { type: "patient_immunizations", id: patientId },
+            sourceIds: { immunizationId: i.id, ...(i.encounterId ? { encounterId: i.encounterId } : {}) },
+          }),
+        );
       case "document":
         return (await this.documents.timeline(organizationId, patientId, window)).map((d) =>
           row("document", d, {
@@ -403,6 +418,12 @@ export class PatientTimelineService {
     }
   }
 }
+
+const IMMUNIZATION_TITLE: Record<string, string> = {
+  administered_here: "Immunization given",
+  historical: "Immunization reported",
+  external_import: "Immunization imported (external record)",
+};
 
 const CHANNEL_LABELS: Record<string, string> = { sms: "SMS", email: "Email", push: "Push notification", in_app: "MyHealth message" };
 

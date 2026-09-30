@@ -27,7 +27,7 @@ register formats for dangerous drugs and other regulated products (compliance de
   sharing a group), adjustment (count), write-off, **return** (stock a workflow gives back); signed quantity, balance
   after, supplier and unit cost (receipts, centavos), reference, issued to (a department or purpose — never a patient
   identifier), reason, who, when, and its **source** when another workflow moved it (`prescription_dispense`,
-  `lab_reagent_load`, `purchase_order_line`, `dental_procedure` + id). A source takes stock from a lot once and returns
+  `lab_reagent_load`, `purchase_order_line`, `dental_procedure`, `immunization` + id). A source takes stock from a lot once and returns
   it at most once (partial unique index) — except a dental procedure (migration `0057`), which may take from a lot
   again and return part of it several times, each return checked against what it still holds; a return needs a
   source and a reason.
@@ -220,3 +220,12 @@ a line **of the same order** (composite keys through `(invoice_id, purchase_orde
 - **Compliance dependency:** public facilities' procurement rules (RA 9184 and its IRR, PhilGEPS) are not encoded; purchase
   orders here are the facility's internal ordering record.
 - Expiry uses the facility's local date; the printed expiry date is the last usable day.
+
+## Vaccines (migration `0081`)
+
+Item category `vaccine` holds vaccine stock. A dose given here may be taken from a chosen lot through the clinic's
+`ImmunizationContext` port (`apps/api/src/app/adapters/immunization-adapters.ts`): `consume` in the immunization's
+transaction, source `immunization` (once per record and lot, the partial unique index), only `VACCINE_CATEGORIES`
+(`vaccine`); the record keeps the lot's number and expiry. Marking the record entered in error returns it with
+`restore`, once. `InventoryQueries.usableLots` lists unexpired lots per location for the choice. Existing items
+stocked as `medicine` can be changed to `vaccine` in the catalog. See [immunizations](immunizations.md).

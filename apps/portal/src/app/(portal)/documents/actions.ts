@@ -5,6 +5,12 @@ import { portalApi } from "@/lib/api/client";
 import { type Result, run, UUID } from "@/lib/api/result";
 import type { PortalRecordsRequest, PortalRecordsScope } from "@/lib/api/types";
 
+/** A short-lived link to the letter of one of the patient's referrals (not a cancelled one; the API audits it). */
+export async function openReferralLetter(referralId: string): Promise<Result<{ url: string }>> {
+  if (!UUID.test(referralId)) return { ok: false, message: "Unknown referral." };
+  return run(() => portalApi<{ url: string; expiresAt: string }>(`/portal/referrals/${referralId}/link`));
+}
+
 /** A short-lived link to one of the patient's medical certificates (the API checks it is theirs and audits it). */
 export async function openCertificate(certificateId: string): Promise<Result<{ url: string }>> {
   if (!UUID.test(certificateId)) return { ok: false, message: "Unknown certificate." };

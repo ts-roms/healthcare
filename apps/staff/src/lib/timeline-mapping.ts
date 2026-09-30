@@ -15,6 +15,7 @@ export const TIMELINE_GROUPS = [
   { key: "messages", label: "Messages", kinds: ["communication"] },
   { key: "imported", label: "Imported history", kinds: ["external_history"] },
   { key: "documents", label: "Documents", kinds: ["document"] },
+  { key: "immunizations", label: "Immunizations", kinds: ["immunization"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; kinds: readonly PatientTimelineKind[] }>;
 
 export type TimelineGroupKey = (typeof TIMELINE_GROUPS)[number]["key"];
@@ -34,6 +35,7 @@ export const KIND_LABELS: Record<PatientTimelineKind, string> = {
   communication: "Message",
   external_history: "Imported history",
   document: "Document",
+  immunization: "Immunization",
 };
 
 export interface TimelineFilters {
@@ -109,6 +111,8 @@ export function entryHref(entry: PatientTimelineEntry, patientId: string, timeZo
       return `/patients/${patientId}#laboratory`;
     case "patient_external_history":
       return `/patients/${patientId}#external-history`;
+    case "patient_immunizations":
+      return `/patients/${patientId}/immunizations`;
     case "patient_record":
       return `/patients/${patientId}`;
     case "dental_record":
@@ -166,6 +170,9 @@ const STATUS: Record<string, { label: string; variant: Variant; tone: StatusTone
   delivered: { label: "Delivered", variant: "success", tone: "done" },
   failed: { label: "Not delivered", variant: "danger", tone: "failed" },
   suppressed: { label: "Not sent (preferences)", variant: "neutral", tone: "stopped" },
+  // Immunizations
+  "immunization:completed": { label: "Given", variant: "success", tone: "done" },
+  "immunization:not_done": { label: "Not given", variant: "warning", tone: "stopped" },
 };
 
 /**

@@ -14,8 +14,12 @@ import {
   type LucideIcon,
   PillIcon,
   StethoscopeIcon,
+  SyringeIcon,
   TestTubeIcon,
   UserIcon,
+  WaypointsIcon,
+  LockIcon,
+  NotebookTextIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, LabTrendChart, MedicationList, PatientHeader, ProblemList, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -23,6 +27,7 @@ import { ApiError } from "@healthcare/web-session";
 import { PatientLabResults } from "../lab-results";
 import { StartConsultationButton } from "@/app/(staff)/clinic/encounters/start-consultation-button";
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
+import { ReferralList } from "@/components/referral-list";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientLabResult, PatientTimelinePage, PatientWorkspace, PatientWorkspaceSummary } from "@/lib/api/types";
@@ -45,6 +50,8 @@ import {
   WITHHELD_TEXT,
 } from "@/lib/patient-workspace";
 import { EncounterHistory } from "./encounter-history";
+import { occurrenceLabel, SOURCE_LABEL } from "@/lib/immunization-form";
+import { FamilyStateBadge } from "@/components/history/history-panels";
 import { WorkspaceFiles } from "./workspace-files";
 
 // Never put patient names in the tab title (shoulder surfing, browser history).
@@ -340,6 +347,24 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
           </Panel>
 
           <Panel
+            title="Referrals"
+            icon={WaypointsIcon}
+            action={
+              can(session, "encounter.read") ? (
+                <Link href="/clinic/referrals" className="text-meta text-primary hover:underline">
+                  Referrals
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "referrals") || !workspace?.referrals ? (
+              <Withheld />
+            ) : (
+              <ReferralList referrals={workspace.referrals} empty="No referrals." />
+            )}
+          </Panel>
+
+          <Panel
             title="Images and documents"
             icon={FileTextIcon}
             action={
@@ -411,6 +436,132 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               )
             ) : (
               <Withheld />
+            )}
+          </Panel>
+
+          <Panel
+            title="Immunizations"
+            icon={SyringeIcon}
+            action={
+              can(session, "immunization.read") ? (
+                <Link href={`/patients/${id}/immunizations`} className="text-meta text-primary hover:underline">
+                  Full history
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "immunizations") || !workspace?.immunizations ? (
+              <Withheld />
+            ) : workspace.immunizations.length ? (
+              <ul className="flex flex-col gap-1.5 text-body">
+                {workspace.immunizations.map((i) => (
+                  <li key={i.id} className="flex flex-col gap-0.5">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{i.vaccineName}</span>
+                      {i.dose ? <span className="text-muted-foreground">· {i.dose}</span> : null}
+                      {i.status === "not_done" ? (
+                        <Badge variant="warning">
+                          <AlertTriangleIcon aria-hidden /> Not given
+                        </Badge>
+                      ) : null}
+                      {i.hasReaction ? (
+                        <Badge variant="warning">
+                          <AlertOctagonIcon aria-hidden /> Reaction recorded
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="text-meta text-muted-foreground">
+                      {[
+                        occurrenceLabel(i.occurrence, i.occurrencePrecision, { date: clinicalDate, dateTime: clinicalDateTime }),
+                        SOURCE_LABEL[i.source],
+                        i.facility?.name,
+                        filedUnderText(i.filedUnder),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-table text-muted-foreground">No immunizations recorded.</p>
+            )}
+          </Panel>
+
+          <Panel
+            title="Medical, family and social history"
+            icon={NotebookTextIcon}
+            action={
+              can(session, "history.read") ? (
+                <Link href={`/patients/${id}/history`} className="text-meta text-primary hover:underline">
+                  Full history
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "history") || !workspace?.history ? (
+              <Withheld />
+            ) : (
+              <div className="flex flex-col gap-2 text-body">
+                <FamilyStateBadge state={workspace.history.family.state} latestReview={null} />
+                {workspace.history.family.entries.length ? (
+                  <p className="text-table">
+                    <span className="text-muted-foreground">Family:</span>{" "}
+                    {workspace.history.family.entries
+                      .map((f) => `${f.relative} — ${f.condition}${f.onsetAge !== null ? ` (from ${f.onsetAge})` : ""}`)
+                      .join("; ")}
+                    {workspace.history.family.total > workspace.history.family.entries.length
+                      ? ` and ${workspace.history.family.total - workspace.history.family.entries.length} more`
+                      : ""}
+                  </p>
+                ) : null}
+                <p className="text-table">
+                  <span className="text-muted-foreground">Past procedures:</span>{" "}
+                  {workspace.history.procedures.length
+                    ? workspace.history.procedures
+                        .map((h) => [h.description, h.performed ? `(${h.performed})` : null, filedUnderText(h.filedUnder)].filter(Boolean).join(" "))
+                        .join("; ")
+                    : "none recorded"}
+                  {workspace.history.proceduresTotal > workspace.history.procedures.length
+                    ? ` and ${workspace.history.proceduresTotal - workspace.history.procedures.length} more`
+                    : ""}
+                </p>
+                <p className="text-table">
+                  <span className="text-muted-foreground">Past conditions:</span>{" "}
+                  {workspace.history.conditions.length ? workspace.history.conditions.map((h) => h.description).join("; ") : "none recorded"}
+                  {workspace.history.conditionsTotal > workspace.history.conditions.length
+                    ? ` and ${workspace.history.conditionsTotal - workspace.history.conditions.length} more`
+                    : ""}
+                </p>
+                {workspace.history.social ? (
+                  <p className="text-table">
+                    <span className="text-muted-foreground">Social (as of {clinicalDate(workspace.history.social.effectiveDate)}):</span>{" "}
+                    {[
+                      workspace.history.social.tobacco ? `tobacco ${workspace.history.social.tobacco.toLowerCase()}` : null,
+                      workspace.history.social.alcohol ? `alcohol ${workspace.history.social.alcohol.toLowerCase()}` : null,
+                      workspace.history.social.occupation,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "recorded"}
+                  </p>
+                ) : (
+                  <p className="text-table text-muted-foreground">Social history not recorded.</p>
+                )}
+                {workspace.history.social?.substanceUse || workspace.history.social?.sexualHistory ? (
+                  <p className="flex items-start gap-1.5 text-table">
+                    <LockIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <span>
+                      <span className="text-muted-foreground">Sensitive:</span>{" "}
+                      {[
+                        workspace.history.social.substanceUse ? `substance use — ${workspace.history.social.substanceUse}` : null,
+                        workspace.history.social.sexualHistory ? `sexual history — ${workspace.history.social.sexualHistory}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join("; ")}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             )}
           </Panel>
 

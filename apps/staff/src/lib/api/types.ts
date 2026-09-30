@@ -297,14 +297,15 @@ export type MergeWorkKind =
   | "draft_invoice"
   | "uninvoiced_charge"
   | "account_balance"
-  | "care_plan_active";
+  | "care_plan_active"
+  | "referral_open";
 
 export interface MergeWorkItem {
   kind: MergeWorkKind;
   id: string;
   label: string;
   at: string | null;
-  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan"; id: string } | null;
+  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan" | "referral"; id: string } | null;
 }
 
 export interface MergeDifference {
@@ -1578,7 +1579,7 @@ export interface DohRescan {
 
 // ---- Inventory (libs/inventory) ---------------------------------------------------------------------
 
-export type InventoryCategory = "medicine" | "medical_supply" | "reagent" | "laboratory_consumable" | "dental_supply" | "ppe" | "other";
+export type InventoryCategory = "medicine" | "medical_supply" | "reagent" | "laboratory_consumable" | "dental_supply" | "ppe" | "vaccine" | "other";
 
 export interface InventoryItem {
   id: string;
@@ -2398,7 +2399,8 @@ export interface AllergyRecord {
 
 export type FhirImportStatus = "pending_review" | "accepted" | "partially_accepted" | "rejected";
 export type FhirImportEntryOutcome = "pending" | "accepted" | "rejected" | "not_supported";
-export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "not_supported";
+export type FhirImportKind =
+  "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "immunization" | "procedure" | "family_history" | "not_supported";
 
 export interface FhirImportSummary {
   id: string;
@@ -2527,6 +2529,9 @@ export type ImportedItem =
   | ImportedObservationItem
   | ImportedMedicationItem
   | ImportedDocumentItem
+  | ImportedImmunizationItem
+  | ImportedProcedureItem
+  | ImportedFamilyHistoryItem
   | (ImportedBase & { kind: "not_supported" });
 
 export interface FhirImportEntry {
@@ -2535,10 +2540,10 @@ export interface FhirImportEntry {
   resourceType: string;
   kind: FhirImportKind;
   /** What accepting creates. */
-  becomes: "allergy" | "external_history" | "patient_match" | null;
+  becomes: "allergy" | "immunization" | "past_procedure" | "family_history" | "external_history" | "patient_match" | null;
   outcome: FhirImportEntryOutcome;
   reason: string | null;
-  resultType: "allergy_intolerance" | "external_history_entry" | "patient" | null;
+  resultType: "allergy_intolerance" | "external_history_entry" | "immunization" | "past_procedure" | "family_history_entry" | "patient" | null;
   resultId: string | null;
   decidedAt: string | null;
   /** Null once the received content was deleted by the retention rule. */
@@ -3033,7 +3038,8 @@ export type PatientTimelineKind =
   | "payment"
   | "communication"
   | "external_history"
-  | "document";
+  | "document"
+  | "immunization";
 
 export type PatientTimelineLinkType =
   | "appointment"
@@ -3045,6 +3051,7 @@ export type PatientTimelineLinkType =
   | "care_plan"
   | "invoice"
   | "patient_external_history"
+  | "patient_immunizations"
   | "patient_record";
 
 /** One timeline row: short display text only (no notes, values or message content); the link opens the record. */
@@ -3352,7 +3359,8 @@ export interface PurchaseOrderInvoicing {
 
 // ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
 
-export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents";
+export type PatientWorkspacePanel =
+  "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "referrals" | "immunizations" | "history";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3427,6 +3435,20 @@ export interface WorkspaceLabOrder {
   tests: Array<{ id: string; testName: string; status: LabItemStatus }>;
 }
 
+export interface WorkspaceReferral {
+  id: string;
+  filedUnder?: string | null;
+  referralNumber: string;
+  status: ReferralStatus;
+  urgency: "routine" | "urgent" | "emergency";
+  kind: "internal" | "external";
+  specialty: string | null;
+  recipient: string;
+  referringPractitionerName: string;
+  issuedAt: string;
+  overdue: boolean;
+}
+
 export interface PatientWorkspace {
   patientId: string;
   facility: WorkspaceFacilityRef | null;
@@ -3444,6 +3466,12 @@ export interface PatientWorkspace {
     title: string;
     uploadedAt: string;
   }> | null;
+  /** Open referrals first, then the latest; never the reason or summary (needs encounter.read). */
+  referrals?: WorkspaceReferral[] | null;
+  /** The latest immunizations (entries in error left out); absent from an older API. */
+  immunizations?: WorkspaceImmunization[] | null;
+  /** The patient history summary (needs history.read); absent from an older API. */
+  history?: WorkspaceHistory | null;
   /** Records merged into this patient, read with it. */
   linkedRecords?: Array<{ id: string; patientNumber: string }>;
   withheld: PatientWorkspacePanel[];
@@ -3621,7 +3649,8 @@ export interface RecordsRequestDetail extends RecordsRequest {
   suggestedSections: RecordCopySection[];
 }
 
-export type RecordCopySection = "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents";
+export type RecordCopySection =
+  "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations" | "history";
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {
@@ -3921,6 +3950,123 @@ export interface ConsentTextStatus {
   history: ConsentTextVersion[];
 }
 
+// ---- Immunizations (migration 0081; docs/domains/immunizations.md) ------------------------------------------------
+
+export type OccurrencePrecision = "year" | "month" | "day" | "time";
+export type ImmunizationSource = "administered_here" | "historical" | "external_import";
+export type ImmunizationNotDoneReason = "refused" | "contraindicated" | "unavailable" | "other";
+
+/** The organization's own vaccine catalogue entry (no national list or schedule is assumed). */
+export interface Vaccine {
+  id: string;
+  name: string;
+  productName: string | null;
+  manufacturer: string | null;
+  codeSystem: string | null;
+  code: string | null;
+  routes: string[];
+  sites: string[];
+  /** As the organization records it; informational only. */
+  dosesInSeries: number | null;
+  status: "active" | "inactive";
+  version: number;
+  updatedAt: string;
+}
+
+export interface ImmunizationRecord {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string } | null;
+  encounterId: string | null;
+  vaccineId: string | null;
+  vaccineName: string;
+  vaccineProduct: string | null;
+  vaccineManufacturer: string | null;
+  vaccineCodeSystem: string | null;
+  vaccineCode: string | null;
+  doseLabel: string | null;
+  doseNumber: number | null;
+  dose: string | null;
+  /** "2019", "2019-05", "2019-05-12" or an ISO instant, at the precision known. */
+  occurrence: string;
+  occurrencePrecision: OccurrencePrecision;
+  occurrenceDate: string;
+  status: "completed" | "not_done";
+  notDoneReason: ImmunizationNotDoneReason | null;
+  notDoneReasonText: string | null;
+  source: ImmunizationSource;
+  performerPractitionerId: string | null;
+  performerName: string | null;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  route: string | null;
+  site: string | null;
+  doseQuantity: number | null;
+  doseUnit: string | null;
+  stock: { itemId: string; locationId: string; quantity: number; returned: boolean } | null;
+  sourceDescription: string | null;
+  documentId: string | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+  notes: string | null;
+  adverseReaction: string | null;
+  adverseReactionRecordedAt: string | null;
+  adverseReactionRecordedByName: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** A vaccine lot in stock at a location of the selected facility. */
+export interface VaccineStockLot {
+  locationId: string;
+  locationName: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+}
+
+export interface WorkspaceImmunization {
+  id: string;
+  filedUnder?: string | null;
+  facility: WorkspaceFacilityRef | null;
+  vaccineName: string;
+  dose: string | null;
+  occurrence: string;
+  occurrencePrecision: OccurrencePrecision;
+  status: "completed" | "not_done";
+  source: ImmunizationSource;
+  hasReaction: boolean;
+}
+
+export interface ImportedImmunizationItem extends ImportedBase {
+  kind: "immunization";
+  subject: SubjectMatch;
+  vaccine: string | null;
+  codes: ImportedCode[];
+  status: string;
+  notDoneReason: string | null;
+  occurrence: string | null;
+  occurrenceText: string | null;
+  primarySource: boolean | null;
+  reportOrigin: string | null;
+  lotNumber: string | null;
+  expirationDate: string | null;
+  site: string | null;
+  route: string | null;
+  doseQuantity: { value: number; unit: string | null } | null;
+  performer: string | null;
+  manufacturer: string | null;
+  doseNumber: string | null;
+  location: string | null;
+}
+
 // ---- Referrals (migration 0079; docs/domains/clinic.md "Referrals") ----
 
 export type ReferralStatus = "sent" | "accepted" | "declined" | "completed" | "cancelled";
@@ -3960,6 +4106,14 @@ export interface Referral {
   /** The caller is the practitioner referred to / the referrer (the API checks again). */
   forYou: boolean;
   byYou: boolean;
+  /** Still waiting for the recipient past the organization's threshold (never while the flag is off). */
+  overdue: boolean;
+}
+
+/** The organization's referral follow-up setting (migration 0080); version 0 while never saved. */
+export interface ReferralSettings {
+  overdueAfterDays: number | null;
+  version: number;
 }
 
 /** `GET /patients/:id/portal-proxies`: guardian access, as the clinic sees it. */
@@ -3987,6 +4141,183 @@ export interface StaffProxyGrant {
 export interface StaffProxyOverview {
   actedForBy: StaffProxyGrant[];
   actingFor: StaffProxyGrant[];
+}
+
+// ---- Patient history (migration 0082; docs/domains/patient-history.md) ----
+
+export type HistoryDatePrecision = "year" | "month" | "day";
+export type HistoryInformant = "patient" | "relative" | "other_provider";
+export type FamilyRelationship =
+  | "mother"
+  | "father"
+  | "sister"
+  | "brother"
+  | "sibling"
+  | "half_sibling"
+  | "daughter"
+  | "son"
+  | "child"
+  | "maternal_grandmother"
+  | "maternal_grandfather"
+  | "paternal_grandmother"
+  | "paternal_grandfather"
+  | "maternal_aunt"
+  | "maternal_uncle"
+  | "paternal_aunt"
+  | "paternal_uncle"
+  | "cousin"
+  | "other";
+export type FamilyHistoryState = "not_recorded" | "recorded" | "none_known" | "unknown";
+export type FamilyReviewOutcome = "reviewed" | "none_known" | "unknown";
+export type FamilyUnknownReason = "adopted" | "not_known" | "declined_to_answer";
+export type UseStatus = "never" | "former" | "current" | "unknown";
+
+interface HistoryEntryMeta {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  encounterId: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+}
+
+export interface PastProcedure extends HistoryEntryMeta {
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  performed: string | null;
+  performedPrecision: HistoryDatePrecision | null;
+  performer: string | null;
+  bodySite: string | null;
+  notes: string | null;
+  source: "reported" | "recorded_here" | "external_import";
+  reportedBy: HistoryInformant | null;
+  sourceDescription: string | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+}
+
+export interface PastCondition extends HistoryEntryMeta {
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  onset: string | null;
+  onsetPrecision: HistoryDatePrecision | null;
+  status: "active" | "resolved" | "unknown";
+  diagnosedBy: string | null;
+  notes: string | null;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  sourceDescription: string | null;
+}
+
+export interface FamilyHistoryEntry extends HistoryEntryMeta {
+  relationship: FamilyRelationship;
+  relationshipText: string | null;
+  relative: string;
+  condition: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetAge: number | null;
+  deceased: boolean | null;
+  causeOfDeath: string | null;
+  notes: string | null;
+  source: "reported" | "external_import";
+  reportedBy: HistoryInformant | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+}
+
+export interface FamilyReview {
+  id: string;
+  patientId: string;
+  encounterId: string | null;
+  outcome: FamilyReviewOutcome;
+  unknownReason: FamilyUnknownReason | null;
+  notes: string | null;
+  reviewedAt: string;
+  reviewedByName: string | null;
+}
+
+export interface SocialHistoryFields {
+  tobaccoStatus: UseStatus | null;
+  tobaccoType: string | null;
+  tobaccoAmount: string | null;
+  tobaccoQuitYear: number | null;
+  alcoholStatus: UseStatus | null;
+  alcoholFrequency: string | null;
+  /** Sensitive: null when withheld. */
+  substanceUse: string | null;
+  occupation: string | null;
+  occupationalExposures: string | null;
+  livingSituation: string | null;
+  physicalActivity: string | null;
+  diet: string | null;
+  /** Sensitive: null when withheld. */
+  sexualHistory: string | null;
+  notes: string | null;
+}
+
+export interface SocialHistoryVersion extends HistoryEntryMeta, SocialHistoryFields {
+  supersedesId: string | null;
+  effectiveDate: string;
+  sensitiveWithheld: boolean;
+  current: boolean;
+}
+
+/** GET /patients/:id/history (history.read; audited). */
+export interface PatientHistory {
+  patientId: string;
+  sensitiveAccess: boolean;
+  procedures: PastProcedure[];
+  conditions: PastCondition[];
+  family: { state: FamilyHistoryState; latestReview: FamilyReview | null; reviews: FamilyReview[]; entries: FamilyHistoryEntry[] };
+  social: { current: SocialHistoryVersion | null; versions: SocialHistoryVersion[] };
+}
+
+export interface WorkspaceHistory {
+  procedures: Array<{ id: string; filedUnder: string | null; description: string; performed: string | null; source: string }>;
+  proceduresTotal: number;
+  conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
+  conditionsTotal: number;
+  family: {
+    state: FamilyHistoryState;
+    entries: Array<{ id: string; filedUnder: string | null; relative: string; condition: string; onsetAge: number | null }>;
+    total: number;
+  };
+  social: {
+    effectiveDate: string;
+    tobacco: string | null;
+    alcohol: string | null;
+    occupation: string | null;
+    sensitiveWithheld: boolean;
+    substanceUse: string | null;
+    sexualHistory: string | null;
+  } | null;
+}
+
+export interface ImportedProcedureItem extends ImportedBase {
+  kind: "procedure";
+  subject: SubjectMatch;
+  display: string | null;
+  codes: ImportedCode[];
+  status: string;
+  performed: string | null;
+  performedText: string | null;
+  performer: string | null;
+  bodySite: string | null;
+  outcome: string | null;
+}
+
+export interface ImportedFamilyHistoryItem extends ImportedBase {
+  kind: "family_history";
+  subject: SubjectMatch;
+  relationship: string;
+  relationshipText: string | null;
+  status: string;
+  deceased: boolean | null;
+  conditions: Array<{ display: string; codes: ImportedCode[]; onsetAge: number | null; onsetText: string | null; contributedToDeath: boolean }>;
 }
 
 // ---- Administration: staff users, roles, facilities, audit trail ----

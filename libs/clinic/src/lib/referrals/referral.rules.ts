@@ -26,3 +26,23 @@ export function referralAllows(referral: { kind: ReferralKind; status: ReferralS
 export function referralNumber(value: number): string {
   return `RF${String(value).padStart(8, "0")}`;
 }
+
+/**
+ * Whether a referral is overdue (docs/domains/clinic.md, "Referrals"): the organization may flag referrals still
+ * waiting for the recipient — an internal one not yet accepted or declined, an external one whose reply has not been
+ * recorded (status `sent`) — once `overdueAfterDays` days have passed since it was issued. Off (never overdue) while no
+ * threshold is set: no deadline is assumed.
+ */
+export function referralOverdue(
+  referral: { status: ReferralStatus; issuedAt: Date | string },
+  overdueAfterDays: number | null,
+  now: Date = new Date(),
+): boolean {
+  if (!overdueAfterDays || referral.status !== "sent") return false;
+  return now.getTime() - new Date(referral.issuedAt).getTime() >= overdueAfterDays * 86_400_000;
+}
+
+/** The instant before which a `sent` referral is overdue, or null while the flag is off. */
+export function overdueBefore(overdueAfterDays: number | null, now: Date = new Date()): Date | null {
+  return overdueAfterDays ? new Date(now.getTime() - overdueAfterDays * 86_400_000) : null;
+}

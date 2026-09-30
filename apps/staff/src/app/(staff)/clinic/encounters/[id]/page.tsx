@@ -1,9 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
+import { loadImmunizationData } from "@/lib/api/immunizations";
+import { loadPatientHistory } from "@/lib/api/history";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import { todayIn } from "@/lib/clinic-mapping";
 import type {
+  ImmunizationRecord,
   CarePlan,
   CarePlanDetail,
   CodingSystem,
@@ -79,7 +82,10 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     labResults,
     consultation,
     certificates,
+    immunizationData,
+    immunizationHistory,
     referrals,
+    medicalHistory,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -95,7 +101,10 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     can(session, "lab.result.read") ? optional<PatientLabResult[]>(`/laboratory/patients/${encounter.patientId}/results`) : Promise.resolve(null),
     online ? optional<TelemedicineConsultation>(`/telemedicine/consultations/${encounter.appointmentId}`) : Promise.resolve(null),
     optional<MedicalCertificate[]>(`/encounters/${encounter.id}/certificates`),
+    loadImmunizationData(encounter.patientId, { encounterId: encounter.id }),
+    can(session, "immunization.read") ? optional<ImmunizationRecord[]>(`/patients/${encounter.patientId}/immunizations`) : Promise.resolve(null),
     optional<Referral[]>(`/encounters/${encounter.id}/referrals`),
+    loadPatientHistory(encounter.patientId),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -153,6 +162,19 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
         canIssue: can(session, "encounter.sign") && (practitioners ? mine?.id === encounter.practitionerId : true),
         canVoid: (practitioners ? mine?.id === encounter.practitionerId : true) || can(session, "encounter.amend"),
       }}
+      immunizations={
+        immunizationData.records && immunizationHistory
+          ? {
+              thisVisit: immunizationData.records,
+              history: immunizationHistory,
+              vaccines: immunizationData.vaccines,
+              lots: immunizationData.lots,
+              canRecord: immunizationData.canRecord && patient.status === "active",
+              facilitySelected: immunizationData.facilitySelected,
+            }
+          : null
+      }
+      medicalHistory={{ history: medicalHistory.history, canRecord: medicalHistory.canRecord && patient.status === "active" }}
       referrals={{
         items: referrals,
         // The API decides for sure: the consultation's responsible practitioner refers.

@@ -1,7 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, type StreamableFile } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, type StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, RequirePermissions } from "@healthcare/core";
-import { AnswerReferralDto, CancelReferralDto, CompleteReferralDto, CreateReferralDto, LinkReferralAppointmentDto, ReferralQueryDto } from "../clinic.dto";
+import {
+  AnswerReferralDto,
+  CancelReferralDto,
+  CompleteReferralDto,
+  CreateReferralDto,
+  LinkReferralAppointmentDto,
+  ReferralQueryDto,
+  ReferralSettingsDto,
+} from "../clinic.dto";
 import { ReferralService } from "./referral.service";
 
 @ApiTags("referrals")
@@ -29,6 +37,21 @@ export class ReferralController {
   @ApiOperation({ summary: "Referrals to me, from me, open (oldest first) or all recent; optionally for one patient" })
   list(@CurrentActor() actor: Actor, @Query() query: ReferralQueryDto) {
     return this.referrals.list(actor, query);
+  }
+
+  // Declared before referrals/:referralId so "settings" is not read as an id.
+  @Get("referrals/settings")
+  @RequirePermissions("encounter.read")
+  @ApiOperation({ summary: "The organization's referral follow-up setting (overdue threshold in days; null: off)" })
+  settings(@CurrentActor() actor: Actor) {
+    return this.referrals.settings(actor);
+  }
+
+  @Put("referrals/settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set or clear the days after which a referral still waiting for the recipient is flagged overdue (audited)" })
+  updateSettings(@CurrentActor() actor: Actor, @Body() body: ReferralSettingsDto) {
+    return this.referrals.updateSettings(actor, body);
   }
 
   @Get("referrals/:referralId")

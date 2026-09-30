@@ -97,6 +97,42 @@ export class InventoryQueries {
     return row ? { id: row.id, facilityId: row.facilityId, code: row.code, name: row.name, status: row.status } : undefined;
   }
 
+  /**
+   * Usable lots (not expired on `today`, the facility's local date) of these categories per location at a facility's
+   * active locations, for choosing the very lot a dose or unit comes from (e.g. the vial given). Earliest expiry first.
+   */
+  async usableLots(organizationId: string, facilityId: string, categories: ItemCategory[], today: string) {
+    return this.db
+      .select({
+        locationId: inventoryLocation.id,
+        locationName: inventoryLocation.name,
+        itemId: inventoryItem.id,
+        itemCode: inventoryItem.code,
+        itemName: inventoryItem.name,
+        stockUnit: inventoryItem.stockUnit,
+        lotId: inventoryLot.id,
+        lotNumber: inventoryLot.lotNumber,
+        expiryDate: inventoryLot.expiryDate,
+        quantity: inventoryBalance.quantity,
+      })
+      .from(inventoryBalance)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryBalance.locationId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryBalance.lotId))
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryLot.itemId))
+      .where(
+        and(
+          eq(inventoryLocation.organizationId, organizationId),
+          eq(inventoryLocation.facilityId, facilityId),
+          eq(inventoryLocation.status, "active"),
+          eq(inventoryItem.status, "active"),
+          inArray(inventoryItem.category, categories),
+          gt(inventoryBalance.quantity, 0),
+          or(isNull(inventoryLot.expiryDate), gte(inventoryLot.expiryDate, today)),
+        ),
+      )
+      .orderBy(asc(inventoryItem.name), sql`${inventoryLot.expiryDate} ASC NULLS LAST`, asc(inventoryLocation.name));
+  }
+
   /** Usable stock (lots not expired on `today`, the facility's local date) per location and item at a facility. */
   async usableStock(organizationId: string, facilityId: string, today: string): Promise<Array<{ locationId: string; itemId: string; usable: number }>> {
     return this.db

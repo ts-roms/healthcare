@@ -9,6 +9,8 @@ import {
   FlaskConicalIcon,
   PillIcon,
   ReceiptIcon,
+  SyringeIcon,
+  NotebookTextIcon,
   type LucideIcon,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
@@ -27,6 +29,8 @@ const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[]
   { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
   { label: "Bills", href: "/billing", icon: ReceiptIcon, tone: "bg-warning-subtle text-warning-foreground" },
   { label: "Documents", href: "/documents", icon: FileTextIcon, tone: "bg-muted text-foreground" },
+  { label: "Immunizations", href: "/immunizations", icon: SyringeIcon, tone: "bg-primary-subtle text-primary" },
+  { label: "Health history", href: "/health-history", icon: NotebookTextIcon, tone: "bg-secondary text-secondary-foreground" },
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {

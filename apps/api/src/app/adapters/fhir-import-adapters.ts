@@ -1,11 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { ExternalRecordsService } from "@healthcare/clinic";
+import { ExternalRecordsService, type FamilyRelationship, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
 import { type Actor, DATABASE, type Database, type DbExecutor, NotFoundError } from "@healthcare/core";
 import type {
   DuplicateOverride,
   ExternalHistoryInput,
   FhirImportTargets,
   ImportedAllergyInput,
+  ImportedFamilyHistoryInput,
+  ImportedImmunizationInput,
+  ImportedPastProcedureInput,
   ImportOrigin,
   ImportPatientBrief,
   ImportPatientCandidate,
@@ -40,7 +43,8 @@ function identifiers(draft: RegistrationDraft): Array<{ type: IdentifierType; va
 
 /**
  * FHIR imports → patient and clinic: patient lookup, duplicate detection and registration through the patient
- * domain; accepted allergies and external history through the clinic domain's own commands (validation and audit).
+ * domain; accepted allergies, immunizations, past procedures, family history and external history through the clinic
+ * domain's own commands (validation and audit).
  */
 @Injectable()
 export class AppFhirImportTargets implements FhirImportTargets {
@@ -49,6 +53,8 @@ export class AppFhirImportTargets implements FhirImportTargets {
     private readonly patients: PatientRecordService,
     private readonly registration: PatientRegistrationService,
     private readonly external: ExternalRecordsService,
+    private readonly immunizations: ImmunizationService,
+    private readonly history: PatientHistoryService,
   ) {}
 
   async patient(organizationId: string, patientId: string): Promise<ImportPatientBrief | undefined> {
@@ -121,6 +127,40 @@ export class AppFhirImportTargets implements FhirImportTargets {
       declaredSource: origin.declaredSource,
     });
     return allergy.id;
+  }
+
+  async recordImmunization(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedImmunizationInput, origin: ImportOrigin): Promise<string> {
+    const created = await this.immunizations.recordImportedIn(tx, actor, patientId, input, {
+      reference: origin.reference,
+      declaredSource: origin.declaredSource,
+    });
+    return created.id;
+  }
+
+  async recordPastProcedure(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedPastProcedureInput, origin: ImportOrigin): Promise<string> {
+    const created = await this.history.recordImportedProcedureIn(tx, actor, patientId, input, {
+      reference: origin.reference,
+      declaredSource: origin.declaredSource,
+    });
+    return created.id;
+  }
+
+  async recordFamilyHistory(tx: DbExecutor, actor: Actor, patientId: string, inputs: ImportedFamilyHistoryInput[], origin: ImportOrigin): Promise<string[]> {
+    const ids: string[] = [];
+    for (const input of inputs) {
+      const created = await this.history.recordImportedFamilyIn(
+        tx,
+        actor,
+        patientId,
+        { ...input, relationship: input.relationship as FamilyRelationship },
+        {
+          reference: origin.reference,
+          declaredSource: origin.declaredSource,
+        },
+      );
+      ids.push(created.id);
+    }
+    return ids;
   }
 
   async recordExternalHistory(tx: DbExecutor, actor: Actor, patientId: string, input: ExternalHistoryInput, origin: ImportOrigin): Promise<string> {
