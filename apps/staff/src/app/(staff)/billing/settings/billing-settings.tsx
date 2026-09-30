@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  DateInput,
   Input,
   Label,
   NativeSelect,
@@ -313,7 +314,7 @@ function NewPrice({ service }: { service: BillingService }) {
         onChange={(e) => setAmount(e.target.value)}
         placeholder="₱"
       />
-      <Input aria-label="Effective from" className="h-7 w-36" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+      <DateInput aria-label="Effective from" className="h-7 w-36" value={from} onChange={(e) => setFrom(e.target.value)} />
       <Button
         type="button"
         size="xs"
@@ -434,7 +435,7 @@ function NewService({ sources }: { sources: Sources }) {
           onChange={(e) => setF({ ...f, price: e.target.value })}
           required
         />
-        <Input aria-label="Price from" type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+        <DateInput aria-label="Price from" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
       </span>
       <Button type="submit" size="sm" className="justify-self-start sm:col-span-3" disabled={pending}>
         Add service
@@ -562,7 +563,7 @@ function Rules({ rules, canManage }: { rules: DiscountRule[]; canManage: boolean
               />
               %
             </span>
-            <Input aria-label="Effective from" type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+            <DateInput aria-label="Effective from" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
             <span className="flex flex-col gap-1 text-table">
               <label className="flex items-center gap-2">
                 <Checkbox checked={f.statutory} onCheckedChange={(v) => setF({ ...f, statutory: v === true })} /> Statutory (ID number required)
@@ -703,8 +704,8 @@ function Accreditation({
           />
           <Label htmlFor="ph-valid-from">Valid from</Label>
           <Label htmlFor="ph-valid-until">Valid until</Label>
-          <Input id="ph-valid-from" type="date" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
-          <Input id="ph-valid-until" type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
+          <DateInput id="ph-valid-from" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
+          <DateInput id="ph-valid-until" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
           <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
             Save
           </Button>

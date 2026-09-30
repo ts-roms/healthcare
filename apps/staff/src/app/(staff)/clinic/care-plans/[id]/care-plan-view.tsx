@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { CareActivityKind, CareGoalStatus, CarePlanDetail } from "@/lib/api/types";
 import {
   CATEGORY_LABEL,
@@ -335,7 +335,7 @@ function AddActivityForm({ plan, today }: { plan: CarePlanDetail; today: string 
         <Label htmlFor="new-act-due" className="text-meta">
           Due
         </Label>
-        <Input id="new-act-due" type="date" min={today} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <DateInput id="new-act-due" min={today} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </div>
       <div className="flex items-center gap-1.5 sm:col-span-4">
         <Label htmlFor="new-act-repeat" className="text-meta whitespace-nowrap">

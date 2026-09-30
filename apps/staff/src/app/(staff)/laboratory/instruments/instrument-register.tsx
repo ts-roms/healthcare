@@ -12,6 +12,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DateInput,
   Input,
   Label,
   NativeSelect,
@@ -297,7 +298,7 @@ function InstrumentLog({ instrument, canLog, canManage }: { instrument: LabInstr
           {f.kind === "maintenance" || f.kind === "calibration" ? (
             <div className="grid gap-1">
               <Label htmlFor={`due-${instrument.id}`}>Next due</Label>
-              <Input id={`due-${instrument.id}`} type="date" value={f.nextDueOn} onChange={(e) => setF({ ...f, nextDueOn: e.target.value })} />
+              <DateInput id={`due-${instrument.id}`} value={f.nextDueOn} onChange={(e) => setF({ ...f, nextDueOn: e.target.value })} />
             </div>
           ) : null}
           <div className="grid min-w-56 flex-1 gap-1">

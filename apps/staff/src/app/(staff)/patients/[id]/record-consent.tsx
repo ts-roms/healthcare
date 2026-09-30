@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AlertTriangleIcon, CheckCircle2Icon, FilePenLineIcon, InfoIcon } from "lucide-react";
-import { Button, Input, Label, NativeSelect, RadioGroup, RadioGroupItem, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, DateInput, Input, Label, NativeSelect, RadioGroup, RadioGroupItem, Textarea, toast } from "@healthcare/ui/primitives";
 import {
   checkConsentFile,
   CONSENT_CAPTURE,
@@ -139,7 +139,7 @@ export function RecordConsent({ patientId, canUpload }: { patientId: string; can
           error={errors.expiresOn}
           hint={ending ? "Only for granted consent." : "Leave blank if it does not expire."}
         >
-          <Input id="consent-expires" type="date" value={form.expiresOn} onChange={(e) => set("expiresOn", e.target.value)} disabled={ending} />
+          <DateInput id="consent-expires" value={form.expiresOn} onChange={(e) => set("expiresOn", e.target.value)} disabled={ending} />
         </Field>
       </div>
 

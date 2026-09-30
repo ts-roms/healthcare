@@ -7,7 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
+  DateInput,
   Label,
   Table,
   TableBody,
@@ -142,11 +142,11 @@ export default async function ValuationPage({ searchParams }: { searchParams: Pr
             <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Period">
               <div className="grid gap-1">
                 <Label htmlFor="usage-from">From</Label>
-                <Input id="usage-from" name="from" type="date" defaultValue={from} className="w-40" />
+                <DateInput id="usage-from" name="from" defaultValue={from} className="w-40" />
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="usage-to">To</Label>
-                <Input id="usage-to" name="to" type="date" defaultValue={to} className="w-40" />
+                <DateInput id="usage-to" name="to" defaultValue={to} className="w-40" />
               </div>
               <Button type="submit" size="sm">
                 Apply

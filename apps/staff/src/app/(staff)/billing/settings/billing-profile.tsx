@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, PlusIcon, XIcon } from "lucide-react";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { BillingCategory, BillingPackage, BillingService, BillingSettingsFull, SequenceKind, TaxClass, TaxProfile, VatStatus } from "@/lib/api/types";
 import { CATEGORY_LABEL, parsePesos, peso, TAX_CLASS_LABEL } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
@@ -349,7 +349,7 @@ export function Packages({
                   value={f.validity}
                   onChange={(e) => setF({ ...f, validity: e.target.value.replace(/\D/g, "") })}
                 />
-                <Input aria-label="Price from" type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+                <DateInput aria-label="Price from" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
                 <NativeSelect aria-label="VAT class" value={f.taxClass} onChange={(e) => setF({ ...f, taxClass: e.target.value as TaxClass | "" })}>
                   <option value="">VAT: not classified</option>
                   {(Object.keys(TAX_CLASS_LABEL) as TaxClass[]).map((c) => (
