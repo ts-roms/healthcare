@@ -41,11 +41,18 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
     ticket: v.ticket,
     patientName: v.patient?.displayName ?? "Patient",
     // Where the patient was called to, else what they are waiting for.
-    station: v.calledTo ? `Called to ${v.calledTo}` : [VISIT_STATUS_LABEL[v.status], v.chiefComplaint].filter(Boolean).join(" · "),
+    station: v.calledTo
+      ? `Called to ${v.calledTo}`
+      : [VISIT_STATUS_LABEL[v.status], checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint].filter(Boolean).join(" · "),
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
     priority: v.priority === "routine" ? undefined : v.priority,
   };
+}
+
+/** An in-person patient who checked in from MyHealth, so the desk knows they may not have come to the counter. */
+export function checkedInOnline(v: Pick<QueueVisit, "checkedInVia" | "modality">): boolean {
+  return v.checkedInVia === "patient_portal" && v.modality === "in_person";
 }
 
 export type QueueMove = "in_triage" | "awaiting_consultation" | "cancelled" | "left_without_being_seen";

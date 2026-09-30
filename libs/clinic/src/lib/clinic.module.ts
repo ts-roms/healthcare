@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nes
 import { OrganizationModule } from "@healthcare/organization";
 import { AppointmentReminders } from "./appointments/appointment-reminders";
 import { AppointmentService } from "./appointments/appointment.service";
+import { AutomaticNoShows } from "./appointments/automatic-no-shows";
 import { NoShowFollowUp } from "./appointments/no-show-follow-up";
 import { PatientBookingNotices } from "./appointments/patient-booking-notices";
 import { PatientBookingService } from "./appointments/patient-booking.service";
@@ -74,6 +75,7 @@ export class ClinicModule {
       providers: [
         AppointmentReminders,
         AppointmentService,
+        AutomaticNoShows,
         BookingRulesService,
         ClinicConfigService,
         ClinicDashboardService,
@@ -101,6 +103,7 @@ export class ClinicModule {
         { provide: PROCEDURE_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
       ],
       exports: [
+        AutomaticNoShows,
         ClinicQueries,
         ClinicReportingQueries,
         ExternalRecordsService,

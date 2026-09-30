@@ -386,6 +386,13 @@ export const updateBookingRulesSchema = z.object({
   changeCutoffMinutes: z.number().int().min(0).max(10_080),
   waitlistEnabled: z.boolean(),
   maxWaitlistEntries: z.number().int().min(1).max(10),
+  /** Mark the day's unattended appointments as no-shows after `autoNoShowHour` (local, 12–23). Off when omitted. */
+  autoNoShow: z.boolean().default(false),
+  autoNoShowHour: z.number().int().min(12).max(23).default(20),
+  /** Patients may check in for an in-person appointment in MyHealth, from `checkInOpensMinutes` before the start to `checkInClosesMinutes` after it. */
+  onlineCheckIn: z.boolean().default(false),
+  checkInOpensMinutes: z.number().int().min(0).max(240).default(60),
+  checkInClosesMinutes: z.number().int().min(0).max(120).default(15),
   /** The version read; not needed the first time a facility gets its own rules. */
   version: z.number().int().positive().optional(),
 });

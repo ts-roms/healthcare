@@ -78,6 +78,15 @@ export class PortalBookingController {
     return this.booking.reschedule(context(patient), appointmentId, body);
   }
 
+  @Post("appointments/:appointmentId/check-in")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Check in for an in-person appointment, where the clinic offers online check-in and within its window (joins the queue for triage)",
+  })
+  checkIn(@CurrentPatient() patient: PortalPrincipal, @Param("appointmentId", ParseUUIDPipe) appointmentId: string) {
+    return this.booking.checkIn(context(patient), appointmentId);
+  }
+
   @Post("appointments/:appointmentId/cancel")
   @HttpCode(200)
   @ApiOperation({ summary: "Cancel an appointment (until 2 hours before)" })

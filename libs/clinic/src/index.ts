@@ -1,4 +1,5 @@
 export * from "./lib/appointments/appointment-reminders";
+export * from "./lib/appointments/automatic-no-shows";
 export * from "./lib/appointments/patient-booking.service";
 export * from "./lib/appointments/patient-waitlist.service";
 export * from "./lib/config/booking-rules.service";

@@ -65,6 +65,12 @@ export interface PortalAppointment {
   /** What the patient may still do in MyHealth (the API enforces the same rules). */
   canCancel: boolean;
   canReschedule: boolean;
+  /** In-person visit: the clinic offers online check-in and its window is open now. */
+  canCheckIn: boolean;
+  /** When online check-in opens, if the clinic offers it and it has not opened yet. */
+  checkInOpensAt: string | null;
+  /** The queue number of an in-person visit the patient is checked in for. */
+  queueTicket: string | null;
 }
 
 export interface PortalAppointments {

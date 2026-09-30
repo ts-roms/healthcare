@@ -22,6 +22,7 @@ import { canApply } from "../domain/appointment-state";
 import { availableSlots, type Slot } from "../domain/availability";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { type BookingRules, patientBookingWindow, patientMayChange } from "../domain/patient-booking";
+import { VisitService } from "../queue/visit.service";
 import { AppointmentService, appointmentEvent, invalidTransition, translateBookingError } from "./appointment.service";
 
 /** The signed-in patient, as the portal passes them in. */
@@ -67,6 +68,7 @@ export class PatientBookingService {
     private readonly events: DomainEventPublisher,
     private readonly appointments: AppointmentService,
     private readonly bookingRules: BookingRulesService,
+    private readonly visits: VisitService,
   ) {}
 
   /** What can be booked online: facilities, visit types and the practitioners with published schedules at each facility. */
@@ -317,6 +319,12 @@ export class PatientBookingService {
       await this.events.record(tx, appointmentEvent("AppointmentCancelled", row, { changedByPatient: true }));
       return this.patientView(row);
     });
+  }
+
+  /** The patient checks in for an in-person appointment, where the clinic offers online check-in (see VisitService). */
+  async checkIn(ctx: PatientBookingContext, appointmentId: string, now = new Date()) {
+    const visit = await this.visits.checkInByPatient(ctx, appointmentId, now);
+    return { appointmentId, ticket: visit.ticket, status: visit.status, checkedInAt: visit.checkedInAt };
   }
 
   // ---- internals ------------------------------------------------------------

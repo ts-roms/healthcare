@@ -52,6 +52,14 @@ export async function cancelAppointment(appointmentId: string, version: number, 
   return result;
 }
 
+/** Checks in for an in-person appointment, where the clinic offers online check-in and within its window. */
+export async function checkInOnline(appointmentId: string): Promise<Result<{ ticket: string }>> {
+  if (!UUID.test(appointmentId)) return { ok: false, message: "Invalid request." };
+  const result = await run(() => portalApi<{ ticket: string }>(`/portal/appointments/${appointmentId}/check-in`, { method: "POST", body: {} }));
+  if (result.ok) revalidatePath("/", "layout");
+  return result;
+}
+
 /** Asks to be told when a time opens on days with no open times (where the clinic allows it). Nothing is booked. */
 export async function joinWaitlist(input: {
   facilityId: string;

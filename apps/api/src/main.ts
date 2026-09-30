@@ -3,6 +3,7 @@ import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
+import { AutomaticNoShows } from "@healthcare/clinic";
 import { loadAppConfig, OutboxRelay } from "@healthcare/core";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
@@ -24,6 +25,8 @@ async function bootstrap(): Promise<void> {
   app.get(OutboxRelay).start();
   // Hourly, daytime only: care-plan follow-up reminders (patient recall).
   app.get(CarePlanRecallReminders).start();
+  // Hourly: unattended appointments marked as no-shows after each clinic's hour, where the clinic turned it on.
+  app.get(AutomaticNoShows).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.

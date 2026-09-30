@@ -382,6 +382,8 @@ export interface QueueVisit {
   patientId: string;
   appointmentId: string | null;
   arrivalMode: "walk_in" | "appointment";
+  /** The patient checked in from MyHealth (an online consultation's waiting room, or online check-in for an in-person visit). */
+  checkedInVia: "staff" | "patient_portal";
   ticket: string;
   queueNumber: number;
   queueDate: string;
@@ -3751,6 +3753,13 @@ export interface BookingRules {
   changeCutoffMinutes: number;
   waitlistEnabled: boolean;
   maxWaitlistEntries: number;
+  /** Unattended appointments are marked as no-shows after `autoNoShowHour` (local) on their day. */
+  autoNoShow: boolean;
+  autoNoShowHour: number;
+  /** Patients may check in for in-person appointments in MyHealth, within the window around the start. */
+  onlineCheckIn: boolean;
+  checkInOpensMinutes: number;
+  checkInClosesMinutes: number;
 }
 
 /** `GET /clinic/booking-rules` row. */

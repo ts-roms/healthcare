@@ -245,10 +245,35 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Open questions / assumptions
 
-- No-show automation (marking at end of day), online self check-in and room scheduling views are not built.
+- Room scheduling views are not built. Automatic no-shows and online check-in: see below.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
   are part of the [patient history](patient-history.md).
+
+## Automatic no-shows and online check-in
+
+Migration `0086`. Both are part of each facility's booking rules (`facility_booking_rule`, same endpoints, versioning and
+`facility.booking-rules-update` audit as below) and **off by default**.
+
+- **Automatic no-shows** (`auto_no_show`, `auto_no_show_hour` 12–23, default 20:00): `AutomaticNoShows` runs hourly in the API
+  and, at facilities that turned it on, marks booked or confirmed appointments that have ended without a check-in as no-shows
+  once the facility's local time is past the hour **on the appointment's own day** (`autoNoShowDue`, `libs/clinic/src/lib/domain/patient-booking.ts`).
+  It only looks at appointments that started in the last 48 hours, so turning it on never reaches into old history. Each
+  appointment is locked and re-checked (`AppointmentService.markNoShowAutomatically`), so several API instances mark it once. The
+  transition, the `appointment.no-show` audit (system actor, `metadata.automatic = true`) and the `AppointmentNoShow` event
+  (`payload.automatic`) are those of a no-show recorded by staff, so the "we missed you" follow-up and reminder withdrawal apply.
+  `appointment.no_show_automatic` marks it (only on a no-show, by constraint); who last changed the appointment is left as it was.
+- **Online check-in** (`online_check_in`, `check_in_opens_minutes` 0–240 before the start, default 60; `check_in_closes_minutes`
+  0–120 after it, default 15): `POST /portal/appointments/:id/check-in` (`PatientAccessGuard`, proxy `act`) checks the patient in
+  for their own **in-person** appointment (`VisitService.checkInByPatient`; an online consultation's waiting room is separate).
+  The visit joins the queue **waiting for triage** like any arrival, with `checked_in_via = 'patient_portal'` and no staff user;
+  the appointment is `checked_in` (`updated_by_patient`), audited `appointment.check-in` as the patient (`via: patient_portal`),
+  with `AppointmentCheckedIn` (`byPatient`) and `QueueEntryUpdated`. Checking in again returns the same visit. Refusals:
+  `online_check_in_not_offered`, `check_in_too_early`, `check_in_too_late`, `not_in_person`, `invalid_appointment_status`,
+  `already_in_queue`; another patient's appointment is not found. `GET /portal/appointments` gives each upcoming visit
+  `canCheckIn`, `checkInOpensAt` and, once checked in, its `queueTicket`. The staff queue shows "Checked in online".
+- The platform cannot tell whether the patient is really at the clinic; the window is the clinic's control, and the desk sees who
+  checked in online. No location check is made.
 
 ## Online booking rules and the waiting list
 

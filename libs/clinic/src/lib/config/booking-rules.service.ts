@@ -9,7 +9,19 @@ import { facilityBookingRule } from "../clinic.schema";
 import { assertVersion } from "../clinic-support";
 import { type BookingRules, DEFAULT_BOOKING_RULES } from "../domain/patient-booking";
 
-const FIELDS = ["minLeadMinutes", "maxAdvanceDays", "maxUpcoming", "changeCutoffMinutes", "waitlistEnabled", "maxWaitlistEntries"] as const;
+const FIELDS = [
+  "minLeadMinutes",
+  "maxAdvanceDays",
+  "maxUpcoming",
+  "changeCutoffMinutes",
+  "waitlistEnabled",
+  "maxWaitlistEntries",
+  "autoNoShow",
+  "autoNoShowHour",
+  "onlineCheckIn",
+  "checkInOpensMinutes",
+  "checkInClosesMinutes",
+] as const;
 
 export interface FacilityBookingRules {
   facilityId: string;
@@ -28,6 +40,11 @@ const toRules = (row: typeof facilityBookingRule.$inferSelect): BookingRules => 
   changeCutoffMinutes: row.changeCutoffMinutes,
   waitlistEnabled: row.waitlistEnabled,
   maxWaitlistEntries: row.maxWaitlistEntries,
+  autoNoShow: row.autoNoShow,
+  autoNoShowHour: row.autoNoShowHour,
+  onlineCheckIn: row.onlineCheckIn,
+  checkInOpensMinutes: row.checkInOpensMinutes,
+  checkInClosesMinutes: row.checkInClosesMinutes,
 });
 
 /**
@@ -62,6 +79,12 @@ export class BookingRulesService {
       .where(and(eq(facilityBookingRule.organizationId, organizationId), inArray(facilityBookingRule.facilityId, facilityIds)));
     for (const row of rows) result.set(row.facilityId, toRules(row));
     return result;
+  }
+
+  /** Facilities that mark unattended appointments automatically, across organizations (the no-show job). */
+  async withAutoNoShow(): Promise<Array<{ organizationId: string; facilityId: string; rules: BookingRules }>> {
+    const rows = await this.db.select().from(facilityBookingRule).where(eq(facilityBookingRule.autoNoShow, true));
+    return rows.map((r) => ({ organizationId: r.organizationId, facilityId: r.facilityId, rules: toRules(r) }));
   }
 
   async list(actor: Actor): Promise<FacilityBookingRules[]> {
