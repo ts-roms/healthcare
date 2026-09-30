@@ -9,6 +9,7 @@ import {
   type createOrganizationSchema,
   normalizeContactNumber,
   type updateFacilitySchema,
+  type updateOrganizationSchema,
 } from "./organization.dto";
 import { department, type DepartmentRecord, facility, type FacilityRecord, organization, type OrganizationRecord } from "./organization.schema";
 
@@ -58,6 +59,28 @@ export class OrganizationService {
     const [row] = await this.db.select().from(organization).where(eq(organization.id, organizationId));
     if (!row) throw new NotFoundError("Organization");
     return row;
+  }
+
+  async updateOrganization(actor: Actor, input: z.infer<typeof updateOrganizationSchema>): Promise<OrganizationRecord> {
+    const { version, ...changes } = input;
+    return this.db.transaction(async (tx) => {
+      const [before] = await tx.select().from(organization).where(eq(organization.id, actor.organizationId)).for("update");
+      if (!before) throw new NotFoundError("Organization");
+      if (before.version !== version) throw new VersionConflictError("Organization", version);
+      const [updated] = await tx
+        .update(organization)
+        .set({ ...changes, updatedAt: new Date(), version: sql`${organization.version} + 1` })
+        .where(eq(organization.id, actor.organizationId))
+        .returning();
+      if (!updated) throw new NotFoundError("Organization");
+      await this.audit.record(tx, actor, {
+        action: "organization.update",
+        resourceType: "organization",
+        resourceId: actor.organizationId,
+        changes: diffChanges(before, changes, ["name"] as const),
+      });
+      return updated;
+    });
   }
 
   listFacilities(organizationId: string): Promise<FacilityRecord[]> {
