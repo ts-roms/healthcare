@@ -17,7 +17,17 @@ import { integrationExchange, type IntegrationExchangeRecord } from "../exchange
 import type { ExchangeCompletedPayload } from "../exchange/exchange-types";
 import { IntegrationExchanges } from "../exchange/integration-exchanges.service";
 import type { dismissSchema, recordExternalSchema } from "./doh.dto";
-import { buildCasePackage, canApply, caseReadiness, type DohCaseSource, isIcd10, matchRule, normalizeCode } from "./doh.rules";
+import {
+  buildCasePackage,
+  canApply,
+  caseReadiness,
+  caseReportDueAt,
+  caseReportOverdue,
+  type DohCaseSource,
+  isIcd10,
+  matchRule,
+  normalizeCode,
+} from "./doh.rules";
 import { type CaseReportRecord, type CaseReportStatus, dohCaseReport, type ReportableRuleRecord } from "./doh.schema";
 import { DOH_REPORTING_GATEWAY, DOH_REPORTING_SYSTEM, type DohReportingGateway, SUBMIT_CASE_REPORT } from "./gateway";
 import { DohSettingsService, strip } from "./doh-settings.service";
@@ -73,6 +83,7 @@ export class DohReportsService {
           diagnosisCode: normalizeCode(src.diagnosis.code!),
           diagnosisDisplay: src.diagnosis.display,
           rescanId: options.rescanId ?? null,
+          dueAt: caseReportDueAt(src.diagnosis.recordedAt, rule.reportWithinDays),
         })
         .onConflictDoNothing({ target: dohCaseReport.diagnosisId })
         .returning()) as CaseReportRecord[];
@@ -104,7 +115,7 @@ export class DohReportsService {
       resourceType: "doh_case_report",
       metadata: { status: status ?? null, count: rows.length },
     });
-    return rows.map((r) => ({ ...strip(r), patient: briefs.get(r.patientId) ?? null }));
+    return rows.map((r) => ({ ...strip(r), overdue: caseReportOverdue(r), patient: briefs.get(r.patientId) ?? null }));
   }
 
   /** One case: the record, readiness checks of the platform's data, the prepared package and any submissions. */
@@ -115,6 +126,7 @@ export class DohReportsService {
     await this.audit.recordStandalone(actor, { action: "doh.case.view", resourceType: "doh_case_report", resourceId: row.id, patientId: row.patientId });
     return {
       ...strip(row),
+      overdue: caseReportOverdue(row),
       integration: this.gateway.specification,
       ready: checks.every((c) => c.ok),
       checks,

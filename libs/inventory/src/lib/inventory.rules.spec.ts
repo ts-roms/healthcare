@@ -1,4 +1,6 @@
 import {
+  procurementProblem,
+  registerBalances,
   addDays,
   invoiceableQuantity,
   invoiceOverdue,
@@ -118,5 +120,23 @@ describe("supplier invoices", () => {
     expect(invoiceOverdue({ status: "approved", dueDate: "2026-09-01" }, "2026-09-02")).toBe(true);
     expect(invoiceOverdue({ status: "paid", dueDate: "2026-09-01" }, "2026-09-02")).toBe(false);
     expect(invoiceOverdue({ status: "recorded", dueDate: null }, "2026-09-02")).toBe(false);
+  });
+});
+
+describe("compliance configuration rules", () => {
+  it("asks for a procurement method only once the organization has defined some, and for its reference", () => {
+    expect(procurementProblem(false, null, null)).toBeNull();
+    expect(procurementProblem(true, null, null)?.code).toBe("procurement_method_required");
+    expect(procurementProblem(true, { status: "inactive", referenceLabel: null }, null)?.code).toBe("procurement_method_inactive");
+    expect(procurementProblem(true, { status: "active", referenceLabel: "Posting reference" }, " ")?.code).toBe("procurement_reference_required");
+    expect(procurementProblem(true, { status: "active", referenceLabel: "Posting reference" }, "REF-1")).toBeNull();
+    expect(procurementProblem(true, { status: "active", referenceLabel: null }, null)).toBeNull();
+  });
+
+  it("runs a register's balance from the opening balance", () => {
+    const { lines, closing } = registerBalances(10, [{ quantity: 20 }, { quantity: -3 }, { quantity: -1 }]);
+    expect(lines.map((l) => l.balance)).toEqual([30, 27, 26]);
+    expect(closing).toBe(26);
+    expect(registerBalances(4, []).closing).toBe(4);
   });
 });

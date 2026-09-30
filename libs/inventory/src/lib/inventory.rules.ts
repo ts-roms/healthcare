@@ -139,3 +139,46 @@ export function priceVariance(orderUnitCost: number | null, invoicedUnitPrice: n
 export function invoiceOverdue(invoice: { status: string; dueDate: string | null }, today: string): boolean {
   return (invoice.status === "recorded" || invoice.status === "approved") && invoice.dueDate !== null && invoice.dueDate < today;
 }
+
+// ---- Compliance configuration (0071) ----------------------------------------------------------------------------------
+
+/**
+ * Whether an order may be submitted under the organization's own procurement methods: once it has defined any, an
+ * order names one, and a method with a reference label needs that reference. Null when the order may be submitted.
+ * The methods and what they require are the organization's configuration, not a procurement rule of the platform.
+ */
+export function procurementProblem(
+  hasActiveMethods: boolean,
+  method: { status: string; referenceLabel: string | null } | null,
+  reference: string | null,
+): { code: "procurement_method_required" | "procurement_method_inactive" | "procurement_reference_required"; message: string } | null {
+  if (!method) {
+    return hasActiveMethods ? { code: "procurement_method_required", message: "Choose the procurement method this order is made under" } : null;
+  }
+  if (method.status !== "active") return { code: "procurement_method_inactive", message: "That procurement method is no longer in use" };
+  if (method.referenceLabel && !reference?.trim()) {
+    return { code: "procurement_reference_required", message: `Enter the ${method.referenceLabel.toLowerCase()} for this procurement method` };
+  }
+  return null;
+}
+
+/** A register line: a movement of a controlled item with the running balance of that item at that location. */
+export interface RegisterLine<M> {
+  movement: M;
+  /** Quantity in (positive) or out (negative), in the stock unit. */
+  quantity: number;
+  balance: number;
+}
+
+/**
+ * Running balances for a register: movements (oldest first) of one item at one location, starting from the balance
+ * the item had there before the period (`opening`).
+ */
+export function registerBalances<M extends { quantity: number }>(opening: number, movements: M[]): { lines: Array<RegisterLine<M>>; closing: number } {
+  let balance = opening;
+  const lines = movements.map((movement) => {
+    balance += movement.quantity;
+    return { movement, quantity: movement.quantity, balance };
+  });
+  return { lines, closing: balance };
+}

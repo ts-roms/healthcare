@@ -61,3 +61,18 @@ export function competencyFor(
   if (assessment.nextDueOn !== null && assessment.nextDueOn < today) return { state: "due", assessment };
   return { state: "competent", assessment };
 }
+
+export type LicenceState = "missing" | "valid" | "expiring" | "expired" | "not_yet_valid";
+
+/**
+ * Where the facility's recorded laboratory licence stands on a local date: expiring within the organization's own
+ * reminder window, expired, or valid. The platform checks dates only; the licence itself is not verified.
+ */
+export function licenceState(licence: { validFrom: string; validUntil: string; reminderDays: number } | null, today: string): LicenceState {
+  if (!licence) return "missing";
+  if (today < licence.validFrom) return "not_yet_valid";
+  if (today > licence.validUntil) return "expired";
+  const remind = new Date(`${licence.validUntil}T00:00:00Z`);
+  remind.setUTCDate(remind.getUTCDate() - licence.reminderDays);
+  return today >= remind.toISOString().slice(0, 10) ? "expiring" : "valid";
+}

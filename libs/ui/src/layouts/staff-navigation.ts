@@ -72,6 +72,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Nonconformances", href: "/laboratory/nonconformances", roles: ["lab-tech", "admin"] },
       { label: "Proficiency testing", href: "/laboratory/eqa", roles: ["lab-tech", "admin"] },
       { label: "Competency", href: "/laboratory/competency", roles: ["lab-tech", "admin"] },
+      { label: "Licence", href: "/laboratory/licence", roles: ["lab-tech", "admin"] },
     ],
   },
   {
@@ -99,6 +100,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     children: [
       { label: "Requests", href: "/records/requests" },
       { label: "Imports", href: "/records/imports" },
+      { label: "Retention", href: "/records/retention" },
     ],
   },
   {
@@ -106,7 +108,10 @@ export const STAFF_NAVIGATION: NavItem[] = [
     href: "/admin",
     icon: BuildingIcon,
     roles: ["admin"],
-    children: [{ label: "Integrations", href: "/admin/integrations" }],
+    children: [
+      { label: "Integrations", href: "/admin/integrations" },
+      { label: "Compliance", href: "/admin/compliance" },
+    ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },
 ];

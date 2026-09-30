@@ -35,7 +35,9 @@ const day = (date: string) => clinicalDate(`${date}T12:00:00Z`);
 export default async function ValuationPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.valuation.read")) redirect("/inventory");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue />;
+  const nav = (
+    <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue canRegister={can(session, "inventory.controlled-register.read")} />
+  );
   if (!facility) {
     return (
       <>

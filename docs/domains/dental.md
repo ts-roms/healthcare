@@ -427,6 +427,16 @@ keeps none. Rules:
   lists them when the procedure is recorded), on the same tooth; billing charges the procedure recorded, at its listed
   price. Anything else is `plan_item_mismatch`.
 
+## Written estimates
+
+The organization may set how many days a printed estimate holds (printed as **Valid until**) and require the patient's
+signed written estimate before a decision recorded by staff (migration `0071`). Staff record that the patient signed
+today's printed estimate (`POST /dental/treatment-plans/:id/written-estimates`, `dental_written_estimate`, append-only:
+the items it listed, its total and until when it holds); when required, a staff-recorded decision is refused
+(`written_estimate_required`) unless a signed estimate listed every item awaiting the decision and still holds.
+Decisions in MyHealth confirm the organization's acknowledgement text instead. What a written estimate must contain is
+not encoded (compliance dependency; `docs/architecture/compliance-configuration.md`).
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.

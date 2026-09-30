@@ -104,3 +104,19 @@ export function estimateTotals(items: ReadonlyArray<{ status: PlanItemStatus; li
 export function alternativeSiteAllowed(planned: "mouth" | "tooth" | "surface", alternative: "mouth" | "tooth" | "surface"): boolean {
   return (planned === "mouth") === (alternative === "mouth");
 }
+
+/** Until when a printed estimate holds: the pricing date plus the organization's own validity days (none: null). */
+export function estimateValidUntil(pricedOn: string, validityDays: number | null): string | null {
+  if (!validityDays) return null;
+  const d = new Date(`${pricedOn}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + validityDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Whether a signed written estimate covers a decision on these items today: one that listed every item awaiting the
+ * decision and still holds (no validity date, or not past it). The requirement itself is the organization's setting.
+ */
+export function writtenEstimateCovers(written: Array<{ itemIds: string[]; validUntil: string | null }>, awaitingItemIds: string[], today: string): boolean {
+  return written.some((w) => (w.validUntil === null || today <= w.validUntil) && awaitingItemIds.every((id) => w.itemIds.includes(id)));
+}

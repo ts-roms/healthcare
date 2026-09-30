@@ -134,6 +134,16 @@ Recorded against a purchase order of the selected facility, line by line (`POST 
 - **Immutable:** content never changes and nothing is deleted (guard trigger; lines append-only). A mistake is voided and
   recorded again.
 
+## Withholding, procurement methods and the controlled register
+
+The organization's own configuration (migration `0071`; details in `docs/architecture/compliance-configuration.md`):
+withholding codes (rate for reference only; the amount withheld is **entered** when a supplier invoice is paid, with the
+certificate reference, and never above the total; the invoice shows what was paid to the supplier), procurement methods
+(once any is in use, an order names one to be submitted, with the reference the method asks for), and the register of
+controlled items at a facility (`GET /inventory/controlled-register`, CSV export; opening, running and closing balances
+from the ledger; each facility's licence reference and responsible person as recorded). No BIR, Dangerous Drugs Board,
+FDA or procurement rule is encoded; the organization records its advisers' review under Admin → Compliance.
+
 ## Events
 
 - `InventoryStockLow` — when a movement takes an item's **usable** stock at a location from above its reorder level to at

@@ -12,7 +12,7 @@ export const metadata = { title: "Documents" };
 
 /** The patient's medical certificates and their requests for copies of their records. */
 export default async function DocumentsPage() {
-  const { certificates, requests } = await portalApi<PortalDocuments>("/portal/documents");
+  const { certificates, requests, requestNotice, responseDays } = await portalApi<PortalDocuments>("/portal/documents");
   const openCount = requests.filter((r) => requestOpen(r.status)).length;
   return (
     <div className="flex flex-col gap-7">
@@ -59,7 +59,7 @@ export default async function DocumentsPage() {
           Ask the clinic&apos;s records office for copies of your records. They check your request and share the copies here, or tell you why they cannot.
           Results, prescriptions and care plans you already see in MyHealth do not need a request.
         </p>
-        <RecordsRequestForm canSubmit={openCount < 3} />
+        <RecordsRequestForm canSubmit={openCount < 3} notice={requestNotice} responseDays={responseDays} />
         {requests.length === 0 ? (
           <EmptyState icon={FolderOpenIcon} title="No requests yet">
             Your requests and the clinic&apos;s answers will appear here.

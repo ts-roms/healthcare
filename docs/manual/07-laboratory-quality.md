@@ -55,6 +55,16 @@ Quality managers (users with `lab.qc.manage` at the facility) receive in-app mes
 
 Reminders are in-app only. No SMS or email is sent to staff.
 
+## How to record the laboratory licence
+
+Open **Laboratory → Licence** (`/laboratory/licence`). The card shows the facility's current licence and its state: **Valid**, **Expiring soon**,
+**Expired**, **Not yet valid** or **Not recorded**. Quality managers (`lab.qc.manage`) record the licence as issued: the number, the
+classification and issuing office as written on it, the validity dates, the head of the laboratory and their licence number, and how many days
+before expiry to be reminded. A renewal is recorded the same way; earlier licences stay in the history.
+
+The dashboard's quality list shows an expired licence as critical and an expiring one as a warning. The platform checks the dates only: it does
+not verify the licence with DOH or apply licensing rules. Record your adviser's review under **Admin → Compliance**.
+
 ## How to register an instrument
 
 You need `lab.qc.manage`.

@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
 import { InventoryCatalogService } from "./catalog/inventory-catalog.service";
+import { InventoryComplianceController } from "./compliance/inventory-compliance.controller";
+import { InventoryComplianceService } from "./compliance/inventory-compliance.service";
 import { InventoryCatalogController, InventoryStockController } from "./inventory.controllers";
 import { InventoryValuationController, ProcurementController, SupplierInvoiceController } from "./procurement/procurement.controller";
 import { PurchaseOrderService } from "./procurement/purchase-order.service";
@@ -15,8 +17,23 @@ import { InventoryValuationService } from "./stock/inventory-valuation.service";
  */
 @Module({
   imports: [OrganizationModule],
-  controllers: [InventoryCatalogController, InventoryStockController, ProcurementController, SupplierInvoiceController, InventoryValuationController],
-  providers: [InventoryCatalogService, InventoryStockService, InventoryQueries, PurchaseOrderService, SupplierInvoiceService, InventoryValuationService],
-  exports: [InventoryStockService, InventoryQueries],
+  controllers: [
+    InventoryCatalogController,
+    InventoryStockController,
+    ProcurementController,
+    SupplierInvoiceController,
+    InventoryValuationController,
+    InventoryComplianceController,
+  ],
+  providers: [
+    InventoryCatalogService,
+    InventoryStockService,
+    InventoryQueries,
+    PurchaseOrderService,
+    SupplierInvoiceService,
+    InventoryValuationService,
+    InventoryComplianceService,
+  ],
+  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService],
 })
 export class InventoryModule {}

@@ -58,6 +58,15 @@ period. The record is composed at the application layer (`RecordCopyService` ove
   preparer's own clinical permissions; preparing it is audited (`patient.records-request.copy` with the sections and
   period — never content) and nothing reaches the patient until the records office shares it.
 
+## The organization's procedure
+
+`records_request_setting` (migration `0071`; `docs/architecture/compliance-configuration.md`): a response time in days
+(each new request gets `respond_by`, shown to staff and to the patient; open requests past it are flagged), whether staff
+must record how they confirmed the requester's identity before sharing (sharing is refused with
+`identity_check_required` until they do; stored on the request), and a notice patients read in MyHealth before asking.
+`GET|PUT /records-requests/setting` (write needs `organization.manage` too). Staff `/records/requests/settings`. The
+values are the organization's own; no deadline, fee or disclosure rule is suggested.
+
 ## Commands
 
 | Command        | Who                              | Rules                                                                                                                 |
@@ -113,8 +122,8 @@ no facility (records requests belong to the organization).
 
 ## Open questions / assumptions
 
-- Identity checks beyond the MyHealth sign-in, fees and response times follow the organization's procedures; the page
-  reminds staff of them. Requests on behalf of someone else (a parent, a representative) are made at the clinic.
+- Identity checks beyond the MyHealth sign-in, fees and response times follow the organization's procedures, which it
+  records as its own settings (above). Requests on behalf of someone else (a parent, a representative) are made at the clinic.
 - A copy of the record contains what the platform holds as structured data; scans and images stay separate documents to
   share. Billing records, the dental chart and periodontal charts are not in the copy (ask for them specifically).
 - Whether a copy must be certified, signed or stamped, and what may be withheld from it, is the organization's

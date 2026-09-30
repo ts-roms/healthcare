@@ -158,6 +158,16 @@ export function qualityAttentionItems(q: LabQualitySummary): AttentionItem[] {
       href: "/laboratory/instruments",
     });
   }
+  // The licence as recorded by the laboratory (dates only; the platform does not verify it).
+  if (q.licence.state !== "valid") {
+    const licence = {
+      expired: { severity: "critical" as const, title: "Laboratory licence expired", detail: "renew it and record the new licence" },
+      expiring: { severity: "warning" as const, title: "Laboratory licence expiring", detail: "within your reminder window" },
+      not_yet_valid: { severity: "info" as const, title: "Laboratory licence not yet valid", detail: "the recorded licence starts later" },
+      missing: { severity: "info" as const, title: "Laboratory licence not recorded", detail: "record it as issued" },
+    }[q.licence.state];
+    items.push({ id: "quality-licence", count: 1, href: "/laboratory/licence", ...licence });
+  }
   if (q.reagents.low) {
     items.push({
       id: "quality-reagents-low",

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { BoxesIcon, CoinsIcon, FileTextIcon, HistoryIcon, SettingsIcon, TruckIcon } from "lucide-react";
+import { BookLockIcon, BoxesIcon, CoinsIcon, FileTextIcon, HistoryIcon, LandmarkIcon, SettingsIcon, TruckIcon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
 
-export function InventoryNav({ canConfigure, canValue = false }: { canConfigure: boolean; canValue?: boolean }) {
+export function InventoryNav({ canConfigure, canValue = false, canRegister = false }: { canConfigure: boolean; canValue?: boolean; canRegister?: boolean }) {
   return (
     <nav aria-label="Inventory" className="flex flex-wrap items-center gap-1">
       <Button asChild variant="outline" size="sm">
@@ -32,6 +32,18 @@ export function InventoryNav({ canConfigure, canValue = false }: { canConfigure:
           </Link>
         </Button>
       ) : null}
+      {canRegister ? (
+        <Button asChild variant="outline" size="sm">
+          <Link href="/inventory/controlled-register">
+            <BookLockIcon /> Controlled register
+          </Link>
+        </Button>
+      ) : null}
+      <Button asChild variant="outline" size="sm">
+        <Link href="/inventory/compliance">
+          <LandmarkIcon /> Tax and procurement
+        </Link>
+      </Button>
       {canConfigure ? (
         <Button asChild variant="outline" size="sm">
           <Link href="/inventory/catalog">

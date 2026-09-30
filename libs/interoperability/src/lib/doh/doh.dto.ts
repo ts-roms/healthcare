@@ -13,6 +13,8 @@ export const createRuleSchema = z.object({
   category: z.string().trim().min(1).max(120),
   /** Where the rule comes from (the issuance the organization follows). */
   sourceNote: z.string().trim().max(500).optional(),
+  /** The organization's own deadline: report within this many days of the diagnosis being recorded (none by default). */
+  reportWithinDays: z.number().int().min(1).max(365).optional(),
 });
 export class CreateRuleDto extends createZodDto(createRuleSchema) {}
 

@@ -1,7 +1,8 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source) and
-// 0061 (costs on every movement, supplier invoices); the migrations are the source of truth.
+// 0061 (costs on every movement, supplier invoices) and 0071 (withholding, procurement methods, controlled register);
+// the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 /** Integer centavos (PHP). */
@@ -131,6 +132,9 @@ export const inventoryPurchaseOrder = pgTable("inventory_purchase_order", {
   endReason: text("end_reason"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  // 0071: the organization's own procurement method and the reference it asks for.
+  procurementMethodId: uuid("procurement_method_id"),
+  procurementReference: text("procurement_reference"),
 });
 
 export const inventoryPurchaseOrderLine = pgTable("inventory_purchase_order_line", {
@@ -174,6 +178,10 @@ export const inventorySupplierInvoice = pgTable("inventory_supplier_invoice", {
   voidedAt: ts("voided_at"),
   voidReason: text("void_reason"),
   version: integer("version").notNull().default(1),
+  // 0071: what was withheld at payment (entered by staff) under the organization's own code, and the certificate reference.
+  withholdingCodeId: uuid("withholding_code_id"),
+  withheldAmount: money("withheld_amount").notNull().default(0),
+  withholdingReference: text("withholding_reference"),
 });
 
 export const inventorySupplierInvoiceLine = pgTable("inventory_supplier_invoice_line", {
@@ -187,6 +195,46 @@ export const inventorySupplierInvoiceLine = pgTable("inventory_supplier_invoice_
   amount: money("amount").notNull(),
 });
 
+// ---- Compliance configuration (0071) ------------------------------------------------------------------------------
+
+/** The organization's own withholding codes; the rate is for reference only (staff enter the amount withheld). */
+export const inventoryWithholdingCode = pgTable("inventory_withholding_code", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  code: text("code").notNull(),
+  description: text("description").notNull(),
+  rateBasisPoints: integer("rate_basis_points"),
+  status: text("status").$type<Status>().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** The organization's own procurement methods; with a reference label, orders under it need that reference. */
+export const inventoryProcurementMethod = pgTable("inventory_procurement_method", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  referenceLabel: text("reference_label"),
+  status: text("status").$type<Status>().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** What a facility prints on its register of controlled items, as recorded (not verified). */
+export const inventoryControlledRegisterSetting = pgTable("inventory_controlled_register_setting", {
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").primaryKey(),
+  licenceReference: text("licence_reference"),
+  responsiblePerson: text("responsible_person"),
+  note: text("note"),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+
+export type WithholdingCodeRecord = typeof inventoryWithholdingCode.$inferSelect;
+export type ProcurementMethodRecord = typeof inventoryProcurementMethod.$inferSelect;
 export type SupplierInvoiceRecord = typeof inventorySupplierInvoice.$inferSelect;
 export type SupplierInvoiceLineRecord = typeof inventorySupplierInvoiceLine.$inferSelect;
 export type PurchaseOrderRecord = typeof inventoryPurchaseOrder.$inferSelect;

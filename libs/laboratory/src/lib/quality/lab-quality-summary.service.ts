@@ -4,6 +4,7 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { LabCompetencyService } from "./lab-competency.service";
 import { LabEqaService } from "./lab-eqa.service";
+import { LabLicenceService } from "./lab-licence.service";
 import { LabQualityService } from "./lab-quality.service";
 import { LabReagentService } from "./lab-reagent.service";
 import { LabTemperatureService } from "./lab-temperature.service";
@@ -24,6 +25,7 @@ export class LabQualitySummaryService {
     private readonly competency: LabCompetencyService,
     private readonly reagents: LabReagentService,
     private readonly organizations: OrganizationService,
+    private readonly licences: LabLicenceService,
   ) {}
 
   async summary(actor: Actor) {
@@ -49,11 +51,14 @@ export class LabQualitySummaryService {
       this.reagents.inUse(actor),
     ]);
     const today = localDate(new Date(), facility.timezone);
+    const licence = await this.licences.state(actor, today);
     const areas = staff.staff.flatMap((s) => s.areas);
     const nc = nonconformances[0];
     return {
       facilityId,
       date: today,
+      /** The facility's laboratory licence as recorded: missing, valid, expiring (the organization's reminder window) or expired. */
+      licence,
       nonconformances: {
         open: nc?.open ?? 0,
         investigating: nc?.investigating ?? 0,

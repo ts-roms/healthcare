@@ -47,3 +47,21 @@ export const document = pgTable("document", {
 });
 
 export type DocumentRecord = typeof document.$inferSelect;
+
+/**
+ * The organization's retention period per document category (0071_compliance_configuration.sql), from its own
+ * retention schedule; the platform encodes none and never deletes: documents past the period are listed for review.
+ */
+export const documentRetentionPolicy = pgTable("document_retention_policy", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  category: text("category").$type<DocumentCategory>().notNull(),
+  retainYears: integer("retain_years").notNull(),
+  basisNote: text("basis_note").notNull(),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  endedBy: uuid("ended_by"),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+});
+export type DocumentRetentionPolicyRecord = typeof documentRetentionPolicy.$inferSelect;

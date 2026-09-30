@@ -1,6 +1,7 @@
-import { date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0023_doh_reporting.sql and 0045_doh_rescan.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0023_doh_reporting.sql, 0045_doh_rescan.sql and 0071 (reporting deadlines); the migrations
+// are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -14,6 +15,8 @@ export const dohReportableRule = pgTable("doh_reportable_rule", {
   status: text("status").$type<"active" | "inactive">().notNull().default("active"),
   createdBy: uuid("created_by").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
+  // 0071: the organization's own "report within N days of the diagnosis" (none encoded by the platform).
+  reportWithinDays: smallint("report_within_days"),
 });
 
 export const dohFacilitySetting = pgTable("doh_facility_setting", {
@@ -51,6 +54,8 @@ export const dohCaseReport = pgTable("doh_case_report", {
   version: integer("version").notNull().default(1),
   /** The check of earlier diagnoses that opened it; null when opened as the diagnosis was recorded. */
   rescanId: uuid("rescan_id"),
+  /** 0071: when the report is due under the rule's own deadline (the diagnosis time plus its days); null: none set. */
+  dueAt: ts("due_at"),
 });
 
 export const RESCAN_STATUSES = ["queued", "running", "completed", "failed"] as const;

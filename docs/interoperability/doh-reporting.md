@@ -53,6 +53,12 @@ exists.
 - **Facility code** (`doh_facility_setting`) — each facility's DOH health facility code as issued, recorded by staff,
   versioned and audited; not verified with DOH.
 
+### Reporting deadlines (the organization's own)
+
+A rule may carry "report within N days of the diagnosis" (`report_within_days`, optional, migration `0071`). A case
+report opened from it gets `due_at` (the diagnosis time plus the days, kept if the rule changes) and is **overdue** while
+still pending review, queued, failed or rejected past it. No DOH deadline is suggested by the platform.
+
 ## API
 
 | Request                                                                          | Permission            |

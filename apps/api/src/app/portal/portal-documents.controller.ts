@@ -33,9 +33,10 @@ export class PortalDocumentsController {
   @Get("documents")
   @ApiOperation({ summary: "The patient's medical certificates and records requests (with the documents shared in answer)" })
   async documents(@CurrentPatient() patient: PortalPrincipal) {
-    const [certificates, requests] = await Promise.all([
+    const [certificates, requests, procedure] = await Promise.all([
       this.certificates.issuedForPatient(patient.organizationId, patient.patientId),
       this.requests.forPatient(patient.organizationId, patient.patientId),
+      this.requests.setting(patient.organizationId),
     ]);
     await this.audit.recordStandalone(patientAuditContext(patient), {
       action: "portal.documents-view",
@@ -56,6 +57,9 @@ export class PortalDocumentsController {
         restDays: c.restDays,
       })),
       requests,
+      /** What the organization tells patients before they ask (its own words), and its response time in days. */
+      requestNotice: procedure.patientNotice,
+      responseDays: procedure.responseDays,
     };
   }
 

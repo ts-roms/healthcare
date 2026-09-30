@@ -1,6 +1,14 @@
 import { toothInNotation } from "../dental.rules";
 import { itemFee } from "./dental-fee-lookup";
-import { alternativeSiteAllowed, estimatePart, estimateTotals, feeRange, surfaceQuantity } from "./fee-estimate.rules";
+import {
+  alternativeSiteAllowed,
+  estimatePart,
+  estimateTotals,
+  estimateValidUntil,
+  feeRange,
+  surfaceQuantity,
+  writtenEstimateCovers,
+} from "./fee-estimate.rules";
 
 describe("fee estimate rules", () => {
   it("covers the work still ahead: items awaiting a decision and accepted items not yet done", () => {
@@ -104,5 +112,21 @@ describe("tooth in a notation (printed documents)", () => {
     expect(["55", "51", "61", "65", "75", "71", "81", "85"].map((t) => toothInNotation(t, "universal"))).toEqual(["A", "E", "F", "J", "K", "O", "P", "T"]);
     expect(["16", "26", "36", "46", "54"].map((t) => toothInNotation(t, "palmer"))).toEqual(["UR6", "UL6", "LL6", "LR6", "URD"]);
     expect(toothInNotation("16", "fdi")).toBe("16");
+  });
+});
+
+describe("written estimates (the organization's own requirement)", () => {
+  it("holds for the organization's validity days", () => {
+    expect(estimateValidUntil("2026-09-29", 30)).toBe("2026-10-29");
+    expect(estimateValidUntil("2026-09-29", null)).toBeNull();
+  });
+
+  it("covers a decision when a still-valid signed estimate listed every item awaiting it", () => {
+    const written = [{ itemIds: ["a", "b"], validUntil: "2026-10-29" }];
+    expect(writtenEstimateCovers(written, ["a", "b"], "2026-10-01")).toBe(true);
+    expect(writtenEstimateCovers(written, ["a", "c"], "2026-10-01")).toBe(false);
+    expect(writtenEstimateCovers(written, ["a"], "2026-10-30")).toBe(false);
+    expect(writtenEstimateCovers([{ itemIds: ["a"], validUntil: null }], ["a"], "2030-01-01")).toBe(true);
+    expect(writtenEstimateCovers([], ["a"], "2026-10-01")).toBe(false);
   });
 });

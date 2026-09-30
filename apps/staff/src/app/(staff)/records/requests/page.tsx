@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { TriangleAlertIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
@@ -9,6 +10,8 @@ import type { RecordsRequest } from "@/lib/api/types";
 import { periodText, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
 
 export const metadata = { title: "Records requests" };
+
+const day = (d: string) => clinicalDate(`${d}T12:00:00Z`);
 
 const VIEWS = [
   { key: "open", label: "Open" },
@@ -29,7 +32,7 @@ export default async function RecordsRequestsPage({ searchParams }: { searchPara
         description="Patients ask in MyHealth for copies of their records. Check the request, then share documents from the patient's record or decline with a reason the patient will read. Follow your organization's Data Privacy Act procedures for what to release and when."
       />
       <div className="flex flex-col gap-3 p-4">
-        <nav aria-label="View" className="flex gap-1">
+        <nav aria-label="View" className="flex flex-wrap gap-1">
           {VIEWS.map((v) => (
             <Button key={v.key} asChild size="sm" variant={view === v.key ? "default" : "outline"}>
               <Link href={v.key === "open" ? "/records/requests" : `/records/requests?view=${v.key}`} aria-current={view === v.key ? "page" : undefined}>
@@ -37,6 +40,9 @@ export default async function RecordsRequestsPage({ searchParams }: { searchPara
               </Link>
             </Button>
           ))}
+          <Button asChild size="sm" variant="ghost" className="ml-auto">
+            <Link href="/records/requests/settings">Your procedure</Link>
+          </Button>
         </nav>
         <Card className="py-0">
           {requests.length === 0 ? (
@@ -77,6 +83,13 @@ export default async function RecordsRequestsPage({ searchParams }: { searchPara
                     </TableCell>
                     <TableCell>
                       <Badge variant={RECORDS_STATUS[r.status].variant}>{RECORDS_STATUS[r.status].label}</Badge>
+                      {r.overdue ? (
+                        <Badge variant="danger" className="ml-1">
+                          <TriangleAlertIcon aria-hidden /> Past {day(r.respondBy!)}
+                        </Badge>
+                      ) : r.respondBy && (r.status === "submitted" || r.status === "in_review") ? (
+                        <span className="block text-meta text-muted-foreground">Respond by {day(r.respondBy)}</span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild size="xs" variant="outline">

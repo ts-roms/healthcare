@@ -48,3 +48,18 @@ export function periodText(from: string | null, to: string | null, format: (date
 export function waitingText(days: number): string {
   return days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"}`;
 }
+
+/** Document categories, as the retention settings name them (the API's categories). */
+export const DOCUMENT_CATEGORY_LABEL: Record<string, string> = {
+  consent_form: "Consent forms",
+  identification: "Identification",
+  medical_certificate: "Medical certificates",
+  laboratory_report: "Laboratory reports",
+  imaging: "X-rays and images",
+  referral_letter: "Referral letters",
+  prescription: "Prescriptions",
+  clinical_attachment: "Clinical attachments",
+  billing: "Billing documents",
+  other: "Other documents",
+  record_copy: "Copies of the record",
+};

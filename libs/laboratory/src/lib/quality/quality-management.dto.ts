@@ -132,3 +132,22 @@ export const recordCompetencySchema = z
   .refine((v) => !v.nextDueOn || v.nextDueOn > v.assessedOn, { message: "The next assessment is due after this one", path: ["nextDueOn"] })
   .refine((v) => v.outcome === "competent" || !!v.notes, { message: "Say what is still needed (notes)", path: ["notes"] });
 export class RecordCompetencyDto extends createZodDto(recordCompetencySchema) {}
+
+// ---- Laboratory licence (0071) ------------------------------------------------------------------------------------
+
+const optionalText = (min: number, max: number) => z.string().trim().min(min).max(max).optional();
+
+export const recordLicenceSchema = z.object({
+  /** As printed on the licence. */
+  licenceNumber: z.string().trim().min(1).max(60),
+  /** The classification and issuing office as written on the licence (not validated by the platform). */
+  classification: optionalText(1, 120),
+  issuedBy: optionalText(2, 160),
+  validFrom: z.iso.date(),
+  validUntil: z.iso.date(),
+  headName: optionalText(2, 160),
+  headLicenceNumber: optionalText(1, 40),
+  /** Days before expiry the dashboard reminds (the organization's choice). */
+  reminderDays: z.number().int().min(0).max(365).default(60),
+});
+export class RecordLicenceDto extends createZodDto(recordLicenceSchema) {}

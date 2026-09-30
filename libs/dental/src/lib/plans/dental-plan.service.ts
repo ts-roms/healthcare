@@ -22,6 +22,7 @@ import { normalizeSurfaces, planStatusFromItems, procedureSiteIssues } from "../
 import {
   dentalTreatmentPlan,
   dentalTreatmentPlanItem,
+  dentalWrittenEstimate,
   type DentalTreatmentPlanItemRecord,
   type DentalTreatmentPlanRecord,
   type DentalProcedureRecord,
@@ -29,7 +30,9 @@ import {
 } from "../dental.schema";
 import { assertVersion, found, rejectIssues, requireDentist, strip } from "../dental-support";
 import { DENTAL_CONTEXT, type DentalContext } from "../ports";
+import { DentalPortalSettings } from "../portal/dental-portal-settings.service";
 import { DentalFeeLookup, type ItemFee, itemFee } from "./dental-fee-lookup";
+import { writtenEstimateCovers } from "./fee-estimate.rules";
 
 type PlanItemInput = { phase: number; procedureTypeId: string; tooth?: string; surfaces: Surface[]; note?: string };
 
@@ -50,6 +53,7 @@ export class DentalPlanService {
     private readonly catalog: DentalCatalogService,
     @Inject(DENTAL_CONTEXT) private readonly context: DentalContext,
     private readonly fees: DentalFeeLookup,
+    private readonly settings: DentalPortalSettings,
   ) {}
 
   async create(actor: Actor, input: z.infer<typeof createPlanSchema>) {
@@ -169,6 +173,7 @@ export class DentalPlanService {
   async decide(actor: Actor, planId: string, input: z.infer<typeof decidePlanSchema>) {
     return this.db.transaction(async (tx) => {
       const plan = await this.lock(tx, actor.organizationId, planId);
+      await this.requireWrittenEstimate(tx, plan);
       const updated = await this.applyDecision(tx, actor, plan, input, { channel: "in_person", decidedBy: actor.userId, decidedByPortalAccount: null });
       return this.view(tx, updated);
     });
@@ -201,6 +206,27 @@ export class DentalPlanService {
       { acceptedItemIds: input.acceptedItemIds, note: input.acknowledgement, version: plan.version },
       { channel: "portal", decidedBy: null, decidedByPortalAccount: context.accountId },
     );
+  }
+
+  /**
+   * When the organization requires it (its own setting, docs/domains/dental.md "Written estimates"), a decision recorded
+   * by staff needs a signed written estimate that listed every item awaiting the decision and still holds today.
+   */
+  private async requireWrittenEstimate(tx: DbExecutor, plan: DentalTreatmentPlanRecord) {
+    const { writtenRequired } = await this.settings.estimates(plan.organizationId, tx);
+    if (!writtenRequired) return;
+    const awaiting = (await this.items(tx, plan.id)).filter((i) => i.status === "proposed").map((i) => i.id);
+    const written = await tx
+      .select({ itemIds: dentalWrittenEstimate.itemIds, validUntil: dentalWrittenEstimate.validUntil })
+      .from(dentalWrittenEstimate)
+      .where(and(eq(dentalWrittenEstimate.organizationId, plan.organizationId), eq(dentalWrittenEstimate.planId, plan.id)));
+    const today = await this.fees.today(plan.organizationId, plan.facilityId);
+    if (awaiting.length && !writtenEstimateCovers(written, awaiting, today)) {
+      throw new BusinessRuleError(
+        "Record the patient's signed written estimate for the items awaiting a decision first (or print a new one if it expired or the plan changed)",
+        "written_estimate_required",
+      );
+    }
   }
 
   /** Accepts the listed items awaiting a decision and declines the others, then updates, audits and announces the plan. */

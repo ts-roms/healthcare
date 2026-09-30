@@ -51,6 +51,7 @@ const ruleSchema = z.object({
   codePrefix: z.string().trim().min(2, "Enter an ICD-10 code or prefix, e.g. A90.").max(8),
   category: z.string().trim().min(1, "Name the category.").max(120),
   sourceNote: z.string().trim().max(500).optional(),
+  reportWithinDays: z.number().int().min(1, "Report within at least 1 day.").max(365).optional(),
 });
 export async function createRule(input: z.input<typeof ruleSchema>) {
   return run(ruleSchema, input, () => api<ReportableRule>("/doh/rules", { method: "POST", body: input }), ["/reporting/settings"]);

@@ -10,6 +10,7 @@ import { LabWorklistService } from "./orders/lab-worklist.service";
 import { LabReportService } from "./results/lab-report";
 import { LABORATORY_CONTEXT, type LaboratoryContext } from "./ports";
 import { LabCompetencyService } from "./quality/lab-competency.service";
+import { LabLicenceService } from "./quality/lab-licence.service";
 import { LabQualitySummaryService } from "./quality/lab-quality-summary.service";
 import { LabQualityDue } from "./quality/lab-quality-due";
 import { LabEqaService } from "./quality/lab-eqa.service";
@@ -68,6 +69,7 @@ export class LaboratoryModule {
         LabEqaService,
         LabCompetencyService,
         LabQualitySummaryService,
+        LabLicenceService,
         LabQualityDue,
         LabReagentService,
         LabRecordQueries,

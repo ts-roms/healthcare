@@ -71,6 +71,7 @@ describe("qualityAttentionItems", () => {
     temperatures: { readingsDue: 0, outOfRangeNow: 0, excursionsLast7Days: 3 },
     eqa: { overdue: 0, awaitingEvaluation: 0 },
     competency: { required: false, due: 0, notYetCompetent: 0, staffNotAssessed: 4 },
+    licence: { state: "valid", validUntil: "2027-01-01" },
   };
 
   it("is empty when nothing is open (past excursions and unassessed staff without the policy don't count)", () => {
@@ -93,6 +94,14 @@ describe("qualityAttentionItems", () => {
     ]);
     expect(items[0]?.detail).toBe("1 critical, 1 major, 1 under investigation");
     expect(items[2]?.detail).toBe("1 rejected, 2 not run in the window");
+  });
+
+  it("flags the laboratory licence by its recorded dates", () => {
+    expect(qualityAttentionItems({ ...quiet, licence: { state: "expired", validUntil: "2026-01-01" } })).toEqual([
+      expect.objectContaining({ id: "quality-licence", severity: "critical", href: "/laboratory/licence" }),
+    ]);
+    expect(qualityAttentionItems({ ...quiet, licence: { state: "expiring", validUntil: "2026-10-20" } })[0]).toMatchObject({ severity: "warning" });
+    expect(qualityAttentionItems({ ...quiet, licence: { state: "missing", validUntil: null } })[0]).toMatchObject({ severity: "info" });
   });
 
   it("lists reagent lots running low", () => {

@@ -35,6 +35,10 @@ export const portalSettingSchema = z.object({
     .nullable()
     .optional()
     .refine((v) => !v || v.length >= 10, "Write at least 10 characters, or leave it empty"),
+  /** How long a printed estimate holds, in days (the organization's own; left out: unchanged; null removes it). */
+  writtenEstimateValidityDays: z.number().int().min(1).max(365).nullable().optional(),
+  /** A decision recorded by staff needs a signed written estimate (left out: unchanged). */
+  writtenEstimateRequired: z.boolean().optional(),
   version: z.number().int().min(0),
 });
 export class PortalSettingDto extends createZodDto(portalSettingSchema) {}
@@ -248,3 +252,7 @@ export const procedureAlternativesSchema = z.object({
   alternativeIds: z.array(z.uuid()).max(10),
 });
 export class ProcedureAlternativesDto extends createZodDto(procedureAlternativesSchema) {}
+
+/** The patient signed today's printed estimate; the plan's version confirms it is the plan as printed. */
+export const writtenEstimateSchema = z.object({ version: z.number().int().positive() });
+export class WrittenEstimateDto extends createZodDto(writtenEstimateSchema) {}

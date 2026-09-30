@@ -1,4 +1,4 @@
-import { competencyFor, isExcursion, missingToClose, readingOverdue } from "./quality-management.rules";
+import { competencyFor, isExcursion, licenceState, missingToClose, readingOverdue } from "./quality-management.rules";
 
 describe("temperature monitoring", () => {
   it("flags readings outside the unit's range, limits inclusive", () => {
@@ -51,5 +51,18 @@ describe("competency", () => {
     expect(competencyFor([a({}), failed], test, "2026-09-28").state).toBe("not_yet_competent");
     const passed = a({ testId: "glu", departmentId: null, assessedOn: "2026-06-01", recordedAt: at("2026-06-01"), nextDueOn: null });
     expect(competencyFor([a({}), failed, passed], test, "2030-01-01")).toMatchObject({ state: "competent", assessment: passed });
+  });
+});
+
+describe("laboratory licence dates", () => {
+  const licence = { validFrom: "2026-01-01", validUntil: "2026-12-31", reminderDays: 60 };
+  it("reminds within the organization's own window and marks expiry", () => {
+    expect(licenceState(null, "2026-06-01")).toBe("missing");
+    expect(licenceState(licence, "2025-12-31")).toBe("not_yet_valid");
+    expect(licenceState(licence, "2026-06-01")).toBe("valid");
+    expect(licenceState(licence, "2026-11-01")).toBe("expiring");
+    expect(licenceState(licence, "2026-12-31")).toBe("expiring");
+    expect(licenceState(licence, "2027-01-01")).toBe("expired");
+    expect(licenceState({ ...licence, reminderDays: 0 }, "2026-12-30")).toBe("valid");
   });
 });
