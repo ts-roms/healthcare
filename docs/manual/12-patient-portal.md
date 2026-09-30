@@ -102,7 +102,8 @@ The menu has:
 | **Messages** | Notices and messages from the clinic. A number shows how many are new            |
 | **Profile**  | Your name, patient number, date of birth, sex, clinic and sign-in email          |
 
-On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills** and **Documents**. Your care plan, medicines
+On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills**, **Documents** and
+**Immunizations**. Your care plan, medicines
 and bills are opened from these buttons. **See all** next to **Upcoming** or **Recent results** opens the full list.
 
 Times of visits are shown in the clinic's local time (Philippine time for most clinics).
@@ -232,6 +233,16 @@ Always follow your doctor's instructions. Ask your pharmacist or doctor if you a
 2. **Your care plan** shows each active plan with its **Goals**, **What you can do** and **Coming up with your care team**, with dates.
 
 If you have no active care plan you see "No active care plan".
+
+## How to see your immunizations
+
+1. On Home, choose **Immunizations**.
+2. **Your immunizations** lists your vaccines by name, each dose with when it was given (as precisely as it is known — sometimes only the year),
+   the dose, where it was given and whether it was **Given at our clinic**, **Recorded from your vaccination record** or **From another
+   provider's records**.
+
+It is a record of what you received, not advice about which vaccine you need: ask your doctor or nurse. If something is missing or wrong, tell
+the clinic at your next visit — bring your vaccination card.
 
 ## How to see and pay your bills
 

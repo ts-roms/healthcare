@@ -177,6 +177,12 @@ An issued certificate cannot be edited. If it is wrong, select **Void…**, give
 who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
 an employer, school or agency may require — write what they need in your own words.
 
+## How to record a vaccine given in the consultation
+
+The encounter workspace has an **Immunizations** section: doses recorded in this consultation, **Record dose given here** (linked to this
+consultation; from stock or with the lot number typed; or **Not given** with the reason) and the earlier history, with a link to the full
+history. It works the same as on the patient record (see [Patients](02-patients.md)). Nothing in it says which dose is due.
+
 ## How to amend a signed encounter
 
 1. Open the signed encounter and select **Amend note** (needs `encounter.amend`).

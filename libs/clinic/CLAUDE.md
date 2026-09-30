@@ -28,14 +28,15 @@ Walk-in / Appointment → Check-in → Queue → Triage (vitals, chief complaint
 - **Orders to other domains** (lab, imaging, referral) go through that domain's application contract — clinic never writes laboratory tables.
 - **Care plans** are a separate domain (`libs/care-plan`); clinic creates/links them via its contract.
 - **Telemedicine** encounters reuse the same encounter model with a `modality` field; providers can escalate to in-person.
+- **Immunizations** (`src/lib/immunizations`) record what was given, not given or reported; never encode a schedule, a due dose or an official code set. Records are immutable (entered in error, a reaction added once); stock goes through the `ImmunizationContext` port in the same transaction.
 
 ## Key events
 
-`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`.
+`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`, `ImmunizationRecorded`, `ImmunizationEnteredInError`.
 
 ## Permissions
 
-`clinic.configure`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`, `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `clinic.dashboard.read`; prescriptions: `prescription.read`, `prescription.issue`, `prescription.cancel` (`libs/prescription`). Access is scoped by organization → facility → department.
+`clinic.configure` (also the vaccine catalogue), `immunization.read`, `immunization.record`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`, `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `clinic.dashboard.read`; prescriptions: `prescription.read`, `prescription.issue`, `prescription.cancel` (`libs/prescription`). Access is scoped by organization → facility → department.
 
 ## Docs
 

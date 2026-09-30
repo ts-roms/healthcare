@@ -330,6 +330,36 @@ Document links are short-lived and each opening is recorded in the audit trail.
 The timeline includes the entries of every record merged into this patient; each says **Filed under P…** after its details. The timeline of a merged
 (retired) record opens the surviving record's timeline.
 
+## How to record immunizations
+
+Staff with `immunization.read` see an **Immunizations** card on the patient record (the latest five) and the full history at **Open history**
+(`/patients/[id]/immunizations`), grouped by vaccine. Each dose shows when it was given (as precisely as known: a year, a month, a day or a
+time), the dose as recorded, **Given**, **Not given** or **Entered in error** (colour, icon and words), and where it came from: **Given here**,
+**Reported** or **Imported**.
+
+The history is a record of what was given. It does **not** say which vaccine or dose is due: use your clinical judgement and your
+organization's protocol.
+
+With `immunization.record` (physicians and nurses by default):
+
+1. **Record dose given here** (select your facility first). Choose the **Vaccine** from your organization's catalogue and **Given** or **Not
+   given**.
+   - **Given:** choose the lot **From stock** (the lot number and expiry are filled in and one unit leaves stock when you save) or type the
+     **Lot number** (required) and **Expiry** (not before the day given). Add the dose, route and site (from the catalogue's lists), amount
+     and unit, and any reaction you observed. Leave **Date given** empty for now.
+   - **Not given:** choose why (**Refused**, **Contraindicated**, **Vaccine unavailable**, **Other reason**) and write it in your words
+     (required for "Other reason").
+2. **Record reported dose** for a dose given elsewhere (a vaccination card, the patient's recall): the vaccine from the catalogue or its name as
+   written, **When given** as `2019`, `2019-05` or `2019-05-12`, the dose as written, who gave it or where, **Where the information comes
+   from** (required), and optionally a scan: choose one on file or **Upload a scan**.
+3. A reaction noticed later: **Add reaction…** on the dose (once). It does not create an allergy — if the reaction means an allergy, record it
+   in **Allergies** (**Record an allergy if appropriate** opens the record).
+4. A mistake: **Entered in error…** with a reason. The dose stays listed, struck through; a dose taken from stock goes back to its lot. Record
+   the correct dose again. Records are never edited or deleted.
+
+Doses filed under a record merged into this one say **Filed under P…**; new doses are recorded on the surviving record. Doses accepted from an
+imported record are marked **Imported** (see [Records, reporting and integrations](11-records-reporting-and-integrations.md)).
+
 ## External history (imported)
 
 If records from another provider were imported and accepted, **External history (imported)** lists them, each marked **External** with its kind (Condition,

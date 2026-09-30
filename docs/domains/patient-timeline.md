@@ -48,6 +48,7 @@ None. Every entry has one shape:
 | `communication`      | Notification to the patient (requested); suppressed ones included                       | Channel, template, category, delivery status                                                         | Message body, variables, destination                           |
 | `external_history`   | Imported history entry (accepted), labelled "(external record)"                         | Kind, code, declared source                                                                          | Display text, values, the other provider's free-text dates     |
 | `document`           | Uploaded document (upload verified)                                                     | Category                                                                                             | Title, file name (free text); generated and archived documents |
+| `immunization`       | Dose given, not given, reported or imported (at the time given, else when recorded)     | Vaccine name, dose as recorded, date given when partial, status (entered in error marked), source    | Notes, the not-given reason text, reactions, lot               |
 
 The status history of care plans is not stored, so a plan appears once (when created) with its current status. Draft
 invoices are not part of the record until issued. Telemedicine consultations are encounters (`modality`), and online
@@ -89,6 +90,7 @@ own reads; otherwise it is left out and listed in `withheld` (no counts are reve
 | `invoice`, `payment`         | `billing.charge.read` |
 | `communication`              | `notification.read`   |
 | `document`                   | `document.read`       |
+| `immunization`               | `immunization.read`   |
 
 For example a cashier sees invoices and payments only; a medical technologist sees laboratory orders and releases only;
 a physician sees everything but billing. Permissions are the caller's effective permissions for the request's facility
