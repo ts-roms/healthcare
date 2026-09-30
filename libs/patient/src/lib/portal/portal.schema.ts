@@ -52,3 +52,21 @@ export const patientPortalSession = pgTable("patient_portal_session", {
 
 export type PatientPortalAccountRecord = typeof patientPortalAccount.$inferSelect;
 export type PatientPortalSessionRecord = typeof patientPortalSession.$inferSelect;
+
+export const PASSWORD_RESET_CONSUMED_REASONS = ["reset", "superseded", "exhausted", "account_inactive"] as const;
+export type PasswordResetConsumedReason = (typeof PASSWORD_RESET_CONSUMED_REASONS)[number];
+
+/** Mirrors database/migrations/0072_portal_password_reset.sql. Only the token's hash is stored. */
+export const patientPortalPasswordReset = pgTable("patient_portal_password_reset", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  consumedAt: ts("consumed_at"),
+  consumedReason: text("consumed_reason").$type<PasswordResetConsumedReason>(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});

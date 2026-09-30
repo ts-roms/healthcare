@@ -10,6 +10,7 @@ export * from "./lib/patient-reporting.queries";
 export * from "./lib/patient-registration.service";
 export * from "./lib/portal/portal.schema";
 export * from "./lib/portal/portal-account.service";
+export { PortalSecurityMailers, type PortalSecurityMailer } from "./lib/portal/portal-password-reset.service";
 export * from "./lib/portal/patient-access.guard";
 export * from "./lib/merge/patient-merge.rules";
 export * from "./lib/merge/patient-merge.dto";

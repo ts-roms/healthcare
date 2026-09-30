@@ -32,3 +32,13 @@ export interface PortalTokenResponse {
   refreshToken: string;
   refreshTokenExpiresAt: string;
 }
+
+export const portalPasswordResetRequestSchema = z.object({ organizationCode, email });
+export class PortalPasswordResetRequestDto extends createZodDto(portalPasswordResetRequestSchema) {}
+
+export const portalPasswordResetConfirmSchema = z.object({
+  token: z.string().trim().min(20).max(200),
+  birthDate: z.iso.date("Use YYYY-MM-DD"),
+  password: passwordSchema,
+});
+export class PortalPasswordResetConfirmDto extends createZodDto(portalPasswordResetConfirmSchema) {}

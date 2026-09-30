@@ -41,7 +41,20 @@ To sign out, choose **Sign out** at the top of the page. You see "You have signe
 If you have been away for a while, or the clinic ended your access, you may be sent back to the sign-in page with "You were signed out. Sign in again to
 continue."
 
-**Forgot your password?** There is no password reset in MyHealth yet. Ask the clinic for a new activation code, then set up your account again.
+**Forgot your password?** See [How to reset your password](#how-to-reset-your-password).
+
+## How to reset your password
+
+1. On **Sign in**, choose **Forgot your password?**, enter the email you sign in with, and choose **Send me a link**.
+2. You always see "Check your email", whether or not that email belongs to an account. If it does, you get an email within a few minutes with a link. The
+   link works **once** and expires after **30 minutes**. Nothing arrived? Check your spam folder, wait a few minutes and ask again. You can be sent at
+   most 3 links an hour.
+3. Open the link. Enter your **Date of birth** and a new password (at least 12 characters), twice, then choose **Save new password**.
+4. You are signed out everywhere and taken to **Sign in**. Sign in with your new password. You also get an email saying your password was changed; if
+   that was not you, contact the clinic right away.
+
+If your date of birth is wrong five times, the link stops working; ask for a new one. If you no longer use the email on your account, or cannot open
+it, ask the clinic front desk for help: staff can issue you a new activation code after checking your identity.
 
 ## Finding your way around
 
@@ -214,8 +227,8 @@ Questions about a bill? Ask the clinic's cashier and bring your invoice number.
 You may receive booking confirmations, reminders, results-ready notices, "we missed you" notices after a missed visit, care plan follow-up reminders
 and messages from clinic staff.
 
-You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by SMS or email, ask the clinic to update
-your communication preferences.
+You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by text message or email, change your
+[notification settings](#how-to-choose-which-messages-you-get).
 
 ## How to get your medical certificates and copies of your records
 
@@ -263,6 +276,17 @@ decision**:
 If the clinic's prices changed while you were deciding, you see "The clinic's prices changed since you opened this plan" and the new estimate;
 decide again. If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
 
+## How to choose which messages you get
+
+1. Choose **Profile**, then **Notification settings**.
+2. For each kind of message — **About your care**, **Appointments and bills** and **Check-in reminders** — tick or untick **Text message** and **Email**.
+   Under each you see where the message would go (for example "To •••• 4567"). If the clinic has no number or address for you, nothing can be sent there.
+3. Choose **Save settings**. It applies from the next message.
+
+Messages in MyHealth itself always reach you here. **About your care** includes "your results are ready" notices; if you switch these off on both
+channels, you are warned, and you should check MyHealth yourself for new results. **Check-in reminders** are off until you turn them on. A text or email
+never names a test or a result. To change the number or address the clinic uses, ask the clinic to update your record.
+
 ## How to see and withdraw your consents
 
 1. Choose **Profile**, then **Privacy and consents**.
@@ -279,14 +303,16 @@ talk to the clinic.
 ## How to check your profile
 
 Choose **Profile** to see your **Name**, **Patient number**, **Date of birth**, **Sex**, **Clinic** and **Sign-in email**. If something is wrong,
-ask the clinic to correct your record. **Privacy and consents** is linked from here too.
+ask the clinic to correct your record. **Notification settings** and **Privacy and consents** are linked from here too.
 
 ## Rules the system enforces
 
 - You can only set up an account with a valid, unused activation code, your patient number and your date of birth. The code expires after 3 days.
 - Your clinic must have your consent on file. If it is withdrawn, you are signed out and cannot sign in.
 - You can withdraw only the consents MyHealth offers, and only while they are given. Giving a consent is done at the clinic.
-- After 5 wrong passwords in a row, sign-in is locked for about 15 minutes.
+- After 5 wrong passwords in a row, sign-in is locked for about 15 minutes. Resetting your password ends the lock.
+- A password-reset link works once, for 30 minutes, needs your date of birth, and at most 3 are sent per hour. Choosing a new password signs you out
+  everywhere.
 - You can book only kinds of visit the clinic opened for online booking, only in open times of the doctor's schedule.
 - You must book at least 2 hours ahead, and not more than 60 days ahead.
 - You can have at most 3 open online bookings at a time.
@@ -295,42 +321,47 @@ ask the clinic to correct your record. **Privacy and consents** is linked from h
 - Only released results the clinic allows patients to see are shown; results far outside the usual range appear only after your care team has seen
   them.
 - Messages are one-way.
+- You choose text message and email for each kind of message; MyHealth messages cannot be switched off (withdrawing MyHealth is done under Privacy and consents).
 - You cannot edit your record, prescriptions or bills in MyHealth.
 
 ## Troubleshooting / common messages
 
-| Message                                                                                   | Meaning                                                                 | What to do                                                        |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Activation details are incorrect, or the code has expired. Ask the clinic for a new code. | A detail did not match, the code expired or was used, or too many tries | Check your details. If it still fails, ask the clinic for a code  |
-| This email is already used for another portal account                                     | Another MyHealth account uses that email                                | Use a different email                                             |
-| Invalid email or password                                                                 | Email or password is wrong                                              | Try again carefully                                               |
-| Too many failed attempts. Try again later.                                                | Sign-in is locked after repeated wrong passwords                        | Wait about 15 minutes                                             |
-| Too many attempts. Wait a minute, then try again.                                         | Too many tries in a short time                                          | Wait a minute                                                     |
-| Portal access is not currently authorized. Please contact the clinic.                     | Your consent is not on file, or access was disabled                     | Contact the clinic                                                |
-| You were signed out. Sign in again to continue.                                           | Your session ended                                                      | Sign in again                                                     |
-| MyHealth is busy right now                                                                | The system is busy; you are still signed in                             | Wait; the page tries again by itself                              |
-| We couldn't reach MyHealth. Check your connection and try again.                          | No connection                                                           | Check your internet connection                                    |
-| Someone just took that time. Please choose another.                                       | The time was booked while you were choosing                             | Choose another time                                               |
-| That time is too soon to book online. Choose a later time or call the clinic.             | Less than 2 hours away                                                  | Choose a later time or call                                       |
-| That date is too far ahead to book online.                                                | More than 60 days away                                                  | Choose an earlier date                                            |
-| You already have the most online bookings allowed. Cancel one, or call the clinic.        | You have 3 open online bookings                                         | Cancel one you no longer need, or call                            |
-| It is too close to the appointment to change it online. Please call the clinic.           | Less than 2 hours before the visit                                      | Call the clinic                                                   |
-| This kind of visit cannot be booked online. Please call the clinic.                       | The clinic does not allow this visit type online                        | Call the clinic                                                   |
-| This appointment was just changed. Reload the page to see the latest.                     | The clinic changed the visit at the same time                           | Reload the page                                                   |
-| Please answer the questions before the consultation first                                 | You tried to enter the waiting room before sending your answers         | Send your answers first                                           |
-| Your doctor has not started the consultation yet                                          | The video opens when the doctor starts                                  | Stay in the waiting room                                          |
-| Your dentist changed this plan since you opened it. The page shows the latest version.    | The plan changed while you were deciding                                | Review the updated plan and decide again                          |
-| This consent is withdrawn at the clinic, which can explain what it means for your care.   | MyHealth does not offer withdrawing it                                  | Talk to the clinic                                                |
-| You withdrew your consent to MyHealth and were signed out.                                | You withdrew MyHealth                                                   | Give your consent at the clinic to use it again                   |
-| Online payment is not available yet; please pay at the clinic                             | No payment provider is connected                                        | Pay at the cashier                                                |
-| Something went wrong on our side. Try again in a few minutes. (ref …)                     | A system error                                                          | Try again later; give the "ref" code to the clinic if it persists |
+| Message                                                                                   | Meaning                                                                    | What to do                                                        |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Activation details are incorrect, or the code has expired. Ask the clinic for a new code. | A detail did not match, the code expired or was used, or too many tries    | Check your details. If it still fails, ask the clinic for a code  |
+| This email is already used for another portal account                                     | Another MyHealth account uses that email                                   | Use a different email                                             |
+| This link or date of birth is not correct, or the link has expired. Ask for a new link.   | The reset link was used, replaced, expired, or the date of birth was wrong | Ask for a new link and enter your date of birth as on your record |
+| Invalid email or password                                                                 | Email or password is wrong                                                 | Try again carefully                                               |
+| Too many failed attempts. Try again later.                                                | Sign-in is locked after repeated wrong passwords                           | Wait about 15 minutes                                             |
+| Too many attempts. Wait a minute, then try again.                                         | Too many tries in a short time                                             | Wait a minute                                                     |
+| Portal access is not currently authorized. Please contact the clinic.                     | Your consent is not on file, or access was disabled                        | Contact the clinic                                                |
+| You were signed out. Sign in again to continue.                                           | Your session ended                                                         | Sign in again                                                     |
+| MyHealth is busy right now                                                                | The system is busy; you are still signed in                                | Wait; the page tries again by itself                              |
+| We couldn't reach MyHealth. Check your connection and try again.                          | No connection                                                              | Check your internet connection                                    |
+| Someone just took that time. Please choose another.                                       | The time was booked while you were choosing                                | Choose another time                                               |
+| That time is too soon to book online. Choose a later time or call the clinic.             | Less than 2 hours away                                                     | Choose a later time or call                                       |
+| That date is too far ahead to book online.                                                | More than 60 days away                                                     | Choose an earlier date                                            |
+| You already have the most online bookings allowed. Cancel one, or call the clinic.        | You have 3 open online bookings                                            | Cancel one you no longer need, or call                            |
+| It is too close to the appointment to change it online. Please call the clinic.           | Less than 2 hours before the visit                                         | Call the clinic                                                   |
+| This kind of visit cannot be booked online. Please call the clinic.                       | The clinic does not allow this visit type online                           | Call the clinic                                                   |
+| This appointment was just changed. Reload the page to see the latest.                     | The clinic changed the visit at the same time                              | Reload the page                                                   |
+| Please answer the questions before the consultation first                                 | You tried to enter the waiting room before sending your answers            | Send your answers first                                           |
+| Your doctor has not started the consultation yet                                          | The video opens when the doctor starts                                     | Stay in the waiting room                                          |
+| Your dentist changed this plan since you opened it. The page shows the latest version.    | The plan changed while you were deciding                                   | Review the updated plan and decide again                          |
+| This consent is withdrawn at the clinic, which can explain what it means for your care.   | MyHealth does not offer withdrawing it                                     | Talk to the clinic                                                |
+| You withdrew your consent to MyHealth and were signed out.                                | You withdrew MyHealth                                                      | Give your consent at the clinic to use it again                   |
+| Online payment is not available yet; please pay at the clinic                             | No payment provider is connected                                           | Pay at the cashier                                                |
+| Something went wrong on our side. Try again in a few minutes. (ref …)                     | A system error                                                             | Try again later; give the "ref" code to the clinic if it persists |
 
 ## For clinic staff
 
 - Staff invite patients and disable access from the patient record, in the portal access panel (**Invite to portal**, **Issue new code**, **Disable
   access**). This needs the `patient.portal.manage` permission (by default: receptionist, records officer, organization administrator). The patient's
   `portal_access` consent must be recorded first. See [Patients](02-patients.md).
-- A patient with an **active** account who forgot the password: **Disable access** (with a reason), then **Issue new code**.
+- A patient with an **active** account who forgot the password can reset it in MyHealth (**Forgot your password?**, by email). If they cannot reach the
+  email on the account, **Disable access** (with a reason), then **Issue new code**, after checking their identity in person. Password resets are
+  audited (`portal.password-reset-request`, `portal.password-reset`); email verification is not available yet, which is why the reset asks for the
+  date of birth too.
 - Dental sharing and online plan decisions are organization settings under `/dental/settings`. See [Dental](08-dental.md).
 - Patients' records requests are answered under **Records** → **Requests**; medical certificates are issued from the signed consultation. See
   [Records, reporting and integrations](11-records-reporting-and-integrations.md) and [Consultations](04-consultations-and-care-plans.md).

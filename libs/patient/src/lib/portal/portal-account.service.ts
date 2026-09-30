@@ -481,6 +481,19 @@ export class PortalAccountService {
     return this.hasPortalConsent(this.db, organizationId, patientId);
   }
 
+  /**
+   * Where security messages (a password-reset link) go: the sign-in email of an active account whose portal consent is
+   * in effect. Undefined otherwise — nothing is sent about an account that cannot sign in.
+   */
+  async securityEmail(organizationId: string, patientId: string): Promise<string | undefined> {
+    const [account] = await this.db
+      .select({ status: patientPortalAccount.status, email: patientPortalAccount.email })
+      .from(patientPortalAccount)
+      .where(and(eq(patientPortalAccount.organizationId, organizationId), eq(patientPortalAccount.patientId, patientId)));
+    if (account?.status !== "active" || !account.email) return undefined;
+    return (await this.hasPortalConsent(this.db, organizationId, patientId)) ? account.email : undefined;
+  }
+
   /** The signed-in patient's own profile (identity only; clinical records come from the portal records endpoints). */
   async me(principal: PortalPrincipal) {
     const [row] = await this.db
@@ -524,7 +537,7 @@ export class PortalAccountService {
   }
 
   /** The latest portal_access decision is "granted" and currently in effect (consents are append-only). */
-  private async hasPortalConsent(executor: DbExecutor, organizationId: string, patientId: string): Promise<boolean> {
+  async hasPortalConsent(executor: DbExecutor, organizationId: string, patientId: string): Promise<boolean> {
     const [latest] = await executor
       .select()
       .from(patientConsent)
@@ -535,7 +548,7 @@ export class PortalAccountService {
     return Boolean(latest && latest.decision === "granted" && latest.effectiveAt <= now && (!latest.expiresAt || latest.expiresAt > now));
   }
 
-  private async organizationByCode(code: string) {
+  async organizationByCode(code: string) {
     const [org] = await this.db.select({ id: organization.id, status: organization.status }).from(organization).where(eq(organization.code, code));
     return org && org.status === "active" ? org : undefined;
   }
@@ -602,7 +615,7 @@ export class PortalAccountService {
     };
   }
 
-  private async revokeAll(executor: DbExecutor, accountId: string, reason: string): Promise<void> {
+  async revokeAll(executor: DbExecutor, accountId: string, reason: string): Promise<void> {
     await executor
       .update(patientPortalSession)
       .set({ revokedAt: new Date(), revokedReason: reason })

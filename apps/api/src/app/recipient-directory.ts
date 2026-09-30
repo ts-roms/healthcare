@@ -18,7 +18,13 @@ export class AppRecipientDirectory implements RecipientDirectory {
 
   async resolve(organizationId: string, recipient: Recipient, channel: NotificationChannel, category: NotificationCategory): Promise<RecipientResolution> {
     if (recipient.type === "patient") {
-      if (category === "security") return { allowed: false, reason: "invalid_category" };
+      if (category === "security") {
+        // Only the platform's own internal templates reach a patient this way (NotificationService): the account's
+        // sign-in email, and only while the account can sign in. No communication preference applies.
+        if (channel !== "email") return { allowed: false, reason: "invalid_channel" };
+        const email = await this.portal.securityEmail(organizationId, recipient.patientId);
+        return email ? { allowed: true, destination: email } : { allowed: false, reason: "no_portal_account" };
+      }
       const portalActive = channel === "in_app" && (await this.portal.canUsePortal(organizationId, recipient.patientId));
       return this.patients.resolveContact(organizationId, recipient.patientId, channel, category, portalActive);
     }

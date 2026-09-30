@@ -19,6 +19,7 @@ Statuses: `queued → sending → sent` (or back to `queued` for retry, then
 Code-defined, versioned, with Zod-validated variables (`templates.ts`).
 External channels must not carry clinical detail. Templates:
 `patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
+`portal.password-reset` and `portal.password-changed` (email only, category `security`, **internal**: sent by the platform to a MyHealth account's sign-in email, never through `POST /notifications`; the reset link is a `secretVariables` entry blanked in the stored row once sent, failed or suppressed),
 `staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
 `lab.quality-notice` (in-app to laboratory quality managers: a nonconformance opened, a QC run rejected, a temperature
 reading missed or a competency reassessment due — the last also to the person; record numbers, instrument, unit, test

@@ -20,7 +20,12 @@ describe("portal proxy", () => {
   });
 
   it("lets signed-out patients reach sign-in and activation", async () => {
-    for (const path of ["/login", "/activate"]) expect((await proxy(request(path))).headers.get("location")).toBeNull();
+    for (const path of ["/login", "/activate", "/forgot-password"]) expect((await proxy(request(path))).headers.get("location")).toBeNull();
+  });
+
+  it("opens the password-reset link to everyone, signed in or not", async () => {
+    expect((await proxy(request("/reset-password"))).headers.get("location")).toBeNull();
+    expect((await proxy(request("/reset-password", SIGNED_IN))).headers.get("location")).toBeNull();
   });
 
   it("shows the MyHealth guide to everyone, signed in or not", async () => {

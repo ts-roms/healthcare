@@ -215,8 +215,10 @@ priming or waste with **Record use…**. **Laboratory → Reagent use** shows us
 already unloaded. See [Laboratory quality](07-laboratory-quality.md#how-to-follow-reagent-use-per-test-run).
 
 **12. A patient forgot their MyHealth password. What do I do?**
-There is no self-service reset. On the patient record's portal access panel, choose **Disable access** (reason, e.g. "Patient request"), then
-**Issue new code** and give the code to the patient in person after checking their identity. The patient sets up the account again.
+The patient can use **Forgot your password?** on the MyHealth sign-in page: a link goes to the account's email and, with their date of birth, lets
+them choose a new password (see [MyHealth](12-patient-portal.md#how-to-reset-your-password)). If they cannot reach that email, on the patient
+record's portal access panel choose **Disable access** (reason, e.g. "Patient request"), then **Issue new code** and give the code to the patient in
+person after checking their identity. The patient sets up the account again.
 
 **13. Why are times shown as they are?**
 Clinical times are shown in the facility's time zone (Asia/Manila by default), whatever the time zone of your computer.
