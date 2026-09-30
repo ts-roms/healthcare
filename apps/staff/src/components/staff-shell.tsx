@@ -46,6 +46,9 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
   const [pending, startTransition] = React.useTransition();
   const navigation = React.useMemo(() => navigationForPermissions(permissions), [permissions]);
 
+  // Company settings are the administration pages; staff without access to any of them only see their own account.
+  const canOpenCompanySettings = navigation.some((item) => item.href === "/admin");
+
   return (
     <StaffLayout
       pathname={pathname}
@@ -123,11 +126,13 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
                   <UserRoundIcon aria-hidden /> My account
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/account">
-                  <SettingsIcon aria-hidden /> Settings
-                </Link>
-              </DropdownMenuItem>
+              {canOpenCompanySettings ? (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin">
+                    <SettingsIcon aria-hidden /> Company settings
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void signOut()}>
                 <LogOutIcon aria-hidden /> Log out
