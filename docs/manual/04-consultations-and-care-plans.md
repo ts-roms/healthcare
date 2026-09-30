@@ -177,6 +177,31 @@ An issued certificate cannot be edited. If it is wrong, select **Void…**, give
 who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
 an employer, school or agency may require — write what they need in your own words.
 
+## How to refer a patient
+
+The consultation's responsible practitioner refers from the encounter workspace, during the consultation or after signing.
+
+1. Under **Referrals**, select **Refer**.
+2. Choose **A practitioner here** and pick the practitioner, or **An outside provider** and write the provider's name, and optionally the facility
+   and how to reach them.
+3. Add the **Specialty or service** if useful, choose the **Urgency**, write the **Reason for referral** (your question for them) and, if you like,
+   a **Clinical summary**. Tick the diagnoses to list on the letter.
+4. Select **Send referral**. It gets a number (`RF########`). Select **Letter** to print it; it lists the patient's active allergies and your name
+   and license number.
+
+What you write cannot be edited. If it is wrong, open the referral and cancel it with a reason, then refer again.
+
+**When a patient is referred to you**, you get a message under the bell. Open **Clinic → Referrals** (`/clinic/referrals`, **Referred to me**),
+open the referral and select **Accept** or **Decline** (declining needs a reason the referrer reads). Reception can link the appointment they
+book with you (**Appointment → Link appointment**, or **Book an appointment…**). After you have seen the patient, write **What came of it** and
+select **Complete referral**; the referrer is told.
+
+**For an outside provider**, give or send the letter the way you usually do. When their reply arrives, open the referral and use **Record the
+reply**: write a summary and, if you uploaded the reply to the patient record, its document id. The platform sends nothing to outside
+providers by itself.
+
+Referrals appear on the patient's timeline (without the reason). **Clinic → Referrals** also lists referrals you made and all open ones.
+
 ## How to amend a signed encounter
 
 1. Open the signed encounter and select **Amend note** (needs `encounter.amend`).

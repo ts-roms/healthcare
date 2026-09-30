@@ -49,6 +49,7 @@ import { PatientWorkspaceController } from "./patient-360/patient-workspace.cont
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
 import { ControlledRegisterController } from "./controlled-register/controlled-register.controller";
 import { RecordCopyController } from "./record-copy/record-copy.controller";
+import { ReferralNotices } from "./referral-notices";
 import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
@@ -223,6 +224,7 @@ export class AppModule implements NestModule {
         PatientResultNotices,
         PatientDentalNotices,
         PatientRecordsNotices,
+        ReferralNotices,
         PortalSecurityNotices,
         PatientMessageNoticeSource,
         PatientMessageNotices,

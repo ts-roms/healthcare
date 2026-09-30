@@ -21,6 +21,7 @@ import {
   encounterNoteRevision,
   externalHistoryEntry,
   practitioner,
+  referral,
   visit,
   visitType,
   vitalSignSet,
@@ -481,6 +482,41 @@ export class ClinicQueries {
         ),
       )
       .orderBy(desc(at), desc(encounter.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Referrals at the time issued, with the practitioner referred to or the outside provider named, the specialty and the
+   * status (never the reason or summary). Cancelled ones are included with their status.
+   */
+  timelineReferrals(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = referral.issuedAt;
+    return this.db
+      .select({
+        id: referral.id,
+        patientId: referral.patientId,
+        at: timelineInstant(at),
+        facilityId: referral.facilityId,
+        status: referral.status,
+        referralNumber: referral.referralNumber,
+        kind: referral.kind,
+        specialty: referral.specialty,
+        urgency: referral.urgency,
+        encounterId: referral.encounterId,
+        externalProvider: referral.externalProvider,
+        toPractitionerName: practitioner.displayName,
+      })
+      .from(referral)
+      .leftJoin(practitioner, eq(practitioner.id, referral.toPractitionerId))
+      .where(
+        and(
+          eq(referral.organizationId, organizationId),
+          filedAsPatient(referral.patientId, patientId),
+          timelineFacility(referral.facilityId, window),
+          timelineRange("referral", at, referral.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(referral.id))
       .limit(window.limit);
   }
 

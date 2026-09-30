@@ -28,6 +28,7 @@ export type TimelineLinkType =
   | "appointment"
   | "telemedicine"
   | "encounter"
+  | "referral"
   | "patient_laboratory"
   | "dental_record"
   | "care_plan"
@@ -220,6 +221,21 @@ export class PatientTimelineService {
             sourceIds: { encounterId: e.id, ...(e.appointmentId ? { appointmentId: e.appointmentId } : {}) },
           });
         });
+      case "referral":
+        return (await this.clinic.timelineReferrals(organizationId, patientId, window)).map((r) =>
+          row("referral", r, {
+            title: `Referral ${r.referralNumber}${r.specialty ? `: ${r.specialty}` : ""}`,
+            detail: [
+              r.kind === "internal" ? (r.toPractitionerName ?? "A practitioner here") : (r.externalProvider ?? "Outside provider"),
+              r.urgency === "routine" ? null : r.urgency === "urgent" ? "Urgent" : "Emergency",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            status: r.status,
+            link: { type: "referral", id: r.id },
+            sourceIds: { referralId: r.id, encounterId: r.encounterId },
+          }),
+        );
       case "vitals":
         return (await this.clinic.timelineVitals(organizationId, patientId, window)).map((v) =>
           row("vitals", v, {

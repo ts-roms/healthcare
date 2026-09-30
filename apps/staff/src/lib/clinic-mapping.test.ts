@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api/types";
 import {
+  referralRecipient,
   appointmentActions,
   canStartConsultation,
   canTriage,
@@ -209,5 +210,16 @@ describe("upcomingAppointments", () => {
       { id: "arrived", status: "checked_in" as const, startsAt: at("04"), endsAt: at("05") },
     ];
     expect(upcomingAppointments(rows, new Date(at("02"))).map((r) => r.id)).toEqual(["now", "later"]);
+  });
+});
+
+describe("referral recipient", () => {
+  it("names the practitioner referred to, or the outside provider and facility", () => {
+    expect(referralRecipient({ kind: "internal", toPractitioner: { displayName: "Dr. Cruz" }, externalProvider: null, externalFacility: null })).toBe(
+      "Dr. Cruz",
+    );
+    expect(referralRecipient({ kind: "external", toPractitioner: null, externalProvider: "Dr. Reyes", externalFacility: "Heart Center" })).toBe(
+      "Dr. Reyes, Heart Center",
+    );
   });
 });
