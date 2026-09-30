@@ -20,6 +20,7 @@ import {
   ReceiptIcon,
   SmileIcon,
   HistoryIcon,
+  NotebookTextIcon,
   LayoutDashboardIcon,
   GitMergeIcon,
   WaypointsIcon,
@@ -65,6 +66,8 @@ import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { MergedRecords } from "./merged-records";
 import { ImmunizationHistory } from "@/components/immunizations/immunization-panel";
 import type { ImmunizationRecord } from "@/lib/api/types";
+import { HistorySummary } from "@/components/history/history-panels";
+import { loadPatientHistory } from "@/lib/api/history";
 
 /** The immunization history (audited by the API); null without immunization.read. */
 async function loadImmunizations(id: string): Promise<ImmunizationRecord[] | null> {
@@ -240,7 +243,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getSession(),
   ]);
   const merged = p.status === "merged";
-  const [mergeHistory, immunizations] = await Promise.all([loadMergeHistory(p), merged ? Promise.resolve(null) : loadImmunizations(id)]);
+  const [mergeHistory, immunizations, medicalHistory] = await Promise.all([
+    loadMergeHistory(p),
+    merged ? Promise.resolve(null) : loadImmunizations(id),
+    merged ? Promise.resolve(null) : loadPatientHistory(id).then((h) => h.history),
+  ]);
   const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBill = can(session, "billing.charge.read");
@@ -565,6 +572,21 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                   filedUnder: r.patientId !== p.id ? (r.patient?.patientNumber ?? null) : null,
                 }))}
               />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {medicalHistory ? (
+          <Card className="lg:col-span-2" id="history">
+            <CardHeader>
+              <NotebookTextIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Medical, family and social history</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/history`}>{can(session, "history.record") ? "Open and record" : "Open history"}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <HistorySummary history={medicalHistory} />
             </CardContent>
           </Card>
         ) : null}

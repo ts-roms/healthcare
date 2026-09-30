@@ -39,6 +39,7 @@ import type {
   PatientSummaryResponse,
   Prescription,
   TelemedicineConsultation,
+  PatientHistory,
 } from "@/lib/api/types";
 import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
@@ -57,6 +58,7 @@ import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEn
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { CertificatesPanel } from "./certificates-panel";
 import { type EncounterImmunizations, ImmunizationsPanel } from "./immunizations-panel";
+import { HistoryPanel } from "./history-panel";
 import { ReferralsPanel } from "./referrals-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { LabOrdersPanel } from "./lab-orders-panel";
@@ -85,6 +87,7 @@ export function EncounterWorkspace({
   lab,
   certificates,
   immunizations = null,
+  medicalHistory = null,
   referrals,
 }: {
   encounter: EncounterDetail;
@@ -120,6 +123,8 @@ export function EncounterWorkspace({
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
   /** Immunizations: this consultation's doses and the history (null: no access). */
   immunizations?: EncounterImmunizations | null;
+  /** Past procedures and conditions, family and social history (history null: no access). */
+  medicalHistory?: { history: PatientHistory | null; canRecord: boolean } | null;
   /** Referrals from this consultation (items null: no access). */
   referrals: { items: Referral[] | null; canRefer: boolean; practitioners: Practitioner[]; currentPractitionerId: string | null };
 }) {
@@ -422,6 +427,13 @@ export function EncounterWorkspace({
                 patientId={encounter.patientId}
                 open={encounter.status !== "entered_in_error"}
                 data={immunizations}
+              />
+              <HistoryPanel
+                encounterId={encounter.id}
+                patientId={encounter.patientId}
+                history={medicalHistory?.history ?? null}
+                canRecord={medicalHistory?.canRecord ?? false}
+                open={encounter.status !== "entered_in_error"}
               />
               <ReferralsPanel
                 encounterId={encounter.id}

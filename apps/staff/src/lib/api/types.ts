@@ -2399,7 +2399,8 @@ export interface AllergyRecord {
 
 export type FhirImportStatus = "pending_review" | "accepted" | "partially_accepted" | "rejected";
 export type FhirImportEntryOutcome = "pending" | "accepted" | "rejected" | "not_supported";
-export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "immunization" | "not_supported";
+export type FhirImportKind =
+  "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "immunization" | "procedure" | "family_history" | "not_supported";
 
 export interface FhirImportSummary {
   id: string;
@@ -2529,6 +2530,8 @@ export type ImportedItem =
   | ImportedMedicationItem
   | ImportedDocumentItem
   | ImportedImmunizationItem
+  | ImportedProcedureItem
+  | ImportedFamilyHistoryItem
   | (ImportedBase & { kind: "not_supported" });
 
 export interface FhirImportEntry {
@@ -2537,10 +2540,10 @@ export interface FhirImportEntry {
   resourceType: string;
   kind: FhirImportKind;
   /** What accepting creates. */
-  becomes: "allergy" | "immunization" | "external_history" | "patient_match" | null;
+  becomes: "allergy" | "immunization" | "past_procedure" | "family_history" | "external_history" | "patient_match" | null;
   outcome: FhirImportEntryOutcome;
   reason: string | null;
-  resultType: "allergy_intolerance" | "external_history_entry" | "immunization" | "patient" | null;
+  resultType: "allergy_intolerance" | "external_history_entry" | "immunization" | "past_procedure" | "family_history_entry" | "patient" | null;
   resultId: string | null;
   decidedAt: string | null;
   /** Null once the received content was deleted by the retention rule. */
@@ -3357,7 +3360,7 @@ export interface PurchaseOrderInvoicing {
 // ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
 
 export type PatientWorkspacePanel =
-  "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "referrals" | "immunizations";
+  "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "referrals" | "immunizations" | "history";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3467,6 +3470,8 @@ export interface PatientWorkspace {
   referrals?: WorkspaceReferral[] | null;
   /** The latest immunizations (entries in error left out); absent from an older API. */
   immunizations?: WorkspaceImmunization[] | null;
+  /** The patient history summary (needs history.read); absent from an older API. */
+  history?: WorkspaceHistory | null;
   /** Records merged into this patient, read with it. */
   linkedRecords?: Array<{ id: string; patientNumber: string }>;
   withheld: PatientWorkspacePanel[];
@@ -4136,4 +4141,181 @@ export interface StaffProxyGrant {
 export interface StaffProxyOverview {
   actedForBy: StaffProxyGrant[];
   actingFor: StaffProxyGrant[];
+}
+
+// ---- Patient history (migration 0082; docs/domains/patient-history.md) ----
+
+export type HistoryDatePrecision = "year" | "month" | "day";
+export type HistoryInformant = "patient" | "relative" | "other_provider";
+export type FamilyRelationship =
+  | "mother"
+  | "father"
+  | "sister"
+  | "brother"
+  | "sibling"
+  | "half_sibling"
+  | "daughter"
+  | "son"
+  | "child"
+  | "maternal_grandmother"
+  | "maternal_grandfather"
+  | "paternal_grandmother"
+  | "paternal_grandfather"
+  | "maternal_aunt"
+  | "maternal_uncle"
+  | "paternal_aunt"
+  | "paternal_uncle"
+  | "cousin"
+  | "other";
+export type FamilyHistoryState = "not_recorded" | "recorded" | "none_known" | "unknown";
+export type FamilyReviewOutcome = "reviewed" | "none_known" | "unknown";
+export type FamilyUnknownReason = "adopted" | "not_known" | "declined_to_answer";
+export type UseStatus = "never" | "former" | "current" | "unknown";
+
+interface HistoryEntryMeta {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  encounterId: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+}
+
+export interface PastProcedure extends HistoryEntryMeta {
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  performed: string | null;
+  performedPrecision: HistoryDatePrecision | null;
+  performer: string | null;
+  bodySite: string | null;
+  notes: string | null;
+  source: "reported" | "recorded_here" | "external_import";
+  reportedBy: HistoryInformant | null;
+  sourceDescription: string | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+}
+
+export interface PastCondition extends HistoryEntryMeta {
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  onset: string | null;
+  onsetPrecision: HistoryDatePrecision | null;
+  status: "active" | "resolved" | "unknown";
+  diagnosedBy: string | null;
+  notes: string | null;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  sourceDescription: string | null;
+}
+
+export interface FamilyHistoryEntry extends HistoryEntryMeta {
+  relationship: FamilyRelationship;
+  relationshipText: string | null;
+  relative: string;
+  condition: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetAge: number | null;
+  deceased: boolean | null;
+  causeOfDeath: string | null;
+  notes: string | null;
+  source: "reported" | "external_import";
+  reportedBy: HistoryInformant | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+}
+
+export interface FamilyReview {
+  id: string;
+  patientId: string;
+  encounterId: string | null;
+  outcome: FamilyReviewOutcome;
+  unknownReason: FamilyUnknownReason | null;
+  notes: string | null;
+  reviewedAt: string;
+  reviewedByName: string | null;
+}
+
+export interface SocialHistoryFields {
+  tobaccoStatus: UseStatus | null;
+  tobaccoType: string | null;
+  tobaccoAmount: string | null;
+  tobaccoQuitYear: number | null;
+  alcoholStatus: UseStatus | null;
+  alcoholFrequency: string | null;
+  /** Sensitive: null when withheld. */
+  substanceUse: string | null;
+  occupation: string | null;
+  occupationalExposures: string | null;
+  livingSituation: string | null;
+  physicalActivity: string | null;
+  diet: string | null;
+  /** Sensitive: null when withheld. */
+  sexualHistory: string | null;
+  notes: string | null;
+}
+
+export interface SocialHistoryVersion extends HistoryEntryMeta, SocialHistoryFields {
+  supersedesId: string | null;
+  effectiveDate: string;
+  sensitiveWithheld: boolean;
+  current: boolean;
+}
+
+/** GET /patients/:id/history (history.read; audited). */
+export interface PatientHistory {
+  patientId: string;
+  sensitiveAccess: boolean;
+  procedures: PastProcedure[];
+  conditions: PastCondition[];
+  family: { state: FamilyHistoryState; latestReview: FamilyReview | null; reviews: FamilyReview[]; entries: FamilyHistoryEntry[] };
+  social: { current: SocialHistoryVersion | null; versions: SocialHistoryVersion[] };
+}
+
+export interface WorkspaceHistory {
+  procedures: Array<{ id: string; filedUnder: string | null; description: string; performed: string | null; source: string }>;
+  proceduresTotal: number;
+  conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
+  conditionsTotal: number;
+  family: {
+    state: FamilyHistoryState;
+    entries: Array<{ id: string; filedUnder: string | null; relative: string; condition: string; onsetAge: number | null }>;
+    total: number;
+  };
+  social: {
+    effectiveDate: string;
+    tobacco: string | null;
+    alcohol: string | null;
+    occupation: string | null;
+    sensitiveWithheld: boolean;
+    substanceUse: string | null;
+    sexualHistory: string | null;
+  } | null;
+}
+
+export interface ImportedProcedureItem extends ImportedBase {
+  kind: "procedure";
+  subject: SubjectMatch;
+  display: string | null;
+  codes: ImportedCode[];
+  status: string;
+  performed: string | null;
+  performedText: string | null;
+  performer: string | null;
+  bodySite: string | null;
+  outcome: string | null;
+}
+
+export interface ImportedFamilyHistoryItem extends ImportedBase {
+  kind: "family_history";
+  subject: SubjectMatch;
+  relationship: string;
+  relationshipText: string | null;
+  status: string;
+  deceased: boolean | null;
+  conditions: Array<{ display: string; codes: ImportedCode[]; onsetAge: number | null; onsetText: string | null; contributedToDeath: boolean }>;
 }
