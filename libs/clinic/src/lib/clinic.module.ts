@@ -18,6 +18,8 @@ import {
 } from "./clinic.controllers";
 import { MedicalCertificateController } from "./certificates/medical-certificate.controller";
 import { MedicalCertificateService } from "./certificates/medical-certificate.service";
+import { ReferralController } from "./referrals/referral.controller";
+import { ReferralService } from "./referrals/referral.service";
 import { ClinicQueries } from "./clinic-queries.service";
 import { ClinicReportingQueries } from "./dashboard/clinic-reporting.queries";
 import { ClinicConfigService } from "./config/clinic-config.service";
@@ -59,6 +61,7 @@ export class ClinicModule {
         ExternalHistoryController,
         MedicalCertificateController,
         ImmunizationController,
+        ReferralController,
       ],
       providers: [
         AppointmentReminders,
@@ -71,6 +74,7 @@ export class ClinicModule {
         EncounterService,
         ExternalRecordsService,
         MedicalCertificateService,
+        ReferralService,
         NoShowFollowUp,
         OnlineVisitService,
         PatientBookingNotices,
@@ -88,6 +92,7 @@ export class ClinicModule {
         ClinicReportingQueries,
         ExternalRecordsService,
         MedicalCertificateService,
+        ReferralService,
         OnlineVisitService,
         PatientBookingService,
         PatientWaitlistService,

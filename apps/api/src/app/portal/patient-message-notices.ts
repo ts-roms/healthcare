@@ -3,6 +3,7 @@ import { UsersService } from "@healthcare/auth";
 import { DomainEventHandlers, type DomainEventRecord, systemActor } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
+import { PatientPush } from "./patient-push";
 import { PortalAccountService } from "@healthcare/patient";
 import { PatientMessageNoticeSource } from "./patient-message-notice-source";
 
@@ -24,6 +25,7 @@ export class PatientMessageNotices implements OnModuleInit {
     private readonly notifications: NotificationService,
     private readonly users: UsersService,
     private readonly source: PatientMessageNoticeSource,
+    private readonly push: PatientPush,
   ) {}
 
   onModuleInit(): void {
@@ -68,6 +70,14 @@ export class PatientMessageNotices implements OnModuleInit {
         variables: { organizationName: organization.name.slice(0, 80) },
         idempotencyKey: `message-received:${event.id}:${channel}`,
       });
+    if (
+      await this.push.send(actor, patientId, {
+        templateKey: "portal.message-received",
+        variables: { organizationName: organization.name.slice(0, 80) },
+        idempotencyKey: `message-received:${event.id}:push`,
+      })
+    )
+      return;
     const sms = await message("sms");
     if (sms.status === "suppressed") await message("email");
   }

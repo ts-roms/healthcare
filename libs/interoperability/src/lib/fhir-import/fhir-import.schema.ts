@@ -1,7 +1,7 @@
 import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ImportKind } from "./inbound-model";
 
-// Mirrors database/migrations/0048_fhir_import.sql and 0079 (immunizations) (the migrations are the source of truth).
+// Mirrors database/migrations/0048_fhir_import.sql and 0080 (immunizations) (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 

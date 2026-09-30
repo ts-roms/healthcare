@@ -52,11 +52,11 @@ content) and `portal.message-new` (in-app to staff) announce conversation messag
 
 ## Ports
 
-| Port                 | Implementations                                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `RecipientDirectory` | `AppRecipientDirectory` in `apps/api` (patients via patient policy, in-app only with an active MyHealth account; staff email/in-app)  |
-| `NotificationQueue`  | BullMQ (`REDIS_URL`); recording queue in tests                                                                                        |
-| `ChannelSender`      | SMTP email (`SMTP_URL`); logging sender in dev/test; `UnconfiguredSender` in production for SMS and push until providers are selected |
+| Port                 | Implementations                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RecipientDirectory` | `AppRecipientDirectory` in `apps/api` (patients via patient policy, in-app only with an active MyHealth account; staff email/in-app)                                                                          |
+| `NotificationQueue`  | BullMQ (`REDIS_URL`); recording queue in tests                                                                                                                                                                |
+| `ChannelSender`      | SMTP email (`SMTP_URL`); Web Push (`WebPushSender`, when the VAPID keys are set); logging sender in dev/test; `UnconfiguredSender` in production for SMS (and push without keys) until providers are selected |
 
 ## Worker
 
@@ -70,4 +70,25 @@ min, or stuck in `sending` > 15 min). At-least-once delivery.
 
 ## Dependencies
 
-SMS and push providers: see `docs/interoperability/dependencies.md`.
+SMS providers, and push to a mobile app: see `docs/interoperability/dependencies.md`.
+
+## Push (Web Push to patients' browsers)
+
+Migration `0079` (`push_subscription`). Standard Web Push (RFC 8030, message encryption RFC 8291, VAPID): no provider account, only the
+platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` or `https:` contact), all three or none
+(`npx web-push generate-vapid-keys`). Without them MyHealth does not offer push. Web Push needs a secure address (https, or localhost).
+
+- **Devices.** After the patient allows notifications in their browser, MyHealth registers the device against their MyHealth account
+  (`POST /portal/push/subscriptions`; up to 5 devices; `PushSubscriptionService`). A browser that another account signs in on moves to
+  that account. A device the push service reports gone (404/410) or that fails 5 times in a row is dropped; the patient can remove a
+  device or ask for a test (`portal.push-test`).
+- **Channel.** `push` is a normal notification channel: `destination` is the MyHealth account and the sender delivers to every active
+  device of it (`WebPushSender`; accepted by at least one device = sent; every device failing for a reason that may pass is retried;
+  none left fails for good). The recipient directory resolves it only for an active account with portal consent and at least one
+  device, and the patient's preferences apply as for SMS and email (care and administrative on, outreach off unless chosen).
+- **Content.** A push carries a title, one line and a page — the same content-free text an SMS may carry (a result, a message, a
+  record or a dental item is _waiting_; never what it says). Templates that may use it list `push` among their channels.
+- **Push first** (`apps/api/src/app/portal/patient-push.ts`): for a patient with a device, the results-ready, records, dental and
+  "a message is waiting" notices go to the device instead of SMS or email; without a device there is no push attempt (no suppressed row)
+  and SMS then email work as before. The waiting-list notice stays SMS or email.
+- Not built: push for staff, a mobile app (Expo/FCM/APNs), topics or badges, delivery receipts from the browser.

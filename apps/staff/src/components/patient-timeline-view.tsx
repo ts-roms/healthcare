@@ -16,6 +16,7 @@ import {
   PillIcon,
   ReceiptIcon,
   ShieldPlusIcon,
+  SendIcon,
   SmileIcon,
   StethoscopeIcon,
   TestTubeIcon,
@@ -30,6 +31,7 @@ import { filedUnderText } from "@/lib/patient-merge";
 const KIND_ICONS: Record<PatientTimelineKind, LucideIcon> = {
   appointment: CalendarIcon,
   encounter: StethoscopeIcon,
+  referral: SendIcon,
   vitals: HeartPulseIcon,
   prescription: PillIcon,
   lab_order: TestTubeIcon,

@@ -15,6 +15,7 @@ import type {
   LabPanel,
   LabTest,
   MedicalCertificate,
+  Referral,
   Page,
   PatientDetail,
   PatientLabResult,
@@ -82,6 +83,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     certificates,
     immunizationData,
     immunizationHistory,
+    referrals,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -99,6 +101,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     optional<MedicalCertificate[]>(`/encounters/${encounter.id}/certificates`),
     loadImmunizationData(encounter.patientId, { encounterId: encounter.id }),
     can(session, "immunization.read") ? optional<ImmunizationRecord[]>(`/patients/${encounter.patientId}/immunizations`) : Promise.resolve(null),
+    optional<Referral[]>(`/encounters/${encounter.id}/referrals`),
   ]);
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
@@ -168,6 +171,13 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
             }
           : null
       }
+      referrals={{
+        items: referrals,
+        // The API decides for sure: the consultation's responsible practitioner refers.
+        canRefer: can(session, "encounter.write") && encounter.status !== "entered_in_error" && (practitioners ? mine?.id === encounter.practitionerId : true),
+        practitioners: practitioners ?? [],
+        currentPractitionerId: mine?.id ?? null,
+      }}
     />
   );
 }

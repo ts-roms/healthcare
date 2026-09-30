@@ -7,12 +7,13 @@ import {
   type Provider,
   type Type,
 } from "@nestjs/common";
-import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, DATABASE } from "@healthcare/core";
 import { BullMqNotificationQueue, NotificationWorkerRunner } from "./bullmq";
 import { defaultChannelSenders } from "./channel-senders";
 import { NotificationController } from "./notification.controller";
 import { NotificationDispatcher } from "./notification.dispatcher";
 import { NotificationService } from "./notification.service";
+import { PushSubscriptionService } from "./push/push-subscription.service";
 import { CHANNEL_SENDERS, NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
 
 const bullMqQueue: Provider = {
@@ -39,8 +40,13 @@ export class NotificationModule {
       global: true,
       imports: options.imports ?? [],
       controllers: [NotificationController],
-      providers: [NotificationService, { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory }, options.queue ?? bullMqQueue],
-      exports: [NotificationService],
+      providers: [
+        NotificationService,
+        PushSubscriptionService,
+        { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory },
+        options.queue ?? bullMqQueue,
+      ],
+      exports: [NotificationService, PushSubscriptionService],
     };
   }
 }
@@ -77,7 +83,7 @@ export class NotificationWorkerModule {
       providers: [
         NotificationDispatcher,
         options.queue ?? bullMqQueue,
-        options.senders ?? { provide: CHANNEL_SENDERS, inject: [APP_CONFIG], useFactory: defaultChannelSenders },
+        options.senders ?? { provide: CHANNEL_SENDERS, inject: [APP_CONFIG, DATABASE], useFactory: defaultChannelSenders },
         {
           provide: NotificationWorkerRunner,
           inject: [APP_CONFIG, NotificationDispatcher, NOTIFICATION_QUEUE],

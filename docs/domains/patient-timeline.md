@@ -37,6 +37,7 @@ None. Every entry has one shape:
 | -------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `appointment`        | Appointment (scheduled start); cancelled and no-show included                           | Visit type, practitioner, online, booked by the patient, status                                      | Reason for visit, cancellation reason, staff notes             |
 | `encounter`          | Encounter, in person or telemedicine (start); entered in error included                 | Visit type, practitioner, diagnosis **codes** (and a count of uncoded ones), status                  | Chief complaint, SOAP notes, diagnosis text or notes           |
+| `referral`           | Referral (issued); cancelled included                                                   | Number, specialty, the practitioner or outside provider, urgency, status                             | Reason, clinical summary, outcome notes                        |
 | `vitals`             | Vital sign set (measured)                                                               | That vitals were recorded, status                                                                    | Any value                                                      |
 | `prescription`       | Prescription (issued); cancelled and superseded included                                | Number, generic names (up to 3), status                                                              | Doses, instructions, notes, override reasons                   |
 | `lab_order`          | Laboratory order (ordered); cancelled included                                          | Number, test names, priority, status                                                                 | Clinical indication, notes                                     |
@@ -80,7 +81,7 @@ own reads; otherwise it is left out and listed in `withheld` (no counts are reve
 | Kind                         | Permission            |
 | ---------------------------- | --------------------- |
 | `appointment`                | `appointment.read`    |
-| `encounter`                  | `encounter.read`      |
+| `encounter`, `referral`      | `encounter.read`      |
 | `vitals`, `external_history` | `clinical.read`       |
 | `prescription`               | `prescription.read`   |
 | `lab_order`                  | `lab.order.read`      |

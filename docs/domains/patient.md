@@ -133,7 +133,9 @@ of existing charges, generated reports) are not refused.
 
 **Reading linked records.** Domains read "the ids filed as this patient" through `filedAsPatient(column, patientId)`
 from `libs/core` (the SQL function `patient_record_ids`); counts of distinct patients use `canonicalPatientId`.
-Portal ownership checks of documents use `isFiledAs`. The API composers mark rows: timeline entries and Patient 360
+Portal ownership checks use `isFiledAs` — documents, and also acting on what the retired record holds: paying one of its
+invoices online (the new payment is recorded under the survivor), reading a payment started before the merge and
+deciding one of its dental plans (`apps/api/test/patient-merge-portal-actions.int.spec.ts`). The API composers mark rows: timeline entries and Patient 360
 panels carry `filedUnder` (the retired patient number), the summary lists `linkedRecords`, domain rows keep their
 `patientId`.
 

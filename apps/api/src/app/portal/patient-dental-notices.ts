@@ -3,6 +3,7 @@ import { DomainEventHandlers, type DomainEventRecord, localDate, PH_TIMEZONE, sy
 import { DentalPatientAccess } from "@healthcare/dental";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
+import { PatientPush } from "./patient-push";
 import { PortalAccountService } from "@healthcare/patient";
 
 type Kind = "image-shared" | "plan-to-review" | "plan-to-decide";
@@ -22,6 +23,7 @@ export class PatientDentalNotices implements OnModuleInit {
     private readonly portal: PortalAccountService,
     private readonly organizations: OrganizationService,
     private readonly notifications: NotificationService,
+    private readonly push: PatientPush,
   ) {}
 
   onModuleInit(): void {
@@ -63,6 +65,8 @@ export class PatientDentalNotices implements OnModuleInit {
         idempotencyKey: `${key}:${channel}`,
       });
     await message("in_app");
+    // A device that allowed push gets the nudge there; otherwise SMS, or email when SMS is not possible.
+    if (await this.push.send(actor, patientId, { templateKey: "dental.record-update", variables, idempotencyKey: `${key}:push` })) return;
     const sms = await message("sms");
     if (sms.status === "suppressed") await message("email");
   }

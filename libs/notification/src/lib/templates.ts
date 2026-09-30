@@ -234,7 +234,7 @@ export const TEMPLATES = [
     version: 1,
     category: "clinical",
     // Leaves the platform (SMS/email): no test names, values or flags — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.object({ kind: z.enum(["ready", "updated"]), organizationName: shortText }),
     render: (v) =>
       v.kind === "ready"
@@ -252,7 +252,7 @@ export const TEMPLATES = [
     version: 1,
     category: "clinical",
     // Leaves the platform (SMS/email): no tooth, procedure, image type or finding — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.object({ kind: z.enum(["image-shared", "plan-to-review", "plan-to-decide"]), organizationName: shortText }),
     render: (v) => {
       switch (v.kind) {
@@ -279,7 +279,7 @@ export const TEMPLATES = [
     version: 1,
     category: "administrative",
     // Leaves the platform (SMS/email): no diagnosis, purpose or document title — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("certificate-ready"), organizationName: shortText }),
       z.object({ kind: z.literal("request-answered"), organizationName: shortText, requestNumber: z.string().regex(/^RR\d{8}$/) }),
@@ -321,11 +321,25 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "portal.push-test",
+    version: 1,
+    category: "administrative",
+    // Sent when a patient asks "send me a test": to show that notifications reach this device. Nothing about care.
+    channels: ["push"],
+    internal: true,
+    variables: z.object({ organizationName: shortText }),
+    render: (v) => ({
+      subject: "Notifications are on",
+      text: `${v.organizationName}: this is a test. MyHealth notifications reach this device.`,
+      href: "/notification-settings",
+    }),
+  }),
+  defineTemplate({
     key: "portal.message-received",
     version: 1,
     category: "administrative",
     // Leaves the platform (SMS/email): no name, subject or words of the message — only that one is waiting in MyHealth.
-    channels: ["sms", "email"],
+    channels: ["sms", "email", "push"],
     variables: z.object({ organizationName: shortText }),
     render: (v) => ({
       subject: "You have a new message",
@@ -343,6 +357,33 @@ export const TEMPLATES = [
       subject: "New message from a patient",
       text: "A patient wrote to the clinic in MyHealth. Open the conversation to read it and reply.",
       href: `/messages/${v.threadId}`,
+    }),
+  }),
+  defineTemplate({
+    key: "clinic.referral-notice",
+    version: 1,
+    category: "clinical",
+    // In-app between practitioners. The referral number only: the patient and the reason are read in the referral.
+    channels: ["in_app"],
+    variables: z.object({
+      referralId: z.uuid(),
+      referralNumber: z.string().regex(/^RF\d{8}$/),
+      kind: z.enum(["new", "accepted", "declined", "completed"]),
+    }),
+    render: (v) => ({
+      subject:
+        v.kind === "new"
+          ? `New referral ${v.referralNumber}`
+          : `Referral ${v.referralNumber} ${v.kind === "accepted" ? "accepted" : v.kind === "declined" ? "declined" : "completed"}`,
+      text:
+        v.kind === "new"
+          ? `A patient was referred to you (${v.referralNumber}). Accept or decline it.`
+          : v.kind === "declined"
+            ? `Your referral ${v.referralNumber} was declined. Read the reason and refer elsewhere if needed.`
+            : v.kind === "accepted"
+              ? `Your referral ${v.referralNumber} was accepted.`
+              : `Your referral ${v.referralNumber} was completed. Read the outcome in the referral.`,
+      href: `/clinic/referrals/${v.referralId}`,
     }),
   }),
   defineTemplate({

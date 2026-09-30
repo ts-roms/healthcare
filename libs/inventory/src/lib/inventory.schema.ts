@@ -2,7 +2,7 @@ import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uui
 
 // Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source),
 // 0061 (costs on every movement, supplier invoices), 0074 (withholding, procurement methods, controlled register) and
-// 0079 (the vaccine category and the immunization source); the migrations are the source of truth.
+// 0080 (the vaccine category and the immunization source); the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 /** Integer centavos (PHP). */

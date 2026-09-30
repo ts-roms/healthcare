@@ -5,3 +5,6 @@ export * from "./lib/notification.schema";
 export * from "./lib/notification.service";
 export * from "./lib/ports";
 export * from "./lib/templates";
+export * from "./lib/push/push-subscription.service";
+export * from "./lib/push/push-subscription.schema";
+export * from "./lib/push/web-push.sender";

@@ -221,7 +221,7 @@ a line **of the same order** (composite keys through `(invoice_id, purchase_orde
   orders here are the facility's internal ordering record.
 - Expiry uses the facility's local date; the printed expiry date is the last usable day.
 
-## Vaccines (migration `0079`)
+## Vaccines (migration `0080`)
 
 Item category `vaccine` holds vaccine stock. A dose given here may be taken from a chosen lot through the clinic's
 `ImmunizationContext` port (`apps/api/src/app/adapters/immunization-adapters.ts`): `consume` in the immunization's

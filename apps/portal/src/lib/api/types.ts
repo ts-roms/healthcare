@@ -462,7 +462,7 @@ export interface PortalConsent {
   history: PortalConsentDecision[];
 }
 
-export type PreferenceChannel = "sms" | "email";
+export type PreferenceChannel = "sms" | "email" | "push";
 export type PreferenceCategory = "clinical" | "administrative" | "outreach";
 
 export interface PortalPreference {
@@ -548,4 +548,14 @@ export interface PortalThreadMessage {
 
 export interface PortalThreadDetail extends PortalThread {
   messages: PortalThreadMessage[];
+}
+
+/** `GET /portal/push` */
+export interface PortalPushStatus {
+  /** The clinic's platform can send push (it has its key pair). */
+  configured: boolean;
+  vapidPublicKey: string | null;
+  devices: Array<{ id: string; label: string; createdAt: string; lastSuccessAt: string | null }>;
+  /** The device asking (by its browser address), when registered. */
+  thisDeviceId: string | null;
 }

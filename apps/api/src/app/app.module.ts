@@ -50,6 +50,7 @@ import { PatientWorkspaceController } from "./patient-360/patient-workspace.cont
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
 import { ControlledRegisterController } from "./controlled-register/controlled-register.controller";
 import { RecordCopyController } from "./record-copy/record-copy.controller";
+import { ReferralNotices } from "./referral-notices";
 import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
@@ -59,6 +60,8 @@ import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
+import { PatientPush } from "./portal/patient-push";
+import { PortalPushController, PortalPushDevices } from "./portal/portal-push.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
@@ -209,6 +212,7 @@ export class AppModule implements NestModule {
         ManagementDashboardController,
         PortalBillingController,
         PortalBookingController,
+        PortalPushController,
         PortalDentalController,
         PortalDocumentsController,
         PortalImmunizationsController,
@@ -230,7 +234,10 @@ export class AppModule implements NestModule {
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,
+        PatientPush,
+        PortalPushDevices,
         PatientRecordsNotices,
+        ReferralNotices,
         PortalSecurityNotices,
         PatientMessageNoticeSource,
         PatientMessageNotices,

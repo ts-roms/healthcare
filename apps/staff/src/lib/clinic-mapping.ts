@@ -166,3 +166,33 @@ export function upcomingAppointments<T extends Pick<AppointmentItem, "status" | 
     .filter((a) => (a.status === "booked" || a.status === "confirmed") && Date.parse(a.endsAt) >= now.getTime())
     .sort((x, y) => x.startsAt.localeCompare(y.startsAt));
 }
+
+/** Referral status as a label, badge variant and icon tone (never colour alone). */
+export const REFERRAL_STATUS: Record<
+  "sent" | "accepted" | "declined" | "completed" | "cancelled",
+  { label: string; variant: "info" | "success" | "warning" | "neutral"; tone: "waiting" | "done" | "stopped" }
+> = {
+  sent: { label: "Awaiting answer", variant: "info", tone: "waiting" },
+  accepted: { label: "Accepted", variant: "success", tone: "waiting" },
+  declined: { label: "Declined", variant: "warning", tone: "stopped" },
+  completed: { label: "Completed", variant: "success", tone: "done" },
+  cancelled: { label: "Cancelled", variant: "neutral", tone: "stopped" },
+};
+
+export const REFERRAL_URGENCY_LABEL: Record<"routine" | "urgent" | "emergency", string> = {
+  routine: "Routine",
+  urgent: "Urgent",
+  emergency: "Emergency",
+};
+
+/** Who a referral goes to, in one line. */
+export function referralRecipient(r: {
+  kind: "internal" | "external";
+  toPractitioner: { displayName: string } | null;
+  externalProvider: string | null;
+  externalFacility: string | null;
+}): string {
+  return r.kind === "internal"
+    ? (r.toPractitioner?.displayName ?? "A practitioner here")
+    : [r.externalProvider, r.externalFacility].filter(Boolean).join(", ") || "Outside provider";
+}

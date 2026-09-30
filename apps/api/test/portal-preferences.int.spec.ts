@@ -61,7 +61,9 @@ describe("MyHealth communication preferences", () => {
 
   it("shows the defaults and masked destinations", async () => {
     const view = (await patient.get("/communication-preferences").expect(200)).body as View;
-    expect(view.preferences).toHaveLength(6);
+    expect(view.preferences).toHaveLength(9);
+    // No device has allowed push yet.
+    expect(view.destinations).toMatchObject({ push: null });
     expect(view.destinations.sms).toMatch(/^•+ 4567$/);
     // The registration has no email; the sign-in email is not a contact point.
     expect(view.destinations.email).toBeNull();
@@ -105,8 +107,7 @@ describe("MyHealth communication preferences", () => {
     expect(find(after, "sms", "outreach")).toMatchObject({ choice: false, recordedVia: "clinic" });
   });
 
-  it("offers only text messages and email, each choice once", async () => {
-    await patient.put("/communication-preferences", { preferences: [{ channel: "push", category: "clinical", optedIn: false }] }).expect(400);
+  it("offers text messages, email and push but not the inbox, each choice once", async () => {
     await patient.put("/communication-preferences", { preferences: [{ channel: "in_app", category: "clinical", optedIn: false }] }).expect(400);
     await patient.put("/communication-preferences", { preferences: [] }).expect(400);
     await patient
