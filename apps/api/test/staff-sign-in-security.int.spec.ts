@@ -4,7 +4,7 @@ import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWOR
 const NEW_PASSWORD = "Bagong-Password-Ko-2026";
 
 /**
- * Staff sign-in security (docs/security/access-control.md; migration 0090): a password reset by email — the same answer
+ * Staff sign-in security (docs/security/access-control.md; migration 0091): a password reset by email — the same answer
  * whether or not the account exists, a single-use short-lived link, a current code when two-step verification is on,
  * every session ended.
  */

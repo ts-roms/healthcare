@@ -3,7 +3,7 @@ import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWOR
 const TEMPORARY = "Temporary-Pass-2026-x";
 
 /**
- * An administrator resets a staff member's password (a temporary one to replace at the next sign-in) (docs/security/access-control.md, "Credential resets by an administrator"; migration 0089).
+ * An administrator resets a staff member's password (a temporary one to replace at the next sign-in) (docs/security/access-control.md, "Credential resets by an administrator"; migration 0090).
  */
 describe("staff credential resets by an administrator", () => {
   let ctx: TestContext;

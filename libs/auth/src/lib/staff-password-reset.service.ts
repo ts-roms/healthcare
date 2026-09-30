@@ -32,7 +32,7 @@ type Outcome =
   { kind: "done"; userId: string; resetId: string } | { kind: "rejected"; reason: string; userId?: string; resetId?: string; codeRequired?: boolean };
 
 /**
- * Self-service password reset for staff (docs/security/access-control.md, "Password reset by email"; migration 0090).
+ * Self-service password reset for staff (docs/security/access-control.md, "Password reset by email"; migration 0091).
  *
  * - Asking never reveals whether an account exists: the answer is always the same. A link goes only to the sign-in
  *   email of an active staff account with an active membership, at most {@link STAFF_RESET_REQUESTS_PER_HOUR} per hour.

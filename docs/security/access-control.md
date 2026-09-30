@@ -15,7 +15,7 @@
 
 ### Password reset by email
 
-Migration `0090` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
+Migration `0091` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
 (`/forgot-password`): `POST /auth/password-reset/request { email }` answers `204` whether or not the account exists; a link
 goes only to an active staff account with an active membership, at most 3 per hour, to its sign-in email through
 `NotificationService` (template `staff.password-reset`, internal, the link blanked once sent; recorded under the
@@ -28,7 +28,7 @@ password, is audited (`auth.password-reset`, failures with their reason) and the
 
 ### Temporary password from an administrator
 
-Migration `0089`. With `user.manage`, an administrator can give a member of the organization a temporary password
+Migration `0090`. With `user.manage`, an administrator can give a member of the organization a temporary password
 (`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password; `UsersService`): the
 administrator gives it to the person directly. Every session of the person ends, a lockout is cleared, and it is audited
 (`user.password-reset`, with the reason and the sessions ended). `app_user.password_change_required` is set: until the

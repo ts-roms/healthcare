@@ -32,7 +32,7 @@ export const RequireFacility = () => SetMetadata(ACCESS_METADATA.facility, true)
 /**
  * Open to a signed-in member who must still finish their account set-up: two-step verification their organization
  * requires (`403 mfa_enrollment_required` elsewhere), or a temporary password from an administrator to replace (migration
- * 0089; `403 password_change_required` elsewhere). Their own account, facilities, password, enrollment and sign-out.
+ * 0090; `403 password_change_required` elsewhere). Their own account, facilities, password, enrollment and sign-out.
  */
 export const AllowDuringMfaEnrollment = () => SetMetadata(ACCESS_METADATA.mfaEnrollment, true);
 

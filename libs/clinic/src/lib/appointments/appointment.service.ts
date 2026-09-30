@@ -153,11 +153,12 @@ export class AppointmentService {
       const { start, end } = localDayBounds(query.date, timeZone);
       filters.push(gte(appointment.startsAt, start), lt(appointment.startsAt, end));
     }
+    if (query.from && query.to) filters.push(gte(appointment.startsAt, new Date(query.from)), lt(appointment.startsAt, new Date(query.to)));
     const rows = await this.db
       .select()
       .from(appointment)
       .where(and(...filters))
-      .orderBy(asc(appointment.startsAt))
+      .orderBy(asc(appointment.startsAt), asc(appointment.id))
       .limit(query.pageSize + 1)
       .offset(pageOffset(query));
     if (query.patientId) {
@@ -200,7 +201,7 @@ export class AppointmentService {
   }
 
   /**
-   * The platform marks an appointment nobody attended as a no-show (the facility's automatic no-shows, migration 0087).
+   * The platform marks an appointment nobody attended as a no-show (the facility's automatic no-shows, migration 0088).
    * Same transition, audit and `AppointmentNoShow` event as staff recording it; `null` when the appointment is no longer
    * booked or confirmed (someone checked the patient in or changed it meanwhile, or another runner got there first).
    */

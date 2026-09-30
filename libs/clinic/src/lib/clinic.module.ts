@@ -1,5 +1,7 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
+import { CalendarController } from "./calendar/calendar.controller";
+import { CalendarService } from "./calendar/calendar.service";
 import { AppointmentReminders } from "./appointments/appointment-reminders";
 import { AppointmentService } from "./appointments/appointment.service";
 import { AutomaticNoShows } from "./appointments/automatic-no-shows";
@@ -74,11 +76,13 @@ export class ClinicModule {
         ReferralController,
         PatientHistoryController,
         ClinicProcedureController,
+        CalendarController,
       ],
       providers: [
         AppointmentReminders,
         AppointmentService,
         AutomaticNoShows,
+        CalendarService,
         BookingRulesService,
         ClinicConfigService,
         ClinicDashboardService,

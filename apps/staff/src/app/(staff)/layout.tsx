@@ -50,7 +50,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
 
 /**
  * Signed in with a temporary password from an administrator: every page asks for a new one first (the API refuses
- * everything else until then; migration 0089).
+ * everything else until then; migration 0090).
  */
 function ChooseNewPassword() {
   return (

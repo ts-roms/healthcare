@@ -206,7 +206,7 @@ export class UsersService {
   /**
    * Gives a member a temporary password (the administrator hands it over directly) that must be replaced at the next
    * sign-in: every session ends, a lockout is cleared, and until the person chooses a new password the API refuses all
-   * but their own account routes (migration 0089). Audited with the reason.
+   * but their own account routes (migration 0090). Audited with the reason.
    */
   async resetPassword(actor: Actor, userId: string, input: z.infer<typeof resetPasswordSchema>): Promise<StaffUserView> {
     const passwordHash = await hashPassword(input.temporaryPassword);

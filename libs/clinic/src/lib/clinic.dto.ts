@@ -141,14 +141,29 @@ export class CancelAppointmentDto extends createZodDto(cancelAppointmentSchema) 
 export const versionOnlySchema = z.object({ version: z.number().int().positive() });
 export class VersionOnlyDto extends createZodDto(versionOnlySchema) {}
 
-export const listAppointmentsSchema = pageQuerySchema.extend({
-  facilityId: z.string().uuid().optional(),
-  practitionerId: z.string().uuid().optional(),
-  patientId: z.string().uuid().optional(),
-  /** Local date in the facility's time zone. */
-  date: z.iso.date().optional(),
-  status: z.enum(["booked", "confirmed", "checked_in", "completed", "cancelled", "no_show"]).optional(),
-});
+export const listAppointmentsSchema = pageQuerySchema
+  .extend({
+    facilityId: z.string().uuid().optional(),
+    practitionerId: z.string().uuid().optional(),
+    patientId: z.string().uuid().optional(),
+    /** Local date in the facility's time zone. */
+    date: z.iso.date().optional(),
+    /** Appointments starting in [from, to) — the calendar's range (at most 42 days); instead of `date`. */
+    from: isoDateTime.optional(),
+    to: isoDateTime.optional(),
+    status: z.enum(["booked", "confirmed", "checked_in", "completed", "cancelled", "no_show"]).optional(),
+  })
+  .refine((v) => (v.from === undefined) === (v.to === undefined), { message: "Give both from and to", path: ["to"] })
+  .refine(
+    (v) =>
+      v.from === undefined ||
+      v.to === undefined ||
+      (new Date(v.to) > new Date(v.from) && new Date(v.to).getTime() - new Date(v.from).getTime() <= 42 * 86_400_000),
+    {
+      message: "Ask for at most 42 days, ending after they start",
+      path: ["to"],
+    },
+  );
 export class ListAppointmentsDto extends createZodDto(listAppointmentsSchema) {}
 
 export const createWaitlistSchema = z

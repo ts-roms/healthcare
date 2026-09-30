@@ -50,7 +50,7 @@ export interface MfaRequiredResponse {
   challengeToken: string;
 }
 
-// ---- password reset by email (migration 0090) ----------------------------------------------------------------------
+// ---- password reset by email (migration 0091) ----------------------------------------------------------------------
 
 export const staffPasswordResetRequestSchema = z.object({ email: emailSchema });
 export class StaffPasswordResetRequestDto extends createZodDto(staffPasswordResetRequestSchema) {}

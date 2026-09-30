@@ -102,7 +102,7 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
 /encounters/:id/procedures`, `GET /patients/:id/procedures`, `POST /procedures/:id/entered-in-error`. Audit
   `clinic.procedure-catalog.create|update`, `encounter.procedure.record` (the late-entry reason as the audit reason),
   `encounter.procedure.entered-in-error`, `encounter.procedure.view`. No new permission.
-- **Supplies used** (migration `0088`, `ProcedureSuppliesService`, the dental pattern): each catalogue entry may list the
+- **Supplies used** (migration `0089`, `ProcedureSuppliesService`, the dental pattern): each catalogue entry may list the
   supplies it usually uses (`clinic_procedure_supply_template_item`; `PUT /clinic/procedure-definitions/:id/supplies`,
   `clinic.configure`, audited `clinic.procedure-supply-template.update`; staff `/clinic/procedures`). After a procedure,
   staff with `encounter.write` confirm what was used (prefilled from the template) and the stock location of the
@@ -267,7 +267,7 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Automatic no-shows and online check-in
 
-Migration `0087`. Both are part of each facility's booking rules (`facility_booking_rule`, same endpoints, versioning and
+Migration `0088`. Both are part of each facility's booking rules (`facility_booking_rule`, same endpoints, versioning and
 `facility.booking-rules-update` audit as below) and **off by default**.
 
 - **Automatic no-shows** (`auto_no_show`, `auto_no_show_hour` 12–23, default 20:00): `AutomaticNoShows` runs hourly in the API

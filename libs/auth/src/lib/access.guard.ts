@@ -45,7 +45,7 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
-    // Account set-up comes first: a temporary password from an administrator is replaced (0089), and two-step verification
+    // Account set-up comes first: a temporary password from an administrator is replaced (0090), and two-step verification
     // the organization requires is set up; until then only the person's own account routes answer.
     if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
       if (actor.passwordChangeRequired) throw new PasswordChangeRequiredError();

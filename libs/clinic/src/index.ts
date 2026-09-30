@@ -35,3 +35,6 @@ export * from "./lib/procedures/procedure-supplies.service";
 export { CLINIC_PROCEDURE_SUPPLY_SOURCE, CLINIC_SUPPLY_CATEGORIES, type ProcedureSupplies } from "./lib/procedures/ports";
 export * from "./lib/referrals/referral.service";
 export * from "./lib/referrals/referral.rules";
+export * from "./lib/calendar/calendar.schema";
+export * from "./lib/calendar/calendar.rules";
+export type { CalendarEventView } from "./lib/calendar/calendar.service";
