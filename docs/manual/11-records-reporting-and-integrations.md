@@ -74,6 +74,22 @@ On the surviving record, under **Merged records**, select **Unmerge…** next to
 gets its previous status and everything filed under it back as a separate patient; a MyHealth account moved at the merge moves back. What was
 recorded on the surviving record **after** the merge stays there — check it and correct anything that belongs to the other person.
 
+## How to answer patient messages
+
+Patients write to the clinic in MyHealth (**Messages → New message**). They are told messages are read during clinic hours, are not for urgent problems, and
+are not for emergencies. Choose **Patient messages** in the menu (needs `patient.message.read`; replying needs `patient.message.manage`).
+
+1. The list opens on **Waiting for us**: open conversations where the patient wrote last, the longest wait first, with how long each has waited. Use **Open**,
+   **All**, **Closed**, **Assigned to me**, or a patient's own conversations from the patient record.
+2. Select **Reply** to open a conversation. Opening one is audited. Read it, write your reply in plain words and select **Send reply**. Sending takes the
+   conversation for you if nobody has it. **Assign to me** and **Release** move it between colleagues.
+3. The patient is sent a text or email saying **a message is waiting** — never what it says. You are notified in the app when a patient writes (once for a run of
+   messages).
+4. When the question is settled, select **Close conversation**. The patient can still read it but cannot add to it; **Reopen** it if needed.
+
+If a message describes something urgent, **call the patient**; do not answer an emergency by message. Do not put results or urgent instructions in a reply. Messages
+carry text only (no attachments), and nothing said here is a diagnosis by the system: a reply is the clinician's own.
+
 ## How to answer a patient's records request
 
 Patients ask for copies of their records in MyHealth (**Documents**). You need `patient.records-request.manage` (records officers and organization

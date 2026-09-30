@@ -13,6 +13,7 @@ import {
   CancelAppointmentDto,
   CheckInDto,
   CloseWaitlistDto,
+  UpdateBookingRulesDto,
   CreateAllergyDto,
   CreateCodingSystemDto,
   CreateExceptionDto,
@@ -41,6 +42,7 @@ import {
   WalkInDto,
 } from "./clinic.dto";
 import { AppointmentService } from "./appointments/appointment.service";
+import { BookingRulesService } from "./config/booking-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
@@ -62,7 +64,24 @@ class AllergyReviewDto extends createZodDto(reviewSchema) {}
 @ApiBearerAuth()
 @Controller({ path: "clinic", version: "1" })
 export class ClinicConfigController {
-  constructor(private readonly config: ClinicConfigService) {}
+  constructor(
+    private readonly config: ClinicConfigService,
+    private readonly bookingRules: BookingRulesService,
+  ) {}
+
+  @Get("booking-rules")
+  @RequirePermissions("appointment.read")
+  @ApiOperation({ summary: "Each facility's online booking rules (notice, horizon, limits, change cut-off, waiting list); defaults where none is set" })
+  listBookingRules(@CurrentActor() actor: Actor) {
+    return this.bookingRules.list(actor);
+  }
+
+  @Put("booking-rules/:facilityId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set a facility's online booking rules (audited with before and after)" })
+  updateBookingRules(@CurrentActor() actor: Actor, @Param("facilityId", ParseUUIDPipe) facilityId: string, @Body() body: UpdateBookingRulesDto) {
+    return this.bookingRules.update(actor, facilityId, body);
+  }
 
   @Get("practitioners")
   @RequirePermissions("appointment.read")

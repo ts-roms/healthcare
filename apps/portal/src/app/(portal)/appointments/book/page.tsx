@@ -17,8 +17,8 @@ export default async function BookPage() {
         </Link>
         <h1 className="text-page-lg font-semibold">Book a visit</h1>
         <p className="text-body text-muted-foreground">
-          Book at least {options.rules.minLeadMinutes / 60} hours ahead, up to {options.rules.maxAdvanceDays} days. For urgent care, call the clinic; in an
-          emergency, call 911.
+          Choose a visit, a clinic, a doctor and a time. Each clinic sets how far ahead you can book. For urgent care, call the clinic; in an emergency, call
+          911.
         </p>
       </div>
       {options.visitTypes.length === 0 || options.facilities.length === 0 ? (

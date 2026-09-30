@@ -1,4 +1,4 @@
-import { consentInEffect, patientMayWithdraw } from "./portal-consent.rules";
+import { consentInEffect, patientMayGrant, patientMayWithdraw } from "./portal-consent.rules";
 
 describe("MyHealth consent rules", () => {
   it("lets the patient withdraw only the consents MyHealth offers", () => {
@@ -7,6 +7,11 @@ describe("MyHealth consent rules", () => {
     }
     expect(patientMayWithdraw("data_processing")).toBe(false);
     expect(patientMayWithdraw("treatment_general")).toBe(false);
+  });
+
+  it("lets the patient give online only the consents that need the organization's wording and are not care or MyHealth itself", () => {
+    for (const type of ["telemedicine", "data_sharing_hmo", "data_sharing_philhealth", "research"] as const) expect(patientMayGrant(type)).toBe(true);
+    for (const type of ["data_processing", "treatment_general", "portal_access"] as const) expect(patientMayGrant(type)).toBe(false);
   });
 
   it("treats a consent as in effect only when granted, effective and not expired", () => {

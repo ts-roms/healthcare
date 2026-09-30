@@ -63,8 +63,8 @@ booking."
 Booking from a consultation or a care plan works the same way; see [Consultations and care plans](04-consultations-and-care-plans.md). In that
 case, after booking you return to where you started.
 
-> Not available in the staff app yet: rescheduling an appointment, recurring appointments, and the waiting list. To move an appointment, cancel it
-> (with a reason) and book a new one.
+> Not available in the staff app yet: rescheduling an appointment and recurring appointments. To move an appointment, cancel it (with a reason) and
+> book a new one. The waiting list is under **Waiting list** (see below).
 
 ## How to confirm, cancel or mark a no-show
 
@@ -196,8 +196,25 @@ label vital signs normal or abnormal.
 Only active visit types can be opened. Changing this needs `clinic.configure`; without it you see "Only clinic administrators can change these
 settings."
 
-Patients book online only inside published schedules, at least 2 hours ahead and up to 60 days out, with at most 3 open bookings; they can change
-or cancel until 2 hours before. Their bookings appear on your day schedule marked **Booked online by the patient**.
+Patients book online only inside published schedules. Until a clinic sets its own rules they book at least 2 hours ahead and up to 60 days out, with at
+most 3 open bookings, and can change or cancel until 2 hours before. Their bookings appear on your day schedule marked **Booked online by the patient**.
+
+**Booking rules by clinic.** Below the visit types, each facility shows its own rules: **Notice needed (hours)**, **Book up to (days ahead)**, **Upcoming
+online bookings per patient**, **Changes and cancellations close (hours before)**, and whether patients may ask to be told when a time opens on a full
+day (**Waiting list**, with **Waiting-list requests per patient**). Change the numbers and select **Save rules** (needs `clinic.configure`; the change is
+audited). A clinic that never saved rules shows **Platform defaults** and uses them. Turn the waiting list on only if the front desk will work it.
+
+## How to work the waiting list
+
+Select **Waiting list** on the Appointments page (needs `appointment.read`; `appointment.manage` to act). It lists patients waiting for a time at the
+selected facility, most urgent and oldest first, with their days, the visit type and doctor they asked for, and whether the patient asked in MyHealth
+(**By the patient**) or staff added them (**By staff**). Days that have passed no longer appear.
+
+1. When a time opens (a cancellation, or you make room), patients who asked in MyHealth for that day are texted or emailed automatically; nothing is
+   booked for them. To offer a time by phone, call the patient.
+2. Select **Book** to open the booking screen for that patient with their doctor, visit type and first day filled in.
+3. When the patient no longer needs the entry, select **Remove**, write the reason and confirm. A patient who books a time in the requested days
+   through MyHealth is taken off the list by the system.
 
 > Practitioners, their weekly schedules, rooms, visit types, coding systems and leave or closure days are set up by your administrator. There is
 > no staff screen for these yet.

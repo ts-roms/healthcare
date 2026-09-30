@@ -291,6 +291,20 @@ transmitted to those systems. Details are in [Records, reporting and integration
 > The **Administration** menu entry appears only for people who can open one of its pages: **Integrations** (`integration.exchange.manage`)
 > or **Compliance** (`compliance.review.manage`).
 
+## How to write the consent wording for online consent
+
+Patients can give some consents themselves in MyHealth, but only after reading **your organization's own wording**. The platform provides no wording and does
+not say what a consent legally needs: have your data protection officer approve the text. Needs `consent.wording.manage` (organization administrators).
+
+1. Open **Administration → Consent wording**. Each consent patients may give online (**Online consultations**, **Sharing with the patient's HMO**, **Sharing
+   with PhilHealth**, **Research**) shows whether it is offered and its version.
+2. Enter the **Title patients see**, **The wording**, and the **Statement the patient confirms**, then choose **Publish and offer online** (or **Publish as a new
+   version** to change it). Versions are never edited: each save is a new one, and patients who are reading see the new one before they can give.
+3. To stop offering a consent online, choose **Stop offering online**. Patients then give it at the clinic. Consents already given stay as they are.
+
+The patient's record shows a consent given online as "by the patient in MyHealth" with **wording v…**, the version they read. Consent to the use of
+information, to general treatment, and to MyHealth itself is always given at the clinic.
+
 ## How to record compliance reviews
 
 The platform does not know BIR, Dangerous Drugs Board, DOH, National Privacy Commission or public procurement rules. Everything in those areas

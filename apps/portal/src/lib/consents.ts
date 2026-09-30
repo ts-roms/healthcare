@@ -34,14 +34,26 @@ export const CONSENT_STATE_TEXT: Record<ConsentState, string> = {
   withdrawn: "Withdrawn",
   refused: "Not given",
   expired: "Expired",
-  not_recorded: "Not recorded",
+  not_recorded: "Not given yet",
 };
+
+/** What a patient sees to give a consent online: only when the clinic offers it, and it is not already in effect. */
+export function canGiveOnline(consent: Pick<PortalConsent, "canGive" | "inEffect">): boolean {
+  return consent.canGive && !consent.inEffect;
+}
 
 /** Messages for the API's refusals, in the patient's words. */
 export function consentMessage(code: string | undefined, fallback: string): string {
   switch (code) {
     case "consent_not_in_effect":
       return "This consent is not currently given.";
+    case "consent_wording_changed":
+      return "The clinic changed the wording while you were reading. Please read it again.";
+    case "consent_already_given":
+      return "You have already given this consent.";
+    case "consent_not_offered_online":
+    case "consent_give_at_clinic":
+      return "This consent is given at the clinic. Please ask the front desk.";
     case "consent_withdraw_at_clinic":
       return "This consent is withdrawn at the clinic, which can explain what it means for your care.";
     default:

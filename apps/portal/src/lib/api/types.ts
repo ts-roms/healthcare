@@ -154,8 +154,33 @@ export interface BookingOptions {
     cityMunicipality: string | null;
     timeZone: string;
     practitioners: Array<{ id: string; displayName: string; specialty: string | null }>;
+    /** The clinic's own online booking rules. */
+    rules: BookingRulesView;
   }>;
-  rules: { minLeadMinutes: number; maxAdvanceDays: number; maxUpcoming: number; changeCutoffMinutes: number };
+}
+
+export interface BookingRulesView {
+  minLeadMinutes: number;
+  maxAdvanceDays: number;
+  maxUpcoming: number;
+  changeCutoffMinutes: number;
+  /** Patients may ask to be told when a time opens on a day with none. */
+  waitlistEnabled: boolean;
+  maxWaitlistEntries: number;
+}
+
+/** `GET /portal/booking/waitlist` row. */
+export interface PortalWaitlistEntry {
+  id: string;
+  facilityId: string;
+  facilityName: string;
+  visitTypeId: string | null;
+  visitTypeName: string | null;
+  practitionerId: string | null;
+  practitionerName: string | null;
+  earliestDate: string;
+  latestDate: string;
+  createdAt: string;
 }
 
 /** `GET /portal/booking/slots` */
@@ -413,6 +438,18 @@ export interface PortalConsentDecision {
   expiresAt: string | null;
   recordedAt: string;
   recordedVia: "clinic" | "myhealth";
+  /** The version of the clinic's wording the patient read, for a consent given online. */
+  wordingVersion: number | null;
+}
+
+/** `GET /portal/consents/:type/wording`: the organization's own words a patient reads before giving a consent online. */
+export interface PortalConsentWording {
+  id: string;
+  consentType: ConsentType;
+  version: number;
+  title: string;
+  body: string;
+  acknowledgement: string;
 }
 
 export interface PortalConsent {
@@ -420,6 +457,8 @@ export interface PortalConsent {
   current: PortalConsentDecision | null;
   inEffect: boolean;
   canWithdraw: boolean;
+  /** The patient may give this consent now, in MyHealth (the clinic offers it online with its own wording). */
+  canGive: boolean;
   history: PortalConsentDecision[];
 }
 
@@ -467,4 +506,32 @@ export interface PortalMfaSetup {
   setupKey: string;
   secret: string;
   otpauthUri: string;
+}
+
+export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
+
+/** `GET /portal/message-threads` row: a conversation with the clinic. */
+export interface PortalThread {
+  id: string;
+  topic: MessageTopic;
+  subject: string;
+  status: "open" | "closed";
+  startedBy: "patient" | "staff";
+  messageCount: number;
+  lastMessageAt: string;
+  lastMessageFrom: "patient" | "staff";
+  /** The clinic wrote and the patient has not read it. */
+  unread: boolean;
+}
+
+export interface PortalThreadMessage {
+  id: string;
+  sender: "patient" | "staff";
+  senderName: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface PortalThreadDetail extends PortalThread {
+  messages: PortalThreadMessage[];
 }

@@ -16,11 +16,12 @@ import { facility } from "@healthcare/organization";
 import { and, asc, eq, gt, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { patientBookSchema, patientCancelSchema, patientRescheduleSchema, patientSlotsSchema } from "../clinic.dto";
-import { appointment, type AppointmentRecord, practitioner, practitionerSchedule, visitType } from "../clinic.schema";
+import { appointment, type AppointmentRecord, practitioner, practitionerSchedule, visitType, waitlistEntry } from "../clinic.schema";
 import { assertVersion, found } from "../clinic-support";
 import { canApply } from "../domain/appointment-state";
 import { availableSlots, type Slot } from "../domain/availability";
-import { PATIENT_BOOKING_RULES, patientBookingWindow, patientMayChange } from "../domain/patient-booking";
+import { BookingRulesService } from "../config/booking-rules.service";
+import { type BookingRules, patientBookingWindow, patientMayChange } from "../domain/patient-booking";
 import { AppointmentService, appointmentEvent, invalidTransition, translateBookingError } from "./appointment.service";
 
 /** The signed-in patient, as the portal passes them in. */
@@ -37,10 +38,17 @@ export interface BookableSlot {
   practitionerName: string;
 }
 
-const WINDOW_MESSAGES = {
-  too_soon: `Online bookings must start at least ${PATIENT_BOOKING_RULES.minLeadMinutes / 60} hours from now — please call the clinic for an earlier visit`,
-  too_far_ahead: `Online bookings can be made up to ${PATIENT_BOOKING_RULES.maxAdvanceDays} days ahead`,
-} as const;
+/** "2 hours", "1 day", "90 minutes": a rule's length in the patient's words. */
+function lengthText(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} ${minutes === 1440 ? "day" : "days"}`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}`;
+  return `${minutes} minutes`;
+}
+
+const windowMessage = (refusal: "too_soon" | "too_far_ahead", rules: BookingRules) =>
+  refusal === "too_soon"
+    ? `Online bookings must start at least ${lengthText(rules.minLeadMinutes)} from now — please call the clinic for an earlier visit`
+    : `Online bookings can be made up to ${rules.maxAdvanceDays} days ahead`;
 
 const DEFAULT_CANCEL_REASON = "Cancelled by the patient in MyHealth";
 
@@ -58,6 +66,7 @@ export class PatientBookingService {
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
     private readonly appointments: AppointmentService,
+    private readonly bookingRules: BookingRulesService,
   ) {}
 
   /** What can be booked online: facilities, visit types and the practitioners with published schedules at each facility. */
@@ -91,13 +100,19 @@ export class PatientBookingService {
         ),
       )
       .orderBy(asc(facility.name), asc(practitioner.displayName));
-    const facilities = new Map<string, { id: string; name: string; cityMunicipality: string | null; timeZone: string; practitioners: unknown[] }>();
+    const rulesByFacility = await this.bookingRules.forFacilities(organizationId, [...new Set(schedules.map((s) => s.facilityId))]);
+    const facilities = new Map<
+      string,
+      { id: string; name: string; cityMunicipality: string | null; timeZone: string; rules: BookingRules; practitioners: unknown[] }
+    >();
     for (const row of schedules) {
       const entry = facilities.get(row.facilityId) ?? {
         id: row.facilityId,
         name: row.facilityName,
         cityMunicipality: row.cityMunicipality,
         timeZone: row.timeZone,
+        // Each clinic's own rules: notice, horizon, open-booking limit, change cut-off, waiting list.
+        rules: rulesByFacility.get(row.facilityId)!,
         practitioners: [],
       };
       entry.practitioners.push({ id: row.practitionerId, displayName: row.practitionerName, specialty: row.specialty });
@@ -106,7 +121,6 @@ export class PatientBookingService {
     return {
       visitTypes: types,
       facilities: types.length ? [...facilities.values()] : [],
-      rules: PATIENT_BOOKING_RULES,
     };
   }
 
@@ -115,9 +129,10 @@ export class PatientBookingService {
     const type = await this.bookableType(organizationId, query.visitTypeId);
     const site = await this.facility(organizationId, query.facilityId);
     const practitioners = await this.practitionersOnDuty(this.db, organizationId, query.facilityId, query.date, query.practitionerId);
+    const rules = await this.bookingRules.forFacility(organizationId, query.facilityId);
     const slots: BookableSlot[] = [];
     for (const p of practitioners) {
-      for (const slot of await this.openSlots(this.db, p.id, query.facilityId, site.timezone, query.date, type.defaultDurationMinutes, now)) {
+      for (const slot of await this.openSlots(this.db, p.id, query.facilityId, site.timezone, query.date, type.defaultDurationMinutes, now, rules)) {
         slots.push({ startsAt: slot.startsAt, endsAt: slot.endsAt, practitionerId: p.id, practitionerName: p.displayName });
       }
     }
@@ -129,7 +144,8 @@ export class PatientBookingService {
     const type = await this.bookableType(ctx.organizationId, input.visitTypeId);
     const site = await this.facility(ctx.organizationId, input.facilityId);
     const startsAt = new Date(input.startsAt);
-    this.assertWindow(startsAt, now);
+    const rules = await this.bookingRules.forFacility(ctx.organizationId, input.facilityId);
+    this.assertWindow(startsAt, now, rules);
     try {
       return await this.db.transaction(async (tx) => {
         // One booking at a time per patient, so the open-booking limit holds under concurrent requests.
@@ -146,11 +162,8 @@ export class PatientBookingService {
               gt(appointment.startsAt, now),
             ),
           );
-        if ((open?.count ?? 0) >= PATIENT_BOOKING_RULES.maxUpcoming) {
-          throw new BusinessRuleError(
-            `You already have ${PATIENT_BOOKING_RULES.maxUpcoming} upcoming online bookings — cancel one or call the clinic`,
-            "too_many_bookings",
-          );
+        if ((open?.count ?? 0) >= rules.maxUpcoming) {
+          throw new BusinessRuleError(`You already have ${rules.maxUpcoming} upcoming online bookings — cancel one or call the clinic`, "too_many_bookings");
         }
         const slot = await this.requireOpenSlot(
           tx,
@@ -161,6 +174,7 @@ export class PatientBookingService {
           startsAt,
           type.defaultDurationMinutes,
           now,
+          rules,
         );
         const [row] = await tx
           .insert(appointment)
@@ -190,6 +204,7 @@ export class PatientBookingService {
           metadata: { practitionerId: booked.practitionerId, startsAt: booked.startsAt, via: "patient_portal" },
         });
         await this.events.record(tx, appointmentEvent("AppointmentBooked", booked, { bookedByPatient: true }));
+        await this.closeMatchingWaitlist(tx, ctx, booked, site.timezone);
         return this.patientView(booked);
       });
     } catch (error) {
@@ -199,30 +214,36 @@ export class PatientBookingService {
 
   async reschedule(ctx: PatientBookingContext, appointmentId: string, input: z.infer<typeof patientRescheduleSchema>, now = new Date()) {
     const startsAt = new Date(input.startsAt);
-    this.assertWindow(startsAt, now);
     try {
       return await this.db.transaction(async (tx) => {
         const current = await this.lockOwn(tx, ctx, appointmentId);
+        const rules = await this.bookingRules.forFacility(ctx.organizationId, current.facilityId, tx);
+        this.assertWindow(startsAt, now, rules);
         assertVersion(current.version, input.version, "Appointment");
         if (!canApply("reschedule", current.status)) throw invalidTransition("reschedule", current.status);
-        this.assertMayChange(current, now);
+        this.assertMayChange(current, now, rules);
         await this.bookableType(ctx.organizationId, current.visitTypeId);
         const site = await this.facility(ctx.organizationId, current.facilityId);
         const duration = Math.round((current.endsAt.getTime() - current.startsAt.getTime()) / 60_000);
+        // Another practitioner at the same facility may be chosen; they must be on duty with an open time (a schedule of theirs).
+        const practitionerId = input.practitionerId ?? current.practitionerId;
         const slot = await this.requireOpenSlot(
           tx,
           ctx.organizationId,
-          current.practitionerId,
+          practitionerId,
           current.facilityId,
           site.timezone,
           startsAt,
           duration,
           now,
-          current,
+          rules,
+          // The appointment's own time is free for the same practitioner only.
+          practitionerId === current.practitionerId ? current : undefined,
         );
         const [updated] = await tx
           .update(appointment)
           .set({
+            practitionerId,
             startsAt: slot.startsAt,
             endsAt: slot.endsAt,
             roomId: slot.roomId,
@@ -241,12 +262,19 @@ export class PatientBookingService {
           resourceType: "appointment",
           resourceId: appointmentId,
           patientId: ctx.patientId,
-          changes: { startsAt: { from: current.startsAt, to: row.startsAt } },
+          changes: {
+            startsAt: { from: current.startsAt, to: row.startsAt },
+            ...(practitionerId !== current.practitionerId ? { practitionerId: { from: current.practitionerId, to: practitionerId } } : {}),
+          },
           metadata: { via: "patient_portal" },
         });
         await this.events.record(
           tx,
-          appointmentEvent("AppointmentRescheduled", row, { previousStartsAt: current.startsAt.toISOString(), changedByPatient: true }),
+          appointmentEvent("AppointmentRescheduled", row, {
+            previousStartsAt: current.startsAt.toISOString(),
+            previousPractitionerId: current.practitionerId,
+            changedByPatient: true,
+          }),
         );
         return this.patientView(row);
       });
@@ -260,7 +288,7 @@ export class PatientBookingService {
       const current = await this.lockOwn(tx, ctx, appointmentId);
       assertVersion(current.version, input.version, "Appointment");
       if (!canApply("cancel", current.status)) throw invalidTransition("cancel", current.status);
-      this.assertMayChange(current, now);
+      this.assertMayChange(current, now, await this.bookingRules.forFacility(ctx.organizationId, current.facilityId, tx));
       const reason = input.reason ?? DEFAULT_CANCEL_REASON;
       const [updated] = await tx
         .update(appointment)
@@ -307,17 +335,48 @@ export class PatientBookingService {
     };
   }
 
-  private assertWindow(startsAt: Date, now: Date) {
-    const refusal = patientBookingWindow(startsAt, now);
-    if (refusal) throw new BusinessRuleError(WINDOW_MESSAGES[refusal], refusal === "too_soon" ? "booking_too_soon" : "booking_too_far_ahead");
+  private assertWindow(startsAt: Date, now: Date, rules: BookingRules) {
+    const refusal = patientBookingWindow(startsAt, now, rules);
+    if (refusal) throw new BusinessRuleError(windowMessage(refusal, rules), refusal === "too_soon" ? "booking_too_soon" : "booking_too_far_ahead");
   }
 
-  private assertMayChange(current: AppointmentRecord, now: Date) {
-    if (!patientMayChange(current.startsAt, now)) {
+  private assertMayChange(current: AppointmentRecord, now: Date, rules: BookingRules) {
+    if (!patientMayChange(current.startsAt, now, rules)) {
       throw new BusinessRuleError(
-        `Online changes close ${PATIENT_BOOKING_RULES.changeCutoffMinutes / 60} hours before the appointment — please call the clinic`,
+        `Online changes close ${lengthText(rules.changeCutoffMinutes)} before the appointment — please call the clinic`,
         "change_window_closed",
       );
+    }
+  }
+
+  /** A patient who books a time in the days they were waiting for is no longer waiting: their own entries for those days are closed as booked. */
+  private async closeMatchingWaitlist(tx: DbExecutor, ctx: PatientBookingContext, booked: AppointmentRecord, timeZone: string): Promise<void> {
+    const date = localDate(booked.startsAt, timeZone);
+    const closed = await tx
+      .update(waitlistEntry)
+      .set({ status: "booked", appointmentId: booked.id, closedAt: new Date(), closedBy: null, closeReason: "Booked by the patient in MyHealth" })
+      .where(
+        and(
+          eq(waitlistEntry.organizationId, ctx.organizationId),
+          eq(waitlistEntry.patientId, ctx.patientId),
+          eq(waitlistEntry.facilityId, booked.facilityId),
+          eq(waitlistEntry.status, "waiting"),
+          lte(waitlistEntry.earliestDate, date),
+          gte(waitlistEntry.latestDate, date),
+          or(isNull(waitlistEntry.practitionerId), eq(waitlistEntry.practitionerId, booked.practitionerId)),
+          or(isNull(waitlistEntry.visitTypeId), eq(waitlistEntry.visitTypeId, booked.visitTypeId)),
+        ),
+      )
+      .returning({ id: waitlistEntry.id });
+    for (const entry of closed) {
+      await this.audit.record(tx, ctx.audit, {
+        action: "waitlist.close",
+        resourceType: "appointment_waitlist_entry",
+        resourceId: entry.id,
+        patientId: ctx.patientId,
+        reason: "Booked by the patient in MyHealth",
+        metadata: { via: "patient_portal", appointmentId: booked.id },
+      });
     }
   }
 
@@ -378,6 +437,7 @@ export class PatientBookingService {
     date: string,
     durationMinutes: number,
     now: Date,
+    rules: BookingRules,
     ignore?: AppointmentRecord,
   ): Promise<Slot[]> {
     const { start, end } = localDayBounds(date, timeZone);
@@ -388,8 +448,8 @@ export class PatientBookingService {
       // Moving an appointment must not collide with itself.
       ...booked.filter((b) => !ignore || b.start.getTime() !== ignore.startsAt.getTime() || b.end.getTime() !== ignore.endsAt.getTime()),
     ];
-    const earliest = new Date(now.getTime() + PATIENT_BOOKING_RULES.minLeadMinutes * 60_000);
-    const latest = now.getTime() + PATIENT_BOOKING_RULES.maxAdvanceDays * 86_400_000;
+    const earliest = new Date(now.getTime() + rules.minLeadMinutes * 60_000);
+    const latest = now.getTime() + rules.maxAdvanceDays * 86_400_000;
     return availableSlots({ date, timeZone, blocks, durationMinutes, unavailable, now: earliest }).filter((s) => s.startsAt.getTime() <= latest);
   }
 
@@ -402,12 +462,13 @@ export class PatientBookingService {
     startsAt: Date,
     durationMinutes: number,
     now: Date,
+    rules: BookingRules,
     ignore?: AppointmentRecord,
   ): Promise<Slot> {
     const date = localDate(startsAt, timeZone);
     const onDuty = await this.practitionersOnDuty(tx, organizationId, facilityId, date, practitionerId);
     if (onDuty.length === 0) throw new NotFoundError("Practitioner");
-    const slots = await this.openSlots(tx, practitionerId, facilityId, timeZone, date, durationMinutes, now, ignore);
+    const slots = await this.openSlots(tx, practitionerId, facilityId, timeZone, date, durationMinutes, now, rules, ignore);
     const slot = slots.find((s) => s.startsAt.getTime() === startsAt.getTime());
     if (!slot) throw new ConflictError("That time is no longer available — please choose another", undefined, "slot_unavailable");
     return slot;

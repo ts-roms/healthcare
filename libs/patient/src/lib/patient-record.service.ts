@@ -41,6 +41,7 @@ import {
   patient,
   patientAddress,
   patientCommunicationPreference,
+  consentText,
   patientConsent,
   patientContactPoint,
   patientIdentifier,
@@ -400,7 +401,16 @@ export class PatientRecordService {
     await this.findPatient(this.db, actor.organizationId, patientId);
     const rows = await this.db.select().from(patientConsent).where(eq(patientConsent.patientId, patientId)).orderBy(desc(patientConsent.recordedAt));
     await this.audit.recordStandalone(actor, { action: "patient.consent-view", resourceType: "patient_consent", patientId });
-    return rows.map(toConsentView);
+    const ids = [...new Set(rows.map((r) => r.consentTextId).filter((id): id is string => Boolean(id)))];
+    const versions = ids.length
+      ? new Map(
+          (await this.db.select({ id: consentText.id, version: consentText.version }).from(consentText).where(inArray(consentText.id, ids))).map((t) => [
+            t.id,
+            t.version,
+          ]),
+        )
+      : new Map<string, number>();
+    return rows.map((row) => ({ ...toConsentView(row), wordingVersion: row.consentTextId ? (versions.get(row.consentTextId) ?? null) : null }));
   }
 
   async setCommunicationPreferences(actor: Actor, patientId: string, input: z.infer<typeof communicationPreferencesSchema>) {

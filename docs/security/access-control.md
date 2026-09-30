@@ -63,6 +63,8 @@ Inventory (migration 0026): `inventory.read`, `inventory.move`,
 `inventory.adjust`, `inventory.catalog.manage`; new system role
 `inventory_officer`; nurses and medical technologists read and move stock;
 every movement is audited (`inventory.*`, reasons for counts and write-offs).
+Consent wording (migration 0078): `consent.wording.manage` (org_admin) writes the organization's own wording for the consents patients may give online in MyHealth;
+each version is immutable and audited (`consent.wording-publish`, `consent.wording-withdraw`; the audit keeps the version, not the text).
 Records requests (migration 0068): `patient.records-request.manage` (org_admin,
 records_officer) reviews patients' requests for copies, shares documents or declines
 with a reason, and prepares copies of the record (migration 0070; they include the dental record and document list

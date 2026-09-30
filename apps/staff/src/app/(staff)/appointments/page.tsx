@@ -57,6 +57,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               </Button>
             </nav>
             <Button asChild variant="outline" size="sm">
+              <Link href="/appointments/waitlist">Waiting list</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
               <Link href="/appointments/visit-types">
                 <GlobeIcon /> Online booking
               </Link>

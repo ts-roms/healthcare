@@ -1,4 +1,4 @@
-import type { BookingOptions, BookingSlots } from "./api/types";
+import type { BookingOptions, BookingRulesView, BookingSlots } from "./api/types";
 
 /**
  * Helpers for booking in MyHealth. The API decides what is bookable and
@@ -6,12 +6,7 @@ import type { BookingOptions, BookingSlots } from "./api/types";
  */
 
 /** Local calendar dates (YYYY-MM-DD) patients can pick, from the first day with bookable time up to the booking horizon. */
-export function bookingDays(
-  now: Date,
-  rules: Pick<BookingOptions["rules"], "minLeadMinutes" | "maxAdvanceDays">,
-  timeZone: string,
-  count = Infinity,
-): string[] {
+export function bookingDays(now: Date, rules: Pick<BookingRulesView, "minLeadMinutes" | "maxAdvanceDays">, timeZone: string, count = Infinity): string[] {
   const first = new Date(now.getTime() + rules.minLeadMinutes * 60_000);
   const last = new Date(now.getTime() + rules.maxAdvanceDays * 86_400_000);
   const days: string[] = [];
@@ -69,7 +64,36 @@ export function practitionersAt(options: BookingOptions, facilityId: string | nu
   return options.facilities.find((f) => f.id === facilityId)?.practitioners ?? [];
 }
 
+/** The platform's defaults, for before a clinic is chosen. */
+export const DEFAULT_RULES: BookingRulesView = {
+  minLeadMinutes: 120,
+  maxAdvanceDays: 60,
+  maxUpcoming: 3,
+  changeCutoffMinutes: 120,
+  waitlistEnabled: false,
+  maxWaitlistEntries: 3,
+};
+
+/** "2 hours", "1 day", "90 minutes": a rule's length in words. */
+export function lengthText(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} ${minutes === 1440 ? "day" : "days"}`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}`;
+  return `${minutes} minutes`;
+}
+
+/** The rules of the clinic chosen, else of the only clinic, else the defaults. */
+export function rulesFor(options: BookingOptions, facilityId: string | null): BookingRulesView {
+  const site = options.facilities.find((f) => f.id === facilityId) ?? (options.facilities.length === 1 ? options.facilities[0] : undefined);
+  return site?.rules ?? DEFAULT_RULES;
+}
+
 const MESSAGES: Record<string, string> = {
+  waitlist_not_available: "This clinic does not take waiting-list requests online. Please call the clinic.",
+  open_times_available: "There are open times on those days. Choose one to book it.",
+  already_on_waitlist: "You are already waiting for those days.",
+  too_many_waitlist_entries: "You are already on this clinic's waiting list several times. Remove one first.",
+  waitlist_in_the_past: "Choose days from today onwards.",
+  waitlist_too_far_ahead: "That is further ahead than this clinic takes requests online.",
   slot_unavailable: "Someone just took that time. Please choose another.",
   booking_too_soon: "That time is too soon to book online. Choose a later time or call the clinic.",
   booking_too_far_ahead: "That date is too far ahead to book online.",

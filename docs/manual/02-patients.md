@@ -201,18 +201,20 @@ verification**, write the reason (at least 5 characters) and confirm: the patien
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).
 Invitations are only possible for active patients.
 
-## How to send a patient a message in MyHealth
+## How to start a conversation with a patient in MyHealth
 
 For a patient with an **Active** MyHealth account:
 
 1. In **Patient portal (MyHealth)**, select **Message in MyHealth**.
-2. Enter a **Subject** (up to 80 characters) and the **Message** (up to 2,000 characters), e.g. "Please bring your previous results."
-3. Select **Send**.
+2. Choose what it is **About**, enter a **Subject** (up to 100 characters) and the **Message** (up to 2,000 characters), e.g. "Please bring your previous
+   results."
+3. Select **Send**, then **Open the conversation** if you want to follow it.
 
-The patient reads it after signing in to MyHealth and cannot reply. The text never goes out by SMS or email. Do not use it for urgent or sensitive results —
-call the patient.
+The patient reads it after signing in to MyHealth and can answer there. They get a text or email saying a message is waiting, never what it says. Do not use
+it for urgent or sensitive results — call the patient. To see everything written to and by this patient, select **Conversations with this patient in MyHealth**.
 
-If you don't see **Message in MyHealth**, you need the `notification.send` permission (receptionists by default), and the patient needs an active account.
+If you don't see **Message in MyHealth**, you need the `patient.message.manage` permission (org admins, receptionists, nurses, physicians, dentists and records
+officers by default), and the patient needs an active account. See also [Patient messages](11-records-reporting-and-integrations.md#how-to-answer-patient-messages).
 
 ## How to use the Patient 360 workspace
 

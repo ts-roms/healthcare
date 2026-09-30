@@ -250,13 +250,23 @@ export class AppointmentService {
 
   // ---- waitlist -------------------------------------------------------------
 
-  async listWaitlist(actor: Actor, facilityId: string) {
+  async listWaitlist(actor: Actor, facilityId: string, now = new Date()) {
+    const site = (await this.organizations.getFacility(actor.organizationId, facilityId)).timezone;
     const rows = await this.db
       .select()
       .from(waitlistEntry)
-      .where(and(eq(waitlistEntry.organizationId, actor.organizationId), eq(waitlistEntry.facilityId, facilityId), eq(waitlistEntry.status, "waiting")))
+      .where(
+        and(
+          eq(waitlistEntry.organizationId, actor.organizationId),
+          eq(waitlistEntry.facilityId, facilityId),
+          eq(waitlistEntry.status, "waiting"),
+          // Days that have passed are no longer waiting.
+          gte(waitlistEntry.latestDate, localDate(now, site)),
+        ),
+      )
       .orderBy(sql`${waitlistEntry.priority} = 'soon' DESC`, asc(waitlistEntry.createdAt));
-    return rows.map(publicView);
+    const patients = await this.patients.summaries(actor.organizationId, [...new Set(rows.map((r) => r.patientId))]);
+    return rows.map((row) => ({ ...publicView(row), patient: patients.get(row.patientId) ?? null }));
   }
 
   async addToWaitlist(actor: Actor, input: z.infer<typeof createWaitlistSchema>) {
@@ -440,7 +450,7 @@ export function appointmentEvent(type: string, row: AppointmentRecord, extra: Re
     aggregateId: row.id,
     facilityId: row.facilityId,
     patientId: row.patientId,
-    payload: { practitionerId: row.practitionerId, startsAt: row.startsAt.toISOString(), status: row.status, ...extra },
+    payload: { practitionerId: row.practitionerId, visitTypeId: row.visitTypeId, startsAt: row.startsAt.toISOString(), status: row.status, ...extra },
   };
 }
 

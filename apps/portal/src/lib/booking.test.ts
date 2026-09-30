@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bookingDays, bookingMessage, dayChip, dayPages, longDate, type Slot, slotsByPartOfDay, slotTime } from "./booking";
+import {
+  bookingDays,
+  bookingMessage,
+  dayChip,
+  dayPages,
+  DEFAULT_RULES,
+  lengthText,
+  longDate,
+  rulesFor,
+  type Slot,
+  slotsByPartOfDay,
+  slotTime,
+} from "./booking";
 
 const rules = { minLeadMinutes: 120, maxAdvanceDays: 60 };
 
@@ -56,5 +68,36 @@ describe("formatting", () => {
   it("explains refusals in plain words", () => {
     expect(bookingMessage("slot_unavailable", "x")).toMatch(/just took that time/);
     expect(bookingMessage("unknown", "Try again")).toBe("Try again");
+  });
+});
+
+describe("per-clinic rules", () => {
+  const facility = (id: string, minLeadMinutes: number) => ({
+    id,
+    name: id,
+    cityMunicipality: null,
+    timeZone: "Asia/Manila",
+    practitioners: [],
+    rules: { ...DEFAULT_RULES, minLeadMinutes },
+  });
+  const options = { visitTypes: [], facilities: [facility("a", 60), facility("b", 1440)] };
+
+  it("uses the chosen clinic's rules, the only clinic's, or the defaults", () => {
+    expect(rulesFor(options, "b").minLeadMinutes).toBe(1440);
+    expect(rulesFor(options, null)).toEqual(DEFAULT_RULES);
+    expect(rulesFor({ ...options, facilities: [facility("a", 60)] }, null).minLeadMinutes).toBe(60);
+  });
+
+  it("says a rule's length in words", () => {
+    expect(lengthText(120)).toBe("2 hours");
+    expect(lengthText(60)).toBe("1 hour");
+    expect(lengthText(1440)).toBe("1 day");
+    expect(lengthText(2880)).toBe("2 days");
+    expect(lengthText(90)).toBe("90 minutes");
+  });
+
+  it("explains the waiting-list refusals", () => {
+    expect(bookingMessage("open_times_available", "x")).toContain("open times");
+    expect(bookingMessage("waitlist_not_available", "x")).toContain("does not take");
   });
 });

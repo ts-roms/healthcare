@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { AppointmentItem, Visit, VisitType } from "@/lib/api/types";
+import type { AppointmentItem, FacilityBookingRules, Visit, VisitType } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const idVersion = { appointmentId: z.uuid(), version: z.number().int().positive() };
@@ -63,6 +63,42 @@ export async function bookAppointment(input: z.input<typeof bookSchema>, idempot
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
   const body = { ...parsed.data, reason: parsed.data.reason || undefined };
   return actionResult(() => api<AppointmentItem[]>("/appointments", { method: "POST", body, idempotencyKey }));
+}
+
+const closeWaitlistSchema = z.object({ entryId: z.uuid(), reason: z.string().trim().min(3, "Say why.").max(500) });
+/** Takes a patient off the waiting list (needs appointment.manage; audited with the reason). */
+export async function closeWaitlistEntry(input: z.input<typeof closeWaitlistSchema>): Promise<ActionResult<null>> {
+  const parsed = closeWaitlistSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { entryId, reason } = parsed.data;
+  const result = await actionResult(async () => {
+    await api(`/waitlist/${entryId}/close`, { method: "POST", body: { reason } });
+    return null;
+  });
+  if (result.ok) revalidatePath("/appointments/waitlist");
+  return result;
+}
+
+const bookingRulesSchema = z.object({
+  facilityId: z.uuid(),
+  minLeadMinutes: z.number().int().min(0).max(10_080),
+  maxAdvanceDays: z.number().int().min(1).max(365),
+  maxUpcoming: z.number().int().min(1).max(20),
+  changeCutoffMinutes: z.number().int().min(0).max(10_080),
+  waitlistEnabled: z.boolean(),
+  maxWaitlistEntries: z.number().int().min(1).max(10),
+  version: z.number().int().positive().nullable(),
+});
+/** Sets one facility's online booking rules (needs clinic.configure; audited with before and after). */
+export async function saveBookingRules(input: z.input<typeof bookingRulesSchema>): Promise<ActionResult<FacilityBookingRules>> {
+  const parsed = bookingRulesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the numbers." };
+  const { facilityId, version, ...rules } = parsed.data;
+  const result = await actionResult(() =>
+    api<FacilityBookingRules>(`/clinic/booking-rules/${facilityId}`, { method: "PUT", body: { ...rules, version: version ?? undefined } }),
+  );
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
 }
 
 const onlineBookingSchema = z.object({ visitTypeId: z.uuid(), onlineBooking: z.boolean(), version: z.number().int().positive() });

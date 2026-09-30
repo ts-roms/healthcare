@@ -142,7 +142,7 @@ describe("portal booking", () => {
       expect(options.body.facilities).toEqual([
         expect.objectContaining({ id: tenant.facilityId, practitioners: [{ id: practitionerId, displayName: "Dr. cruz", specialty: null }] }),
       ]);
-      expect(options.body.rules).toMatchObject({ minLeadMinutes: 120, maxUpcoming: 3 });
+      expect(options.body.facilities[0].rules).toMatchObject({ minLeadMinutes: 120, maxUpcoming: 3, waitlistEnabled: false });
     });
 
     it("shows open slots from the published schedule", async () => {
@@ -182,10 +182,14 @@ describe("portal booking", () => {
     it("sends a confirmation that names only the facility and time", async () => {
       await drainEvents(ctx);
       const sent = await ctx.pool.query(
-        `SELECT channel, template_key FROM notification WHERE idempotency_key LIKE 'patient-booking:%' AND recipient_patient_id = $1`,
+        `SELECT channel, template_key FROM notification WHERE idempotency_key LIKE 'patient-booking:%' AND recipient_patient_id = $1 ORDER BY channel`,
         [pedro.patientId],
       );
-      expect(sent.rows).toEqual([{ channel: "sms", template_key: "appointment.self-service" }]);
+      // The text message, and the copy in the MyHealth inbox.
+      expect(sent.rows).toEqual([
+        { channel: "in_app", template_key: "appointment.self-service" },
+        { channel: "sms", template_key: "appointment.self-service" },
+      ]);
     });
 
     it("refuses a taken slot, one too soon, and one outside the schedule", async () => {
