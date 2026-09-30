@@ -7,6 +7,8 @@ import {
   type ImportedCode,
   type ImportedCondition,
   type ImportedDocument,
+  type ImportedImmunization,
+  type ImportedImmunizationInput,
   type ImportedItem,
   type ImportedMedication,
   type ImportedObservation,
@@ -18,6 +20,7 @@ import type {
   InboundCodeableConcept,
   InboundCondition,
   InboundDocumentReference,
+  InboundImmunization,
   InboundMedicationRequest,
   InboundMedicationStatement,
   InboundObservation,
@@ -363,6 +366,63 @@ export function mapDocument(r: InboundDocumentReference, patient: ImportPatientR
   };
 }
 
+// ---- Immunization ------------------------------------------------------------------------------------------------
+
+/** A FHIR dateTime the platform can record as a (possibly partial) date: YYYY, YYYY-MM, YYYY-MM-DD or an instant. */
+const RECORDABLE_DATE_TIME = /^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?)?)?$/;
+
+export function mapImmunization(r: InboundImmunization, patient: ImportPatientRef | null): ImportedImmunization {
+  const subject = subjectMatch(r.patient, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const vaccine = clip(conceptText(r.vaccineCode), 200);
+  if (!vaccine) {
+    acceptable = false;
+    notes.push("No vaccine is named.");
+  }
+  if (r.status === "entered-in-error") {
+    acceptable = false;
+    notes.push("The sender marks it entered-in-error.");
+  }
+  const fromText = r.occurrenceString && RECORDABLE_DATE_TIME.test(r.occurrenceString.trim()) ? r.occurrenceString.trim() : null;
+  const occurrence = r.occurrenceDateTime ?? fromText;
+  if (!occurrence) {
+    acceptable = false;
+    notes.push(`The date is given only as text ("${clip(r.occurrenceString, 60) ?? ""}"): record it as a reported dose instead.`);
+  }
+  if (r.status === "not-done") notes.push("Recorded by the sender as not given.");
+  if (r.primarySource === false) notes.push("The sender did not give it: it was reported to them.");
+  const dose = r.protocolApplied?.[0];
+  const performer = r.performer?.find((p) => p.actor.display)?.actor.display ?? null;
+  return {
+    kind: "immunization",
+    resourceType: "Immunization",
+    acceptable,
+    notes,
+    subject,
+    vaccine,
+    codes: codesOf(r.vaccineCode),
+    status: r.status,
+    notDoneReason: clip(conceptText(r.statusReason), 500),
+    occurrence,
+    occurrenceText: occurrence ? null : clip(r.occurrenceString, 60),
+    primarySource: r.primarySource ?? null,
+    reportOrigin: clip(conceptText(r.reportOrigin), 200),
+    lotNumber: clip(r.lotNumber, 60),
+    expirationDate: r.expirationDate && /^\d{4}-\d{2}-\d{2}$/.test(r.expirationDate) ? r.expirationDate : null,
+    site: clip(conceptText(r.site), 60),
+    route: clip(conceptText(r.route), 60),
+    doseQuantity:
+      r.doseQuantity?.value !== undefined && r.doseQuantity.value > 0
+        ? { value: r.doseQuantity.value, unit: clip(r.doseQuantity.unit ?? r.doseQuantity.code, 20) }
+        : null,
+    performer: clip(performer, 200),
+    manufacturer: clip(r.manufacturer?.display, 200),
+    doseNumber: dose ? clip(dose.doseNumberString ?? (dose.doseNumberPositiveInt !== undefined ? String(dose.doseNumberPositiveInt) : null), 60) : null,
+    location: clip(r.location?.display, 200),
+  };
+}
+
 // ---- entries -----------------------------------------------------------------------------------------------------
 
 /** The import's patient reference (its one Patient entry), for matching the subjects of the other entries. */
@@ -388,6 +448,8 @@ export function mapInboundResource(ctx: InboundContext, resource: ParsedEntry["r
       return mapMedication(resource as unknown as InboundMedicationStatement | InboundMedicationRequest, patient);
     case "DocumentReference":
       return mapDocument(resource as unknown as InboundDocumentReference, patient);
+    case "Immunization":
+      return mapImmunization(resource as unknown as InboundImmunization, patient);
     default:
       return {
         kind: "not_supported",
@@ -478,6 +540,39 @@ export function toExternalHistory(item: ImportedCondition | ImportedObservation 
         effectiveText: clip(item.date, 60),
       };
   }
+}
+
+/**
+ * The immunization record an accepted Immunization becomes: the vaccine as named and coded by the sender, the date at
+ * the precision received, and where the information comes from (the sender's own record, or reported to it).
+ */
+export function toImmunizationInput(item: ImportedImmunization): ImportedImmunizationInput {
+  if (!item.vaccine || !item.occurrence) throw new Error("An immunization without a vaccine or a date cannot be recorded");
+  const coded = firstCode(item.codes);
+  const numeric = item.doseNumber && /^\d{1,2}$/.test(item.doseNumber) ? Number(item.doseNumber) : null;
+  const unit = item.doseQuantity?.unit ?? null;
+  return {
+    vaccineName: item.vaccine,
+    vaccineCodeSystem: coded.code ? coded.codeSystem : null,
+    vaccineCode: coded.code,
+    manufacturer: item.manufacturer,
+    status: item.status === "not-done" ? "not_done" : "completed",
+    notDoneReasonText: item.status === "not-done" ? item.notDoneReason : null,
+    occurrence: item.occurrence,
+    doseLabel: item.doseNumber,
+    doseNumber: numeric !== null && numeric >= 1 && numeric <= 50 ? numeric : null,
+    lotNumber: item.lotNumber,
+    expiryDate: item.expirationDate,
+    route: item.route,
+    site: item.site,
+    doseQuantity: item.doseQuantity && unit ? item.doseQuantity.value : null,
+    doseUnit: item.doseQuantity && unit ? unit : null,
+    performerName: clip([item.performer, item.location].filter(Boolean).join(", "), 200),
+    sourceDescription: clip(
+      item.primarySource === false ? `Reported to the sender${item.reportOrigin ? ` (${item.reportOrigin})` : ""}` : "Recorded by the sender",
+      300,
+    ),
+  };
 }
 
 /**

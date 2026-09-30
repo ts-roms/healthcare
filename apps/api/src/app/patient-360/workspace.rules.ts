@@ -17,6 +17,8 @@ export const WORKSPACE_PANELS = {
   dental_images: ["dental.imaging.read"],
   /** Documents staff uploaded for the patient. */
   documents: ["document.read"],
+  /** The latest immunizations (given, not given, reported or imported). */
+  immunizations: ["immunization.read"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type WorkspacePanel = keyof typeof WORKSPACE_PANELS;
@@ -30,6 +32,7 @@ export const WORKSPACE_LIMITS = {
   labOrders: 10,
   dentalImages: 8,
   documents: 8,
+  immunizations: 8,
 } as const;
 
 export function visiblePanels(permissions: ReadonlySet<string>): { included: Set<WorkspacePanel>; withheld: WorkspacePanel[] } {

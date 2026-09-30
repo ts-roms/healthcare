@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { ClinicQueries } from "@healthcare/clinic";
+import { ClinicQueries, ImmunizationService } from "@healthcare/clinic";
 import { type Actor, actorUserId, NotFoundError, PH_TIMEZONE } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -94,6 +94,20 @@ export interface PatientWorkspace {
   }> | null;
   dentalImages: Array<{ id: string; filedUnder: string | null; facility: Facility; kind: string; takenOn: string; teeth: string[] }> | null;
   documents: Array<{ id: string; filedUnder: string | null; facility: Facility; category: string; title: string; uploadedAt: string }> | null;
+  /** The latest immunizations, entries in error left out; no notes, reasons or reactions (only whether one is recorded). */
+  immunizations: Array<{
+    id: string;
+    filedUnder: string | null;
+    facility: Facility;
+    vaccineName: string;
+    dose: string | null;
+    /** At its precision: "2019", "2019-05", "2019-05-12" or an ISO instant. */
+    occurrence: string;
+    occurrencePrecision: "year" | "month" | "day" | "time";
+    status: "completed" | "not_done";
+    source: "administered_here" | "historical" | "external_import";
+    hasReaction: boolean;
+  }> | null;
   /** Records merged into this patient, read with it (ADR-0009). */
   linkedRecords: Array<{ id: string; patientNumber: string }>;
   withheld: WorkspacePanel[];
@@ -115,6 +129,7 @@ export class PatientWorkspaceService {
     private readonly lab: LabRecordQueries,
     private readonly dental: DentalRecordQueries,
     private readonly documents: DocumentRecordQueries,
+    private readonly immunizations: ImmunizationService,
     private readonly audit: AuditService,
   ) {}
 
@@ -136,7 +151,7 @@ export class PatientWorkspaceService {
 
     const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
     const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
-    const [encounters, visit, critical, orders, images, documents] = await Promise.all([
+    const [encounters, visit, critical, orders, images, documents, immunizations] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
         : none,
@@ -148,6 +163,7 @@ export class PatientWorkspaceService {
       has("dental_images") ? this.dental.workspaceImages(organizationId, patientId, WORKSPACE_LIMITS.dentalImages) : none,
       // One more than shown, so documents that are dental images (listed as images) can be left out.
       has("documents") ? this.documents.recentForPatient(organizationId, patientId, WORKSPACE_LIMITS.documents + WORKSPACE_LIMITS.dentalImages) : none,
+      has("immunizations") ? this.immunizations.workspace(organizationId, patientId, WORKSPACE_LIMITS.immunizations) : none,
     ]);
 
     const userId = actorUserId(actor);
@@ -251,6 +267,9 @@ export class PatientWorkspaceService {
                 : [],
             )
         : null,
+      immunizations: immunizations
+        ? immunizations.map(({ patientId: filedAs, facilityId, ...i }) => ({ ...i, filedUnder: filedUnder(filedAs), facility: facilityOf(facilityId) }))
+        : null,
       linkedRecords: [...linked].map(([id, patientNumber]) => ({ id, patientNumber })),
       withheld,
     };
@@ -270,6 +289,7 @@ export class PatientWorkspaceService {
           labOrders: result.labOrders?.length ?? null,
           dentalImages: result.dentalImages?.length ?? null,
           documents: result.documents?.length ?? null,
+          immunizations: result.immunizations?.length ?? null,
         },
       },
     });

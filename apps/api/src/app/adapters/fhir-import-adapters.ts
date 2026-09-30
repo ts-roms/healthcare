@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { ExternalRecordsService } from "@healthcare/clinic";
+import { ExternalRecordsService, ImmunizationService } from "@healthcare/clinic";
 import { type Actor, DATABASE, type Database, type DbExecutor, NotFoundError } from "@healthcare/core";
 import type {
   DuplicateOverride,
   ExternalHistoryInput,
   FhirImportTargets,
   ImportedAllergyInput,
+  ImportedImmunizationInput,
   ImportOrigin,
   ImportPatientBrief,
   ImportPatientCandidate,
@@ -40,7 +41,8 @@ function identifiers(draft: RegistrationDraft): Array<{ type: IdentifierType; va
 
 /**
  * FHIR imports → patient and clinic: patient lookup, duplicate detection and registration through the patient
- * domain; accepted allergies and external history through the clinic domain's own commands (validation and audit).
+ * domain; accepted allergies, immunizations and external history through the clinic domain's own commands (validation
+ * and audit).
  */
 @Injectable()
 export class AppFhirImportTargets implements FhirImportTargets {
@@ -49,6 +51,7 @@ export class AppFhirImportTargets implements FhirImportTargets {
     private readonly patients: PatientRecordService,
     private readonly registration: PatientRegistrationService,
     private readonly external: ExternalRecordsService,
+    private readonly immunizations: ImmunizationService,
   ) {}
 
   async patient(organizationId: string, patientId: string): Promise<ImportPatientBrief | undefined> {
@@ -121,6 +124,14 @@ export class AppFhirImportTargets implements FhirImportTargets {
       declaredSource: origin.declaredSource,
     });
     return allergy.id;
+  }
+
+  async recordImmunization(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedImmunizationInput, origin: ImportOrigin): Promise<string> {
+    const created = await this.immunizations.recordImportedIn(tx, actor, patientId, input, {
+      reference: origin.reference,
+      declaredSource: origin.declaredSource,
+    });
+    return created.id;
   }
 
   async recordExternalHistory(tx: DbExecutor, actor: Actor, patientId: string, input: ExternalHistoryInput, origin: ImportOrigin): Promise<string> {

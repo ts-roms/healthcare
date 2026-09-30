@@ -311,6 +311,50 @@ const documentReference = obj({
   content: z.array(obj({ attachment, format: coding.optional() })).min(1),
 });
 
+const immunization = obj({
+  resourceType: z.literal("Immunization"),
+  ...resourceBase,
+  identifier: z.array(identifier).optional(),
+  status: z.enum(["completed", "entered-in-error", "not-done"]),
+  statusReason: codeableConcept.optional(),
+  vaccineCode: codeableConcept,
+  patient: reference,
+  occurrenceDateTime: dateTime.optional(),
+  occurrenceString: str.optional(),
+  recorded: dateTime.optional(),
+  primarySource: z.boolean().optional(),
+  reportOrigin: codeableConcept.optional(),
+  location: reference.optional(),
+  manufacturer: reference.optional(),
+  lotNumber: str.optional(),
+  expirationDate: date.optional(),
+  site: codeableConcept.optional(),
+  route: codeableConcept.optional(),
+  doseQuantity: quantity.optional(),
+  performer: z.array(obj({ function: codeableConcept.optional(), actor: reference })).optional(),
+  note: z.array(annotation).optional(),
+  protocolApplied: z
+    .array(
+      obj({
+        series: str.optional(),
+        doseNumberPositiveInt: z.number().int().positive().optional(),
+        doseNumberString: str.optional(),
+        seriesDosesPositiveInt: z.number().int().positive().optional(),
+        seriesDosesString: str.optional(),
+      })
+        .superRefine(atMostOne("doseNumber", ["doseNumberPositiveInt", "doseNumberString"]))
+        .superRefine((value, ctx) => {
+          if (value.doseNumberPositiveInt === undefined && value.doseNumberString === undefined) {
+            ctx.addIssue({ code: "custom", message: "doseNumber[x] is required", path: ["doseNumber[x]"] });
+          }
+        }),
+    )
+    .optional(),
+}).superRefine((value, ctx) => {
+  const n = Number(value.occurrenceDateTime !== undefined) + Number(value.occurrenceString !== undefined);
+  if (n !== 1) ctx.addIssue({ code: "custom", message: "exactly one of occurrenceDateTime or occurrenceString is required", path: ["occurrence[x]"] });
+});
+
 /** The inbound schema of each importable resource type (validated output types for the mappers). */
 export const INBOUND_SCHEMAS = {
   Patient: patient,
@@ -320,6 +364,7 @@ export const INBOUND_SCHEMAS = {
   MedicationStatement: medicationStatement,
   MedicationRequest: medicationRequest,
   DocumentReference: documentReference,
+  Immunization: immunization,
 } as const;
 
 export type InboundPatient = z.infer<typeof patient>;
@@ -329,6 +374,7 @@ export type InboundObservation = z.infer<typeof observation>;
 export type InboundMedicationStatement = z.infer<typeof medicationStatement>;
 export type InboundMedicationRequest = z.infer<typeof medicationRequest>;
 export type InboundDocumentReference = z.infer<typeof documentReference>;
+export type InboundImmunization = z.infer<typeof immunization>;
 export type InboundCodeableConcept = z.infer<typeof codeableConcept>;
 export type InboundReference = z.infer<typeof reference>;
 export type InboundQuantity = z.infer<typeof quantity>;

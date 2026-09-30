@@ -1,7 +1,7 @@
 import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ImportKind } from "./inbound-model";
 
-// Mirrors database/migrations/0048_fhir_import.sql (the migration is the source of truth).
+// Mirrors database/migrations/0048_fhir_import.sql and 0076 (immunizations) (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -9,7 +9,7 @@ export const FHIR_IMPORT_STATUSES = ["pending_review", "accepted", "partially_ac
 export type FhirImportStatus = (typeof FHIR_IMPORT_STATUSES)[number];
 export const FHIR_IMPORT_ENTRY_OUTCOMES = ["pending", "accepted", "rejected", "not_supported"] as const;
 export type FhirImportEntryOutcome = (typeof FHIR_IMPORT_ENTRY_OUTCOMES)[number];
-export type FhirImportResultType = "allergy_intolerance" | "external_history_entry" | "patient";
+export type FhirImportResultType = "allergy_intolerance" | "external_history_entry" | "immunization" | "patient";
 
 /** A received import: non-PHI metadata and the review state (the content is sealed in fhir_import_content). */
 export const fhirImport = pgTable("fhir_import", {

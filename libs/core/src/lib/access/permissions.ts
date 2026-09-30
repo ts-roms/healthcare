@@ -128,6 +128,9 @@ export const PERMISSIONS = [
   "compliance.review.manage",
   "inventory.controlled-register.read",
   "document.retention.manage",
+  // Immunization history (migration 0076); the vaccine catalogue is managed with clinic.configure.
+  "immunization.read",
+  "immunization.record",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -1,4 +1,14 @@
-import { dateInPeriod, flagLabel, instantInPeriod, periodLabel, referenceRange, resultValue, spanOverlapsPeriod } from "./record-copy.rules";
+import {
+  dateInPeriod,
+  flagLabel,
+  instantInPeriod,
+  occurrenceLabel,
+  occurrenceSpan,
+  periodLabel,
+  referenceRange,
+  resultValue,
+  spanOverlapsPeriod,
+} from "./record-copy.rules";
 
 describe("record copy rules", () => {
   const period = { from: "2026-03-01", to: "2026-03-31" };
@@ -44,5 +54,18 @@ describe("record copy rules", () => {
     expect(flagLabel("high")).toBe("High");
     expect(flagLabel("normal")).toBe("");
     expect(flagLabel(null)).toBe("");
+  });
+
+  it("places a partially dated immunization in a period by the year or month it covers", () => {
+    expect(occurrenceSpan("2024-01-01", "year")).toEqual({ start: "2024-01-01", end: "2024-12-31" });
+    expect(occurrenceSpan("2024-02-01", "month")).toEqual({ start: "2024-02-01", end: "2024-02-29" });
+    expect(occurrenceSpan("2026-03-12", "day")).toEqual({ start: "2026-03-12", end: "2026-03-12" });
+    const year = occurrenceSpan("2026-01-01", "year");
+    expect(spanOverlapsPeriod(year.start, year.end, period)).toBe(true);
+    const february = occurrenceSpan("2026-02-01", "month");
+    expect(spanOverlapsPeriod(february.start, february.end, period)).toBe(false);
+    expect(occurrenceLabel("2019-01-01", "year", (d) => d)).toBe("2019");
+    expect(occurrenceLabel("2019-05-01", "month", (d) => d)).toBe("May 2019");
+    expect(occurrenceLabel("2019-05-12", "day", (d) => `on ${d}`)).toBe("on 2019-05-12");
   });
 });

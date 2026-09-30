@@ -22,7 +22,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { canonicalJson } from "../exchange/canonical-json";
 import { fhirImport, fhirImportContent, fhirImportEntry, type FhirImportEntryRecord, type FhirImportRecord, type FhirImportStatus } from "./fhir-import.schema";
 import { type ImportedItem, type ImportedPatient, importKind, type ImportOrigin } from "./inbound-model";
-import { mapInboundEntries, registrationDraft, toAllergyInput, toExternalHistory } from "./inbound-mapping";
+import { mapInboundEntries, registrationDraft, toAllergyInput, toExternalHistory, toImmunizationInput } from "./inbound-mapping";
 import { FhirImportError, type ParsedImport, parseImport } from "./inbound-validation";
 import { type DuplicateOverride, FHIR_IMPORT_TARGETS, type FhirImportTargets, type RegistrationDraft } from "./ports";
 
@@ -40,8 +40,9 @@ export interface ReceivedImport {
 }
 
 /** What accepting an entry of each kind creates. */
-function becomes(kind: string): "allergy" | "external_history" | "patient_match" | null {
+function becomes(kind: string): "allergy" | "immunization" | "external_history" | "patient_match" | null {
   if (kind === "allergy") return "allergy";
+  if (kind === "immunization") return "immunization";
   if (kind === "patient") return "patient_match";
   if (kind === "not_supported") return null;
   return "external_history";
@@ -310,11 +311,14 @@ export class FhirImportService {
         reference: `fhir-import:${row.id}#${entry.entryIndex}`,
         declaredSource: row.declaredSource,
       };
-      let resultType: "allergy_intolerance" | "external_history_entry";
+      let resultType: "allergy_intolerance" | "external_history_entry" | "immunization";
       let resultId: string;
       if (item.kind === "allergy") {
         resultType = "allergy_intolerance";
         resultId = await this.targets.recordAllergy(tx, actor, row.patientId, toAllergyInput(item), origin);
+      } else if (item.kind === "immunization") {
+        resultType = "immunization";
+        resultId = await this.targets.recordImmunization(tx, actor, row.patientId, toImmunizationInput(item), origin);
       } else if (item.kind === "condition" || item.kind === "observation" || item.kind === "medication" || item.kind === "document") {
         resultType = "external_history_entry";
         resultId = await this.targets.recordExternalHistory(tx, actor, row.patientId, toExternalHistory(item), origin);

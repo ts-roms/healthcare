@@ -1,5 +1,5 @@
 import type { Actor, DbExecutor } from "@healthcare/core";
-import type { ExternalHistoryInput, ImportedAllergyInput, ImportOrigin } from "./inbound-model";
+import type { ExternalHistoryInput, ImportedAllergyInput, ImportedImmunizationInput, ImportOrigin } from "./inbound-model";
 
 /** A new patient as the imported Patient describes it (the patient domain validates it like any registration). */
 export interface RegistrationDraft {
@@ -56,6 +56,8 @@ export interface FhirImportTargets {
   recordAllergy(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedAllergyInput, origin: ImportOrigin): Promise<string>;
   /** Records external clinical history in the clinic domain, in the caller's transaction. Returns the entry id. */
   recordExternalHistory(tx: DbExecutor, actor: Actor, patientId: string, input: ExternalHistoryInput, origin: ImportOrigin): Promise<string>;
+  /** Records an immunization (source external_import) in the clinic domain, in the caller's transaction. Returns its id. */
+  recordImmunization(tx: DbExecutor, actor: Actor, patientId: string, input: ImportedImmunizationInput, origin: ImportOrigin): Promise<string>;
 }
 
 export const FHIR_IMPORT_TARGETS = Symbol("FHIR_IMPORT_TARGETS");

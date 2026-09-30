@@ -21,6 +21,7 @@ import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
+import { AppImmunizationContext } from "./adapters/immunization-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -56,6 +57,7 @@ import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
+import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
 import { PortalTeleconsultController } from "./portal/portal-teleconsult.controller";
@@ -145,7 +147,12 @@ export class AppModule implements NestModule {
           queue: overrides.notificationQueue,
         }),
         // Phase 2 — clinic. Cross-domain needs are satisfied by adapters defined here.
-        ClinicModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory }),
+        // Immunizations read staff names (auth) and take vaccine stock (inventory) through an adapter.
+        ClinicModule.forRoot({
+          imports: [PatientModule, AuthModule, InventoryModule],
+          patientDirectory: AppPatientDirectory,
+          immunizationContext: AppImmunizationContext,
+        }),
         prescriptions,
         carePlans,
         // Phase 3 — laboratory.
@@ -199,6 +206,7 @@ export class AppModule implements NestModule {
         PortalBookingController,
         PortalDentalController,
         PortalDocumentsController,
+        PortalImmunizationsController,
         PortalMessagesController,
         PortalRecordsController,
         PortalTeleconsultController,

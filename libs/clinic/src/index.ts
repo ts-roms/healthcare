@@ -18,3 +18,7 @@ export type { AppointmentListItem, AppointmentView } from "./lib/appointments/ap
 export { PatientBookDto, PatientCancelDto, PatientRescheduleDto, PatientSlotsDto } from "./lib/clinic.dto";
 export * from "./lib/certificates/medical-certificate.service";
 export * from "./lib/certificates/medical-certificate.rules";
+export * from "./lib/immunizations/immunization.schema";
+export * from "./lib/immunizations/immunization.rules";
+export * from "./lib/immunizations/immunization.service";
+export * from "./lib/immunizations/ports";

@@ -325,6 +325,7 @@ const source: PatientRecordSource = {
   ],
   externalHistory: [],
   dental: { procedures: [], plans: [], examinations: [], chart: [], perioCharts: [] },
+  immunizations: [],
 };
 
 function errors(resource: { resourceType: string }): unknown[] {
@@ -541,7 +542,7 @@ describe("FHIR R4 mapping", () => {
     const resources = capability.rest?.[0]?.resource ?? [];
     expect(resources.map((r) => r.type)).toEqual(expect.arrayContaining(["Patient", "DocumentReference", "Binary"]));
     const withLastUpdated = resources.filter((r) => r.searchParam?.some((p) => p.name === "_lastUpdated")).map((r) => r.type);
-    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "MedicationRequest", "MedicationStatement", "Procedure"]);
+    expect(withLastUpdated.sort()).toEqual(["DocumentReference", "Immunization", "MedicationRequest", "MedicationStatement", "Procedure"]);
   });
 });
 
