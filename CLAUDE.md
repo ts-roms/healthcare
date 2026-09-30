@@ -423,6 +423,7 @@ The software assists healthcare professionals; it must not pretend to independen
 
 Design with consideration for the Data Privacy Act and National Privacy Commission guidance, DOH requirements, PhilHealth workflows (eClaims, YAKAP where applicable), facility licensing and clinical laboratory regulations, Philippine healthcare terminology, currency (PHP), address formats, mobile numbers, local date/time (Asia/Manila), and holidays where relevant.
 
+- Open compliance items are registered in `docs/security/compliance-dependencies.md`; add a row when a feature stops short of a regulatory rule.
 - Do not claim regulatory compliance merely because a feature exists. Compliance must be validated against current official requirements before production certification or deployment.
 - **Never invent government APIs, regulatory requirements, or certification rules.** If a government integration is required but documentation is unavailable, mark it as an integration dependency instead of inventing an implementation.
 
