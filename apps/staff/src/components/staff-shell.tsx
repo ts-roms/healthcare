@@ -3,10 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, UserRoundIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
+import { BellIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
-import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
+import {
+  Avatar,
+  AvatarFallback,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  NativeSelect,
+  toast,
+} from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
 
@@ -86,24 +98,42 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               ) : null}
             </Link>
           </Button>
-          <Link
-            href="/account"
-            title="My account: password and two-step verification"
-            className="hidden rounded-md px-1 text-right leading-tight hover:bg-muted lg:block"
-          >
-            <span className="block text-table font-medium">{user.displayName}</span>
-            <span className="block text-meta text-muted-foreground">{organizationName}</span>
-          </Link>
-          <Button asChild variant="ghost" size="icon" className="lg:hidden">
-            <Link href="/account" aria-label="My account" title="My account">
-              <UserRoundIcon />
-            </Link>
-          </Button>
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" size="icon" aria-label="Sign out" title={`Sign out ${user.email}`}>
-              <LogOutIcon />
-            </Button>
-          </form>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Account menu" title={user.displayName}>
+                <Avatar className="size-7">
+                  <AvatarFallback className="text-meta">{initials(user.displayName)}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel className="flex items-center gap-3">
+                <Avatar className="size-10">
+                  <AvatarFallback>{initials(user.displayName)}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 leading-tight">
+                  <span className="block truncate text-body font-semibold">{user.displayName}</span>
+                  <span className="block truncate text-meta font-normal text-muted-foreground">{user.email}</span>
+                  <span className="block truncate text-meta font-normal text-muted-foreground">{organizationName}</span>
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <UserRoundIcon aria-hidden /> My account
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <SettingsIcon aria-hidden /> Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void signOut()}>
+                <LogOutIcon aria-hidden /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       }
     >
@@ -124,4 +154,9 @@ function DemoDataBanner() {
       </span>
     </div>
   );
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
 }
