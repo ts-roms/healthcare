@@ -4319,3 +4319,115 @@ export interface ImportedFamilyHistoryItem extends ImportedBase {
   deceased: boolean | null;
   conditions: Array<{ display: string; codes: ImportedCode[]; onsetAge: number | null; onsetText: string | null; contributedToDeath: boolean }>;
 }
+
+// ---- Administration: staff users, roles, facilities, audit trail ----
+
+export interface StaffRoleAssignment {
+  id: string;
+  roleId: string;
+  roleKey: string;
+  roleName: string;
+  facilityId: string | null;
+  departmentId: string | null;
+}
+
+export interface StaffUser {
+  id: string;
+  email: string;
+  displayName: string;
+  accountStatus: string;
+  membershipStatus: "active" | "suspended" | string;
+  mfaEnabled: boolean;
+  lastLoginAt: string | null;
+  roleAssignments: StaffRoleAssignment[];
+}
+
+export interface StaffRoleDefinition {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: string[];
+}
+
+export interface FacilityDetail extends Facility {
+  addressLine: string | null;
+  barangay: string | null;
+  cityMunicipality: string | null;
+  province: string | null;
+  region: string | null;
+  postalCode: string | null;
+  contactNumber: string | null;
+  email: string | null;
+  licenseNumber: string | null;
+  version: number;
+}
+
+export interface Department {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
+export interface AuditEventRow {
+  id: string;
+  occurredAt: string;
+  facilityId: string | null;
+  actorType: string;
+  actorUserId: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  patientId: string | null;
+  outcome: string;
+  reason: string | null;
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+  metadata: Record<string, unknown> | null;
+  requestId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
+// ---- Scheduling configuration ----
+
+export interface PractitionerDetail extends Practitioner {
+  licenseNumber: string | null;
+  licenseValidUntil: string | null;
+  version: number;
+}
+
+export interface ClinicRoom {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  roomType: "consultation" | "triage" | "procedure" | "dental" | "other";
+  status: "active" | "inactive";
+}
+
+export interface PractitionerScheduleRow {
+  id: string;
+  practitionerId: string;
+  facilityId: string;
+  roomId: string | null;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotMinutes: number;
+  validFrom: string;
+  validUntil: string | null;
+  status: "active" | "retired";
+  retiredAt: string | null;
+}
+
+export interface ScheduleExceptionRow {
+  id: string;
+  facilityId: string;
+  practitionerId: string | null;
+  startsAt: string;
+  endsAt: string;
+  reason: string;
+}

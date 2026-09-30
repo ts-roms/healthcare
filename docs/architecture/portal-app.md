@@ -212,4 +212,4 @@ A person with their own MyHealth account may act for another person's record (a 
 
 ## Not yet
 
-push to a mobile app (there is none yet; browser push is built).
+push to the mobile app (`apps/mobile` exists with sign-in and results only — [mobile-app.md](mobile-app.md); browser push is built).

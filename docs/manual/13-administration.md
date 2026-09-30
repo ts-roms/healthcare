@@ -7,9 +7,9 @@ privacy points administrators should know.
 **Who uses it.** Organization administrators, IT staff who support them, records officers and auditors. Other staff can read the roles section to understand
 why a button or menu is missing.
 
-> Several administration tasks have **no screen in the staff app yet**: managing staff users, roles, facilities and departments, clinic set-up
-> (practitioners, schedules, rooms), and reading the audit trail. They are done through the platform's REST API (`/api/v1`, documented at `/api/docs` on the
-> API server) by someone with the right permission, usually IT on behalf of the administrator. This chapter names those API calls briefly.
+> A few administration tasks still have **no screen in the staff app**: defining diagnosis coding systems, and changing or retiring a role once created.
+> They are done through the platform's REST API (`/api/v1`, documented at `/api/docs` on the API server) by someone with the right permission. There is no way
+> yet for an administrator to reset another person's password or two-step verification.
 
 ## Roles and default permissions
 
@@ -227,21 +227,25 @@ advises.
   organization management. Grant them to a custom role if someone else must do them.
 - The facility selector lists the facilities where a person holds a role (every facility for an organization-wide role). It does not need
   `organization.read`, so a cashier-only user can choose their facility.
-- The **Auditor** role has no screen to use yet: the audit trail is read through the API (see below).
+- The **Auditor** role reads the audit trail at **Administration → Audit log** (see below).
 
 ## How staff accounts are managed
 
-There is no user-management screen yet. The **Administration** menu currently contains only **Integrations**. Use these API calls (each is audited):
+**Administration → Staff users** (`/admin/users`, needs `user.read`; changes need `user.manage`) lists everyone in the organization with their status,
+two-step verification, roles (and where each applies) and last sign-in. Every change below is audited.
 
-| Task                                  | API call                                                                                      | Permission    | Notes                                                                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| List staff and their role assignments | `GET /api/v1/users`, `GET /api/v1/users/{userId}`                                             | `user.read`   |                                                                                                                                         |
-| Add a person to the organization      | `POST /api/v1/users` (email, display name, initial password)                                  | `user.manage` | Creates the account if the email is new (initial password of 12+ characters required); otherwise adds the existing account as a member. |
-| Suspend or reactivate a member        | `PATCH /api/v1/users/{userId}/membership` (status, reason)                                    | `user.manage` | Suspension ends their access immediately. You cannot change your own membership.                                                        |
-| Grant a role                          | `POST /api/v1/users/{userId}/role-assignments` (role, optional facility, optional department) | `user.manage` | A department grant also needs its facility.                                                                                             |
-| Revoke a role                         | `DELETE /api/v1/users/{userId}/role-assignments/{assignmentId}` (optional reason)             | `user.manage` | Revoked assignments are kept in history.                                                                                                |
-| List roles and their permissions      | `GET /api/v1/roles`, `GET /api/v1/permissions`                                                | `user.read`   |                                                                                                                                         |
-| Create a custom role                  | `POST /api/v1/roles` (key, name, description, permissions)                                    | `role.manage` | Existing roles cannot be edited or deleted through the API yet; create a new role and re-grant instead.                                 |
+1. **Add a person:** click **Add staff member**, enter their work email and the name to show. If the email is new to the platform, also set a **first
+   password** (at least 12 characters) and give it to them in person; someone who already has an account keeps their own password. You are taken to their
+   page to give them a role — without one they can sign in but see nothing.
+2. **Grant a role:** on the person's page, under **Grant a role**, choose the role and **Where**: organization-wide, one facility, or one department of a
+   facility. Click **Grant**. Roles containing permissions you do not hold yourself are not offered.
+3. **Revoke a role:** click **Revoke…** next to it, give the reason and confirm. Revoked assignments are kept in history.
+4. **Suspend or reactivate:** click **Suspend…** (or **Reactivate…**), give the reason and confirm. Suspension signs the person out everywhere at once. You
+   cannot suspend yourself.
+
+**Administration → Roles** (`/admin/roles`, needs `user.read`) shows every role and its permissions. With `role.manage`, **New role…** creates your
+organization's own role: a name, a key (lower-case letters, digits and underscores), an optional description, and the permissions — only those you hold
+yourself can be ticked. Roles cannot be changed or retired from the screen yet; create a new role and re-grant it instead.
 
 **Rules for granting access:**
 
@@ -250,24 +254,22 @@ There is no user-management screen yet. The **Administration** menu currently co
   load.
 - To link a staff account to a practitioner (needed to sign encounters, prescribe and record dental work), use the clinic set-up calls below.
 
-**Passwords and two-step verification.** Each user changes their own password and turns two-step verification (TOTP) on or off through the API
-(`POST /api/v1/auth/password`, `POST /api/v1/auth/mfa/setup`, `…/mfa/confirm`, `…/mfa/disable`) while signed in. There is no screen for this yet, and no
-self-service password reset. Two-step verification is optional; an organization-wide "require MFA" policy does not exist yet. Changing a password signs out the
-user's other sessions.
+**Passwords and two-step verification.** Each person changes their own password and turns two-step verification on or off under **My account** (click
+their name in the top bar; see [Getting started](01-getting-started.md)). There is no self-service password reset and no way for an administrator to reset
+someone else's password or two-step verification yet. Two-step verification is optional; an organization-wide "require MFA" policy does not exist yet.
+Changing a password signs out the person's other sessions.
 
 ## How facilities and departments are managed
 
-The organization itself is created by a platform administrator. Facilities (clinics, laboratories, dental clinics …) and their departments are managed through
-the API:
+The organization itself is created by a platform administrator. **Administration → Facilities** (`/admin/facilities`, needs `organization.read`; changes
+need `organization.manage`) shows each facility (clinics, laboratories, dental clinics …) with its departments.
 
-| Task                       | API call                                                           | Permission                                  |
-| -------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
-| View the organization      | `GET /api/v1/organization`                                         | `organization.read`                         |
-| Facilities you can work in | `GET /api/v1/auth/me/facilities` (the facility selector)           | Any signed-in user                          |
-| List or view facilities    | `GET /api/v1/facilities`, `GET /api/v1/facilities/{facilityId}`    | `organization.read`                         |
-| Create a facility          | `POST /api/v1/facilities`                                          | `organization.manage`                       |
-| Update a facility          | `PATCH /api/v1/facilities/{facilityId}` (with its current version) | `organization.manage`                       |
-| List or create departments | `GET` / `POST /api/v1/facilities/{facilityId}/departments`         | `organization.read` / `organization.manage` |
+1. **Add a facility:** click **New facility**, enter a code (lower-case letters, digits and hyphens; it cannot change later), the name, type and, if you
+   like, the address, contact details and licence number. Click **Add facility**.
+2. **Change a facility:** click **Edit…**, change the details or set it **Inactive**, and click **Save**. If someone else saved it meanwhile, the page
+   refreshes and asks you to check again.
+3. **Add a department:** click **Add department…**, enter its name and code, and click **Add**. Departments can then be used to grant a role to one
+   department of a facility.
 
 A facility records its type, Philippine address, contact details, licence number (recorded for reference, not validated), time zone and status. Only
 **active** facilities appear in the staff app's facility selector. Facility changes are audited with a before/after record.
@@ -278,9 +280,10 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 
 | Setting                                                                                                                         | Where                                                                                      | Permission to change            | See chapter                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Users, roles, role grants                                                                                                       | API only                                                                                   | `user.manage`, `role.manage`    | this chapter                                                                                              |
-| Facilities and departments                                                                                                      | API only                                                                                   | `organization.manage`           | this chapter                                                                                              |
-| Practitioners (and their link to a staff account), rooms, schedules, schedule exceptions, coding systems                        | API only (`/api/v1/clinic/…`)                                                              | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
+| Users, roles, role grants                                                                                                       | Screens: `/admin/users`, `/admin/roles`                                                    | `user.manage`, `role.manage`    | this chapter                                                                                              |
+| Facilities and departments                                                                                                      | Screen: `/admin/facilities`                                                                | `organization.manage`           | this chapter                                                                                              |
+| Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                            | Screen: `/appointments/schedules`                                                          | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
+| Diagnosis coding systems                                                                                                        | API only (`/api/v1/clinic/coding-systems`)                                                 | `clinic.configure`              | this chapter                                                                                              |
 | Visit types patients may book online                                                                                            | Screen: `/appointments/visit-types`                                                        | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                               | Screen: `/clinic/vaccines` (**Clinic → Vaccines**)                                         | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
 | Services and prices, discount rules, payers, packages, tax and documents, document numbers                                      | Screen: `/billing/settings`                                                                | `billing.pricelist.manage`      | [Billing](10-billing.md)                                                                                  |
@@ -309,8 +312,9 @@ ones or resolve others with a note. It needs `integration.exchange.manage` (orga
 payload key ids stored values still need. Because no PhilHealth, DOH, payment or reference-laboratory adapter is configured by default, nothing is actually
 transmitted to those systems. Details are in [Records, reporting and integrations](11-records-reporting-and-integrations.md).
 
-> The **Administration** menu entry appears only for people who can open one of its pages: **Integrations** (`integration.exchange.manage`)
-> or **Compliance** (`compliance.review.manage`).
+> The **Administration** menu entry appears only for people who can open one of its pages: **Staff users** and **Roles** (`user.read`), **Facilities**
+> (`organization.read`), **Audit log** (`audit.read`), **Integrations** (`integration.exchange.manage`), **Compliance** (`compliance.review.manage`) or
+> **Consent wording** (`consent.wording.manage`). **Administration** itself lists the pages open to you.
 
 ## How to write the consent wording for online consent
 
@@ -351,8 +355,10 @@ denials, user and role changes, facility changes, every patient record view and 
 consent, portal invitations and disabling, timeline views, document uploads and downloads, clinical documentation, prescriptions and decision-support
 overrides, laboratory result actions, billing actions, PhilHealth, DOH and FHIR actions.
 
-**Reading the audit trail.** There is no audit screen yet. Users with `audit.read` (Auditor, Organization administrator) query it through
-`GET /api/v1/audit-events`, filtered by patient, user (actor), record type and id, action, and time range. Each search is itself audited.
+**Reading the audit trail.** **Administration → Audit log** (`/admin/audit`; `audit.read`: Auditor, Organization administrator) lists entries newest
+first, 50 a page (**Older** / **Newer**). Filter by day range (local days), action (for example `patient.read`), record type (for example `patient`), staff
+member and patient id, then click **Search**; **Clear** removes the filters. **Show** opens an entry's record id, before/after values, details and where the
+request came from; **Open patient** goes to the patient concerned. Each search is itself recorded in the audit trail.
 
 When staff see "(ref xxxxxxxx)" at the end of an error message, that is the start of the request reference. It helps IT find the matching log and audit
 entries.
@@ -393,7 +399,7 @@ entries.
 | You cannot grant permissions you do not hold                                      | The role contains permissions the granting user lacks.                   | Ask an organization administrator to grant it.                                            |
 | The user already has this role in this scope                                      | The same role is already granted at that level.                          | No action needed.                                                                         |
 | This person is already a member of the organization                               | The email is already a member.                                           | Grant roles instead of adding them again.                                                 |
-| initialPassword is required for a new account                                     | The email is new to the platform.                                        | Provide an initial password of at least 12 characters and share it securely.              |
+| This email has no account yet: set a first password for them.                     | The email is new to the platform.                                        | Set a first password of at least 12 characters and give it to them in person.             |
 | You cannot change your own membership status                                      | Self-suspension or self-reactivation is blocked.                         | Ask another administrator.                                                                |
 | Facility was modified by someone else (expected version …). Reload and try again. | Someone changed the facility at the same time.                           | Read the facility again and repeat the change with the new version.                       |
 | Too many failed attempts. Try again later.                                        | The account is locked for 15 minutes.                                    | Wait, then have the user sign in again. Investigate repeated lockouts in the audit trail. |

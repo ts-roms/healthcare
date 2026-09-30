@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "MyHealth",
+    "slug": "healthcare-myhealth",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "ios": { "supportsTablet": false },
+    "android": {},
+    "experiments": { "typedRoutes": false }
+  }
+}

@@ -76,8 +76,21 @@ From left to right:
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
-- Your **name** and **organization** (on wide screens).
+- Your **name** and **organization** (on wide screens; a person icon on narrow ones) — opens **My account** (see below).
 - **Sign out** button (the exit icon). Hover over it to see which email is signed in.
+
+## How to change your password or turn on two-step verification
+
+Click your name in the top bar to open **My account** (`/account`).
+
+- **Password:** enter your current password, then the new one twice (at least 12 characters, not repetitive), and click **Change password**.
+  You stay signed in here; every other session of yours is signed out.
+- **Two-step verification:** click **Turn on**. In an authenticator app on your phone (for example Google Authenticator or Microsoft
+  Authenticator), add an account with the setup key shown (on a phone you can open it directly in the app). Type the 6-digit code the app shows
+  and click **Turn on**. From then on, signing in also asks for a code. To turn it off, click **Turn off…** and enter your password and a current
+  code.
+
+If you lose your phone, ask your administrator: there is no screen yet to reset someone else's two-step verification, so IT has to help.
 
 ## How to read your notifications
 

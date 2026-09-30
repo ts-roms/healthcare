@@ -91,4 +91,4 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
 - **Push first** (`apps/api/src/app/portal/patient-push.ts`): for a patient with a device, the results-ready, records, dental and
   "a message is waiting" notices go to the device instead of SMS or email; without a device there is no push attempt (no suppressed row)
   and SMS then email work as before. The waiting-list notice stays SMS or email.
-- Not built: push for staff, a mobile app (Expo/FCM/APNs), topics or badges, delivery receipts from the browser.
+- Not built: push for staff, push to the mobile app (Expo/FCM/APNs; `apps/mobile` has no push yet), topics or badges, delivery receipts from the browser.

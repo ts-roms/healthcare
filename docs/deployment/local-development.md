@@ -44,6 +44,19 @@ pnpm test:e2e                # critical journeys in a browser (below)
 The integration tests drop and recreate the `public` schema of
 `TEST_DATABASE_URL`. Never point it at a database you care about.
 
+### Mobile app (`apps/mobile`)
+
+The patient app (Expo; sign-in and results so far — [mobile-app.md](../architecture/mobile-app.md)) talks to the API over the network, so a
+phone or emulator needs the development machine's address, not `localhost` (the Android emulator reaches the host at `10.0.2.2`):
+
+```bash
+cp apps/mobile/.env.example apps/mobile/.env.local   # set EXPO_PUBLIC_API_BASE_URL and EXPO_PUBLIC_ORGANIZATION_CODE
+pnpm nx start mobile                                # Expo dev server; open in Expo Go or a development build
+pnpm nx run-many -t lint typecheck test -p mobile    # what CI runs for it
+```
+
+Sign in with a MyHealth account activated on the web portal (above). CI does not build store binaries; that needs EAS or native toolchains.
+
 ### End-to-end journeys (`apps/e2e`)
 
 `pnpm test:e2e` (`nx run e2e:e2e`) builds the API, the staff app and the portal, then runs the CLAUDE.md §31 critical

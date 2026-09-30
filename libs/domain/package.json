@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./portal-results": "./src/portal-results.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

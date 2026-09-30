@@ -1,3 +1,4 @@
+import { PatientRecordService } from "@healthcare/patient";
 import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
 
 describe("patient master", () => {
@@ -176,5 +177,13 @@ describe("patient master", () => {
       })
       .expect(200);
     await expect(ctx.pool.query(`UPDATE patient SET status = 'merged' WHERE id = $1`, [juanId])).rejects.toThrow(/patient_check/);
+  });
+
+  it("reads the address and phone for case reporting only within the patient's organization", async () => {
+    const other = await createTenant(ctx.pool, "patient-other");
+    const records = ctx.app.get(PatientRecordService);
+    const own = await records.primaryAddressAndPhone(tenant.organizationId, juanId);
+    expect(own.contactNumber).toEqual(expect.any(String));
+    expect(await records.primaryAddressAndPhone(other.organizationId, juanId)).toEqual({ address: null, contactNumber: null });
   });
 });
