@@ -143,6 +143,12 @@ Record the answer (and who decided) here before building the part it governs.
   product owner also chose **nothing new until the app has been tried on devices**: the next step is a run on iOS and Android (§7, §8 —
   neither has run on a device or simulator yet), then store release (D13) and the further areas (D2: which ones is still to be named).
 
+- **D13 — release** (product owner, 2026-09-30): **one store listing per organization** (keeps D4), **published under each organization's
+  own** Apple Developer and Google Play accounts, built and submitted with **EAS Build**; identifiers are chosen by each organization
+  (none in the repository). Set up in `apps/mobile/app.config.ts` and `eas.json`; runbook in
+  [mobile-release.md](../deployment/mobile-release.md). Still open within D13: automated builds in CI, and how the API stays compatible
+  with app versions already installed (no minimum-version check exists).
+
 Every other decision below is still **UNKNOWN**.
 
 | #   | Decision                                                                                                                                                                                                                                                              | Why it matters                                                                                                  |
@@ -206,7 +212,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
 **Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
-reports, guardian access (D2), Expo push receipts (§8), screen protection (D11), offline caching (D10), store builds and signing (D13), end-to-end journeys through the
+reports, guardian access (D2), Expo push receipts (§8), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
 ## 8. Push to the app (provisional D6)
@@ -231,7 +237,7 @@ clinic has not turned notifications on.
   another device. Tapping a results notice opens the results list; other notices open the app. Signing out unregisters the phone first
   (best effort) — a device the API can no longer reach is dropped by the failure rules. `PatientSession.post` has the same refresh and
   sign-out rules as `get`.
-- **Build.** Receiving push needs the app linked to an Expo project (`eas init`, which writes `extra.eas.projectId` to `app.json`), a
+- **Build.** Receiving push needs the app linked to an Expo project (`eas init`; the id reaches `extra.eas.projectId` through `EAS_PROJECT_ID` in `app.config.ts`, [mobile-release.md](../deployment/mobile-release.md)), a
   development or store build through EAS, an Apple Developer account and, for Android, the organization's own Firebase credentials uploaded
   to the Expo project. Expo Go on Android cannot receive remote push.
 - **Tests.** App: `src/lib/push.test.ts` (permission, registration, refusals, sign-out) and the session's POST tests. API:
