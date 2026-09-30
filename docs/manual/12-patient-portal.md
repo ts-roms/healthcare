@@ -146,12 +146,18 @@ For an online visit, note: not every concern can be handled online. Your doctor 
 
 Below an upcoming visit you can change, choose **Change or cancel** (or **Cancel** if the visit can only be cancelled).
 
-**To move it to another time** (same doctor):
+**To move it to another time:**
 
-1. Under **Choose a new time**, choose a day (the arrows show other weeks) and an open time.
-2. Choose the button **Move to …** with the new time.
+1. Under **Choose a new time**, choose the doctor: the same one, **Any doctor at this clinic**, or another by name. (If only one doctor works at the
+   clinic you see just their name.)
+2. Choose a day (the arrows show other weeks) and an open time. With **Any doctor**, each time shows whose it is.
+3. Choose the button **Move to …** with the new time.
 
-You see "Your visit was moved." To see a different doctor, cancel and book again.
+You see "Your visit was moved." Your visit stays at the same clinic and is the same kind of visit; if you move to another doctor, the time belongs to them.
+
+**If the day you want is full**, and your clinic has a waiting list, you see "This day is full." Choose **Tell me if a time opens**. If a time opens on
+that day you get a text or an email saying so (it never names the doctor or the time); sign in and book it yourself, because times go to whoever books
+first. Your requests are listed under **Waiting list** on **Visits**, where you can **Remove** one. Booking a time on those days removes the request.
 
 **To cancel it:**
 
@@ -161,7 +167,7 @@ You see "Your visit was moved." To see a different doctor, cancel and book again
 
 You see "Your visit was cancelled." The time is released for other patients.
 
-Online changes close 2 hours before the visit. After that you see "Please call the clinic — This visit can no longer be changed online."
+Online changes close 2 hours before the visit (your clinic may set another time; the screen says). After that you see "Please call the clinic — This visit can no longer be changed online."
 
 ## How to attend an online consultation
 
@@ -363,9 +369,11 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - A password-reset link works once, for 30 minutes, needs your date of birth, and at most 3 are sent per hour. Choosing a new password signs you out
   everywhere.
 - You can book only kinds of visit the clinic opened for online booking, only in open times of the doctor's schedule.
-- You must book at least 2 hours ahead, and not more than 60 days ahead.
-- You can have at most 3 open online bookings at a time.
-- Online changes and cancellations close 2 hours before the visit. A time can only be moved with the same doctor.
+- Each clinic sets its own booking rules; unless it has, you must book at least 2 hours ahead and not more than 60 days ahead, you can have at most 3 open
+  online bookings at a time, and online changes and cancellations close 2 hours before the visit. A visit can be moved to another doctor at the same
+  clinic, not to another clinic.
+- The waiting list is only for days with no open times, only where the clinic has turned it on, for at most 14 days at a time, and you can have a few
+  requests at once. It never books for you.
 - For an online consultation, you must answer the questions before you can enter the waiting room, and the video opens only when the doctor starts.
 - Only released results the clinic allows patients to see are shown; results far outside the usual range appear only after your care team has seen
   them.

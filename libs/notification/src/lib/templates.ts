@@ -78,7 +78,8 @@ export const TEMPLATES = [
     key: "appointment.self-service",
     version: 1,
     category: "administrative",
-    channels: ["sms", "email"],
+    // In-app too: PatientBookingNotices puts a copy in the MyHealth inbox (docs/architecture/portal-app.md).
+    channels: ["sms", "email", "in_app"],
     // Confirms what the patient did in MyHealth. Like the reminder: where and when only, no reason or practitioner specialty.
     variables: z.object({
       kind: z.enum(["booked", "rescheduled", "cancelled"]),
@@ -305,6 +306,18 @@ export const TEMPLATES = [
       subject: `New records request ${v.requestNumber}`,
       text: `A patient asked for copies of their records (${v.requestNumber}). Review it and share the documents or decline with a reason.`,
       href: `/records/requests/${v.requestId}`,
+    }),
+  }),
+  defineTemplate({
+    key: "appointment.waitlist-opened",
+    version: 1,
+    category: "administrative",
+    // Leaves the platform (SMS/email): the clinic and the day only — no doctor, time or reason.
+    channels: ["sms", "email"],
+    variables: z.object({ facilityName: shortText, date: shortText }),
+    render: (v) => ({
+      subject: "A time may have opened",
+      text: `${v.facilityName}: a time may have opened on ${v.date}. Sign in to MyHealth to book it. Times go to whoever books first.`,
     }),
   }),
   defineTemplate({

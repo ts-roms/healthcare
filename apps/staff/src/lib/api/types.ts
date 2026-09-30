@@ -3628,3 +3628,40 @@ export interface PatientThreadMessage {
 export interface PatientThreadDetail extends PatientThread {
   messages: PatientThreadMessage[];
 }
+
+/** `GET /waitlist?facilityId=` row: a patient waiting for a time. */
+export interface WaitlistEntry {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  patient: { patientNumber: string; displayName: string } | null;
+  practitionerId: string | null;
+  visitTypeId: string | null;
+  earliestDate: string;
+  latestDate: string;
+  priority: "routine" | "soon";
+  notes: string | null;
+  /** The patient asked in MyHealth (otherwise a staff member added the entry). */
+  createdByPatient: boolean;
+  createdAt: string;
+}
+
+export interface BookingRules {
+  minLeadMinutes: number;
+  maxAdvanceDays: number;
+  maxUpcoming: number;
+  changeCutoffMinutes: number;
+  waitlistEnabled: boolean;
+  maxWaitlistEntries: number;
+}
+
+/** `GET /clinic/booking-rules` row. */
+export interface FacilityBookingRules {
+  facilityId: string;
+  facilityName: string;
+  /** The clinic set its own rules (otherwise the platform's defaults apply). */
+  customized: boolean;
+  rules: BookingRules;
+  version: number | null;
+  updatedAt: string | null;
+}

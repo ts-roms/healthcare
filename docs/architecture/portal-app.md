@@ -104,10 +104,14 @@ The records endpoints are composed in the API (`apps/api/src/app/portal/portal-r
 **Online booking.** `/appointments/book` walks the patient through the kind of visit (only visit types the clinic opened
 for online booking), the clinic (when there is more than one), the doctor ("any available doctor" or one by name), a day
 and an open time (morning/afternoon), an optional reason, then confirm. `/appointments/[id]` moves a visit to another
-open time with the same doctor, or cancels it (optional reason) — offered only while the API says `canReschedule` /
+open time — with the same doctor or another one at the same clinic — or cancels it (optional reason) — offered only while the API says `canReschedule` /
 `canCancel`. The rules live in the clinic domain (`libs/clinic/src/lib/domain/patient-booking.ts`) and are re-checked on
-every call: book at least 2 hours ahead and at most 60 days out, only on the schedule's slot grid, at most 3 open
-self-bookings, changes until 2 hours before; rescheduling only for online-bookable visit types. Patient changes are
+every call, with each clinic's own rules (`facility_booking_rule`, migration `0075`; by default at least 2 hours ahead, at most 60 days
+out, at most 3 open self-bookings, changes until 2 hours before), only on the schedule's slot grid; rescheduling only for
+online-bookable visit types. Where the clinic turns on its **waiting list**, a day with no open times offers "Tell me if a time opens"
+(`GET/POST /portal/booking/waitlist`); the patient is texted or emailed when a time may have opened (no time, doctor or reason in
+the message) and books it themselves, and lists or removes their requests under Visits. See `docs/domains/clinic.md`
+("Online booking rules and the waiting list"). Patient changes are
 audited with actor type `patient`, carry no staff user (`appointment.booked_by_patient`, `updated_by_patient`), and are
 confirmed by SMS (`appointment.self-service`: facility, date and time only); the usual reminder follows. Refusals are
 shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
@@ -182,4 +186,4 @@ The **API** also needs `PORTAL_BASE_URL` (the portal's public address, e.g. `htt
 
 ## Not yet
 
-giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, push notifications (needs the mobile app).
+giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, push notifications (needs the mobile app).

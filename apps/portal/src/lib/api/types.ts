@@ -154,8 +154,33 @@ export interface BookingOptions {
     cityMunicipality: string | null;
     timeZone: string;
     practitioners: Array<{ id: string; displayName: string; specialty: string | null }>;
+    /** The clinic's own online booking rules. */
+    rules: BookingRulesView;
   }>;
-  rules: { minLeadMinutes: number; maxAdvanceDays: number; maxUpcoming: number; changeCutoffMinutes: number };
+}
+
+export interface BookingRulesView {
+  minLeadMinutes: number;
+  maxAdvanceDays: number;
+  maxUpcoming: number;
+  changeCutoffMinutes: number;
+  /** Patients may ask to be told when a time opens on a day with none. */
+  waitlistEnabled: boolean;
+  maxWaitlistEntries: number;
+}
+
+/** `GET /portal/booking/waitlist` row. */
+export interface PortalWaitlistEntry {
+  id: string;
+  facilityId: string;
+  facilityName: string;
+  visitTypeId: string | null;
+  visitTypeName: string | null;
+  practitionerId: string | null;
+  practitionerName: string | null;
+  earliestDate: string;
+  latestDate: string;
+  createdAt: string;
 }
 
 /** `GET /portal/booking/slots` */

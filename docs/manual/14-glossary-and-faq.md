@@ -229,8 +229,9 @@ Clinical times are shown in the facility's time zone (Asia/Manila by default), w
 Ask the clinic's front desk. Codes are only given in person after checking your identity, and they expire after 3 days. A new code replaces the old one.
 
 **15. Why can't I book or change a visit online?**
-Your clinic may not have opened that kind of visit for online booking. You must book at least 2 hours ahead and at most 60 days ahead, you can have up to
-3 open online bookings, and changes close 2 hours before the visit. Call the clinic for anything else.
+Your clinic may not have opened that kind of visit for online booking. Each clinic sets its own rules; unless it has, you must book at least 2 hours ahead and at most 60 days ahead, you can have up to
+3 open online bookings, and changes close 2 hours before the visit. If the day you want is full, some clinics let you ask to be told when a time opens
+(**Tell me if a time opens**). Call the clinic for anything else.
 
 **16. I got a text that my results are ready, but it does not say what they are.**
 That is on purpose, for your privacy. Sign in to MyHealth and open **Results**. Talk to your doctor about what they mean.

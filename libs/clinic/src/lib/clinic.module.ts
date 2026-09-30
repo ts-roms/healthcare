@@ -5,6 +5,9 @@ import { AppointmentService } from "./appointments/appointment.service";
 import { NoShowFollowUp } from "./appointments/no-show-follow-up";
 import { PatientBookingNotices } from "./appointments/patient-booking-notices";
 import { PatientBookingService } from "./appointments/patient-booking.service";
+import { PatientWaitlistService } from "./appointments/patient-waitlist.service";
+import { WaitlistNotices } from "./appointments/waitlist-notices";
+import { BookingRulesService } from "./config/booking-rules.service";
 import {
   AppointmentController,
   ClinicalRecordsController,
@@ -54,6 +57,7 @@ export class ClinicModule {
       providers: [
         AppointmentReminders,
         AppointmentService,
+        BookingRulesService,
         ClinicConfigService,
         ClinicDashboardService,
         ClinicQueries,
@@ -65,11 +69,22 @@ export class ClinicModule {
         OnlineVisitService,
         PatientBookingNotices,
         PatientBookingService,
+        PatientWaitlistService,
+        WaitlistNotices,
         TriageService,
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
       ],
-      exports: [ClinicQueries, ClinicReportingQueries, ExternalRecordsService, MedicalCertificateService, OnlineVisitService, PatientBookingService],
+      exports: [
+        ClinicQueries,
+        ClinicReportingQueries,
+        ExternalRecordsService,
+        MedicalCertificateService,
+        OnlineVisitService,
+        PatientBookingService,
+        PatientWaitlistService,
+        BookingRulesService,
+      ],
     };
   }
 }

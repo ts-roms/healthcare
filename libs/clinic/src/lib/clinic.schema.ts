@@ -153,11 +153,28 @@ export const waitlistEntry = pgTable("appointment_waitlist_entry", {
   notes: text("notes"),
   status: text("status").$type<"waiting" | "booked" | "cancelled">().notNull().default("waiting"),
   appointmentId: uuid("appointment_id"),
-  createdBy: uuid("created_by").notNull(),
+  /** Null when the patient made the entry in MyHealth (0075: exactly one of the two). */
+  createdBy: uuid("created_by"),
+  createdByPatient: boolean("created_by_patient").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
   closedAt: ts("closed_at"),
   closedBy: uuid("closed_by"),
   closeReason: text("close_reason"),
+});
+
+/** Mirrors database/migrations/0075_booking_rules_patient_waitlist.sql. */
+export const facilityBookingRule = pgTable("facility_booking_rule", {
+  facilityId: uuid("facility_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  minLeadMinutes: integer("min_lead_minutes").notNull().default(120),
+  maxAdvanceDays: integer("max_advance_days").notNull().default(60),
+  maxUpcoming: integer("max_upcoming").notNull().default(3),
+  changeCutoffMinutes: integer("change_cutoff_minutes").notNull().default(120),
+  waitlistEnabled: boolean("waitlist_enabled").notNull().default(false),
+  maxWaitlistEntries: integer("max_waitlist_entries").notNull().default(3),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  updatedBy: uuid("updated_by").notNull(),
+  version: integer("version").notNull().default(1),
 });
 
 export const facilityQueueCounter = pgTable(
