@@ -190,7 +190,9 @@ export const patientCommunicationPreference = pgTable(
     category: text("category").$type<CommunicationCategory>().notNull(),
     optedIn: boolean("opted_in").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedBy: uuid("updated_by").notNull(),
+    updatedBy: uuid("updated_by"),
+    /** 0071: the patient's MyHealth account, when the patient set it. Exactly one of the two is set. */
+    updatedByPortalAccount: uuid("updated_by_portal_account"),
   },
   (table) => [primaryKey({ columns: [table.patientId, table.channel, table.category] })],
 );

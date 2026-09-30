@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRightIcon, LockIcon, ShieldCheckIcon } from "lucide-react";
+import { BellIcon, ChevronRightIcon, LockIcon, ShieldCheckIcon } from "lucide-react";
 import { getMe } from "@/lib/api/session";
 import { formatCalendarDate } from "@/lib/greeting";
 
@@ -33,6 +33,14 @@ export default async function ProfilePage() {
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="font-medium">Privacy and consents</span>
           <span className="text-meta text-muted-foreground">See the consents you gave, and withdraw some of them</span>
+        </span>
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
+      <Link href="/notification-settings" className="flex items-center gap-3 rounded-xl border bg-card p-4">
+        <BellIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-medium">Notification settings</span>
+          <span className="text-meta text-muted-foreground">Choose which text messages and emails the clinic may send you</span>
         </span>
         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>

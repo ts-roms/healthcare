@@ -159,7 +159,7 @@ Record only what the patient, or their authorized representative, decided. The d
 - The list shows the current decision per type with a badge: **Granted**, **Expired**, **Not yet in effect**, **Refused** or **Withdrawn**.
 - Select **Show consent history** to see every decision ever recorded. Select **Hide** to close it.
 - Select **Signed form** to open an attached form in a new tab (needs `document.read`; allow pop-ups). The link is short-lived and each opening is audited.
-- Communication preferences (for example SMS reminders opted in or out) are listed next to consent. They cannot be changed from this screen yet.
+- Communication preferences (for example SMS reminders opted in or out) are listed next to consent. They cannot be changed from this screen yet. The patient can change their own text message and email choices in MyHealth (**Profile → Notification settings**); the latest choice, from either side, applies.
 
 If you don't see **Record consent**, you need the `patient.consent.manage` permission. Consent cannot be recorded on a merged record.
 

@@ -214,8 +214,8 @@ Questions about a bill? Ask the clinic's cashier and bring your invoice number.
 You may receive booking confirmations, reminders, results-ready notices, "we missed you" notices after a missed visit, care plan follow-up reminders
 and messages from clinic staff.
 
-You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by SMS or email, ask the clinic to update
-your communication preferences.
+You cannot reply in MyHealth yet. Call the clinic for questions, and 911 in an emergency. To stop reminders by text message or email, change your
+[notification settings](#how-to-choose-which-messages-you-get).
 
 ## How to get your medical certificates and copies of your records
 
@@ -263,6 +263,17 @@ decision**:
 If the clinic's prices changed while you were deciding, you see "The clinic's prices changed since you opened this plan" and the new estimate;
 decide again. If your clinic does not allow online decisions, you see "To decide, talk to your dentist or the clinic — decisions are recorded at the clinic."
 
+## How to choose which messages you get
+
+1. Choose **Profile**, then **Notification settings**.
+2. For each kind of message — **About your care**, **Appointments and bills** and **Check-in reminders** — tick or untick **Text message** and **Email**.
+   Under each you see where the message would go (for example "To •••• 4567"). If the clinic has no number or address for you, nothing can be sent there.
+3. Choose **Save settings**. It applies from the next message.
+
+Messages in MyHealth itself always reach you here. **About your care** includes "your results are ready" notices; if you switch these off on both
+channels, you are warned, and you should check MyHealth yourself for new results. **Check-in reminders** are off until you turn them on. A text or email
+never names a test or a result. To change the number or address the clinic uses, ask the clinic to update your record.
+
 ## How to see and withdraw your consents
 
 1. Choose **Profile**, then **Privacy and consents**.
@@ -279,7 +290,7 @@ talk to the clinic.
 ## How to check your profile
 
 Choose **Profile** to see your **Name**, **Patient number**, **Date of birth**, **Sex**, **Clinic** and **Sign-in email**. If something is wrong,
-ask the clinic to correct your record. **Privacy and consents** is linked from here too.
+ask the clinic to correct your record. **Notification settings** and **Privacy and consents** are linked from here too.
 
 ## Rules the system enforces
 
@@ -295,6 +306,7 @@ ask the clinic to correct your record. **Privacy and consents** is linked from h
 - Only released results the clinic allows patients to see are shown; results far outside the usual range appear only after your care team has seen
   them.
 - Messages are one-way.
+- You choose text message and email for each kind of message; MyHealth messages cannot be switched off (withdrawing MyHealth is done under Privacy and consents).
 - You cannot edit your record, prescriptions or bills in MyHealth.
 
 ## Troubleshooting / common messages
