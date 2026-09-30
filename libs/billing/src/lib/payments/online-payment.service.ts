@@ -9,6 +9,7 @@ import {
   DATABASE,
   type Database,
   DomainEventPublisher,
+  isFiledAs,
   localDate,
   NotFoundError,
   systemActor,
@@ -77,7 +78,8 @@ export class OnlinePaymentService {
     const actor = systemActor(context.organizationId, null, SYSTEM);
     const intent = await this.db.transaction(async (tx) => {
       const invoice = await this.invoices.lock(tx, actor, invoiceId);
-      if (invoice.patientId !== context.patientId) throw new NotFoundError("Invoice");
+      // An invoice filed under a record since merged into this one is still the patient's (docs/domains/patient.md).
+      if (!(await isFiledAs(tx, invoice.patientId, context.patientId))) throw new NotFoundError("Invoice");
       if (invoice.status !== "issued") throw new BusinessRuleError("Only issued invoices can be paid", "invoice_not_issued");
       const balance = invoiceBalance(invoice.patientTotal, await this.invoices.settlement(tx, invoiceId));
       if (input.amount > balance) throw new BusinessRuleError("The payment is more than the balance", "payment_exceeds_balance", { balance });
@@ -238,7 +240,7 @@ export class OnlinePaymentService {
       .select()
       .from(billingPaymentIntent)
       .where(and(eq(billingPaymentIntent.organizationId, organizationId), eq(billingPaymentIntent.id, intentId)));
-    if (!row || row.patientId !== patientId) throw new NotFoundError("Payment");
+    if (!row || !(await isFiledAs(this.db, row.patientId, patientId))) throw new NotFoundError("Payment");
     return view(row);
   }
 
