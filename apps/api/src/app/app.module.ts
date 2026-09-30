@@ -20,6 +20,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
@@ -100,6 +101,7 @@ export class AppModule implements NestModule {
       imports: [PatientModule, AuthModule, InventoryModule],
       context: AppLaboratoryContext,
       archiveQueue: overrides.labReportArchiveQueue,
+      instrumentReader: AppInstrumentMessageReader,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
     // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction; fee estimates read

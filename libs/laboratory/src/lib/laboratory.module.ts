@@ -2,6 +2,9 @@ import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Ty
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { OrganizationModule } from "@healthcare/organization";
 import { LabCatalogService } from "./catalog/lab-catalog.service";
+import { INSTRUMENT_MESSAGE_READER, type InstrumentMessageReader } from "./instruments/instrument-interface.ports";
+import { LabInstrumentInterfaceController } from "./instruments/lab-instrument-interface.controller";
+import { LabInstrumentInterfaceService } from "./instruments/lab-instrument-interface.service";
 import { LabReadModel } from "./lab-read-model";
 import { LabCatalogController, LabOrderController, LabResultController } from "./laboratory.controllers";
 import { LabLabelService } from "./orders/lab-labels";
@@ -39,6 +42,8 @@ export interface LaboratoryModuleOptions {
   context: Type<LaboratoryContext>;
   /** The report archive queue (tests). Defaults to BullMQ on REDIS_URL. */
   archiveQueue?: Provider;
+  /** Reads analyzer messages (HL7 v2 / ASTM): an adapter over the interoperability layer. */
+  instrumentReader: Type<InstrumentMessageReader>;
 }
 
 /** Laboratory Information System: catalog, orders, specimens, results, critical values, worklists, send-outs to reference laboratories. */
@@ -56,6 +61,7 @@ export class LaboratoryModule {
         SendOutController,
         LabQualityController,
         LabQualityManagementController,
+        LabInstrumentInterfaceController,
       ],
       providers: [
         LabCatalogService,
@@ -84,6 +90,8 @@ export class LaboratoryModule {
         SendOutService,
         SendOutManifestService,
         { provide: LABORATORY_CONTEXT, useClass: options.context },
+        { provide: INSTRUMENT_MESSAGE_READER, useClass: options.instrumentReader },
+        LabInstrumentInterfaceService,
         options.archiveQueue ?? bullMqLabReportArchiveQueue,
         {
           provide: LabReportArchiveWorker,

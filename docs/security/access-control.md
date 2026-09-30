@@ -68,7 +68,7 @@ records_officer) reviews patients' requests for copies, shares documents or decl
 with a reason, and prepares copies of the record (migration 0070; they include the dental record and document list
 whatever the preparer's own clinical access, because they answer the patient's own request, and nothing reaches the
 patient until shared); audited `patient.records-request.view | review | fulfil | decline | copy`.
-Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md):
+Compliance configuration (migration 0075; docs/architecture/compliance-configuration.md):
 `compliance.review.manage` (org_admin) records who validated each area; `inventory.controlled-register.read`
 (org_admin, pharmacist, inventory_officer) reads and exports the register of controlled items (audited
 `inventory.controlled-register.view | export`); `document.retention.manage` (org_admin, records_officer) sets retention
@@ -110,6 +110,10 @@ and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
+Analyzer interfaces (migration 0075): `lab.instrument.message.submit` (org_admin; grant it to the instrument
+gateway's integration account's role — it can only post analyzer messages, which wait for review); settings need
+`lab.qc.manage`, the review `lab.result.read` / `lab.result.enter`; audited `lab.instrument.message.receive`,
+`lab.instrument.interface.configure`, `lab.instrument.test-code`, `lab.instrument.result.*`.
 FHIR imports (migration 0048): `interop.fhir.import` (org_admin; grant it to an
 integration account's role to submit) and `interop.fhir.import.review`
 (org_admin, records_officer; clinicians are not granted it by default —

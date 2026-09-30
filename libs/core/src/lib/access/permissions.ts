@@ -128,6 +128,8 @@ export const PERMISSIONS = [
   "compliance.review.manage",
   "inventory.controlled-register.read",
   "document.retention.manage",
+  // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).
+  "lab.instrument.message.submit",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

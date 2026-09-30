@@ -37,6 +37,7 @@ import type {
   LabTest,
 } from "@/lib/api/types";
 import { REAGENT_USE_KIND_LABEL, reagentUseText, runsText } from "@/lib/lab-mapping";
+import { InstrumentInterfacePanel } from "./instrument-interface-panel";
 import {
   createInstrument,
   loadInstrumentLog,
@@ -213,6 +214,7 @@ export function InstrumentRegister({
                               canLog={canLog}
                             />
                             <InstrumentLog instrument={i} canLog={canLog} canManage={canManage} />
+                            <InstrumentInterfacePanel instrumentId={i.id} tests={tests} canManage={canManage} />
                           </TableCell>
                         </TableRow>
                       ) : null}
