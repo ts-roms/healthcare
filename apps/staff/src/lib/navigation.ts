@@ -7,6 +7,7 @@ export const DEMO_MODULES: string[] = [];
 const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/patients": ["patient.search"],
   "/appointments": ["appointment.read"],
+  "/doctors": ["appointment.read"],
   "/queue": ["clinic.queue.read"],
   "/clinic": ["encounter.read"],
   "/laboratory": ["lab.order.read"],

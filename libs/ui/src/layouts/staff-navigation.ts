@@ -16,6 +16,7 @@ import {
   ReceiptIcon,
   SmileIcon,
   StethoscopeIcon,
+  UserRoundCogIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboardIcon },
   { label: "Patients", href: "/patients", icon: UsersIcon, roles: ["doctor", "nurse", "reception", "dentist", "billing", "admin"] },
   { label: "Appointments", href: "/appointments", icon: CalendarDaysIcon, roles: FRONT_DESK },
+  { label: "Doctors", href: "/doctors", icon: UserRoundCogIcon, roles: FRONT_DESK },
   { label: "Queue", href: "/queue", icon: ListOrderedIcon, roles: [...FRONT_DESK, "billing"] },
   {
     label: "Clinic",
