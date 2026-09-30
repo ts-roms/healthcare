@@ -144,6 +144,51 @@
   --sidebar-border: oklch(0.38 0.045 213);
 }
 
+/*
+ * Themed dropdown for NativeSelect where the browser supports customizable selects (Chromium 135+);
+ * other browsers keep their native list. The component's own chevron stays, so the built-in one is hidden.
+ */
+@supports (appearance: base-select) {
+  select[data-slot="native-select"],
+  select[data-slot="native-select"]::picker(select) {
+    appearance: base-select;
+  }
+  select[data-slot="native-select"]::picker-icon {
+    display: none;
+  }
+  select[data-slot="native-select"]::picker(select) {
+    margin-block: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: 0 8px 24px -8px oklch(0.25 0.04 215 / 0.25);
+  }
+  select[data-slot="native-select"] option {
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  select[data-slot="native-select"] option::checkmark {
+    display: none;
+  }
+  select[data-slot="native-select"] option:hover,
+  select[data-slot="native-select"] option:focus-visible {
+    background: var(--primary-subtle);
+  }
+  select[data-slot="native-select"] option:checked {
+    background: var(--primary-subtle);
+    color: var(--primary-deep);
+    font-weight: 600;
+  }
+  select[data-slot="native-select"] option:disabled {
+    color: var(--muted-foreground);
+    cursor: default;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-sans-face, "Plus Jakarta Sans"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-jetbrains-mono, "JetBrains Mono"), ui-monospace, "SFMono-Regular", monospace;
