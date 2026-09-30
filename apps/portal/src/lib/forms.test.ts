@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@healthcare/web-session";
-import { activateFormSchema, loginFormSchema, parseForm, patientMessage } from "./forms";
+import { activateFormSchema, loginFormSchema, parseForm, patientMessage, resetFormSchema, resetRequestFormSchema } from "./forms";
 
 const ACTIVATE_FIELDS = ["patientNumber", "birthDate", "activationCode", "email", "password", "confirmPassword"] as const;
 
@@ -68,5 +68,33 @@ describe("patientMessage", () => {
     expect(patientMessage(new ApiError(400, "validation_failed", "Request validation failed"))).toMatch(/not accepted/);
     expect(patientMessage(new ApiError(500, "internal_error", "boom"))).toMatch(/our side/);
     expect(patientMessage(new TypeError("fetch failed"))).toMatch(/couldn't reach/);
+  });
+});
+
+describe("password reset forms", () => {
+  const RESET_FIELDS = ["token", "birthDate", "password", "confirmPassword"] as const;
+  const token = "a".repeat(43);
+
+  it("normalizes the email a link is asked for", () => {
+    expect(parseForm(resetRequestFormSchema, form({ email: " Maria@Example.com " }), ["email"])).toMatchObject({
+      ok: true,
+      data: { email: "maria@example.com" },
+    });
+    expect(parseForm(resetRequestFormSchema, form({ email: "nope" }), ["email"]).ok).toBe(false);
+  });
+
+  it("needs the token, the date of birth and a matching new password", () => {
+    const ok = { token, birthDate: "1980-05-14", password: "correct horse battery", confirmPassword: "correct horse battery" };
+    expect(parseForm(resetFormSchema, form(ok), RESET_FIELDS).ok).toBe(true);
+    expect(parseForm(resetFormSchema, form({ ...ok, token: "" }), RESET_FIELDS)).toMatchObject({
+      ok: false,
+      errors: { token: expect.stringContaining("incomplete") },
+    });
+    expect(parseForm(resetFormSchema, form({ ...ok, birthDate: "" }), RESET_FIELDS).ok).toBe(false);
+    expect(parseForm(resetFormSchema, form({ ...ok, password: "short", confirmPassword: "short" }), RESET_FIELDS).ok).toBe(false);
+    expect(parseForm(resetFormSchema, form({ ...ok, confirmPassword: "something else entirely" }), RESET_FIELDS)).toMatchObject({
+      ok: false,
+      errors: { confirmPassword: "The two passwords do not match." },
+    });
   });
 });

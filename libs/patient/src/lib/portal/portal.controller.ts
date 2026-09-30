@@ -4,8 +4,16 @@ import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
 import type { Request } from "express";
 import { CurrentPatient, PatientAccessGuard } from "./patient-access.guard";
-import { DisablePortalAccountDto, PortalActivateDto, PortalLoginDto, PortalRefreshDto } from "./portal.dto";
+import {
+  DisablePortalAccountDto,
+  PortalActivateDto,
+  PortalLoginDto,
+  PortalPasswordResetConfirmDto,
+  PortalPasswordResetRequestDto,
+  PortalRefreshDto,
+} from "./portal.dto";
 import { type PortalPrincipal, PortalAccountService } from "./portal-account.service";
+import { PortalPasswordResetService } from "./portal-password-reset.service";
 
 // Credential endpoints get the same tight rate limit as staff sign-in.
 const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
@@ -14,7 +22,29 @@ const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
 @ApiTags("portal")
 @Controller({ path: "portal", version: "1" })
 export class PortalController {
-  constructor(private readonly accounts: PortalAccountService) {}
+  constructor(
+    private readonly accounts: PortalAccountService,
+    private readonly passwordReset: PortalPasswordResetService,
+  ) {}
+
+  @Post("auth/password-reset/request")
+  @Public()
+  @HttpCode(202)
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "Ask for a password-reset link by email; the answer is the same whether or not an account exists" })
+  async requestPasswordReset(@Body() body: PortalPasswordResetRequestDto, @Req() request: Request): Promise<{ status: "accepted" }> {
+    await this.passwordReset.request(body, requestMetadataFrom(request));
+    return { status: "accepted" };
+  }
+
+  @Post("auth/password-reset/confirm")
+  @Public()
+  @HttpCode(204)
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "Choose a new password with the emailed token and the patient's date of birth; signs the account out everywhere" })
+  async confirmPasswordReset(@Body() body: PortalPasswordResetConfirmDto, @Req() request: Request): Promise<void> {
+    await this.passwordReset.confirm(body, requestMetadataFrom(request));
+  }
 
   @Post("auth/activate")
   @Public()

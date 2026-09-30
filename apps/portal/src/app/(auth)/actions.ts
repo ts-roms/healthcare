@@ -6,18 +6,20 @@ import { forwardedHeaders, safeNextPath, toApiError } from "@healthcare/web-sess
 import { API_BASE_URL, PORTAL_ORGANIZATION_CODE } from "@/lib/api/config";
 import { writeTokenCookies } from "@/lib/api/tokens";
 import type { PortalTokenResponse } from "@/lib/api/types";
-import { activateFormSchema, type FieldErrors, loginFormSchema, parseForm, patientMessage } from "@/lib/forms";
+import { activateFormSchema, type FieldErrors, loginFormSchema, parseForm, patientMessage, resetFormSchema, resetRequestFormSchema } from "@/lib/forms";
 
 export interface AuthFormState {
   error?: string;
   fieldErrors?: FieldErrors;
   /** Non-secret values to put back in the form after an error. */
   values?: Record<string, string>;
+  /** A reset link was asked for (the answer is the same whether or not an account exists). */
+  requested?: boolean;
 }
 
-const AUTH_PATHS = ["/login", "/activate"];
+const AUTH_PATHS = ["/login", "/activate", "/forgot-password", "/reset-password"];
 
-async function post(path: string, body: unknown): Promise<PortalTokenResponse> {
+async function send(path: string, body: unknown): Promise<Response> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers: { ...forwardedHeaders(await requestHeaders()), "content-type": "application/json", accept: "application/json" },
@@ -25,7 +27,11 @@ async function post(path: string, body: unknown): Promise<PortalTokenResponse> {
     cache: "no-store",
   });
   if (!response.ok) throw await toApiError(response);
-  return (await response.json()) as PortalTokenResponse;
+  return response;
+}
+
+async function post(path: string, body: unknown): Promise<PortalTokenResponse> {
+  return (await (await send(path, body)).json()) as PortalTokenResponse;
 }
 
 export async function signIn(_prev: AuthFormState, form: FormData): Promise<AuthFormState> {
@@ -60,4 +66,31 @@ export async function activate(_prev: AuthFormState, form: FormData): Promise<Au
   }
   writeTokenCookies(await cookies(), tokens);
   redirect("/?welcome=1");
+}
+
+/** Asks for a password-reset link. The patient is told the same thing whether or not the email belongs to an account. */
+export async function requestReset(_prev: AuthFormState, form: FormData): Promise<AuthFormState> {
+  const values = { email: String(form.get("email") ?? "") };
+  const parsed = parseForm(resetRequestFormSchema, form, ["email"]);
+  if (!parsed.ok) return { fieldErrors: parsed.errors, values };
+  try {
+    await send("/portal/auth/password-reset/request", { organizationCode: PORTAL_ORGANIZATION_CODE, ...parsed.data });
+  } catch (error) {
+    return { error: patientMessage(error), values };
+  }
+  return { requested: true, values };
+}
+
+/** Chooses a new password with the emailed token and the patient's date of birth, then sends them to sign in. */
+export async function resetPassword(_prev: AuthFormState, form: FormData): Promise<AuthFormState> {
+  const values = { birthDate: String(form.get("birthDate") ?? "") };
+  const parsed = parseForm(resetFormSchema, form, ["token", "birthDate", "password", "confirmPassword"]);
+  if (!parsed.ok) return { fieldErrors: parsed.errors, values };
+  const { confirmPassword: _confirm, ...body } = parsed.data;
+  try {
+    await send("/portal/auth/password-reset/confirm", body);
+  } catch (error) {
+    return { error: patientMessage(error), values };
+  }
+  redirect("/login?reason=password_reset");
 }

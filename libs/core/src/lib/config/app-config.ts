@@ -66,6 +66,13 @@ const appConfigSchema = z
     S3_FORCE_PATH_STYLE: booleanString.default(false),
     SMTP_URL: z.string().optional(),
     EMAIL_FROM: z.string().default("Healthcare Platform <no-reply@localhost>"),
+    // Public address of the patient portal (MyHealth), e.g. https://myhealth.example.ph. Password-reset emails link to it;
+    // without it no reset email is sent.
+    PORTAL_BASE_URL: z
+      .string()
+      .url()
+      .transform((value) => value.replace(/\/+$/, ""))
+      .optional(),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
     // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
     LIVEKIT_URL: z.string().url().optional(),

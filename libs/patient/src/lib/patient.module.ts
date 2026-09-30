@@ -12,6 +12,7 @@ import { PatientSearchService } from "./patient-search.service";
 import { PatientAccessGuard } from "./portal/patient-access.guard";
 import { PatientPortalAccountController, PortalController } from "./portal/portal.controller";
 import { PortalAccountService } from "./portal/portal-account.service";
+import { PortalPasswordResetService, PortalSecurityMailers } from "./portal/portal-password-reset.service";
 import { PortalTokenService } from "./portal/portal-tokens";
 import { RecordsRequestController } from "./records-requests/records-request.controller";
 import { RecordsRequestService } from "./records-requests/records-request.service";
@@ -37,7 +38,17 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     RecordsRequestService,
     PortalConsentService,
     PortalPreferencesService,
+    PortalPasswordResetService,
+    PortalSecurityMailers,
   ],
-  exports: [PatientRecordService, PatientReportingQueries, PatientRegistrationService, PortalAccountService, PatientAccessGuard, RecordsRequestService],
+  exports: [
+    PatientRecordService,
+    PatientReportingQueries,
+    PatientRegistrationService,
+    PortalAccountService,
+    PatientAccessGuard,
+    RecordsRequestService,
+    PortalSecurityMailers,
+  ],
 })
 export class PatientModule {}

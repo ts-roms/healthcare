@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Button } from "@healthcare/ui/primitives";
 import { type AuthFormState, signIn } from "../actions";
 import { Field, FormError } from "../form-parts";
@@ -27,7 +28,11 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
-      <p className="text-meta text-muted-foreground">Forgot your password? Ask the clinic for a new activation code.</p>
+      <p className="text-meta text-muted-foreground">
+        <Link href="/forgot-password" className="font-medium text-primary underline-offset-4 hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
     </form>
   );
 }
