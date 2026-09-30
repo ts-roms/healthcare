@@ -212,7 +212,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
 **Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
-reports, guardian access (D2), Expo push receipts (§8), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
+reports, guardian access (D2), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
 ## 8. Push to the app (provisional D6)
@@ -243,5 +243,10 @@ clinic has not turned notifications on.
 - **Tests.** App: `src/lib/push.test.ts` (permission, registration, refusals, sign-out) and the session's POST tests. API:
   `apps/api/test/portal-push-mobile.int.spec.ts` (registration, limits, the database constraint, sending, gone tokens, retries). **Not yet run
   on a device.**
-- **Not built:** Expo push _receipts_ (Expo reports some failures, notably an uninstalled app, only in receipts fetched later; until then such a
-  device stays registered and is dropped after 5 failed sends or removed by the patient), badges, deep links into other screens.
+- **Receipts** (migration `0083`; `ExpoPushReceipts` in `libs/notification`, run by the notification worker every 15 minutes when
+  `EXPO_PUSH_ENABLED`): each ticket Expo returns is kept (`push_ticket`: ids and outcome codes only) and its receipt read after 15 minutes,
+  1,000 per request, one worker at a time. `ok` marks the notification `delivered` (handed to Apple or Google — not proof the patient saw
+  it); `DeviceNotRegistered` drops the phone at once; `InvalidCredentials` / `MismatchSenderId` are logged as the platform's own Apple or
+  Firebase setup problem and never counted against the phone; other errors count toward the 5-failure limit; a ticket with no receipt after
+  a day is marked `expired`. Answered tickets are removed after 30 days. Tests: `apps/api/test/portal-push-mobile.int.spec.ts`.
+- **Not built:** badges, deep links into other screens, and delivery receipts from browsers (Web Push has none).

@@ -95,4 +95,9 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
   (`POST /portal/push/mobile-devices`) as a `push_subscription` row with `kind = 'expo'` — same 5-device limit, removal, failure
   handling and preferences. `WebPushSender` sends to phones through the Expo push service (`ExpoPushTransport`; `EXPO_PUSH_ENABLED=true`,
   optional `EXPO_ACCESS_TOKEN`), with the same content-free payload. `DeviceNotRegistered` drops the device; a service failure is retried.
-- Not built: push for staff, topics or badges, delivery receipts from the browser or from Expo (an uninstalled app is dropped after 5 failed sends).
+- **Expo receipts** (migration `0083`, `push_ticket`; `ExpoPushReceipts`, every 15 minutes in the notification worker when
+  `EXPO_PUSH_ENABLED`): the sender keeps each Expo ticket with its notification; 15 minutes later its receipt is read (1,000 ids per request,
+  one worker at a time). `ok` → the notification becomes `delivered` (`delivered_at`: handed to Apple/Google, not read by the patient);
+  `DeviceNotRegistered` → the device is dropped at once; `InvalidCredentials` / `MismatchSenderId` → logged as a setup problem, never held
+  against the device; other errors count toward the 5-failure limit; no receipt within a day → `expired`. Answered tickets are kept 30 days.
+- Not built: push for staff, topics or badges, delivery receipts from the browser (Web Push gives none).

@@ -13,6 +13,8 @@ import { defaultChannelSenders } from "./channel-senders";
 import { NotificationController } from "./notification.controller";
 import { NotificationDispatcher } from "./notification.dispatcher";
 import { NotificationService } from "./notification.service";
+import { EXPO_PUSH_TRANSPORT, ExpoPushReceipts } from "./push/expo-push-receipts";
+import { LibraryExpoPushTransport } from "./push/expo-push.transport";
 import { PushSubscriptionService } from "./push/push-subscription.service";
 import { CHANNEL_SENDERS, NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
 
@@ -57,6 +59,8 @@ export interface NotificationWorkerModuleOptions {
   queue?: Provider;
   /** Start consuming the queue on bootstrap (false in tests). */
   autoStart?: boolean;
+  /** Override the Expo push service used to read receipts (tests). */
+  expoTransport?: Provider;
 }
 
 class WorkerLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -95,8 +99,14 @@ export class NotificationWorkerModule {
           inject: [NotificationWorkerRunner],
           useFactory: (runner: NotificationWorkerRunner) => new WorkerLifecycle(runner, options.autoStart ?? true),
         },
+        options.expoTransport ?? {
+          provide: EXPO_PUSH_TRANSPORT,
+          inject: [APP_CONFIG],
+          useFactory: (config: AppConfig) => new LibraryExpoPushTransport(config.EXPO_ACCESS_TOKEN),
+        },
+        ExpoPushReceipts,
       ],
-      exports: [NotificationDispatcher],
+      exports: [NotificationDispatcher, ExpoPushReceipts],
     };
   }
 }
