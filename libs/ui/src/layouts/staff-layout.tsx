@@ -22,6 +22,8 @@ export interface StaffLayoutProps {
   Link?: LinkComponent;
   navigation?: NavItem[];
   productName?: string;
+  /** Bottom of the sidebar (and mobile menu): a help card, sign-out. */
+  sidebarFooter?: React.ReactNode;
 }
 
 /**
@@ -37,6 +39,7 @@ export function StaffLayout({
   Link = DefaultLink,
   navigation,
   productName = "Healthcare Platform",
+  sidebarFooter,
 }: StaffLayoutProps) {
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -62,6 +65,7 @@ export function StaffLayout({
         <aside className="hidden w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
           <Brand name={productName} />
           {nav}
+          {sidebarFooter ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center gap-2 px-4">
@@ -69,10 +73,11 @@ export function StaffLayout({
               <SheetTrigger className="rounded-md p-1.5 hover:bg-accent lg:hidden" aria-label="Open navigation">
                 <MenuIcon className="size-4" />
               </SheetTrigger>
-              <SheetContent side="left" className="bg-sidebar p-0 text-sidebar-foreground">
+              <SheetContent side="left" className="flex flex-col bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <Brand name={productName} />
                 {nav}
+                {sidebarFooter ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
               </SheetContent>
             </Sheet>
             <form

@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, UserRoundIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
-import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { BellIcon, UserRoundIcon, FlaskConicalIcon, LifeBuoyIcon, LogOutIcon } from "lucide-react";
+import { SidebarPromo, StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
@@ -40,6 +40,25 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       navigation={navigation}
       Link={NextLink}
       onSearch={(q) => router.push(`/patients?q=${encodeURIComponent(q)}`)}
+      sidebarFooter={
+        <>
+          <SidebarPromo
+            icon={LifeBuoyIcon}
+            title="Need a hand?"
+            description="Step-by-step guides for every role, from registration to billing."
+            action={
+              <Button asChild size="sm" className="w-full">
+                <Link href="/help">Open the user manual</Link>
+              </Button>
+            }
+          />
+          <form action={signOut}>
+            <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
+              <LogOutIcon /> Sign out
+            </Button>
+          </form>
+        </>
+      }
       topbarEnd={
         <>
           {facilities.length > 0 ? (
@@ -99,11 +118,6 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               <UserRoundIcon />
             </Link>
           </Button>
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" size="icon" aria-label="Sign out" title={`Sign out ${user.email}`}>
-              <LogOutIcon />
-            </Button>
-          </form>
         </>
       }
     >

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 
-/** Dense data table. 13px, compact rows, sticky header, zebra-free (uses row hover + selection instead). */
+/** Dense data table. 13px, compact rows, sticky tinted header with rounded ends, zebra-free (uses row hover + selection instead). */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-auto">
@@ -11,7 +11,13 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return <thead data-slot="table-header" className={cn("sticky top-0 z-10 bg-muted [&_tr]:border-b", className)} {...props} />;
+  return (
+    <thead
+      data-slot="table-header"
+      className={cn("sticky top-0 z-10 bg-primary-subtle/60 [&_tr]:border-b-0 [&_tr>th:first-child]:rounded-l-lg [&_tr>th:last-child]:rounded-r-lg", className)}
+      {...props}
+    />
+  );
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
@@ -28,14 +34,14 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
-      className={cn("h-8 px-2 text-left align-middle text-meta font-semibold tracking-wide whitespace-nowrap text-muted-foreground uppercase", className)}
+      className={cn("h-9 px-3 text-left align-middle text-table font-semibold whitespace-nowrap text-primary-deep", className)}
       {...props}
     />
   );
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
-  return <td data-slot="table-cell" className={cn("px-2 py-1.5 align-middle whitespace-nowrap", className)} {...props} />;
+  return <td data-slot="table-cell" className={cn("px-3 py-2 align-middle whitespace-nowrap", className)} {...props} />;
 }
 
 function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
