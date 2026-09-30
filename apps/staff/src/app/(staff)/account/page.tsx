@@ -2,7 +2,7 @@ import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { getSession } from "@/lib/api/session";
-import { PasswordForm, TwoStepSettings } from "./account-forms";
+import { PasswordForm, RecoveryCodesSettings, TwoStepSettings } from "./account-forms";
 
 export const metadata = { title: "My account" };
 
@@ -43,6 +43,7 @@ export default async function AccountPage() {
               <p className="font-medium">Your organization requires two-step verification for staff.</p>
             ) : null}
             <TwoStepSettings enabled={session.user.mfaEnabled} required={session.mfaPolicy.required && !session.mfaPolicy.exempt} />
+            {session.user.mfaEnabled ? <RecoveryCodesSettings remaining={session.user.recoveryCodesRemaining} /> : null}
           </CardContent>
         </Card>
       </div>

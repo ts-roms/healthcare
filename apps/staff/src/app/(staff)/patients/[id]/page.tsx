@@ -25,6 +25,7 @@ import {
   GitMergeIcon,
   WaypointsIcon,
   SyringeIcon,
+  PencilIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -329,6 +330,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <Button asChild size="sm" variant="outline">
             <Link href={`/dental/patients/${p.id}`}>
               <SmileIcon /> Dental record
+            </Link>
+          </Button>
+        ) : null}
+        {(can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/patients/${p.id}/edit`}>
+              <PencilIcon /> Edit details
             </Link>
           </Button>
         ) : null}

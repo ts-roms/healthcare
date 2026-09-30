@@ -89,9 +89,19 @@ export function ResetPasswordForm() {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="reset-code">
-          {needsCode ? "Code from your authenticator app *" : "Code from your authenticator app (if you use two-step verification)"}
+          {needsCode
+            ? "Code from your authenticator app, or a recovery code *"
+            : "Code from your authenticator app or a recovery code (if you use two-step verification)"}
         </Label>
-        <Input id="reset-code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={form.code} onChange={set("code")} />
+        <Input
+          id="reset-code"
+          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={12}
+          value={form.code}
+          onChange={set("code")}
+        />
       </div>
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Saving…" : "Save new password"}

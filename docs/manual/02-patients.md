@@ -14,12 +14,15 @@ timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and any
 2. In **Name, patient no. or mobile**, type at least 2 characters. Examples: `dela cruz juan`, a patient number such as `P00001234`, or a mobile number in any
    Philippine format. Accents don't matter: "pena" finds "Peña".
 3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.
+   - To search by an ID card, choose the kind under **ID** (PhilHealth PIN, PhilSys number, senior citizen ID, PWD ID, passport, driver's license, HMO
+     member ID, external MRN) and type its number in **ID number**. A PhilHealth PIN can be typed with or without dashes.
+   - Tick **Include inactive records** to also find records marked inactive (and records merged into another, shown as **Merged**).
 4. Select **Search**.
 5. Select the patient's name to open their record, or **360** next to it to open the Patient 360 workspace. Use **Previous** and **Next** when there is more
    than one page (25 per page).
 
 The results show only what you need to pick the right person: name, **Patient no.**, **Birth date**, **Age / Sex**, a masked **Mobile** number and
-**Status**. Inactive and merged records are not listed. If you search for the patient number, mobile number or an identifier of a record that was merged
+**Status**. Inactive and merged records are not listed unless you tick **Include inactive records**. If you search for the patient number, mobile number or an identifier of a record that was merged
 into another, the surviving record is listed with the note "Found through P… , merged into this record".
 
 If nothing matches, the page says "No patients match. Check the spelling, or try the birth date or mobile number." If you may register patients, a **Register
@@ -98,9 +101,27 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
 
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 
-> There is no screen yet to edit demographics, contacts, addresses or identifiers after registration, to add emergency contacts or relationships, to change a
-> patient's status (inactive, deceased) or to set communication preferences. Ask your administrator how your organization handles these requests. Duplicate
-> records are merged by records officers (**Merge duplicate…**).
+To correct any of this, use **Edit details** (see below). Duplicate records are merged by records officers (**Merge duplicate…**).
+
+## How to correct a patient's details
+
+Select **Edit details** on the patient record. You need `patient.update` (receptionists, records officers, nurses, physicians, dentists and dental assistants have it by default); the
+communication preferences need `patient.consent.manage`. Every change is recorded in the audit trail with who made it and why. A merged record cannot be
+edited: its surviving record is opened instead.
+
+- **Details:** correct the name, sex, gender identity, birth date (and whether it is estimated), civil status, nationality (2-letter code, e.g. `PH`) and
+  occupation. Only the fields you changed are saved. Give a reason when it helps, for example "Spelling corrected from the birth certificate". If someone
+  else saved the record meanwhile, the page asks you to reload and try again.
+- **Record status:** mark the record **Inactive** (e.g. the patient moved away and asked to close it), **Deceased** (with the date and time of death, in your
+  facility's time zone) or **Active** again, always with a reason. Inactive records are left out of search unless **Include inactive records** is ticked and
+  get no optional reminders; deceased patients are never contacted. A mistaken change is corrected the same way.
+- **Phone numbers and email, Addresses, IDs, Emergency contacts, guardians and family:** entries are never edited in place. To fix one, **Add** the right
+  one and **Remove…** the wrong one with a reason; removed entries stay in the record's history. A new primary number, email or address replaces the old
+  primary. An ID already on another patient's record is refused ("This identifier is already assigned to a patient"): the two records may be the same
+  person, so check for a duplicate. Recording a guardian here does not give them MyHealth access (use **Guardians and caregivers**).
+- **Communication preferences:** tick which messages the patient agreed to receive by **SMS**, **Email** and **Push**, for care, appointments and bills,
+  and optional reminders. Without a recorded choice, care and appointment messages are sent and optional reminders are not. Patients can also change these
+  themselves in MyHealth.
 
 ## How to record allergies
 

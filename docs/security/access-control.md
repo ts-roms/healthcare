@@ -8,7 +8,18 @@
   run a password verification for similar timing.
 - TOTP MFA (RFC 6238), optional unless the organization requires it (below).
   Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
-  Enrollment requires confirming a code.
+  Enrollment requires confirming a code. Each code works once: the last
+  accepted time step is kept (`app_user.mfa_last_used_step`, migration
+  `0092`) and a code for that step or an earlier one is refused, checked with
+  the account row locked (sign-in, set-up, turning off, renewing codes).
+- Recovery codes: 10 single-use codes (`K7M2P-X9QRT`, ~49 bits) are returned
+  once by `POST /auth/mfa/confirm` and by `POST /auth/mfa/recovery-codes`
+  (password + app code; the old set is deleted); only SHA-256 hashes bound to
+  the user are stored (`staff_recovery_code`). One works in place of the app's
+  code at sign-in (audited `auth.login` with `method: password+recovery_code`
+  and the codes left) and to turn MFA off; `/auth/me` reports
+  `recoveryCodesRemaining`. Turning MFA off or an administrator's reset
+  removes them.
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
@@ -223,7 +234,6 @@ administrator's own MFA first (`422 own_mfa_required`).
 
 ## Known gaps (tracked for later phases)
 
-- TOTP codes can be replayed within their 30-second window.
 - No breached-password screening.
 - Rate-limit counters are per instance (move to Redis before scaling out).
 - Refresh tokens are returned in JSON; the web app should use an HttpOnly

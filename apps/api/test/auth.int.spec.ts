@@ -66,33 +66,99 @@ describe("authentication", () => {
     expect(response.body.error.code).toBe("session_ended");
   });
 
-  it("enrolls TOTP MFA and then requires it at sign-in", async () => {
-    await createStaff(ctx.pool, tenant, "doctor@example.ph", ["physician"]);
-    const { accessToken } = await login(ctx, "doctor@example.ph");
-    const setup = await ctx.http().post("/api/v1/auth/mfa/setup").set(as(accessToken)).expect(201);
-    expect(setup.body.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
-    await ctx.http().post("/api/v1/auth/mfa/confirm").set(as(accessToken)).send({ code: "000000" }).expect(422);
-    await ctx
-      .http()
-      .post("/api/v1/auth/mfa/confirm")
-      .set(as(accessToken))
-      .send({ code: currentTotp(setup.body.secret) })
-      .expect(204);
+  describe("two-step verification", () => {
+    let secret: string;
+    let recoveryCodes: string[];
+    let doctorToken: string;
+    const signIn = async () =>
+      (await ctx.http().post("/api/v1/auth/login").send({ email: "doctor@example.ph", password: PASSWORD }).expect(200)).body.challengeToken as string;
+    const verify = (challengeToken: string, code: string) => ctx.http().post("/api/v1/auth/mfa/verify").send({ challengeToken, code });
+    /** Codes work once: forget the last accepted step so the current code is usable again (the clock cannot be moved). */
+    const freshCode = async () => {
+      await ctx.pool.query(`UPDATE app_user SET mfa_last_used_step = 0, failed_login_count = 0 WHERE email = 'doctor@example.ph'`);
+      return currentTotp(secret);
+    };
 
-    const stored = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
-    expect(stored.rows[0].mfa_secret_encrypted).not.toContain(setup.body.secret);
+    it("enrolls TOTP MFA with recovery codes and then requires it at sign-in", async () => {
+      await createStaff(ctx.pool, tenant, "doctor@example.ph", ["physician"]);
+      doctorToken = (await login(ctx, "doctor@example.ph")).accessToken;
+      const setup = await ctx.http().post("/api/v1/auth/mfa/setup").set(as(doctorToken)).expect(201);
+      expect(setup.body.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
+      secret = setup.body.secret;
+      await ctx.http().post("/api/v1/auth/mfa/confirm").set(as(doctorToken)).send({ code: "000000" }).expect(422);
+      const confirmed = await ctx
+        .http()
+        .post("/api/v1/auth/mfa/confirm")
+        .set(as(doctorToken))
+        .send({ code: currentTotp(secret) })
+        .expect(200);
+      recoveryCodes = confirmed.body.recoveryCodes;
+      expect(recoveryCodes).toHaveLength(10);
+      expect(new Set(recoveryCodes).size).toBe(10);
+      expect(recoveryCodes[0]).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
 
-    const challenge = await ctx.http().post("/api/v1/auth/login").send({ email: "doctor@example.ph", password: PASSWORD }).expect(200);
-    expect(challenge.body).toEqual({ status: "mfa_required", challengeToken: expect.any(String) });
-    await ctx.http().post("/api/v1/auth/mfa/verify").send({ challengeToken: challenge.body.challengeToken, code: "000000" }).expect(401);
-    const verified = await ctx
-      .http()
-      .post("/api/v1/auth/mfa/verify")
-      .send({ challengeToken: challenge.body.challengeToken, code: currentTotp(setup.body.secret) })
-      .expect(200);
-    expect(verified.body.status).toBe("authenticated");
-    // A challenge token is not an access token.
-    await ctx.http().get("/api/v1/auth/me").set(as(challenge.body.challengeToken)).expect(401);
+      const stored = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
+      expect(stored.rows[0].mfa_secret_encrypted).not.toContain(secret);
+      const hashes = await ctx.pool.query(
+        `SELECT code_hash FROM staff_recovery_code r JOIN app_user u ON u.id = r.user_id WHERE u.email = 'doctor@example.ph'`,
+      );
+      expect(hashes.rows).toHaveLength(10);
+      expect(hashes.rows.map((r) => r.code_hash)).not.toContain(recoveryCodes[0]);
+
+      const challenge = await ctx.http().post("/api/v1/auth/login").send({ email: "doctor@example.ph", password: PASSWORD }).expect(200);
+      expect(challenge.body).toEqual({ status: "mfa_required", challengeToken: expect.any(String) });
+      await verify(challenge.body.challengeToken, "000000").expect(401);
+      // The code used to confirm the set-up cannot sign in: each code works once.
+      await verify(challenge.body.challengeToken, currentTotp(secret)).expect(401);
+      const next = currentTotp(secret, 1);
+      const verified = await verify(challenge.body.challengeToken, next).expect(200);
+      expect(verified.body.status).toBe("authenticated");
+      // Replaying it with a new challenge fails too.
+      await verify(await signIn(), next).expect(401);
+      // A challenge token is not an access token.
+      await ctx.http().get("/api/v1/auth/me").set(as(challenge.body.challengeToken)).expect(401);
+      const me = await ctx.http().get("/api/v1/auth/me").set(as(verified.body.accessToken)).expect(200);
+      expect(me.body.user).toMatchObject({ mfaEnabled: true, recoveryCodesRemaining: 10 });
+    });
+
+    it("signs in with a recovery code, once", async () => {
+      await ctx.pool.query(`UPDATE app_user SET failed_login_count = 0 WHERE email = 'doctor@example.ph'`);
+      const typed = recoveryCodes[0]!.toLowerCase().replace("-", " ");
+      const done = await verify(await signIn(), typed).expect(200);
+      await verify(await signIn(), recoveryCodes[0]!).expect(401);
+      const me = await ctx.http().get("/api/v1/auth/me").set(as(done.body.accessToken)).expect(200);
+      expect(me.body.user.recoveryCodesRemaining).toBe(9);
+      const [event] = await auditRows(ctx.pool, `action = 'auth.login' AND metadata->>'method' = 'password+recovery_code'`);
+      expect(event?.metadata).toMatchObject({ recoveryCodesLeft: 9 });
+    });
+
+    it("renews the recovery codes with the password and an app code; the old ones stop working", async () => {
+      await ctx
+        .http()
+        .post("/api/v1/auth/mfa/recovery-codes")
+        .set(as(doctorToken))
+        .send({ password: "wrong-password-123", code: await freshCode() })
+        .expect(422);
+      const renewed = await ctx
+        .http()
+        .post("/api/v1/auth/mfa/recovery-codes")
+        .set(as(doctorToken))
+        .send({ password: PASSWORD, code: await freshCode() })
+        .expect(200);
+      expect(renewed.body.recoveryCodes).toHaveLength(10);
+      await verify(await signIn(), recoveryCodes[1]!).expect(401);
+      recoveryCodes = renewed.body.recoveryCodes;
+      await ctx.pool.query(`UPDATE app_user SET failed_login_count = 0 WHERE email = 'doctor@example.ph'`);
+    });
+
+    it("turns off with the password and a recovery code, removing the codes", async () => {
+      await ctx.http().post("/api/v1/auth/mfa/disable").set(as(doctorToken)).send({ password: PASSWORD, code: recoveryCodes[2]! }).expect(204);
+      const left = await ctx.pool.query(
+        `SELECT count(*)::int AS n FROM staff_recovery_code r JOIN app_user u ON u.id = r.user_id WHERE u.email = 'doctor@example.ph'`,
+      );
+      expect(left.rows[0].n).toBe(0);
+      await login(ctx, "doctor@example.ph");
+    });
   });
 
   it("signs out other sessions when the password changes", async () => {

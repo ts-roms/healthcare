@@ -13,7 +13,7 @@ cashiers, inventory officers, records officers and administrators. Patients use 
 3. If you belong to more than one organization, the page asks you to choose one. Pick it from **Organization** ("Choose where you are working…"), enter your
    **Password** again and select **Sign in**.
 4. If your account uses two-step verification, the page says "Enter the 6-digit code from your authenticator app." Type the current code in **Verification
-   code** and select **Verify and sign in**. Do this within 5 minutes. After that the attempt expires and you start again with your password.
+   code** (or one of your recovery codes) and select **Verify and sign in**. Do this within 5 minutes. After that the attempt expires and you start again with your password.
 5. You land on the **Dashboard**. If you were opening a specific page when you were asked to sign in, you usually go back to that page.
 
 > Two-step verification uses a TOTP authenticator app on your phone. Turn it on under **My account** (below). If your organization requires it and yours is
@@ -87,14 +87,18 @@ Click your name in the top bar to open **My account** (`/account`).
   You stay signed in here; every other session of yours is signed out.
 - **Two-step verification:** click **Turn on**. In an authenticator app on your phone (for example Google Authenticator or Microsoft
   Authenticator), add an account with the setup key shown (on a phone you can open it directly in the app). Type the 6-digit code the app shows
-  and click **Turn on**. From then on, signing in also asks for a code. To turn it off, click **Turn off…** and enter your password and a current
-  code. If your organization requires two-step verification, the page says so and it cannot be turned off.
+  and click **Turn on**. The page then shows your 10 **recovery codes** — only this once. Write them down or print them, keep them away from your
+  phone, and click **I have saved them**. From then on, signing in also asks for a code. Each code works once: if a code is refused, wait for the
+  next one the app shows. To turn it off, click **Turn off…** and enter your password and a current code (or a recovery code). If your
+  organization requires two-step verification, the page says so and it cannot be turned off.
+- **Recovery codes:** without your phone, type a recovery code instead of the 6 digits when signing in; each works once. **My account** shows how
+  many are left. **New recovery codes…** (your password and a code from the app) makes a new set, and the old ones stop working.
 
 **Forgot your password?** On the sign-in page, select **Forgot your password?**, enter the email you sign in with and select **Send me a link**. Open
-the link in the email within 30 minutes (it works once), enter the new password twice — and, if you use two-step verification, a code from your app —
+the link in the email within 30 minutes (it works once), enter the new password twice — and, if you use two-step verification, a code from your app or a recovery code —
 then **Save new password**. You are signed out everywhere and sign in with the new password.
 
-If you lose your phone, ask your administrator to **reset** your two-step verification. You are signed out, and you set it up again at your next sign-in.
+If you lose your phone and have no recovery codes left, ask your administrator to **reset** your two-step verification. You are signed out, and you set it up again at your next sign-in.
 If the email does not arrive, your administrator can give you a temporary password in person. After signing in with it, every page shows **Choose your
 own password**: enter the temporary password, then your new one twice, and select **Choose this password**.
 

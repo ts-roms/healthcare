@@ -130,6 +130,36 @@ describe("patient master", () => {
     expect((await auditRows(ctx.pool, `action = 'patient.search'`)).length).toBeGreaterThanOrEqual(4);
   });
 
+  it("leaves inactive records out of search unless asked, and reactivates them with a reason", async () => {
+    const created = await api()
+      .post("/api/v1/patients")
+      .send({ familyName: "Villanueva", givenName: "Rosario", sex: "female", birthDate: "1950-03-03" })
+      .expect(201);
+    await api()
+      .post(`/api/v1/patients/${created.body.id}/status`)
+      .send({ status: "inactive", reason: "Moved abroad", version: created.body.version })
+      .expect(200);
+    expect((await api().get("/api/v1/patients?q=villanueva%20rosario").expect(200)).body.items).toEqual([]);
+    const found = await api().get("/api/v1/patients?q=villanueva%20rosario&includeInactive=true").expect(200);
+    expect(found.body.items).toEqual([expect.objectContaining({ id: created.body.id, status: "inactive" })]);
+    await api()
+      .post(`/api/v1/patients/${created.body.id}/status`)
+      .send({ status: "active", reason: "Back in the Philippines", version: created.body.version + 1 })
+      .expect(200);
+    expect((await api().get("/api/v1/patients?q=villanueva%20rosario").expect(200)).body.items).toHaveLength(1);
+    const events = await auditRows(ctx.pool, `action = 'patient.change-status' AND resource_id = $1`, [created.body.id]);
+    expect(events.map((e) => e.reason)).toEqual(["Moved abroad", "Back in the Philippines"]);
+  });
+
+  it("records communication preferences chosen at the desk", async () => {
+    await api()
+      .put(`/api/v1/patients/${juanId}/communication-preferences`)
+      .send({ preferences: [{ channel: "email", category: "outreach", optedIn: true }] })
+      .expect(200);
+    const detail = await api().get(`/api/v1/patients/${juanId}`).expect(200);
+    expect(detail.body.communicationPreferences).toContainEqual({ channel: "email", category: "outreach", optedIn: true });
+  });
+
   it("uses optimistic locking and audits field-level changes", async () => {
     await api().patch(`/api/v1/patients/${juanId}`).send({ occupation: "Teacher", version: 1 }).expect(200);
     const stale = await api().patch(`/api/v1/patients/${juanId}`).send({ occupation: "Engineer", version: 1 }).expect(409);

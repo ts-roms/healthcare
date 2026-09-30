@@ -19,7 +19,7 @@ import type { staffPasswordResetRequestSchema, staffPasswordResetSchema } from "
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
 import { StaffSecurityMailers } from "./staff-security-mailer";
-import { verifyTotp } from "./totp";
+import { spendSecondFactor } from "./mfa-store";
 
 /** How long a link works, how many are issued per account per hour, and how many wrong codes burn one. */
 export const STAFF_RESET_VALID_MINUTES = 30;
@@ -140,7 +140,9 @@ export class StaffPasswordResetService {
       }
       if (user.mfaEnabled && user.mfaSecretEncrypted) {
         if (!input.code) return { kind: "rejected", reason: "mfa_code_required", codeRequired: true, ...base };
-        if (!verifyTotp(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), input.code)) {
+        // The app's code (each works once) or a recovery code, spent only if the reset goes through.
+        const factor = await spendSecondFactor(tx, user, decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), input.code, true);
+        if (!factor.ok) {
           const attempts = reset.failedAttempts + 1;
           if (attempts >= STAFF_RESET_MAX_FAILED_ATTEMPTS) await consume("exhausted");
           else await tx.update(staffPasswordReset).set({ failedAttempts: attempts }).where(eq(staffPasswordReset.id, reset.id));

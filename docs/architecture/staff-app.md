@@ -92,6 +92,16 @@ The patient record has a **Timeline** button and a **Recent activity** card (the
 
 ## Patient 360 workspace
 
+`/patients` (search) also takes an ID kind and number (`identifierType`/`identifierValue`; PhilHealth PIN dashes stripped) and **Include inactive
+records** (`includeInactive`), kept in the URL (`idType`, `idValue`, `inactive=1`).
+
+**Edit details** (`patient.update`, or `patient.consent.manage` for preferences only; not on a merged record) opens `/patients/[id]/edit`: details
+(`PATCH /patients/:id` with only the changed fields and the version shown, optional reason), record status (`POST /patients/:id/status`, reason;
+deceased with a local date and time converted in the facility's time zone), contacts, addresses, IDs and emergency contacts/guardians (add with `POST`,
+remove with `DELETE` and a reason — never edited in place, kept in history) and communication preferences (`PUT /patients/:id/communication-preferences`
+with only the choices that differ from the ones in force; unrecorded care messages count as on and outreach as off, the notification rule). Form rules
+and payloads in `lib/patient-edit.ts` (unit tested); server actions in `app/(staff)/patients/[id]/edit/actions.ts`. The API audits every change.
+
 `/patients/[id]/360` is the doctor's one-screen view ([patient-360.md](../domains/patient-360.md)), a page of its own so the administrative record (`/patients/[id]`: demographics, consent, portal, PhilHealth) stays the front desk's and records staff's screen. It is linked from the record's action bar, the search results (**360**), the queue ticket panel and the encounter workspace banner.
 
 - **Data, in parallel on the server**: the patient, `GET /patients/:id/summary` (when the user has `clinical.read`), `GET /patients/:id/workspace`, `GET /laboratory/patients/:id/results` (with `lab.result.read`) and `GET /patients/:id/timeline?limit=8`. No streaming (the app does not use Suspense); every list is bounded by the API or the page.
@@ -245,7 +255,9 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
-  (setup key and `otpauth:` link; no QR image) or off (password and code; not while the organization requires it).
+  (setup key and `otpauth:` link; no QR image; the 10 recovery codes are shown once before the page refreshes) or off (password and an app or
+  recovery code; not while the organization requires it); recovery codes left and **New recovery codes…** (password and an app code). Sign-in takes
+  an app code or a recovery code (`lib/second-factor.ts`).
 
 Not built: resetting another person's password (no API), editing roles, coding systems.
 

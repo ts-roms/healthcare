@@ -3,6 +3,7 @@
 import { headers as requestHeaders } from "next/headers";
 import { forwardedHeaders, toApiError, userMessage } from "@healthcare/web-session";
 import { API_BASE_URL } from "@/lib/api/config";
+import { normalizeSecondFactor, SECOND_FACTOR_HINT } from "@/lib/second-factor";
 
 // Signed-out password reset (docs/security/access-control.md, "Password reset by email"). The API answers asking the same
 // way whether or not the account exists, checks the link, and asks for a code when two-step verification is on.
@@ -36,8 +37,9 @@ export async function chooseNewPassword(input: {
 }): Promise<{ ok: true } | { ok: false; message: string; codeRequired?: boolean }> {
   if (input.password.length < 12) return { ok: false, message: "The new password needs at least 12 characters." };
   if (input.password !== input.confirm) return { ok: false, message: "The passwords do not match." };
-  const code = input.code.replace(/\s+/g, "");
-  if (code && !/^\d{6}$/.test(code)) return { ok: false, message: "Enter the 6-digit code from your authenticator app." };
+  const typed = input.code.trim();
+  const code = typed ? normalizeSecondFactor(typed) : "";
+  if (code === null) return { ok: false, message: SECOND_FACTOR_HINT };
   try {
     await post("/auth/password-reset", { token: input.token, password: input.password, ...(code ? { code } : {}) });
     return { ok: true };

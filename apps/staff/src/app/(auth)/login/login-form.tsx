@@ -27,15 +27,16 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
             <ShieldCheckIcon className="size-4 text-primary" aria-hidden />
             Enter the 6-digit code from your authenticator app.
           </div>
+          <p className="text-meta text-muted-foreground">No phone? Enter one of your recovery codes instead; each works once.</p>
           <div className="grid gap-1.5">
             <Label htmlFor="code">Verification code</Label>
             <Input
               id="code"
               name="code"
-              inputMode="numeric"
               autoComplete="one-time-code"
-              pattern="\d{6}"
-              maxLength={6}
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={12}
               required
               autoFocus
               className="h-10 font-mono tracking-[0.3em]"

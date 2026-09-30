@@ -41,6 +41,8 @@ export interface Me {
     email: string;
     displayName: string;
     mfaEnabled: boolean;
+    /** Unused single-use recovery codes (0 without two-step verification). */
+    recoveryCodesRemaining: number;
     isPlatformAdmin: boolean;
     /** Signed in with a temporary password from an administrator: every page asks for a new one first. */
     passwordChangeRequired?: boolean;

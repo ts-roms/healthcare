@@ -19,6 +19,7 @@ import {
   MfaConfirmDto,
   MfaDisableDto,
   MfaVerifyDto,
+  RecoveryCodesRenewDto,
   RefreshDto,
   StaffPasswordResetDto,
   StaffPasswordResetRequestDto,
@@ -87,7 +88,7 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
-  @ApiOperation({ summary: "Complete sign-in with a TOTP code" })
+  @ApiOperation({ summary: "Complete sign-in with a TOTP code (each works once) or a single-use recovery code" })
   verifyMfa(@Body() body: MfaVerifyDto, @Req() request: Request) {
     return this.auth.verifyMfa(body.challengeToken, body.code, requestMetadataFrom(request));
   }
@@ -115,13 +116,17 @@ export class AuthController {
   @ApiOperation({ summary: "Current user, organization, facility context and effective permissions" })
   async me(@CurrentActor() actor: Actor) {
     const [user, organization] = await Promise.all([this.auth.getUser(actor.userId), this.organizations.getOrganization(actor.organizationId)]);
-    const mfaPolicy = await this.mfaPolicy.forMember(user.id, actor.organizationId, user.mfaEnabled);
+    const [mfaPolicy, recoveryCodesRemaining] = await Promise.all([
+      this.mfaPolicy.forMember(user.id, actor.organizationId, user.mfaEnabled),
+      user.mfaEnabled ? this.auth.recoveryCodesRemaining(user.id) : Promise.resolve(0),
+    ]);
     return {
       user: {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
         mfaEnabled: user.mfaEnabled,
+        recoveryCodesRemaining,
         isPlatformAdmin: user.isPlatformAdmin,
         /** Signed in with a temporary password from an administrator: choose a new one first. */
         passwordChangeRequired: user.passwordChangeRequired,
@@ -176,11 +181,21 @@ export class AuthController {
 
   @Post("mfa/confirm")
   @AllowDuringMfaEnrollment()
-  @HttpCode(204)
+  @HttpCode(200)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)
-  async confirmMfa(@CurrentActor() actor: Actor, @Body() body: MfaConfirmDto): Promise<void> {
-    await this.auth.confirmMfaSetup(actor, body.code);
+  @ApiOperation({ summary: "Finish TOTP enrollment with a code; returns 10 single-use recovery codes, shown only this once" })
+  confirmMfa(@CurrentActor() actor: Actor, @Body() body: MfaConfirmDto) {
+    return this.auth.confirmMfaSetup(actor, body.code);
+  }
+
+  @Post("mfa/recovery-codes")
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "Replace the recovery codes (the old ones stop working); needs the password and a current app code" })
+  renewRecoveryCodes(@CurrentActor() actor: Actor, @Body() body: RecoveryCodesRenewDto) {
+    return this.auth.renewRecoveryCodes(actor, body.password, body.code);
   }
 
   @Post("mfa/disable")

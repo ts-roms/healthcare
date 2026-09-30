@@ -18,9 +18,9 @@ export function verifyTotp(secret: string, code: string): boolean {
   return /^\d{6}$/.test(code) && authenticator.check(code, secret);
 }
 
-/** Test helper: the current code for a secret. */
-export function currentTotp(secret: string): string {
-  return authenticator.generate(secret);
+/** Test helper: the current code for a secret, or the one `stepOffset` 30-second steps away (codes work once). */
+export function currentTotp(secret: string, stepOffset = 0): string {
+  return stepOffset === 0 ? authenticator.generate(secret) : authenticator.clone({ epoch: Date.now() + stepOffset * 30_000 }).generate(secret);
 }
 
 const TOTP_STEP_SECONDS = 30;

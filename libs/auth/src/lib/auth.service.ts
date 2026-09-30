@@ -16,15 +16,17 @@ import {
   UnauthenticatedError,
 } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { appUser, type AppUserRecord, organizationMembership } from "./auth.schema";
+import { appUser, type AppUserRecord, organizationMembership, staffRecoveryCode } from "./auth.schema";
 import type { changePasswordSchema, loginSchema, MfaRequiredResponse, TokenResponse } from "./auth.dto";
 import { burnPasswordVerification, hashPassword, verifyPassword } from "./password";
+import { clearStaffMfa, type SecondFactorResult, spendSecondFactor } from "./mfa-store";
 import { MfaPolicyService } from "./mfa-policy.service";
 import { SessionService } from "./session.service";
 import { TokenService } from "./tokens";
-import { generateTotpSecret, totpUri, verifyTotp } from "./totp";
+import { generateRecoveryCode, hashRecoveryCode, RECOVERY_CODE_COUNT } from "./second-factor";
+import { generateTotpSecret, totpUri, verifyTotpStep } from "./totp";
 
 export const MAX_FAILED_LOGINS = 5;
 export const LOCKOUT_MINUTES = 15;
@@ -109,13 +111,21 @@ export class AuthService {
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw new UnauthenticatedError("Too many failed attempts. Try again later.", "account_locked");
     }
-    if (!verifyTotp(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code)) {
+    // The app's code or a recovery code, spent on success (a code works once).
+    const factor = await this.db.transaction(async (tx) => this.checkSecondFactor(tx, await this.lockUser(tx, user.id), code, true));
+    if (!factor.ok) {
       await this.recordFailedAttempt(user, context, "wrong_mfa_code");
       throw new UnauthenticatedError("Invalid verification code", "invalid_mfa_code");
     }
     // Membership may have changed during the challenge window.
     await this.selectOrganization(user.id, claims.org, context);
-    return this.completeLogin(user, claims.org, request, "password+totp");
+    return this.completeLogin(
+      user,
+      claims.org,
+      request,
+      factor.kind === "totp" ? "password+totp" : "password+recovery_code",
+      factor.kind === "recovery_code" ? { recoveryCodesLeft: factor.recoveryCodesLeft } : undefined,
+    );
   }
 
   async refresh(refreshToken: string, request: RequestMetadata): Promise<TokenResponse> {
@@ -196,26 +206,64 @@ export class AuthService {
     return { secret, otpauthUri: totpUri(user.email, secret) };
   }
 
-  async confirmMfaSetup(actor: Actor, code: string): Promise<void> {
-    const user = await this.getUser(actor.userId);
-    if (!user.mfaPendingSecretEncrypted) throw new BusinessRuleError("Start MFA setup first", "mfa_setup_not_started");
-    const pending = user.mfaPendingSecretEncrypted;
-    if (!verifyTotp(decryptSecret(pending, this.config.MFA_ENCRYPTION_KEY), code)) {
-      throw new BusinessRuleError("Invalid verification code", "invalid_mfa_code");
-    }
-    await this.db.transaction(async (tx) => {
+  /** Step 2: the code the app shows turns it on; the recovery codes are returned once and stored only as hashes. */
+  async confirmMfaSetup(actor: Actor, code: string): Promise<{ recoveryCodes: string[] }> {
+    return this.db.transaction(async (tx) => {
+      const user = await this.lockUser(tx, actor.userId);
+      if (user.mfaEnabled) throw new ConflictError("Multi-factor authentication is already enabled", undefined, "mfa_already_enabled");
+      if (!user.mfaPendingSecretEncrypted) throw new BusinessRuleError("Start MFA setup first", "mfa_setup_not_started");
+      const pending = user.mfaPendingSecretEncrypted;
+      const step = verifyTotpStep(decryptSecret(pending, this.config.MFA_ENCRYPTION_KEY), code);
+      if (step === null) throw new BusinessRuleError("Invalid verification code", "invalid_mfa_code");
       await tx
         .update(appUser)
         .set({
           mfaEnabled: true,
           mfaSecretEncrypted: pending,
           mfaPendingSecretEncrypted: null,
+          mfaLastUsedStep: step,
           updatedAt: new Date(),
           version: sql`${appUser.version} + 1`,
         })
         .where(eq(appUser.id, user.id));
+      const recoveryCodes = await this.replaceRecoveryCodes(tx, user.id);
       await this.audit.record(tx, actor, { action: "auth.mfa.enable", resourceType: "app_user", resourceId: user.id });
+      return { recoveryCodes };
     });
+  }
+
+  /** A new set of recovery codes (the old ones stop working); needs the password and a current code from the app. */
+  async renewRecoveryCodes(actor: Actor, password: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    const user = await this.getUser(actor.userId);
+    if (!user.mfaEnabled) throw new BusinessRuleError("Multi-factor authentication is not enabled", "mfa_not_enabled");
+    const validPassword = await verifyPassword(user.passwordHash, password);
+    const recoveryCodes = await this.db.transaction(async (tx) => {
+      const factor = validPassword ? await this.checkSecondFactor(tx, await this.lockUser(tx, user.id), code, false) : { ok: false as const };
+      if (!factor.ok) return null;
+      const codes = await this.replaceRecoveryCodes(tx, user.id);
+      await this.audit.record(tx, actor, { action: "auth.mfa.recovery-codes-renew", resourceType: "app_user", resourceId: user.id });
+      return codes;
+    });
+    if (!recoveryCodes) {
+      await this.audit.recordStandalone(actor, {
+        action: "auth.mfa.recovery-codes-renew",
+        resourceType: "app_user",
+        resourceId: user.id,
+        outcome: "failure",
+        reason: "invalid_credentials",
+      });
+      throw new BusinessRuleError("Password or verification code is incorrect", "invalid_credentials");
+    }
+    return { recoveryCodes };
+  }
+
+  /** Unused recovery codes (for My account). */
+  async recoveryCodesRemaining(userId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ left: count() })
+      .from(staffRecoveryCode)
+      .where(and(eq(staffRecoveryCode.userId, userId), isNull(staffRecoveryCode.usedAt)));
+    return row?.left ?? 0;
   }
 
   async disableMfa(actor: Actor, password: string, code: string): Promise<void> {
@@ -225,8 +273,15 @@ export class AuthService {
       throw new BusinessRuleError("Your organization requires two-step verification; it cannot be turned off", "mfa_required_by_organization");
     }
     const validPassword = await verifyPassword(user.passwordHash, password);
-    const validCode = verifyTotp(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code);
-    if (!validPassword || !validCode) {
+    const disabled = await this.db.transaction(async (tx) => {
+      // The code is checked (and spent) only with the right password; a recovery code works too.
+      const factor = validPassword ? await this.checkSecondFactor(tx, await this.lockUser(tx, user.id), code, true) : { ok: false as const };
+      if (!factor.ok) return false;
+      await clearStaffMfa(tx, user.id);
+      await this.audit.record(tx, actor, { action: "auth.mfa.disable", resourceType: "app_user", resourceId: user.id });
+      return true;
+    });
+    if (!disabled) {
       await this.audit.recordStandalone(actor, {
         action: "auth.mfa.disable",
         resourceType: "app_user",
@@ -236,13 +291,26 @@ export class AuthService {
       });
       throw new BusinessRuleError("Password or verification code is incorrect", "invalid_credentials");
     }
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(appUser)
-        .set({ mfaEnabled: false, mfaSecretEncrypted: null, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
-        .where(eq(appUser.id, user.id));
-      await this.audit.record(tx, actor, { action: "auth.mfa.disable", resourceType: "app_user", resourceId: user.id });
-    });
+  }
+
+  /** Locks the account row for a check that spends a code, so two requests cannot both use the same one. */
+  private async lockUser(tx: DbExecutor, userId: string): Promise<AppUserRecord> {
+    const [user] = await tx.select().from(appUser).where(eq(appUser.id, userId)).for("update");
+    if (!user) throw new UnauthenticatedError();
+    return user;
+  }
+
+  /** The app's code or, where allowed, a recovery code, spent in the caller's transaction (`spendSecondFactor`). */
+  private checkSecondFactor(tx: DbExecutor, user: AppUserRecord, code: string, allowRecovery: boolean): Promise<SecondFactorResult> {
+    if (!user.mfaEnabled || !user.mfaSecretEncrypted) return Promise.resolve({ ok: false });
+    return spendSecondFactor(tx, user, decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code, allowRecovery);
+  }
+
+  private async replaceRecoveryCodes(tx: DbExecutor, userId: string): Promise<string[]> {
+    await tx.delete(staffRecoveryCode).where(eq(staffRecoveryCode.userId, userId));
+    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => generateRecoveryCode());
+    await tx.insert(staffRecoveryCode).values(codes.map((code) => ({ userId, codeHash: hashRecoveryCode(userId, code) })));
+    return codes;
   }
 
   async getUser(userId: string): Promise<AppUserRecord> {
@@ -321,7 +389,13 @@ export class AuthService {
     });
   }
 
-  private async completeLogin(user: AppUserRecord, organizationId: string, request: RequestMetadata, method: string): Promise<TokenResponse> {
+  private async completeLogin(
+    user: AppUserRecord,
+    organizationId: string,
+    request: RequestMetadata,
+    method: string,
+    extra?: Record<string, unknown>,
+  ): Promise<TokenResponse> {
     const { session, refreshToken } = await this.db.transaction(async (tx) => {
       const issued = await this.sessions.create(tx, user.id, organizationId, request);
       await tx.update(appUser).set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() }).where(eq(appUser.id, user.id));
@@ -332,7 +406,7 @@ export class AuthService {
           action: "auth.login",
           resourceType: "auth_session",
           resourceId: issued.session.id,
-          metadata: { method },
+          metadata: { method, ...extra },
         },
       );
       return issued;

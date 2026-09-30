@@ -60,13 +60,15 @@ describe("staff password reset by email", () => {
       .post("/api/v1/auth/mfa/confirm")
       .set(as(session))
       .send({ code: currentTotp(setup.body.secret) })
-      .expect(204);
+      .expect(200);
     await ctx.pool.query("UPDATE staff_password_reset SET created_at = created_at - interval '2 hours'");
     await post("/password-reset/request", { email: "clerk@signin.ph" }).expect(204);
     const token = await latestToken(clerkId);
     const missing = await post("/password-reset", { token, password: "Third-Passphrase-2026" }).expect(401);
     expect(missing.body.error.code).toBe("mfa_code_required");
     await post("/password-reset", { token, password: "Third-Passphrase-2026", code: "000000" }).expect(401);
-    await post("/password-reset", { token, password: "Third-Passphrase-2026", code: currentTotp(setup.body.secret) }).expect(204);
+    // The code that confirmed the set-up was spent: codes work once.
+    await post("/password-reset", { token, password: "Third-Passphrase-2026", code: currentTotp(setup.body.secret) }).expect(401);
+    await post("/password-reset", { token, password: "Third-Passphrase-2026", code: currentTotp(setup.body.secret, 1) }).expect(204);
   });
 });
