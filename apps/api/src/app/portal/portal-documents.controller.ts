@@ -6,6 +6,7 @@ import { Public } from "@healthcare/core";
 import {
   CurrentPatient,
   PatientAccessGuard,
+  ProxyAllowed,
   patientAuditContext,
   type PortalPrincipal,
   RecordsRequestService,
@@ -22,6 +23,7 @@ import {
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal", version: "1" })
 export class PortalDocumentsController {
   constructor(

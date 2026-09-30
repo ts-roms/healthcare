@@ -7,6 +7,8 @@ export const SECURITY_ALERT_EVENTS = [
   "recovery_code_used",
   "recovery_codes_renewed",
   "email_changed",
+  "proxy_access_granted",
+  "proxy_access_ended",
 ] as const;
 export type SecurityAlertEvent = (typeof SECURITY_ALERT_EVENTS)[number];
 
