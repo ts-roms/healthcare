@@ -62,18 +62,18 @@ export function StaffLayout({
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-dvh overflow-hidden bg-background">
-        <aside className="hidden w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
           <Brand name={productName} />
           {nav}
           {sidebarFooter ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-2 px-4">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger className="rounded-md p-1.5 hover:bg-accent lg:hidden" aria-label="Open navigation">
                 <MenuIcon className="size-4" />
               </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col bg-sidebar p-0 text-sidebar-foreground">
+              <SheetContent side="left" className="flex flex-col border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <Brand name={productName} />
                 {nav}
@@ -94,7 +94,7 @@ export function StaffLayout({
                 type="search"
                 aria-label="Search patients"
                 placeholder="Search patients: name, patient no. or mobile…"
-                className="h-9 w-full rounded-full border border-transparent bg-card pr-9 pl-9 text-body shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                className="h-9 w-full rounded-full border border-transparent bg-muted pr-9 pl-9 text-body outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
               />
               <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">/</Kbd>
             </form>
