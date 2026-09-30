@@ -52,7 +52,8 @@ test builds can point at a test API and production builds at the production API.
   build (`autoIncrement`).
 - **Minimum OS**: iOS 16.4 (required by the Expo SDK 57 modules; React Native 0.86 alone needs 15.1) and Android API level 24 / Android 7.0
   (React Native 0.86). Target and compile SDK: Android 36. These come from the installed packages and change with the Expo SDK.
-- Phones only on iOS (`supportsTablet: false`), portrait.
+- Phones only on iOS (`supportsTablet: false`), portrait, light appearance on both platforms (on Android through `expo-system-ui`, which
+  applies `userInterfaceStyle` even when the phone is in dark mode).
 
 ## One-time set-up for an organization
 
