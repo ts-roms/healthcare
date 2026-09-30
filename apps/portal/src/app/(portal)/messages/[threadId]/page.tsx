@@ -39,7 +39,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ t
             className={`flex max-w-[90%] flex-col gap-1 rounded-xl border p-3 ${m.sender === "patient" ? "self-end bg-primary-subtle" : "self-start bg-card"}`}
           >
             <p className="flex items-baseline justify-between gap-3 text-meta text-muted-foreground">
-              <span className="font-medium">{m.sender === "patient" ? "You" : (m.senderName ?? "Your clinic")}</span>
+              <span className="font-medium">{m.sender === "patient" ? (m.viaGuardian ? "A parent or guardian" : "You") : (m.senderName ?? "Your clinic")}</span>
               <time dateTime={m.createdAt}>{messageTime(m.createdAt, timeZone)}</time>
             </p>
             <p className="text-body whitespace-pre-line">{m.body}</p>

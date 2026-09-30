@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BellIcon, ChevronRightIcon, KeyRoundIcon, LockIcon, ShieldCheckIcon } from "lucide-react";
+import { BellIcon, ChevronRightIcon, KeyRoundIcon, LockIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
 import { getMe } from "@/lib/api/session";
 import { formatCalendarDate } from "@/lib/greeting";
 
@@ -29,6 +29,14 @@ export default async function ProfilePage() {
           </div>
         ))}
       </dl>
+      <Link href="/people" className="flex items-center gap-3 rounded-xl border bg-card p-4">
+        <UsersIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-medium">People</span>
+          <span className="text-meta text-muted-foreground">Whose MyHealth you can open, and who can open yours</span>
+        </span>
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
       <Link href="/privacy" className="flex items-center gap-3 rounded-xl border bg-card p-4">
         <LockIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         <span className="flex min-w-0 flex-1 flex-col">

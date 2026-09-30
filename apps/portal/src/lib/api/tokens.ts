@@ -1,4 +1,5 @@
 import { type CookieWriter, clearSessionCookies as clear, createRefresher, writeTokenCookies as write } from "@healthcare/web-session";
+import { ACTING_COOKIE } from "../proxy-access";
 import { API_BASE_URL, COOKIES, SECURE_COOKIES } from "./config";
 import type { PortalTokenResponse } from "./types";
 
@@ -14,4 +15,6 @@ export function writeTokenCookies(jar: CookieWriter, tokens: PortalTokenResponse
 
 export function clearSessionCookies(jar: CookieWriter): void {
   clear(jar, NAMES);
+  // Ending the session also ends acting for someone else.
+  jar.delete(ACTING_COOKIE);
 }
