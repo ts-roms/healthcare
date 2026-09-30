@@ -8,44 +8,12 @@ import { patient } from "../patient.schema";
 import type { portalPasswordResetConfirmSchema, portalPasswordResetRequestSchema } from "./portal.dto";
 import { patientPortalAccount, patientPortalPasswordReset } from "./portal.schema";
 import { PortalAccountService } from "./portal-account.service";
+import { PortalSecurityMailers } from "./portal-security-mailer";
 
 /** How long a reset link works, how many are issued per account per hour, and how many wrong birth dates burn one. */
 export const RESET_VALID_MINUTES = 30;
 export const RESET_REQUESTS_PER_HOUR = 3;
 export const RESET_MAX_FAILED_ATTEMPTS = 5;
-
-/**
- * Sends the messages of a password reset. A port: the notification platform is wired in the API (adapters), and the
- * token never travels through domain events (their payloads carry ids only).
- */
-export interface PortalSecurityMailer {
-  sendPasswordResetLink(input: { organizationId: string; patientId: string; resetId: string; token: string; validMinutes: number }): Promise<void>;
-  sendPasswordChanged(input: { organizationId: string; patientId: string; resetId: string }): Promise<void>;
-}
-
-/**
- * Holds the mailer the application registers at start-up (the patient module is imported by domains the notification
- * platform itself depends on, so it cannot import the notification platform). Until one is registered, nothing is sent.
- */
-@Injectable()
-export class PortalSecurityMailers implements PortalSecurityMailer {
-  private readonly logger = new Logger(PortalSecurityMailers.name);
-  private delegate: PortalSecurityMailer | undefined;
-
-  register(mailer: PortalSecurityMailer): void {
-    this.delegate = mailer;
-  }
-
-  async sendPasswordResetLink(input: Parameters<PortalSecurityMailer["sendPasswordResetLink"]>[0]): Promise<void> {
-    if (!this.delegate) return this.logger.warn("No mailer is registered: the password reset link was not sent");
-    await this.delegate.sendPasswordResetLink(input);
-  }
-
-  async sendPasswordChanged(input: Parameters<PortalSecurityMailer["sendPasswordChanged"]>[0]): Promise<void> {
-    if (!this.delegate) return;
-    await this.delegate.sendPasswordChanged(input);
-  }
-}
 
 const INVALID_RESET = "This link or date of birth is not correct, or the link has expired. Ask for a new link.";
 

@@ -23,7 +23,7 @@ import type { z } from "zod";
 import { patient, patientConsent } from "../patient.schema";
 import { displayName } from "../patient.views";
 import { ACTIVATION_TTL_HOURS, generateActivationCode, hashActivationCode, MAX_ACTIVATION_ATTEMPTS } from "./activation-code";
-import type { PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
+import type { PortalMfaRequiredResponse, PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
 import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
 import { PortalTokenService } from "./portal-tokens";
 
@@ -57,6 +57,10 @@ export interface PortalAccountStatusView {
   disabledAt: string | null;
   disabledReason: string | null;
   portalConsent: boolean;
+  /** The sign-in email was proven by a code (MyHealth, Security). */
+  emailVerified: boolean;
+  /** The patient uses two-step verification; staff can turn it off after checking identity. */
+  mfaEnabled: boolean;
 }
 
 const INVALID_ACTIVATION = "Activation details are incorrect, or the code has expired. Ask the clinic for a new code.";
@@ -111,6 +115,8 @@ export class PortalAccountService {
       disabledAt: iso(account?.disabledAt),
       disabledReason: account?.disabledReason ?? null,
       portalConsent,
+      emailVerified: Boolean(account?.emailVerifiedAt),
+      mfaEnabled: account?.mfaEnabled ?? false,
     };
   }
 
@@ -313,7 +319,7 @@ export class PortalAccountService {
     });
   }
 
-  async login(input: z.infer<typeof portalLoginSchema>, request: RequestMetadata): Promise<PortalTokenResponse> {
+  async login(input: z.infer<typeof portalLoginSchema>, request: RequestMetadata): Promise<PortalTokenResponse | PortalMfaRequiredResponse> {
     const org = await this.organizationByCode(input.organizationCode);
     const [account] = org
       ? await this.db
@@ -357,19 +363,58 @@ export class PortalAccountService {
       });
       throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
     }
-    return this.db.transaction(async (tx) => {
-      await tx
-        .update(patientPortalAccount)
-        .set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() })
-        .where(eq(patientPortalAccount.id, account.id));
-      const tokens = await this.startSession(tx, account, request);
-      await this.audit.record(tx, this.patientContext(account, request), {
-        action: "portal.login",
+    if (account.mfaEnabled) {
+      // The password was right; the second step decides. Nothing is counted or opened yet.
+      await this.audit.recordStandalone(this.patientContext(account, request), {
+        action: "portal.login-mfa-challenge",
         resourceType: "patient_portal_account",
         resourceId: account.id,
       });
-      return tokens;
+      return { status: "mfa_required", challengeToken: await this.tokens.signMfaChallenge({ sub: account.id, org: account.organizationId }) };
+    }
+    return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password"));
+  }
+
+  /** Opens a session for an account that passed every check: clears failed attempts, records the sign-in. */
+  async completeLogin(
+    tx: DbExecutor,
+    account: PatientPortalAccountRecord,
+    request: RequestMetadata,
+    method: "password" | "password+totp" | "password+recovery_code",
+  ): Promise<PortalTokenResponse> {
+    await tx.update(patientPortalAccount).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() }).where(eq(patientPortalAccount.id, account.id));
+    const tokens = await this.startSession(tx, account, request);
+    await this.audit.record(tx, this.patientContext(account, request), {
+      action: "portal.login",
+      resourceType: "patient_portal_account",
+      resourceId: account.id,
+      metadata: { method },
     });
+    return tokens;
+  }
+
+  /** The signed-in patient's account (active: the session guard has just checked). */
+  async accountOf(principal: PortalPrincipal, executor: DbExecutor = this.db): Promise<PatientPortalAccountRecord> {
+    const account = await this.activeAccount(executor, principal.organizationId, principal.accountId);
+    if (!account) throw new UnauthenticatedError("Your session has ended. Sign in again.", "session_ended");
+    return account;
+  }
+
+  /**
+   * Re-checks the password of a signed-in patient before a sensitive change. A wrong password counts toward the same
+   * sign-in lockout (a stolen session cannot be used to guess it), and is refused with 422 — not 401, which would sign
+   * the patient out.
+   */
+  async confirmPassword(principal: PortalPrincipal, password: string): Promise<PatientPortalAccountRecord> {
+    const account = await this.accountOf(principal);
+    if (account.lockedUntil && account.lockedUntil > new Date()) {
+      throw new BusinessRuleError("Too many failed attempts. Try again later.", "account_locked");
+    }
+    if (!account.passwordHash || !(await verifyPassword(account.passwordHash, password))) {
+      await this.recordFailedLogin(account, this.principalContext(principal), "invalid_password");
+      throw new BusinessRuleError("The password is not correct", "invalid_credentials");
+    }
+    return account;
   }
 
   /**
@@ -497,7 +542,14 @@ export class PortalAccountService {
   /** The signed-in patient's own profile (identity only; clinical records come from the portal records endpoints). */
   async me(principal: PortalPrincipal) {
     const [row] = await this.db
-      .select({ patient, organizationName: organization.name, email: patientPortalAccount.email, timeZone: facility.timezone })
+      .select({
+        patient,
+        organizationName: organization.name,
+        email: patientPortalAccount.email,
+        emailVerifiedAt: patientPortalAccount.emailVerifiedAt,
+        mfaEnabled: patientPortalAccount.mfaEnabled,
+        timeZone: facility.timezone,
+      })
       .from(patient)
       .innerJoin(organization, eq(organization.id, patient.organizationId))
       .innerJoin(facility, eq(facility.id, patient.registeredFacilityId))
@@ -519,7 +571,7 @@ export class PortalAccountService {
         sex: row.patient.sex,
       },
       organization: { name: row.organizationName },
-      account: { email: row.email },
+      account: { email: row.email, emailVerified: Boolean(row.emailVerifiedAt), mfaEnabled: row.mfaEnabled },
       /** The patient's clinic (where they were registered): MyHealth shows dates and times in its zone; a visit uses its own facility's. */
       timeZone: row.timeZone,
     };
@@ -561,7 +613,12 @@ export class PortalAccountService {
     return account;
   }
 
-  private async recordFailedLogin(account: PatientPortalAccountRecord, context: AuditActor): Promise<void> {
+  /** Counts a wrong password or second-step code toward the lockout (5 in a row lock sign-in for a while). */
+  async recordFailedLogin(
+    account: PatientPortalAccountRecord,
+    context: AuditActor,
+    reason: "invalid_password" | "invalid_mfa_code" = "invalid_password",
+  ): Promise<void> {
     await this.db.transaction(async (tx) => {
       // Atomic increment so concurrent attempts cannot bypass the limit.
       const [updated] = await tx
@@ -582,7 +639,7 @@ export class PortalAccountService {
         resourceId: account.id,
         patientId: account.patientId,
         outcome: "failure",
-        reason: locked ? "invalid_password_locked" : "invalid_password",
+        reason: locked ? `${reason}_locked` : reason,
       });
     });
   }
@@ -622,11 +679,11 @@ export class PortalAccountService {
       .where(and(eq(patientPortalSession.accountId, accountId), isNull(patientPortalSession.revokedAt)));
   }
 
-  private patientContext(account: PatientPortalAccountRecord, request: RequestMetadata): PatientAuditContext {
+  patientContext(account: PatientPortalAccountRecord, request: RequestMetadata): PatientAuditContext {
     return { kind: "patient", accountId: account.id, patientId: account.patientId, organizationId: account.organizationId, request };
   }
 
-  private principalContext(p: PortalPrincipal): PatientAuditContext {
+  principalContext(p: PortalPrincipal): PatientAuditContext {
     return patientAuditContext(p);
   }
 }

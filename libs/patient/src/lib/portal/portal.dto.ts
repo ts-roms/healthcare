@@ -24,6 +24,12 @@ export class PortalRefreshDto extends createZodDto(portalRefreshSchema) {}
 export const disablePortalAccountSchema = z.object({ reason: z.string().trim().min(5).max(500) });
 export class DisablePortalAccountDto extends createZodDto(disablePortalAccountSchema) {}
 
+/** The password was right and the account uses two-step verification: send the code with this challenge to `/portal/auth/mfa/verify`. */
+export interface PortalMfaRequiredResponse {
+  status: "mfa_required";
+  challengeToken: string;
+}
+
 export interface PortalTokenResponse {
   status: "authenticated";
   accessToken: string;
