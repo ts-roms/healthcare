@@ -4,9 +4,16 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src", "expo-env.d.ts", "app.config.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src",
+    "app.config.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
