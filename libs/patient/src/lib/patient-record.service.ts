@@ -509,7 +509,12 @@ export class PatientRecordService {
         .select({ value: patientContactPoint.value })
         .from(patientContactPoint)
         .where(
-          and(eq(patientContactPoint.patientId, patientId), eq(patientContactPoint.status, "active"), inArray(patientContactPoint.system, ["mobile", "phone"])),
+          and(
+            eq(patientContactPoint.organizationId, organizationId),
+            eq(patientContactPoint.patientId, patientId),
+            eq(patientContactPoint.status, "active"),
+            inArray(patientContactPoint.system, ["mobile", "phone"]),
+          ),
         )
         .orderBy(desc(patientContactPoint.isPrimary))
         .limit(1),
