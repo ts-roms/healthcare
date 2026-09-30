@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
+import { BellIcon, UserRoundIcon, FlaskConicalIcon, LogOutIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import { Button, NativeSelect, toast } from "@healthcare/ui/primitives";
@@ -86,10 +86,19 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               ) : null}
             </Link>
           </Button>
-          <div className="hidden text-right leading-tight lg:block">
-            <p className="text-table font-medium">{user.displayName}</p>
-            <p className="text-meta text-muted-foreground">{organizationName}</p>
-          </div>
+          <Link
+            href="/account"
+            title="My account: password and two-step verification"
+            className="hidden rounded-md px-1 text-right leading-tight hover:bg-muted lg:block"
+          >
+            <span className="block text-table font-medium">{user.displayName}</span>
+            <span className="block text-meta text-muted-foreground">{organizationName}</span>
+          </Link>
+          <Button asChild variant="ghost" size="icon" className="lg:hidden">
+            <Link href="/account" aria-label="My account" title="My account">
+              <UserRoundIcon />
+            </Link>
+          </Button>
           <form action={signOut}>
             <Button type="submit" variant="ghost" size="icon" aria-label="Sign out" title={`Sign out ${user.email}`}>
               <LogOutIcon />

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { AppointmentItem, FacilityBookingRules, Visit, VisitType } from "@/lib/api/types";
+import type { AppointmentItem, Availability, FacilityBookingRules, Visit, VisitType } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const idVersion = { appointmentId: z.uuid(), version: z.number().int().positive() };
@@ -109,5 +109,29 @@ export async function setOnlineBooking(input: z.input<typeof onlineBookingSchema
   const { visitTypeId, ...body } = parsed.data;
   const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body }));
   if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
+const slotsSchema = z.object({ practitionerId: z.uuid(), facilityId: z.uuid(), visitTypeId: z.uuid(), date: z.iso.date() });
+/** Open slots for rescheduling: the practitioner's published schedule minus bookings and closures (the API decides). */
+export async function rescheduleSlots(input: z.input<typeof slotsSchema>): Promise<ActionResult<Availability>> {
+  const parsed = slotsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Choose a practitioner and a day." };
+  return actionResult(() => api<Availability>("/appointments/availability", { query: parsed.data }));
+}
+
+const rescheduleSchema = z.object({
+  ...idVersion,
+  startsAt: z.iso.datetime({ offset: true }),
+  practitionerId: z.uuid().optional(),
+  reason: z.string().trim().min(3, "Say why the appointment moves.").max(500),
+  outsideSchedule: z.boolean().default(false),
+});
+export async function rescheduleAppointment(input: z.input<typeof rescheduleSchema>): Promise<ActionResult<AppointmentItem>> {
+  const parsed = rescheduleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { appointmentId, ...body } = parsed.data;
+  const result = await actionResult(() => api<AppointmentItem>(`/appointments/${appointmentId}/reschedule`, { method: "POST", body }));
+  if (result.ok) revalidatePath("/appointments");
   return result;
 }

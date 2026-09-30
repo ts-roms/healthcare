@@ -101,7 +101,9 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 
 - **Facility-scoped.** `/queue`, `/queue/walk-in`, `/appointments` and `/appointments/new` need a facility selected in the top bar (the queue, check-in and schedule belong to a facility; the day and its time zone come from the facility).
 - **Server actions** (`app/(staff)/queue/actions.ts`, `app/(staff)/appointments/actions.ts`) call the API and return `{ ok, data } | { ok: false, message, code }` (`lib/api/action-result.ts`), so forms show API errors instead of crashing. Walk-ins and bookings send an `Idempotency-Key` per attempt.
-- **Optimistic locking.** Every move, call, confirm, cancel and no-show sends the row's `version`. A `409 version_conflict` (someone else acted first) shows a message and refreshes the screen.
+- **Rescheduling** (`appointments/reschedule-form.tsx`): **Move** on the day schedule offers the chosen practitioner's open slots (`GET /appointments/availability`, via a server action) or, deliberately, a time outside the schedule (`outsideSchedule`, typed as a wall-clock time in the facility's time zone — `zonedLocalToIso` in `lib/clinic-mapping.ts`); a reason is required (`POST /appointments/:id/reschedule`).
+- **Schedules** (`/appointments/schedules`, `appointment.read`; changes `clinic.configure`): weekly schedules at the selected facility (add, retire), closures for the next 90 days (whole facility or one practitioner), practitioners (add, edit, inactivate, link to a staff account when the viewer has `user.read`) and rooms. Closures do not move booked appointments.
+- **Optimistic locking.** Every move, call, confirm, reschedule, cancel and no-show sends the row's `version`. A `409 version_conflict` (someone else acted first) shows a message and refreshes the screen.
 - **Rules stay in the API.** `lib/clinic-mapping.ts` maps API rows to the design system's `QueueBoard` and `AppointmentCard` and decides which buttons to offer by mirroring `libs/clinic` (queue transitions; check-in only on the appointment's day; no-show only after the start time). The API enforces the rules either way.
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
@@ -213,6 +215,25 @@ On the patient record, a **PhilHealth eligibility** card (users with `philhealth
 checks and a form to record PhilHealth's answer from its own channel (date of service, answer, reference, note; a
 selected facility is required). The PhilHealth claim panel on an invoice shows the latest answer for its dates of
 service (information, not a condition). See `docs/interoperability/philhealth-eligibility.md`.
+
+## Administration and My account
+
+`/admin` lists the administration pages open to the user (the same list as the menu, from `navigationForPermissions`).
+
+- `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
+  (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
+  (only roles whose every permission the administrator holds are offered — the API refuses the others), revoke with a reason, suspend or reactivate
+  with a reason (not oneself). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+- `/admin/roles` (`user.read`; `role.manage` to create): roles with their permissions grouped by area; a new organization role can only include
+  permissions the creator holds. Roles cannot be edited or retired (no API).
+- `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
+  create, edit (optimistic lock) or inactivate a facility; add departments.
+- `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
+  patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
+- `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
+  (setup key and `otpauth:` link; no QR image) or off (password and code).
+
+Not built: resetting another person's password or two-step verification (no API), editing roles, coding systems.
 
 ## Integrations (administration)
 
