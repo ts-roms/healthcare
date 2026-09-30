@@ -56,7 +56,7 @@ function InstrumentSelect({ id, value, onChange }: { id: string; value: string; 
   return (
     <div className="grid gap-1">
       <Label htmlFor={id}>Instrument</Label>
-      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect emptyText="No instruments registered" id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Manual / not on a registered instrument</option>
         {instruments.map((i) => (
           <option key={i.id} value={i.id}>

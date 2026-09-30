@@ -91,7 +91,12 @@ export function Procedures({
               {planned.length ? (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="procedure-plan-item">From a treatment plan</Label>
-                  <NativeSelect id="procedure-plan-item" value={planItemId} onChange={(e) => choosePlanned(e.target.value)}>
+                  <NativeSelect
+                    emptyText="No planned work to carry out"
+                    id="procedure-plan-item"
+                    value={planItemId}
+                    onChange={(e) => choosePlanned(e.target.value)}
+                  >
                     <option value="">Not from a plan</option>
                     {planned.map(({ plan, item }) => (
                       <option key={item.id} value={item.id}>

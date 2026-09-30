@@ -6,8 +6,8 @@ import { cn } from "@healthcare/ui/lib/utils";
 import { Button } from "@healthcare/ui/primitives";
 import { dayChip, dayPages, type Slot, slotsByPartOfDay, slotTime } from "@/lib/booking";
 
-const chip = "rounded-xl border bg-card transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none";
-const chosen = "border-primary bg-primary-subtle text-primary";
+const chip = "rounded-xl text-body";
+const chosen = "border-primary bg-primary-subtle text-primary hover:bg-primary-subtle";
 
 /** Bookable days a week at a time, with earlier and later weeks up to the clinic's booking horizon. */
 export function DayPicker({ days, value, onChange }: { days: string[]; value: string; onChange: (day: string) => void }) {
@@ -35,17 +35,18 @@ export function DayPicker({ days, value, onChange }: { days: string[]; value: st
           const { weekday, day: n, month } = dayChip(day);
           const selected = day === value;
           return (
-            <button
+            <Button
               key={day}
               type="button"
+              variant="outline"
               aria-pressed={selected}
               onClick={() => onChange(day)}
-              className={cn(chip, "flex min-w-0 flex-col items-center px-0.5 py-2", selected && chosen)}
+              className={cn(chip, "h-auto min-w-0 flex-col gap-0 px-0.5 py-2 font-normal", selected && chosen)}
             >
               <span className="text-meta">{weekday}</span>
               <span className="text-lg leading-tight font-semibold">{n}</span>
               <span className="text-meta text-muted-foreground">{month}</span>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -98,16 +99,17 @@ export function SlotPicker({
             {group.slots.map((slot) => {
               const selected = value?.startsAt === slot.startsAt && value.practitionerId === slot.practitionerId;
               return (
-                <button
+                <Button
                   key={`${slot.startsAt}:${slot.practitionerId}`}
                   type="button"
+                  variant="outline"
                   aria-pressed={selected}
                   onClick={() => onChange(slot)}
-                  className={cn(chip, "flex flex-col items-center px-2 py-2", selected && chosen)}
+                  className={cn(chip, "h-auto min-w-0 flex-col gap-0 px-2 py-2 font-normal", selected && chosen)}
                 >
                   <span className="font-semibold tabular-nums">{slotTime(slot.startsAt, timeZone)}</span>
                   {showPractitioner ? <span className="w-full truncate text-meta text-muted-foreground">{slot.practitionerName}</span> : null}
-                </button>
+                </Button>
               );
             })}
           </div>

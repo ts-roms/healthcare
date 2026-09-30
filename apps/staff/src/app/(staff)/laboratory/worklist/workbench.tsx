@@ -131,7 +131,12 @@ export function LabWorkbench({
               </Link>
             ))}
           </nav>
-          <NativeSelect aria-label="Department" value={departmentId ?? ""} onChange={(e) => router.push(href({ department: e.target.value || null }))}>
+          <NativeSelect
+            emptyText="No departments set up"
+            aria-label="Department"
+            value={departmentId ?? ""}
+            onChange={(e) => router.push(href({ department: e.target.value || null }))}
+          >
             <option value="">All departments</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>

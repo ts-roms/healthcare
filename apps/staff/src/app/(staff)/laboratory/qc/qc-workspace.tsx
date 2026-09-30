@@ -246,8 +246,12 @@ function RecordRun({
         <form className="flex flex-col gap-2" onSubmit={submit}>
           <div className="grid gap-1">
             <Label htmlFor="qc-instrument">Instrument</Label>
-            <NativeSelect id="qc-instrument" value={f.instrumentId} onChange={(e) => setF({ ...f, instrumentId: e.target.value, testId: "", qcLotId: "" })}>
-              {instruments.length === 0 ? <option value="">No active instruments</option> : null}
+            <NativeSelect
+              emptyText="No active instruments"
+              id="qc-instrument"
+              value={f.instrumentId}
+              onChange={(e) => setF({ ...f, instrumentId: e.target.value, testId: "", qcLotId: "" })}
+            >
               {instruments.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}

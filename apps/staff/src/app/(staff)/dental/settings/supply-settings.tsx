@@ -156,6 +156,7 @@ export function SupplySettings({
             <p className="text-meta text-muted-foreground">This facility has no active stock location.</p>
           ) : canManage ? (
             <NativeSelect
+              emptyText="No stock locations set up"
               aria-label="Default stock location for dental supplies"
               value={options.defaultLocationId ?? ""}
               disabled={pending}

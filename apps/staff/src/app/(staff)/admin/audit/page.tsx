@@ -71,7 +71,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
           <div className="grid gap-1">
             <Label htmlFor="audit-actor">Staff member</Label>
             {users.length > 0 ? (
-              <NativeSelect id="audit-actor" name="actor" defaultValue={filters.actor}>
+              <NativeSelect emptyText="No staff users" id="audit-actor" name="actor" defaultValue={filters.actor}>
                 <option value="">Anyone</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>

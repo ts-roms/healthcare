@@ -95,6 +95,7 @@ export function AppointmentsDay({
         <div className="grid gap-1">
           <Label htmlFor="practitioner-filter">Practitioner</Label>
           <NativeSelect
+            emptyText="No practitioners set up"
             id="practitioner-filter"
             value={practitionerId}
             onChange={(e) => router.push(`/appointments?date=${date}${e.target.value ? `&practitionerId=${e.target.value}` : ""}`)}
