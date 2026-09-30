@@ -41,9 +41,46 @@ only ([portal-app.md](portal-app.md#session)).
 Tokens carry the `healthcare-portal` audience and are checked per request by `PatientAccessGuard` (session, account and `portal_access`
 consent). A session records the caller's IP and user agent; there is no device model for sessions.
 
-Implication (INFERRED, not tested): a native client can call these endpoints directly with a bearer header and keep the refresh token itself —
-no second authentication system is needed. It would have to store the refresh token securely on the device and send `organizationCode`, which
-the web portal takes from `PORTAL_ORGANIZATION_CODE` per deployment.
+### Native client trace (VERIFIED, 2026-09-30)
+
+The contract was exercised against a locally running API (migrations through `0080`, seeded `demo` organization) by a script acting as a native
+app: `fetch` with a bearer header and JSON bodies, an app `User-Agent`, **no cookies and no `Origin`**. The clinic side (register patient,
+`portal_access` consent, invitation) went through the staff API as reception would. 36 of 36 checks passed. One shortcut: no mail server ran, so
+the verified-email precondition for two-step verification was set in the database.
+
+| Area                   | Observed                                                                                                                                                                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activation and sign-in | Tokens come back in the JSON body (`tokenType: "Bearer"`, `expiresIn: 900`, refresh expiry 14 days); no `Set-Cookie`. `organizationCode` is required (400 without it).                                                                                                 |
+| Reads                  | `/portal/me`, appointments, results, prescriptions, billing, messages and documents answer 200 with only `Authorization: Bearer`. No token → 401.                                                                                                                      |
+| Audience separation    | A staff token is refused on `/portal/me` and a patient token on `/patients/:id` (401 both ways).                                                                                                                                                                       |
+| CORS                   | An unknown `Origin` does not block the request (no `Access-Control-Allow-Origin` is sent); CORS only restricts browsers, so the API's authorization, not `CORS_ORIGINS`, protects it from other clients.                                                               |
+| Refresh                | `{ refreshToken }` in the body rotates the token and **keeps the original expiry** (absolute session, not sliding). Reusing a rotated token → 401 `invalid_token` and the **whole session is revoked** (access and refresh tokens).                                    |
+| Logout                 | `POST /portal/auth/logout` → 204; the access token is refused at once (sessions are checked per request) and the refresh token too.                                                                                                                                    |
+| Sessions               | Each session stores the app's `User-Agent` and IP; there is no device name, device id or patient-facing list of sessions.                                                                                                                                              |
+| Two-step verification  | Setup returns `secret` and an `otpauth://` URI; with it on, login answers `{ status: "mfa_required", challengeToken }`; the challenge is not a session token (401); `POST /portal/auth/mfa/verify` returns the normal token response; a code is refused a second time. |
+| Guardian access        | `X-Acting-For` is a plain header, so a native client can use it; it is refused on own-account routes (`/portal/mfa`) and without a live grant (`proxy_not_allowed`). `/portal/proxy/dependents` works with a bearer.                                                   |
+| Push                   | An Expo-style device token is refused by `POST /portal/push/subscriptions` (400) — it accepts Web Push subscriptions only.                                                                                                                                             |
+| Rate limit             | Credential endpoints (activate, login, refresh, MFA verify, password reset) allow 10 requests a minute **per client IP** (`@Throttle`), then 429 `rate_limited`.                                                                                                       |
+
+**Conclusion:** a native app can use the existing patient sign-in as it is; no second authentication system and no API change are needed for
+sign-in, reads, refresh, logout or two-step verification. What the web portal's server does today, the app must do itself:
+
+1. **Keep the refresh token in secure device storage** (not plain AsyncStorage) and the access token in memory.
+2. **Refresh single-flight.** Two concurrent refreshes with the same token look like theft: the second is treated as reuse and signs the
+   patient out everywhere on that session. The web portal already serialises refresh (`libs/web-session`); the app must too.
+3. **Sign out only on 401.** Wrong passwords or codes during a sensitive change answer 422, deliberately, so the session survives
+   ([portal-app.md](portal-app.md#email-verification)).
+4. **Send `organizationCode`** (see D4).
+5. **Send `X-Acting-For` only on routes that allow it**, as `apps/portal/src/lib/proxy-access.ts` does, if guardian access is in scope (D2).
+
+Open points found by the trace, for the decisions below (not changes made):
+
+- **Shared IP rate limit (INFERRED risk).** Phones reach the API directly, not through the portal server, so the throttle keys on the phone's
+  public IP — which on mobile networks is often shared by many subscribers (carrier-grade NAT). Ten sign-ins or refreshes a minute per IP could
+  then be exhausted by unrelated patients. Not measured; decide with D5 whether the limit needs a different key for app traffic.
+- **Absolute session length.** A refresh never extends `refreshTokenExpiresAt`, so the app signs the patient out after
+  `REFRESH_TOKEN_TTL_DAYS` (14) whatever their activity — part of D5.
+- **Password reset** links open `PORTAL_BASE_URL/reset-password#token=…` in the browser (D7); the reset itself works from any client.
 
 ### Patient data endpoints (VERIFIED, [portal-app.md](portal-app.md#data))
 
@@ -104,12 +141,12 @@ Each item is **UNKNOWN**. Record the answer (and who decided) in this section be
 
 ## 5. Suggested order once decided (recommendation, not a requirement)
 
-1. Record D1–D5 and D12; confirm the auth contract from a native client against a development API (sign-in, MFA, refresh rotation, logout).
+1. Record D1–D5 and D12. (The auth contract from a native client is confirmed — §2, "Native client trace".)
 2. Scaffold `apps/mobile` (Expo, one navigation approach, `nx.tags`, own `eslint.config.mjs`) with sign-in and one read-only area from D2.
 3. Add the remaining D2 areas, then push (D6) and links (D7) if chosen, each with its own API change, documentation and tests.
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
 
 ## 6. Out of scope for this note
 
-Staff mobile use, offline staff workflows (`CLAUDE.md` §30), proxy access for guardians and dependents (listed under "Not yet" in
-[portal-app.md](portal-app.md#not-yet)), and any regulatory assessment.
+Staff mobile use, offline staff workflows (`CLAUDE.md` §30) and any regulatory assessment. Guardian and dependent access now exists in
+MyHealth ([portal-app.md](portal-app.md#guardians-and-dependents)); whether the app offers it is part of D2.
