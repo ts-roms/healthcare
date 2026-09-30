@@ -7,6 +7,7 @@ export * from "./lib/fhir/external";
 export * from "./lib/fhir/history";
 export * from "./lib/fhir/immunization";
 export * from "./lib/fhir/orders";
+export * from "./lib/fhir/procedures";
 export * from "./lib/fhir/referrals";
 export * from "./lib/fhir/search";
 export * from "./lib/fhir/sources";

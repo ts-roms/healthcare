@@ -13,9 +13,9 @@ export const PAYER_STATUSES = ["pending", "submitted", "settled", "denied"] as c
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export type ChargeStatus = "pending" | "invoiced" | "cancelled";
 export type InvoiceStatus = "draft" | "issued" | "void";
-export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
+export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package";
 /** What captures a service automatically: a visit type (signed encounter), a laboratory test (ordering) or a dental procedure (performed). */
-export const SERVICE_SOURCE_KINDS = ["visit_type", "lab_test", "dental_procedure"] as const;
+export const SERVICE_SOURCE_KINDS = ["visit_type", "lab_test", "dental_procedure", "clinic_procedure"] as const;
 export type ServiceSourceKind = (typeof SERVICE_SOURCE_KINDS)[number];
 /** What a service's price is for: one item, or each surface treated (a service mapped to a dental procedure). */
 export const CHARGE_UNITS = ["each", "surface"] as const;

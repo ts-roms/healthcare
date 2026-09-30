@@ -35,11 +35,24 @@ export interface BillableDentalProcedure {
   surfaceCount: number;
 }
 
+/** A procedure performed at the clinic (not dental): its code in the organization's procedure catalogue and how many were done. */
+export interface BillableClinicProcedure {
+  id: string;
+  patientId: string;
+  facilityId: string;
+  procedureCode: string;
+  description: string;
+  serviceDate: string;
+  quantity: number;
+}
+
 export interface BillingSources {
   encounter(organizationId: string, encounterId: string): Promise<BillableEncounter | undefined>;
   labOrder(organizationId: string, orderId: string): Promise<BillableLabOrder | undefined>;
   /** Undefined once the procedure has been marked entered in error. */
   dentalProcedure(organizationId: string, procedureId: string): Promise<BillableDentalProcedure | undefined>;
+  /** Undefined once the procedure has been marked entered in error. */
+  clinicProcedure(organizationId: string, procedureId: string): Promise<BillableClinicProcedure | undefined>;
 }
 export const BILLING_SOURCES = Symbol("BILLING_SOURCES");
 
