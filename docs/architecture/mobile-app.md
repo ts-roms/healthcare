@@ -1,8 +1,8 @@
-# Mobile app — requirements note (draft)
+# Mobile app — requirements and status
 
-**Status: DRAFT — awaiting product decisions.** Nothing in this note is implemented, and nothing in it may be implemented until the decisions in
-[§4](#4-decisions-needed-before-implementation) are recorded here. It separates what the repository already establishes from what still has to be
-decided; it does not add requirements of its own.
+**Status: first slice built** — patients sign in and read their released results (`apps/mobile`, [§7](#7-first-slice-apps-mobile)). Only
+what the decisions in [§4](#4-decisions-needed-before-implementation) cover may be built; the rest waits for its decision. This note separates
+what the repository already establishes from what still has to be decided; it does not add requirements of its own.
 
 Evidence labels: **VERIFIED** (read in the repository), **PARTIALLY VERIFIED** (exists, incomplete or not checked end to end), **NOT FOUND**
 (searched, absent), **UNKNOWN** (needs a decision).
@@ -97,13 +97,13 @@ A native device token (Expo, FCM, APNs) cannot be registered through that contra
 
 ### Shared code (PARTIALLY VERIFIED)
 
-| Library                   | Usable from React Native?                                                                     |
-| ------------------------- | --------------------------------------------------------------------------------------------- |
-| `@healthcare/web-session` | No — Next.js server session code (cookies, redirects).                                        |
-| `@healthcare/ui`          | No — shadcn/ui + Tailwind web components. Design tokens may be reusable (not checked).        |
-| `@healthcare/domain`      | Types possibly; also holds demo fixtures that must not reach a patient app. Not checked.      |
-| API response types        | No contract library; the staff app mirrors types by hand (`apps/staff/src/lib/api/types.ts`). |
-| Video                     | `VideoCall` (LiveKit) lives in `@healthcare/ui/healthcare` — web only.                        |
+| Library                   | Usable from React Native?                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@healthcare/web-session` | No — Next.js server session code (cookies, redirects).                                                                                                       |
+| `@healthcare/ui`          | No — shadcn/ui + Tailwind web components. Design tokens may be reusable (not checked).                                                                       |
+| `@healthcare/domain`      | Yes for `@healthcare/domain/portal-results` (plain TypeScript; used by the app). The package root also exports demo data — the app imports the subpath only. |
+| API response types        | No contract library; the staff app mirrors types by hand (`apps/staff/src/lib/api/types.ts`).                                                                |
+| Video                     | `VideoCall` (LiveKit) lives in `@healthcare/ui/healthcare` — web only.                                                                                       |
 
 ## 3. Constraints that already apply to any mobile client
 
@@ -120,7 +120,22 @@ These follow from existing project rules, not from new requirements:
 
 ## 4. Decisions needed before implementation
 
-Each item is **UNKNOWN**. Record the answer (and who decided) in this section before building the part it governs.
+Record the answer (and who decided) here before building the part it governs.
+
+**Recorded (2026-09-30):**
+
+- **D1 — patients only** (product owner).
+- **D2 — first release: sign-in and results** (product owner). Activation, password reset, visits, booking, medicines, bills, messages,
+  documents, guardian access and everything else stay in MyHealth on the web for now.
+- **D4, D5, D12 — provisional choices for the first slice**, following existing conventions; confirm or change them:
+  - D4: one build per organization (`EXPO_PUBLIC_ORGANIZATION_CODE`), as one MyHealth web deployment serves one organization.
+  - D5: the refresh token in the Keychain/Keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`: not in backups, not on another device), the access
+    token in memory, the API's session length unchanged (14 days), no app lock or biometric unlock; nothing else about the patient is
+    stored on the device.
+  - D12: result types and wording shared with MyHealth on the web through `@healthcare/domain/portal-results`; the few other response
+    types mirrored by hand in `apps/mobile/src/lib/api-types.ts`, as the web apps do. No contract library yet.
+
+Every other decision below is still **UNKNOWN**.
 
 | #   | Decision                                                                                                                                                                                                                                                              | Why it matters                                                                                                  |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -141,8 +156,8 @@ Each item is **UNKNOWN**. Record the answer (and who decided) in this section be
 
 ## 5. Suggested order once decided (recommendation, not a requirement)
 
-1. Record D1–D5 and D12. (The auth contract from a native client is confirmed — §2, "Native client trace".)
-2. Scaffold `apps/mobile` (Expo, one navigation approach, `nx.tags`, own `eslint.config.mjs`) with sign-in and one read-only area from D2.
+1. ~~Record D1–D5 and D12.~~ D1, D2 recorded; D4, D5, D12 provisional; D3 open.
+2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
 3. Add the remaining D2 areas, then push (D6) and links (D7) if chosen, each with its own API change, documentation and tests.
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
 
@@ -150,3 +165,37 @@ Each item is **UNKNOWN**. Record the answer (and who decided) in this section be
 
 Staff mobile use, offline staff workflows (`CLAUDE.md` §30) and any regulatory assessment. Guardian and dependent access now exists in
 MyHealth ([portal-app.md](portal-app.md#guardians-and-dependents)); whether the app offers it is part of D2.
+
+## 7. First slice (`apps/mobile`)
+
+Expo SDK 57 (React Native 0.86, React 19.2.3), expo-router, TypeScript strict. Nx project `mobile`, tags `scope:mobile`, `type:app`; it may
+import only `type:domain` libraries (`eslint.config.mjs`), i.e. `@healthcare/domain/portal-results`, never backend or web-only code.
+
+| Screen                           | API                                                        | Notes                                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in (`/sign-in`)             | `POST /portal/auth/login`, `POST /portal/auth/mfa/verify`  | Password, then the authenticator or recovery code when the account uses two-step verification. Errors worded as on the web. |
+| Your results (`/`)               | `GET /portal/me` (clinic time zone), `GET /portal/results` | Latest result per test, same wording as MyHealth (icon + words + colour). Pull to refresh.                                  |
+| Result history (`/results/[id]`) | `GET /portal/results/trend?testId=`                        | Every visible value with the range it had at the time. No chart yet.                                                        |
+| Sign out (header)                | `POST /portal/auth/logout`                                 | Ends the session at the API (best effort) and clears the device.                                                            |
+
+**Session** (`src/lib/session.ts`, platform-neutral): access token in memory, refresh token in `expo-secure-store`; refreshes 30 s before
+expiry and **single-flight** (a second use of a rotated token would revoke the session); retries a request once after a 401; signs the patient
+out only when the API refuses the session — a 422, 403, 429, server error or no network keeps it; never sends `X-Acting-For`.
+
+**Configuration** (build time, readable in the binary — not secrets): `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_ORGANIZATION_CODE`
+(`apps/mobile/.env.example`). Without them the app says it is not set up.
+
+**Verified (2026-09-30):**
+
+- Unit tests (Vitest, `pnpm nx test mobile`): the session rules against a fake API that rotates tokens and revokes on reuse — the
+  single-flight test fails when the guard is removed.
+- The app's session code against a running API with a real laboratory workflow (external order → specimen → results → verify → approve →
+  release): wrong password wording, sign-in, profile time zone, only releasable results, history, three concurrent requests after expiry on
+  one refresh, restart from the stored token, and a clinic disabling access ending the session on the device.
+- Metro bundles for iOS and Android (`expo export`), and every SDK-managed package at the version Expo SDK 57 names.
+- The screens rendered through React Native for Web in Chromium against the same API (sign-in with an error, results, history, sign-out),
+  as a stand-in: **not yet run on an iOS or Android device or simulator.**
+
+**Not built (each needs its decision):** activation and password reset in the app (D7), push (D6), deep links (D7), charts and printable
+reports, guardian access (D2), screen protection (D11), offline caching (D10), store builds and signing (D13), end-to-end journeys through the
+app (D14). The shared-IP rate limit (§2) is unchanged.
