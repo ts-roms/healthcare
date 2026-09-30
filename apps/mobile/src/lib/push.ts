@@ -9,6 +9,8 @@ export interface PushApi {
 
 /** What the operating system and Expo provide; faked in tests. */
 export interface PushPlatform {
+  /** False in Expo Go: since SDK 53 it cannot receive remote notifications; a development or store build is needed. */
+  pushAvailable: boolean;
   /** A real phone or tablet (push does not work in a simulator). */
   isPhysicalDevice: boolean;
   os: "ios" | "android";
@@ -19,10 +21,12 @@ export interface PushPlatform {
   token(): Promise<string>;
 }
 
-export type PushState = { kind: "unavailable"; reason: "not_offered" | "simulator" } | { kind: "off"; canAsk: boolean } | { kind: "on"; deviceId: string };
+export type PushState =
+  { kind: "unavailable"; reason: "not_offered" | "simulator" | "expo_go" } | { kind: "off"; canAsk: boolean } | { kind: "on"; deviceId: string };
 
 /** Whether this phone receives notifications now: offered by the clinic's platform, allowed on the phone, and registered. */
 export async function pushState(api: PushApi, platform: PushPlatform): Promise<{ state: PushState; devices: PushDevice[] }> {
+  if (!platform.pushAvailable) return { state: { kind: "unavailable", reason: "expo_go" }, devices: [] };
   if (!platform.isPhysicalDevice) return { state: { kind: "unavailable", reason: "simulator" }, devices: [] };
   const permission = await platform.permission();
   const token = permission === "granted" ? await platform.token().catch(() => null) : null;
@@ -33,10 +37,11 @@ export async function pushState(api: PushApi, platform: PushPlatform): Promise<{
 }
 
 export type EnableResult =
-  { ok: true; deviceId: string } | { ok: false; reason: "denied" | "simulator" | "too_many_devices" | "not_offered" | "failed"; message?: string };
+  { ok: true; deviceId: string } | { ok: false; reason: "denied" | "simulator" | "expo_go" | "too_many_devices" | "not_offered" | "failed"; message?: string };
 
 /** Asks the phone's permission if needed, then registers this installation's token with the clinic's platform. */
 export async function enablePush(api: PushApi, platform: PushPlatform): Promise<EnableResult> {
+  if (!platform.pushAvailable) return { ok: false, reason: "expo_go" };
   if (!platform.isPhysicalDevice) return { ok: false, reason: "simulator" };
   let permission = await platform.permission();
   if (permission !== "granted") permission = await platform.requestPermission();
@@ -66,13 +71,16 @@ export async function removeDevice(api: PushApi, deviceId: string): Promise<void
 /** Before signing out: this phone stops receiving the patient's notices. Failing to reach the API must not block signing out. */
 export async function unregisterThisPhone(api: PushApi, platform: PushPlatform): Promise<void> {
   try {
-    if (!platform.isPhysicalDevice || (await platform.permission()) !== "granted") return;
+    if (!platform.pushAvailable || !platform.isPhysicalDevice || (await platform.permission()) !== "granted") return;
     const { state } = await pushState(api, platform);
     if (state.kind === "on") await removeDevice(api, state.deviceId);
   } catch {
     // Signing out comes first; the clinic's platform drops a token that stops working.
   }
 }
+
+/** Shown when the app runs in Expo Go (development only): notifications need a development or store build. */
+export const EXPO_GO_MESSAGE = "Notifications don't work in Expo Go. Install a development build of MyHealth to try them.";
 
 /** Plain words for why notifications could not be turned on. */
 export function enableMessage(result: Extract<EnableResult, { ok: false }>): string {
@@ -81,6 +89,8 @@ export function enableMessage(result: Extract<EnableResult, { ok: false }>): str
       return "Notifications are blocked for MyHealth on this phone. Turn them on in the phone's settings, then try again.";
     case "simulator":
       return "Notifications work only on a real phone.";
+    case "expo_go":
+      return EXPO_GO_MESSAGE;
     case "too_many_devices":
       return "Notifications are already on for 5 devices. Remove one below first.";
     case "not_offered":

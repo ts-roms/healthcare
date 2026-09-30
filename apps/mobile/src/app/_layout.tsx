@@ -1,4 +1,3 @@
-import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
 import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
@@ -8,7 +7,7 @@ import { ErrorState, Loading } from "@/components/screen-states";
 import { SessionProvider, useSession } from "@/components/session-provider";
 import { colors } from "@/components/theme";
 import { configured } from "@/lib/config";
-import { configureForegroundNotices } from "@/lib/native-push";
+import { configureForegroundNotices, notifications, pushAvailable } from "@/lib/native-push";
 
 configureForegroundNotices();
 
@@ -35,7 +34,7 @@ function Screens() {
   const signedIn = state.status === "signed_in";
   return (
     <>
-      <OpenFromNotification signedIn={signedIn} />
+      {pushAvailable ? <OpenFromNotification signedIn={signedIn} /> : null}
       <Stack screenOptions={{ headerStyle: { backgroundColor: colors.card }, headerTintColor: colors.primary, headerTitleStyle: { color: colors.foreground } }}>
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="index" options={{ title: "Your results", headerRight: () => <HeaderButtons /> }} />
@@ -51,11 +50,12 @@ function Screens() {
 }
 
 /**
+ * Mounted only outside Expo Go (`pushAvailable`), where `expo-notifications` can be loaded.
  * Tapping a notification opens the app. A notice names a page of MyHealth on the web (`data.url`); the app shows only
  * results, so it opens the results list for a results notice and stays where it is for anything else.
  */
 function OpenFromNotification({ signedIn }: { signedIn: boolean }) {
-  const response = Notifications.useLastNotificationResponse();
+  const response = notifications().useLastNotificationResponse();
   useEffect(() => {
     if (!signedIn || !response) return;
     const url = response.notification.request.content.data?.["url"];
