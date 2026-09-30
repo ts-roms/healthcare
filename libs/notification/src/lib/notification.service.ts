@@ -9,24 +9,78 @@ import {
   filedAsPatient,
   maskEmail,
   maskPhone,
+  localDayBounds,
   NotFoundError,
+  type Page,
+  PH_TIMEZONE,
   timelineInstant,
   timelineRange,
   type TimelineWindow,
 } from "@healthcare/core";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
-import type { sendNotificationSchema } from "./notification.dto";
-import { notification, type NotificationRecord } from "./notification.schema";
+import type { CommunicationLogQuery, sendNotificationSchema } from "./notification.dto";
+import {
+  NOTIFICATION_STATUSES,
+  type NotificationCategory,
+  type NotificationChannel,
+  notification,
+  type NotificationRecord,
+  type NotificationStatus,
+} from "./notification.schema";
 import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
-import { findTemplate, withoutSecrets } from "./templates";
+import { findTemplate, templateLabel, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
 
-export type NotificationView = Omit<NotificationRecord, "variables" | "destination"> & { destinationMasked: string | null };
+export type NotificationView = Omit<NotificationRecord, "variables" | "destination"> & { destinationMasked: string | null; templateLabel: string };
 
 export function toNotificationView({ variables: _v, destination, ...rest }: NotificationRecord): NotificationView {
-  return { ...rest, destinationMasked: destination ? mask(destination) : null };
+  return { ...rest, destinationMasked: destination ? mask(destination) : null, templateLabel: templateLabel(rest.templateKey) };
+}
+
+/** One message to a patient in the communication log: what kind, how, and what became of it — never its content. */
+export interface CommunicationLogEntry {
+  id: string;
+  patientId: string;
+  channel: NotificationChannel;
+  category: NotificationCategory;
+  templateKey: string;
+  templateLabel: string;
+  status: NotificationStatus;
+  /** Why it was not sent (consent, preferences, no contact detail…), for a suppressed message. */
+  suppressionReason: string | null;
+  destinationMasked: string | null;
+  attemptCount: number;
+  /** The staff member who asked for it; null when the platform sent it on its own (reminders, notices). */
+  requestedBy: string | null;
+  createdAt: Date;
+  scheduledFor: Date | null;
+  sentAt: Date | null;
+  deliveredAt: Date | null;
+  failedAt: Date | null;
+  cancelledAt: Date | null;
+  readAt: Date | null;
+}
+
+export interface CommunicationSummary {
+  from: string;
+  to: string;
+  total: number;
+  byStatus: Record<NotificationStatus, number>;
+  byChannel: Array<{ channel: NotificationChannel; total: number; sent: number; notSent: number }>;
+  /** Suppressed messages by reason, most frequent first. */
+  suppressedByReason: Array<{ reason: string; total: number }>;
+  /** Kinds of message, most frequent first. */
+  byTemplate: Array<{ templateKey: string; templateLabel: string; total: number; notSent: number }>;
+}
+
+const NOT_SENT: NotificationStatus[] = ["failed", "suppressed", "cancelled"];
+const REACHED: NotificationStatus[] = ["sent", "delivered"];
+
+/** The UTC instants bounding local days `from`..`to` (inclusive) in the Philippines. */
+function logWindow(from: string, to: string): { start: Date; end: Date } {
+  return { start: localDayBounds(from, PH_TIMEZONE).start, end: localDayBounds(to, PH_TIMEZONE).end };
 }
 
 function mask(destination: string): string {
@@ -167,6 +221,112 @@ export class NotificationService {
       });
       return true;
     });
+  }
+
+  /**
+   * The communication log: messages to patients (never staff inbox messages) created in a period, newest first, with
+   * their delivery status — never the message, its variables or the full destination. Includes records merged into a
+   * patient when filtered by one. Not audited here: the caller (apps/api) audits the view.
+   */
+  async communicationLog(organizationId: string, query: CommunicationLogQuery): Promise<Page<CommunicationLogEntry>> {
+    const { start, end } = logWindow(query.from, query.to);
+    const filters: SQL[] = [
+      eq(notification.organizationId, organizationId),
+      eq(notification.recipientType, "patient"),
+      gte(notification.createdAt, start),
+      lt(notification.createdAt, end),
+    ];
+    if (query.channel) filters.push(eq(notification.channel, query.channel));
+    if (query.category) filters.push(eq(notification.category, query.category));
+    if (query.templateKey) filters.push(eq(notification.templateKey, query.templateKey));
+    if (query.status === "not_sent") filters.push(inArray(notification.status, NOT_SENT));
+    else if (query.status) filters.push(eq(notification.status, query.status));
+    if (query.patientId) filters.push(filedAsPatient(notification.recipientPatientId, query.patientId));
+    const rows = await this.db
+      .select()
+      .from(notification)
+      .where(and(...filters))
+      .orderBy(desc(notification.createdAt), desc(notification.id))
+      .limit(query.pageSize + 1)
+      .offset((query.page - 1) * query.pageSize);
+    const hasMore = rows.length > query.pageSize;
+    return {
+      items: rows.slice(0, query.pageSize).map((r) => ({
+        id: r.id,
+        patientId: r.recipientPatientId!,
+        channel: r.channel,
+        category: r.category,
+        templateKey: r.templateKey,
+        templateLabel: templateLabel(r.templateKey),
+        status: r.status,
+        suppressionReason: r.status === "suppressed" ? r.suppressionReason : null,
+        destinationMasked: r.destination ? mask(r.destination) : null,
+        attemptCount: r.attemptCount,
+        requestedBy: r.createdBy,
+        createdAt: r.createdAt,
+        scheduledFor: r.scheduledFor,
+        sentAt: r.sentAt,
+        deliveredAt: r.deliveredAt,
+        failedAt: r.failedAt,
+        cancelledAt: r.cancelledAt,
+        readAt: r.readAt,
+      })),
+      page: query.page,
+      pageSize: query.pageSize,
+      hasMore,
+    };
+  }
+
+  /** Counts of messages to patients in a period by status, channel, reason not sent and kind. Not audited here. */
+  async communicationSummary(organizationId: string, from: string, to: string): Promise<CommunicationSummary> {
+    const { start, end } = logWindow(from, to);
+    const groups = await this.db
+      .select({
+        channel: notification.channel,
+        status: notification.status,
+        templateKey: notification.templateKey,
+        reason: notification.suppressionReason,
+        total: count(),
+      })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.organizationId, organizationId),
+          eq(notification.recipientType, "patient"),
+          gte(notification.createdAt, start),
+          lt(notification.createdAt, end),
+        ),
+      )
+      .groupBy(notification.channel, notification.status, notification.templateKey, notification.suppressionReason);
+    const byStatus = Object.fromEntries(NOTIFICATION_STATUSES.map((k) => [k, 0])) as Record<NotificationStatus, number>;
+    const channels = new Map<NotificationChannel, { channel: NotificationChannel; total: number; sent: number; notSent: number }>();
+    const reasons = new Map<string, number>();
+    const templates = new Map<string, { templateKey: string; templateLabel: string; total: number; notSent: number }>();
+    let total = 0;
+    for (const g of groups) {
+      const n = Number(g.total);
+      total += n;
+      byStatus[g.status] += n;
+      const c = channels.get(g.channel) ?? { channel: g.channel, total: 0, sent: 0, notSent: 0 };
+      c.total += n;
+      if (REACHED.includes(g.status)) c.sent += n;
+      if (NOT_SENT.includes(g.status)) c.notSent += n;
+      channels.set(g.channel, c);
+      if (g.status === "suppressed") reasons.set(g.reason ?? "unknown", (reasons.get(g.reason ?? "unknown") ?? 0) + n);
+      const t = templates.get(g.templateKey) ?? { templateKey: g.templateKey, templateLabel: templateLabel(g.templateKey), total: 0, notSent: 0 };
+      t.total += n;
+      if (NOT_SENT.includes(g.status)) t.notSent += n;
+      templates.set(g.templateKey, t);
+    }
+    return {
+      from,
+      to,
+      total,
+      byStatus,
+      byChannel: [...channels.values()].sort((a, b) => b.total - a.total),
+      suppressedByReason: [...reasons].map(([reason, n]) => ({ reason, total: n })).sort((a, b) => b.total - a.total),
+      byTemplate: [...templates.values()].sort((a, b) => b.total - a.total),
+    };
   }
 
   async historyForPatient(actor: Actor, patientId: string): Promise<NotificationView[]> {

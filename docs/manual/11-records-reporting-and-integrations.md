@@ -10,6 +10,7 @@ with a short note on the FHIR read interface other systems can use.
 - **Records officers** and organization administrators: merging duplicate patient records (`patient.merge`), patients' records requests
   (`/records/requests`) and record imports (`/records/imports`).
 - **Physicians**, records officers and organization administrators: disease case reports (`/reporting`).
+- **Receptionists**, records officers, physicians, dentists and organization administrators: the communication log (`/communications`).
 - **Organization administrators**: reportable-condition settings (`/reporting/settings`) and integration review (`/admin/integrations`).
 - **Platform administrators** (the people who run the platform's servers): payload encryption keys.
 
@@ -354,6 +355,28 @@ Other systems (for example a referral hospital's system) can read a patient's re
 - Other systems send records in through `POST /api/v1/fhir/r4/imports` (`interop.fhir.import`); these land in the review queue described above.
 
 Technical details are in `docs/interoperability/fhir.md`.
+
+## How to check what was sent to patients (communication log)
+
+**Communications** in the menu (`/communications`, `notification.read`) lists the reminders, notices and MyHealth alerts sent — or held back — to
+patients across the organization, newest first. Messages to staff (the bell) are not part of it. The content of messages is never shown.
+
+1. Choose the period (**From** / **To**, days in the Philippines; up to 92 days — a longer period is shortened to its last 92 days, with a note)
+   and, if you like, a **Status**, **Channel**, **Kind** (care; appointments and admin; reminders and outreach; account security) and **Message**,
+   then **Show**. The period starts as the last 7 days.
+2. The figures show how many messages there were, how many were sent or delivered, how many were **not sent, failed or cancelled**, and how many are
+   waiting. Below them: counts by channel, **Why messages were not sent** (for example "No mobile number on record", "The patient turned this
+   off") and the most frequent messages — select one to list only those.
+3. The list shows when, the patient (select to open their communication history), the message, the channel with the number or address partly
+   hidden, the status (colour, icon and words; the reason when not sent; the attempts when failed) and who asked for it (**Automatic** when the
+   platform sent it on its own).
+4. **Download CSV** saves the same list (up to 5,000 messages; narrow the filters for more). Keep the file as confidential as the patient record.
+
+Showing the list and downloading it are recorded in the audit log. Staff without `patient.read` see only the figures, not the patients.
+
+Typical uses: a patient says they got no reminder (filter by the patient from their record, or look for **Not sent**); many reminders are "not
+sent" for lack of a mobile number (update contact details at registration); a provider is failing (many **Failed** on one channel — tell your
+administrator).
 
 ## How to read the management dashboard
 

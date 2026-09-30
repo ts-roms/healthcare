@@ -54,6 +54,14 @@ The top bar's bell shows the signed-in user's unread in-app messages (`GET /me/n
 critical and corrected results to the ordering practitioner, laboratory quality notices to quality managers, staff
 messages. See `docs/domains/notification.md`.
 
+## Communications
+
+`/communications` (`notification.read`; the list and CSV also need `patient.read`) is the organization's communication log: figures for a
+period (at most 92 days, Asia/Manila days), breakdowns by channel, reason not sent and message, and the list of messages to patients with
+their delivery status (colour + icon + text, `DeliveryStatus`), never their content; filters live in the URL (`lib/communications.ts`), the CSV
+goes through `/communications/export` (a route handler forwarding the session). `/patients/[id]/communications` lists one patient's history
+with their communication preferences. See `docs/domains/notification.md` ("Communication log").
+
 ## Data
 
 | Area                                                                                                                                                                                                                                             | Source                                                     |
