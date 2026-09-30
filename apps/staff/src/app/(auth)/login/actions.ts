@@ -8,6 +8,7 @@ import { forwardedHeaders } from "@healthcare/web-session";
 import { safeNextPath } from "@healthcare/web-session";
 import { writeTokenCookies } from "@/lib/api/tokens";
 import type { Facility, LoginResponse, OrganizationChoice, TokenResponse } from "@/lib/api/types";
+import { normalizeSecondFactor, SECOND_FACTOR_HINT } from "@/lib/second-factor";
 
 export type LoginState =
   | { step: "password"; error?: string; email?: string }
@@ -84,11 +85,11 @@ async function signIn(form: FormData): Promise<LoginState> {
 }
 
 async function verifyMfa(form: FormData): Promise<LoginState> {
-  const code = String(form.get("code") ?? "").replace(/\s+/g, "");
+  const code = normalizeSecondFactor(String(form.get("code") ?? ""));
   const next = safeNextPath(form.get("next"));
   const challengeToken = (await cookies()).get(COOKIES.mfaChallenge)?.value;
   if (!challengeToken) return { step: "password", error: "Your sign-in attempt expired. Enter your password again." };
-  if (!/^\d{6}$/.test(code)) return { step: "mfa", error: "Enter the 6-digit code from your authenticator app." };
+  if (!code) return { step: "mfa", error: SECOND_FACTOR_HINT };
 
   let tokens: TokenResponse;
   try {

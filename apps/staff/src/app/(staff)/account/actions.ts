@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
+import { normalizeSecondFactor, SECOND_FACTOR_HINT } from "@/lib/second-factor";
 
 // The signed-in person's own credentials. Shapes are checked here only to fail fast; the API checks the current
 // password or code, audits each attempt and throttles repeated ones.
@@ -34,19 +35,29 @@ export async function beginTwoStep(): Promise<ActionResult<{ secret: string; otp
   return actionResult(() => api<{ secret: string; otpauthUri: string }>("/auth/mfa/setup", { method: "POST" }));
 }
 
-export async function confirmTwoStep(input: string): Promise<ActionResult> {
+/**
+ * Turns it on and returns the recovery codes, shown once. Nothing is revalidated here: the form shows the codes first
+ * and refreshes the page when the person has saved them (the set-up gate would otherwise disappear with them).
+ */
+export async function confirmTwoStep(input: string): Promise<ActionResult<{ recoveryCodes: string[] }>> {
   const parsed = code.safeParse(input.replace(/\s/g, ""));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the code." };
-  const result = await actionResult(() => api<void>("/auth/mfa/confirm", { method: "POST", body: { code: parsed.data } }));
-  if (result.ok) revalidatePath("/", "layout");
-  return result.ok ? { ok: true, data: null } : result;
+  return actionResult(() => api<{ recoveryCodes: string[] }>("/auth/mfa/confirm", { method: "POST", body: { code: parsed.data } }));
 }
 
-export async function turnOffTwoStep(password: string, input: string): Promise<ActionResult> {
+/** New recovery codes (the old ones stop working): the password and the app's current code. */
+export async function renewRecoveryCodes(password: string, input: string): Promise<ActionResult<{ recoveryCodes: string[] }>> {
   const parsed = code.safeParse(input.replace(/\s/g, ""));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Enter the code." };
   if (!password) return { ok: false, message: "Enter your password." };
-  const result = await actionResult(() => api<void>("/auth/mfa/disable", { method: "POST", body: { password, code: parsed.data } }));
+  return actionResult(() => api<{ recoveryCodes: string[] }>("/auth/mfa/recovery-codes", { method: "POST", body: { password, code: parsed.data } }));
+}
+
+export async function turnOffTwoStep(password: string, input: string): Promise<ActionResult> {
+  const secondFactor = normalizeSecondFactor(input);
+  if (!secondFactor) return { ok: false, message: SECOND_FACTOR_HINT };
+  if (!password) return { ok: false, message: "Enter your password." };
+  const result = await actionResult(() => api<void>("/auth/mfa/disable", { method: "POST", body: { password, code: secondFactor } }));
   if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
 }

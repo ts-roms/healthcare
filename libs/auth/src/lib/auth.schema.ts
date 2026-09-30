@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const appUser = pgTable("app_user", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -11,6 +11,8 @@ export const appUser = pgTable("app_user", {
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecretEncrypted: text("mfa_secret_encrypted"),
   mfaPendingSecretEncrypted: text("mfa_pending_secret_encrypted"),
+  /** The last accepted TOTP time step: a code works once (migration 0087). */
+  mfaLastUsedStep: bigint("mfa_last_used_step", { mode: "number" }),
   failedLoginCount: integer("failed_login_count").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
@@ -97,3 +99,12 @@ export const authSession = pgTable("auth_session", {
 export type AppUserRecord = typeof appUser.$inferSelect;
 export type RoleRecord = typeof role.$inferSelect;
 export type AuthSessionRecord = typeof authSession.$inferSelect;
+
+/** Single-use codes for signing in without the authenticator app; only hashes are kept (migration 0087). */
+export const staffRecoveryCode = pgTable("staff_recovery_code", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  codeHash: text("code_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+});

@@ -36,7 +36,8 @@ export interface OrganizationChoice {
 }
 
 export interface Me {
-  user: { id: string; email: string; displayName: string; mfaEnabled: boolean; isPlatformAdmin: boolean };
+  /** `recoveryCodesRemaining`: unused single-use recovery codes (0 without two-step verification). */
+  user: { id: string; email: string; displayName: string; mfaEnabled: boolean; recoveryCodesRemaining: number; isPlatformAdmin: boolean };
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
   /** The organization's two-step verification requirement for this member; with `enrollmentRequired`, permissions are empty. */

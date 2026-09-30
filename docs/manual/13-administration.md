@@ -272,7 +272,7 @@ without it, and the exempt accounts. Every change is audited.
 3. **Require it:** click **Require it for all staff…**, optionally give a reason, and confirm. From their next page, a member without it sees only **Set up
    two-step verification**: nobody is locked out, but they cannot open anything else until it is on, and nobody can turn theirs off while it is required.
    **Stop requiring it…** undoes this.
-4. **Lost or replaced phone:** check who is asking (in person, or by a call you place to a number you already have), open their page under **Staff users**
+4. **Lost or replaced phone:** a person with recovery codes left signs in with one and turns it on again from **My account**. Otherwise, check who is asking (in person, or by a call you place to a number you already have), open their page under **Staff users**
    and click **Reset two-step verification…** with the reason. Their sessions end at once and they set it up again at their next sign-in. You cannot reset
    your own (use **My account**), and an account that also belongs to another organization can only be reset by a platform administrator.
 

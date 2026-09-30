@@ -5,6 +5,7 @@ import { organization } from "@healthcare/organization";
 import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { appUser, organizationMembership, staffMfaPolicy } from "./auth.schema";
+import { clearStaffMfa } from "./mfa-store";
 import type { mfaExemptionSchema, mfaPolicySchema, mfaResetSchema } from "./mfa-policy.dto";
 import { SessionService } from "./session.service";
 
@@ -227,10 +228,7 @@ export class MfaPolicyService {
           );
         }
       }
-      await tx
-        .update(appUser)
-        .set({ mfaEnabled: false, mfaSecretEncrypted: null, mfaPendingSecretEncrypted: null, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
-        .where(eq(appUser.id, userId));
+      await clearStaffMfa(tx, userId);
       const revoked = await this.sessions.revokeAllForUser(tx, userId, "mfa_reset");
       await this.audit.record(tx, actor, {
         action: "auth.mfa.reset",

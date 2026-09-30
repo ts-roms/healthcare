@@ -245,7 +245,9 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
-  (setup key and `otpauth:` link; no QR image) or off (password and code; not while the organization requires it).
+  (setup key and `otpauth:` link; no QR image; the 10 recovery codes are shown once before the page refreshes) or off (password and an app or
+  recovery code; not while the organization requires it); recovery codes left and **New recovery codes…** (password and an app code). Sign-in takes
+  an app code or a recovery code (`lib/second-factor.ts`).
 
 Not built: resetting another person's password (no API), editing roles, coding systems.
 

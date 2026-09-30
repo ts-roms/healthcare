@@ -12,9 +12,12 @@ export const loginSchema = z.object({
 });
 export class LoginDto extends createZodDto(loginSchema) {}
 
+/** The 6 digits from the authenticator app, or a recovery code ("K7M2P-X9QRT"; case, spaces and the dash do not matter). */
+const secondFactorCode = z.string().trim().min(6, "Enter the 6-digit code or a recovery code").max(20);
+
 export const mfaVerifySchema = z.object({
   challengeToken: z.string().min(1),
-  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
+  code: secondFactorCode,
 });
 export class MfaVerifyDto extends createZodDto(mfaVerifySchema) {}
 
@@ -24,8 +27,12 @@ export class RefreshDto extends createZodDto(refreshSchema) {}
 export const mfaConfirmSchema = z.object({ code: z.string().regex(/^\d{6}$/) });
 export class MfaConfirmDto extends createZodDto(mfaConfirmSchema) {}
 
-export const mfaDisableSchema = z.object({ password: z.string().min(1).max(128), code: z.string().regex(/^\d{6}$/) });
+export const mfaDisableSchema = z.object({ password: z.string().min(1).max(128), code: secondFactorCode });
 export class MfaDisableDto extends createZodDto(mfaDisableSchema) {}
+
+/** Renewing recovery codes needs the password and the app's current code (not a recovery code). */
+export const recoveryCodesRenewSchema = z.object({ password: z.string().min(1).max(128), code: z.string().regex(/^\d{6}$/) });
+export class RecoveryCodesRenewDto extends createZodDto(recoveryCodesRenewSchema) {}
 
 export const changePasswordSchema = z
   .object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })

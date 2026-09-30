@@ -15,7 +15,7 @@ describe("staff two-step verification policy", () => {
       .post("/api/v1/auth/mfa/confirm")
       .set(as(token))
       .send({ code: currentTotp(setup.body.secret) })
-      .expect(204);
+      .expect(200);
     return setup.body.secret as string;
   };
   const policy = async () => (await ctx.http().get("/api/v1/security/mfa-policy").set(as(adminToken)).expect(200)).body;
@@ -120,6 +120,8 @@ describe("staff two-step verification policy", () => {
     expect(again.body.error.code).toBe("mfa_not_enabled");
     const open = await ctx.pool.query(`SELECT count(*)::int AS n FROM auth_session WHERE user_id = $1 AND revoked_at IS NULL`, [nurseId]);
     expect(open.rows[0].n).toBe(0);
+    const codes = await ctx.pool.query(`SELECT count(*)::int AS n FROM staff_recovery_code WHERE user_id = $1`, [nurseId]);
+    expect(codes.rows[0].n).toBe(0);
 
     const { accessToken } = await login(ctx, "nurse@mfa.example.ph");
     await ctx.http().get("/api/v1/patients?q=juan").set(as(accessToken)).expect(403);
