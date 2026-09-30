@@ -127,7 +127,8 @@ Record the answer (and who decided) here before building the part it governs.
 - **D1 — patients only** (product owner).
 - **D2 — first release: sign-in and results** (product owner). Activation, password reset, visits, booking, medicines, bills, messages,
   documents, guardian access and everything else stay in MyHealth on the web for now.
-- **D4, D5, D12 — provisional choices for the first slice**, following existing conventions; confirm or change them:
+- **D4, D5, D12 — provisional, accepted by the product owner (2026-09-30)** for the first slice; they follow existing conventions and stay open
+  to revisit before a store release:
   - D4: one build per organization (`EXPO_PUBLIC_ORGANIZATION_CODE`), as one MyHealth web deployment serves one organization.
   - D5: the refresh token in the Keychain/Keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`: not in backups, not on another device), the access
     token in memory, the API's session length unchanged (14 days), no app lock or biometric unlock; nothing else about the patient is
@@ -156,7 +157,7 @@ Every other decision below is still **UNKNOWN**.
 
 ## 5. Suggested order once decided (recommendation, not a requirement)
 
-1. ~~Record D1–D5 and D12.~~ D1, D2 recorded; D4, D5, D12 provisional; D3 open.
+1. ~~Record D1–D5 and D12.~~ D1, D2 recorded; D4, D5, D12 accepted as provisional; D3 open.
 2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
 3. Add the remaining D2 areas, then push (D6) and links (D7) if chosen, each with its own API change, documentation and tests.
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
