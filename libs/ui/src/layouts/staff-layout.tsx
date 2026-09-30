@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon } from "lucide-react";
+import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
 import type { StaffRole } from "@healthcare/domain";
 import { Kbd } from "../primitives/kbd";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "../primitives/sheet";
@@ -167,6 +167,8 @@ function SidebarNav({
   onNavigate: () => void;
   collapsed?: boolean;
 }) {
+  // Groups with sub-items open when active; a manual toggle overrides that until the page changes group.
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({});
   return (
     <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2">
       <ul className="flex flex-col gap-0.5">
@@ -174,6 +176,7 @@ function SidebarNav({
           const Icon = item.icon;
           const active = isActive(pathname, item.href);
           const exact = item.children ? pathname === item.href : active;
+          const expanded = openGroups[item.href] ?? active;
           return (
             <li key={item.href}>
               {(() => {
@@ -186,6 +189,7 @@ function SidebarNav({
                     className={cn(
                       "flex h-8 items-center gap-2.5 rounded-md px-2 text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
                       collapsed && "justify-center px-0",
+                      item.children && !collapsed && "pr-8",
                       active && "bg-sidebar-accent text-sidebar-accent-foreground",
                     )}
                   >
@@ -198,6 +202,22 @@ function SidebarNav({
                     ) : null}
                   </Link>
                 );
+                if (item.children && !collapsed) {
+                  return (
+                    <div className="relative">
+                      {link}
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${item.label}`}
+                        onClick={() => setOpenGroups((prev) => ({ ...prev, [item.href]: !expanded }))}
+                        className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-sidebar-muted outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronDownIcon className={cn("size-3.5 transition-transform", !expanded && "-rotate-90")} aria-hidden />
+                      </button>
+                    </div>
+                  );
+                }
                 return collapsed ? (
                   <Tooltip>
                     <TooltipTrigger asChild>{link}</TooltipTrigger>
@@ -207,7 +227,7 @@ function SidebarNav({
                   link
                 );
               })()}
-              {item.children && active && !collapsed ? (
+              {item.children && expanded && !collapsed ? (
                 <ul className="mt-0.5 ml-[18px] flex flex-col gap-0.5 border-l border-sidebar-border pl-2.5">
                   {item.children.map((c) => {
                     const cActive = isActive(pathname, c.href);
