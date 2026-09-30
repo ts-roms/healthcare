@@ -119,7 +119,8 @@ export type MergeWorkKind =
   | "draft_invoice"
   | "uninvoiced_charge"
   | "account_balance"
-  | "care_plan_active";
+  | "care_plan_active"
+  | "referral_open";
 
 export interface MergeWorkItem {
   kind: MergeWorkKind;
@@ -128,10 +129,10 @@ export interface MergeWorkItem {
   label: string;
   at: string | null;
   /** The screen that resolves it; the staff app maps the type to a route. */
-  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan"; id: string } | null;
+  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan" | "referral"; id: string } | null;
 }
 
-const WARNING_KINDS: ReadonlySet<MergeWorkKind> = new Set(["care_plan_active"]);
+const WARNING_KINDS: ReadonlySet<MergeWorkKind> = new Set(["care_plan_active", "referral_open"]);
 
 export function splitWorkItems(items: MergeWorkItem[]): { blockers: MergeWorkItem[]; warnings: MergeWorkItem[] } {
   return { blockers: items.filter((i) => !WARNING_KINDS.has(i.kind)), warnings: items.filter((i) => WARNING_KINDS.has(i.kind)) };

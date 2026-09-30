@@ -11,6 +11,7 @@ import {
   filedAsPatient,
 } from "@healthcare/core";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { facility } from "@healthcare/organization";
 import {
   allergyIntolerance,
@@ -22,11 +23,13 @@ import {
   externalHistoryEntry,
   practitioner,
   referral,
+  referralSetting,
   visit,
   visitType,
   vitalSignSet,
 } from "./clinic.schema";
 import { publicView } from "./clinic-support";
+import { referralOverdue } from "./referrals/referral.rules";
 import { canApply } from "./domain/appointment-state";
 import { patientMayChange } from "./domain/patient-booking";
 import { BookingRulesService } from "./config/booking-rules.service";
@@ -718,7 +721,105 @@ export class ClinicQueries {
         )
         .orderBy(asc(appointment.startsAt)),
     ]);
-    return { encounters, visits, appointments };
+    const referrals = await this.db
+      .select({
+        id: referral.id,
+        referralNumber: referral.referralNumber,
+        status: referral.status,
+        issuedAt: referral.issuedAt,
+        kind: referral.kind,
+        externalProvider: referral.externalProvider,
+        toPractitionerName: practitioner.displayName,
+      })
+      .from(referral)
+      .leftJoin(practitioner, eq(practitioner.id, referral.toPractitionerId))
+      .where(and(eq(referral.organizationId, organizationId), eq(referral.patientId, patientId), inArray(referral.status, ["sent", "accepted"])))
+      .orderBy(asc(referral.issuedAt));
+    return { encounters, visits, appointments, referrals };
+  }
+
+  // ---- Referrals (Patient 360, FHIR; composed in apps/api) ---------------------------------------------------------
+
+  /** The organization's overdue threshold in days (null: off). */
+  async referralOverdueAfterDays(organizationId: string): Promise<number | null> {
+    const [row] = await this.db
+      .select({ days: referralSetting.overdueAfterDays })
+      .from(referralSetting)
+      .where(eq(referralSetting.organizationId, organizationId));
+    return row?.days ?? null;
+  }
+
+  /**
+   * The patient's referrals for Patient 360 (records filed under merged duplicates included): open ones first (oldest
+   * first), then the latest finished ones. To whom, when, urgency, status and whether it is overdue — never the reason or
+   * summary. Not audited here: the workspace audits its view.
+   */
+  async workspaceReferrals(organizationId: string, patientId: string, limit: number, now = new Date()) {
+    const referrer = alias(practitioner, "referrer");
+    const [rows, overdueAfterDays] = await Promise.all([
+      this.db
+        .select({
+          id: referral.id,
+          patientId: referral.patientId,
+          referralNumber: referral.referralNumber,
+          status: referral.status,
+          urgency: referral.urgency,
+          kind: referral.kind,
+          specialty: referral.specialty,
+          externalProvider: referral.externalProvider,
+          externalFacility: referral.externalFacility,
+          toPractitionerName: practitioner.displayName,
+          referringPractitionerName: referrer.displayName,
+          issuedAt: referral.issuedAt,
+        })
+        .from(referral)
+        .leftJoin(practitioner, eq(practitioner.id, referral.toPractitionerId))
+        .innerJoin(referrer, eq(referrer.id, referral.referringPractitionerId))
+        .where(and(eq(referral.organizationId, organizationId), filedAsPatient(referral.patientId, patientId)))
+        .orderBy(
+          sql`${referral.status} IN ('sent', 'accepted') DESC`,
+          sql`CASE WHEN ${referral.status} IN ('sent', 'accepted') THEN ${referral.issuedAt} END ASC`,
+          desc(referral.issuedAt),
+          desc(referral.id),
+        )
+        .limit(limit),
+      this.referralOverdueAfterDays(organizationId),
+    ]);
+    return rows.map((r) => ({ ...r, overdue: referralOverdue(r, overdueAfterDays, now) }));
+  }
+
+  /**
+   * Every referral of the patient (records filed under merged duplicates included) with what a FHIR ServiceRequest
+   * carries: the reason and summary included — the export is behind `interop.fhir.read` and audited by the caller.
+   */
+  referralRecords(organizationId: string, patientId: string) {
+    return this.db
+      .select({
+        id: referral.id,
+        patientId: referral.patientId,
+        encounterId: referral.encounterId,
+        referralNumber: referral.referralNumber,
+        kind: referral.kind,
+        status: referral.status,
+        urgency: referral.urgency,
+        specialty: referral.specialty,
+        reason: referral.reason,
+        clinicalSummary: referral.clinicalSummary,
+        diagnosisIds: referral.diagnosisIds,
+        referringPractitionerId: referral.referringPractitionerId,
+        toPractitionerId: referral.toPractitionerId,
+        externalProvider: referral.externalProvider,
+        externalFacility: referral.externalFacility,
+        externalContact: referral.externalContact,
+        issuedAt: referral.issuedAt,
+        respondedAt: referral.respondedAt,
+        completedAt: referral.completedAt,
+        cancelledAt: referral.cancelledAt,
+        replyDocumentId: referral.replyDocumentId,
+      })
+      .from(referral)
+      .where(and(eq(referral.organizationId, organizationId), filedAsPatient(referral.patientId, patientId)))
+      .orderBy(asc(referral.issuedAt), asc(referral.id));
   }
 
   /** Practitioner records by id (record exports). */

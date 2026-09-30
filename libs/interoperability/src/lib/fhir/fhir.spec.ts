@@ -1,4 +1,15 @@
-import type { Bundle, CapabilityStatement, CarePlan, DocumentReference, FhirResource, Observation, OperationOutcome, Patient, Procedure } from "fhir/r4";
+import type {
+  Bundle,
+  CapabilityStatement,
+  CarePlan,
+  DocumentReference,
+  FhirResource,
+  Observation,
+  OperationOutcome,
+  Patient,
+  Procedure,
+  ServiceRequest,
+} from "fhir/r4";
 import { capabilityStatement, type CompartmentType, operationOutcome, patientEverything, searchByPatient } from "./bundle";
 import { DEFAULT_PAGING, FhirSearchError, PAGE_SIZE, parseLastUpdated, parsePaging, parseSearchParameters, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
@@ -323,6 +334,7 @@ const source: PatientRecordSource = {
       related: [],
     },
   ],
+  referrals: [],
   externalHistory: [],
   dental: { procedures: [], plans: [], examinations: [], chart: [], perioCharts: [] },
 };
@@ -534,6 +546,154 @@ describe("FHIR R4 mapping", () => {
     expect(errors(withheld)).toEqual([]);
     expect(errors(notices[0]?.resource as OperationOutcome)).toEqual([]);
     expect(withheld.total).toBe((everything.total ?? 0) - 1);
+  });
+
+  describe("referrals", () => {
+    const CARDIO = "5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a";
+    // The internal referral's id is its letter's (the referral_letter document above); the external one has a reply document that is not exported.
+    const withReferrals: PatientRecordSource = {
+      ...source,
+      practitioners: [
+        ...source.practitioners,
+        { id: CARDIO, displayName: "Dr. Jose Cruz", profession: "physician", specialty: "Cardiology", licenseNumber: "0765432", status: "active" },
+      ],
+      referrals: [
+        {
+          id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          referralNumber: "RF00000001",
+          kind: "internal",
+          status: "accepted",
+          urgency: "emergency",
+          encounterId: ENC,
+          referringPractitionerId: DR,
+          toPractitionerId: CARDIO,
+          externalProvider: null,
+          externalFacility: null,
+          externalContact: null,
+          specialty: "Cardiology",
+          reason: "Uncontrolled hypertension despite two agents",
+          clinicalSummary: "BP 160/100 on amlodipine and losartan.",
+          diagnosisIds: ["44444444-4444-4444-8444-444444444444"],
+          issuedAt: "2026-09-27T01:35:00.000Z",
+          replyDocumentId: null,
+        },
+        {
+          id: "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
+          referralNumber: "RF00000002",
+          kind: "external",
+          status: "completed",
+          urgency: "routine",
+          encounterId: ENC,
+          referringPractitionerId: DR,
+          toPractitionerId: null,
+          externalProvider: "Dr. Ana Santos",
+          externalFacility: "Heart Center Hospital",
+          externalContact: "+63 2 8925 2401",
+          specialty: null,
+          reason: "Second opinion",
+          clinicalSummary: null,
+          diagnosisIds: [],
+          issuedAt: "2026-09-27T01:36:00.000Z",
+          replyDocumentId: "efefefef-efef-4fef-8fef-efefefefefef",
+        },
+        {
+          id: "cececece-cece-4ece-8ece-cececececece",
+          referralNumber: "RF00000003",
+          kind: "external",
+          status: "cancelled",
+          urgency: "urgent",
+          encounterId: ENC,
+          referringPractitionerId: DR,
+          toPractitionerId: null,
+          externalProvider: "City General Hospital",
+          externalFacility: null,
+          externalContact: null,
+          specialty: "Nephrology",
+          reason: "Rising creatinine",
+          clinicalSummary: null,
+          diagnosisIds: [],
+          issuedAt: "2026-09-27T01:37:00.000Z",
+          replyDocumentId: null,
+        },
+      ],
+    };
+    const bundle = patientEverything(ctx, withReferrals, { count: PAGE_SIZE.max, offset: 0 });
+    const all = (bundle.entry ?? []).map((e) => e.resource as FhirResource);
+    const request = (id: string) => all.find((r) => r.resourceType === "ServiceRequest" && r.id === id) as ServiceRequest;
+
+    it("maps referrals to ServiceRequest (category Patient referral; emergency as stat) valid against the R4 schema, every reference resolved", () => {
+      const internal = request("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+      expect(internal).toMatchObject({
+        identifier: [{ system: `${ctx.identifierBase}/referral-number`, value: "RF00000001" }],
+        status: "active",
+        intent: "order",
+        priority: "stat",
+        category: [{ coding: [{ system: "http://snomed.info/sct", code: "3457005", display: "Patient referral" }], text: "Referral" }],
+        code: { text: "Cardiology" },
+        subject: { reference: `Patient/${P}` },
+        encounter: { reference: `Encounter/${ENC}` },
+        authoredOn: "2026-09-27T01:35:00.000Z",
+        requester: { reference: `Practitioner/${DR}` },
+        performer: [{ reference: `Practitioner/${CARDIO}` }],
+        reasonCode: [{ text: "Uncontrolled hypertension despite two agents" }],
+        reasonReference: [{ reference: "Condition/44444444-4444-4444-8444-444444444444" }],
+        supportingInfo: [{ reference: "DocumentReference/dddddddd-dddd-4ddd-8ddd-dddddddddddd" }],
+      });
+      expect(internal.note?.map((n) => n.text)).toEqual([
+        "BP 160/100 on amlodipine and losartan.",
+        "Urgency as written by the referrer: emergency",
+        "Referral status: Accepted by the practitioner referred to",
+      ]);
+      expect(internal.contained).toBeUndefined();
+
+      const external = request("cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd");
+      expect(external).toMatchObject({ status: "completed", priority: "routine", code: { text: "Referral" } });
+      expect(external.performer).toEqual([
+        { reference: "#referral-recipient", display: "Dr. Ana Santos" },
+        { reference: "#referral-recipient-organization", display: "Heart Center Hospital" },
+      ]);
+      expect(external.contained).toEqual([
+        {
+          resourceType: "Organization",
+          id: "referral-recipient-organization",
+          name: "Heart Center Hospital",
+          telecom: [{ system: "other", value: "+63 2 8925 2401" }],
+        },
+        { resourceType: "Practitioner", id: "referral-recipient", name: [{ text: "Dr. Ana Santos" }] },
+      ]);
+      // The reply document is not part of the export: no dangling reference.
+      expect(external.supportingInfo).toBeUndefined();
+
+      const cancelled = request("cececece-cece-4ece-8ece-cececececece");
+      expect(cancelled).toMatchObject({ status: "revoked", priority: "urgent", performerType: { text: "Nephrology" } });
+      expect(cancelled.performer).toEqual([{ reference: "#referral-recipient-organization", display: "City General Hospital" }]);
+
+      expect(errors(bundle)).toEqual([]);
+      for (const r of [internal, external, cancelled]) expect(errors(r)).toEqual([]);
+      const present = new Set(all.map((r) => `${r.resourceType}/${r.id}`));
+      const references = JSON.stringify(bundle).match(/"reference":"([A-Za-z]+\/[^"]+)"/g) ?? [];
+      expect(references.map((r) => r.slice(13, -1)).filter((r) => !present.has(r))).toEqual([]);
+    });
+
+    it("serves referrals with lab test requests on ServiceRequest?patient=, and drops the letter reference when documents are withheld", () => {
+      const search = searchByPatient(ctx, withReferrals, "ServiceRequest");
+      const ids = (search.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.resource?.id);
+      expect(ids).toEqual(
+        expect.arrayContaining(["dddddddd-dddd-4ddd-8ddd-dddddddddddd", "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd", "cececece-cece-4ece-8ece-cececececece"]),
+      );
+      expect(search.total).toBe(searchByPatient(ctx, source, "ServiceRequest").total! + 3);
+      expect(errors(search)).toEqual([]);
+      const withheld = searchByPatient(ctx, { ...withReferrals, documents: null }, "ServiceRequest");
+      const letter = withheld.entry?.find((e) => e.resource?.id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd")?.resource as ServiceRequest;
+      expect(letter.supportingInfo).toBeUndefined();
+      expect(errors(withheld)).toEqual([]);
+    });
+
+    it("documents referrals on ServiceRequest in the CapabilityStatement", () => {
+      const serviceRequest = capabilityStatement(ctx).rest?.[0]?.resource?.find((r) => r.type === "ServiceRequest");
+      expect(serviceRequest?.documentation).toContain("3457005");
+      expect(serviceRequest?.documentation).toContain("stat for an emergency referral");
+    });
   });
 
   it("declares every served type, paging and _lastUpdated where supported", () => {

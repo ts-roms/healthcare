@@ -444,11 +444,22 @@ export const createReferralSchema = z
 export class CreateReferralDto extends createZodDto(createReferralSchema) {}
 
 export const referralQuerySchema = z.object({
-  /** to_me: referred to the caller; from_me: made by the caller; open: sent or accepted; all: the organization's recent ones. */
-  view: z.enum(["to_me", "from_me", "open", "all"]).default("open"),
+  /**
+   * to_me: referred to the caller; from_me: made by the caller; open: sent or accepted; overdue: still waiting for the
+   * recipient past the organization's threshold (empty while the flag is off); all: the organization's recent ones.
+   */
+  view: z.enum(["to_me", "from_me", "open", "overdue", "all"]).default("open"),
   patientId: z.uuid().optional(),
 });
 export class ReferralQueryDto extends createZodDto(referralQuerySchema) {}
+
+export const referralSettingsSchema = z.object({
+  /** Days after issue before a referral still waiting for the recipient is flagged; null turns the flag off. */
+  overdueAfterDays: z.number().int().min(1).max(365).nullable(),
+  /** The settings' version as read (0 while never saved). */
+  version: z.number().int().min(0),
+});
+export class ReferralSettingsDto extends createZodDto(referralSettingsSchema) {}
 
 export const answerReferralSchema = z
   .object({

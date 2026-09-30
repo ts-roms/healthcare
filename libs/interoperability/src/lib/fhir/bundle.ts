@@ -5,6 +5,7 @@ import { dentalResources } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
+import { toReferralServiceRequest } from "./referrals";
 import { compact } from "./support";
 import { DEFAULT_PAGING, matchesLastUpdated, PAGE_SIZE, type Paging, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
@@ -61,6 +62,9 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   }
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
+  // Referrals point at their letter and reply only when those documents are exported too.
+  const documentIds = src.documents ? new Set(src.documents.map((d) => d.id)) : null;
+  for (const r of src.referrals) clinical.push(toReferralServiceRequest(ctx, patientId, r, documentIds));
   for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
   // External history (tagged as imported); document descriptions are withheld with the documents.
   for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
@@ -180,6 +184,8 @@ export function searchByPatient(
 const IMPORTED = "Resources received from other systems (accepted FHIR imports) carry meta.tag record-source#external-import.";
 const DENTAL = "Dental resources require dental.record.read (withheld otherwise, with an OperationOutcome notice); dental codes are local code systems.";
 const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
+  ServiceRequest:
+    "Laboratory tests ordered (category Laboratory), and referrals (category SNOMED CT 3457005 Patient referral; priority routine, urgent, or stat for an emergency referral; an outside provider as contained Organization/Practitioner, as written by the referrer; the platform's own status and urgency in notes).",
   Condition: `Diagnoses recorded in encounters, and conditions from other systems (always unconfirmed). ${IMPORTED}`,
   AllergyIntolerance: `${IMPORTED} Imported allergies are always unconfirmed.`,
   Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), observations from other systems, and dental observations (category exam: examinations, the current tooth chart, periodontal charts). ${IMPORTED} ${DENTAL}`,

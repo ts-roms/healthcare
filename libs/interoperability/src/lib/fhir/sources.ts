@@ -450,6 +450,32 @@ export interface DentalPerioChartSource {
   }>;
 }
 
+/**
+ * A referral made from a consultation: the referring practitioner, the practitioner referred to (internal) or the
+ * outside provider as the referrer wrote it (external; not verified), the referrer's own words and the diagnoses they
+ * listed. The letter is a document with the referral's id.
+ */
+export interface ReferralSource {
+  id: string;
+  referralNumber: string;
+  kind: "internal" | "external";
+  status: "sent" | "accepted" | "declined" | "completed" | "cancelled";
+  urgency: "routine" | "urgent" | "emergency";
+  encounterId: string;
+  referringPractitionerId: string;
+  toPractitionerId: string | null;
+  externalProvider: string | null;
+  externalFacility: string | null;
+  externalContact: string | null;
+  specialty: string | null;
+  reason: string;
+  clinicalSummary: string | null;
+  diagnosisIds: string[];
+  issuedAt: string;
+  /** An outside provider's reply stored as a document of the patient. */
+  replyDocumentId: string | null;
+}
+
 /** Everything about one patient that the platform exports. */
 export interface PatientRecordSource {
   patient: PatientSource;
@@ -464,6 +490,8 @@ export interface PatientRecordSource {
   labOrders: LabOrderSource[];
   prescriptions: PrescriptionSource[];
   carePlans: CarePlanSource[];
+  /** Referrals (ServiceRequest, category Patient referral). */
+  referrals: ReferralSource[];
   /** The patient's documents, or null when the caller may not see documents (they are then withheld, with a notice). */
   documents: DocumentSource[] | null;
   /** External history accepted from imports (document descriptions are withheld with documents, when `documents` is null). */

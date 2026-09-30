@@ -283,17 +283,28 @@ export const TEMPLATES = [
     variables: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("certificate-ready"), organizationName: shortText }),
       z.object({ kind: z.literal("request-answered"), organizationName: shortText, requestNumber: z.string().regex(/^RR\d{8}$/) }),
+      // No recipient, specialty or reason: those are in the letter, behind sign-in.
+      z.object({ kind: z.literal("referral-ready"), organizationName: shortText }),
     ]),
-    render: (v) =>
-      v.kind === "certificate-ready"
-        ? {
+    render: (v) => {
+      switch (v.kind) {
+        case "certificate-ready":
+          return {
             subject: "Your medical certificate is ready",
             text: `${v.organizationName}: a medical certificate from your visit is ready in MyHealth. Sign in to download it.`,
-          }
-        : {
+          };
+        case "request-answered":
+          return {
             subject: `Your records request ${v.requestNumber} was answered`,
             text: `${v.organizationName}: the records office answered your request ${v.requestNumber}. Sign in to MyHealth to see the answer.`,
-          },
+          };
+        case "referral-ready":
+          return {
+            subject: "Your referral letter is ready",
+            text: `${v.organizationName}: a referral letter from your visit is ready in MyHealth. Sign in to see it and download the letter.`,
+          };
+      }
+    },
   }),
   defineTemplate({
     key: "records.request-new",
