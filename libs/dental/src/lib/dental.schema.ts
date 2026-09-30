@@ -2,7 +2,7 @@ import { bigint, boolean, date, integer, pgTable, primaryKey, smallint, text, ti
 
 // Mirrors database/migrations/0027_dental.sql, 0041_dental_periodontal.sql, 0056_dental_portal.sql,
 // 0057_dental_supplies.sql, 0058_dental_portal_images_decisions.sql
-// 0060_dental_fee_estimates.sql, 0066_dental_fee_ranges.sql and 0071 (written estimates); the migrations are the source
+// 0060_dental_fee_estimates.sql, 0066_dental_fee_ranges.sql and 0073 (written estimates); the migrations are the source
 // of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -260,7 +260,7 @@ export const dentalOrganizationSetting = pgTable("dental_organization_setting", 
   // 0060: MyHealth shows fee estimates on plans; the organization's own note under every estimate.
   portalPlanEstimates: boolean("portal_plan_estimates").notNull().default(false),
   feeEstimateNote: text("fee_estimate_note"),
-  // 0071: how long a printed estimate holds, and whether a staff-recorded decision needs a signed written estimate.
+  // 0073: how long a printed estimate holds, and whether a staff-recorded decision needs a signed written estimate.
   writtenEstimateValidityDays: smallint("written_estimate_validity_days"),
   writtenEstimateRequired: boolean("written_estimate_required").notNull().default(false),
   version: integer("version").notNull().default(1),
@@ -330,7 +330,7 @@ export const dentalImageRelease = pgTable("dental_image_release", {
 });
 export type DentalImageReleaseRecord = typeof dentalImageRelease.$inferSelect;
 
-// ---- signed written estimates (0071) ---------------------------------------------------------------------
+// ---- signed written estimates (0073) ---------------------------------------------------------------------
 
 /** The patient signed a printed estimate: the items it listed, its total when printed, and until when it holds. */
 export const dentalWrittenEstimate = pgTable("dental_written_estimate", {

@@ -165,7 +165,7 @@ export type LabEqaSurveyRecord = typeof labEqaSurvey.$inferSelect;
 export type LabEqaResultRecord = typeof labEqaResult.$inferSelect;
 export type LabCompetencyAssessmentRecord = typeof labCompetencyAssessment.$inferSelect;
 
-// ---- Laboratory licence (0071_compliance_configuration.sql) ---------------------------------------------------------
+// ---- Laboratory licence (0073_compliance_configuration.sql) ---------------------------------------------------------
 
 /** The facility's laboratory licence as issued (recorded by staff, not verified). Append-only: a renewal is a new row. */
 export const labFacilityLicence = pgTable("lab_facility_licence", {

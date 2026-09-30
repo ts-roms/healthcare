@@ -54,7 +54,7 @@ name after applying its own checks.
 ## Retention
 
 The organization sets a retention period (years) per category from its own retention schedule
-(`document_retention_policy`, migration `0071`; `document.retention.manage`) and reviews the available ordinary documents
+(`document_retention_policy`, migration `0073`; `document.retention.manage`) and reviews the available ordinary documents
 stored longer than it (`/document-retention`, staff `/records/retention`). Nothing is deleted; a document is archived
 with a reason as usual. See `docs/architecture/compliance-configuration.md`.
 

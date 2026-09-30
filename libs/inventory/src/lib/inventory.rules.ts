@@ -140,7 +140,7 @@ export function invoiceOverdue(invoice: { status: string; dueDate: string | null
   return (invoice.status === "recorded" || invoice.status === "approved") && invoice.dueDate !== null && invoice.dueDate < today;
 }
 
-// ---- Compliance configuration (0071) ----------------------------------------------------------------------------------
+// ---- Compliance configuration (0073) ----------------------------------------------------------------------------------
 
 /**
  * Whether an order may be submitted under the organization's own procurement methods: once it has defined any, an

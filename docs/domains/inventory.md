@@ -136,7 +136,7 @@ Recorded against a purchase order of the selected facility, line by line (`POST 
 
 ## Withholding, procurement methods and the controlled register
 
-The organization's own configuration (migration `0071`; details in `docs/architecture/compliance-configuration.md`):
+The organization's own configuration (migration `0073`; details in `docs/architecture/compliance-configuration.md`):
 withholding codes (rate for reference only; the amount withheld is **entered** when a supplier invoice is paid, with the
 certificate reference, and never above the total; the invoice shows what was paid to the supplier), procurement methods
 (once any is in use, an order names one to be submitted, with the reference the method asks for), and the register of

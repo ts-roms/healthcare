@@ -1343,7 +1343,7 @@ export interface CaseReportSummary {
   version: number;
   /** Set when a check of earlier diagnoses opened it (rather than detection as the diagnosis was recorded). */
   rescanId: string | null;
-  /** When it is due under the organization's own rule (migration 0071); null: the rule sets no deadline. */
+  /** When it is due under the organization's own rule (migration 0073); null: the rule sets no deadline. */
   dueAt: string | null;
   /** Still waiting to be reported and past its due time. */
   overdue: boolean;
@@ -1381,7 +1381,7 @@ export interface ReportableRule {
   sourceNote: string | null;
   status: "active" | "inactive";
   createdAt: string;
-  /** The organization's own deadline: report within this many days of the diagnosis (migration 0071). */
+  /** The organization's own deadline: report within this many days of the diagnosis (migration 0073). */
   reportWithinDays: number | null;
 }
 
@@ -1663,7 +1663,7 @@ export interface PurchaseOrder {
   version: number;
   supplier: { id: string; code: string; name: string } | null;
   location: { id: string; name: string } | null;
-  /** The organization's own procurement method and its reference (migration 0071). */
+  /** The organization's own procurement method and its reference (migration 0073). */
   procurementMethodId: string | null;
   procurementReference: string | null;
   procurementMethod: { id: string; code: string; name: string; referenceLabel: string | null } | null;
@@ -1871,7 +1871,7 @@ export interface DentalPlanEstimate {
   };
   disclaimer: string;
   note: string | null;
-  /** Until when a printed estimate holds (the organization's validity days; migration 0071). */
+  /** Until when a printed estimate holds (the organization's validity days; migration 0073). */
   validUntil: string | null;
   /** A decision recorded by staff needs a signed written estimate covering the items decided. */
   writtenRequired: boolean;
@@ -2917,7 +2917,7 @@ export interface DentalPortalSetting {
   portalPlanEstimates: boolean;
   /** The organization's own note under every fee estimate (printed and in MyHealth). */
   feeEstimateNote: string | null;
-  /** How long a printed estimate holds, in days (printed as "valid until"; migration 0071). */
+  /** How long a printed estimate holds, in days (printed as "valid until"; migration 0073). */
   writtenEstimateValidityDays: number | null;
   /** A decision recorded by staff needs the patient's signed written estimate. */
   writtenEstimateRequired: boolean;
@@ -3007,7 +3007,7 @@ export interface LabQualitySummary {
   temperatures: { readingsDue: number; outOfRangeNow: number; excursionsLast7Days: number };
   eqa: { overdue: number; awaitingEvaluation: number };
   competency: { required: boolean; due: number; notYetCompetent: number; staffNotAssessed: number };
-  /** The facility's laboratory licence as recorded (migration 0071). */
+  /** The facility's laboratory licence as recorded (migration 0073). */
   licence: { state: LabLicenceState; validUntil: string | null };
 }
 
@@ -3296,7 +3296,7 @@ export interface SupplierInvoice {
   voidedAt: string | null;
   voidReason: string | null;
   overdue: boolean;
-  /** What was withheld at payment under the organization's own code (migration 0071); entered by staff. */
+  /** What was withheld at payment under the organization's own code (migration 0073); entered by staff. */
   withheldAmount: number;
   withholdingReference: string | null;
   withholdingCode: { id: string; code: string; description: string } | null;
@@ -3593,7 +3593,7 @@ export interface RecordsRequest {
   closedBy: string | null;
   version: number;
   daysWaiting: number;
-  /** The response date from the organization's own response time (migration 0071), and whether it has passed. */
+  /** The response date from the organization's own response time (migration 0073), and whether it has passed. */
   respondBy: string | null;
   overdue: boolean;
   /** How the requester's identity was confirmed before sharing. */
@@ -3624,7 +3624,7 @@ export interface RecordCopy {
   createdAt: string;
 }
 
-// ---- Compliance configuration (migration 0071; docs/architecture/compliance-configuration.md) ----
+// ---- Compliance configuration (migration 0073; docs/architecture/compliance-configuration.md) ----
 
 export type ComplianceArea =
   "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates";

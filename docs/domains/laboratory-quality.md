@@ -183,7 +183,7 @@ date), _not yet competent_. For a test, its own latest assessment counts first, 
 ## Licence
 
 Each facility's laboratory licence as issued, recorded by staff (append-only; a renewal is a new record; migration
-`0071`): number, classification and issuing office as written, validity, the head of the laboratory, and the
+`0073`): number, classification and issuing office as written, validity, the head of the laboratory, and the
 organization's reminder window. `GET|POST /laboratory/licence`; the quality summary's `licence` state (`missing`,
 `not_yet_valid`, `valid`, `expiring`, `expired`) feeds the dashboard. Dates only: licensing rules are not encoded and the
 licence is not verified with DOH (`docs/architecture/compliance-configuration.md`). Staff `/laboratory/licence`.

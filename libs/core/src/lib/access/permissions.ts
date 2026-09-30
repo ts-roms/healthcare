@@ -123,7 +123,7 @@ export const PERMISSIONS = [
   "inventory.valuation.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
   "patient.records-request.manage",
-  // Compliance configuration (migration 0071): who validated each area's configuration; the controlled-item register;
+  // Compliance configuration (migration 0073): who validated each area's configuration; the controlled-item register;
   // document retention periods and their review. No government rule is encoded; values are the organization's.
   "compliance.review.manage",
   "inventory.controlled-register.read",

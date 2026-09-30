@@ -133,7 +133,7 @@ export const recordCompetencySchema = z
   .refine((v) => v.outcome === "competent" || !!v.notes, { message: "Say what is still needed (notes)", path: ["notes"] });
 export class RecordCompetencyDto extends createZodDto(recordCompetencySchema) {}
 
-// ---- Laboratory licence (0071) ------------------------------------------------------------------------------------
+// ---- Laboratory licence (0073) ------------------------------------------------------------------------------------
 
 const optionalText = (min: number, max: number) => z.string().trim().min(min).max(max).optional();
 
