@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { DownloadIcon } from "lucide-react";
-import { openCertificate, openSharedDocument } from "./actions";
+import { openCertificate, openReferralLetter, openSharedDocument } from "./actions";
 
-/** Opens a certificate or a shared document through a short-lived link (each opening is recorded by the clinic). */
-export function OpenFile({ kind, id, label }: { kind: "certificate" | "shared"; id: string; label: string }) {
+/** Opens a certificate, a referral letter or a shared document through a short-lived link (each opening is recorded by the clinic). */
+export function OpenFile({ kind, id, label }: { kind: "certificate" | "referral" | "shared"; id: string; label: string }) {
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const open = () => {
@@ -13,7 +13,7 @@ export function OpenFile({ kind, id, label }: { kind: "certificate" | "shared"; 
     const tab = window.open("", "_blank");
     startTransition(async () => {
       setError(null);
-      const result = kind === "certificate" ? await openCertificate(id) : await openSharedDocument(id);
+      const result = kind === "certificate" ? await openCertificate(id) : kind === "referral" ? await openReferralLetter(id) : await openSharedDocument(id);
       if (result.ok) {
         if (tab) tab.location.href = result.data.url;
         else window.location.assign(result.data.url);

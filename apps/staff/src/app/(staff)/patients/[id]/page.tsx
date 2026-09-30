@@ -20,8 +20,11 @@ import {
   ReceiptIcon,
   SmileIcon,
   HistoryIcon,
+  NotebookTextIcon,
   LayoutDashboardIcon,
   GitMergeIcon,
+  WaypointsIcon,
+  SyringeIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -42,8 +45,10 @@ import type {
   StaffProxyOverview,
   YakapConsultationList,
   YakapRegistrationOverview,
+  Referral,
 } from "@/lib/api/types";
-import { todayIn } from "@/lib/clinic-mapping";
+import { referralRecipient, todayIn } from "@/lib/clinic-mapping";
+import { ReferralList } from "@/components/referral-list";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
 import { ExternalHistory } from "./external-history";
@@ -59,6 +64,22 @@ import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patie
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { MergedRecords } from "./merged-records";
+import { ImmunizationHistory } from "@/components/immunizations/immunization-panel";
+import type { ImmunizationRecord } from "@/lib/api/types";
+import { HistorySummary } from "@/components/history/history-panels";
+import { loadPatientHistory } from "@/lib/api/history";
+
+/** The immunization history (audited by the API); null without immunization.read. */
+async function loadImmunizations(id: string): Promise<ImmunizationRecord[] | null> {
+  const session = await getSession();
+  if (!can(session, "immunization.read")) return null;
+  try {
+    return await api<ImmunizationRecord[]>(`/patients/${id}/immunizations`);
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+    throw e;
+  }
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -133,6 +154,16 @@ async function loadRecentActivity(id: string): Promise<PatientTimelinePage | nul
   }
 }
 
+/** The patient's referrals (records merged into it included), newest first; null when they cannot be shown (no encounter.read). */
+async function loadReferrals(id: string): Promise<Referral[] | null> {
+  try {
+    return await api<Referral[]>("/referrals", { query: { view: "all", patientId: id } });
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
 /** Merge history (as the retired record and as the survivor); null when there is none or it cannot be shown. */
 async function loadMergeHistory(p: PatientDetail): Promise<MergeHistoryEntry[] | null> {
   if (!p.mergedInto && !p.mergedRecords?.length) return null;
@@ -196,7 +227,7 @@ async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverv
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, proxies, labResults, labArchives, eligibility, yakap, externalHistory, recent, facility, session] = await Promise.all([
+  const [p, summary, portal, proxies, labResults, labArchives, eligibility, yakap, externalHistory, recent, referrals, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
@@ -207,11 +238,16 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     loadYakap(id),
     loadExternalHistory(id),
     loadRecentActivity(id),
+    loadReferrals(id),
     getSelectedFacility(),
     getSession(),
   ]);
-  const mergeHistory = await loadMergeHistory(p);
   const merged = p.status === "merged";
+  const [mergeHistory, immunizations, medicalHistory] = await Promise.all([
+    loadMergeHistory(p),
+    merged ? Promise.resolve(null) : loadImmunizations(id),
+    merged ? Promise.resolve(null) : loadPatientHistory(id).then((h) => h.history),
+  ]);
   const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBill = can(session, "billing.charge.read");
@@ -360,7 +396,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
-        <Card className="lg:row-span-3">
+        <Card className="lg:row-span-3" id="clinical-summary">
           <CardHeader>
             <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
             <CardTitle>Clinical summary</CardTitle>
@@ -507,6 +543,66 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                 <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
               )}
               <WithheldNote withheld={recent.withheld} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {referrals ? (
+          <Card className="lg:col-span-2" id="referrals">
+            <CardHeader>
+              <WaypointsIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Referrals</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href="/clinic/referrals">All referrals</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ReferralList
+                empty="No referrals. Referrals are made from a consultation."
+                referrals={referrals.slice(0, 10).map((r) => ({
+                  id: r.id,
+                  referralNumber: r.referralNumber,
+                  status: r.status,
+                  urgency: r.urgency,
+                  recipient: referralRecipient(r),
+                  specialty: r.specialty,
+                  issuedAt: r.issuedAt,
+                  overdue: r.overdue,
+                  referringPractitionerName: r.referringPractitioner?.displayName ?? null,
+                  filedUnder: r.patientId !== p.id ? (r.patient?.patientNumber ?? null) : null,
+                }))}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {medicalHistory ? (
+          <Card className="lg:col-span-2" id="history">
+            <CardHeader>
+              <NotebookTextIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Medical, family and social history</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/history`}>{can(session, "history.record") ? "Open and record" : "Open history"}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <HistorySummary history={medicalHistory} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {immunizations ? (
+          <Card className="lg:col-span-2" id="immunizations">
+            <CardHeader>
+              <SyringeIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Immunizations</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/immunizations`}>{can(session, "immunization.record") ? "Open and record" : "Open history"}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <ImmunizationHistory patientId={p.id} records={immunizations.slice(0, 5)} canRecord={false} grouped={false} linkedRecords={p.mergedRecords} />
+              {immunizations.length > 5 ? <p className="text-meta text-muted-foreground">{immunizations.length - 5} more in the full history.</p> : null}
             </CardContent>
           </Card>
         ) : null}

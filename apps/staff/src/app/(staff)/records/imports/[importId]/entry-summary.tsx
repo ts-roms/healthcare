@@ -71,6 +71,61 @@ export function EntrySummary({ item }: { item: ImportedItem }) {
           </Field>
         </Fields>
       );
+    case "immunization":
+      return (
+        <Fields>
+          <Field term="Vaccine">{item.vaccine ?? "—"}</Field>
+          <Field term="Given">{item.occurrence ?? (item.occurrenceText ? `"${item.occurrenceText}" (no date)` : "—")}</Field>
+          <Field term="Status (sender)">
+            {item.status}
+            {item.notDoneReason ? ` — ${item.notDoneReason}` : ""}
+          </Field>
+          {item.doseNumber ? <Field term="Dose">{item.doseNumber}</Field> : null}
+          {item.lotNumber ? (
+            <Field term="Lot">{[item.lotNumber, item.expirationDate ? `expires ${item.expirationDate}` : null].filter(Boolean).join(", ")}</Field>
+          ) : null}
+          {item.route || item.site ? <Field term="Route / site">{[item.route, item.site].filter(Boolean).join(" · ")}</Field> : null}
+          {item.performer || item.location ? <Field term="Given by / where">{[item.performer, item.location].filter(Boolean).join(", ")}</Field> : null}
+          <Field term="Source">
+            {item.primarySource === false ? `Reported to the sender${item.reportOrigin ? ` (${item.reportOrigin})` : ""}` : "The sender's own record"}
+          </Field>
+          <Codes codes={item.codes} />
+        </Fields>
+      );
+    case "procedure":
+      return (
+        <Fields>
+          <Field term="Procedure">{item.display ?? "—"}</Field>
+          <Field term="Done">{item.performed ?? (item.performedText ? `"${item.performedText}" (no date)` : "Date not given")}</Field>
+          <Field term="Status (sender)">{item.status}</Field>
+          {item.performer ? <Field term="By / where">{item.performer}</Field> : null}
+          {item.bodySite ? <Field term="Body site">{item.bodySite}</Field> : null}
+          {item.outcome ? <Field term="Outcome">{item.outcome}</Field> : null}
+          <Codes codes={item.codes} />
+        </Fields>
+      );
+    case "family_history":
+      return (
+        <Fields>
+          <Field term="Relative">
+            {item.relationshipText ?? item.relationship.replace(/_/g, " ")}
+            {item.relationship === "other" ? <span className="text-muted-foreground"> (kept as written)</span> : null}
+          </Field>
+          <Field term="Conditions">
+            {item.conditions.length
+              ? item.conditions.map((c, i) => (
+                  <div key={i}>
+                    {c.display}
+                    {c.onsetAge !== null ? ` — from age ${c.onsetAge}` : c.onsetText ? ` — ${c.onsetText}` : ""}
+                    {c.contributedToDeath ? " (contributed to death)" : ""}
+                  </div>
+                ))
+              : "—"}
+          </Field>
+          {item.deceased !== null ? <Field term="Deceased">{item.deceased ? "Yes" : "No"}</Field> : null}
+          <Field term="Status (sender)">{item.status}</Field>
+        </Fields>
+      );
     case "not_supported":
       return (
         <p className="text-table text-muted-foreground">{item.resourceType} is not supported for import. It is kept with the import but cannot be accepted.</p>

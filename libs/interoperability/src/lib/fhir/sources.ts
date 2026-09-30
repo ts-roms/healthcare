@@ -340,6 +340,48 @@ export interface ExternalHistorySource {
 }
 
 /**
+ * An immunization record (clinic): a dose given here, not given (with the reason), reported by the patient or another
+ * provider (historical), or accepted from an import. Immutable except for being marked entered in error and a reaction
+ * added once (database trigger), so the latest of those times and `recordedAt` is a reliable last-updated time.
+ */
+export interface ImmunizationSource {
+  id: string;
+  source: "administered_here" | "historical" | "external_import";
+  status: "completed" | "not_done";
+  /** refused, contraindicated, unavailable or other; with the clinician's (or sender's) words. */
+  notDoneReason: string | null;
+  notDoneReasonText: string | null;
+  vaccineName: string;
+  /** A catalogue code-system key (administered here, historical) or the system URI as received (imports). */
+  vaccineCodeSystem: string | null;
+  vaccineCode: string | null;
+  vaccineManufacturer: string | null;
+  doseLabel: string | null;
+  doseNumber: number | null;
+  /** YYYY-MM-DD (a year as 1 January, a month as its first day). */
+  occurrenceDate: string;
+  occurrencePrecision: "year" | "month" | "day" | "time";
+  occurredAt: string | null;
+  facilityId: string | null;
+  encounterId: string | null;
+  performerPractitionerId: string | null;
+  performerName: string | null;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  route: string | null;
+  site: string | null;
+  doseQuantity: number | null;
+  doseUnit: string | null;
+  /** Where the information came from (reported or imported doses). */
+  sourceDescription: string | null;
+  declaredSource: string | null;
+  adverseReaction: string | null;
+  adverseReactionRecordedAt: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/**
  * The dental record (libs/dental), in this layer's terms. Teeth are FDI / ISO 3950 two-digit codes; surfaces the
  * platform's fixed set (M, D, O, I, B, L). Examinations, procedures and periodontal charts are immutable except for
  * being marked entered in error (database trigger), so `enteredInErrorAt ?? recorded/performed time` is reliable.
@@ -450,7 +492,129 @@ export interface DentalPerioChartSource {
   }>;
 }
 
+/**
+ * A referral made from a consultation: the referring practitioner, the practitioner referred to (internal) or the
+ * outside provider as the referrer wrote it (external; not verified), the referrer's own words and the diagnoses they
+ * listed. The letter is a document with the referral's id.
+ */
+export interface ReferralSource {
+  id: string;
+  referralNumber: string;
+  kind: "internal" | "external";
+  status: "sent" | "accepted" | "declined" | "completed" | "cancelled";
+  urgency: "routine" | "urgent" | "emergency";
+  encounterId: string;
+  referringPractitionerId: string;
+  toPractitionerId: string | null;
+  externalProvider: string | null;
+  externalFacility: string | null;
+  externalContact: string | null;
+  specialty: string | null;
+  reason: string;
+  clinicalSummary: string | null;
+  diagnosisIds: string[];
+  issuedAt: string;
+  /** An outside provider's reply stored as a document of the patient. */
+  replyDocumentId: string | null;
+}
+
 /** Everything about one patient that the platform exports. */
+/** Who told the organization about a history entry (source `reported`). */
+export type HistoryInformant = "patient" | "relative" | "other_provider";
+
+/** A past procedure or surgery (clinic history): as reported, documented here, or accepted from an import. */
+export interface PastProcedureSource {
+  id: string;
+  source: "reported" | "recorded_here" | "external_import";
+  reportedBy: HistoryInformant | null;
+  description: string;
+  /** A code-system key of the organization, or the system URI as received for an import. */
+  codeSystem: string | null;
+  code: string | null;
+  /** YYYY-MM-DD (a year as 1 January, a month as its first day), or null when not known. */
+  performedDate: string | null;
+  performedPrecision: "year" | "month" | "day" | null;
+  performer: string | null;
+  bodySite: string | null;
+  sourceDescription: string | null;
+  declaredSource: string | null;
+  recorderPractitionerId: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** A condition diagnosed elsewhere, as reported (never a diagnosis of the organization). */
+export interface PastConditionSource {
+  id: string;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  description: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetDate: string | null;
+  onsetPrecision: "year" | "month" | "day" | null;
+  /** As reported. */
+  reportedStatus: "active" | "resolved" | "unknown";
+  diagnosedBy: string | null;
+  sourceDescription: string | null;
+  recorderPractitionerId: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** A relative's condition, as reported or imported. */
+export interface FamilyHistorySource {
+  id: string;
+  source: "reported" | "external_import";
+  relationship: string;
+  relationshipText: string | null;
+  condition: string;
+  codeSystem: string | null;
+  code: string | null;
+  onsetAge: number | null;
+  deceased: boolean | null;
+  causeOfDeath: string | null;
+  declaredSource: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/** One version of the social history (a whole snapshot). Sensitive fields are null when withheld. */
+export interface SocialHistorySource {
+  id: string;
+  effectiveDate: string;
+  tobaccoStatus: "never" | "former" | "current" | "unknown" | null;
+  tobaccoType: string | null;
+  tobaccoAmount: string | null;
+  tobaccoQuitYear: number | null;
+  alcoholStatus: "never" | "former" | "current" | "unknown" | null;
+  alcoholFrequency: string | null;
+  substanceUse: string | null;
+  occupation: string | null;
+  occupationalExposures: string | null;
+  livingSituation: string | null;
+  physicalActivity: string | null;
+  diet: string | null;
+  sexualHistory: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/**
+ * The patient history (clinic): rows change only when marked entered in error (database trigger), so that time or
+ * `recordedAt` is a reliable last-updated time. `sensitiveIncluded` is false when substance use and sexual history
+ * were withheld from the caller (their Observations are then left out, with a notice).
+ */
+export interface PatientHistorySource {
+  procedures: PastProcedureSource[];
+  conditions: PastConditionSource[];
+  family: FamilyHistorySource[];
+  /** The latest family history review (none known, not known, or reviewed as listed), or null. */
+  familyReview: { outcome: "reviewed" | "none_known" | "unknown"; unknownReason: string | null; reviewedAt: string } | null;
+  social: SocialHistorySource[];
+  sensitiveIncluded: boolean;
+}
+
 export interface PatientRecordSource {
   patient: PatientSource;
   facilities: FacilitySource[];
@@ -464,10 +628,16 @@ export interface PatientRecordSource {
   labOrders: LabOrderSource[];
   prescriptions: PrescriptionSource[];
   carePlans: CarePlanSource[];
+  /** Referrals (ServiceRequest, category Patient referral). */
+  referrals: ReferralSource[];
   /** The patient's documents, or null when the caller may not see documents (they are then withheld, with a notice). */
   documents: DocumentSource[] | null;
   /** External history accepted from imports (document descriptions are withheld with documents, when `documents` is null). */
   externalHistory: ExternalHistorySource[];
   /** The dental record, or null when the caller may not read it (dental resources are then withheld, with a notice). */
   dental: DentalRecordSource | null;
+  /** The immunization history (entries in error included, marked). */
+  immunizations: ImmunizationSource[];
+  /** Past procedures and conditions, family and social history (entries in error included, marked). */
+  history: PatientHistorySource;
 }

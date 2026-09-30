@@ -14,6 +14,13 @@ describe("notification templates", () => {
     expect(template!.variables.safeParse({ givenName: "Juan" }).success).toBe(false);
   });
 
+  it("tell the patient a referral letter is ready without naming the recipient or the reason", () => {
+    const records = findTemplate("records.update")!;
+    const text = records.render(records.variables.parse({ kind: "referral-ready", organizationName: "Demo Health" }) as never).text;
+    expect(text).toBe("Demo Health: a referral letter from your visit is ready in MyHealth. Sign in to see it and download the letter.");
+    expect(records.variables.safeParse({ kind: "referral-ready" }).success).toBe(false);
+  });
+
   it("keep security messages internal and blank their credentials once stored", () => {
     const reset = findTemplate("portal.password-reset")!;
     expect(reset.internal).toBe(true);

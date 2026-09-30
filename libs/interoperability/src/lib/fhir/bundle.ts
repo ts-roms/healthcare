@@ -4,7 +4,10 @@ import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnow
 import { dentalResources } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
+import { historyResources } from "./history";
+import { toImmunization } from "./immunization";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
+import { toReferralServiceRequest } from "./referrals";
 import { compact } from "./support";
 import { DEFAULT_PAGING, matchesLastUpdated, PAGE_SIZE, type Paging, type SearchParameters } from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
@@ -24,6 +27,8 @@ export const PATIENT_COMPARTMENT_TYPES = [
   "CarePlan",
   "DocumentReference",
   "Procedure",
+  "Immunization",
+  "FamilyMemberHistory",
 ] as const;
 export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 
@@ -31,12 +36,20 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
  * Types whose resources carry a reliable `meta.lastUpdated`, so `_lastUpdated` can filter them: prescriptions are
  * immutable once issued (cancel/replace records its time), exported documents never change after upload (a dental
  * image's description only when added or marked entered in error), external history entries (the only
- * MedicationStatements, and imported document descriptions) and dental procedures (the only Procedures) change only
- * when marked entered in error (database triggers). The other records are updated in place without a trustworthy
+ * MedicationStatements, and imported document descriptions), dental procedures and past procedures (the Procedures)
+ * and family history entries change only when marked entered in error (database triggers), and immunizations only
+ * when marked entered in error or when a reaction is added (database trigger). The other records are updated in place without a trustworthy
  * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
  * them rather than answered approximately.
  */
-export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference", "Procedure"];
+export const LAST_UPDATED_TYPES: readonly CompartmentType[] = [
+  "MedicationRequest",
+  "MedicationStatement",
+  "DocumentReference",
+  "Procedure",
+  "Immunization",
+  "FamilyMemberHistory",
+];
 
 /** Types that include dental records (withheld from callers who may not read the dental record). */
 export const DENTAL_TYPES: readonly CompartmentType[] = ["Observation", "CarePlan", "Procedure"];
@@ -61,11 +74,17 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   }
   for (const p of src.prescriptions) clinical.push(...toMedicationRequests(ctx, patientId, p));
   for (const c of src.carePlans) clinical.push(toCarePlan(patientId, c));
+  // Referrals point at their letter and reply only when those documents are exported too.
+  const documentIds = src.documents ? new Set(src.documents.map((d) => d.id)) : null;
+  for (const r of src.referrals) clinical.push(toReferralServiceRequest(ctx, patientId, r, documentIds));
   for (const d of src.documents ?? []) clinical.push(toDocumentReference(ctx, patientId, d));
   // External history (tagged as imported); document descriptions are withheld with the documents.
   for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
   // Dental record (withheld, with a notice, from callers who may not read it); dental images are documents, above.
   if (src.dental) clinical.push(...dentalResources(ctx, patientId, src.dental));
+  for (const i of src.immunizations) clinical.push(toImmunization(ctx, patientId, i));
+  // Past procedures and conditions, family and social history (substance use and sexual history only when included).
+  clinical.push(...historyResources(ctx, patientId, src.history));
 
   const supporting: FhirResource[] = [
     toOrganization(ctx),
@@ -148,15 +167,29 @@ function searchset(
 }
 
 const DOCUMENTS_WITHHELD = "DocumentReference resources are not included: this account may not read documents (document.read).";
+const SENSITIVE_WITHHELD =
+  "Substance use and sexual history (social-history Observations) are not included: this account may not see them (history.read and encounter.write).";
 const DENTAL_WITHHELD =
   "Dental records (Procedure resources, and dental CarePlan and Observation resources) are not included: this account may not read the dental record (dental.record.read).";
+
+/**
+ * Sensitive social history was left out for this caller. Said only when the patient has a social history at all, so
+ * the notice never tells whether anything sensitive is recorded.
+ */
+function sensitiveWithheld(src: PatientRecordSource): boolean {
+  return !src.history.sensitiveIncluded && src.history.social.length > 0;
+}
 
 /** Patient/$everything: the patient's whole record as a searchset Bundle, paged (the Patient comes first). */
 export function patientEverything(ctx: FhirContext, src: PatientRecordSource, paging: Paging = DEFAULT_PAGING, now = new Date()): Bundle {
   const { patient, clinical, supporting } = patientResources(ctx, src);
   const matches = [patient, ...clinical];
   const path = `${ctx.baseUrl}/Patient/${src.patient.id}/$everything`;
-  const notices = [...(src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []), ...(src.dental === null ? [notice(DENTAL_WITHHELD)] : [])];
+  const notices = [
+    ...(src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []),
+    ...(src.dental === null ? [notice(DENTAL_WITHHELD)] : []),
+    ...(sensitiveWithheld(src) ? [notice(SENSITIVE_WITHHELD)] : []),
+  ];
   return searchset(ctx, matches, supporting, paging, links(path, [], paging, matches.length), now, notices);
 }
 
@@ -173,20 +206,27 @@ export function searchByPatient(
   const query: Array<[string, string]> = [["patient", src.patient.id]];
   if (params.lastUpdated.ge !== undefined) query.push(["_lastUpdated", `ge${params.lastUpdated.ge}`]);
   if (params.lastUpdated.le !== undefined) query.push(["_lastUpdated", `le${params.lastUpdated.le}`]);
-  const notices = src.dental === null && DENTAL_TYPES.includes(type) ? [notice(DENTAL_WITHHELD)] : [];
+  const notices = [
+    ...(src.dental === null && DENTAL_TYPES.includes(type) ? [notice(DENTAL_WITHHELD)] : []),
+    ...(type === "Observation" && sensitiveWithheld(src) ? [notice(SENSITIVE_WITHHELD)] : []),
+  ];
   return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, notices);
 }
 
 const IMPORTED = "Resources received from other systems (accepted FHIR imports) carry meta.tag record-source#external-import.";
 const DENTAL = "Dental resources require dental.record.read (withheld otherwise, with an OperationOutcome notice); dental codes are local code systems.";
 const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
-  Condition: `Diagnoses recorded in encounters, and conditions from other systems (always unconfirmed). ${IMPORTED}`,
+  ServiceRequest:
+    "Laboratory tests ordered (category Laboratory), and referrals (category SNOMED CT 3457005 Patient referral; priority routine, urgent, or stat for an emergency referral; an outside provider as contained Organization/Practitioner, as written by the referrer; the platform's own status and urgency in notes).",
+  Condition: `Diagnoses recorded in encounters, past conditions diagnosed elsewhere as reported (local category past-medical-history, always unconfirmed; never the problem list), and conditions from other systems (always unconfirmed). ${IMPORTED}`,
   AllergyIntolerance: `${IMPORTED} Imported allergies are always unconfirmed.`,
-  Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), observations from other systems, and dental observations (category exam: examinations, the current tooth chart, periodontal charts). ${IMPORTED} ${DENTAL}`,
+  Observation: `Vital signs, released laboratory results (performer: the organization, or a contained reference laboratory for a send-out), observations from other systems, dental observations (category exam: examinations, the current tooth chart, periodontal charts), and social history (category social-history, one per part of each version, local codes; substance use and sexual history also need history.read and encounter.write). ${IMPORTED} ${DENTAL}`,
   MedicationStatement: `Medication history from other systems only (never a prescription of this organization). ${IMPORTED}`,
   CarePlan: `Care plans, and dental treatment plans (category dental; the patient's decision per item as the activity's status reason). ${DENTAL}`,
   DocumentReference: `Available documents only (not archived ones; dental images with their kind, teeth and visit), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
-  Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces). ${DENTAL}`,
+  Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces), and past procedures from the patient's history (local category past-procedure; reported ones tagged record-source#reported, the asserter who told the organization). ${IMPORTED} ${DENTAL}`,
+  FamilyMemberHistory: `Relatives' conditions as reported (relationship in HL7 v3 RoleCode; age at onset; a cause of death as a condition that contributed to death). ${IMPORTED}`,
+  Immunization: `Doses given here (primarySource true), not given (not-done with the reason), reported by the patient or another provider (primarySource false, reportOrigin as text) and accepted from imports. vaccineCode is the organization's own catalogue code (a local code system unless configured); partial dates at their precision. ${IMPORTED}`,
 };
 
 /** What this read-only endpoint supports (GET /metadata). */
@@ -207,7 +247,7 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
         security: {
           cors: false,
           description:
-            "Bearer token of a staff account holding interop.fhir.read, with the organization selected; documents also need document.read, the dental record dental.record.read. Every access is audited.",
+            "Bearer token of a staff account holding interop.fhir.read, with the organization selected; documents also need document.read, the dental record dental.record.read, substance use and sexual history history.read and encounter.write. Every access is audited.",
         },
         documentation:
           `Searches and Patient/$everything are paged: _count (default ${PAGE_SIZE.default}, at most ${PAGE_SIZE.max}; 0 returns only the total) ` +

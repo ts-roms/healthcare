@@ -22,6 +22,29 @@ export function spanOverlapsPeriod(start: string, end: string | null, period: Co
   return (!period.to || start <= period.to) && (!period.from || end === null || end >= period.from);
 }
 
+/**
+ * The days a recorded occurrence covers: a whole year, a whole month, or its day (an immunization reported as "2019"
+ * or "May 2019"). Used to decide whether it falls in a period.
+ */
+export function occurrenceSpan(date: string, precision: "year" | "month" | "day" | "time"): { start: string; end: string } {
+  if (precision === "year") return { start: `${date.slice(0, 4)}-01-01`, end: `${date.slice(0, 4)}-12-31` };
+  if (precision === "month") {
+    const [y, m] = [Number(date.slice(0, 4)), Number(date.slice(5, 7))];
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return { start: `${date.slice(0, 7)}-01`, end: `${date.slice(0, 7)}-${String(last).padStart(2, "0")}` };
+  }
+  return { start: date, end: date };
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A partial date as printed: "2019", "May 2019", or the day as `format` prints it. */
+export function occurrenceLabel(date: string, precision: "year" | "month" | "day" | "time", format: (date: string) => string): string {
+  if (precision === "year") return date.slice(0, 4);
+  if (precision === "month") return `${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
+  return format(date);
+}
+
 /** "All records", "From 1 Jan 2026", "Up to 31 Mar 2026" or "1 Jan 2026 to 31 Mar 2026". */
 export function periodLabel(period: CopyPeriod, format: (date: string) => string): string {
   if (period.from && period.to) return `${format(period.from)} to ${format(period.to)}`;

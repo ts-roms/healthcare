@@ -51,7 +51,9 @@ reminders are sent to it. Each item links to the screen that resolves it:
 | Deposit or credit balance               | Apply it to an invoice or refund it                      |
 
 An **active care plan** is only a note: it stays under the retired number and is shown on the surviving record, but its reminders are no longer sent.
-Consider closing it and starting one on the surviving record. Reload the page after resolving the items.
+Consider closing it and starting one on the surviving record. An **open referral** is also only a note: it stays under the retired number (its letter
+names it) and is shown with the surviving record; answers and replies are still recorded on it, but no new referral can be made under the retired
+number. Reload the page after resolving the items.
 
 The page also says what happens to MyHealth: if only the retired record has an account, it moves to the surviving record (the patient signs in
 again; the surviving record's portal consent applies). If both have one, the retired record's account is disabled.
@@ -102,7 +104,7 @@ administrators). You get a message under the bell for each new request.
 4. Confirm the requester as your organization's Data Privacy Act procedures require. The platform encodes no deadline, fee or disclosure rule.
 5. To give a copy of the record itself, use **Copy of the record** (below the request): the sections matching what the patient asked for and the
    request's period are already filled in. Tick or untick sections (allergies, consultations, laboratory results, prescriptions, care plans, dental
-   treatment, medical certificates, documents on file), change the dates if needed (leave them empty for the whole record), and select **Prepare
+   treatment, medical certificates, documents on file, immunizations, medical, family and social history), change the dates if needed (leave them empty for the whole record), and select **Prepare
    copy**. The platform compiles one PDF and stores it in the patient's record; select **Open** to check it. It is not sent to the patient yet.
 6. To share copies: upload scans to the patient's record first if they are not there (see [Patients](02-patients.md)), tick the documents under
    **Documents to share** (including a copy of the record you prepared), add a **Note to the patient** if useful, and select **Share**. The patient
@@ -117,7 +119,8 @@ can send a new one. Patients can have at most 3 open requests and can withdraw a
 **What a copy of the record contains.** Only the record as it stands: signed consultation notes (as last amended, never drafts) with diagnoses and
 vital signs, laboratory results that have been released, issued medical certificates (listed; each is its own document) and a list of documents on
 file (the files themselves are shared separately). Drafts, consultations still in progress and entries marked as made in error are left out; records
-received from other providers are labelled. Allergies are always the current list. Dates follow your facility's time zone. Preparing a copy is
+received from other providers are labelled. Allergies and the medical, family and social history are always as they stand now (the history
+includes its private parts: the copy answers the patient's own request). Dates follow your facility's time zone. Preparing a copy is
 recorded. Billing records and dental charts are not included; whether a copy must be signed or certified is your organization's procedure.
 
 ### Your records-request procedure
@@ -186,6 +189,9 @@ Each entry under **Entries** shows its type, its content in readable form, any n
 | ----------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | AllergyIntolerance                                    | **Accept as allergy**          | Records an allergy, always **unconfirmed** and marked as from an external source ("External record")           |
 | Condition, Observation, medication, DocumentReference | **Accept as external history** | Adds it to the patient's **External history (imported)** — not a diagnosis, result, vital sign or prescription |
+| Immunization                                          | **Accept as immunization**     | Adds it to the patient's immunizations, marked **Imported**                                                    |
+| Procedure (done)                                      | **Accept as past procedure**   | Adds it to the patient's past procedures (medical history), marked **Imported** — not a procedure done here    |
+| FamilyMemberHistory                                   | **Accept as family history**   | Adds each of the relative's conditions to the patient's family history, marked **Imported**                    |
 | Any other type                                        | —                              | Shown as **Not supported for import**; cannot be accepted                                                      |
 
 1. Read the entry and its notes. Accept only what you would record yourself.
@@ -343,6 +349,7 @@ Other systems (for example a referral hospital's system) can read a patient's re
   an integration account.
 - Documents also need `document.read`; the dental record also needs `dental.record.read`.
 - Only **released** laboratory results are exported. Imported allergies and external history are exported marked as from an external source.
+- Referrals are exported as referral requests (`ServiceRequest`), with the urgency (an emergency referral as the highest priority, "stat").
 - Every access is audited with the patient and what was returned.
 - Other systems send records in through `POST /api/v1/fhir/r4/imports` (`interop.fhir.import`); these land in the review queue described above.
 

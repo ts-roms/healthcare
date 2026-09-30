@@ -1,19 +1,19 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source) and
-// 0061 (costs on every movement, supplier invoices) and 0074 (withholding, procurement methods, controlled register);
-// the migrations are the source of truth.
+// Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source),
+// 0061 (costs on every movement, supplier invoices), 0074 (withholding, procurement methods, controlled register) and
+// 0081 (the vaccine category and the immunization source); the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 /** Integer centavos (PHP). */
 const money = (name: string) => bigint(name, { mode: "number" });
 
-export const ITEM_CATEGORIES = ["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "other"] as const;
+export const ITEM_CATEGORIES = ["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "vaccine", "other"] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export const MOVEMENT_KINDS = ["receipt", "issue", "transfer_out", "transfer_in", "adjustment", "write_off", "return"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 /** Workflows that move stock through the inventory contract (the movement names its source). */
-export const MOVEMENT_SOURCES = ["prescription_dispense", "lab_reagent_load", "purchase_order_line", "dental_procedure"] as const;
+export const MOVEMENT_SOURCES = ["prescription_dispense", "lab_reagent_load", "purchase_order_line", "dental_procedure", "immunization"] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 export const PURCHASE_ORDER_STATUSES = ["draft", "submitted", "approved", "partially_received", "received", "cancelled", "closed"] as const;
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];

@@ -102,7 +102,8 @@ The menu has:
 | **Messages** | Notices and messages from the clinic. A number shows how many are new            |
 | **Profile**  | Your name, patient number, date of birth, sex, clinic and sign-in email          |
 
-On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills** and **Documents**. Your care plan, medicines
+On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills**, **Documents**,
+**Immunizations** and **Health history**. Your care plan, medicines
 and bills are opened from these buttons. **See all** next to **Upcoming** or **Recent results** opens the full list.
 
 Times of visits are shown in the clinic's local time (Philippine time for most clinics).
@@ -239,6 +240,27 @@ Always follow your doctor's instructions. Ask your pharmacist or doctor if you a
 
 If you have no active care plan you see "No active care plan".
 
+## How to see your immunizations
+
+1. On Home, choose **Immunizations**.
+2. **Your immunizations** lists your vaccines by name, each dose with when it was given (as precisely as it is known — sometimes only the year),
+   the dose, where it was given and whether it was **Given at our clinic**, **Recorded from your vaccination record** or **From another
+   provider's records**.
+
+It is a record of what you received, not advice about which vaccine you need: ask your doctor or nurse. If something is missing or wrong, tell
+the clinic at your next visit — bring your vaccination card.
+
+## How to see your health history
+
+1. On Home, choose **Health history**.
+2. **Your health history** shows what your clinic recorded: **Operations and procedures** and **Past illnesses** (with when, as precisely as it is
+   known), your **Family history** (or that none is known, or that it has not been recorded yet), and **Daily life** — tobacco and alcohol use,
+   work, home, activity and diet, as of a date. Each entry says where it came from (told to the clinic, from your records, or from another
+   provider).
+
+Private details (other substance use, sexual history) are marked with a lock and shown only to you — not to someone who looks after your
+account for you. You cannot change anything here: if something is wrong or missing, tell your clinic at your next visit or send them a message.
+
 ## How to see and pay your bills
 
 1. On Home, choose **Bills**.
@@ -281,12 +303,15 @@ You can have up to 5 open conversations, and send up to 10 messages an hour. The
 Notices are not conversations: to ask something, use **New message**. To stop reminders by text message or email, change your
 [notification settings](#how-to-choose-which-messages-you-get).
 
-## How to get your medical certificates and copies of your records
+## How to get your medical certificates, referral letters and copies of your records
 
 Choose **Documents** on **Home**.
 
 - **Medical certificates** — certificates your doctor issued after a visit. Choose **Download** to open one. You get a message when a new one is
   ready. A certificate the clinic cancelled is no longer listed.
+- **Referrals** — when your doctor refers you to another doctor or clinic: who it is to, the date and where it stands (for example "Sent — bring the
+  letter when you go"). Choose **Letter** to open the referral letter to bring or send. You get a message when a new one is ready. A referral your
+  doctor cancelled stays listed as cancelled, without its letter.
 - **Copies of your records** — to ask the clinic's records office for copies:
   1. Choose **Ask for copies of my records**.
   2. Tick what you need (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical certificates or

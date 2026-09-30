@@ -10,7 +10,7 @@ interface CreatedDocument {
 
 export interface PatientDocumentUpload {
   patientId: string;
-  category: "consent_form" | "imaging";
+  category: "consent_form" | "imaging" | "clinical_attachment";
   title: string;
   file: File;
   /** Makes a retried registration return the same document instead of a new one. */

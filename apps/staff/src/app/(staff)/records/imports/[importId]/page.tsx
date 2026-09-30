@@ -18,11 +18,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BECOMES: Record<NonNullable<FhirImportEntry["becomes"]>, string> = {
   allergy: "Accepting records an allergy (unconfirmed, marked as from an external source).",
+  immunization: "Accepting adds it to the patient's immunization history as a dose recorded by another provider (marked as imported).",
+  past_procedure: "Accepting adds it to the patient's past procedures (medical history), marked as imported — not a procedure done here.",
+  family_history: "Accepting adds each of the relative's conditions to the patient's family history, marked as imported.",
   external_history: "Accepting adds it to the patient's external history — not a diagnosis, result, vital sign or prescription.",
   patient_match: "Used to match the patient; the patient's demographics are not changed.",
 };
 const ACCEPT_LABEL: Record<NonNullable<FhirImportEntry["becomes"]>, string> = {
   allergy: "Accept as allergy",
+  immunization: "Accept as immunization",
+  past_procedure: "Accept as past procedure",
+  family_history: "Accept as family history",
   external_history: "Accept as external history",
   patient_match: "Accept",
 };

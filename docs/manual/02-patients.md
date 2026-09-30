@@ -92,8 +92,9 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
   visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
   decision.
 - **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
-- **Consent & communication**, **Recent activity**, **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient
-  portal (MyHealth)**.
+- **Consent & communication**, **Recent activity**, **Referrals** (the patient's referrals with their status and **Overdue** when your organization flags
+  them; select one to open it), **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient portal
+  (MyHealth)**.
 
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 
@@ -255,6 +256,8 @@ record, **360** in the search results, **Patient 360** on a queue ticket, or **P
 - **Laboratory results** — the latest released value of the patient's most relevant tests (critical and abnormal first, then tests with earlier results), with
   **Trend** for each and a small chart for up to two tests. **All results** goes to the record's laboratory section.
 - **Open laboratory orders** — each order's priority, when it was ordered and each test's stage (for example "To collect").
+- **Referrals** — open referrals first, then the latest finished ones: number, to whom, urgency, status and **Overdue** when your organization flags
+  them. Select one to open it (the reason is read there).
 - **Images and documents** — dental radiographs and photos and the documents uploaded for the patient. Select one to open it (a link valid for a few minutes;
   each opening is recorded).
 - **Problem list**, **Active medications** (with prescriber, prescription number and date), **Care plans** (with the next due activity and **Overdue** when it
@@ -264,7 +267,7 @@ Every panel shows only what your role may read. A panel you may not see says "No
 panel links to the screen where the work is done. Opening Patient 360 is recorded in the audit trail.
 
 When other records were merged into this patient, a line under the alerts says "Includes the records of P…", and every row filed under one of those numbers
-says **Filed under P…** (consultations, orders, results, problems, medicines, images and documents). Opening Patient 360 of a merged (retired) record opens
+says **Filed under P…** (consultations, orders, results, problems, medicines, referrals, images and documents). Opening Patient 360 of a merged (retired) record opens
 the surviving record's workspace.
 
 ## How to use the timeline
@@ -351,6 +354,68 @@ Document links are short-lived and each opening is recorded in the audit trail.
 
 The timeline includes the entries of every record merged into this patient; each says **Filed under P…** after its details. The timeline of a merged
 (retired) record opens the surviving record's timeline.
+
+## How to record immunizations
+
+Staff with `immunization.read` see an **Immunizations** card on the patient record (the latest five) and the full history at **Open history**
+(`/patients/[id]/immunizations`), grouped by vaccine. Each dose shows when it was given (as precisely as known: a year, a month, a day or a
+time), the dose as recorded, **Given**, **Not given** or **Entered in error** (colour, icon and words), and where it came from: **Given here**,
+**Reported** or **Imported**.
+
+The history is a record of what was given. It does **not** say which vaccine or dose is due: use your clinical judgement and your
+organization's protocol.
+
+With `immunization.record` (physicians and nurses by default):
+
+1. **Record dose given here** (select your facility first). Choose the **Vaccine** from your organization's catalogue and **Given** or **Not
+   given**.
+   - **Given:** choose the lot **From stock** (the lot number and expiry are filled in and one unit leaves stock when you save) or type the
+     **Lot number** (required) and **Expiry** (not before the day given). Add the dose, route and site (from the catalogue's lists), amount
+     and unit, and any reaction you observed. Leave **Date given** empty for now.
+   - **Not given:** choose why (**Refused**, **Contraindicated**, **Vaccine unavailable**, **Other reason**) and write it in your words
+     (required for "Other reason").
+2. **Record reported dose** for a dose given elsewhere (a vaccination card, the patient's recall): the vaccine from the catalogue or its name as
+   written, **When given** as `2019`, `2019-05` or `2019-05-12`, the dose as written, who gave it or where, **Where the information comes
+   from** (required), and optionally a scan: choose one on file or **Upload a scan**.
+3. A reaction noticed later: **Add reaction…** on the dose (once). It does not create an allergy — if the reaction means an allergy, record it
+   in **Allergies** (**Record an allergy if appropriate** opens the record).
+4. A mistake: **Entered in error…** with a reason. The dose stays listed, struck through; a dose taken from stock goes back to its lot. Record
+   the correct dose again. Records are never edited or deleted.
+
+Doses filed under a record merged into this one say **Filed under P…**; new doses are recorded on the surviving record. Doses accepted from an
+imported record are marked **Imported** (see [Records, reporting and integrations](11-records-reporting-and-integrations.md)).
+
+## How to record the medical, family and social history
+
+Staff with `history.read` see a **Medical, family and social history** card on the patient record (the family history state, past procedures and
+conditions, tobacco and alcohol use) and the full history at **Open history** (`/patients/[id]/history`). It holds what the patient, a relative or
+another provider told you, or what you documented from records you saw. It is **not** a diagnosis: past conditions here are never on the problem
+list, never billed and never reported. Nothing in it is scored.
+
+With `history.record` (physicians, nurses and dentists by default):
+
+1. **Add procedure** — a past operation or procedure: its name, **When** as `2019`, `2019-05` or `2019-05-12` (or empty when not known), where or
+   by whom, the side or body site, an optional code of your organization's code system, and the **Source**: **Reported to us** (say who: the
+   patient, a relative or another provider) or **Documented here** (for example from a discharge summary the patient brought).
+2. **Add condition** — an illness diagnosed elsewhere, with **Since** and its **Status as reported** (still present, resolved, not known). To make
+   a diagnosis yourself, record it in the consultation instead.
+3. **Add relative's condition** — the relative from the list (**Other relative** needs who), the condition, the age it began, and whether the
+   relative has died (with the cause, as reported).
+4. The family history state is shown with colour, icon and words: **Family history not recorded — ask the patient**, **No known family history**
+   (only after you record it), **Family history not known** (adopted, not known to the patient, or declined to answer) or **Family history
+   recorded**. After asking, choose **No known family history**, **Reviewed: complete as listed** or **Not known…** with the reason.
+5. **Record social history** (or **Record new version**) — tobacco (never, former, current, not known; type, amount per day, year stopped),
+   alcohol (and how often), occupation and exposures at work, living situation, physical activity, diet and notes, **As of** a date (empty for
+   today). The form starts from the current version; each save is a new version and earlier versions stay listed under **Earlier versions**. If
+   someone else saved a version while you were typing you are asked to reopen the page.
+6. A mistake: **Entered in error…** with a reason. The entry stays listed, struck through; for the social history the previous version becomes
+   current again. Nothing is edited or deleted.
+
+**Other substance use** and **Sexual history** are private (a lock icon). Only staff who also hold `encounter.write` (physicians and dentists by
+default) see and change them; others see "Substance use and sexual history are not shown to you", and a version they save keeps those parts
+unchanged. They never appear in the timeline, messages or search. The patient sees them in MyHealth; a guardian acting for the patient does not.
+
+Entries filed under a record merged into this one say **Filed under P…**; entries accepted from an imported record are marked **Imported**.
 
 ## External history (imported)
 

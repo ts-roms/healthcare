@@ -2,6 +2,8 @@ import { as, auditRows, createClinician, createStaff, createTenant, createTestAp
 
 interface Workspace {
   patientId: string;
+  referrals: Array<{ id: string; status: string }> | null;
+  history: { family: { state: string }; social: { sensitiveWithheld: boolean } | null } | null;
   facility: { id: string; name: string } | null;
   timeZone: string;
   currentEncounter: {
@@ -21,6 +23,7 @@ interface Workspace {
   encounterHistory: Array<{ id: string; status: string; diagnoses: Array<{ code: string | null; display: string; isChronic: boolean }> }> | null;
   criticalResults: Array<{ id: string; status: string; testName: string; orderNumber: string; orderId: string }> | null;
   labOrders: Array<{ id: string; orderNumber: string; priority: string; tests: Array<{ testName: string; status: string }> }> | null;
+  immunizations: Array<{ id: string; vaccineName: string }> | null;
   dentalImages: Array<{ id: string; kind: string; teeth: string[] }> | null;
   documents: Array<{ id: string; category: string; title: string }> | null;
   withheld: string[];
@@ -308,4 +311,7 @@ const PANEL_FIELDS: Record<string, keyof Workspace> = {
   lab_orders: "labOrders",
   dental_images: "dentalImages",
   documents: "documents",
+  referrals: "referrals",
+  immunizations: "immunizations",
+  history: "history",
 };

@@ -11,8 +11,8 @@ const RECORDS_OFFICE_PERMISSION = "patient.records-request.manage";
 
 /**
  * Records notices (docs/domains/records-requests.md): patients who use MyHealth are told — in the app and by SMS (or
- * email when SMS is not possible), with no clinical detail — when a medical certificate from their visit is ready or
- * the records office answered their request; the records office is told in the app of each new request. Consent and
+ * email when SMS is not possible), with no clinical detail — when a medical certificate or a referral letter from their
+ * visit is ready or the records office answered their request; the records office is told in the app of each new request. Consent and
  * communication preferences apply (NotificationService); one message per event and recipient.
  */
 @Injectable()
@@ -28,6 +28,7 @@ export class PatientRecordsNotices implements OnModuleInit {
 
   onModuleInit(): void {
     this.handlers.on("MedicalCertificateIssued", "portal.certificate-ready", (event) => this.tellPatient(event, { kind: "certificate-ready" }));
+    this.handlers.on("ReferralCreated", "portal.referral-ready", (event) => this.tellPatient(event, { kind: "referral-ready" }));
     this.handlers.on(["RecordsRequestFulfilled", "RecordsRequestDeclined"], "portal.records-request-answered", (event) =>
       this.tellPatient(event, { kind: "request-answered", requestNumber: event.payload["requestNumber"] }),
     );

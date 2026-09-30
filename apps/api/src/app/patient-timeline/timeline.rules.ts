@@ -20,6 +20,7 @@ export const TIMELINE_KINDS = {
   communication: { permission: "notification.read", sources: ["communication"] },
   external_history: { permission: "clinical.read", sources: ["external_history"] },
   document: { permission: "document.read", sources: ["document"] },
+  immunization: { permission: "immunization.read", sources: ["immunization"] },
 } as const satisfies Record<string, { permission: string; sources: readonly string[] }>;
 
 export type TimelineKind = keyof typeof TIMELINE_KINDS;

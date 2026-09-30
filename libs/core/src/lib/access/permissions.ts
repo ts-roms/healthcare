@@ -136,6 +136,13 @@ export const PERMISSIONS = [
   "document.retention.manage",
   // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).
   "lab.instrument.message.submit",
+  // Immunization history (migration 0081); the vaccine catalogue is managed with clinic.configure.
+  "immunization.read",
+  "immunization.record",
+  // Patient history: past procedures and conditions, family and social history (migration 0082). Substance use and
+  // sexual history also need encounter.write.
+  "history.read",
+  "history.record",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

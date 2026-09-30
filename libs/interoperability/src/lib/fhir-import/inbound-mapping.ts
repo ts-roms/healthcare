@@ -7,10 +7,16 @@ import {
   type ImportedCode,
   type ImportedCondition,
   type ImportedDocument,
+  type ImportedFamilyHistory,
+  type ImportedFamilyHistoryInput,
+  type ImportedImmunization,
+  type ImportedImmunizationInput,
   type ImportedItem,
   type ImportedMedication,
   type ImportedObservation,
+  type ImportedPastProcedureInput,
   type ImportedPatient,
+  type ImportedProcedure,
   type SubjectMatch,
 } from "./inbound-model";
 import type {
@@ -18,10 +24,13 @@ import type {
   InboundCodeableConcept,
   InboundCondition,
   InboundDocumentReference,
+  InboundFamilyMemberHistory,
+  InboundImmunization,
   InboundMedicationRequest,
   InboundMedicationStatement,
   InboundObservation,
   InboundPatient,
+  InboundProcedure,
   InboundQuantity,
   InboundReference,
   ParsedEntry,
@@ -363,6 +372,201 @@ export function mapDocument(r: InboundDocumentReference, patient: ImportPatientR
   };
 }
 
+// ---- Immunization ------------------------------------------------------------------------------------------------
+
+/** A FHIR dateTime the platform can record as a (possibly partial) date: YYYY, YYYY-MM, YYYY-MM-DD or an instant. */
+const RECORDABLE_DATE_TIME = /^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?)?)?$/;
+
+export function mapImmunization(r: InboundImmunization, patient: ImportPatientRef | null): ImportedImmunization {
+  const subject = subjectMatch(r.patient, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const vaccine = clip(conceptText(r.vaccineCode), 200);
+  if (!vaccine) {
+    acceptable = false;
+    notes.push("No vaccine is named.");
+  }
+  if (r.status === "entered-in-error") {
+    acceptable = false;
+    notes.push("The sender marks it entered-in-error.");
+  }
+  const fromText = r.occurrenceString && RECORDABLE_DATE_TIME.test(r.occurrenceString.trim()) ? r.occurrenceString.trim() : null;
+  const occurrence = r.occurrenceDateTime ?? fromText;
+  if (!occurrence) {
+    acceptable = false;
+    notes.push(`The date is given only as text ("${clip(r.occurrenceString, 60) ?? ""}"): record it as a reported dose instead.`);
+  }
+  if (r.status === "not-done") notes.push("Recorded by the sender as not given.");
+  if (r.primarySource === false) notes.push("The sender did not give it: it was reported to them.");
+  const dose = r.protocolApplied?.[0];
+  const performer = r.performer?.find((p) => p.actor.display)?.actor.display ?? null;
+  return {
+    kind: "immunization",
+    resourceType: "Immunization",
+    acceptable,
+    notes,
+    subject,
+    vaccine,
+    codes: codesOf(r.vaccineCode),
+    status: r.status,
+    notDoneReason: clip(conceptText(r.statusReason), 500),
+    occurrence,
+    occurrenceText: occurrence ? null : clip(r.occurrenceString, 60),
+    primarySource: r.primarySource ?? null,
+    reportOrigin: clip(conceptText(r.reportOrigin), 200),
+    lotNumber: clip(r.lotNumber, 60),
+    expirationDate: r.expirationDate && /^\d{4}-\d{2}-\d{2}$/.test(r.expirationDate) ? r.expirationDate : null,
+    site: clip(conceptText(r.site), 60),
+    route: clip(conceptText(r.route), 60),
+    doseQuantity:
+      r.doseQuantity?.value !== undefined && r.doseQuantity.value > 0
+        ? { value: r.doseQuantity.value, unit: clip(r.doseQuantity.unit ?? r.doseQuantity.code, 20) }
+        : null,
+    performer: clip(performer, 200),
+    manufacturer: clip(r.manufacturer?.display, 200),
+    doseNumber: dose ? clip(dose.doseNumberString ?? (dose.doseNumberPositiveInt !== undefined ? String(dose.doseNumberPositiveInt) : null), 60) : null,
+    location: clip(r.location?.display, 200),
+  };
+}
+
+// ---- Procedure ---------------------------------------------------------------------------------------------------
+
+/** The date part of a FHIR dateTime (YYYY, YYYY-MM or YYYY-MM-DD as the sender wrote it), from 1900. */
+function datePart(value: string | undefined): string | null {
+  const m = value ? /^(\d{4}(-\d{2}(-\d{2})?)?)/.exec(value) : null;
+  return m && Number(m[1]!.slice(0, 4)) >= 1900 ? m[1]! : null;
+}
+
+export function mapProcedure(r: InboundProcedure, patient: ImportPatientRef | null): ImportedProcedure {
+  const subject = subjectMatch(r.subject, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const display = clip(conceptText(r.code), 300);
+  if (!display) {
+    acceptable = false;
+    notes.push("No procedure is named.");
+  }
+  if (r.status !== "completed") {
+    acceptable = false;
+    notes.push(`The sender records it as ${r.status}: only procedures that were done are added to the patient's history.`);
+  }
+  const performed = datePart(r.performedDateTime ?? r.performedPeriod?.start);
+  const performedText =
+    performed === null
+      ? clip(
+          r.performedString ?? (r.performedAge ? `at age ${quantityText(r.performedAge)}` : null) ?? (r.performedDateTime || r.performedPeriod?.start) ?? null,
+          60,
+        )
+      : null;
+  const performer = (r.performer ?? []).map((p) => p.actor.display).filter((d): d is string => Boolean(d));
+  return {
+    kind: "procedure",
+    resourceType: "Procedure",
+    acceptable,
+    notes,
+    subject,
+    display,
+    codes: codesOf(r.code),
+    status: r.status,
+    performed,
+    performedText,
+    performer: clip([...performer, r.location?.display].filter(Boolean).join(", "), 300),
+    bodySite: clip(
+      (r.bodySite ?? [])
+        .map((b) => conceptText(b))
+        .filter(Boolean)
+        .join(", "),
+      120,
+    ),
+    outcome: clip(conceptText(r.outcome), 200),
+  };
+}
+
+// ---- FamilyMemberHistory -----------------------------------------------------------------------------------------
+
+/** HL7 v3 RoleCode (FamilyMember value set) → the platform's relationship list; anything else is "other". */
+const ROLE_RELATIONSHIPS: Record<string, string> = {
+  MTH: "mother",
+  NMTH: "mother",
+  FTH: "father",
+  NFTH: "father",
+  SIS: "sister",
+  NSIS: "sister",
+  BRO: "brother",
+  NBRO: "brother",
+  SIB: "sibling",
+  NSIB: "sibling",
+  HSIB: "half_sibling",
+  HSIS: "half_sibling",
+  HBRO: "half_sibling",
+  DAU: "daughter",
+  DAUC: "daughter",
+  SON: "son",
+  SONC: "son",
+  CHILD: "child",
+  NCHILD: "child",
+  MGRMTH: "maternal_grandmother",
+  MGRFTH: "maternal_grandfather",
+  PGRMTH: "paternal_grandmother",
+  PGRFTH: "paternal_grandfather",
+  MAUNT: "maternal_aunt",
+  MUNCLE: "maternal_uncle",
+  PAUNT: "paternal_aunt",
+  PUNCLE: "paternal_uncle",
+  COUSN: "cousin",
+  MCOUSN: "cousin",
+  PCOUSN: "cousin",
+};
+
+export function mapFamilyHistory(r: InboundFamilyMemberHistory, patient: ImportPatientRef | null): ImportedFamilyHistory {
+  const subject = subjectMatch(r.patient, patient);
+  const { acceptable: subjectOk, notes } = subjectNotes(subject);
+  let acceptable = subjectOk;
+  const roleCode = (r.relationship.coding ?? []).find((c) => c.system === SYSTEMS.v3RoleCode && c.code)?.code;
+  const relationship = (roleCode && ROLE_RELATIONSHIPS[roleCode]) || "other";
+  const relationshipText = clip(conceptText(r.relationship) ?? r.name, 100);
+  const conditions = (r.condition ?? []).flatMap((c) => {
+    const display = clip(conceptText(c.code), 300);
+    if (!display) return [];
+    const years =
+      c.onsetAge && c.onsetAge.value !== undefined && (c.onsetAge.code === "a" || /^(a|y|yr|yrs|year|years)$/i.test(c.onsetAge.unit ?? ""))
+        ? c.onsetAge.value
+        : null;
+    const onsetAge = years !== null && Number.isInteger(years) && years >= 0 && years <= 130 ? years : null;
+    const onsetText =
+      onsetAge === null
+        ? clip(c.onsetString ?? (c.onsetAge ? quantityText(c.onsetAge) : null) ?? c.onsetPeriod?.start ?? (c.onsetRange ? "a range of ages" : null), 60)
+        : null;
+    return [{ display, codes: codesOf(c.code), onsetAge, onsetText, contributedToDeath: c.contributedToDeath === true }];
+  });
+  if (r.status === "entered-in-error") {
+    acceptable = false;
+    notes.push("The sender marks it entered-in-error.");
+  }
+  if (conditions.length === 0) {
+    acceptable = false;
+    notes.push(
+      r.status === "health-unknown"
+        ? "The sender says the relative's health is not known: record that as the family history review instead."
+        : "No condition of the relative is named.",
+    );
+  }
+  if (relationship === "other") notes.push(`The relationship is kept as written ("${relationshipText ?? "family member"}").`);
+  const deceased = r.deceasedBoolean !== undefined ? r.deceasedBoolean : r.deceasedAge || r.deceasedRange || r.deceasedDate || r.deceasedString ? true : null;
+  return {
+    kind: "family_history",
+    resourceType: "FamilyMemberHistory",
+    acceptable,
+    notes,
+    subject,
+    relationship,
+    relationshipText,
+    status: r.status,
+    deceased,
+    conditions,
+  };
+}
+
 // ---- entries -----------------------------------------------------------------------------------------------------
 
 /** The import's patient reference (its one Patient entry), for matching the subjects of the other entries. */
@@ -388,6 +592,12 @@ export function mapInboundResource(ctx: InboundContext, resource: ParsedEntry["r
       return mapMedication(resource as unknown as InboundMedicationStatement | InboundMedicationRequest, patient);
     case "DocumentReference":
       return mapDocument(resource as unknown as InboundDocumentReference, patient);
+    case "Immunization":
+      return mapImmunization(resource as unknown as InboundImmunization, patient);
+    case "Procedure":
+      return mapProcedure(resource as unknown as InboundProcedure, patient);
+    case "FamilyMemberHistory":
+      return mapFamilyHistory(resource as unknown as InboundFamilyMemberHistory, patient);
     default:
       return {
         kind: "not_supported",
@@ -478,6 +688,84 @@ export function toExternalHistory(item: ImportedCondition | ImportedObservation 
         effectiveText: clip(item.date, 60),
       };
   }
+}
+
+/**
+ * The immunization record an accepted Immunization becomes: the vaccine as named and coded by the sender, the date at
+ * the precision received, and where the information comes from (the sender's own record, or reported to it).
+ */
+export function toImmunizationInput(item: ImportedImmunization): ImportedImmunizationInput {
+  if (!item.vaccine || !item.occurrence) throw new Error("An immunization without a vaccine or a date cannot be recorded");
+  const coded = firstCode(item.codes);
+  const numeric = item.doseNumber && /^\d{1,2}$/.test(item.doseNumber) ? Number(item.doseNumber) : null;
+  const unit = item.doseQuantity?.unit ?? null;
+  return {
+    vaccineName: item.vaccine,
+    vaccineCodeSystem: coded.code ? coded.codeSystem : null,
+    vaccineCode: coded.code,
+    manufacturer: item.manufacturer,
+    status: item.status === "not-done" ? "not_done" : "completed",
+    notDoneReasonText: item.status === "not-done" ? item.notDoneReason : null,
+    occurrence: item.occurrence,
+    doseLabel: item.doseNumber,
+    doseNumber: numeric !== null && numeric >= 1 && numeric <= 50 ? numeric : null,
+    lotNumber: item.lotNumber,
+    expiryDate: item.expirationDate,
+    route: item.route,
+    site: item.site,
+    doseQuantity: item.doseQuantity && unit ? item.doseQuantity.value : null,
+    doseUnit: item.doseQuantity && unit ? unit : null,
+    performerName: clip([item.performer, item.location].filter(Boolean).join(", "), 200),
+    sourceDescription: clip(
+      item.primarySource === false ? `Reported to the sender${item.reportOrigin ? ` (${item.reportOrigin})` : ""}` : "Recorded by the sender",
+      300,
+    ),
+  };
+}
+
+/**
+ * The past procedure an accepted Procedure becomes: the procedure as named and coded by the sender, the date part of
+ * what was sent (a date given only as text, an age or the outcome kept as a note), and who did it.
+ */
+export function toPastProcedureInput(item: ImportedProcedure): ImportedPastProcedureInput {
+  if (!item.display) throw new Error("A procedure without a name cannot be recorded");
+  const coded = firstCode(item.codes);
+  return {
+    description: item.display,
+    codeSystem: coded.code ? coded.codeSystem : null,
+    code: coded.code,
+    performed: item.performed,
+    performer: item.performer,
+    bodySite: item.bodySite,
+    notes: clip(
+      [item.performedText ? `Date at the source: ${item.performedText}` : null, item.outcome ? `Outcome: ${item.outcome}` : null].filter(Boolean).join(". "),
+      2000,
+    ),
+    sourceDescription: "Recorded by the sender",
+  };
+}
+
+/**
+ * The family history entries an accepted FamilyMemberHistory becomes: one per condition of the relative; a condition
+ * that contributed to death is also its cause of death.
+ */
+export function toFamilyHistoryInputs(item: ImportedFamilyHistory): ImportedFamilyHistoryInput[] {
+  if (item.conditions.length === 0) throw new Error("A family member history without a condition cannot be recorded");
+  return item.conditions.map((c) => {
+    const coded = firstCode(c.codes);
+    const deceased = c.contributedToDeath ? true : item.deceased;
+    return {
+      relationship: item.relationship,
+      relationshipText: item.relationship === "other" ? (item.relationshipText ?? "Family member") : null,
+      condition: c.display,
+      codeSystem: coded.code ? coded.codeSystem : null,
+      code: coded.code,
+      onsetAge: c.onsetAge,
+      deceased,
+      causeOfDeath: c.contributedToDeath ? clip(c.display, 300) : null,
+      notes: c.onsetText ? `Onset at the source: ${c.onsetText}` : null,
+    };
+  });
 }
 
 /**

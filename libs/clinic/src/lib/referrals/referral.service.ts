@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   type Actor,
   BusinessRuleError,
@@ -9,13 +9,14 @@ import {
   DomainEventPublisher,
   filedAsPatient,
   ForbiddenError,
+  NotFoundError,
   systemActor,
   VersionConflictError,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
-import { and, asc, desc, eq, inArray, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, ne, or, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type {
   answerReferralSchema,
@@ -24,12 +25,25 @@ import type {
   createReferralSchema,
   linkReferralAppointmentSchema,
   referralQuerySchema,
+  referralSettingsSchema,
 } from "../clinic.dto";
-import { allergyIntolerance, appointment, diagnosis, encounter, practitioner, referral, referralNumberSequence, type ReferralRecord } from "../clinic.schema";
+import {
+  allergyIntolerance,
+  appointment,
+  diagnosis,
+  encounter,
+  practitioner,
+  referral,
+  referralNumberSequence,
+  type ReferralRecord,
+  referralSetting,
+  type ReferralStatus,
+  type ReferralUrgency,
+} from "../clinic.schema";
 import { found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
 import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
-import { type ReferralAction, referralAllows, referralNumber } from "./referral.rules";
+import { overdueBefore, type ReferralAction, referralAllows, referralNumber, referralOverdue } from "./referral.rules";
 
 const URGENCY_LABEL = { routine: "Routine", urgent: "Urgent", emergency: "Emergency" } as const;
 
@@ -41,7 +55,30 @@ export type ReferralView = Omit<ReferralRecord, "organizationId"> & {
   /** Who is looking: whether they may answer or complete it (the API checks again). */
   forYou: boolean;
   byYou: boolean;
+  /** Still waiting for the recipient past the organization's threshold (never while the flag is off). */
+  overdue: boolean;
 };
+
+/** The organization's referral follow-up setting; version 0 while never saved. */
+export interface ReferralSettings {
+  overdueAfterDays: number | null;
+  version: number;
+}
+
+/** A referral as the patient sees it in MyHealth: to whom, when, how urgent and where it stands — the letter holds the rest. */
+export interface PatientReferralView {
+  id: string;
+  referralNumber: string;
+  issuedAt: Date;
+  status: ReferralStatus;
+  urgency: ReferralUrgency;
+  /** The practitioner referred to (with their specialty), or the outside provider and facility as the referrer wrote them. */
+  recipient: string;
+  specialty: string | null;
+  referringPractitionerName: string | null;
+  /** Cancelled referrals are listed without their letter. */
+  letterAvailable: boolean;
+}
 
 /**
  * Referrals (docs/domains/clinic.md, "Referrals"): the consultation's responsible practitioner refers the patient to a
@@ -166,11 +203,16 @@ export class ReferralService {
       conditions.push(eq(query.view === "to_me" ? referral.toPractitionerId : referral.referringPractitionerId, clinician.id));
     }
     if (query.view === "open") conditions.push(or(eq(referral.status, "sent"), eq(referral.status, "accepted"))!);
+    if (query.view === "overdue") {
+      const before = overdueBefore((await this.settings(actor)).overdueAfterDays);
+      if (!before) return [];
+      conditions.push(eq(referral.status, "sent"), lte(referral.issuedAt, before));
+    }
     const rows = await this.db
       .select()
       .from(referral)
       .where(and(...conditions))
-      .orderBy(query.view === "open" ? asc(referral.issuedAt) : desc(referral.issuedAt))
+      .orderBy(query.view === "open" || query.view === "overdue" ? asc(referral.issuedAt) : desc(referral.issuedAt))
       .limit(200);
     return this.views(actor, rows);
   }
@@ -284,6 +326,108 @@ export class ReferralService {
     await this.ensureLetter(row);
     const { body } = await this.documents.content(actor, row.id);
     return { filename, pdf: body };
+  }
+
+  // ---- follow-up setting ----------------------------------------------------------------------
+
+  /** The organization's overdue threshold (null: off, the default). */
+  async settings(actor: Pick<Actor, "organizationId">): Promise<ReferralSettings> {
+    const [row] = await this.db
+      .select({ overdueAfterDays: referralSetting.overdueAfterDays, version: referralSetting.version })
+      .from(referralSetting)
+      .where(eq(referralSetting.organizationId, actor.organizationId));
+    return row ?? { overdueAfterDays: null, version: 0 };
+  }
+
+  /** Sets or clears the overdue threshold (optimistic version; audited with before and after). */
+  async updateSettings(actor: Actor, input: z.infer<typeof referralSettingsSchema>): Promise<ReferralSettings> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(referralSetting).where(eq(referralSetting.organizationId, actor.organizationId)).for("update");
+      if ((current?.version ?? 0) !== input.version) throw new VersionConflictError("Referral settings", input.version);
+      const values = { overdueAfterDays: input.overdueAfterDays, updatedBy: actor.userId, updatedAt: new Date() };
+      const [saved] = current
+        ? await tx
+            .update(referralSetting)
+            .set({ ...values, version: current.version + 1 })
+            .where(eq(referralSetting.organizationId, actor.organizationId))
+            .returning()
+        : await tx
+            .insert(referralSetting)
+            .values({ organizationId: actor.organizationId, ...values })
+            .returning();
+      await this.audit.record(tx, actor, {
+        action: "encounter.referral.settings",
+        resourceType: "organization",
+        resourceId: actor.organizationId,
+        changes: { overdueAfterDays: { from: current?.overdueAfterDays ?? null, to: input.overdueAfterDays } },
+      });
+      return { overdueAfterDays: saved?.overdueAfterDays ?? null, version: saved?.version ?? 1 };
+    });
+  }
+
+  // ---- MyHealth -------------------------------------------------------------------------------
+
+  /** The patient's referrals (records merged into it included), newest first. Not audited here: the portal audits its page. */
+  async issuedForPatient(organizationId: string, patientId: string): Promise<PatientReferralView[]> {
+    const rows = await this.db
+      .select({
+        id: referral.id,
+        referralNumber: referral.referralNumber,
+        issuedAt: referral.issuedAt,
+        status: referral.status,
+        urgency: referral.urgency,
+        kind: referral.kind,
+        specialty: referral.specialty,
+        externalProvider: referral.externalProvider,
+        externalFacility: referral.externalFacility,
+        referringPractitionerId: referral.referringPractitionerId,
+        toPractitionerId: referral.toPractitionerId,
+      })
+      .from(referral)
+      .where(and(eq(referral.organizationId, organizationId), filedAsPatient(referral.patientId, patientId)))
+      .orderBy(desc(referral.issuedAt), desc(referral.id));
+    if (!rows.length) return [];
+    const ids = [...new Set(rows.flatMap((r) => [r.referringPractitionerId, ...(r.toPractitionerId ? [r.toPractitionerId] : [])]))];
+    const clinicians = await this.db
+      .select({ id: practitioner.id, displayName: practitioner.displayName, specialty: practitioner.specialty })
+      .from(practitioner)
+      .where(and(eq(practitioner.organizationId, organizationId), inArray(practitioner.id, ids)));
+    const byId = new Map(clinicians.map((c) => [c.id, c]));
+    return rows.map((r) => {
+      const to = r.toPractitionerId ? byId.get(r.toPractitionerId) : undefined;
+      return {
+        id: r.id,
+        referralNumber: r.referralNumber,
+        issuedAt: r.issuedAt,
+        status: r.status,
+        urgency: r.urgency,
+        recipient:
+          r.kind === "internal"
+            ? [to?.displayName ?? "A practitioner of the clinic", to?.specialty].filter(Boolean).join(", ")
+            : [r.externalProvider, r.externalFacility].filter(Boolean).join(", "),
+        specialty: r.specialty,
+        referringPractitionerName: byId.get(r.referringPractitionerId)?.displayName ?? null,
+        letterAvailable: r.status !== "cancelled",
+      };
+    });
+  }
+
+  /** A short-lived link to the letter of one of the patient's referrals (not a cancelled one); audited as their download. */
+  async patientLink(context: PatientAuditContext, referralId: string): Promise<{ url: string; expiresAt: string }> {
+    const [row] = await this.db
+      .select()
+      .from(referral)
+      .where(
+        and(
+          eq(referral.organizationId, context.organizationId),
+          eq(referral.id, referralId),
+          filedAsPatient(referral.patientId, context.patientId),
+          ne(referral.status, "cancelled"),
+        ),
+      );
+    if (!row) throw new NotFoundError("Referral");
+    await this.ensureLetter(row);
+    return this.documents.downloadUrlForPatient(context, row.id);
   }
 
   // ---- internals ------------------------------------------------------------------------------
@@ -466,7 +610,7 @@ export class ReferralService {
     if (!rows.length) return [];
     const practitionerIds = [...new Set(rows.flatMap((r) => [r.referringPractitionerId, ...(r.toPractitionerId ? [r.toPractitionerId] : [])]))];
     const diagnosisIds = [...new Set(rows.flatMap((r) => r.diagnosisIds))];
-    const [clinicians, patients, diagnoses, me] = await Promise.all([
+    const [clinicians, patients, diagnoses, me, settings] = await Promise.all([
       this.db
         .select({ id: practitioner.id, displayName: practitioner.displayName, specialty: practitioner.specialty })
         .from(practitioner)
@@ -479,7 +623,9 @@ export class ReferralService {
             .where(and(eq(diagnosis.organizationId, actor.organizationId), inArray(diagnosis.id, diagnosisIds)))
         : Promise.resolve([]),
       this.config.practitionerForUser(actor.organizationId, actor.userId),
+      this.settings(actor),
     ]);
+    const now = new Date();
     const byId = new Map(clinicians.map((c) => [c.id, c]));
     return rows.map((r) => ({
       ...publicView(r),
@@ -489,6 +635,7 @@ export class ReferralService {
       diagnoses: diagnoses.filter((d) => r.diagnosisIds.includes(d.id)),
       forYou: Boolean(me && me.id === r.toPractitionerId),
       byYou: Boolean(me && me.id === r.referringPractitionerId),
+      overdue: referralOverdue(r, settings.overdueAfterDays, now),
     }));
   }
 }

@@ -214,8 +214,8 @@ describe("inbound validation", () => {
   });
 
   it("does not interpret (or validate) resource types it does not import beyond their type and id", () => {
-    const odd = { resourceType: "Immunization", id: "i1", whatever: { nested: true } };
-    expect(parseImport(odd).entries[0]!.resourceType).toBe("Immunization");
+    const odd = { resourceType: "Goal", id: "i1", whatever: { nested: true } };
+    expect(parseImport(odd).entries[0]!.resourceType).toBe("Goal");
   });
 });
 
