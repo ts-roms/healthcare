@@ -60,6 +60,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <Link href="/appointments/waitlist">Waiting list</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
+              <Link href="/appointments/schedules">Schedules</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
               <Link href="/appointments/visit-types">
                 <GlobeIcon /> Online booking
               </Link>
@@ -85,6 +88,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         canManage={can(session, "appointment.manage")}
         canCheckIn={can(session, "clinic.queue.manage")}
         canOpenRecord={can(session, "patient.read")}
+        facilityId={facility.id}
+        timeZone={facility.timezone}
       />
     </>
   );
