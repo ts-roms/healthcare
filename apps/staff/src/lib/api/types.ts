@@ -4626,6 +4626,27 @@ export interface WorkspaceProcedure {
   performerName: string | null;
 }
 
+export interface CalendarEventItem {
+  id: string;
+  facilityId: string;
+  title: string;
+  kind: "meeting" | "event" | "blocked" | "training" | "reminder";
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  location: string | null;
+  description: string | null;
+  visibility: "facility" | "invitees";
+  status: "scheduled" | "cancelled";
+  organizerUserId: string;
+  organizerName: string;
+  cancelReason: string | null;
+  version: number;
+  attendees: Array<{ userId: string; displayName: string }>;
+  /** The caller may change or cancel it. */
+  editable: boolean;
+}
+
 /** `GET /prescriptions/issued`: prescriptions issued at the selected facility over a period. */
 export interface IssuedPrescriptions {
   facilityId: string;

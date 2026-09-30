@@ -32,3 +32,6 @@ export * from "./lib/procedures/procedure.rules";
 export * from "./lib/procedures/procedure.service";
 export * from "./lib/referrals/referral.service";
 export * from "./lib/referrals/referral.rules";
+export * from "./lib/calendar/calendar.schema";
+export * from "./lib/calendar/calendar.rules";
+export type { CalendarEventView } from "./lib/calendar/calendar.service";
