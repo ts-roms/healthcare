@@ -6,6 +6,8 @@ export interface MessageView {
   /** The staff member's name for a clinic message; "You" is decided by the reader. */
   senderName: string | null;
   body: string;
+  /** A guardian wrote this for the patient. */
+  viaGuardian: boolean;
   createdAt: string;
 }
 

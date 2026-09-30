@@ -201,6 +201,26 @@ verification**, write the reason (at least 5 characters) and confirm: the patien
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).
 Invitations are only possible for active patients.
 
+## How to give a guardian or caregiver access to a patient's MyHealth
+
+Use this for a parent of a child, or an adult who helps an older patient. Check the person's identity and their right to act by the clinic's own procedure
+first; the system records what you checked and decides nothing about who may act.
+
+1. The guardian needs their own **active MyHealth account**, and the patient's **Patient portal access (MyHealth)** consent must be **Granted** (given by the
+   guardian for a child).
+2. On the patient's record, in **Patient portal (MyHealth)**, under **Guardians and caregivers**, select **Add a guardian or caregiver…**.
+3. Enter the guardian's **patient number**, the **Relationship**, the **Right to act**, and **What was checked** (documents seen, who verified; no clinical
+   detail). Tick **May also make changes** if they may book, message and request records; leave it off for view-only access. Add **Ends on** if access
+   should stop on a date.
+4. Select **Give access**. The patient (if they have an account) is emailed.
+
+The list shows each person with their status and what was checked. To stop access, select **End access** and give the reason. Access also ends if the
+patient (an adult) or the guardian ends it in MyHealth, and stops when the patient's portal consent is withdrawn. Each action the guardian takes is audited
+with the guardian as the actor. In **Messages**, what a guardian wrote is labelled "written by a parent or guardian".
+
+If you don't see **Add a guardian or caregiver…**, you need the `patient.portal.proxy.manage` permission (org admins, receptionists and records officers).
+A guardian may act for at most 10 people.
+
 ## How to start a conversation with a patient in MyHealth
 
 For a patient with an **Active** MyHealth account:

@@ -139,6 +139,15 @@ deciding one of its dental plans (`apps/api/test/patient-merge-portal-actions.in
 panels carry `filedUnder` (the retired patient number), the summary lists `linkedRecords`, domain rows keep their
 `patientId`.
 
+## Guardian access (migration 0080)
+
+`portal_proxy_grant` (guardian and dependent patients of one organization, relationship, basis, scopes `view`/`act`, what was checked, granter, optional end
+date, revocation with reason and who ended it; one live grant per pair; append-only in practice: ended grants stay). `PortalProxyService` in
+`libs/patient/src/lib/proxy`: `actingFor` (per request, used by `PatientAccessGuard` with `X-Acting-For` on `@ProxyAllowed()` routes), the account holder's
+`dependentsOf`/`guardiansOf`/`endByPortal` (`/portal/proxy/*`, own account only) and the clinic's `overview`/`grant`/`revoke`
+(`/patients/:id/portal-proxies`). Rules and the reasons access stops are in `docs/architecture/portal-app.md` ("Guardians and dependents"). Conversation
+messages carry `via_guardian`.
+
 ## Consents recorded by the patient (migration 0069)
 
 A `patient_consent` decision is recorded by exactly one of a staff user (`recorded_by`) or the patient's MyHealth account
@@ -149,14 +158,14 @@ sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `my
 
 ## Events
 
-`PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+`PortalProxyGranted` / `PortalProxyEnded` (guardian access; ids only). `PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
 survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
 
 `patient.search`, `patient.read`, `patient.register` (+ facility context),
 `patient.update`, `patient.consent.manage`, `patient.portal.manage` (invite and
-disable portal accounts; org admin, receptionist, records officer), `patient.merge`
+disable portal accounts; org admin, receptionist, records officer), `patient.portal.proxy.manage` (give and end guardian access; same roles; migration 0080), `patient.merge`
 (merge and unmerge; org admin, records officer; migration 0068).
 
 ## Integration points

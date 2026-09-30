@@ -3660,6 +3660,8 @@ export interface PatientThreadMessage {
   sender: "patient" | "staff";
   senderName: string | null;
   body: string;
+  /** Written by a parent or guardian acting for the patient. */
+  viaGuardian: boolean;
   createdAt: string;
 }
 
@@ -3958,4 +3960,31 @@ export interface Referral {
   /** The caller is the practitioner referred to / the referrer (the API checks again). */
   forYou: boolean;
   byYou: boolean;
+}
+
+/** `GET /patients/:id/portal-proxies`: guardian access, as the clinic sees it. */
+export interface StaffProxyGrant {
+  id: string;
+  guardianPatientId: string;
+  guardianName: string;
+  guardianNumber: string;
+  dependentPatientId: string;
+  dependentName: string;
+  dependentNumber: string;
+  relationship: "parent" | "legal_guardian" | "caregiver" | "spouse_or_partner" | "adult_child" | "other";
+  basis: "parent_of_minor" | "legal_guardian" | "authorized_by_patient" | "other_authorized";
+  scopes: ("view" | "act")[];
+  verificationNote: string;
+  grantedAt: string;
+  grantedByName: string | null;
+  expiresAt: string | null;
+  live: boolean;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  revokedBy: "staff" | "patient" | null;
+}
+
+export interface StaffProxyOverview {
+  actedForBy: StaffProxyGrant[];
+  actingFor: StaffProxyGrant[];
 }

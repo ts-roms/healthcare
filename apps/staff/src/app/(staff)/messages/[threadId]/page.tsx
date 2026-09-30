@@ -48,7 +48,9 @@ export default async function PatientThreadPage({ params }: { params: Promise<{ 
                   className={`flex max-w-[90%] flex-col gap-1 rounded-lg border p-3 ${m.sender === "staff" ? "self-end bg-primary-subtle" : "self-start bg-card"}`}
                 >
                   <p className="flex items-baseline justify-between gap-3 text-meta text-muted-foreground">
-                    <span className="font-medium">{m.sender === "staff" ? (m.senderName ?? "Clinic") : thread.patientName}</span>
+                    <span className="font-medium">
+                      {m.sender === "staff" ? (m.senderName ?? "Clinic") : `${thread.patientName}${m.viaGuardian ? " (written by a parent or guardian)" : ""}`}
+                    </span>
                     <time dateTime={m.createdAt}>{clinicalDateTime(m.createdAt)}</time>
                   </p>
                   <p className="text-body whitespace-pre-line">{m.body}</p>

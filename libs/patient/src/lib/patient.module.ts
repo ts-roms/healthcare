@@ -12,6 +12,8 @@ import { ConsentTextController } from "./consents/consent-text.controller";
 import { ConsentTextService } from "./consents/consent-text.service";
 import { PortalConsentsController } from "./consents/portal-consents.controller";
 import { PortalConsentService } from "./consents/portal-consents.service";
+import { PatientPortalProxyController, PortalProxyController } from "./proxy/proxy.controller";
+import { PortalProxyService } from "./proxy/proxy.service";
 import { PatientController } from "./patient.controller";
 import { PatientRecordService } from "./patient-record.service";
 import { PatientReportingQueries } from "./patient-reporting.queries";
@@ -40,6 +42,8 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PatientMessagesController,
     ConsentTextController,
     PortalMfaLoginController,
+    PortalProxyController,
+    PatientPortalProxyController,
   ],
   providers: [
     PatientRecordService,
@@ -59,6 +63,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalSecurityMailers,
     ConsentTextService,
     PushDeviceCounts,
+    PortalProxyService,
   ],
   exports: [
     PatientRecordService,
@@ -70,6 +75,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalSecurityMailers,
     PatientMessageService,
     PushDeviceCounts,
+    PortalProxyService,
   ],
 })
 export class PatientModule {}

@@ -196,6 +196,18 @@ and the header (**Help**).
 
 The **API** also needs `PORTAL_BASE_URL` (the portal's public address, e.g. `https://myhealth.example.ph`) and, for real email, `SMTP_URL`, or password-reset links are not sent.
 
+## Guardians and dependents
+
+A person with their own MyHealth account may act for another person's record (a child, an older relative) only through a **grant the clinic made** (`portal_proxy_grant`, migration `0080`; staff `patient.portal.proxy.manage`: org_admin, receptionist, records_officer). The clinic checks who they are and by what right they act, by its own procedure, and records the relationship, the basis (`parent_of_minor`, `legal_guardian`, `authorized_by_patient`, `other_authorized`), a note of what was checked and an optional end date. The platform encodes no rule about age of majority, guardianship or authority (see `docs/security/compliance-dependencies.md`).
+
+- **Scopes:** `view` (reads) and `act` (anything that changes something); `act` needs `view`. A view-only grant refuses changes with `proxy_view_only`.
+- **When a request acts:** the client sends `X-Acting-For: <dependent patient id>`. `PatientAccessGuard` authenticates the guardian's own session first, then `PortalProxyService.actingFor` requires a live grant (not ended or past its end date), an active dependent record and the **dependent's own `portal_access` consent** in effect (recorded at the clinic — by the guardian for a child). Anything else is `403 proxy_not_allowed`, worded the same for every cause.
+- **Opt-in routes:** a route accepts the header only if it is marked `@ProxyAllowed()` (records, booking, waiting list, billing, dental, documents and records requests, teleconsultation, messages and conversations, `me`). Sign-in security, notification settings, consents, devices and the grants themselves stay the account holder's own and refuse the header.
+- **Audit:** every audited action of an acting request records the guardian's account as the actor, the dependent as the patient and `proxyGrantId` in the metadata. Conversation messages written this way are marked `via_guardian` and shown to staff as "written by a parent or guardian".
+- **Ending:** the clinic (with a reason), the person acted for (an adult with an account), or the guardian can end a grant; ended grants stay as history. The dependent's own account, if any, is told by email when access is given or ends (`portal.security-alert`, `proxy_access_granted|ended`); a child has no account to tell.
+- **Limits:** a guardian may act for at most 10 people; one live grant per pair. A withdrawn portal consent or a merged, inactive or deceased record stops access at the next request.
+- **App:** MyHealth `/people` lists whom you may act for and who may act for you; opening a person sets an httpOnly cookie (`hp_for`) that the server adds as the header (never on the own-account API paths) and shows a banner on every page; the own-account screens redirect back to `/people` while acting. Staff: **Guardians and caregivers** in the patient record's MyHealth card.
+
 ## Not yet
 
-proxy access for guardians and dependents, and push to a mobile app (there is none yet; browser push is built).
+push to a mobile app (there is none yet; browser push is built).

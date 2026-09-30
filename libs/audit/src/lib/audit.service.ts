@@ -33,6 +33,8 @@ export interface PatientAuditContext {
   accountId: string;
   patientId: string;
   organizationId: string;
+  /** Set when the account holder acts for another person's record (guardian access); recorded in the event's metadata. */
+  proxyGrantId?: string;
   request: RequestMetadata;
 }
 
@@ -74,7 +76,7 @@ export class AuditService {
       outcome: entry.outcome ?? "success",
       reason: entry.reason ?? null,
       changes: entry.changes ?? null,
-      metadata: entry.metadata ?? null,
+      metadata: isPatient && actor.proxyGrantId ? { ...entry.metadata, proxyGrantId: actor.proxyGrantId, actingAsGuardian: true } : (entry.metadata ?? null),
       requestId: actor.request.requestId ?? null,
       ipAddress: actor.request.ipAddress ?? null,
       userAgent: actor.request.userAgent?.slice(0, 512) ?? null,
