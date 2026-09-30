@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { PhoneIcon } from "lucide-react";
-import { Button, Input, Label, Textarea } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import { BODY_MAX, charactersLeft, conversationMessage, NOT_FOR_EMERGENCIES, SUBJECT_MAX, TOPICS } from "@/lib/conversations";
 import { startConversation } from "../conversation-actions";
 
@@ -32,13 +32,13 @@ export function NewConversationForm() {
       </p>
       <div className="grid gap-1.5">
         <Label htmlFor="topic">What is it about?</Label>
-        <select id="topic" name="topic" required defaultValue="general" className="h-11 rounded-md border border-input bg-card px-3 text-body">
+        <NativeSelect id="topic" name="topic" required defaultValue="general" className="w-full [&>select]:h-11 [&>select]:pl-3">
           {TOPICS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="subject">Subject</Label>

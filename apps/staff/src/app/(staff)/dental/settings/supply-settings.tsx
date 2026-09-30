@@ -80,12 +80,12 @@ export function SupplySettings({
                       {draft.map((line, index) => (
                         <div key={index} className="flex flex-wrap items-center gap-2">
                           <NativeSelect
+                            placeholder="Choose an inventory item…"
                             aria-label={`Supply ${index + 1}`}
                             className="min-w-56 flex-1"
                             value={line.itemId}
                             onChange={(e) => setDraft((d) => d.map((l, i) => (i === index ? { ...l, itemId: e.target.value } : l)))}
                           >
-                            <option value="">Choose an inventory item…</option>
                             {options.items.map((i) => (
                               <option key={i.id} value={i.id}>
                                 {i.name} ({i.stockUnit})
@@ -156,6 +156,7 @@ export function SupplySettings({
             <p className="text-meta text-muted-foreground">This facility has no active stock location.</p>
           ) : canManage ? (
             <NativeSelect
+              emptyText="No stock locations set up"
               aria-label="Default stock location for dental supplies"
               value={options.defaultLocationId ?? ""}
               disabled={pending}

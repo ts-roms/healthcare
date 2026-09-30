@@ -397,8 +397,7 @@ function Discounts({ invoice, rules, canEdit }: { invoice: InvoiceFull; rules: D
             }}
           >
             <Label htmlFor="discount-rule">Apply a discount</Label>
-            <NativeSelect id="discount-rule" value={ruleId} onChange={(e) => setRuleId(e.target.value)}>
-              <option value="">Choose…</option>
+            <NativeSelect placeholder="Choose…" id="discount-rule" value={ruleId} onChange={(e) => setRuleId(e.target.value)}>
               {available.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name} — {percent(r.rateBp)}
@@ -505,8 +504,7 @@ function Coverage({ invoice, payers, canEdit, canFollowUp }: { invoice: InvoiceF
             <Label htmlFor="payer" className="col-span-2">
               Add coverage
             </Label>
-            <NativeSelect id="payer" className="col-span-2" value={payerId} onChange={(e) => setPayerId(e.target.value)}>
-              <option value="">Choose a payer…</option>
+            <NativeSelect placeholder="Choose a payer…" id="payer" className="col-span-2" value={payerId} onChange={(e) => setPayerId(e.target.value)}>
               {payers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

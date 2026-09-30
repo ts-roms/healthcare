@@ -284,8 +284,12 @@ export function RecordGivenDose({
     <form onSubmit={submit} noValidate className="grid gap-2 rounded-md border p-2.5 sm:grid-cols-6" aria-label="Record a dose given here">
       <div className="grid gap-1 sm:col-span-4">
         <Label htmlFor={id("vaccine")}>Vaccine *</Label>
-        <NativeSelect id={id("vaccine")} value={form.vaccineId} onChange={(e) => setForm({ ...form, vaccineId: e.target.value, route: "", site: "" })}>
-          <option value="">Choose…</option>
+        <NativeSelect
+          placeholder="Choose…"
+          id={id("vaccine")}
+          value={form.vaccineId}
+          onChange={(e) => setForm({ ...form, vaccineId: e.target.value, route: "", site: "" })}
+        >
           {vaccines.map((v) => (
             <option key={v.id} value={v.id}>
               {vaccineLabel(v)}
@@ -320,7 +324,13 @@ export function RecordGivenDose({
         <>
           <div className="grid gap-1 sm:col-span-6">
             <Label htmlFor={id("stock")}>From stock</Label>
-            <NativeSelect id={id("stock")} value={form.stockLotId} onChange={(e) => set("stockLotId", e.target.value)} disabled={!lots}>
+            <NativeSelect
+              emptyText="No lots of this vaccine in stock here"
+              id={id("stock")}
+              value={form.stockLotId}
+              onChange={(e) => set("stockLotId", e.target.value)}
+              disabled={!lots}
+            >
               <option value="">Not from stock (enter the lot below)</option>
               {(lots ?? []).map((l) => (
                 <option key={`${l.locationId}-${l.lotId}`} value={l.lotId}>
@@ -366,8 +376,12 @@ export function RecordGivenDose({
         <>
           <div className="grid gap-1 sm:col-span-2">
             <Label htmlFor={id("reason")}>Why not given *</Label>
-            <NativeSelect id={id("reason")} value={form.notDoneReason} onChange={(e) => set("notDoneReason", e.target.value as GivenForm["notDoneReason"])}>
-              <option value="">Choose…</option>
+            <NativeSelect
+              placeholder="Choose…"
+              id={id("reason")}
+              value={form.notDoneReason}
+              onChange={(e) => set("notDoneReason", e.target.value as GivenForm["notDoneReason"])}
+            >
               {Object.entries(NOT_DONE_REASON_LABEL).map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
@@ -480,7 +494,12 @@ export function RecordReportedDose({
     <form onSubmit={submit} noValidate className="grid gap-2 rounded-md border p-2.5 sm:grid-cols-6" aria-label="Record a reported dose">
       <div className="grid gap-1 sm:col-span-3">
         <Label htmlFor="reported-vaccine">Vaccine from the catalogue</Label>
-        <NativeSelect id="reported-vaccine" value={form.vaccineId} onChange={(e) => setForm({ ...form, vaccineId: e.target.value, vaccineName: "" })}>
+        <NativeSelect
+          emptyText="The vaccine catalogue is empty"
+          id="reported-vaccine"
+          value={form.vaccineId}
+          onChange={(e) => setForm({ ...form, vaccineId: e.target.value, vaccineName: "" })}
+        >
           <option value="">Not in the catalogue (type the name)</option>
           {vaccines.map((v) => (
             <option key={v.id} value={v.id}>
@@ -529,7 +548,7 @@ export function RecordReportedDose({
       {documents || canUpload ? (
         <div className="grid gap-1 sm:col-span-4">
           <Label htmlFor="reported-document">Scan on file</Label>
-          <NativeSelect id="reported-document" value={form.documentId} onChange={(e) => set("documentId", e.target.value)}>
+          <NativeSelect emptyText="No scans on file" id="reported-document" value={form.documentId} onChange={(e) => set("documentId", e.target.value)}>
             <option value="">None</option>
             {linkable.map((d) => (
               <option key={d.id} value={d.id}>

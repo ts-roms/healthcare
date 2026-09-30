@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Checkbox, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { ReferralSettings } from "@/lib/api/types";
 import { saveReferralSettings } from "../actions";
 
@@ -28,7 +28,7 @@ export function OverdueSetting({ settings }: { settings: ReferralSettings }) {
       }}
     >
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
         Flag referrals still awaiting an answer or reply
       </label>
       {enabled ? (

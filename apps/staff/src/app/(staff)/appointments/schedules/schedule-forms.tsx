@@ -63,8 +63,7 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-1">
           <Label htmlFor="schedule-practitioner">Practitioner</Label>
-          <NativeSelect id="schedule-practitioner" required value={form.practitionerId} onChange={set("practitionerId")}>
-            <option value="">Choose…</option>
+          <NativeSelect placeholder="Choose…" id="schedule-practitioner" required value={form.practitionerId} onChange={set("practitionerId")}>
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -96,7 +95,7 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
         </div>
         <div className="grid gap-1">
           <Label htmlFor="schedule-room">Room (optional)</Label>
-          <NativeSelect id="schedule-room" value={form.roomId} onChange={set("roomId")}>
+          <NativeSelect emptyText="No rooms set up" id="schedule-room" value={form.roomId} onChange={set("roomId")}>
             <option value="">No room</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
@@ -183,7 +182,7 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <div className="grid gap-1">
           <Label htmlFor="closure-who">Who</Label>
-          <NativeSelect id="closure-who" value={form.practitionerId} onChange={set("practitionerId")}>
+          <NativeSelect emptyText="No practitioners set up" id="closure-who" value={form.practitionerId} onChange={set("practitionerId")}>
             <option value="">Whole facility</option>
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>
@@ -261,7 +260,7 @@ function PractitionerFields({
       {users.length > 0 ? (
         <div className="grid gap-1 sm:col-span-2">
           <Label htmlFor={`${prefix}-user`}>Staff account (to document and prescribe as this practitioner)</Label>
-          <NativeSelect id={`${prefix}-user`} value={form.userId ?? ""} onChange={(e) => set("userId", e.target.value)}>
+          <NativeSelect emptyText="No staff users" id={`${prefix}-user`} value={form.userId ?? ""} onChange={(e) => set("userId", e.target.value)}>
             <option value="">None</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>

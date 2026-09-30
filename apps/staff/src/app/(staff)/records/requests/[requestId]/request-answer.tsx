@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { RecordsRequestDetail } from "@/lib/api/types";
 import { declineRequest, fulfilRequest, startReview } from "../actions";
 
@@ -57,7 +57,7 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
           ) : null}
           {request.available.map((d) => (
             <label key={d.id} className="flex items-start gap-2 text-table">
-              <input type="checkbox" className="mt-1 size-4" checked={chosen.has(d.id)} onChange={() => toggle(d.id)} />
+              <Checkbox className="mt-1" checked={chosen.has(d.id)} onCheckedChange={() => toggle(d.id)} />
               <span>
                 {d.title}
                 <span className="text-meta text-muted-foreground">

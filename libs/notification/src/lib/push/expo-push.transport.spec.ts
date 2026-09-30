@@ -1,4 +1,4 @@
-import { expoTokenIsGone, LibraryExpoPushTransport, type ExpoPushMessage } from "./expo-push.transport";
+import { EXPO_RECEIPTS_BATCH, expoErrorIsConfiguration, expoTokenIsGone, LibraryExpoPushTransport, type ExpoPushMessage } from "./expo-push.transport";
 
 const message = (to: string): ExpoPushMessage => ({
   to,
@@ -44,6 +44,44 @@ describe("LibraryExpoPushTransport", () => {
   it("throws, so the notice is retried, when the service fails or answers in an unexpected shape", async () => {
     await expect(new LibraryExpoPushTransport(undefined, (() => reply({}, 503)) as unknown as typeof fetch).send([message("a")])).rejects.toThrow(/503/);
     await expect(new LibraryExpoPushTransport(undefined, (() => reply({ data: [] })) as unknown as typeof fetch).send([message("a")])).rejects.toThrow(
+      /unexpected/,
+    );
+  });
+
+  it("reads receipts by ticket id and maps each one", async () => {
+    let sent: unknown;
+    const fetchImpl = ((url: string, init: RequestInit) => {
+      sent = { url, body: JSON.parse(init.body as string) };
+      return reply({
+        data: {
+          a: { status: "ok" },
+          b: { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+          c: { status: "error", details: { error: "InvalidCredentials" } },
+        },
+      });
+    }) as unknown as typeof fetch;
+    const receipts = await new LibraryExpoPushTransport(undefined, fetchImpl).receipts(["a", "b", "c", "d"]);
+    expect(sent).toEqual({ url: "https://exp.host/--/api/v2/push/getReceipts", body: { ids: ["a", "b", "c", "d"] } });
+    expect(receipts).toEqual({
+      a: { status: "ok" },
+      b: { status: "error", message: "gone", error: "DeviceNotRegistered" },
+      c: { status: "error", message: undefined, error: "InvalidCredentials" },
+    });
+    expect(expoTokenIsGone(receipts["b"]!)).toBe(true);
+    expect(expoErrorIsConfiguration(receipts["c"]!)).toBe(true);
+    expect(expoErrorIsConfiguration(receipts["b"]!)).toBe(false);
+  });
+
+  it("asks for nothing without ids, refuses more than a batch, and throws on a failed answer", async () => {
+    const never = (() => {
+      throw new Error("should not be called");
+    }) as unknown as typeof fetch;
+    await expect(new LibraryExpoPushTransport(undefined, never).receipts([])).resolves.toEqual({});
+    await expect(new LibraryExpoPushTransport(undefined, never).receipts(Array.from({ length: EXPO_RECEIPTS_BATCH + 1 }, (_, i) => `t${i}`))).rejects.toThrow(
+      /1000/,
+    );
+    await expect(new LibraryExpoPushTransport(undefined, (() => reply({}, 500)) as unknown as typeof fetch).receipts(["a"])).rejects.toThrow(/500/);
+    await expect(new LibraryExpoPushTransport(undefined, (() => reply({ errors: [] })) as unknown as typeof fetch).receipts(["a"])).rejects.toThrow(
       /unexpected/,
     );
   });

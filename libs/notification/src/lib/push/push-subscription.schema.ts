@@ -27,3 +27,19 @@ export const pushSubscription = pgTable("push_subscription", {
 });
 
 export type PushSubscriptionRecord = typeof pushSubscription.$inferSelect;
+
+/** Mirrors database/migrations/0083_expo_push_receipts.sql: an Expo ticket waiting for, or answered by, its receipt. */
+export const pushTicket = pgTable("push_ticket", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  pushSubscriptionId: uuid("push_subscription_id").notNull(),
+  notificationId: uuid("notification_id"),
+  ticketId: text("ticket_id").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  receiptStatus: text("receipt_status").$type<"ok" | "error" | "expired">(),
+  receiptError: text("receipt_error"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+  checkCount: integer("check_count").notNull().default(0),
+});
+
+export type PushTicketRecord = typeof pushTicket.$inferSelect;

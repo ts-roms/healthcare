@@ -9,3 +9,4 @@ export * from "./lib/push/push-subscription.service";
 export * from "./lib/push/push-subscription.schema";
 export * from "./lib/push/web-push.sender";
 export * from "./lib/push/expo-push.transport";
+export * from "./lib/push/expo-push-receipts";

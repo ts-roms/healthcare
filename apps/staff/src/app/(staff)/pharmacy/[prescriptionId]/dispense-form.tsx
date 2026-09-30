@@ -69,7 +69,12 @@ export function DispenseForm({ prescriptionId, items, stock }: { prescriptionId:
                   <div className="grid grid-cols-[1fr_6rem] gap-2">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor={`dispense-stock-${item.id}`}>From stock</Label>
-                      <NativeSelect id={`dispense-stock-${item.id}`} value={rows[item.id]!.stock} onChange={(e) => set(item.id, { stock: e.target.value })}>
+                      <NativeSelect
+                        emptyText="No stock of this item here"
+                        id={`dispense-stock-${item.id}`}
+                        value={rows[item.id]!.stock}
+                        onChange={(e) => set(item.id, { stock: e.target.value })}
+                      >
                         <option value="">Not now</option>
                         {ranked(stock, item.genericName).map((s) => (
                           <option key={stockKey(s)} value={stockKey(s)}>

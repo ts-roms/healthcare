@@ -170,7 +170,12 @@ export function DebitNotes({ invoice, services, canIssue }: { invoice: InvoiceFu
                 <div key={r.key} className="grid grid-cols-[1fr_4rem_6rem_auto] items-end gap-2">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor={`debit-service-${r.key}`}>{i === 0 ? "Service or adjustment" : <span className="sr-only">Service</span>}</Label>
-                    <NativeSelect id={`debit-service-${r.key}`} value={r.serviceId} onChange={(e) => update(r.key, { serviceId: e.target.value, price: "" })}>
+                    <NativeSelect
+                      emptyText="No priced services"
+                      id={`debit-service-${r.key}`}
+                      value={r.serviceId}
+                      onChange={(e) => update(r.key, { serviceId: e.target.value, price: "" })}
+                    >
                       <option value="">An adjustment (describe it)</option>
                       {priced.map((s) => (
                         <option key={s.id} value={s.id}>

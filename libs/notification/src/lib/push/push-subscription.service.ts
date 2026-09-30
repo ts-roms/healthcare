@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { BusinessRuleError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
 import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
-import { type PushDeviceKind, type PushRevokedReason, pushSubscription, type PushSubscriptionRecord } from "./push-subscription.schema";
+import { type PushDeviceKind, type PushRevokedReason, pushSubscription, type PushSubscriptionRecord, pushTicket } from "./push-subscription.schema";
 
 /** A patient's devices that may receive push, at most this many at once. */
 export const MAX_PUSH_DEVICES = 5;
@@ -129,6 +129,14 @@ export class PushSubscriptionService {
       .from(pushSubscription)
       .where(and(eq(pushSubscription.portalAccountId, accountId), isNull(pushSubscription.revokedAt)))
       .orderBy(asc(pushSubscription.createdAt));
+  }
+
+  /** Keeps an Expo ticket so its receipt can be read later (ExpoPushReceipts). A repeated ticket id is ignored. */
+  async recordTicket(device: PushSubscriptionRecord, ticketId: string, notificationId: string | null): Promise<void> {
+    await this.db
+      .insert(pushTicket)
+      .values({ organizationId: device.organizationId, pushSubscriptionId: device.id, notificationId, ticketId: ticketId.slice(0, 100) })
+      .onConflictDoNothing({ target: pushTicket.ticketId });
   }
 
   /** Records what happened sending to a device; a device the push service says is gone, or that keeps failing, is dropped. */

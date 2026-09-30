@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { SupplierInvoice, WithholdingCode } from "@/lib/api/types";
 import { parsePesos, peso } from "@/lib/billing-mapping";
 import type { SupplierInvoiceAction } from "@/lib/inventory-mapping";
@@ -80,9 +80,9 @@ export function SupplierInvoiceActions({
                 <legend className="px-1 text-meta text-muted-foreground">Withheld from this payment (as your accountant determined)</legend>
                 <div className="grid gap-1">
                   <Label htmlFor="withholding-code">Withholding code</Label>
-                  <select
+                  <NativeSelect
+                    emptyText="No withholding codes set up"
                     id="withholding-code"
-                    className="h-9 rounded-md border bg-background px-2 text-table"
                     value={withholding.codeId}
                     onChange={(e) => setWithholding({ ...withholding, codeId: e.target.value })}
                   >
@@ -93,7 +93,7 @@ export function SupplierInvoiceActions({
                         {c.rateBasisPoints !== null ? ` (${c.rateBasisPoints / 100}% for reference)` : ""}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 {withholding.codeId ? (
                   <>

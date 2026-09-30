@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { RecordCopySection, RecordsRequestDetail } from "@/lib/api/types";
 import { orderedCopySections, periodText, RECORD_COPY_SECTIONS } from "@/lib/records-mapping";
 import { documentLink, prepareCopy } from "../actions";
@@ -60,7 +60,7 @@ export function RecordCopyCard({ request, open }: { request: RecordsRequestDetai
               <legend className="mb-1 text-table font-medium">What the copy contains</legend>
               {RECORD_COPY_SECTIONS.map((s) => (
                 <label key={s.key} className="flex items-start gap-2 text-table">
-                  <input type="checkbox" className="mt-1 size-4" checked={sections.has(s.key)} onChange={() => toggle(s.key)} />
+                  <Checkbox className="mt-1" checked={sections.has(s.key)} onCheckedChange={() => toggle(s.key)} />
                   <span>
                     {s.label}
                     <span className="block text-meta text-muted-foreground">{s.hint}</span>

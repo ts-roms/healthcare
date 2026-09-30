@@ -3,8 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CalendarCheckIcon, MapPinIcon, StethoscopeIcon, VideoIcon } from "lucide-react";
-import { Button, Label, Textarea } from "@healthcare/ui/primitives";
-import { cn } from "@healthcare/ui/lib/utils";
+import { Button, Label, RadioGroup, RadioGroupTile, Textarea } from "@healthcare/ui/primitives";
 import { DayPicker, SlotPicker } from "@/components/booking-pickers";
 import type { BookingOptions } from "@/lib/api/types";
 import { bookingDays, bookingMessage, lengthText, longDate, rulesFor, slotTime } from "@/lib/booking";
@@ -13,6 +12,8 @@ import { bookAppointment } from "../actions";
 import { WaitlistOffer } from "../waitlist-offer";
 
 const ANY = "";
+/** The "any doctor" choice; a radio value cannot be empty. */
+const ANY_CHOICE = "any";
 
 /** Choose what, where, who and when, then confirm. The API re-checks every rule when booking. */
 export function BookingFlow({ options }: { options: BookingOptions }) {
@@ -56,9 +57,9 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
   return (
     <div className="flex flex-col gap-6">
       <Step title="What kind of visit?">
-        <div role="radiogroup" aria-label="Kind of visit" className="flex flex-col gap-2">
+        <RadioGroup aria-label="Kind of visit" value={visitTypeId} onValueChange={setVisitTypeId} className="flex flex-col gap-2">
           {options.visitTypes.map((t) => (
-            <Choice key={t.id} selected={t.id === visitTypeId} onSelect={() => setVisitTypeId(t.id)}>
+            <Choice key={t.id} value={t.id}>
               <span className="flex items-center gap-2 font-semibold">
                 {t.modality === "telemedicine" ? <VideoIcon className="size-4" aria-hidden /> : <StethoscopeIcon className="size-4" aria-hidden />}
                 {t.name}
@@ -68,7 +69,7 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
               </span>
             </Choice>
           ))}
-        </div>
+        </RadioGroup>
         {type?.modality === "telemedicine" ? (
           <p className="text-meta text-muted-foreground">
             Not every concern can be handled online. Your doctor may ask you to come to the clinic. Before the call you will answer a few questions.
@@ -78,39 +79,43 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
 
       {options.facilities.length > 1 ? (
         <Step title="Where?">
-          <div role="radiogroup" aria-label="Clinic" className="flex flex-col gap-2">
+          <RadioGroup
+            aria-label="Clinic"
+            value={facilityId}
+            onValueChange={(id) => {
+              setFacilityId(id);
+              setPractitionerId(ANY);
+            }}
+            className="flex flex-col gap-2"
+          >
             {options.facilities.map((f) => (
-              <Choice
-                key={f.id}
-                selected={f.id === facilityId}
-                onSelect={() => {
-                  setFacilityId(f.id);
-                  setPractitionerId(ANY);
-                }}
-              >
+              <Choice key={f.id} value={f.id}>
                 <span className="flex items-center gap-2 font-semibold">
                   <MapPinIcon className="size-4" aria-hidden /> {f.name}
                 </span>
                 {f.cityMunicipality ? <span className="text-meta text-muted-foreground">{f.cityMunicipality}</span> : null}
               </Choice>
             ))}
-          </div>
+          </RadioGroup>
         </Step>
       ) : null}
 
       {site ? (
         <Step title="Which doctor?">
-          <div role="radiogroup" aria-label="Doctor" className="flex flex-wrap gap-2">
-            <Pill selected={practitionerId === ANY} onSelect={() => setPractitionerId(ANY)}>
-              Any available doctor
-            </Pill>
+          <RadioGroup
+            aria-label="Doctor"
+            value={practitionerId === ANY ? ANY_CHOICE : practitionerId}
+            onValueChange={(id) => setPractitionerId(id === ANY_CHOICE ? ANY : id)}
+            className="flex flex-wrap gap-2"
+          >
+            <Pill value={ANY_CHOICE}>Any available doctor</Pill>
             {site.practitioners.map((p) => (
-              <Pill key={p.id} selected={practitionerId === p.id} onSelect={() => setPractitionerId(p.id)}>
+              <Pill key={p.id} value={p.id}>
                 {p.displayName}
                 {p.specialty ? <span className="text-muted-foreground"> · {p.specialty}</span> : null}
               </Pill>
             ))}
-          </div>
+          </RadioGroup>
         </Step>
       ) : null}
 
@@ -177,36 +182,18 @@ function Step({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Choice({ selected, onSelect, children }: { selected: boolean; onSelect: () => void; children: React.ReactNode }) {
+function Choice({ value, children }: { value: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "flex flex-col items-start gap-0.5 rounded-xl border bg-card p-4 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        selected && "border-primary bg-primary-subtle",
-      )}
-    >
+    <RadioGroupTile value={value} className="flex flex-col items-start gap-0.5 rounded-xl p-4 data-[state=checked]:text-foreground">
       {children}
-    </button>
+    </RadioGroupTile>
   );
 }
 
-function Pill({ selected, onSelect, children }: { selected: boolean; onSelect: () => void; children: React.ReactNode }) {
+function Pill({ value, children }: { value: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "rounded-full border bg-card px-4 py-2 text-body outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        selected && "border-primary bg-primary-subtle text-primary",
-      )}
-    >
+    <RadioGroupTile value={value} className="rounded-full px-4 py-2 text-body">
       {children}
-    </button>
+    </RadioGroupTile>
   );
 }
