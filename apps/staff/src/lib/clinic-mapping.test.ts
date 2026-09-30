@@ -12,6 +12,7 @@ import {
   toAppointment,
   todayIn,
   upcomingAppointments,
+  zonedLocalToIso,
   toQueueEntry,
 } from "./clinic-mapping";
 
@@ -146,14 +147,20 @@ describe("appointmentActions", () => {
 
   it("offers check-in only today, and no-show only after the start", () => {
     const booked = { status: "booked" as const, startsAt: "2026-09-27T01:00:00Z" };
-    expect(appointmentActions(booked, context)).toEqual(["check_in", "confirm", "cancel"]);
-    expect(appointmentActions(booked, { ...context, now: new Date("2026-09-27T01:05:00Z") })).toEqual(["check_in", "confirm", "no_show", "cancel"]);
-    expect(appointmentActions(booked, { ...context, isToday: false })).toEqual(["confirm", "cancel"]);
+    expect(appointmentActions(booked, context)).toEqual(["check_in", "confirm", "reschedule", "cancel"]);
+    expect(appointmentActions(booked, { ...context, now: new Date("2026-09-27T01:05:00Z") })).toEqual([
+      "check_in",
+      "confirm",
+      "no_show",
+      "reschedule",
+      "cancel",
+    ]);
+    expect(appointmentActions(booked, { ...context, isToday: false })).toEqual(["confirm", "reschedule", "cancel"]);
   });
 
   it("leaves check-in of an online appointment to the patient's waiting room", () => {
     const booked = { status: "booked" as const, startsAt: "2026-09-27T01:00:00Z" };
-    expect(appointmentActions(booked, { ...context, online: true })).toEqual(["confirm", "cancel"]);
+    expect(appointmentActions(booked, { ...context, online: true })).toEqual(["confirm", "reschedule", "cancel"]);
   });
 
   it("offers nothing on closed appointments or without permission", () => {
@@ -221,5 +228,14 @@ describe("referral recipient", () => {
     expect(referralRecipient({ kind: "external", toPractitioner: null, externalProvider: "Dr. Reyes", externalFacility: "Heart Center" })).toBe(
       "Dr. Reyes, Heart Center",
     );
+  });
+});
+
+describe("zonedLocalToIso", () => {
+  it("reads a wall-clock time in the facility's time zone", () => {
+    expect(zonedLocalToIso("2026-10-01T09:30", "Asia/Manila")).toBe("2026-10-01T01:30:00.000Z");
+    expect(zonedLocalToIso("2026-10-01T00:15", "Asia/Manila")).toBe("2026-09-30T16:15:00.000Z");
+    expect(zonedLocalToIso("2026-07-01T09:00", "America/New_York")).toBe("2026-07-01T13:00:00.000Z");
+    expect(() => zonedLocalToIso("2026-10-01 09:30", "Asia/Manila")).toThrow();
   });
 });

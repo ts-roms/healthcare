@@ -112,6 +112,10 @@ export const STAFF_NAVIGATION: NavItem[] = [
     icon: BuildingIcon,
     roles: ["admin"],
     children: [
+      { label: "Staff users", href: "/admin/users" },
+      { label: "Roles", href: "/admin/roles" },
+      { label: "Facilities", href: "/admin/facilities" },
+      { label: "Audit log", href: "/admin/audit" },
       { label: "Integrations", href: "/admin/integrations" },
       { label: "Compliance", href: "/admin/compliance" },
       { label: "Consent wording", href: "/admin/consent-wording" },

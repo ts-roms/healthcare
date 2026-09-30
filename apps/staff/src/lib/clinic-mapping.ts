@@ -112,7 +112,7 @@ export function toAppointment(a: AppointmentItem, practitioners: Map<string, Pra
   };
 }
 
-export type AppointmentAction = "confirm" | "check_in" | "cancel" | "no_show";
+export type AppointmentAction = "confirm" | "check_in" | "reschedule" | "cancel" | "no_show";
 
 /**
  * Actions to offer on a schedule row (`libs/clinic` appointment-state):
@@ -129,7 +129,7 @@ export function appointmentActions(
   if (context.canCheckIn && context.isToday && !context.online) actions.push("check_in");
   if (context.canManage && a.status === "booked") actions.push("confirm");
   if (context.canManage && context.now >= new Date(a.startsAt)) actions.push("no_show");
-  if (context.canManage) actions.push("cancel");
+  if (context.canManage) actions.push("reschedule", "cancel");
   return actions;
 }
 
@@ -195,4 +195,28 @@ export function referralRecipient(r: {
   return r.kind === "internal"
     ? (r.toPractitioner?.displayName ?? "A practitioner here")
     : [r.externalProvider, r.externalFacility].filter(Boolean).join(", ") || "Outside provider";
+}
+
+/** "2026-10-01T09:30" as a wall-clock time in `timeZone` → the ISO instant (e.g. "2026-10-01T01:30:00.000Z" for Manila). */
+export function zonedLocalToIso(local: string, timeZone: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);
+  if (!match) throw new Error("Expected YYYY-MM-DDTHH:MM");
+  const [, y, mo, d, h, mi] = match.map(Number) as [number, number, number, number, number, number];
+  const asUtc = Date.UTC(y, mo - 1, d, h, mi);
+  // The zone's offset at that moment, from what the wall clock reads there.
+  const offsetAt = (instant: number) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(new Date(instant));
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    return Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute")) - Math.floor(instant / 60_000) * 60_000;
+  };
+  const first = asUtc - offsetAt(asUtc);
+  return new Date(asUtc - offsetAt(first)).toISOString();
 }

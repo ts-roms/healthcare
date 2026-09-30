@@ -3,13 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarXIcon, CheckIcon, LogInIcon, UserXIcon } from "lucide-react";
+import { CalendarClockIcon, CalendarXIcon, CheckIcon, LogInIcon, UserXIcon } from "lucide-react";
 import { AppointmentCard } from "@healthcare/ui/healthcare";
 import { Button, Card, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { AppointmentItem, Practitioner, VisitType } from "@/lib/api/types";
 import { type AppointmentAction, appointmentActions, groupByPractitioner, toAppointment } from "@/lib/clinic-mapping";
 import { cancelAppointment, checkInAppointment, confirmAppointment, markNoShow } from "./actions";
+import { RescheduleForm } from "./reschedule-form";
 
 export function AppointmentsDay({
   items,
@@ -22,6 +23,8 @@ export function AppointmentsDay({
   canManage,
   canCheckIn,
   canOpenRecord,
+  facilityId,
+  timeZone,
 }: {
   items: AppointmentItem[];
   truncated: boolean;
@@ -33,10 +36,13 @@ export function AppointmentsDay({
   canManage: boolean;
   canCheckIn: boolean;
   canOpenRecord: boolean;
+  facilityId: string;
+  timeZone: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [cancelling, setCancelling] = React.useState<string | null>(null);
+  const [rescheduling, setRescheduling] = React.useState<string | null>(null);
   const [reason, setReason] = React.useState("");
   const [now, setNow] = React.useState(() => new Date());
   // Re-evaluates time-based actions (a no-show is offered once the appointment has started).
@@ -55,6 +61,7 @@ export function AppointmentsDay({
       if (result.ok) {
         toast.success(typeof success === "string" ? success : success(result.data));
         setCancelling(null);
+        setRescheduling(null);
         setReason("");
       } else {
         toast.error(result.message);
@@ -72,8 +79,13 @@ export function AppointmentsDay({
         (visit) => `Checked in ${who} — ticket ${(visit as { ticket: string }).ticket}`,
       );
     if (action === "cancel") {
+      setRescheduling(null);
       setCancelling(a.id);
       setReason("");
+    }
+    if (action === "reschedule") {
+      setCancelling(null);
+      setRescheduling(a.id);
     }
   };
 
@@ -137,6 +149,17 @@ export function AppointmentsDay({
                         </span>
                       }
                     />
+                    {rescheduling === a.id ? (
+                      <RescheduleForm
+                        appointment={a}
+                        facilityId={facilityId}
+                        timeZone={timeZone}
+                        practitioners={practitioners}
+                        pending={pending}
+                        run={run}
+                        onClose={() => setRescheduling(null)}
+                      />
+                    ) : null}
                     {cancelling === a.id ? (
                       <form
                         className="mb-2 flex flex-wrap items-end gap-2 rounded-md border border-warning/40 p-2"
@@ -182,6 +205,7 @@ const ACTION_META: Record<AppointmentAction, { label: string; icon: React.Compon
   check_in: { label: "Check in", icon: LogInIcon, variant: "default" },
   confirm: { label: "Confirm", icon: CheckIcon, variant: "outline" },
   no_show: { label: "No-show", icon: UserXIcon, variant: "ghost" },
+  reschedule: { label: "Move", icon: CalendarClockIcon, variant: "ghost" },
   cancel: { label: "Cancel", icon: CalendarXIcon, variant: "ghost" },
 };
 

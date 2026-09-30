@@ -39,10 +39,14 @@ describe("navigationForPermissions", () => {
 
   it("shows administration only when one of its pages is open to the user", () => {
     expect(hrefs(["patient.read"])).not.toContain("/admin");
-    // Its only page (integrations) needs integration.exchange.manage; user management alone would bounce.
+    // The staff list needs user.read; managing users without reading them would bounce.
     expect(hrefs(["user.manage"])).not.toContain("/admin");
     const admin = navigationForPermissions(["integration.exchange.manage"]).find((i) => i.href === "/admin");
     expect(admin?.children?.map((c) => c.href)).toEqual(["/admin/integrations"]);
+    const people = navigationForPermissions(["user.read", "user.manage", "organization.read"]).find((i) => i.href === "/admin");
+    expect(people?.children?.map((c) => c.href)).toEqual(["/admin/users", "/admin/roles", "/admin/facilities"]);
+    const auditor = navigationForPermissions(["audit.read"]).find((i) => i.href === "/admin");
+    expect(auditor?.children?.map((c) => c.href)).toEqual(["/admin/audit"]);
   });
 
   it("offers only the laboratory pages the user can open", () => {

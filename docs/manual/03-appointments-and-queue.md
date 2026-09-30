@@ -63,14 +63,14 @@ booking."
 Booking from a consultation or a care plan works the same way; see [Consultations and care plans](04-consultations-and-care-plans.md). In that
 case, after booking you return to where you started.
 
-> Not available in the staff app yet: rescheduling an appointment and recurring appointments. To move an appointment, cancel it (with a reason) and
-> book a new one. The waiting list is under **Waiting list** (see below).
+> Not available in the staff app yet: recurring appointments. The waiting list is under **Waiting list** (see below).
 
 ## How to confirm, cancel or mark a no-show
 
 On the day schedule, each open appointment (**Booked** or **Confirmed**) shows the actions you may take:
 
 - **Confirm** — for a **Booked** appointment, when the patient has confirmed they will come.
+- **Move** — reschedules the appointment (see below).
 - **Cancel** — opens a box. Enter a **Reason for cancelling \*** (at least 3 characters, for example "Patient called to cancel"), then select
   **Cancel appointment**. Select **Keep** to leave it booked.
 - **No-show** — appears only once the appointment's start time has passed. Marking a no-show may send the patient a "we missed you" message
@@ -80,6 +80,21 @@ These actions need `appointment.manage`.
 
 Patients receive an SMS reminder about 24 hours before a booked appointment (if their consent and preferences allow). Cancelling or marking a
 no-show withdraws a reminder that has not yet been sent.
+
+## How to move (reschedule) an appointment
+
+1. On the day schedule, select **Move** on the appointment. A box opens under it.
+2. Keep the **Practitioner** or choose another active practitioner, and choose the **Day** (today or later).
+3. Under **Open slots**, pick a time. Only open times in the practitioner's published schedule at this facility are offered (not their leave or
+   closures, and not times already booked).
+4. If the time the patient needs is outside the published schedule, tick **A time outside the published schedule** and type the **Time**. The
+   practitioner still cannot be double-booked.
+5. Enter the **Reason \*** (at least 3 characters, for example "Patient asked for an afternoon slot") and select **Move appointment**. Select
+   **Keep** to leave it as it is.
+
+The appointment keeps its length and becomes **Booked** again (a confirmation has to be given again). The move and its reason are recorded in the
+audit trail. An SMS reminder not yet sent is withdrawn and a new one is scheduled for the new time. The patient is not sent a separate "your
+appointment moved" message, so tell them yourself. Needs `appointment.manage`.
 
 ## How to check in a patient with an appointment
 
@@ -216,8 +231,25 @@ selected facility, most urgent and oldest first, with their days, the visit type
 3. When the patient no longer needs the entry, select **Remove**, write the reason and confirm. A patient who books a time in the requested days
    through MyHealth is taken off the list by the system.
 
-> Practitioners, their weekly schedules, rooms, visit types, coding systems and leave or closure days are set up by your administrator. There is
-> no staff screen for these yet.
+## How to set up practitioners, schedules, rooms and closures
+
+Select **Schedules** on the appointments page (`/appointments/schedules`). Everyone who can read appointments sees the selected facility's set-up;
+changing it needs `clinic.configure` (organization administrators by default). Every change is recorded in the audit trail.
+
+- **Weekly schedules** — who works when at this facility. **Add a weekly schedule…**: choose the practitioner, the day of the week, the hours, the
+  slot length in minutes, an optional room, the first day and an optional last day, then **Add schedule**. Booking — by staff and by patients in
+  MyHealth — offers only slots inside these schedules. **Retire…** stops a schedule offering new slots; appointments already booked in it stay.
+  Two schedules of the same practitioner cannot overlap on the same day.
+- **Closures (next 90 days)** — **Add a closure…** for the whole facility (for example a holiday your organization observes) or one practitioner
+  (leave): the start, the end and the reason. Its times are no longer offered for booking. Appointments already booked in that time are **not**
+  moved or cancelled — move or cancel them yourself.
+- **Practitioners** — **Add a practitioner…**: the name patients see, profession, specialty, licence number and its expiry (recorded as given;
+  the platform does not check them) and, if the list is shown to you, the staff account that documents and prescribes as this practitioner.
+  **Edit…** changes these or makes the practitioner **Inactive** (they can no longer be booked; past records stay).
+- **Rooms** — **Add a room…** at this facility (name, code, type). Two appointments in the same room cannot overlap.
+
+Visit types are set up under **Online booking** (`/appointments/visit-types`); diagnosis coding systems have no screen yet (see
+[Administration](13-administration.md)).
 
 ## Rules the system enforces
 
