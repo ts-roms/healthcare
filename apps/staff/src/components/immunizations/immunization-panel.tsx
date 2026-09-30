@@ -81,7 +81,7 @@ export function ImmunizationHistory({
                 key={r.id}
                 record={r}
                 patientId={patientId}
-                canRecord={canRecord && r.patientId === patientId}
+                canRecord={canRecord}
                 encounterId={encounterId}
                 filedUnder={filedUnderText(filedUnder(r.patientId))}
                 showVaccine={!grouped}
