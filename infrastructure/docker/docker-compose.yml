@@ -31,7 +31,6 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: [object-storage-data:/data]
 
-<<<<<<< Updated upstream
   # Creates the documents bucket once storage is reachable, then exits.
   object-storage-init:
     image: amazon/aws-cli
@@ -40,11 +39,6 @@ services:
       AWS_ACCESS_KEY_ID: healthcare
       AWS_SECRET_ACCESS_KEY: healthcare-dev-secret
       AWS_DEFAULT_REGION: ap-southeast-1
-=======
-  minio-init:
-    image: minio/mc:latest
-    depends_on: [minio]
->>>>>>> Stashed changes
     entrypoint: >
       /bin/sh -c "until aws --endpoint-url http://object-storage:9000 s3api list-buckets > /dev/null 2>&1; do sleep 1; done;
       aws --endpoint-url http://object-storage:9000 s3api head-bucket --bucket healthcare-documents 2> /dev/null
