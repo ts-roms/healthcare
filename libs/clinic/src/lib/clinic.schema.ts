@@ -396,3 +396,53 @@ export const medicalCertificate = pgTable("medical_certificate", {
   voidReason: text("void_reason"),
 });
 export type MedicalCertificateRecord = typeof medicalCertificate.$inferSelect;
+
+// ---- Referrals (0075) -------------------------------------------------------------------------
+
+export const REFERRAL_KINDS = ["internal", "external"] as const;
+export type ReferralKind = (typeof REFERRAL_KINDS)[number];
+export const REFERRAL_URGENCIES = ["routine", "urgent", "emergency"] as const;
+export type ReferralUrgency = (typeof REFERRAL_URGENCIES)[number];
+export const REFERRAL_STATUSES = ["sent", "accepted", "declined", "completed", "cancelled"] as const;
+export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
+
+export const referralNumberSequence = pgTable("referral_number_sequence", {
+  organizationId: uuid("organization_id").primaryKey(),
+  nextValue: bigint("next_value", { mode: "number" }).notNull(),
+});
+
+export const referral = pgTable("referral", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  encounterId: uuid("encounter_id").notNull(),
+  referringPractitionerId: uuid("referring_practitioner_id").notNull(),
+  referralNumber: text("referral_number").notNull(),
+  kind: text("kind").$type<ReferralKind>().notNull(),
+  specialty: text("specialty"),
+  toPractitionerId: uuid("to_practitioner_id"),
+  externalProvider: text("external_provider"),
+  externalFacility: text("external_facility"),
+  externalContact: text("external_contact"),
+  urgency: text("urgency").$type<ReferralUrgency>().notNull(),
+  reason: text("reason").notNull(),
+  clinicalSummary: text("clinical_summary"),
+  diagnosisIds: uuid("diagnosis_ids").array().notNull().default([]),
+  status: text("status").$type<ReferralStatus>().notNull().default("sent"),
+  issuedAt: ts("issued_at").notNull().defaultNow(),
+  issuedBy: uuid("issued_by").notNull(),
+  respondedAt: ts("responded_at"),
+  respondedBy: uuid("responded_by"),
+  responseNote: text("response_note"),
+  appointmentId: uuid("appointment_id"),
+  completedAt: ts("completed_at"),
+  completedBy: uuid("completed_by"),
+  outcomeNote: text("outcome_note"),
+  replyDocumentId: uuid("reply_document_id"),
+  cancelledAt: ts("cancelled_at"),
+  cancelledBy: uuid("cancelled_by"),
+  cancelReason: text("cancel_reason"),
+  version: integer("version").notNull().default(1),
+});
+export type ReferralRecord = typeof referral.$inferSelect;

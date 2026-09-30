@@ -308,6 +308,33 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "clinic.referral-notice",
+    version: 1,
+    category: "clinical",
+    // In-app between practitioners. The referral number only: the patient and the reason are read in the referral.
+    channels: ["in_app"],
+    variables: z.object({
+      referralId: z.uuid(),
+      referralNumber: z.string().regex(/^RF\d{8}$/),
+      kind: z.enum(["new", "accepted", "declined", "completed"]),
+    }),
+    render: (v) => ({
+      subject:
+        v.kind === "new"
+          ? `New referral ${v.referralNumber}`
+          : `Referral ${v.referralNumber} ${v.kind === "accepted" ? "accepted" : v.kind === "declined" ? "declined" : "completed"}`,
+      text:
+        v.kind === "new"
+          ? `A patient was referred to you (${v.referralNumber}). Accept or decline it.`
+          : v.kind === "declined"
+            ? `Your referral ${v.referralNumber} was declined. Read the reason and refer elsewhere if needed.`
+            : v.kind === "accepted"
+              ? `Your referral ${v.referralNumber} was accepted.`
+              : `Your referral ${v.referralNumber} was completed. Read the outcome in the referral.`,
+      href: `/clinic/referrals/${v.referralId}`,
+    }),
+  }),
+  defineTemplate({
     key: "lab.result-notice",
     version: 1,
     category: "clinical",

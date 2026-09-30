@@ -1,7 +1,16 @@
 import { pageQuerySchema } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { ALLERGY_CATEGORIES, BOOKING_CHANNELS, MODALITIES, PROFESSIONS, ROOM_TYPES, VISIT_PRIORITIES } from "./clinic.schema";
+import {
+  ALLERGY_CATEGORIES,
+  BOOKING_CHANNELS,
+  MODALITIES,
+  PROFESSIONS,
+  REFERRAL_KINDS,
+  REFERRAL_URGENCIES,
+  ROOM_TYPES,
+  VISIT_PRIORITIES,
+} from "./clinic.schema";
 
 const code = z
   .string()
@@ -373,3 +382,66 @@ export class IssueCertificateDto extends createZodDto(issueCertificateSchema) {}
 
 export const voidCertificateSchema = z.object({ reason: z.string().trim().min(5, "Say why the certificate is void").max(500) });
 export class VoidCertificateDto extends createZodDto(voidCertificateSchema) {}
+
+// ---- Referrals (0075) -------------------------------------------------------------------------
+
+const optionalText = (min: number, max: number) => z.string().trim().min(min).max(max).optional();
+const referralVersion = z.number().int().positive();
+
+export const createReferralSchema = z
+  .object({
+    kind: z.enum(REFERRAL_KINDS),
+    /** The specialty or service asked for, in the referrer's words (optional). */
+    specialty: optionalText(2, 120),
+    /** Internal: a practitioner of the organization. */
+    toPractitionerId: z.uuid().optional(),
+    /** External: the outside provider as the referrer names it (not verified), where, and how to reach them. */
+    externalProvider: optionalText(2, 200),
+    externalFacility: optionalText(2, 200),
+    externalContact: optionalText(3, 200),
+    urgency: z.enum(REFERRAL_URGENCIES).default("routine"),
+    /** The question for the receiving provider. */
+    reason: z.string().trim().min(3, "Say why you are referring").max(1000),
+    clinicalSummary: z.string().trim().max(4000).optional(),
+    /** Diagnoses of this consultation to list on the letter. */
+    diagnosisIds: z.array(z.uuid()).max(20).default([]),
+  })
+  .refine((v) => (v.kind === "internal" ? Boolean(v.toPractitionerId) : true), { message: "Choose the practitioner", path: ["toPractitionerId"] })
+  .refine((v) => (v.kind === "external" ? Boolean(v.externalProvider) : true), { message: "Name the provider", path: ["externalProvider"] })
+  .refine((v) => (v.kind === "internal" ? !v.externalProvider && !v.externalFacility && !v.externalContact : !v.toPractitionerId), {
+    message: "An internal referral names a practitioner; an external one names an outside provider",
+    path: ["kind"],
+  });
+export class CreateReferralDto extends createZodDto(createReferralSchema) {}
+
+export const referralQuerySchema = z.object({
+  /** to_me: referred to the caller; from_me: made by the caller; open: sent or accepted; all: the organization's recent ones. */
+  view: z.enum(["to_me", "from_me", "open", "all"]).default("open"),
+  patientId: z.uuid().optional(),
+});
+export class ReferralQueryDto extends createZodDto(referralQuerySchema) {}
+
+export const answerReferralSchema = z
+  .object({
+    decision: z.enum(["accept", "decline"]),
+    /** A note to the referrer; the reason when declining. */
+    note: optionalText(3, 1000),
+    version: referralVersion,
+  })
+  .refine((v) => v.decision === "accept" || Boolean(v.note), { message: "Say why you are declining", path: ["note"] });
+export class AnswerReferralDto extends createZodDto(answerReferralSchema) {}
+
+export const linkReferralAppointmentSchema = z.object({ appointmentId: z.uuid(), version: referralVersion });
+export class LinkReferralAppointmentDto extends createZodDto(linkReferralAppointmentSchema) {}
+
+export const completeReferralSchema = z.object({
+  /** What came of it: the receiving practitioner's note, or the outside provider's reply as received. */
+  outcomeNote: z.string().trim().min(3, "Write what came of the referral").max(2000),
+  /** External: the reply stored as a document of the patient (uploaded first). */
+  replyDocumentId: z.uuid().optional(),
+  version: referralVersion,
+});
+export class CompleteReferralDto extends createZodDto(completeReferralSchema) {}
+
+export const cancelReferralSchema = z.object({ reason: z.string().trim().min(5, "Say why the referral is cancelled").max(500), version: referralVersion });
+export class CancelReferralDto extends createZodDto(cancelReferralSchema) {}
