@@ -1,9 +1,11 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 
-/** Cards are panels, not marketing tiles: tight padding, hairline border, no heavy shadow. */
+/** Cards are rounded white panels on the soft page background: tight padding, faint border, barely-there shadow. */
 function Card({ className, ...props }: React.ComponentProps<"section">) {
-  return <section data-slot="card" className={cn("flex flex-col rounded-lg border bg-card text-card-foreground", className)} {...props} />;
+  return (
+    <section data-slot="card" className={cn("flex flex-col rounded-xl border border-border/70 bg-card text-card-foreground shadow-xs", className)} {...props} />
+  );
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"header">) {

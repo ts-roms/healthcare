@@ -103,7 +103,7 @@ export default function WelcomePage() {
 
       <main>
         {/* Hero */}
-        <section className="relative isolate overflow-hidden bg-sidebar text-sidebar-foreground">
+        <section className="surface-deep relative isolate overflow-hidden bg-sidebar text-sidebar-foreground">
           <div aria-hidden className="pointer-events-none absolute -top-40 right-0 -z-10 size-[36rem] rounded-full bg-primary/30 blur-3xl" />
           <div aria-hidden className="pointer-events-none absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-teal/25 blur-3xl" />
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:py-24">
@@ -236,7 +236,7 @@ export default function WelcomePage() {
 
         {/* Call to action */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <div className="relative isolate overflow-hidden rounded-2xl bg-sidebar px-6 py-12 text-center text-sidebar-foreground sm:px-12">
+          <div className="surface-deep relative isolate overflow-hidden rounded-2xl bg-sidebar px-6 py-12 text-center text-sidebar-foreground sm:px-12">
             <div
               aria-hidden
               className="pointer-events-none absolute -top-24 left-1/2 -z-10 size-[28rem] -translate-x-1/2 rounded-full bg-primary/30 blur-3xl"
