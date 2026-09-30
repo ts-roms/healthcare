@@ -468,6 +468,10 @@ export interface PortalAccountStatus {
   disabledReason: string | null;
   /** The patient's latest portal access consent is granted and in effect. */
   portalConsent: boolean;
+  /** The patient proved their sign-in email with a code. */
+  emailVerified: boolean;
+  /** The patient uses two-step verification; the clinic can turn it off after checking identity. */
+  mfaEnabled: boolean;
 }
 
 /** `POST /patients/:id/portal-account/invitations`: the code is returned once and never stored in plain text. */

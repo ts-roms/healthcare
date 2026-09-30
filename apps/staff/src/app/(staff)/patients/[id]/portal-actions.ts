@@ -41,6 +41,20 @@ export async function disablePortal(patientId: string, reason: string): Promise<
   }
 }
 
+/** Turns off the patient's two-step verification (lost phone and recovery codes) and ends their sessions; the reason is audited. */
+export async function resetPortalMfa(patientId: string, reason: string): Promise<PortalActionResult> {
+  if (!UUID.test(patientId)) return { ok: false, message: "Unknown patient." };
+  const trimmed = reason.trim();
+  if (trimmed.length < 5) return { ok: false, message: "Give a reason of at least 5 characters." };
+  try {
+    await api(`/patients/${patientId}/portal-account/mfa-reset`, { method: "POST", body: { reason: trimmed } });
+    revalidatePath(`/patients/${patientId}`);
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 /**
  * Sends a message to the patient's MyHealth inbox (in-app only: free text never goes out by SMS or email).
  * The API checks `notification.send`, the portal account and consent; `attemptId` makes a retried submit a no-op.

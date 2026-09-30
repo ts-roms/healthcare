@@ -28,6 +28,17 @@ describe("notification templates", () => {
     expect(withoutSecrets(findTemplate("portal.password-changed")!, { organizationName: "Demo Health" })).toEqual({ organizationName: "Demo Health" });
   });
 
+  it("keeps verification codes out of the stored notification and renders security alerts", () => {
+    const code = findTemplate("portal.email-verification")!;
+    expect(code.internal).toBe(true);
+    const variables = code.variables.parse({ organizationName: "Demo Health", code: "123456", validMinutes: 15 }) as Record<string, unknown>;
+    expect(withoutSecrets(code, variables)).toEqual({ organizationName: "Demo Health", code: "[removed]", validMinutes: 15 });
+    expect(code.variables.safeParse({ organizationName: "Demo", code: "12345", validMinutes: 15 }).success).toBe(false);
+    const alert = findTemplate("portal.security-alert")!;
+    const recovery = alert.variables.parse({ organizationName: "Demo Health", event: "recovery_code_used", detail: "7" }) as never;
+    expect(alert.render(recovery).text).toContain("(7 left)");
+  });
+
   it("keep staff free text inside the platform", () => {
     expect(findTemplate("staff.message")!.channels).toEqual(["in_app"]);
   });

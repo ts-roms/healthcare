@@ -1,5 +1,8 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import { PortalEmailService } from "./security/portal-email.service";
+import { PortalMfaService } from "./security/portal-mfa.service";
+import { PortalMfaLoginController, PortalSecurityController } from "./security/portal-security.controller";
 import { PortalPreferencesController } from "./preferences/portal-preferences.controller";
 import { PortalPreferencesService } from "./preferences/portal-preferences.service";
 import { PortalConsentsController } from "./consents/portal-consents.controller";
@@ -12,7 +15,8 @@ import { PatientSearchService } from "./patient-search.service";
 import { PatientAccessGuard } from "./portal/patient-access.guard";
 import { PatientPortalAccountController, PortalController } from "./portal/portal.controller";
 import { PortalAccountService } from "./portal/portal-account.service";
-import { PortalPasswordResetService, PortalSecurityMailers } from "./portal/portal-password-reset.service";
+import { PortalPasswordResetService } from "./portal/portal-password-reset.service";
+import { PortalSecurityMailers } from "./portal/portal-security-mailer";
 import { PortalTokenService } from "./portal/portal-tokens";
 import { RecordsRequestController } from "./records-requests/records-request.controller";
 import { RecordsRequestService } from "./records-requests/records-request.service";
@@ -26,6 +30,8 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     RecordsRequestController,
     PortalConsentsController,
     PortalPreferencesController,
+    PortalSecurityController,
+    PortalMfaLoginController,
   ],
   providers: [
     PatientRecordService,
@@ -39,6 +45,8 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalConsentService,
     PortalPreferencesService,
     PortalPasswordResetService,
+    PortalEmailService,
+    PortalMfaService,
     PortalSecurityMailers,
   ],
   exports: [

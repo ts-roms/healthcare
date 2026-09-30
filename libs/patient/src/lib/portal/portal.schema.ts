@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const PORTAL_ACCOUNT_STATUSES = ["invited", "active", "disabled"] as const;
 export type PortalAccountStatus = (typeof PORTAL_ACCOUNT_STATUSES)[number];
@@ -30,6 +30,13 @@ export const patientPortalAccount = pgTable("patient_portal_account", {
   disabledAt: ts("disabled_at"),
   disabledBy: uuid("disabled_by"),
   disabledReason: text("disabled_reason"),
+  /** 0073: when the sign-in email was proven with a code sent to it. */
+  emailVerifiedAt: ts("email_verified_at"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  mfaSecretEncrypted: text("mfa_secret_encrypted"),
+  mfaPendingSecretEncrypted: text("mfa_pending_secret_encrypted"),
+  mfaEnabledAt: ts("mfa_enabled_at"),
+  mfaLastUsedStep: bigint("mfa_last_used_step", { mode: "number" }),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
@@ -69,4 +76,29 @@ export const patientPortalPasswordReset = pgTable("patient_portal_password_reset
   createdAt: ts("created_at").notNull().defaultNow(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+});
+
+export const EMAIL_VERIFICATION_CONSUMED_REASONS = ["verified", "superseded", "exhausted"] as const;
+
+/** Mirrors database/migrations/0073_portal_email_verification_mfa.sql. */
+export const patientPortalEmailVerification = pgTable("patient_portal_email_verification", {
+  id: uuid("id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  email: text("email").notNull(),
+  codeHash: text("code_hash").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  consumedAt: ts("consumed_at"),
+  consumedReason: text("consumed_reason").$type<(typeof EMAIL_VERIFICATION_CONSUMED_REASONS)[number]>(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+export const patientPortalRecoveryCode = pgTable("patient_portal_recovery_code", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  codeHash: text("code_hash").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  usedAt: ts("used_at"),
 });

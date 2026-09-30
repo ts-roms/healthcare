@@ -14,6 +14,7 @@ import {
 } from "./portal.dto";
 import { type PortalPrincipal, PortalAccountService } from "./portal-account.service";
 import { PortalPasswordResetService } from "./portal-password-reset.service";
+import { PortalMfaService } from "../security/portal-mfa.service";
 
 // Credential endpoints get the same tight rate limit as staff sign-in.
 const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
@@ -95,7 +96,10 @@ export class PortalController {
 @ApiBearerAuth()
 @Controller({ path: "patients/:patientId/portal-account", version: "1" })
 export class PatientPortalAccountController {
-  constructor(private readonly accounts: PortalAccountService) {}
+  constructor(
+    private readonly accounts: PortalAccountService,
+    private readonly mfa: PortalMfaService,
+  ) {}
 
   @Get()
   @RequirePermissions("patient.read")
@@ -108,6 +112,14 @@ export class PatientPortalAccountController {
   @ApiOperation({ summary: "Issue a one-time activation code (shown once) after verifying the patient in person" })
   invite(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
     return this.accounts.invite(actor, patientId);
+  }
+
+  @Post("mfa-reset")
+  @HttpCode(204)
+  @RequirePermissions("patient.portal.manage")
+  @ApiOperation({ summary: "Turn off the patient's two-step verification (lost app and recovery codes) after checking identity in person; ends every session" })
+  async resetMfa(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: DisablePortalAccountDto): Promise<void> {
+    await this.mfa.resetByClinic(actor, patientId, body.reason);
   }
 
   @Post("disable")

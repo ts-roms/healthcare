@@ -49,7 +49,12 @@ export class NotificationService {
     private readonly audit: AuditService,
   ) {}
 
-  async send(actor: Actor, input: SendNotificationInput): Promise<NotificationView> {
+  /**
+   * `securityDestination` is for the platform's own internal security emails only (a code to an address being verified,
+   * a notice to the address an account just left): it is honoured for internal security templates and ignored otherwise.
+   * The public send endpoint never passes it.
+   */
+  async send(actor: Actor, input: SendNotificationInput, options: { securityDestination?: string } = {}): Promise<NotificationView> {
     const template = findTemplate(input.templateKey);
     if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, "unknown_template");
     if (!template.channels.includes(input.channel)) {
@@ -76,7 +81,10 @@ export class NotificationService {
       if (existing) return toNotificationView(existing);
     }
 
-    const resolution = await this.recipients.resolve(actor.organizationId, input.recipient, input.channel, template.category);
+    const resolution =
+      options.securityDestination && template.internal && template.category === "security" && input.channel === "email" && input.recipient.type === "patient"
+        ? ({ allowed: true, destination: options.securityDestination } as const)
+        : await this.recipients.resolve(actor.organizationId, input.recipient, input.channel, template.category);
     const inApp = input.channel === "in_app";
     const status = !resolution.allowed ? "suppressed" : inApp ? "delivered" : "queued";
     const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
