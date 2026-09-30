@@ -23,6 +23,7 @@ export * from "./lib/exchange/payload-keys.service";
 export * from "./lib/exchange/integration-exchanges.service";
 export * from "./lib/exchange/integration-worker.module";
 export * from "./lib/exchange/integration.module";
+export * from "./lib/doh/doh-record.queries";
 export * from "./lib/doh/doh-reports.service";
 export * from "./lib/doh/doh-rescans.service";
 export * from "./lib/doh/doh-settings.service";

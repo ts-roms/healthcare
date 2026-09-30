@@ -16,13 +16,14 @@ import {
   type TimelineWindow,
   filedAsPatient,
 } from "@healthcare/core";
-import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import { checkAllergies } from "./allergy-check";
 import type { cancelPrescriptionSchema, issuePrescriptionSchema, PrescriptionItemInput, replacePrescriptionSchema } from "./prescription.dto";
 import {
   type AllergyWarning,
   prescription,
+  prescriptionDispense,
   prescriptionItem,
   type PrescriptionItemRecord,
   prescriptionNumberSequence,
@@ -253,6 +254,42 @@ export class PrescriptionService {
         ),
       )
       .orderBy(desc(at), desc(prescription.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Dispenses for the patient timeline: when dispensed (`step = dispensed`) and, for a mistaken dispense, when reversed
+   * (`step = reversed`), with the stock item's name, quantity and unit, and the prescription number — never the note or
+   * the reversal reason. Sources `dispense` and `dispense_reversal`. Not audited here; the caller audits.
+   */
+  timelineDispenses(organizationId: string, patientId: string, window: TimelineWindow, step: "dispensed" | "reversed") {
+    const at = step === "dispensed" ? prescriptionDispense.dispensedAt : prescriptionDispense.reversedAt;
+    return this.db
+      .select({
+        id: prescriptionDispense.id,
+        patientId: prescriptionDispense.patientId,
+        at: timelineInstant(at),
+        facilityId: prescriptionDispense.facilityId,
+        status: prescriptionDispense.status,
+        itemName: prescriptionDispense.itemName,
+        quantity: prescriptionDispense.quantity,
+        stockUnit: prescriptionDispense.stockUnit,
+        prescriptionId: prescriptionDispense.prescriptionId,
+        prescriptionNumber: prescription.prescriptionNumber,
+        encounterId: prescription.encounterId,
+      })
+      .from(prescriptionDispense)
+      .innerJoin(prescription, eq(prescription.id, prescriptionDispense.prescriptionId))
+      .where(
+        and(
+          eq(prescriptionDispense.organizationId, organizationId),
+          filedAsPatient(prescriptionDispense.patientId, patientId),
+          isNotNull(at),
+          timelineFacility(prescriptionDispense.facilityId, window),
+          timelineRange(step === "dispensed" ? "dispense" : "dispense_reversal", at, prescriptionDispense.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(prescriptionDispense.id))
       .limit(window.limit);
   }
 

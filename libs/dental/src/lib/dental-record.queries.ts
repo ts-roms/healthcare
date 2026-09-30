@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
-import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { type ChartTooth, DentalChartService } from "./chart/dental-chart.service";
 import {
   dentalExamination,
   dentalImage,
+  dentalImageRelease,
   dentalPerioChart,
   dentalPerioSite,
   dentalPerioTooth,
@@ -237,6 +238,91 @@ export class DentalRecordQueries {
         ),
       )
       .orderBy(desc(at), desc(dentalTreatmentPlan.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Dental images when recorded: the kind of image, the day taken and the status (entered in error included) — never
+   * the teeth, notes or the file. Source `dental_image`.
+   */
+  timelineImages(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalImage.recordedAt;
+    return this.db
+      .select({
+        id: dentalImage.id,
+        patientId: dentalImage.patientId,
+        at: timelineInstant(at),
+        facilityId: dentalImage.facilityId,
+        kind: dentalImage.kind,
+        takenOn: dentalImage.takenOn,
+        status: dentalImage.status,
+        encounterId: dentalImage.encounterId,
+      })
+      .from(dentalImage)
+      .where(
+        and(
+          eq(dentalImage.organizationId, organizationId),
+          filedAsPatient(dentalImage.patientId, patientId),
+          timelineFacility(dentalImage.facilityId, window),
+          timelineRange("dental_image", at, dentalImage.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalImage.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Dental images shared with the patient in MyHealth, when shared, with the kind of image and whether the sharing was
+   * withdrawn later (never the withdrawal reason). Source `dental_image_share`.
+   */
+  timelineImageShares(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalImageRelease.releasedAt;
+    return this.db
+      .select({
+        id: dentalImageRelease.id,
+        patientId: dentalImage.patientId,
+        at: timelineInstant(at),
+        facilityId: dentalImage.facilityId,
+        imageId: dentalImage.id,
+        kind: dentalImage.kind,
+        withdrawn: sql<boolean>`${dentalImageRelease.withdrawnAt} IS NOT NULL`,
+      })
+      .from(dentalImageRelease)
+      .innerJoin(dentalImage, eq(dentalImage.id, dentalImageRelease.imageId))
+      .where(
+        and(
+          eq(dentalImageRelease.organizationId, organizationId),
+          filedAsPatient(dentalImage.patientId, patientId),
+          timelineFacility(dentalImage.facilityId, window),
+          timelineRange("dental_image_share", at, dentalImageRelease.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalImageRelease.id))
+      .limit(window.limit);
+  }
+
+  /** Periodontal charts when recorded, with their status (entered in error included) — never measurements or notes. Source `dental_perio`. */
+  timelinePerioCharts(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = dentalPerioChart.recordedAt;
+    return this.db
+      .select({
+        id: dentalPerioChart.id,
+        patientId: dentalPerioChart.patientId,
+        at: timelineInstant(at),
+        facilityId: dentalPerioChart.facilityId,
+        status: dentalPerioChart.status,
+        encounterId: dentalPerioChart.encounterId,
+      })
+      .from(dentalPerioChart)
+      .where(
+        and(
+          eq(dentalPerioChart.organizationId, organizationId),
+          filedAsPatient(dentalPerioChart.patientId, patientId),
+          timelineFacility(dentalPerioChart.facilityId, window),
+          timelineRange("dental_perio", at, dentalPerioChart.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(dentalPerioChart.id))
       .limit(window.limit);
   }
 

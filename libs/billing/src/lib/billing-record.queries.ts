@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { accountBalance } from "./billing.rules";
-import { billingAccountEntry, billingCharge, billingInvoice, billingPayment } from "./billing.schema";
+import { billingAccountEntry, billingCharge, billingCreditNote, billingDebitNote, billingInvoice, billingPayment } from "./billing.schema";
 
 /**
  * Billing read queries for the patient timeline (composed in apps/api): issued invoices and recorded payments and
@@ -93,6 +93,97 @@ export class BillingRecordQueries {
         ),
       )
       .orderBy(desc(at), desc(billingPayment.id))
+      .limit(window.limit);
+  }
+
+  /** Credit notes when issued, with number, amount and the invoice credited (never the reason or lines). */
+  timelineCreditNotes(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = billingCreditNote.issuedAt;
+    return this.db
+      .select({
+        id: billingCreditNote.id,
+        patientId: billingCreditNote.patientId,
+        at: timelineInstant(at),
+        facilityId: billingCreditNote.facilityId,
+        number: billingCreditNote.creditNoteNumber,
+        amount: billingCreditNote.amount,
+        invoiceId: billingCreditNote.invoiceId,
+        invoiceNumber: billingInvoice.invoiceNumber,
+      })
+      .from(billingCreditNote)
+      .innerJoin(billingInvoice, eq(billingInvoice.id, billingCreditNote.invoiceId))
+      .where(
+        and(
+          eq(billingCreditNote.organizationId, organizationId),
+          filedAsPatient(billingCreditNote.patientId, patientId),
+          timelineFacility(billingCreditNote.facilityId, window),
+          timelineRange("credit_note", at, billingCreditNote.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(billingCreditNote.id))
+      .limit(window.limit);
+  }
+
+  /** Debit notes when issued, with number, amount and the invoice (never the reason or lines). */
+  timelineDebitNotes(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = billingDebitNote.issuedAt;
+    return this.db
+      .select({
+        id: billingDebitNote.id,
+        patientId: billingDebitNote.patientId,
+        at: timelineInstant(at),
+        facilityId: billingDebitNote.facilityId,
+        number: billingDebitNote.debitNoteNumber,
+        amount: billingDebitNote.amount,
+        invoiceId: billingDebitNote.invoiceId,
+        invoiceNumber: billingInvoice.invoiceNumber,
+      })
+      .from(billingDebitNote)
+      .innerJoin(billingInvoice, eq(billingInvoice.id, billingDebitNote.invoiceId))
+      .where(
+        and(
+          eq(billingDebitNote.organizationId, organizationId),
+          filedAsPatient(billingDebitNote.patientId, patientId),
+          timelineFacility(billingDebitNote.facilityId, window),
+          timelineRange("debit_note", at, billingDebitNote.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(billingDebitNote.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Entries of the patient's deposit and credit account when recorded: deposits, applications to invoices, releases
+   * on void, refunds and moves between facilities, with kind, amount, method, receipt and invoice numbers — never
+   * references or refund reasons. Credit from a credit note is left out (the credit note is its own entry).
+   */
+  timelineAccountEntries(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = billingAccountEntry.recordedAt;
+    return this.db
+      .select({
+        id: billingAccountEntry.id,
+        patientId: billingAccountEntry.patientId,
+        at: timelineInstant(at),
+        facilityId: billingAccountEntry.facilityId,
+        kind: billingAccountEntry.kind,
+        amount: billingAccountEntry.amount,
+        method: billingAccountEntry.method,
+        receiptNumber: billingAccountEntry.receiptNumber,
+        invoiceId: billingAccountEntry.invoiceId,
+        invoiceNumber: billingInvoice.invoiceNumber,
+      })
+      .from(billingAccountEntry)
+      .leftJoin(billingInvoice, eq(billingInvoice.id, billingAccountEntry.invoiceId))
+      .where(
+        and(
+          eq(billingAccountEntry.organizationId, organizationId),
+          filedAsPatient(billingAccountEntry.patientId, patientId),
+          ne(billingAccountEntry.kind, "credit"),
+          timelineFacility(billingAccountEntry.facilityId, window),
+          timelineRange("account_entry", at, billingAccountEntry.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(billingAccountEntry.id))
       .limit(window.limit);
   }
 }
