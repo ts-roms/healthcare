@@ -49,6 +49,7 @@ None. Every entry has one shape:
 | `communication`      | Notification to the patient (requested); suppressed ones included                       | Channel, template, category, delivery status                                                         | Message body, variables, destination                           |
 | `external_history`   | Imported history entry (accepted), labelled "(external record)"                         | Kind, code, declared source                                                                          | Display text, values, the other provider's free-text dates     |
 | `document`           | Uploaded document (upload verified)                                                     | Category                                                                                             | Title, file name (free text); generated and archived documents |
+| `procedure`          | Procedure performed at the clinic (at the time performed)                               | Name with quantity and site, code; entered in error marked; link to the consultation                 | Notes, the late-entry reason                                   |
 | `immunization`       | Dose given, not given, reported or imported (at the time given, else when recorded)     | Vaccine name, dose as recorded, date given when partial, status (entered in error marked), source    | Notes, the not-given reason text, reactions, lot               |
 
 The patient history (past procedures and conditions, family and social history; [patient history](patient-history.md)) is
@@ -95,6 +96,7 @@ own reads; otherwise it is left out and listed in `withheld` (no counts are reve
 | `invoice`, `payment`         | `billing.charge.read` |
 | `communication`              | `notification.read`   |
 | `document`                   | `document.read`       |
+| `procedure`                  | `encounter.read`      |
 | `immunization`               | `immunization.read`   |
 
 For example a cashier sees invoices and payments only; a medical technologist sees laboratory orders and releases only;

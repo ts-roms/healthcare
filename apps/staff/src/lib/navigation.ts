@@ -39,6 +39,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
 const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/clinic/care-plans": ["care-plan.read"],
   "/clinic/vaccines": ["immunization.read"],
+  "/clinic/procedures": ["encounter.read"],
   "/laboratory/critical": ["lab.result.read"],
   "/laboratory/instrument-results": ["lab.result.read"],
   "/laboratory/qc": ["lab.qc.read"],

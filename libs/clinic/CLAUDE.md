@@ -29,15 +29,16 @@ Walk-in / Appointment → Check-in → Queue → Triage (vitals, chief complaint
 - **Care plans** are a separate domain (`libs/care-plan`); clinic creates/links them via its contract.
 - **Telemedicine** encounters reuse the same encounter model with a `modality` field; providers can escalate to in-person.
 - **Patient history** (`src/lib/history`) keeps past procedures and conditions as reported, medications taken that were not prescribed here (never a prescription; marked stopped once), family history with its review, and social history as versions; a past condition is never a diagnosis (the problem list is the diagnoses of consultations). Never score or infer anything from it. Rows are immutable (entered in error); substance use and sexual history need `encounter.write` besides `history.read`.
+- **Procedures** (`src/lib/procedures`) performed at the clinic are recorded in an in-person consultation from the organization's own catalogue (never a national code set), naming who performed them; after signing only with `encounter.amend` and a reason. Immutable (entered in error); billing charges them through the `ClinicProcedurePerformed` event, never by reading clinic tables.
 - **Immunizations** (`src/lib/immunizations`) record what was given, not given or reported; never encode a schedule, a due dose or an official code set. Records are immutable (entered in error, a reaction added once); stock goes through the `ImmunizationContext` port in the same transaction.
 
 ## Key events
 
-`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`, `ImmunizationRecorded`, `ImmunizationEnteredInError`, `PatientHistoryRecorded`, `PatientHistoryMedicationStopped`, `PatientHistoryEnteredInError`.
+`AppointmentBooked`, `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`, `EncounterAmended`, `DiagnosisRecorded`, `PrescriptionIssued`, `PrescriptionCancelled`, `ReferralCreated`, `FollowUpDue`, `ImmunizationRecorded`, `ImmunizationEnteredInError`, `ClinicProcedurePerformed`, `ClinicProcedureEnteredInError`, `PatientHistoryRecorded`, `PatientHistoryMedicationStopped`, `PatientHistoryEnteredInError`.
 
 ## Permissions
 
-`clinic.configure` (also the vaccine catalogue), `immunization.read`, `immunization.record`, `history.read`, `history.record`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`, `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `clinic.dashboard.read`; prescriptions: `prescription.read`, `prescription.issue`, `prescription.cancel` (`libs/prescription`). Access is scoped by organization → facility → department.
+`clinic.configure` (also the vaccine and procedure catalogues), `immunization.read`, `immunization.record`, `history.read`, `history.record`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`, `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`, `encounter.amend`, `clinic.dashboard.read`; prescriptions: `prescription.read`, `prescription.issue`, `prescription.cancel` (`libs/prescription`). Access is scoped by organization → facility → department.
 
 ## Docs
 

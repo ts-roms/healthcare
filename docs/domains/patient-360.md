@@ -82,7 +82,9 @@ On the page, the summary panels need `patient.read` + `clinical.read` (prescript
 `care-plan.read`) and laboratory results `lab.result.read` (`lib/patient-workspace.ts` → `workspaceAccess`). A withheld
 panel shows "Not available to you." — never an empty list. No permission was added. The `immunizations` panel (migration
 `0081`, [immunizations](immunizations.md)) lists the latest 8 records not in error: vaccine, dose as recorded, date at
-its precision, given / not given, source and whether a reaction is recorded — never notes or reasons. The `history`
+its precision, given / not given, source and whether a reaction is recorded — never notes or reasons. The `procedures` panel (`encounter.read`, migration `0085`) lists the latest 8
+procedures performed at the clinic that are not in error: what (name, quantity, site), when and by whom, with a link to
+the consultation — never notes. The `history`
 panel (migration `0082`, [patient history](patient-history.md)) shows the family history state with the latest relatives'
 conditions, the latest 5 past procedures and past conditions (not in error) with totals, medications taken that were not
 prescribed here and not stopped (migration `0083`; also listed as "Also taking" under the active medications), and the current social history

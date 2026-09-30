@@ -287,6 +287,18 @@ for a recorded reaction; `protocolApplied.doseNumberString` the dose as recorded
 inferred). Imported records carry the external-source tag. Staff notes are never exported. No official vaccine code
 set (CVX, a Philippine code set) is assumed: an organization licensed for one names its key and configures its URI.
 
+### Procedures performed at the clinic
+
+Procedures recorded in consultations (clinic, migration `0085`; [clinic](../domains/clinic.md) "Procedures") →
+`Procedure` (`completed` / `entered-in-error`; category `{identifierBase}/codesystem/procedure-category#clinic-procedure`;
+`code` the organization's own code under `…/codesystem/clinic-procedure` with the name as `text`, plus the other code of a
+system the organization names when its catalogue gives one, under `FHIR_CODE_SYSTEMS[key]` or a local namespace;
+`encounter`, `performer` (the practitioner who performed it), `location`, `performedDateTime`, `bodySite` as text, the
+quantity as a note when more than one). The clinician's notes are not exported. `meta.lastUpdated` is when it was marked
+entered in error, else when it was recorded (rows are immutable otherwise), so `_lastUpdated` applies. Exported to any
+`interop.fhir.read` caller, like diagnoses; a Procedure search withholds only the dental ones from callers without
+`dental.record.read`.
+
 ### Patient history
 
 The patient history (clinic, migration `0082`; [patient history](../domains/patient-history.md)): **past procedures** →

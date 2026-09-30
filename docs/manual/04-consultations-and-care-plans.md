@@ -183,6 +183,21 @@ The encounter workspace has an **Immunizations** section: doses recorded in this
 consultation; from stock or with the lot number typed; or **Not given** with the reason) and the earlier history, with a link to the full
 history. It works the same as on the patient record (see [Patients](02-patients.md)). Nothing in it says which dose is due.
 
+## How to record a procedure done in the consultation
+
+The encounter workspace has a **Procedures** section for what you did to the patient in this visit — dressing, suturing, incision and drainage,
+nebulization, an injection and the like (dental work and vaccines have their own sections). Your clinic lists the procedures it performs under
+**Clinic → Procedures**; an administrator adds them.
+
+1. Select **Record procedure**.
+2. Choose the **Procedure**, who **Performed by** (you, or another practitioner such as the nurse who did it), **When** (leave empty for now),
+   the **Body site** (asked for some procedures, for example "left forearm"), **How many** (billed as this quantity) and any **Notes**.
+3. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
+
+Procedures are not recorded in online consultations. After the consultation is signed, only staff who may amend consultations can add one, and
+they must say **why it is recorded after signing**; it is marked **Recorded after signing**. A mistake: **Entered in error…** with a reason (the
+person who recorded it, or someone who may amend consultations). It stays listed, struck through, and a charge not yet on an invoice is cancelled.
+
 ## How to review and record the history in the consultation
 
 The encounter workspace has a **Medical, medication, family and social history** section: past procedures and conditions, medicines taken that
