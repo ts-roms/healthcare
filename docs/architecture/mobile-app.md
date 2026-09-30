@@ -1,6 +1,6 @@
 # Mobile app — requirements and status
 
-**Status: first slice built** — patients sign in, read their released results and can receive push notifications on the phone (`apps/mobile`, [§7](#7-first-slice-apps-mobile); push is a provisional D6 choice, [§8](#8-push-to-the-app-provisional-d6)). Only
+**Status: first slice built** — patients sign in, read their released results and can receive push notifications on the phone (`apps/mobile`, [§7](#7-first-slice-apps-mobile); push through the Expo push service, D6, [§8](#8-push-to-the-app-d6)). Only
 what the decisions in [§4](#4-decisions-needed-before-implementation) cover may be built; the rest waits for its decision. This note separates
 what the repository already establishes from what still has to be decided; it does not add requirements of its own.
 
@@ -94,7 +94,7 @@ only when released, releasable and — if critical — acknowledged) are enforce
 Push exists as **Web Push** only: `POST /portal/push/subscriptions` takes a browser subscription (`endpoint` + `p256dh`/`auth` keys),
 `WebPushSender` delivers content-free notices, up to 5 devices per account ([notification.md](../domains/notification.md#push-browsers-and-the-mobile-app)).
 A native device token (Expo, FCM, APNs) cannot be registered through that contract; the app registers through
-`POST /portal/push/mobile-devices` instead (migration `0081`, [§8](#8-push-to-the-app-provisional-d6)).
+`POST /portal/push/mobile-devices` instead (migration `0081`, [§8](#8-push-to-the-app-d6)).
 
 ### Shared code (PARTIALLY VERIFIED)
 
@@ -134,11 +134,13 @@ Record the answer (and who decided) here before building the part it governs.
   - D5: the refresh token in the Keychain/Keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`: not in backups, not on another device), the access
     token in memory, the API's session length unchanged (14 days), no app lock or biometric unlock; nothing else about the patient is
     stored on the device.
-  - D6 (added after D2, at the product owner's request to build push; confirm or change): push through the **Expo push service**; the
-    app's Expo token is registered as one of the account's push devices (§8).
   - D12: result types and wording shared with MyHealth on the web through `@healthcare/domain/portal-results`; the few other response
     types mirrored by hand in `apps/mobile/src/lib/api-types.ts`, as the web apps do. No contract library yet.
 
+- **D6 — push through the Expo push service** (product owner, 2026-09-30). The app's Expo token is registered as one of the account's push
+  devices; the platform sends through Expo, which relays to Apple (APNs) and Google (FCM), and reads Expo's receipts (§8). Direct FCM/APNs
+  was not chosen: it would need its own sender and device-token contract, and Expo push needs no provider account beyond the
+  organization's own Expo project, Apple and Firebase credentials already required for store builds (D13).
 - **D3 — why native** (product owner, 2026-09-30): **native push**, **app-store presence** and **more MyHealth areas** in the app. The
   product owner also chose **nothing new until the app has been tried on devices**: the next step is a run on iOS and Android (§7, §8 —
   neither has run on a device or simulator yet), then store release (D13) and the further areas (D2: which ones is still to be named).
@@ -170,9 +172,9 @@ Every other decision below is still **UNKNOWN**.
 
 ## 5. Suggested order once decided (recommendation, not a requirement)
 
-1. ~~Record D1–D5 and D12.~~ D1, D2, D3 recorded; D4, D5, D12 accepted as provisional (D6 provisional, §8).
+1. ~~Record D1–D5 and D12.~~ D1, D2, D3 recorded; D4, D5, D12 accepted as provisional; D6 recorded (§8).
 2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
-3. Add the remaining D2 areas, then links (D7) if chosen, each with its own API change, documentation and tests. Push (D6) is built provisionally (§8).
+3. Add the remaining D2 areas, then links (D7) if chosen, each with its own API change, documentation and tests. Push (D6) is built (§8).
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
 
 ## 6. Out of scope for this note
@@ -215,7 +217,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
 reports, guardian access (D2), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
-## 8. Push to the app (provisional D6)
+## 8. Push to the app (D6)
 
 The platform sends to phones through the **Expo push service** (`https://exp.host/--/api/v2/push/send`; `ExpoPushTransport` in
 `libs/notification`), which relays to Apple (APNs) and Google (FCM). Sending needs no account; `EXPO_PUSH_ENABLED=true` on the API and the
