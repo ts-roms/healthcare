@@ -1120,7 +1120,7 @@ export interface BillingService {
   code: string;
   name: string;
   category: BillingCategory;
-  sourceKind: "visit_type" | "lab_test" | "dental_procedure" | null;
+  sourceKind: "visit_type" | "lab_test" | "dental_procedure" | "clinic_procedure" | null;
   sourceCode: string | null;
   status: "active" | "inactive";
   version: number;
@@ -1161,7 +1161,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "manual" | "package";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package";
   description: string;
   quantity: number;
   unitPrice: number;
@@ -3031,6 +3031,7 @@ export type PatientTimelineKind =
   | "encounter"
   | "referral"
   | "medical_certificate"
+  | "procedure"
   | "vitals"
   | "allergy"
   | "consent"
@@ -3378,7 +3379,16 @@ export interface PurchaseOrderInvoicing {
 // ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
 
 export type PatientWorkspacePanel =
-  "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "referrals" | "immunizations" | "history";
+  | "current_encounter"
+  | "encounter_history"
+  | "critical_results"
+  | "lab_orders"
+  | "dental_images"
+  | "documents"
+  | "referrals"
+  | "procedures"
+  | "immunizations"
+  | "history";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3488,6 +3498,7 @@ export interface PatientWorkspace {
   referrals?: WorkspaceReferral[] | null;
   /** The latest immunizations (entries in error left out); absent from an older API. */
   immunizations?: WorkspaceImmunization[] | null;
+  procedures?: WorkspaceProcedure[] | null;
   /** The patient history summary (needs history.read); absent from an older API. */
   history?: WorkspaceHistory | null;
   /** Records merged into this patient, read with it. */
@@ -4542,4 +4553,54 @@ export interface PatientNotification {
   failedAt: string | null;
   cancelledAt: string | null;
   readAt: string | null;
+}
+
+// ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
+
+/** GET /clinic/procedure-definitions: the organization's own procedure catalogue. */
+export interface ProcedureDefinition {
+  id: string;
+  code: string;
+  name: string;
+  codeSystem: string | null;
+  externalCode: string | null;
+  requiresBodySite: boolean;
+  status: "active" | "inactive";
+  version: number;
+}
+
+/** A procedure recorded in a consultation (GET /encounters/:id/procedures, /patients/:id/procedures). */
+export interface ClinicProcedure {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string };
+  encounterId: string;
+  definitionId: string;
+  code: string;
+  name: string;
+  codeSystem: string | null;
+  externalCode: string | null;
+  /** "Suture repair × 2 (left forearm)". */
+  description: string;
+  performedAt: string;
+  performer: { id: string; name: string };
+  bodySite: string | null;
+  quantity: number;
+  notes: string | null;
+  lateEntryReason: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  recordedAt: string;
+  recordedBy: string;
+  recordedByName: string | null;
+}
+
+/** Patient 360 `procedures` panel. */
+export interface WorkspaceProcedure {
+  id: string;
+  filedUnder: string | null;
+  encounterId: string;
+  description: string;
+  performedAt: string;
+  performerName: string | null;
 }

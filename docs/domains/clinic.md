@@ -68,6 +68,43 @@ here (optionally from vaccine stock, in the same transaction), not given with th
 partial date, and accepted from FHIR imports; immutable, corrected by entered in error. No schedule or due dose is
 encoded. See [immunizations](immunizations.md).
 
+## Procedures
+
+Procedures performed at the clinic — wound dressing, suturing, incision and drainage, nebulization, injections given in
+a consultation and the like; not dental work (`libs/dental`) or vaccinations (immunizations) — live in
+`libs/clinic/src/lib/procedures` (migration `0085`).
+
+- **Catalogue** `clinic_procedure_definition`: the organization's own code (letters, digits, `.`, `_`, `-`, up to 30;
+  unique for good, never changed — retire an entry and add another), name, whether the body site is asked for, and
+  optionally another code under a code-system key the organization names (for example a relative value scale edition it
+  is licensed to use; exported under `FHIR_CODE_SYSTEMS[key]` when configured). Versioned, `active`/`inactive`. No
+  national procedure code set, relative value scale or PhilHealth code is assumed (compliance and integration
+  dependencies). `clinic.configure` changes it; clinical staff (`encounter.read`) read it. Staff `/clinic/procedures`.
+- **Record** `clinic_procedure`: in a consultation of the patient at the selected facility — **in person** only (nothing
+  is performed in an online consultation: `encounter_online`), not one entered in error. While the consultation is in
+  progress, `encounter.write` records; once signed, only someone with `encounter.amend`, with a reason
+  (`late_entry_reason`, `late_entry_reason_required`; without the permission `403`) — like diagnoses. The catalogue entry
+  is copied (code, name, other code), with when it was performed (not in the future, not before the consultation began;
+  5 minutes of clock tolerance), **who performed it** (an active practitioner of the organization — a nurse named by the
+  recording physician, for example; the recorder's own practitioner record when left out), the body site as written
+  (required when the catalogue asks), how many (1–99, the quantity billed) and notes. Immutable except being marked
+  **entered in error** once with a reason (trigger `clinic_procedure_guard`; no DELETE or TRUNCATE) by the person who
+  recorded it or someone with `encounter.amend`. Refused under a merged record (`PM001`); read through merged records.
+- **Billing**: `ClinicProcedurePerformed` → a charge (source `clinic_procedure`, quantity as recorded) when a billing
+  service is mapped to the procedure's code (`source_kind = 'clinic_procedure'`; billing settings "When a clinic
+  procedure is performed"); `ClinicProcedureEnteredInError` → the charge is cancelled while not invoiced (an invoiced one
+  needs a void, as for dental procedures).
+- **Reading**: the encounter workspace **Procedures** section; timeline kind `procedure` (`encounter.read`; name,
+  quantity and site, never notes); Patient 360 panel `procedures`; FHIR `Procedure` (local category `clinic-procedure`,
+  the organization's code and the other code, performer, encounter, location, body site; notes not exported); the copy of
+  the record lists them under each consultation.
+- **API**: `GET|POST /clinic/procedure-definitions`, `PATCH /clinic/procedure-definitions/:id`, `GET|POST
+/encounters/:id/procedures`, `GET /patients/:id/procedures`, `POST /procedures/:id/entered-in-error`. Audit
+  `clinic.procedure-catalog.create|update`, `encounter.procedure.record` (the late-entry reason as the audit reason),
+  `encounter.procedure.entered-in-error`, `encounter.procedure.view`. No new permission.
+- **Not built**: supplies used (taken from inventory as dental procedures do), consent forms for procedures, templates of
+  procedure notes, and procedures outside a consultation.
+
 ## Patient history
 
 Past procedures and surgeries, past conditions diagnosed elsewhere (never diagnoses: the problem list is the diagnoses of
@@ -162,7 +199,8 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
 
 `AppointmentBooked`, `AppointmentConfirmed`, `AppointmentRescheduled`, `AppointmentCancelled`, `AppointmentNoShow`,
 `AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
-`EncounterAmended`, `DiagnosisRecorded`. Consumers: appointment reminders (SMS 24 h before, withdrawn on
+`EncounterAmended`, `DiagnosisRecorded`, `ClinicProcedurePerformed`, `ClinicProcedureEnteredInError` (billing charges and
+cancels). Consumers: appointment reminders (SMS 24 h before, withdrawn on
 cancel/reschedule/no-show), the no-show follow-up (`AppointmentNoShow` → SMS + MyHealth "we missed you, book again" — skipped when the patient
 already has another visit booked; one per appointment), the patient self-service confirmation (SMS `appointment.self-service` when the patient
 booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `changedByPatient`) and the realtime queue gateway.
@@ -209,8 +247,8 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 - No-show automation (marking at end of day), online self check-in and room scheduling views are not built.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
-- Procedures performed here are not modelled (dental procedures excepted, `libs/dental`); referrals are (below). Past
-  procedures reported or documented from elsewhere are part of the [patient history](patient-history.md).
+- Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
+  are part of the [patient history](patient-history.md).
 
 ## Online booking rules and the waiting list
 

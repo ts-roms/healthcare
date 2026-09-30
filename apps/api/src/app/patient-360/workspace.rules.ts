@@ -19,6 +19,8 @@ export const WORKSPACE_PANELS = {
   documents: ["document.read"],
   /** Referrals: open ones first, then the latest; to whom, urgency, status and the overdue flag. */
   referrals: ["encounter.read"],
+  /** Procedures performed at the clinic (not dental), latest first. */
+  procedures: ["encounter.read"],
   /** The latest immunizations (given, not given, reported or imported). */
   immunizations: ["immunization.read"],
   /** Past procedures and conditions, the family history state and the current social history (sensitive parts also need encounter.write). */
@@ -38,6 +40,7 @@ export const WORKSPACE_LIMITS = {
   documents: 8,
   referrals: 8,
   immunizations: 8,
+  procedures: 8,
   history: 5,
 } as const;
 

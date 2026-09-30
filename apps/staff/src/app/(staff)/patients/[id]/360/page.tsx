@@ -15,6 +15,7 @@ import {
   PillIcon,
   StethoscopeIcon,
   SyringeIcon,
+  HandIcon,
   TestTubeIcon,
   UserIcon,
   WaypointsIcon,
@@ -460,6 +461,27 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               )
             ) : (
               <Withheld />
+            )}
+          </Panel>
+
+          <Panel title="Procedures done here" icon={HandIcon}>
+            {isWithheld(workspace, "procedures") || !workspace?.procedures ? (
+              <Withheld />
+            ) : workspace.procedures.length ? (
+              <ul className="flex flex-col gap-1.5 text-body">
+                {workspace.procedures.map((p) => (
+                  <li key={p.id} className="flex flex-col gap-0.5">
+                    <Link href={`/clinic/encounters/${p.encounterId}`} className="font-medium text-primary hover:underline">
+                      {p.description}
+                    </Link>
+                    <span className="text-meta text-muted-foreground">
+                      {[clinicalDateTime(p.performedAt), p.performerName, filedUnderText(p.filedUnder)].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-table text-muted-foreground">No procedures recorded.</p>
             )}
           </Panel>
 

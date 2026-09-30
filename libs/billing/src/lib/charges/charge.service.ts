@@ -36,6 +36,8 @@ interface CaptureInput {
   serviceDate: string;
   /** Surfaces treated, for a service charged per surface (dental procedures). */
   surfaceCount?: number;
+  /** How many were done (clinic procedures); otherwise from the charge unit. */
+  quantity?: number;
 }
 
 /**
@@ -118,6 +120,34 @@ export class ChargeService {
     });
   }
 
+  /** A procedure performed at the clinic: charged by its code, the quantity as recorded. */
+  async captureClinicProcedure(organizationId: string, procedureId: string): Promise<void> {
+    const procedure = await this.sources.clinicProcedure(organizationId, procedureId);
+    if (!procedure) return;
+    await this.capture({
+      organizationId,
+      facilityId: procedure.facilityId,
+      patientId: procedure.patientId,
+      sourceType: "clinic_procedure",
+      sourceId: procedure.id,
+      sourceGroupId: null,
+      sourceKind: "clinic_procedure",
+      sourceCode: procedure.procedureCode,
+      description: procedure.description,
+      serviceDate: procedure.serviceDate,
+      quantity: procedure.quantity,
+    });
+  }
+
+  /** A clinic procedure marked entered in error: its charge not yet on an invoice is cancelled (an invoiced one needs a void). */
+  async cancelClinicProcedure(organizationId: string, procedureId: string): Promise<void> {
+    await this.cancelSourceCharges(
+      organizationId,
+      and(eq(billingCharge.sourceType, "clinic_procedure"), eq(billingCharge.sourceId, procedureId))!,
+      "Procedure entered in error",
+    );
+  }
+
   /** A cancelled laboratory order: its charges not yet on an invoice are cancelled (invoiced ones need a void). */
   async cancelLabOrder(organizationId: string, orderId: string): Promise<void> {
     await this.cancelSourceCharges(organizationId, eq(billingCharge.sourceGroupId, orderId), "Laboratory order cancelled");
@@ -162,7 +192,7 @@ export class ChargeService {
         this.logger.warn(`No price for service ${service.code} on ${input.serviceDate}; charge not captured`);
         return;
       }
-      const quantity = chargeQuantity(service.chargeUnit, input.surfaceCount ?? 0);
+      const quantity = input.quantity ?? chargeQuantity(service.chargeUnit, input.surfaceCount ?? 0);
       const cover = await this.packages.coverFor(tx, {
         organizationId: input.organizationId,
         facilityId: input.facilityId,

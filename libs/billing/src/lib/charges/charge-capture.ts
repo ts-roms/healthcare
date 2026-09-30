@@ -21,6 +21,12 @@ export class ChargeCapture implements OnModuleInit {
     this.handlers.on("DentalProcedurePerformed", "billing.capture-dental-procedure", (event) =>
       this.charges.captureDentalProcedure(event.organizationId, event.aggregateId),
     );
+    this.handlers.on("ClinicProcedurePerformed", "billing.capture-clinic-procedure", (event) =>
+      this.charges.captureClinicProcedure(event.organizationId, event.aggregateId),
+    );
+    this.handlers.on("ClinicProcedureEnteredInError", "billing.cancel-clinic-procedure", (event) =>
+      this.charges.cancelClinicProcedure(event.organizationId, event.aggregateId),
+    );
     this.handlers.on("DentalProcedureEnteredInError", "billing.cancel-dental-procedure", (event) =>
       this.charges.cancelDentalProcedure(event.organizationId, event.aggregateId),
     );

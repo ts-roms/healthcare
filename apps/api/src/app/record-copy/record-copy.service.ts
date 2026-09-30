@@ -10,6 +10,7 @@ import {
   tobaccoText,
   type FamilyRelationship,
 } from "@healthcare/clinic";
+import { procedureText } from "@healthcare/clinic";
 import type { Actor } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import type { PatientRecordSource } from "@healthcare/interoperability";
@@ -223,6 +224,21 @@ const RENDERERS: Record<RecordCopySection, Renderer> = {
             { header: "Rank", width: 1.5 },
           ],
           diagnoses.map((d) => [d.display, d.code ?? "", d.certainty, d.rank]),
+        );
+      }
+      const procedures = record.clinicProcedures.filter((p) => p.encounterId === e.id && !p.enteredInErrorAt);
+      if (procedures.length) {
+        w.table(
+          [
+            { header: "Procedure", width: 5 },
+            { header: "Code", width: 1.5 },
+            { header: "Performed", width: 3 },
+          ],
+          procedures.map((p) => [
+            procedureText(p),
+            p.code,
+            `${pdfDateTime(new Date(p.performedAt), timeZone)} · ${practitioners.get(p.performerPractitionerId)?.displayName ?? ""}`,
+          ]),
         );
       }
       const note = notes.get(e.id);

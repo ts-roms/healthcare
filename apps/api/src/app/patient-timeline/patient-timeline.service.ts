@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { BillingRecordQueries, formatPeso } from "@healthcare/billing";
 import { CarePlanService } from "@healthcare/care-plan";
-import { ClinicQueries, doseText, ImmunizationService, occurrenceText } from "@healthcare/clinic";
+import { ClinicProcedureService, ClinicQueries, doseText, ImmunizationService, occurrenceText, procedureText } from "@healthcare/clinic";
 import { type Actor, BadRequestError, localDayBounds, NotFoundError, PH_TIMEZONE, type TimelinePosition, type TimelineWindow } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -119,6 +119,7 @@ export class PatientTimelineService {
     private readonly notifications: NotificationService,
     private readonly documents: DocumentRecordQueries,
     private readonly immunizations: ImmunizationService,
+    private readonly procedures: ClinicProcedureService,
     private readonly patientRecords: PatientTimelineQueries,
     private readonly philhealth: PhilHealthRecordQueries,
     private readonly doh: DohRecordQueries,
@@ -408,6 +409,16 @@ export class PatientTimelineService {
             status: x.status,
             link: { type: "patient_external_history", id: patientId },
             sourceIds: { externalHistoryEntryId: x.id },
+          }),
+        );
+      case "procedure":
+        return (await this.procedures.timeline(organizationId, patientId, window)).map((p) =>
+          row("clinic_procedure", p, {
+            title: `Procedure: ${procedureText(p)}`,
+            detail: p.code,
+            status: p.enteredInErrorAt ? "entered_in_error" : "completed",
+            link: { type: "encounter", id: p.encounterId },
+            sourceIds: { procedureId: p.id, encounterId: p.encounterId },
           }),
         );
       case "immunization":

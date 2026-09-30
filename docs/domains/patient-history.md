@@ -15,7 +15,7 @@ calculation, no pack-years, no hereditary-risk rule, no alert. In particular:
   never billed, never matched by DOH reporting rules and never shown as a problem-list item (FHIR: local category,
   `unconfirmed`);
 - a **past procedure is not a procedure performed by the organization**: procedures done here are dental procedures
-  (`libs/dental`); other procedures performed here are not modelled yet;
+  (`libs/dental`) and procedures recorded in consultations (`clinic_procedure`, [clinic](clinic.md) "Procedures");
 - a **medication taken is never a prescription** of the organization: it is not dispensed, billed or charged, is not
   checked by drug–allergy decision support (names are as written; no drug terminology is assumed) and is exported as a
   `MedicationStatement`, never a `MedicationRequest`. Prescriptions issued here stay in `libs/prescription`.

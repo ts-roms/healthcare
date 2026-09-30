@@ -24,6 +24,7 @@ interface Workspace {
   criticalResults: Array<{ id: string; status: string; testName: string; orderNumber: string; orderId: string }> | null;
   labOrders: Array<{ id: string; orderNumber: string; priority: string; tests: Array<{ testName: string; status: string }> }> | null;
   immunizations: Array<{ id: string; vaccineName: string }> | null;
+  procedures: Array<{ id: string; description: string }> | null;
   dentalImages: Array<{ id: string; kind: string; teeth: string[] }> | null;
   documents: Array<{ id: string; category: string; title: string }> | null;
   withheld: string[];
@@ -312,6 +313,7 @@ const PANEL_FIELDS: Record<string, keyof Workspace> = {
   dental_images: "dentalImages",
   documents: "documents",
   referrals: "referrals",
+  procedures: "procedures",
   immunizations: "immunizations",
   history: "history",
 };

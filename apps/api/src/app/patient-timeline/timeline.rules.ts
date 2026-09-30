@@ -12,6 +12,7 @@ export const TIMELINE_KINDS = {
   encounter: { permission: "encounter.read", sources: ["encounter"] },
   referral: { permission: "encounter.read", sources: ["referral"] },
   medical_certificate: { permission: "encounter.read", sources: ["medical_certificate"] },
+  procedure: { permission: "encounter.read", sources: ["clinic_procedure"] },
   vitals: { permission: "clinical.read", sources: ["vitals"] },
   allergy: { permission: "clinical.read", sources: ["allergy", "allergy_review"] },
   consent: { permission: "patient.read", sources: ["consent"] },

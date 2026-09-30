@@ -65,6 +65,7 @@ None. Every entry has one shape:
 | `communication`          | Notification to the patient (requested); suppressed ones included                                                                 | Channel, template, category, delivery status                                                             | Message body, variables, destination                                          |
 | `external_history`       | Imported history entry (accepted), labelled "(external record)"                                                                   | Kind, code, declared source                                                                              | Display text, values, the other provider's free-text dates                    |
 | `document`               | Uploaded document (upload verified)                                                                                               | Category                                                                                                 | Title, file name (free text); generated and archived documents                |
+| `procedure`              | Procedure performed at the clinic (at the time performed)                                                                         | Name with quantity and site, code; entered in error marked; link to the consultation                     | Notes, the late-entry reason                                                  |
 | `immunization`           | Dose given, not given, reported or imported (at the time given, else when recorded)                                               | Vaccine name, dose as recorded, date given when partial, status (entered in error marked), source        | Notes, the not-given reason text, reactions, lot                              |
 | `records_request`        | Request for copies of records from MyHealth (submitted)                                                                           | Number, what was asked for (fixed scopes), status                                                        | Details, purpose, the records office's answer, what was shared                |
 
@@ -117,27 +118,27 @@ None published or consumed.
 The route needs `patient.read`. Each kind is included only if the caller holds the permission that gates that domain's
 own reads; otherwise it is left out and listed in `withheld` (no counts are revealed). No new permission was added.
 
-| Kind                                              | Permission                                                           |
-| ------------------------------------------------- | -------------------------------------------------------------------- |
-| `appointment`                                     | `appointment.read`                                                   |
-| `queue_visit`                                     | `clinic.queue.read`                                                  |
-| `encounter`, `referral`, `medical_certificate`    | `encounter.read`                                                     |
-| `vitals`, `triage`, `allergy`, `external_history` | `clinical.read` (the allergy list's own read)                        |
-| `consent`                                         | `patient.read` (consents are read with the patient record)           |
-| `prescription`, `dispense`                        | `prescription.read`                                                  |
-| `lab_order`, `specimen`                           | `lab.order.read` (specimen events are read with it)                  |
-| `lab_result_release`, `critical_value`            | `lab.result.read` (the critical-results list's read)                 |
-| `dental`                                          | `dental.record.read`                                                 |
-| `dental_imaging`                                  | `dental.imaging.read`                                                |
-| `care_plan`                                       | `care-plan.read`                                                     |
-| `invoice`, `payment`, `billing_note`, `deposit`   | `billing.charge.read`                                                |
-| `philhealth_claim`                                | `philhealth.claim.submit` (the invoice's claim panel)                |
-| `philhealth_eligibility`                          | `philhealth.eligibility.manage` (the record's eligibility and YAKAP) |
-| `doh_case_report`                                 | `doh.report.manage` (`/reporting`)                                   |
-| `communication`                                   | `notification.read`                                                  |
-| `document`                                        | `document.read`                                                      |
-| `immunization`                                    | `immunization.read`                                                  |
-| `records_request`                                 | `patient.records-request.manage`                                     |
+| Kind                                                        | Permission                                                           |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| `appointment`                                               | `appointment.read`                                                   |
+| `queue_visit`                                               | `clinic.queue.read`                                                  |
+| `encounter`, `referral`, `medical_certificate`, `procedure` | `encounter.read`                                                     |
+| `vitals`, `triage`, `allergy`, `external_history`           | `clinical.read` (the allergy list's own read)                        |
+| `consent`                                                   | `patient.read` (consents are read with the patient record)           |
+| `prescription`, `dispense`                                  | `prescription.read`                                                  |
+| `lab_order`, `specimen`                                     | `lab.order.read` (specimen events are read with it)                  |
+| `lab_result_release`, `critical_value`                      | `lab.result.read` (the critical-results list's read)                 |
+| `dental`                                                    | `dental.record.read`                                                 |
+| `dental_imaging`                                            | `dental.imaging.read`                                                |
+| `care_plan`                                                 | `care-plan.read`                                                     |
+| `invoice`, `payment`, `billing_note`, `deposit`             | `billing.charge.read`                                                |
+| `philhealth_claim`                                          | `philhealth.claim.submit` (the invoice's claim panel)                |
+| `philhealth_eligibility`                                    | `philhealth.eligibility.manage` (the record's eligibility and YAKAP) |
+| `doh_case_report`                                           | `doh.report.manage` (`/reporting`)                                   |
+| `communication`                                             | `notification.read`                                                  |
+| `document`                                                  | `document.read`                                                      |
+| `immunization`                                              | `immunization.read`                                                  |
+| `records_request`                                           | `patient.records-request.manage`                                     |
 
 For example a cashier sees consents, billing (invoices, payments, notes and deposits) and PhilHealth claims and answers; a
 medical technologist sees consents and the laboratory kinds; a physician sees everything but billing, PhilHealth, dental

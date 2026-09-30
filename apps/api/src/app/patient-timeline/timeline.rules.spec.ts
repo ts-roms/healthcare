@@ -33,7 +33,7 @@ describe("visibleKinds", () => {
     expect(visibleKinds(new Set(["dental.imaging.read"])).included).toEqual(["dental_imaging"]);
     expect(visibleKinds(new Set(["notification.read"])).included).toEqual(["communication"]);
     expect(visibleKinds(new Set(["clinic.queue.read"])).included).toEqual(["queue_visit"]);
-    expect(visibleKinds(new Set(["encounter.read"])).included).toEqual(["encounter", "referral", "medical_certificate"]);
+    expect(visibleKinds(new Set(["encounter.read"])).included).toEqual(["encounter", "referral", "medical_certificate", "procedure"]);
     expect(visibleKinds(new Set(["prescription.read"])).included).toEqual(["prescription", "dispense"]);
     expect(visibleKinds(new Set(["philhealth.claim.submit"])).included).toEqual(["philhealth_claim"]);
     expect(visibleKinds(new Set(["philhealth.eligibility.manage"])).included).toEqual(["philhealth_eligibility"]);

@@ -14,6 +14,7 @@ describe("Patient 360 workspace rules", () => {
       "lab_orders",
       "documents",
       "referrals",
+      "procedures",
       "immunizations",
     ]);
     expect(physician.withheld).toEqual(["dental_images", "history"]);

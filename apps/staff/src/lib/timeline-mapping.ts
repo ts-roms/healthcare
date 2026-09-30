@@ -6,7 +6,7 @@ export type StatusTone = "done" | "active" | "waiting" | "stopped" | "failed" | 
 
 /** Filter chips: groups of timeline kinds, in the order shown. */
 export const TIMELINE_GROUPS = [
-  { key: "visits", label: "Visits", kinds: ["appointment", "queue_visit", "triage", "encounter", "vitals", "referral", "medical_certificate"] },
+  { key: "visits", label: "Visits", kinds: ["appointment", "queue_visit", "triage", "encounter", "vitals", "referral", "medical_certificate", "procedure"] },
   { key: "allergies", label: "Allergies and consents", kinds: ["allergy", "consent"] },
   { key: "prescriptions", label: "Prescriptions", kinds: ["prescription", "dispense"] },
   { key: "laboratory", label: "Laboratory", kinds: ["lab_order", "specimen", "lab_result_release", "critical_value"] },
@@ -29,6 +29,7 @@ export const KIND_LABELS: Record<PatientTimelineKind, string> = {
   encounter: "Encounter",
   referral: "Referral",
   medical_certificate: "Medical certificate",
+  procedure: "Procedure",
   vitals: "Vital signs",
   allergy: "Allergy",
   consent: "Consent",
@@ -193,6 +194,8 @@ const STATUS: Record<string, { label: string; variant: Variant; tone: StatusTone
   delivered: { label: "Delivered", variant: "success", tone: "done" },
   failed: { label: "Not delivered", variant: "danger", tone: "failed" },
   suppressed: { label: "Not sent (preferences)", variant: "neutral", tone: "stopped" },
+  // Procedures performed at the clinic
+  "procedure:completed": { label: "Done", variant: "success", tone: "done" },
   // Immunizations
   "immunization:completed": { label: "Given", variant: "success", tone: "done" },
   "immunization:not_done": { label: "Not given", variant: "warning", tone: "stopped" },

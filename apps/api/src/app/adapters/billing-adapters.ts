@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
-import type { BillableDentalProcedure, BillableEncounter, BillableLabOrder, BillingSources } from "@healthcare/billing";
-import { ClinicQueries } from "@healthcare/clinic";
+import type { BillableClinicProcedure, BillableDentalProcedure, BillableEncounter, BillableLabOrder, BillingSources } from "@healthcare/billing";
+import { ClinicProcedureService, ClinicQueries } from "@healthcare/clinic";
 import { DentalProcedureService } from "@healthcare/dental";
 import { LabOrderService } from "@healthcare/laboratory";
 
 /**
  * Billing → clinic, laboratory and dentistry: what was done, for charge
  * capture. Only signed encounters are billable; cancelled laboratory items and
- * dental procedures entered in error are left out.
+ * dental or clinic procedures entered in error are left out.
  */
 @Injectable()
 export class AppBillingSources implements BillingSources {
@@ -15,6 +15,7 @@ export class AppBillingSources implements BillingSources {
     private readonly clinic: ClinicQueries,
     private readonly lab: LabOrderService,
     private readonly dental: DentalProcedureService,
+    private readonly procedures: ClinicProcedureService,
   ) {}
 
   async encounter(organizationId: string, encounterId: string): Promise<BillableEncounter | undefined> {
@@ -29,5 +30,9 @@ export class AppBillingSources implements BillingSources {
 
   dentalProcedure(organizationId: string, procedureId: string): Promise<BillableDentalProcedure | undefined> {
     return this.dental.billable(organizationId, procedureId);
+  }
+
+  clinicProcedure(organizationId: string, procedureId: string): Promise<BillableClinicProcedure | undefined> {
+    return this.procedures.billable(organizationId, procedureId);
   }
 }
