@@ -17,7 +17,7 @@ export interface PortalMe {
     sex: string;
   };
   organization: { name: string };
-  account: { email: string };
+  account: { email: string; emailVerified: boolean; mfaEnabled: boolean };
   /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
   timeZone: string;
 }
@@ -438,4 +438,33 @@ export interface PortalPreference {
 export interface PortalPreferences {
   destinations: Record<PreferenceChannel, string | null>;
   preferences: PortalPreference[];
+}
+
+/** The password was right and the account uses two-step verification (`POST /portal/auth/login`). */
+export interface PortalMfaRequired {
+  status: "mfa_required";
+  challengeToken: string;
+}
+
+/** `GET /portal/email` */
+export interface PortalEmailStatus {
+  email: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  pending: { emailMasked: string; isChange: boolean; expiresAt: string } | null;
+}
+
+/** `GET /portal/mfa` */
+export interface PortalMfaStatus {
+  enabled: boolean;
+  enabledAt: string | null;
+  recoveryCodesRemaining: number;
+  emailVerified: boolean;
+}
+
+/** `POST /portal/mfa/setup` */
+export interface PortalMfaSetup {
+  setupKey: string;
+  secret: string;
+  otpauthUri: string;
 }

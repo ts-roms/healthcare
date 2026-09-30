@@ -11,6 +11,8 @@ export const PORTAL_ORGANIZATION_CODE = (process.env.PORTAL_ORGANIZATION_CODE ??
 export const COOKIES = {
   access: "hp_at",
   refresh: "hp_rt",
+  /** The password step of sign-in is done; the code step is next (5 minutes). */
+  mfaChallenge: "hp_mfa",
 } as const;
 
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";

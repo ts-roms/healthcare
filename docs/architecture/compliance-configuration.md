@@ -5,7 +5,7 @@ procurement rules (RA 9184) is on record, and CLAUDE.md §36 forbids inventing o
 government rule, rate, period, deadline, form or certification here. Each of the areas below gives the organization a
 place to enter **its own** values, from the issuances and advice it follows, and a record of **who validated** them.
 Nothing here makes the platform compliant: compliance is assessed by the organization's advisers against current
-official requirements. Migration `0073_compliance_configuration.sql`.
+official requirements. Migration `0074_compliance_configuration.sql`.
 
 ## Compliance reviews (all areas)
 

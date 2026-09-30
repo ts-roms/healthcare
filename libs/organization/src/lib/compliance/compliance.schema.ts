@@ -1,6 +1,6 @@
 import { date, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0073_compliance_configuration.sql (compliance reviews; the migration is the source of truth).
+// Mirrors database/migrations/0074_compliance_configuration.sql (compliance reviews; the migration is the source of truth).
 
 /** Areas whose configuration the organization has validated against current official requirements. */
 export const COMPLIANCE_AREAS = [

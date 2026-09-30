@@ -430,7 +430,7 @@ keeps none. Rules:
 ## Written estimates
 
 The organization may set how many days a printed estimate holds (printed as **Valid until**) and require the patient's
-signed written estimate before a decision recorded by staff (migration `0073`). Staff record that the patient signed
+signed written estimate before a decision recorded by staff (migration `0074`). Staff record that the patient signed
 today's printed estimate (`POST /dental/treatment-plans/:id/written-estimates`, `dental_written_estimate`, append-only:
 the items it listed, its total and until when it holds); when required, a staff-recorded decision is refused
 (`written_estimate_required`) unless a signed estimate listed every item awaiting the decision and still holds.

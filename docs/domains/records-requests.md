@@ -60,7 +60,7 @@ period. The record is composed at the application layer (`RecordCopyService` ove
 
 ## The organization's procedure
 
-`records_request_setting` (migration `0073`; `docs/architecture/compliance-configuration.md`): a response time in days
+`records_request_setting` (migration `0074`; `docs/architecture/compliance-configuration.md`): a response time in days
 (each new request gets `respond_by`, shown to staff and to the patient; open requests past it are flagged), whether staff
 must record how they confirmed the requester's identity before sharing (sharing is refused with
 `identity_check_required` until they do; stored on the request), and a notice patients read in MyHealth before asking.

@@ -55,7 +55,7 @@ exists.
 
 ### Reporting deadlines (the organization's own)
 
-A rule may carry "report within N days of the diagnosis" (`report_within_days`, optional, migration `0073`). A case
+A rule may carry "report within N days of the diagnosis" (`report_within_days`, optional, migration `0074`). A case
 report opened from it gets `due_at` (the diagnosis time plus the days, kept if the rule changes) and is **overdue** while
 still pending review, queued, failed or rejected past it. No DOH deadline is suggested by the platform.
 

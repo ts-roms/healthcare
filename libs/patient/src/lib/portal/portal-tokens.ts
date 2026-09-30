@@ -17,6 +17,15 @@ export interface PatientAccessClaims {
   typ: "patient_access";
 }
 
+export interface PatientMfaChallengeClaims {
+  sub: string; // portal account id
+  org: string;
+  typ: "patient_mfa_challenge";
+}
+
+/** A password was right; the second step must follow within this time. */
+const MFA_CHALLENGE_TTL_SECONDS = 300;
+
 @Injectable()
 export class PortalTokenService {
   constructor(
@@ -33,6 +42,29 @@ export class PortalTokenService {
       { ...claims, typ: "patient_access" },
       { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: this.config.JWT_ACCESS_TTL_SECONDS },
     );
+  }
+
+  signMfaChallenge(claims: Omit<PatientMfaChallengeClaims, "typ">): Promise<string> {
+    return this.jwt.signAsync(
+      { ...claims, typ: "patient_mfa_challenge" },
+      { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: MFA_CHALLENGE_TTL_SECONDS },
+    );
+  }
+
+  async verifyMfaChallenge(token: string): Promise<PatientMfaChallengeClaims> {
+    let claims: PatientMfaChallengeClaims;
+    try {
+      claims = await this.jwt.verifyAsync<PatientMfaChallengeClaims>(token, {
+        secret: this.config.JWT_ACCESS_SECRET,
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+    } catch {
+      throw new UnauthenticatedError("Invalid or expired token", "invalid_token");
+    }
+    if (claims.typ !== "patient_mfa_challenge") throw new UnauthenticatedError("Invalid token type", "invalid_token");
+    return claims;
   }
 
   async verify(token: string): Promise<PatientAccessClaims> {

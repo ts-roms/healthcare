@@ -20,7 +20,7 @@ const orderLines = z
   .max(200)
   .refine((lines) => new Set(lines.map((l) => l.itemId)).size === lines.length, "Each item appears once on an order");
 
-/** The organization's own procurement method and the reference it asks for (0073; checked when the order is submitted). */
+/** The organization's own procurement method and the reference it asks for (0074; checked when the order is submitted). */
 const procurementMethodId = z.uuid().nullable().default(null);
 const procurementReference = z.string().trim().min(1).max(80).nullable().default(null);
 
@@ -123,7 +123,7 @@ export const paySupplierInvoiceSchema = z.object({
   /** Check number, bank transfer reference or official receipt. */
   paymentReference: z.string().trim().min(1).max(80),
   /**
-   * What was withheld from the payment, as the organization's accountant determines it (0073): the organization's own
+   * What was withheld from the payment, as the organization's accountant determines it (0074): the organization's own
    * code, the amount in centavos (entered, never computed) and the reference of the certificate given to the supplier.
    */
   withholding: z
@@ -152,7 +152,7 @@ export class ValuationQueryDto extends createZodDto(valuationQuerySchema) {}
 export const usageQuerySchema = z.object({ from: isoDate, to: isoDate, locationId: z.uuid().optional() });
 export class UsageQueryDto extends createZodDto(usageQuerySchema) {}
 
-// ---- Compliance configuration (migration 0073) -----------------------------------------------------------------------
+// ---- Compliance configuration (migration 0074) -----------------------------------------------------------------------
 
 export const createWithholdingCodeSchema = z.object({
   code: z.string().trim().min(1).max(20),

@@ -177,6 +177,49 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "portal.email-verification",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    secretVariables: ["code"],
+    variables: z.object({ organizationName: shortText, code: z.string().regex(/^\d{6}$/), validMinutes: z.number().int().min(1).max(240) }),
+    render: (v) => ({
+      subject: `Your ${v.organizationName} MyHealth verification code: ${v.code}`,
+      text:
+        `Your MyHealth verification code is ${v.code}. Enter it in MyHealth within ${v.validMinutes} minutes to confirm this email address for your account at ${v.organizationName}.\n\n` +
+        `If you did not ask for this, you can ignore this message.`,
+    }),
+  }),
+  defineTemplate({
+    key: "portal.security-alert",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    variables: z.object({
+      organizationName: shortText,
+      event: z.enum(["mfa_enabled", "mfa_disabled", "mfa_reset_by_clinic", "recovery_code_used", "recovery_codes_renewed", "email_changed"]),
+      /** For "recovery_code_used": how many are left; for "email_changed": the new address, partly hidden. */
+      detail: shortText.optional(),
+    }),
+    render: (v) => {
+      const what = {
+        mfa_enabled: "Two-step verification was turned on for your MyHealth account.",
+        mfa_disabled: "Two-step verification was turned off for your MyHealth account.",
+        mfa_reset_by_clinic:
+          "The clinic turned off two-step verification for your MyHealth account, and you were signed out everywhere. Set it up again when you sign in.",
+        recovery_code_used: `A recovery code was used to sign in to your MyHealth account${v.detail ? ` (${v.detail} left)` : ""}.`,
+        recovery_codes_renewed: "New recovery codes were made for your MyHealth account. The old ones no longer work.",
+        email_changed: `The sign-in email of your MyHealth account was changed${v.detail ? ` to ${v.detail}` : ""}.`,
+      }[v.event];
+      return {
+        subject: `Security notice for your ${v.organizationName} MyHealth account`,
+        text: `${what} If this was not you, contact the clinic right away.`,
+      };
+    },
+  }),
+  defineTemplate({
     key: "staff.message",
     version: 1,
     category: "administrative",

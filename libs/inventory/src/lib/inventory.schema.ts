@@ -1,7 +1,7 @@
 import { bigint, boolean, date, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0026_inventory.sql, 0052_inventory_procurement.sql, 0057 (dental_procedure source) and
-// 0061 (costs on every movement, supplier invoices) and 0073 (withholding, procurement methods, controlled register);
+// 0061 (costs on every movement, supplier invoices) and 0074 (withholding, procurement methods, controlled register);
 // the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -132,7 +132,7 @@ export const inventoryPurchaseOrder = pgTable("inventory_purchase_order", {
   endReason: text("end_reason"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
-  // 0073: the organization's own procurement method and the reference it asks for.
+  // 0074: the organization's own procurement method and the reference it asks for.
   procurementMethodId: uuid("procurement_method_id"),
   procurementReference: text("procurement_reference"),
 });
@@ -178,7 +178,7 @@ export const inventorySupplierInvoice = pgTable("inventory_supplier_invoice", {
   voidedAt: ts("voided_at"),
   voidReason: text("void_reason"),
   version: integer("version").notNull().default(1),
-  // 0073: what was withheld at payment (entered by staff) under the organization's own code, and the certificate reference.
+  // 0074: what was withheld at payment (entered by staff) under the organization's own code, and the certificate reference.
   withholdingCodeId: uuid("withholding_code_id"),
   withheldAmount: money("withheld_amount").notNull().default(0),
   withholdingReference: text("withholding_reference"),
@@ -195,7 +195,7 @@ export const inventorySupplierInvoiceLine = pgTable("inventory_supplier_invoice_
   amount: money("amount").notNull(),
 });
 
-// ---- Compliance configuration (0073) ------------------------------------------------------------------------------
+// ---- Compliance configuration (0074) ------------------------------------------------------------------------------
 
 /** The organization's own withholding codes; the rate is for reference only (staff enter the amount withheld). */
 export const inventoryWithholdingCode = pgTable("inventory_withholding_code", {

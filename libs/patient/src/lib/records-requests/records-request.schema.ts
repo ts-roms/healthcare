@@ -1,7 +1,7 @@
 import { bigint, boolean, date, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Mirrors database/migrations/0068_medical_certificates_records_requests.sql (records requests) and 0070_record_export.sql
-// (copies of the record) and 0073 (the organization's procedure); the migrations are the source of truth.
+// (copies of the record) and 0074 (the organization's procedure); the migrations are the source of truth.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -38,7 +38,7 @@ export const recordsRequest = pgTable("records_request", {
   closedAt: ts("closed_at"),
   closedBy: uuid("closed_by"),
   version: integer("version").notNull().default(1),
-  // 0073: the response date from the organization's own response time, and how the requester's identity was confirmed.
+  // 0074: the response date from the organization's own response time, and how the requester's identity was confirmed.
   respondBy: date("respond_by", { mode: "string" }),
   identityCheckMethod: text("identity_check_method"),
   identityCheckedBy: uuid("identity_checked_by"),
@@ -72,7 +72,7 @@ export const recordsRequestExport = pgTable("records_request_export", {
   createdBy: uuid("created_by").notNull(),
 });
 
-/** The organization's own records-request procedure (0073): response time, identity check, what patients read first. */
+/** The organization's own records-request procedure (0074): response time, identity check, what patients read first. */
 export const recordsRequestSetting = pgTable("records_request_setting", {
   organizationId: uuid("organization_id").primaryKey(),
   responseDays: integer("response_days"),

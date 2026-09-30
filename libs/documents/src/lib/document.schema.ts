@@ -49,7 +49,7 @@ export const document = pgTable("document", {
 export type DocumentRecord = typeof document.$inferSelect;
 
 /**
- * The organization's retention period per document category (0073_compliance_configuration.sql), from its own
+ * The organization's retention period per document category (0074_compliance_configuration.sql), from its own
  * retention schedule; the platform encodes none and never deletes: documents past the period are listed for review.
  */
 export const documentRetentionPolicy = pgTable("document_retention_policy", {

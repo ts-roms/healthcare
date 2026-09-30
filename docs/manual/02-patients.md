@@ -194,6 +194,10 @@ Issuing a new code replaces any earlier unused code.
 Recording the portal consent as **Refused** or **Withdrawn** also ends access: the patient is signed out at their next action and cannot be invited again until
 they grant consent.
 
+The card also shows **Email verified** or **Email not verified** (the patient confirms their email in MyHealth), and **Two-step verification on** when the
+patient uses an authenticator app. If a patient lost their phone and their recovery codes, check their identity in person, select **Turn off two-step
+verification**, write the reason (at least 5 characters) and confirm: the patient is signed out everywhere, told by email, and can set it up again.
+
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).
 Invitations are only possible for active patients.
 

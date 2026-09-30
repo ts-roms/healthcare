@@ -3,6 +3,7 @@ import {
   CalendarIcon,
   CalendarPlusIcon,
   CheckCircle2Icon,
+  MailWarningIcon,
   ClipboardListIcon,
   FileTextIcon,
   FlaskConicalIcon,
@@ -45,6 +46,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <CheckCircle2Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
           Your account is ready. Next time, sign in with {me.account.email}.
         </p>
+      ) : null}
+      {!me.account.emailVerified ? (
+        <Link href="/security" className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning-subtle p-4 text-body text-warning-foreground">
+          <MailWarningIcon className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <span>
+            <span className="font-semibold">Confirm your email.</span> We have not checked that {me.account.email} is yours. It takes a minute.
+          </span>
+        </Link>
       ) : null}
       <section>
         <h1 className="text-page-lg font-semibold tracking-tight">

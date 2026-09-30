@@ -226,7 +226,7 @@ export async function voidSupplierInvoice(input: z.input<typeof voidSchema>) {
   return run(voidSchema, input, `/supplier-invoices/${invoiceId}/void`, body);
 }
 
-// ---- Compliance configuration: the organization's own codes and methods, the register header (migration 0073) -------
+// ---- Compliance configuration: the organization's own codes and methods, the register header (migration 0074) -------
 
 const withholdingCodeSchema = z.object({
   code: z.string().trim().min(1, "Enter a code.").max(20),
