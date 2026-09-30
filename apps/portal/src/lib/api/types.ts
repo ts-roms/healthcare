@@ -422,3 +422,20 @@ export interface PortalConsent {
   canWithdraw: boolean;
   history: PortalConsentDecision[];
 }
+
+export type PreferenceChannel = "sms" | "email";
+export type PreferenceCategory = "clinical" | "administrative" | "outreach";
+
+export interface PortalPreference {
+  channel: PreferenceChannel;
+  category: PreferenceCategory;
+  choice: boolean | null;
+  enabled: boolean;
+  recordedVia: "clinic" | "myhealth" | null;
+  updatedAt: string | null;
+}
+
+export interface PortalPreferences {
+  destinations: Record<PreferenceChannel, string | null>;
+  preferences: PortalPreference[];
+}

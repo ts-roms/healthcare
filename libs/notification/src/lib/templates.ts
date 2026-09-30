@@ -13,6 +13,13 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
   category: NotificationCategory;
   channels: readonly NotificationChannel[];
   variables: V;
+  /**
+   * Sent only by the platform itself, never through the public send endpoint (the caller would choose the wording and
+   * links of a security message).
+   */
+  internal?: boolean;
+  /** Variables that are credentials (e.g. a reset token): blanked in the stored notification once it is sent, suppressed or failed. */
+  secretVariables?: readonly string[];
   render(variables: z.infer<V>): RenderedMessage;
 }
 
@@ -139,6 +146,34 @@ export const TEMPLATES = [
     render: (v) => ({
       subject: "Two-step verification was turned on",
       text: `Hi ${v.displayName}, two-step verification was turned on for your account. If this was not you, contact your administrator immediately.`,
+    }),
+  }),
+  defineTemplate({
+    key: "portal.password-reset",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    secretVariables: ["link"],
+    variables: z.object({ organizationName: shortText, link: z.url().max(500), validMinutes: z.number().int().min(1).max(240) }),
+    render: (v) => ({
+      subject: `Reset your ${v.organizationName} MyHealth password`,
+      text:
+        `Someone asked to reset the password of your MyHealth account at ${v.organizationName}. ` +
+        `To choose a new password, open this link within ${v.validMinutes} minutes and enter your date of birth:\n\n${v.link}\n\n` +
+        `The link works once. If you did not ask for this, you can ignore this message: your password stays the same.`,
+    }),
+  }),
+  defineTemplate({
+    key: "portal.password-changed",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    variables: z.object({ organizationName: shortText }),
+    render: (v) => ({
+      subject: `Your ${v.organizationName} MyHealth password was changed`,
+      text: `The password of your MyHealth account at ${v.organizationName} was just changed, and you were signed out everywhere. If this was not you, contact the clinic right away.`,
     }),
   }),
   defineTemplate({
@@ -333,6 +368,12 @@ export const TEMPLATES = [
 
 export type TemplateKey = (typeof TEMPLATES)[number]["key"];
 export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key) as [TemplateKey, ...TemplateKey[]];
+
+/** The variables with the template's secret ones blanked, for storing a notification whose credential has been used. */
+export function withoutSecrets(template: NotificationTemplate, variables: Record<string, unknown>): Record<string, unknown> {
+  if (!template.secretVariables?.length) return variables;
+  return Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, template.secretVariables!.includes(k) ? "[removed]" : v]));
+}
 
 export function findTemplate(key: string): NotificationTemplate | undefined {
   return (TEMPLATES as readonly NotificationTemplate[]).find((t) => t.key === key);

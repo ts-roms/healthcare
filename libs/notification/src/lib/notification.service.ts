@@ -19,7 +19,7 @@ import type { z } from "zod";
 import type { sendNotificationSchema } from "./notification.dto";
 import { notification, type NotificationRecord } from "./notification.schema";
 import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
-import { findTemplate } from "./templates";
+import { findTemplate, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
 
@@ -63,7 +63,8 @@ export class NotificationService {
         parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       );
     }
-    if (input.recipient.type === "patient" && template.category === "security") {
+    // Security messages reach a patient only through the platform's own internal templates (the directory decides where).
+    if (input.recipient.type === "patient" && template.category === "security" && !template.internal) {
       throw new BusinessRuleError("Security templates are for staff accounts", "invalid_recipient");
     }
 
@@ -93,7 +94,8 @@ export class NotificationService {
           templateKey: template.key,
           templateVersion: template.version,
           destination: resolution.allowed ? resolution.destination : null,
-          variables: parsed.data as Record<string, unknown>,
+          // A suppressed message is never sent: its credentials are not kept.
+          variables: status === "suppressed" ? withoutSecrets(template, parsed.data as Record<string, unknown>) : (parsed.data as Record<string, unknown>),
           status,
           suppressionReason: resolution.allowed ? null : resolution.reason,
           idempotencyKey: input.idempotencyKey ?? null,

@@ -1,8 +1,9 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
+import { type Actor, BusinessRuleError, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { ListNotificationsDto, SendNotificationDto } from "./notification.dto";
 import { NotificationService } from "./notification.service";
+import { findTemplate } from "./templates";
 
 @ApiTags("notifications")
 @ApiBearerAuth()
@@ -14,6 +15,9 @@ export class NotificationController {
   @RequirePermissions("notification.send")
   @ApiOperation({ summary: "Send a templated notification; honors consent and communication preferences" })
   send(@CurrentActor() actor: Actor, @Body() body: SendNotificationDto) {
+    if (findTemplate(body.templateKey)?.internal) {
+      throw new BusinessRuleError(`Template "${body.templateKey}" is sent by the platform itself`, "unknown_template");
+    }
     return this.notifications.send(actor, body);
   }
 

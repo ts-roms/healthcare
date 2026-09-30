@@ -410,10 +410,10 @@ export class PatientRecordService {
       for (const pref of input.preferences) {
         await tx
           .insert(patientCommunicationPreference)
-          .values({ organizationId: actor.organizationId, patientId, ...pref, updatedBy: actor.userId })
+          .values({ organizationId: actor.organizationId, patientId, ...pref, updatedBy: actor.userId, updatedByPortalAccount: null })
           .onConflictDoUpdate({
             target: [patientCommunicationPreference.patientId, patientCommunicationPreference.channel, patientCommunicationPreference.category],
-            set: { optedIn: pref.optedIn, updatedAt: new Date(), updatedBy: actor.userId },
+            set: { optedIn: pref.optedIn, updatedAt: new Date(), updatedBy: actor.userId, updatedByPortalAccount: null },
           });
       }
       const changes = Object.fromEntries(

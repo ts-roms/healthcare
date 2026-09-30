@@ -3,7 +3,7 @@ import { DATABASE, type Database } from "@healthcare/core";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { notification, notificationAttempt } from "./notification.schema";
 import { CHANNEL_SENDERS, type ChannelSender } from "./ports";
-import { findTemplate } from "./templates";
+import { findTemplate, withoutSecrets } from "./templates";
 
 export type DispatchOutcome = "sent" | "retry" | "failed" | "skipped";
 
@@ -59,6 +59,7 @@ export class NotificationDispatcher {
           .update(notification)
           .set({
             status: "sent",
+            variables: withoutSecrets(template, claimed.variables),
             sentAt: new Date(),
             provider: result.provider,
             providerMessageId: result.providerMessageId ?? null,
@@ -74,6 +75,7 @@ export class NotificationDispatcher {
       });
       return "sent";
     } catch (error) {
+      const failedTemplate = findTemplate(claimed.templateKey);
       const message = error instanceof Error ? error.message : String(error);
       const permanent = error instanceof PermanentDeliveryError || claimed.attemptCount >= claimed.maxAttempts;
       await this.db.transaction(async (tx) => {
@@ -81,7 +83,13 @@ export class NotificationDispatcher {
           .update(notification)
           .set(
             permanent
-              ? { status: "failed", failedAt: new Date(), lastError: message, updatedAt: new Date() }
+              ? {
+                  status: "failed",
+                  failedAt: new Date(),
+                  lastError: message,
+                  updatedAt: new Date(),
+                  ...(failedTemplate ? { variables: withoutSecrets(failedTemplate, claimed.variables) } : {}),
+                }
               : { status: "queued", lastError: message, updatedAt: new Date() },
           )
           .where(eq(notification.id, notificationId));

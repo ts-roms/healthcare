@@ -36,7 +36,7 @@ survivor (see [Patient merge](#patient-merge-link-dont-move)).
 | Change status                                           | active / inactive / deceased (requires `deceasedAt`); reason required                                                                                                                                                                                                                                                    |
 | Add / retire contact, address, identifier, relationship | Primary handling; identifiers unique; retire requires reason                                                                                                                                                                                                                                                             |
 | Record consent                                          | Append-only; optional `documentId`, which must be this patient's uploaded `consent_form` document (else `422 consent_document_invalid`). Migration 0014 also enforces the same patient with a composite foreign key                                                                                                      |
-| Set communication preferences                           | Upsert; before/after audited                                                                                                                                                                                                                                                                                             |
+| Set communication preferences                           | Upsert; before/after audited. The patient sets text message and email choices through MyHealth (`PUT /portal/communication-preferences`, `portal.communication-preferences`); each row keeps the last setter (staff user or portal account, exactly one) — see `docs/architecture/portal-app.md`                         |
 | Invite to portal / disable portal access                | Invite requires an active patient and granted `portal_access` consent; returns the activation code once. Disable requires a reason and revokes all portal sessions. See `docs/architecture/portal-app.md`                                                                                                                |
 | Portal activate / login / refresh / logout              | Patient-facing, `@Public()` to the staff guard, protected by `PatientAccessGuard` (session, account and consent re-checked on every request). Rate-limited; failures audited                                                                                                                                             |
 | Merge / unmerge                                         | `patient.merge`; see [Patient merge](#patient-merge-link-dont-move)                                                                                                                                                                                                                                                      |
@@ -137,9 +137,17 @@ Portal ownership checks of documents use `isFiledAs`. The API composers mark row
 panels carry `filedUnder` (the retired patient number), the summary lists `linkedRecords`, domain rows keep their
 `patientId`.
 
+## Consents recorded by the patient (migration 0069)
+
+A `patient_consent` decision is recorded by exactly one of a staff user (`recorded_by`) or the patient's MyHealth account
+(`recorded_by_portal_account`); a patient's account records only electronic withdrawals (CHECK constraints). MyHealth
+(`GET /portal/consents`, `POST /portal/consents/:type/withdraw`; `libs/patient/src/lib/consents`) lists each consent with its
+history and withdraws those in `PATIENT_WITHDRAWABLE_CONSENTS` while in effect; withdrawing `portal_access` revokes the account's
+sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `myhealth`).
+
 ## Events
 
-`PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+`PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
 survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
