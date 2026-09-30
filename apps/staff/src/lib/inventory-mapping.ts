@@ -21,6 +21,7 @@ export const INVENTORY_CATEGORY_LABEL: Record<InventoryCategory, string> = {
   laboratory_consumable: "Laboratory consumable",
   dental_supply: "Dental supply",
   ppe: "PPE",
+  vaccine: "Vaccine",
   other: "Other",
 };
 

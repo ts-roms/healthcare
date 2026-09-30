@@ -71,6 +71,27 @@ export function EntrySummary({ item }: { item: ImportedItem }) {
           </Field>
         </Fields>
       );
+    case "immunization":
+      return (
+        <Fields>
+          <Field term="Vaccine">{item.vaccine ?? "—"}</Field>
+          <Field term="Given">{item.occurrence ?? (item.occurrenceText ? `"${item.occurrenceText}" (no date)` : "—")}</Field>
+          <Field term="Status (sender)">
+            {item.status}
+            {item.notDoneReason ? ` — ${item.notDoneReason}` : ""}
+          </Field>
+          {item.doseNumber ? <Field term="Dose">{item.doseNumber}</Field> : null}
+          {item.lotNumber ? (
+            <Field term="Lot">{[item.lotNumber, item.expirationDate ? `expires ${item.expirationDate}` : null].filter(Boolean).join(", ")}</Field>
+          ) : null}
+          {item.route || item.site ? <Field term="Route / site">{[item.route, item.site].filter(Boolean).join(" · ")}</Field> : null}
+          {item.performer || item.location ? <Field term="Given by / where">{[item.performer, item.location].filter(Boolean).join(", ")}</Field> : null}
+          <Field term="Source">
+            {item.primarySource === false ? `Reported to the sender${item.reportOrigin ? ` (${item.reportOrigin})` : ""}` : "The sender's own record"}
+          </Field>
+          <Codes codes={item.codes} />
+        </Fields>
+      );
     case "not_supported":
       return (
         <p className="text-table text-muted-foreground">{item.resourceType} is not supported for import. It is kept with the import but cannot be accepted.</p>

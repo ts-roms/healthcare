@@ -51,6 +51,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     children: [
       { label: "Encounters", href: "/clinic/encounters" },
       { label: "Care Plans", href: "/clinic/care-plans" },
+      { label: "Vaccines", href: "/clinic/vaccines" },
       { label: "Prescriptions", href: "/clinic/prescriptions", roles: ["doctor", "admin"] },
       { label: "Referrals", href: "/clinic/referrals", roles: ["doctor", "admin"] },
     ],

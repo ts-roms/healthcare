@@ -15,6 +15,7 @@ import {
   MessageSquareIcon,
   PillIcon,
   ReceiptIcon,
+  ShieldPlusIcon,
   SmileIcon,
   StethoscopeIcon,
   TestTubeIcon,
@@ -40,6 +41,7 @@ const KIND_ICONS: Record<PatientTimelineKind, LucideIcon> = {
   communication: MessageSquareIcon,
   external_history: FileInputIcon,
   document: FileTextIcon,
+  immunization: ShieldPlusIcon,
 };
 
 const TONE_ICONS: Record<StatusTone, LucideIcon> = {

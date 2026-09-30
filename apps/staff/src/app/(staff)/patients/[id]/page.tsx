@@ -22,6 +22,7 @@ import {
   HistoryIcon,
   LayoutDashboardIcon,
   GitMergeIcon,
+  SyringeIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -57,6 +58,20 @@ import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patie
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { MergedRecords } from "./merged-records";
+import { ImmunizationHistory } from "@/components/immunizations/immunization-panel";
+import type { ImmunizationRecord } from "@/lib/api/types";
+
+/** The immunization history (audited by the API); null without immunization.read. */
+async function loadImmunizations(id: string): Promise<ImmunizationRecord[] | null> {
+  const session = await getSession();
+  if (!can(session, "immunization.read")) return null;
+  try {
+    return await api<ImmunizationRecord[]>(`/patients/${id}/immunizations`);
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+    throw e;
+  }
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -198,8 +213,8 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getSelectedFacility(),
     getSession(),
   ]);
-  const mergeHistory = await loadMergeHistory(p);
   const merged = p.status === "merged";
+  const [mergeHistory, immunizations] = await Promise.all([loadMergeHistory(p), merged ? Promise.resolve(null) : loadImmunizations(id)]);
   const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
   const canBill = can(session, "billing.charge.read");
@@ -348,7 +363,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
-        <Card className="lg:row-span-3">
+        <Card className="lg:row-span-3" id="clinical-summary">
           <CardHeader>
             <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
             <CardTitle>Clinical summary</CardTitle>
@@ -495,6 +510,22 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
                 <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
               )}
               <WithheldNote withheld={recent.withheld} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {immunizations ? (
+          <Card className="lg:col-span-2" id="immunizations">
+            <CardHeader>
+              <SyringeIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Immunizations</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/immunizations`}>{can(session, "immunization.record") ? "Open and record" : "Open history"}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <ImmunizationHistory patientId={p.id} records={immunizations.slice(0, 5)} canRecord={false} grouped={false} linkedRecords={p.mergedRecords} />
+              {immunizations.length > 5 ? <p className="text-meta text-muted-foreground">{immunizations.length - 5} more in the full history.</p> : null}
             </CardContent>
           </Card>
         ) : null}

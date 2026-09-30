@@ -1576,7 +1576,7 @@ export interface DohRescan {
 
 // ---- Inventory (libs/inventory) ---------------------------------------------------------------------
 
-export type InventoryCategory = "medicine" | "medical_supply" | "reagent" | "laboratory_consumable" | "dental_supply" | "ppe" | "other";
+export type InventoryCategory = "medicine" | "medical_supply" | "reagent" | "laboratory_consumable" | "dental_supply" | "ppe" | "vaccine" | "other";
 
 export interface InventoryItem {
   id: string;
@@ -2396,7 +2396,7 @@ export interface AllergyRecord {
 
 export type FhirImportStatus = "pending_review" | "accepted" | "partially_accepted" | "rejected";
 export type FhirImportEntryOutcome = "pending" | "accepted" | "rejected" | "not_supported";
-export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "not_supported";
+export type FhirImportKind = "patient" | "allergy" | "condition" | "observation" | "medication" | "document" | "immunization" | "not_supported";
 
 export interface FhirImportSummary {
   id: string;
@@ -2525,6 +2525,7 @@ export type ImportedItem =
   | ImportedObservationItem
   | ImportedMedicationItem
   | ImportedDocumentItem
+  | ImportedImmunizationItem
   | (ImportedBase & { kind: "not_supported" });
 
 export interface FhirImportEntry {
@@ -2533,10 +2534,10 @@ export interface FhirImportEntry {
   resourceType: string;
   kind: FhirImportKind;
   /** What accepting creates. */
-  becomes: "allergy" | "external_history" | "patient_match" | null;
+  becomes: "allergy" | "immunization" | "external_history" | "patient_match" | null;
   outcome: FhirImportEntryOutcome;
   reason: string | null;
-  resultType: "allergy_intolerance" | "external_history_entry" | "patient" | null;
+  resultType: "allergy_intolerance" | "external_history_entry" | "immunization" | "patient" | null;
   resultId: string | null;
   decidedAt: string | null;
   /** Null once the received content was deleted by the retention rule. */
@@ -3030,7 +3031,8 @@ export type PatientTimelineKind =
   | "payment"
   | "communication"
   | "external_history"
-  | "document";
+  | "document"
+  | "immunization";
 
 export type PatientTimelineLinkType =
   | "appointment"
@@ -3041,6 +3043,7 @@ export type PatientTimelineLinkType =
   | "care_plan"
   | "invoice"
   | "patient_external_history"
+  | "patient_immunizations"
   | "patient_record";
 
 /** One timeline row: short display text only (no notes, values or message content); the link opens the record. */
@@ -3348,7 +3351,8 @@ export interface PurchaseOrderInvoicing {
 
 // ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
 
-export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents";
+export type PatientWorkspacePanel =
+  "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "immunizations";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3440,6 +3444,8 @@ export interface PatientWorkspace {
     title: string;
     uploadedAt: string;
   }> | null;
+  /** The latest immunizations (entries in error left out); absent from an older API. */
+  immunizations?: WorkspaceImmunization[] | null;
   /** Records merged into this patient, read with it. */
   linkedRecords?: Array<{ id: string; patientNumber: string }>;
   withheld: PatientWorkspacePanel[];
@@ -3617,7 +3623,8 @@ export interface RecordsRequestDetail extends RecordsRequest {
   suggestedSections: RecordCopySection[];
 }
 
-export type RecordCopySection = "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents";
+export type RecordCopySection =
+  "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations";
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {
@@ -3778,4 +3785,121 @@ export interface DentalWrittenEstimate {
   signedOn: string;
   validUntil: string | null;
   recordedAt: string;
+}
+
+// ---- Immunizations (migration 0076; docs/domains/immunizations.md) ------------------------------------------------
+
+export type OccurrencePrecision = "year" | "month" | "day" | "time";
+export type ImmunizationSource = "administered_here" | "historical" | "external_import";
+export type ImmunizationNotDoneReason = "refused" | "contraindicated" | "unavailable" | "other";
+
+/** The organization's own vaccine catalogue entry (no national list or schedule is assumed). */
+export interface Vaccine {
+  id: string;
+  name: string;
+  productName: string | null;
+  manufacturer: string | null;
+  codeSystem: string | null;
+  code: string | null;
+  routes: string[];
+  sites: string[];
+  /** As the organization records it; informational only. */
+  dosesInSeries: number | null;
+  status: "active" | "inactive";
+  version: number;
+  updatedAt: string;
+}
+
+export interface ImmunizationRecord {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string } | null;
+  encounterId: string | null;
+  vaccineId: string | null;
+  vaccineName: string;
+  vaccineProduct: string | null;
+  vaccineManufacturer: string | null;
+  vaccineCodeSystem: string | null;
+  vaccineCode: string | null;
+  doseLabel: string | null;
+  doseNumber: number | null;
+  dose: string | null;
+  /** "2019", "2019-05", "2019-05-12" or an ISO instant, at the precision known. */
+  occurrence: string;
+  occurrencePrecision: OccurrencePrecision;
+  occurrenceDate: string;
+  status: "completed" | "not_done";
+  notDoneReason: ImmunizationNotDoneReason | null;
+  notDoneReasonText: string | null;
+  source: ImmunizationSource;
+  performerPractitionerId: string | null;
+  performerName: string | null;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  route: string | null;
+  site: string | null;
+  doseQuantity: number | null;
+  doseUnit: string | null;
+  stock: { itemId: string; locationId: string; quantity: number; returned: boolean } | null;
+  sourceDescription: string | null;
+  documentId: string | null;
+  sourceReference: string | null;
+  declaredSource: string | null;
+  notes: string | null;
+  adverseReaction: string | null;
+  adverseReactionRecordedAt: string | null;
+  adverseReactionRecordedByName: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** A vaccine lot in stock at a location of the selected facility. */
+export interface VaccineStockLot {
+  locationId: string;
+  locationName: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  stockUnit: string;
+  lotId: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+}
+
+export interface WorkspaceImmunization {
+  id: string;
+  filedUnder?: string | null;
+  facility: WorkspaceFacilityRef | null;
+  vaccineName: string;
+  dose: string | null;
+  occurrence: string;
+  occurrencePrecision: OccurrencePrecision;
+  status: "completed" | "not_done";
+  source: ImmunizationSource;
+  hasReaction: boolean;
+}
+
+export interface ImportedImmunizationItem extends ImportedBase {
+  kind: "immunization";
+  subject: SubjectMatch;
+  vaccine: string | null;
+  codes: ImportedCode[];
+  status: string;
+  notDoneReason: string | null;
+  occurrence: string | null;
+  occurrenceText: string | null;
+  primarySource: boolean | null;
+  reportOrigin: string | null;
+  lotNumber: string | null;
+  expirationDate: string | null;
+  site: string | null;
+  route: string | null;
+  doseQuantity: { value: number; unit: string | null } | null;
+  performer: string | null;
+  manufacturer: string | null;
+  doseNumber: string | null;
+  location: string | null;
 }

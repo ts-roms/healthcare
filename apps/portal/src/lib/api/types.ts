@@ -468,3 +468,17 @@ export interface PortalMfaSetup {
   secret: string;
   otpauthUri: string;
 }
+
+/** `GET /portal/immunizations` row: a dose given (here, reported or from another provider), no staff notes. */
+export interface PortalImmunization {
+  id: string;
+  vaccineName: string;
+  vaccineProduct: string | null;
+  dose: string | null;
+  /** "2019", "2019-05", "2019-05-12" or an ISO instant, at the precision known. */
+  occurrence: string;
+  occurrencePrecision: "year" | "month" | "day" | "time";
+  source: "administered_here" | "historical" | "external_import";
+  /** The clinic, or who gave it as reported; null when not known. */
+  where: string | null;
+}
