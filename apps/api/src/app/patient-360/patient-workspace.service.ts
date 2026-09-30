@@ -108,7 +108,7 @@ export interface PatientWorkspace {
     referringPractitionerName: string;
     issuedAt: string;
     overdue: boolean;
-  }>;
+  }> | null;
   /** The latest immunizations, entries in error left out; no notes, reasons or reactions (only whether one is recorded). */
   immunizations: Array<{
     id: string;
