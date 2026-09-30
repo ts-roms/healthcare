@@ -20,6 +20,7 @@ Code-defined, versioned, with Zod-validated variables (`templates.ts`).
 External channels must not carry clinical detail. Templates:
 `patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
 `portal.password-reset` and `portal.password-changed` (email only, category `security`, **internal**: sent by the platform to a MyHealth account's sign-in email, never through `POST /notifications`; the reset link is a `secretVariables` entry blanked in the stored row once sent, failed or suppressed),
+`appointment.waitlist-opened` (SMS or email; the clinic and the day only — a patient on the MyHealth waiting list is told a time may have opened), and `appointment.self-service` (SMS, email and a MyHealth inbox copy),
 `portal.email-verification` (email only, category `security`, internal; the 6-digit code is a secret variable) and `portal.security-alert` (email only, internal; two-step verification turned on/off/reset by the clinic, a recovery code used, recovery codes renewed, sign-in email changed — no health information), both possibly sent to an address other than the account's (`send(actor, input, { securityDestination })`, honoured only for internal security email templates and never passed by the public endpoint),
 `staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
 `lab.quality-notice` (in-app to laboratory quality managers: a nonconformance opened, a QC run rejected, a temperature
@@ -44,9 +45,10 @@ the message read and goes to its page).
 In-app messages to a patient are delivered only when the patient has an active MyHealth account with `portal_access`
 consent (otherwise `suppressed: no_portal_account`); recorded preferences apply as for other channels. The patient reads
 them at `GET /portal/messages` (audited `portal.messages-view`), sees an unread count, and marks them read
-(`POST /portal/messages/:id/read`, own messages only). Messages are one-way: patients cannot reply yet (a monitored,
-triaged two-way channel is a clinical-safety decision still to be made). Free text written by staff exists only as
-`clinic.message`, which cannot leave the platform.
+(`POST /portal/messages/:id/read`, own messages only). These are notices: replies happen in conversations (`docs/domains/patient-messaging.md`), whose
+messages are not notifications and never leave MyHealth. Free text written by staff exists only as `clinic.message`
+(notices) and conversation messages, neither of which can leave the platform. `portal.message-received` (SMS/email, no
+content) and `portal.message-new` (in-app to staff) announce conversation messages.
 
 ## Ports
 

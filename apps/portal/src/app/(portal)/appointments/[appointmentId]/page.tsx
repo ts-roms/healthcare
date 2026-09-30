@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { VisitCard } from "@/components/visit-card";
 import { portalApi } from "@/lib/api/client";
 import type { BookingOptions, PortalAppointments } from "@/lib/api/types";
+import { rulesFor } from "@/lib/booking";
 import { ChangeAppointment } from "./change-appointment";
 
 export const metadata = { title: "Change a visit" };
@@ -27,7 +28,11 @@ export default async function AppointmentPage({ params }: { params: Promise<{ ap
       </div>
       <VisitCard visit={visit} />
       {visit.canCancel || visit.canReschedule ? (
-        <ChangeAppointment visit={visit} rules={options.rules} />
+        <ChangeAppointment
+          visit={visit}
+          rules={rulesFor(options, visit.facilityId)}
+          practitioners={options.facilities.find((f) => f.id === visit.facilityId)?.practitioners ?? []}
+        />
       ) : (
         <EmptyState icon={PhoneIcon} title="Please call the clinic">
           This visit can no longer be changed online.

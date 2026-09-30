@@ -42,7 +42,7 @@ the shared documents service.
   - staff notes (never shown to the patient or exported), adverse reaction (added at recording or once later),
     entered in error (reason, by, at; the stock return group when stock was taken).
 
-Invariants are database-enforced (migration `0076`): composite same-organization FKs (patient, facility, encounter,
+Invariants are database-enforced (migration `0079`): composite same-organization FKs (patient, facility, encounter,
 vaccine, practitioner, inventory item and location, document), check constraints for every rule above, and
 `immunization_guard`: no DELETE, no change except marking entered in error once (with the stock return) and adding a
 reaction once while not in error. New records are refused under a merged patient record (`PM001` → `422
@@ -61,7 +61,7 @@ patient_merged`, ADR-0009).
 | Mark entered in error   | `immunization.record`, a reason (3–500)                                                                                                | Stock taken for it goes back to the same lot, once; `ImmunizationEnteredInError`; audited `immunization.entered-in-error` |
 
 **Stock (optional per dose).** A facility that keeps vaccines as inventory items of category `vaccine` (migration
-`0076`) chooses the very lot given (`GET /immunizations/stock` lists unexpired lots per location). The dose is taken
+`0079`) chooses the very lot given (`GET /immunizations/stock` lists unexpired lots per location). The dose is taken
 through `InventoryStockService.consume` inside the recording transaction (movement source `immunization`, once per
 record, database-enforced; only the clinic's `VACCINE_CATEGORIES`), and the stock lot's number and expiry become the
 record's (a different typed lot is refused, `lot_mismatch`). Recording without stock stays possible (the lot number is

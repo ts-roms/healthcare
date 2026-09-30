@@ -63,7 +63,7 @@ by the issuing practitioner or staff with `encounter.amend`, and another issued.
 ## Immunizations
 
 The immunization history and the organization's vaccine catalogue live in `libs/clinic/src/lib/immunizations`
-(migration `0076`; permissions `immunization.read`, `immunization.record`; catalogue with `clinic.configure`): doses given
+(migration `0079`; permissions `immunization.read`, `immunization.record`; catalogue with `clinic.configure`): doses given
 here (optionally from vaccine stock, in the same transaction), not given with the clinician's reason, reported with a
 partial date, and accepted from FHIR imports; immutable, corrected by entered in error. No schedule or due dose is
 encoded. See [immunizations](immunizations.md).
@@ -80,9 +80,11 @@ encoded. See [immunizations](immunizations.md).
   `encounter.amend` and a reason.
 - **Patient self-booking** (MyHealth, `PatientBookingService`): only visit types with `online_booking` (set by
   `clinic.configure` via `PATCH /clinic/visit-types/:id`, audited, optimistic locking), only open slots of an active
-  schedule (the schedule's slot grid, minus leave, closures and bookings), at least 2 hours ahead and at most 60 days
-  out, at most 3 open self-bookings per patient (serialized per patient with an advisory lock); the patient may
-  reschedule (same practitioner, online-bookable types) or cancel until 2 hours before (`domain/patient-booking.ts`).
+  schedule (the schedule's slot grid, minus leave, closures and bookings), within the facility's booking rules (by default at
+  least 2 hours ahead and at most 60 days out, at most 3 open self-bookings per patient, serialized per patient with an
+  advisory lock); the patient may reschedule (the same practitioner or another one at the same facility who is on duty with an
+  open time; online-bookable types) or cancel until the facility's cut-off (default 2 hours before) (`domain/patient-booking.ts`).
+  See "Online booking rules and the waiting list" below.
   Rows record `booked_by_patient` / `updated_by_patient` instead of a staff user; checks enforce that exactly one is
   known. Another patient's appointment is "not found".
 - Availability and check-in use the facility's time zone (`Asia/Manila` by default); only today's appointments can be
@@ -140,3 +142,36 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 - No-show automation (marking at end of day), online self check-in and room scheduling views are not built.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures and referrals are not modeled yet.
+
+## Online booking rules and the waiting list
+
+Migration `0077`.
+
+- **Rules per facility** (`facility_booking_rule`, `BookingRulesService`; `GET /clinic/booking-rules` needs `appointment.read`,
+  `PUT /clinic/booking-rules/:facilityId` needs `clinic.configure`, versioned and audited as `facility.booking-rules-update` with
+  before/after): notice (`min_lead_minutes`, 0–7 days), horizon (`max_advance_days`, 1–365), upcoming self-bookings per patient
+  (1–20), the change and cancellation cut-off (`change_cutoff_minutes`, 0–7 days), whether patients may join a waiting list, and
+  waiting-list requests per patient (1–10). A facility without a row keeps the platform's defaults (120 minutes, 60 days, 3, 120
+  minutes, no waiting list), so nothing changes until a clinic sets its own. Which visit types are bookable online stays
+  organization-wide (`visit_type.online_booking`). MyHealth reads each facility's rules from `GET /portal/booking/options`
+  (`facilities[].rules`); patients' `canCancel` / `canReschedule` use the appointment's facility.
+- **Choosing another doctor when rescheduling:** `POST /portal/appointments/:id/reschedule` takes an optional `practitionerId`. The
+  same facility and visit type stay; the new practitioner needs an active schedule that day and an open time (a colliding
+  booking is refused by the exclusion constraint and by the slot check; the appointment's own time counts as free only for the
+  same practitioner). The change is audited (`practitionerId` from/to) and the event `AppointmentRescheduled` carries
+  `previousPractitionerId`.
+- **Patient waiting list for full days** (`PatientWaitlistService`; `GET/POST /portal/booking/waitlist`, `POST …/:id/leave`): where the
+  facility allows it, a patient who finds no open time may ask to be told when one opens. It is for full days only (asking while
+  a time is open is refused with `open_times_available`), for at most 14 consecutive days starting today or later within the
+  horizon, for a bookable visit type and optionally one practitioner; no duplicates or overlaps (`already_on_waitlist`) and
+  at most the facility's number of requests (`too_many_waitlist_entries`). The entry is an ordinary `appointment_waitlist_entry`
+  with `created_by_patient` (and no staff `created_by`; the database keeps exactly one), so staff see it on `/waitlist` (staff
+  `/appointments/waitlist`, marked "By the patient") with the patient's name; days that have passed no longer count as waiting.
+  The patient can take the request back; booking a time in the requested days closes the entry as booked.
+- **Notice when a time opens** (`WaitlistNotices`, on `AppointmentCancelled` and `AppointmentRescheduled`, by staff or patient):
+  patients waiting for that day (practitioner and visit type matching, "any" when unset) at that facility are texted, or emailed when
+  SMS is not possible, that a time may have opened and to sign in and book it (`appointment.waitlist-opened`: the clinic and the
+  day only), once per entry per day, never to the patient who freed the time, and only while the facility's waiting list is on and the
+  time is still bookable. Nothing is booked automatically: first come, first served.
+- Not built: rules per visit type or per practitioner, automatic offers or booking from the waiting list, waiting lists for online
+  consultations' pre-consult, a fee or deposit rule.

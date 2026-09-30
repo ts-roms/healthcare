@@ -20,6 +20,8 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
+import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppImmunizationContext } from "./adapters/immunization-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
@@ -52,6 +54,8 @@ import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
+import { PatientMessageNoticeSource } from "./portal/patient-message-notice-source";
+import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -101,6 +105,7 @@ export class AppModule implements NestModule {
       imports: [PatientModule, AuthModule, InventoryModule],
       context: AppLaboratoryContext,
       archiveQueue: overrides.labReportArchiveQueue,
+      instrumentReader: AppInstrumentMessageReader,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
     // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction; fee estimates read
@@ -116,7 +121,7 @@ export class AppModule implements NestModule {
       imports: [PatientModule, laboratory, dental],
       sources: AppBillingSources,
       patients: AppPatientDirectory,
-      paymentGateway: overrides.paymentGateway,
+      paymentGateway: overrides.paymentGateway ?? paymongoGatewayProvider(config),
     });
     // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
     const prescriptions = PrescriptionModule.forRoot({
@@ -227,6 +232,8 @@ export class AppModule implements NestModule {
         PatientDentalNotices,
         PatientRecordsNotices,
         PortalSecurityNotices,
+        PatientMessageNoticeSource,
+        PatientMessageNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

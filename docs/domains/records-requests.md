@@ -29,7 +29,7 @@ answer; **no deadline, fee or disclosure rule is encoded** (compliance dependenc
 - **Copy of the record** (`records_request_export`, append-only) — a PDF compiled from the patient's record for the
   request: its id is the stored document's (category `record_copy`, generated, of the same patient — composite key),
   the sections (1–9 of allergies, consultations, laboratory, prescriptions, care_plans, dental, certificates,
-  documents, immunizations — the last added by migration `0076`: doses given, reported and imported, and doses not
+  documents, immunizations — the last added by migration `0079`: doses given, reported and imported, and doses not
   given with the kind of reason, whose date falls in the period, or whose year or month overlaps it; entries in error
   and staff notes left out), the optional period, who prepared it and when. A new copy is a new document; none is ever replaced.
 

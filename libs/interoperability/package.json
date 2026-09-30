@@ -10,6 +10,11 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./instruments": {
+      "types": "./src/instruments.ts",
+      "import": "./src/instruments.ts",
+      "default": "./src/instruments.ts"
+    },
     "./package.json": "./package.json"
   },
   "nx": {

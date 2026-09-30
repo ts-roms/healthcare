@@ -320,6 +320,15 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  apps/instrument-gateway:
+    dependencies:
+      '@healthcare/interoperability':
+        specifier: workspace:*
+        version: link:../../libs/interoperability
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
   apps/integration-worker:
     dependencies:
       '@healthcare/audit':

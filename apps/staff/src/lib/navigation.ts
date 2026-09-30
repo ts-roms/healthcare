@@ -19,7 +19,16 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
   "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage"],
-  "/admin": ["user.read", "user.manage", "role.manage", "organization.manage", "integration.exchange.manage", "compliance.review.manage"],
+  "/messages": ["patient.message.read"],
+  "/admin": [
+    "user.read",
+    "user.manage",
+    "role.manage",
+    "organization.manage",
+    "integration.exchange.manage",
+    "compliance.review.manage",
+    "consent.wording.manage",
+  ],
 };
 
 /**
@@ -30,6 +39,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/clinic/care-plans": ["care-plan.read"],
   "/clinic/vaccines": ["immunization.read"],
   "/laboratory/critical": ["lab.result.read"],
+  "/laboratory/instrument-results": ["lab.result.read"],
   "/laboratory/qc": ["lab.qc.read"],
   "/laboratory/instruments": ["lab.qc.read"],
   "/laboratory/reagents": ["lab.qc.read"],
@@ -43,6 +53,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/records/requests": ["patient.records-request.manage"],
   "/admin/integrations": ["integration.exchange.manage"],
   "/admin/compliance": ["compliance.review.manage"],
+  "/admin/consent-wording": ["consent.wording.manage"],
 };
 
 /**

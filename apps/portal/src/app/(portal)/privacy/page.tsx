@@ -8,15 +8,15 @@ export const metadata = { title: "Privacy and consents" };
 
 export default async function PrivacyPage() {
   const [{ timeZone, organization }, consents] = await Promise.all([getMe(), portalApi<PortalConsent[]>("/portal/consents")]);
-  // Consents never recorded stay off the list: there is nothing to show or withdraw.
-  const shown = consents.filter((c) => c.current);
+  // Consents never recorded and not offered online stay off the list: there is nothing to show, give or withdraw.
+  const shown = consents.filter((c) => c.current || c.canGive);
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-page-lg font-semibold">Privacy and consents</h1>
         <p className="text-body text-muted-foreground">
           The consents you gave {organization.name}, and their history. You can withdraw some of them here; the others are changed with the clinic, which
-          explains what it means for your care. To give a consent, talk to the clinic.
+          explains what it means for your care. Some consents you can give here, after reading the clinic&apos;s own words; the others you give at the clinic.
         </p>
       </div>
       {shown.length ? (

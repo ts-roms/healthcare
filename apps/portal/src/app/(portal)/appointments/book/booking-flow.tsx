@@ -7,9 +7,10 @@ import { Button, Label, Textarea } from "@healthcare/ui/primitives";
 import { cn } from "@healthcare/ui/lib/utils";
 import { DayPicker, SlotPicker } from "@/components/booking-pickers";
 import type { BookingOptions } from "@/lib/api/types";
-import { bookingDays, bookingMessage, longDate, slotTime } from "@/lib/booking";
+import { bookingDays, bookingMessage, lengthText, longDate, rulesFor, slotTime } from "@/lib/booking";
 import { usePickedSlot, useSlots } from "../use-slots";
 import { bookAppointment } from "../actions";
+import { WaitlistOffer } from "../waitlist-offer";
 
 const ANY = "";
 
@@ -22,7 +23,8 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
   const site = options.facilities.find((f) => f.id === facilityId);
   const timeZone = site?.timeZone ?? "Asia/Manila";
   const [now] = React.useState(() => new Date());
-  const days = bookingDays(now, options.rules, timeZone);
+  const rules = rulesFor(options, facilityId);
+  const days = bookingDays(now, rules, timeZone);
   const [date, setDate] = React.useState(days[0] ?? "");
   const [reason, setReason] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -116,7 +118,19 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
         <Step title="When?">
           <DayPicker days={days} value={date} onChange={setDate} />
           <p className="text-meta font-medium">{longDate(date)}</p>
+          <p className="text-meta text-muted-foreground">
+            This clinic takes online bookings at least {lengthText(rules.minLeadMinutes)} ahead, up to {rules.maxAdvanceDays} days.
+          </p>
           <SlotPicker slots={slots} timeZone={timeZone} loading={loading} value={slot} onChange={setSlot} showPractitioner={practitionerId === ANY} />
+          {rules.waitlistEnabled && !loading && slots !== null && slots.length === 0 ? (
+            <WaitlistOffer
+              facilityId={facilityId}
+              visitTypeId={visitTypeId}
+              practitionerId={practitionerId || undefined}
+              date={date}
+              maxEntries={rules.maxWaitlistEntries}
+            />
+          ) : null}
         </Step>
       ) : null}
 
@@ -146,7 +160,7 @@ export function BookingFlow({ options }: { options: BookingOptions }) {
             {pending ? "Booking…" : "Book this time"}
           </Button>
           <p className="text-meta text-muted-foreground">
-            You can change or cancel online until {options.rules.changeCutoffMinutes / 60} hours before. We will send you a confirmation and a reminder.
+            You can change or cancel online until {lengthText(rules.changeCutoffMinutes)} before. We will send you a confirmation and a reminder.
           </p>
         </Step>
       ) : null}

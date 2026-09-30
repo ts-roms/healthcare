@@ -139,6 +139,8 @@ export interface PatientConsent {
   recordedAt: string;
   /** Recorded by staff, or by the patient in MyHealth (a withdrawal). */
   recordedVia: "staff" | "myhealth";
+  /** The version of the organization's wording the patient read, for a consent given online. */
+  wordingVersion?: number | null;
 }
 
 export interface PatientDetail {
@@ -3635,6 +3637,78 @@ export interface RecordCopy {
   createdAt: string;
 }
 
+export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
+
+/** `GET /patient-messages` row: a MyHealth conversation as the clinic sees it. */
+export interface PatientThread {
+  id: string;
+  topic: MessageTopic;
+  subject: string;
+  status: "open" | "closed";
+  startedBy: "patient" | "staff";
+  messageCount: number;
+  lastMessageAt: string;
+  lastMessageFrom: "patient" | "staff";
+  patientId: string;
+  patientNumber: string;
+  patientName: string;
+  facilityId: string;
+  assignedTo: { id: string; displayName: string } | null;
+  /** Open, and the patient wrote last. */
+  awaitingClinic: boolean;
+  closedAt: string | null;
+  version: number;
+}
+
+export interface PatientThreadMessage {
+  id: string;
+  sender: "patient" | "staff";
+  senderName: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface PatientThreadDetail extends PatientThread {
+  messages: PatientThreadMessage[];
+}
+
+/** `GET /waitlist?facilityId=` row: a patient waiting for a time. */
+export interface WaitlistEntry {
+  id: string;
+  facilityId: string;
+  patientId: string;
+  patient: { patientNumber: string; displayName: string } | null;
+  practitionerId: string | null;
+  visitTypeId: string | null;
+  earliestDate: string;
+  latestDate: string;
+  priority: "routine" | "soon";
+  notes: string | null;
+  /** The patient asked in MyHealth (otherwise a staff member added the entry). */
+  createdByPatient: boolean;
+  createdAt: string;
+}
+
+export interface BookingRules {
+  minLeadMinutes: number;
+  maxAdvanceDays: number;
+  maxUpcoming: number;
+  changeCutoffMinutes: number;
+  waitlistEnabled: boolean;
+  maxWaitlistEntries: number;
+}
+
+/** `GET /clinic/booking-rules` row. */
+export interface FacilityBookingRules {
+  facilityId: string;
+  facilityName: string;
+  /** The clinic set its own rules (otherwise the platform's defaults apply). */
+  customized: boolean;
+  rules: BookingRules;
+  version: number | null;
+  updatedAt: string | null;
+}
+
 // ---- Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md) ----
 
 export type ComplianceArea =
@@ -3787,7 +3861,70 @@ export interface DentalWrittenEstimate {
   recordedAt: string;
 }
 
-// ---- Immunizations (migration 0076; docs/domains/immunizations.md) ------------------------------------------------
+// ---- Laboratory analyzer interfaces ----
+
+export type InstrumentProtocol = "hl7v2" | "astm";
+
+export interface LabInstrumentInterfaceSettings {
+  instrumentId: string;
+  instrumentCode: string;
+  interface: { protocol: InstrumentProtocol; specimenIdField: string; enabled: boolean; updatedAt: string; version: number } | null;
+  testCodes: Array<{ analyzerCode: string; testId: string; testCode: string; testName: string }>;
+}
+
+export type InstrumentMatchProblem = "no_specimen_id" | "unknown_specimen" | "no_test_code" | "unmapped_code" | "test_not_ordered";
+
+export interface LabInstrumentResultRow {
+  id: string;
+  instrumentId: string;
+  instrumentCode: string;
+  receivedAt: string;
+  specimenCode: string | null;
+  analyzerCode: string | null;
+  value: string;
+  units: string | null;
+  referenceRange: string | null;
+  /** As sent by the analyzer; never interpreted. */
+  flags: string | null;
+  status: string | null;
+  observedAt: string | null;
+  matchProblem: InstrumentMatchProblem | null;
+  patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+  patientId: string | null;
+  orderItemId: string | null;
+  orderNumber: string | null;
+  accessionNumber: string | null;
+  testName: string | null;
+  testUnit: string | null;
+  itemStatus: string | null;
+  state: "pending" | "accepted" | "dismissed";
+  resultId: string | null;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  dismissReason: string | null;
+}
+
+export type OnlineConsentType = "telemedicine" | "data_sharing_hmo" | "data_sharing_philhealth" | "research";
+
+/** `GET /consent-texts`: the organization's own wording for a consent patients may give online. */
+export interface ConsentTextVersion {
+  id: string;
+  consentType: OnlineConsentType;
+  version: number;
+  offered: boolean;
+  title: string | null;
+  body: string | null;
+  acknowledgement: string | null;
+  createdAt: string;
+}
+
+export interface ConsentTextStatus {
+  consentType: OnlineConsentType;
+  current: ConsentTextVersion | null;
+  history: ConsentTextVersion[];
+}
+
+// ---- Immunizations (migration 0079; docs/domains/immunizations.md) ------------------------------------------------
 
 export type OccurrencePrecision = "year" | "month" | "day" | "time";
 export type ImmunizationSource = "administered_here" | "historical" | "external_import";

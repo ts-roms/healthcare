@@ -347,11 +347,40 @@ export const patientBookSchema = z.object({
 });
 export class PatientBookDto extends createZodDto(patientBookSchema) {}
 
-export const patientRescheduleSchema = z.object({ startsAt: isoDateTime, version: z.number().int().positive() });
+export const patientRescheduleSchema = z.object({
+  startsAt: isoDateTime,
+  version: z.number().int().positive(),
+  /** Another practitioner at the same facility; the current one when omitted. */
+  practitionerId: z.string().uuid().optional(),
+});
 export class PatientRescheduleDto extends createZodDto(patientRescheduleSchema) {}
 
 export const patientCancelSchema = z.object({ reason: z.string().trim().min(3).max(500).optional(), version: z.number().int().positive() });
 export class PatientCancelDto extends createZodDto(patientCancelSchema) {}
+
+export const patientWaitlistJoinSchema = z.object({
+  facilityId: z.string().uuid(),
+  visitTypeId: z.string().uuid(),
+  /** A particular practitioner; anyone on duty at the facility when omitted. */
+  practitionerId: z.string().uuid().optional(),
+  earliestDate: z.iso.date(),
+  latestDate: z.iso.date(),
+});
+export class PatientWaitlistJoinDto extends createZodDto(patientWaitlistJoinSchema) {}
+
+// ---- Online booking rules per facility (migration 0077) --------------------------------------
+
+export const updateBookingRulesSchema = z.object({
+  minLeadMinutes: z.number().int().min(0).max(10_080),
+  maxAdvanceDays: z.number().int().min(1).max(365),
+  maxUpcoming: z.number().int().min(1).max(20),
+  changeCutoffMinutes: z.number().int().min(0).max(10_080),
+  waitlistEnabled: z.boolean(),
+  maxWaitlistEntries: z.number().int().min(1).max(10),
+  /** The version read; not needed the first time a facility gets its own rules. */
+  version: z.number().int().positive().optional(),
+});
+export class UpdateBookingRulesDto extends createZodDto(updateBookingRulesSchema) {}
 
 // ---- Medical certificates (migration 0068) ---------------------------------------------------
 

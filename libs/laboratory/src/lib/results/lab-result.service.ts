@@ -96,43 +96,46 @@ export class LabResultService {
 
   /** First result for a received specimen's test. */
   async enter(actor: Actor, itemId: string, input: ResultValueInput): Promise<ResultView> {
+    return this.db.transaction((tx) => this.enterWithin(tx, actor, itemId, input));
+  }
+
+  /** Enters a result inside the caller's transaction (e.g. accepting an analyzer's result); same rules as `enter`. */
+  async enterWithin(tx: DbExecutor, actor: Actor, itemId: string, input: ResultValueInput): Promise<ResultView> {
     const facilityId = requireFacilityId(actor);
-    return this.db.transaction(async (tx) => {
-      const { item, order } = await this.lockItem(tx, actor.organizationId, itemId);
-      if (order.facilityId !== facilityId) throw new BusinessRuleError("This test belongs to another facility's laboratory", "wrong_facility");
-      if (item.status === "resulted" || item.status === "released") {
-        throw new ConflictError("This test already has a result; enter a correction instead", undefined, "result_exists");
-      }
-      if (item.status !== "received") throw new BusinessRuleError("Results are entered once the specimen has been received", "specimen_not_received");
-      // A referred test is entered once the reference laboratory's results are back, and attributed to it.
-      const attribution = await this.sendOuts.attributionForEntry(tx, item);
-      const [previous] = await tx.select().from(labResult).where(eq(labResult.orderItemId, itemId)).orderBy(desc(labResult.versionNumber)).limit(1);
-      const created = await this.insertVersion(tx, actor, item, order, input, {
-        previous: previous ?? null,
-        // Re-testing after a cancelled result links to it, so the history reads in order.
-        reason: previous ? `Re-tested after cancellation: ${previous.cancellationReason ?? "cancelled"}` : null,
-        attribution,
-      });
-      await this.setItemStatus(tx, item.id, "resulted");
-      await this.audit.record(tx, actor, {
-        action: "lab.result.enter",
-        resourceType: "lab_result",
-        resourceId: created.id,
-        patientId: created.patientId,
-        metadata: {
-          orderId: order.id,
-          itemId,
-          testCode: item.testCode,
-          version: created.versionNumber,
-          flag: created.flag,
-          critical: created.critical,
-          referenceLaboratoryId: created.referenceLaboratoryId,
-          sendOutId: created.sendOutId,
-        },
-      });
-      await this.events.record(tx, resultEvent("LaboratoryResultEntered", created));
-      return this.view(tx, actor, created);
+    const { item, order } = await this.lockItem(tx, actor.organizationId, itemId);
+    if (order.facilityId !== facilityId) throw new BusinessRuleError("This test belongs to another facility's laboratory", "wrong_facility");
+    if (item.status === "resulted" || item.status === "released") {
+      throw new ConflictError("This test already has a result; enter a correction instead", undefined, "result_exists");
+    }
+    if (item.status !== "received") throw new BusinessRuleError("Results are entered once the specimen has been received", "specimen_not_received");
+    // A referred test is entered once the reference laboratory's results are back, and attributed to it.
+    const attribution = await this.sendOuts.attributionForEntry(tx, item);
+    const [previous] = await tx.select().from(labResult).where(eq(labResult.orderItemId, itemId)).orderBy(desc(labResult.versionNumber)).limit(1);
+    const created = await this.insertVersion(tx, actor, item, order, input, {
+      previous: previous ?? null,
+      // Re-testing after a cancelled result links to it, so the history reads in order.
+      reason: previous ? `Re-tested after cancellation: ${previous.cancellationReason ?? "cancelled"}` : null,
+      attribution,
     });
+    await this.setItemStatus(tx, item.id, "resulted");
+    await this.audit.record(tx, actor, {
+      action: "lab.result.enter",
+      resourceType: "lab_result",
+      resourceId: created.id,
+      patientId: created.patientId,
+      metadata: {
+        orderId: order.id,
+        itemId,
+        testCode: item.testCode,
+        version: created.versionNumber,
+        flag: created.flag,
+        critical: created.critical,
+        referenceLaboratoryId: created.referenceLaboratoryId,
+        sendOutId: created.sendOutId,
+      },
+    });
+    await this.events.record(tx, resultEvent("LaboratoryResultEntered", created));
+    return this.view(tx, actor, created);
   }
 
   async verify(actor: Actor, resultId: string): Promise<ResultView> {

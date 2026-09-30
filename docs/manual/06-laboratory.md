@@ -158,6 +158,26 @@ them later, correct the result and attach files to the new version. A file that 
 attach it again. Click **Open** to view a file. Clinicians see attachments only after the result is released. Patients do not see attachments in
 MyHealth.
 
+## How to review results sent by an analyzer
+
+When an analyzer is connected (see [Chapter 7](07-laboratory-quality.md), "How to connect an analyzer"), the values it sends do **not** become
+results by themselves. They wait under **Laboratory → Instrument results** (you need `lab.result.read`; to decide, `lab.result.enter`).
+
+1. Open **Instrument results**. **To review** lists what the analyzers sent, oldest first: when it arrived, the instrument, the specimen, the
+   patient, the test, the **Sent value** with the analyzer's unit, and what the analyzer said about it **as sent** (its flag, status and range —
+   shown as the analyzer wrote them; the laboratory's own reference range flags the result once entered).
+2. **Matched** rows name the ordered test. Click **Accept**: the value is entered as that test's result on the instrument, exactly as if you had
+   typed it — the QC and competency policies, reagent lots and the rest of the entry rules apply — and you see "Result entered — verify it on the
+   workbench". It then goes through verification, approval and release as usual.
+3. **Not matched** rows say why (no specimen with that accession number here, the analyzer code is not mapped to a test, the test is not ordered on
+   that specimen). Fix the cause (for example map the code on the instrument) — the analyzer's next message matches — or click **Set aside**,
+   give a reason and click **Set aside** again.
+4. **Recently decided** lists what was accepted or set aside, by whom and when.
+
+Accept is refused when the value is not a plain number for a numeric test ("Enter it by hand") or when the analyzer's unit differs from the
+catalog's — the platform never converts units. A test that already has a result cannot take another: set the extra one aside (for example a repeat)
+or correct the result.
+
 ## How to verify, approve and release results
 
 Each result moves through three sign-offs:

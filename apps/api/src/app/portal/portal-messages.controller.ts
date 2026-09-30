@@ -3,12 +3,12 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { Public } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, patientAuditContext, PatientMessageService, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's MyHealth inbox: in-app messages from the clinic (results-ready
  * notices, booking confirmations, follow-up reminders, messages written by
- * staff). One-way for now: patients reply by calling or visiting the clinic.
+ * staff). Conversations (two-way) are under portal/message-threads; this badge counts both.
  */
 @ApiTags("portal")
 @ApiBearerAuth()
@@ -19,6 +19,7 @@ export class PortalMessagesController {
   constructor(
     private readonly notifications: NotificationService,
     private readonly audit: AuditService,
+    private readonly conversations: PatientMessageService,
   ) {}
 
   @Get()
@@ -35,9 +36,13 @@ export class PortalMessagesController {
   }
 
   @Get("unread-count")
-  @ApiOperation({ summary: "How many messages are unread (for the navigation badge)" })
+  @ApiOperation({ summary: "How many notices and conversations with an unread clinic message (for the navigation badge)" })
   async unread(@CurrentPatient() patient: PortalPrincipal) {
-    return { unread: await this.notifications.patientUnreadCount(patient.organizationId, patient.patientId) };
+    const [notices, conversations] = await Promise.all([
+      this.notifications.patientUnreadCount(patient.organizationId, patient.patientId),
+      this.conversations.unreadCountForPatient(patient),
+    ]);
+    return { unread: notices + conversations };
   }
 
   @Post(":messageId/read")

@@ -42,3 +42,5 @@ export * from "./lib/fhir-import/inbound-mapping";
 export * from "./lib/fhir-import/inbound-model";
 export * from "./lib/fhir-import/inbound-validation";
 export * from "./lib/fhir-import/ports";
+export * from "./lib/instruments/instrument-messages";
+export * from "./lib/instruments/instrument-links";

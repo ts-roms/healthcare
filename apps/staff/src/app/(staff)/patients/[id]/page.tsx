@@ -572,10 +572,17 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <CardTitle>Patient portal (MyHealth)</CardTitle>
           </CardHeader>
           <CardContent>
-            {portal?.status === "active" && can(session, "notification.send") ? (
+            {portal?.status === "active" && can(session, "patient.message.manage") ? (
               <div className="mb-3">
                 <SendPortalMessage patientId={p.id} />
               </div>
+            ) : null}
+            {can(session, "patient.message.read") ? (
+              <p className="mb-3 text-table">
+                <Link href={`/messages?patientId=${p.id}&view=all`} className="text-primary hover:underline">
+                  Conversations with this patient in MyHealth
+                </Link>
+              </p>
             ) : null}
             {portal ? (
               <PortalAccess
