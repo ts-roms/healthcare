@@ -391,10 +391,10 @@ With `immunization.record` (physicians and nurses by default):
 Doses filed under a record merged into this one say **Filed under P…**; new doses are recorded on the surviving record. Doses accepted from an
 imported record are marked **Imported** (see [Records, reporting and integrations](11-records-reporting-and-integrations.md)).
 
-## How to record the medical, family and social history
+## How to record the medical, medication, family and social history
 
-Staff with `history.read` see a **Medical, family and social history** card on the patient record (the family history state, past procedures and
-conditions, tobacco and alcohol use) and the full history at **Open history** (`/patients/[id]/history`). It holds what the patient, a relative or
+Staff with `history.read` see a **Medical, medication, family and social history** card on the patient record (the family history state, past
+procedures and conditions, medicines from elsewhere, tobacco and alcohol use) and the full history at **Open history** (`/patients/[id]/history`). It holds what the patient, a relative or
 another provider told you, or what you documented from records you saw. It is **not** a diagnosis: past conditions here are never on the problem
 list, never billed and never reported. Nothing in it is scored.
 
@@ -405,16 +405,22 @@ With `history.record` (physicians, nurses and dentists by default):
    patient, a relative or another provider) or **Documented here** (for example from a discharge summary the patient brought).
 2. **Add condition** — an illness diagnosed elsewhere, with **Since** and its **Status as reported** (still present, resolved, not known). To make
    a diagnosis yourself, record it in the consultation instead.
-3. **Add relative's condition** — the relative from the list (**Other relative** needs who), the condition, the age it began, and whether the
+3. **Add medicine** (under **Medications taken (not prescribed here)**) — a medicine the patient takes that your clinic did not prescribe:
+   prescribed by another doctor, bought over the counter, a vitamin or a herbal remedy. Write the medicine as the patient names it (for example
+   "Losartan 50 mg tablet", "Lagundi syrup"), **How taken**, **What for**, **Prescribed by / from where**, **Still taking?** (taking, stopped, not
+   known), **Since**, and for a medicine already stopped, **Stopped** (a year or month is fine). It is **not** a prescription: it is not
+   dispensed, billed or checked against allergies. When the patient later stops a medicine, choose **Mark stopped…**, give when (if known) and
+   an optional note, and **Confirm stopped** — this can be done once. A stop date before the start date is refused.
+4. **Add relative's condition** — the relative from the list (**Other relative** needs who), the condition, the age it began, and whether the
    relative has died (with the cause, as reported).
-4. The family history state is shown with colour, icon and words: **Family history not recorded — ask the patient**, **No known family history**
+5. The family history state is shown with colour, icon and words: **Family history not recorded — ask the patient**, **No known family history**
    (only after you record it), **Family history not known** (adopted, not known to the patient, or declined to answer) or **Family history
    recorded**. After asking, choose **No known family history**, **Reviewed: complete as listed** or **Not known…** with the reason.
-5. **Record social history** (or **Record new version**) — tobacco (never, former, current, not known; type, amount per day, year stopped),
+6. **Record social history** (or **Record new version**) — tobacco (never, former, current, not known; type, amount per day, year stopped),
    alcohol (and how often), occupation and exposures at work, living situation, physical activity, diet and notes, **As of** a date (empty for
    today). The form starts from the current version; each save is a new version and earlier versions stay listed under **Earlier versions**. If
    someone else saved a version while you were typing you are asked to reopen the page.
-6. A mistake: **Entered in error…** with a reason. The entry stays listed, struck through; for the social history the previous version becomes
+7. A mistake: **Entered in error…** with a reason. The entry stays listed, struck through; for the social history the previous version becomes
    current again. Nothing is edited or deleted.
 
 **Other substance use** and **Sexual history** are private (a lock icon). Only staff who also hold `encounter.write` (physicians and dentists by

@@ -174,16 +174,14 @@ function AssessmentForm({ staff, tests, departments }: { staff: LabCompetencyOve
             );
           }}
         >
-          <NativeSelect aria-label="Staff member" value={f.userId} onChange={(e) => setF({ ...f, userId: e.target.value })}>
-            <option value="">Staff member…</option>
+          <NativeSelect placeholder="Staff member…" aria-label="Staff member" value={f.userId} onChange={(e) => setF({ ...f, userId: e.target.value })}>
             {staff.map((s) => (
               <option key={s.userId} value={s.userId}>
                 {s.displayName}
               </option>
             ))}
           </NativeSelect>
-          <NativeSelect aria-label="Area" value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })}>
-            <option value="">Test or section…</option>
+          <NativeSelect placeholder="Test or section…" aria-label="Area" value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })}>
             <optgroup label="Whole section">
               {departments.map((d) => (
                 <option key={d.id} value={`department:${d.id}`}>

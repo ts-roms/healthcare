@@ -11,6 +11,9 @@ import {
   Kbd,
   Label,
   NativeSelect,
+  RadioGroup,
+  RadioGroupItem,
+  RadioGroupTile,
   Tabs,
   TabsContent,
   TabsList,
@@ -66,6 +69,33 @@ export const FormControls: StoryObj = {
           <option>Hematology</option>
           <option>Chemistry</option>
         </NativeSelect>
+      </div>
+      <div className="grid gap-1">
+        <Label htmlFor="instrument">Instrument (nothing to choose)</Label>
+        <NativeSelect id="instrument" placeholder="Choose…" defaultValue="">
+          {[]}
+        </NativeSelect>
+      </div>
+      <div className="grid gap-1">
+        <Label>Priority</Label>
+        <RadioGroup defaultValue="routine" className="flex gap-4">
+          <Label className="font-normal">
+            <RadioGroupItem value="routine" /> Routine
+          </Label>
+          <Label className="font-normal">
+            <RadioGroupItem value="stat" /> STAT
+          </Label>
+        </RadioGroup>
+      </div>
+      <div className="grid gap-1">
+        <Label>Open slots (tiles)</Label>
+        <RadioGroup aria-label="Open slots" defaultValue="09:30" className="flex flex-wrap gap-1.5">
+          {["09:00", "09:30", "10:00"].map((t) => (
+            <RadioGroupTile key={t} value={t} className="tabular px-2.5 py-1 text-table">
+              {t}
+            </RadioGroupTile>
+          ))}
+        </RadioGroup>
       </div>
       <div className="grid gap-1">
         <Label htmlFor="note">Note</Label>

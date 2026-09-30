@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { EyeOffIcon, PlusIcon, SmartphoneIcon } from "lucide-react";
 import { toothLabel, type ToothNotation } from "@healthcare/domain";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalProcedureType, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
 import {
@@ -285,10 +285,9 @@ function MayBecome({ type, types, canManage }: { type: DentalProcedureType; type
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {candidates.map((c) => (
             <label key={c.id} className="flex items-center gap-1.5 text-meta">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={editing.includes(c.id)}
-                onChange={(e) => setEditing(e.target.checked ? [...editing, c.id] : editing.filter((id) => id !== c.id))}
+                onCheckedChange={(checked) => setEditing(checked === true ? [...editing, c.id] : editing.filter((id) => id !== c.id))}
               />
               {c.name}
             </label>
@@ -467,13 +466,7 @@ function FeeEstimates({
           <p className="text-meta text-muted-foreground">Printed as &ldquo;Valid until&rdquo; on the estimate. Leave empty to print no date.</p>
         </div>
         <label className="flex items-start gap-2 text-table">
-          <input
-            type="checkbox"
-            className="mt-1 size-4"
-            disabled={!canManage}
-            checked={writtenRequired}
-            onChange={(e) => setWrittenRequired(e.target.checked)}
-          />
+          <Checkbox className="mt-1" disabled={!canManage} checked={writtenRequired} onCheckedChange={(checked) => setWrittenRequired(checked === true)} />
           <span>
             Require the patient&apos;s signed written estimate before recording a decision
             <span className="block text-meta text-muted-foreground">

@@ -29,6 +29,8 @@ apps/e2e/.state
 .env
 .env.*
 !.env.example
+# Redis snapshots written by a redis-server started in the repository
+*.rdb
 
 # editors and OS
 .idea

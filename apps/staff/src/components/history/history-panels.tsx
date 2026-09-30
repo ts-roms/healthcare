@@ -11,6 +11,7 @@ import {
   InfoIcon,
   ListChecksIcon,
   LockIcon,
+  PillIcon,
   PlusIcon,
   ShieldAlertIcon,
 } from "lucide-react";
@@ -21,20 +22,35 @@ import {
   recordFamilyHistory,
   recordPastCondition,
   recordPastProcedure,
+  recordReportedMedication,
   recordSocialHistory,
   reviewFamilyHistory,
+  stopReportedMedication,
 } from "@/app/(staff)/patients/history-actions";
-import type { FamilyHistoryEntry, FamilyHistoryState, FamilyReview, PastCondition, PastProcedure, PatientHistory, SocialHistoryVersion } from "@/lib/api/types";
+import type {
+  FamilyHistoryEntry,
+  FamilyHistoryState,
+  FamilyReview,
+  PastCondition,
+  PastProcedure,
+  PatientHistory,
+  ReportedMedication,
+  SocialHistoryVersion,
+} from "@/lib/api/types";
 import {
   alcoholText,
   BLANK_CONDITION,
   BLANK_FAMILY,
+  BLANK_MEDICATION,
   BLANK_PROCEDURE,
   CONDITION_STATUS_LABEL,
   type ConditionForm,
   type FamilyForm,
   familyStateView,
   INFORMANT_LABEL,
+  MEDICATION_STATUS_LABEL,
+  type MedicationForm,
+  medicationPeriodLabel,
   partialDateLabel,
   type ProcedureForm,
   RELATIONSHIP_LABEL,
@@ -361,6 +377,136 @@ export function ConditionFormView({ patientId, encounterId, onDone }: { patientI
   );
 }
 
+export function MedicationFormView({ patientId, encounterId, onDone }: { patientId: string; encounterId?: string; onDone: () => void }) {
+  const { form, setForm, set } = useFormState<MedicationForm>({ ...BLANK_MEDICATION, encounterId });
+  const { error, pending, submit } = useSubmit(() => {
+    setForm({ ...BLANK_MEDICATION, encounterId });
+    onDone();
+  });
+  const id = `medication-${encounterId ?? "record"}`;
+  return (
+    <form
+      noValidate
+      aria-label="Record a medicine taken"
+      className="grid gap-2 rounded-md border p-2.5 sm:grid-cols-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(() => recordReportedMedication(patientId, form), "Medicine taken recorded");
+      }}
+    >
+      <p className="flex items-start gap-2 text-meta text-muted-foreground sm:col-span-6">
+        <InfoIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />A medicine prescribed elsewhere, bought over the counter, or a supplement or herbal remedy,
+        as reported. It is not a prescription and is not checked against allergies. To prescribe, use the consultation.
+      </p>
+      <Field id={`${id}-medication`} label="Medicine *" span={3}>
+        <Input
+          id={`${id}-medication`}
+          maxLength={200}
+          placeholder="e.g. Losartan 50 mg tablet"
+          value={form.medication}
+          onChange={(e) => set("medication", e.target.value)}
+        />
+      </Field>
+      <Field id={`${id}-dose`} label="How taken" span={3}>
+        <Input id={`${id}-dose`} maxLength={200} placeholder="e.g. 1 tablet every morning" value={form.dose} onChange={(e) => set("dose", e.target.value)} />
+      </Field>
+      <Field id={`${id}-reason`} label="What for" span={3}>
+        <Input id={`${id}-reason`} maxLength={300} placeholder="e.g. high blood pressure" value={form.reason} onChange={(e) => set("reason", e.target.value)} />
+      </Field>
+      <Field id={`${id}-prescribed-by`} label="Prescribed by / from where" span={3}>
+        <Input
+          id={`${id}-prescribed-by`}
+          maxLength={300}
+          placeholder="e.g. Cardiologist at another hospital; over the counter"
+          value={form.prescribedBy}
+          onChange={(e) => set("prescribedBy", e.target.value)}
+        />
+      </Field>
+      <Field id={`${id}-status`} label="Still taking? *" span={2}>
+        <NativeSelect id={`${id}-status`} value={form.status} onChange={(e) => set("status", e.target.value as MedicationForm["status"])}>
+          {Object.entries(MEDICATION_STATUS_LABEL).map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+      <Field id={`${id}-started`} label="Since" span={2} hint="A year or month is fine.">
+        <Input id={`${id}-started`} placeholder="2019, 2019-05 or 2019-05-12" value={form.started} onChange={(e) => set("started", e.target.value)} />
+      </Field>
+      {form.status === "stopped" ? (
+        <Field id={`${id}-stopped`} label="Stopped" span={2}>
+          <Input id={`${id}-stopped`} placeholder="2020, 2020-03 or 2020-03-01" value={form.stopped} onChange={(e) => set("stopped", e.target.value)} />
+        </Field>
+      ) : null}
+      <CodeFields idPrefix={id} form={form} set={set} />
+      <Provenance idPrefix={id} form={form} set={set} />
+      <Field id={`${id}-notes`} label="Notes (staff only)" span={6}>
+        <Textarea id={`${id}-notes`} rows={2} maxLength={2000} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+      </Field>
+      <FormError error={error} />
+      <Actions pending={pending} label="Record medicine taken" onCancel={onDone} />
+    </form>
+  );
+}
+
+/** "Mark stopped…": when, as precise as known, and an optional note; once, never undone. */
+function StopMedicationAction({ patientId, entryId, encounterId }: { patientId: string; entryId: string; encounterId?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [stopped, setStopped] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const { error, pending, submit } = useSubmit(() => {
+    setOpen(false);
+    setStopped("");
+    setNote("");
+  });
+  if (!open)
+    return (
+      <Button type="button" size="xs" variant="ghost" onClick={() => setOpen(true)}>
+        Mark stopped…
+      </Button>
+    );
+  const id = `stop-${entryId}`;
+  return (
+    <form
+      className="flex flex-col gap-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(() => stopReportedMedication(patientId, entryId, { stopped, note }, encounterId), "Medicine marked stopped");
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Label htmlFor={`${id}-date`} className="sr-only">
+          When stopped
+        </Label>
+        <Input id={`${id}-date`} className="h-7 w-44" placeholder="When (2025, 2025-03…)" value={stopped} onChange={(e) => setStopped(e.target.value)} />
+        <Label htmlFor={`${id}-note`} className="sr-only">
+          Note
+        </Label>
+        <Input
+          id={`${id}-note`}
+          className="h-7 w-72"
+          maxLength={500}
+          placeholder="Note (optional, e.g. stopped by own doctor)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <Button type="submit" size="xs" disabled={pending}>
+          Confirm stopped
+        </Button>
+        <Button type="button" size="xs" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-meta text-danger-foreground">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function FamilyFormView({ patientId, encounterId, onDone }: { patientId: string; encounterId?: string; onDone: () => void }) {
   const { form, setForm, set } = useFormState<FamilyForm>({ ...BLANK_FAMILY, encounterId });
   const { error, pending, submit } = useSubmit(() => {
@@ -379,8 +525,12 @@ export function FamilyFormView({ patientId, encounterId, onDone }: { patientId: 
       }}
     >
       <Field id={`${id}-relationship`} label="Relative *" span={2}>
-        <NativeSelect id={`${id}-relationship`} value={form.relationship} onChange={(e) => set("relationship", e.target.value as FamilyForm["relationship"])}>
-          <option value="">Choose…</option>
+        <NativeSelect
+          placeholder="Choose…"
+          id={`${id}-relationship`}
+          value={form.relationship}
+          onChange={(e) => set("relationship", e.target.value as FamilyForm["relationship"])}
+        >
           {Object.entries(RELATIONSHIP_LABEL).map(([v, l]) => (
             <option key={v} value={v}>
               {l}
@@ -470,12 +620,12 @@ export function FamilyReviewButtons({ patientId, encounterId, hasEntries }: { pa
             Why not known
           </Label>
           <NativeSelect
+            placeholder="Why not known…"
             id={`unknown-${encounterId ?? "record"}`}
             className="h-7 w-60"
             value={reason}
             onChange={(e) => setReason(e.target.value as typeof reason)}
           >
-            <option value="">Why not known…</option>
             {Object.entries(UNKNOWN_REASON_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -652,10 +802,10 @@ export function SocialHistoryDetails({ version }: { version: SocialHistoryVersio
   );
 }
 
-type Opened = "none" | "procedure" | "condition" | "family" | "social";
+type Opened = "none" | "procedure" | "condition" | "medication" | "family" | "social";
 
 /**
- * The patient's history in four sections (past procedures, past conditions, family history, social history) with
+ * The patient's history in five sections (past procedures, past conditions, medications taken, family history, social history) with
  * recording for users who may (history.record). Entries in error stay listed, struck through; a social history change
  * is a new version (earlier versions listed below the current one).
  */
@@ -681,6 +831,7 @@ export function HistorySections({
   const visible = <T extends { enteredInError: object | null }>(rows: T[]) => (compact ? rows.filter((r) => !r.enteredInError) : rows);
   const procedures = visible(history.procedures);
   const conditions = visible(history.conditions);
+  const medications = visible(history.medications);
   const family = visible(history.family.entries);
   const current = history.social.current;
   const add = (what: Opened, label: string) =>
@@ -737,6 +888,32 @@ export function HistorySections({
           </ul>
         ) : (
           <p className="text-table text-muted-foreground">No past conditions recorded. Diagnoses made here are on the problem list.</p>
+        )}
+      </section>
+
+      <section aria-label="Medications taken" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-table font-semibold">Medications taken (not prescribed here)</h3>
+          {add("medication", "Add medicine")}
+        </div>
+        {opened === "medication" ? <MedicationFormView patientId={patientId} encounterId={encounterId} onDone={close} /> : null}
+        {medications.length ? (
+          <ul className="flex flex-col divide-y rounded-md border">
+            {medications.map((m) => (
+              <MedicationRow
+                key={m.id}
+                entry={m}
+                patientId={patientId}
+                canRecord={canRecord}
+                encounterId={encounterId}
+                filedUnder={filedUnderText(filedUnder(m.patientId))}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-table text-muted-foreground">
+            No medications from elsewhere recorded. Prescriptions issued here are listed with the prescriptions.
+          </p>
         )}
       </section>
 
@@ -900,6 +1077,71 @@ function ConditionRow({
   );
 }
 
+function MedicationRow({
+  entry: m,
+  patientId,
+  canRecord,
+  encounterId,
+  filedUnder,
+}: {
+  entry: ReportedMedication;
+  patientId: string;
+  canRecord: boolean;
+  encounterId?: string;
+  filedUnder: string | null;
+}) {
+  const period = medicationPeriodLabel(m, clinicalDate);
+  return (
+    <li className="flex flex-col gap-1 p-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={m.enteredInError ? "text-body line-through" : "text-body font-medium"}>
+          {m.medication}
+          {m.dose ? ` — ${m.dose}` : ""}
+        </span>
+        <MedicationStatusBadge status={m.status} />
+        <SourceBadge source={m.source} reportedBy={m.reportedBy} />
+        {m.enteredInError ? <InErrorBadge /> : null}
+      </div>
+      <p className="text-meta text-muted-foreground">
+        {[
+          m.reason ? `for ${m.reason}` : null,
+          period,
+          m.prescribedBy ? `from ${m.prescribedBy}` : null,
+          m.code ? `${m.codeSystem}: ${m.code}` : null,
+          m.sourceDescription ? `source: ${m.sourceDescription}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+      {m.notes ? <p className="text-meta">Note: {m.notes}</p> : null}
+      {m.stopRecorded ? (
+        <p className="text-meta">
+          Marked stopped {clinicalDateTime(m.stopRecorded.at)}
+          {m.stopRecorded.byName ? ` by ${m.stopRecorded.byName}` : ""}
+          {m.stopRecorded.note ? ` — ${m.stopRecorded.note}` : ""}
+        </p>
+      ) : null}
+      <Recorded entry={m} filedUnder={filedUnder} />
+      {canRecord && !m.enteredInError ? (
+        <div className="flex flex-wrap items-start gap-1.5">
+          {m.status !== "stopped" ? <StopMedicationAction patientId={patientId} entryId={m.id} encounterId={encounterId} /> : null}
+          <InErrorAction patientId={patientId} entryId={m.id} encounterId={encounterId} what="Medicine" />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** Taking / stopped / not known: colour + icon + text. */
+export function MedicationStatusBadge({ status }: { status: ReportedMedication["status"] }) {
+  const Icon = status === "taking" ? PillIcon : status === "stopped" ? CheckCircle2Icon : CircleHelpIcon;
+  return (
+    <Badge variant={status === "taking" ? "info" : "neutral"}>
+      <Icon aria-hidden /> {status === "taking" ? "Taking" : status === "stopped" ? "Stopped" : "Not known"}
+    </Badge>
+  );
+}
+
 function FamilyRow({
   entry: f,
   patientId,
@@ -935,6 +1177,7 @@ function FamilyRow({
 export function HistorySummary({ history }: { history: PatientHistory }) {
   const procedures = history.procedures.filter((p) => !p.enteredInError);
   const conditions = history.conditions.filter((c) => !c.enteredInError);
+  const medications = history.medications.filter((m) => !m.enteredInError && m.status !== "stopped");
   const current = history.social.current;
   return (
     <div className="flex flex-col gap-2 text-table">
@@ -959,6 +1202,16 @@ export function HistorySummary({ history }: { history: PatientHistory }) {
           : "none recorded"}
         {conditions.length > 4 ? ` and ${conditions.length - 4} more` : ""}
       </p>
+      {medications.length ? (
+        <p>
+          <span className="text-muted-foreground">Medicines from elsewhere:</span>{" "}
+          {medications
+            .slice(0, 4)
+            .map((m) => m.medication)
+            .join("; ")}
+          {medications.length > 4 ? ` and ${medications.length - 4} more` : ""}
+        </p>
+      ) : null}
       {history.family.entries.some((e) => !e.enteredInError) ? (
         <p>
           <span className="text-muted-foreground">Family:</span>{" "}

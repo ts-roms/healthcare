@@ -53,7 +53,7 @@ export class NotificationDispatcher {
       if (!sender) throw new PermanentDeliveryError(`No sender configured for ${claimed.channel}`);
       if (!claimed.destination) throw new PermanentDeliveryError("No destination");
 
-      const result = await sender.send(claimed.destination, template.render(claimed.variables));
+      const result = await sender.send(claimed.destination, template.render(claimed.variables), { notificationId });
       await this.db.transaction(async (tx) => {
         await tx
           .update(notification)

@@ -124,7 +124,8 @@ export interface PatientWorkspace {
     hasReaction: boolean;
   }> | null;
   /**
-   * The patient history: the latest past procedures and conditions (not in error), the family history state with the
+   * The patient history: the latest past procedures and conditions (not in error), medicines taken that were not
+   * prescribed here and are not stopped, the family history state with the
    * latest entries, and the current social history. Substance use and sexual history are null unless the viewer also
    * holds encounter.write (`sensitiveWithheld`).
    */
@@ -133,6 +134,9 @@ export interface PatientWorkspace {
     proceduresTotal: number;
     conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
     conditionsTotal: number;
+    /** Medicines taken that were not prescribed here and are not recorded as stopped. */
+    medications: Array<{ id: string; filedUnder: string | null; medication: string; dose: string | null; status: "taking" | "stopped" | "unknown" }>;
+    medicationsTotal: number;
     family: {
       state: "not_recorded" | "recorded" | "none_known" | "unknown";
       entries: Array<{ id: string; filedUnder: string | null; relative: string; condition: string; onsetAge: number | null }>;
@@ -339,6 +343,8 @@ export class PatientWorkspaceService {
             proceduresTotal: history.proceduresTotal,
             conditions: history.conditions.map(({ patientId: filedAs, ...c }) => ({ ...c, filedUnder: filedUnder(filedAs) })),
             conditionsTotal: history.conditionsTotal,
+            medications: history.medications.map(({ patientId: filedAs, ...m }) => ({ ...m, filedUnder: filedUnder(filedAs) })),
+            medicationsTotal: history.medicationsTotal,
             family: {
               state: history.family.state,
               entries: history.family.entries.map(({ patientId: filedAs, ...f }) => ({ ...f, filedUnder: filedUnder(filedAs) })),
@@ -370,6 +376,7 @@ export class PatientWorkspaceService {
           immunizations: result.immunizations?.length ?? null,
           historyProcedures: result.history?.proceduresTotal ?? null,
           historyConditions: result.history?.conditionsTotal ?? null,
+          historyMedications: result.history?.medicationsTotal ?? null,
           historyFamily: result.history?.family.total ?? null,
         },
         historySensitiveShown: result.history ? !result.history.social?.sensitiveWithheld : null,

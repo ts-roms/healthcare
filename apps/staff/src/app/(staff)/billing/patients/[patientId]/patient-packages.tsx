@@ -54,8 +54,13 @@ export function PatientPackages({
         </ul>
         {canSell && onSale.length ? (
           <div className="flex flex-wrap items-center gap-2 px-4">
-            <NativeSelect aria-label="Package to sell" className="min-w-48 flex-1" value={packageId} onChange={(e) => setPackageId(e.target.value)}>
-              <option value="">Sell a package…</option>
+            <NativeSelect
+              placeholder="Sell a package…"
+              aria-label="Package to sell"
+              className="min-w-48 flex-1"
+              value={packageId}
+              onChange={(e) => setPackageId(e.target.value)}
+            >
               {onSale.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} — {peso(p.currentPrice ?? 0)}

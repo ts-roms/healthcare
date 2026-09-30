@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2Icon, CircleSlashIcon, ClockIcon, FileTextIcon, XCircleIcon } from "lucide-react";
+import { Button } from "@healthcare/ui/primitives";
 import type { PortalRecordsRequest } from "@/lib/api/types";
 import { requestOpen, requestState, type RequestTone, SCOPE_TEXT } from "@/lib/documents";
 import { formatCalendarDate } from "@/lib/greeting";
@@ -63,10 +64,12 @@ export function RequestCard({ request }: { request: PortalRecordsRequest }) {
       ) : null}
       {requestOpen(request.status) ? (
         <div>
-          <button
+          <Button
             type="button"
             disabled={pending}
-            className="text-meta text-primary underline-offset-2 hover:underline disabled:opacity-60"
+            variant="link"
+            size="xs"
+            className="h-auto px-0"
             onClick={() =>
               startTransition(async () => {
                 setError(null);
@@ -77,7 +80,7 @@ export function RequestCard({ request }: { request: PortalRecordsRequest }) {
             }
           >
             Withdraw this request
-          </button>
+          </Button>
           {error ? (
             <p role="alert" className="text-meta text-danger-foreground">
               {error}

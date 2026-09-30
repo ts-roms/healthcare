@@ -9,16 +9,16 @@ Evidence labels: **VERIFIED** (read in the repository), **PARTIALLY VERIFIED** (
 
 ## 1. What is documented today
 
-| Statement                                                                                                | Source                                                    | Label                               |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------- |
-| Mobile uses React Native + Expo, "primarily for patients".                                               | `CLAUDE.md` §1                                            | VERIFIED                            |
-| `apps/mobile` is **planned**; no other mobile project is listed.                                         | `CLAUDE.md` §3                                            | VERIFIED                            |
-| The patient is served by a "simple mobile experience".                                                   | `CLAUDE.md` §29                                           | VERIFIED                            |
-| Zod schemas "can later be shared with the Next.js and Expo clients".                                     | `docs/architecture/decisions.md` (validation ADR)         | VERIFIED                            |
-| A push provider for a mobile app (e.g. Expo push) is a dependency; production uses `UnconfiguredSender`. | `docs/interoperability/dependencies.md`                   | VERIFIED                            |
-| Not built: a mobile app (Expo/FCM/APNs), push for staff.                                                 | `docs/domains/notification.md`, `portal-app.md` "Not yet" | VERIFIED                            |
-| Offline support: "design for eventual offline support" (registration, queue, vitals — staff workflows).  | `CLAUDE.md` §30                                           | VERIFIED (not a mobile requirement) |
-| Which patient workflows the app must support, release scope, device capabilities.                        | —                                                         | NOT FOUND                           |
+| Statement                                                                                                                    | Source                                                    | Label                               |
+| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------- |
+| Mobile uses React Native + Expo, "primarily for patients".                                                                   | `CLAUDE.md` §1                                            | VERIFIED                            |
+| `apps/mobile` exists (sign-in, results); it was listed as **planned** when this note was drafted.                            | `CLAUDE.md` §3                                            | VERIFIED                            |
+| The patient is served by a "simple mobile experience".                                                                       | `CLAUDE.md` §29                                           | VERIFIED                            |
+| Zod schemas "can later be shared with the Next.js and Expo clients".                                                         | `docs/architecture/decisions.md` (validation ADR)         | VERIFIED                            |
+| A push provider for a mobile app (e.g. Expo push) is a dependency; production uses `UnconfiguredSender`.                     | `docs/interoperability/dependencies.md`                   | VERIFIED                            |
+| Not built: push for staff. (A mobile app and push to it were "not built" when this note was drafted; both exist now, §7–§8.) | `docs/domains/notification.md`, `portal-app.md` "Not yet" | VERIFIED                            |
+| Offline support: "design for eventual offline support" (registration, queue, vitals — staff workflows).                      | `CLAUDE.md` §30                                           | VERIFIED (not a mobile requirement) |
+| Which patient workflows the app must support, release scope, device capabilities.                                            | —                                                         | NOT FOUND                           |
 
 There is no `apps/mobile`, and no `react-native`, `expo`, `expo-router` or `@react-navigation` dependency anywhere in the workspace (NOT FOUND).
 
@@ -59,7 +59,7 @@ the verified-email precondition for two-step verification was set in the databas
 | Sessions               | Each session stores the app's `User-Agent` and IP; there is no device name, device id or patient-facing list of sessions.                                                                                                                                              |
 | Two-step verification  | Setup returns `secret` and an `otpauth://` URI; with it on, login answers `{ status: "mfa_required", challengeToken }`; the challenge is not a session token (401); `POST /portal/auth/mfa/verify` returns the normal token response; a code is refused a second time. |
 | Guardian access        | `X-Acting-For` is a plain header, so a native client can use it; it is refused on own-account routes (`/portal/mfa`) and without a live grant (`proxy_not_allowed`). `/portal/proxy/dependents` works with a bearer.                                                   |
-| Push                   | An Expo-style device token is refused by `POST /portal/push/subscriptions` (400) — it accepts Web Push subscriptions only.                                                                                                                                             |
+| Push                   | An Expo-style device token is refused by `POST /portal/push/subscriptions` (400) — it accepts Web Push subscriptions only. (At the time of the trace; the app now registers through `POST /portal/push/mobile-devices`, §8.)                                           |
 | Rate limit             | Credential endpoints (activate, login, refresh, MFA verify, password reset) allow 10 requests a minute **per client IP** (`@Throttle`), then 429 `rate_limited`.                                                                                                       |
 
 **Conclusion:** a native app can use the existing patient sign-in as it is; no second authentication system and no API change are needed for
@@ -139,6 +139,16 @@ Record the answer (and who decided) here before building the part it governs.
   - D12: result types and wording shared with MyHealth on the web through `@healthcare/domain/portal-results`; the few other response
     types mirrored by hand in `apps/mobile/src/lib/api-types.ts`, as the web apps do. No contract library yet.
 
+- **D3 — why native** (product owner, 2026-09-30): **native push**, **app-store presence** and **more MyHealth areas** in the app. The
+  product owner also chose **nothing new until the app has been tried on devices**: the next step is a run on iOS and Android (§7, §8 —
+  neither has run on a device or simulator yet), then store release (D13) and the further areas (D2: which ones is still to be named).
+
+- **D13 — release** (product owner, 2026-09-30): **one store listing per organization** (keeps D4), **published under each organization's
+  own** Apple Developer and Google Play accounts, built and submitted with **EAS Build**; identifiers are chosen by each organization
+  (none in the repository). Set up in `apps/mobile/app.config.ts` and `eas.json`; runbook in
+  [mobile-release.md](../deployment/mobile-release.md). Still open within D13: automated builds in CI, and how the API stays compatible
+  with app versions already installed (no minimum-version check exists).
+
 Every other decision below is still **UNKNOWN**.
 
 | #   | Decision                                                                                                                                                                                                                                                              | Why it matters                                                                                                  |
@@ -160,7 +170,7 @@ Every other decision below is still **UNKNOWN**.
 
 ## 5. Suggested order once decided (recommendation, not a requirement)
 
-1. ~~Record D1–D5 and D12.~~ D1, D2 recorded; D4, D5, D12 accepted as provisional; D3 open.
+1. ~~Record D1–D5 and D12.~~ D1, D2, D3 recorded; D4, D5, D12 accepted as provisional (D6 provisional, §8).
 2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
 3. Add the remaining D2 areas, then links (D7) if chosen, each with its own API change, documentation and tests. Push (D6) is built provisionally (§8).
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
@@ -202,7 +212,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
 **Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
-reports, guardian access (D2), Expo push receipts (§8), screen protection (D11), offline caching (D10), store builds and signing (D13), end-to-end journeys through the
+reports, guardian access (D2), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
 ## 8. Push to the app (provisional D6)
@@ -227,11 +237,16 @@ clinic has not turned notifications on.
   another device. Tapping a results notice opens the results list; other notices open the app. Signing out unregisters the phone first
   (best effort) — a device the API can no longer reach is dropped by the failure rules. `PatientSession.post` has the same refresh and
   sign-out rules as `get`.
-- **Build.** Receiving push needs the app linked to an Expo project (`eas init`, which writes `extra.eas.projectId` to `app.json`), a
+- **Build.** Receiving push needs the app linked to an Expo project (`eas init`; the id reaches `extra.eas.projectId` through `EAS_PROJECT_ID` in `app.config.ts`, [mobile-release.md](../deployment/mobile-release.md)), a
   development or store build through EAS, an Apple Developer account and, for Android, the organization's own Firebase credentials uploaded
   to the Expo project. Expo Go on Android cannot receive remote push.
 - **Tests.** App: `src/lib/push.test.ts` (permission, registration, refusals, sign-out) and the session's POST tests. API:
   `apps/api/test/portal-push-mobile.int.spec.ts` (registration, limits, the database constraint, sending, gone tokens, retries). **Not yet run
   on a device.**
-- **Not built:** Expo push _receipts_ (Expo reports some failures, notably an uninstalled app, only in receipts fetched later; until then such a
-  device stays registered and is dropped after 5 failed sends or removed by the patient), badges, deep links into other screens.
+- **Receipts** (migration `0083`; `ExpoPushReceipts` in `libs/notification`, run by the notification worker every 15 minutes when
+  `EXPO_PUSH_ENABLED`): each ticket Expo returns is kept (`push_ticket`: ids and outcome codes only) and its receipt read after 15 minutes,
+  1,000 per request, one worker at a time. `ok` marks the notification `delivered` (handed to Apple or Google — not proof the patient saw
+  it); `DeviceNotRegistered` drops the phone at once; `InvalidCredentials` / `MismatchSenderId` are logged as the platform's own Apple or
+  Firebase setup problem and never counted against the phone; other errors count toward the 5-failure limit; a ticket with no receipt after
+  a day is marked `expired`. Answered tickets are removed after 30 days. Tests: `apps/api/test/portal-push-mobile.int.spec.ts`.
+- **Not built:** badges, deep links into other screens, and delivery receipts from browsers (Web Push has none).

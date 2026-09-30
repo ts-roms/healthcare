@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "lucide-react";
-import { Badge, Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { CodingSystem, DiagnosisView } from "@/lib/api/types";
 import { diagnosisLabel, sortDiagnoses } from "@/lib/encounter-mapping";
 import { label } from "@/lib/patient-mapping";
@@ -178,8 +178,7 @@ export function DiagnosesPanel({
             </NativeSelect>
           </div>
           <label className="flex items-center gap-2 self-end pb-1.5 text-table sm:col-span-2">
-            <input type="checkbox" className="size-4" checked={form.isChronic} onChange={(e) => setForm({ ...form, isChronic: e.target.checked })} /> Chronic
-            condition
+            <Checkbox checked={form.isChronic} onCheckedChange={(v) => setForm({ ...form, isChronic: v === true })} /> Chronic condition
           </label>
           {needsReason ? (
             <div className="grid gap-1 sm:col-span-6">

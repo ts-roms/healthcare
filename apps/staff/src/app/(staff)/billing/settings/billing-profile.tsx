@@ -363,11 +363,11 @@ export function Packages({
               {rows.map((r) => (
                 <div key={r.key} className="grid grid-cols-[1fr_4rem_auto] gap-2">
                   <NativeSelect
+                    placeholder="Choose…"
                     aria-label="Included service"
                     value={r.serviceId}
                     onChange={(e) => setRows((rs) => rs.map((x) => (x.key === r.key ? { ...x, serviceId: e.target.value } : x)))}
                   >
-                    <option value="">Choose…</option>
                     {included.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}

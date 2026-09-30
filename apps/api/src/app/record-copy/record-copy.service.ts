@@ -42,7 +42,7 @@ const SECTION_TITLES: Record<RecordCopySection, string> = {
   certificates: "Medical certificates",
   documents: "Documents on file",
   immunizations: "Immunizations",
-  history: "Medical, family and social history",
+  history: "Medical, medication, family and social history",
 };
 
 type SignedNotes = Awaited<ReturnType<ClinicQueries["signedNotes"]>>;
@@ -400,6 +400,7 @@ function renderHistory(w: PdfWriter, { record }: CopyContent): void {
   const h = record.history;
   const procedures = h.procedures.filter((p) => !p.enteredInErrorAt);
   const conditions = h.conditions.filter((c) => !c.enteredInErrorAt);
+  const medications = h.medications.filter((m) => !m.enteredInErrorAt);
   const family = h.family.filter((f) => !f.enteredInErrorAt);
   const social = h.social.find((s) => !s.enteredInErrorAt) ?? null;
   w.paragraph("Past procedures and surgeries", { bold: true });
@@ -433,6 +434,31 @@ function renderHistory(w: PdfWriter, { record }: CopyContent): void {
         c.description,
         c.reportedStatus === "active" ? "Still present" : c.reportedStatus === "resolved" ? "Resolved" : "Not known",
         historySource(c),
+      ]),
+    );
+  } else w.paragraph("None recorded.", { muted: true });
+  w.paragraph("Medications taken (not prescribed here, as reported)", { bold: true });
+  if (medications.length) {
+    w.table(
+      [
+        { header: "Medicine", width: 3 },
+        { header: "How taken", width: 2.4 },
+        { header: "Status", width: 2.2 },
+        { header: "Record", width: 2 },
+      ],
+      medications.map((m) => [
+        [m.medication, m.reason ? `(for ${m.reason})` : null].filter(Boolean).join(" "),
+        m.dose ?? "",
+        m.status === "taking"
+          ? m.startedDate
+            ? `Taking since ${printedDate(m.startedDate, m.startedPrecision)}`
+            : "Taking"
+          : m.status === "stopped"
+            ? m.stoppedDate
+              ? `Stopped ${printedDate(m.stoppedDate, m.stoppedPrecision)}`
+              : "Stopped"
+            : "Not known",
+        historySource(m),
       ]),
     );
   } else w.paragraph("None recorded.", { muted: true });

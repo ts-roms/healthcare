@@ -26,9 +26,14 @@ export interface SendResult {
   providerMessageId?: string;
 }
 
+export interface SendContext {
+  notificationId: string;
+}
+
 /** One adapter per external channel. Providers are replaceable (CLAUDE.md §19). */
 export interface ChannelSender {
   readonly channel: Exclude<NotificationChannel, "in_app">;
-  send(destination: string, message: RenderedMessage): Promise<SendResult>;
+  /** `context` names the notification being delivered, for senders that follow up on it later (Expo push receipts). */
+  send(destination: string, message: RenderedMessage, context?: SendContext): Promise<SendResult>;
 }
 export const CHANNEL_SENDERS = Symbol("CHANNEL_SENDERS");

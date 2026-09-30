@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AlertOctagonIcon, ScanBarcodeIcon, TruckIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Badge, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
 import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { LiveIndicator, useLabUpdates } from "@/components/live-queue";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
@@ -131,7 +131,12 @@ export function LabWorkbench({
               </Link>
             ))}
           </nav>
-          <NativeSelect aria-label="Department" value={departmentId ?? ""} onChange={(e) => router.push(href({ department: e.target.value || null }))}>
+          <NativeSelect
+            emptyText="No departments set up"
+            aria-label="Department"
+            value={departmentId ?? ""}
+            onChange={(e) => router.push(href({ department: e.target.value || null }))}
+          >
             <option value="">All departments</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
@@ -188,9 +193,15 @@ export function LabWorkbench({
                     )}
                   </TableCell>
                   <TableCell className="font-mono">
-                    <button type="button" className="text-left hover:underline" aria-label={`Open ${row.specimen?.accessionNumber ?? row.order.orderNumber}`}>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0 font-mono text-table text-foreground"
+                      aria-label={`Open ${row.specimen?.accessionNumber ?? row.order.orderNumber}`}
+                    >
                       {row.specimen?.accessionNumber ?? row.order.orderNumber}
-                    </button>
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <span className="font-medium">{row.patient?.displayName ?? "Patient"}</span>

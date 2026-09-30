@@ -79,7 +79,7 @@ underlying record has a reliable last-updated time:
 | ------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MedicationRequest`                                                       | Supported       | Prescriptions are immutable once issued (database triggers); cancel/replace is the only change and records `cancelled_at`. Last updated = `cancelled_at`, else `issued_at`.                                                                                                                                                                                                |
 | `DocumentReference`                                                       | Supported       | An exported document never changes after upload (archiving withdraws it); an archived lab report version is superseded when the next version is stored. Last updated = that time, else `uploaded_at`. An imported document description: as below. A dental image: also the time the dental record described it (`dental_image.recorded_at`) or marked it entered in error. |
-| `MedicationStatement`                                                     | Supported       | Only external history (below): entries are append-only (database trigger), the only change is being marked entered in error. Last updated = `entered_in_error_at`, else `recorded_at`.                                                                                                                                                                                     |
+| `MedicationStatement`                                                     | Supported       | External history (below) and medications taken (patient history): rows are immutable (database triggers) except being marked entered in error and, for a medication taken, marked stopped once. Last updated = the latest of `entered_in_error_at`, `stop_recorded_at` and `recorded_at`.                                                                                  |
 | `Procedure`                                                               | Supported       | Dental procedures and past procedures of the history: immutable except for being marked entered in error (triggers `dental_record_guard`, `patient_history_guard`; `performed_at` is the insert time). Last updated = `entered_in_error_at`, else `performed_at`. The code's display is the catalog's current name; the code never changes.                                |
 | `Immunization`                                                            | Supported       | Immunization records are immutable except for being marked entered in error and a reaction added once (trigger `immunization_guard`). Last updated = the latest of `recorded_at`, `adverse_reaction_recorded_at` and `entered_in_error_at`.                                                                                                                                |
 | `FamilyMemberHistory`                                                     | Supported       | Family history entries are immutable except for being marked entered in error (trigger `patient_history_guard`). Last updated = `entered_in_error_at`, else `recorded_at`.                                                                                                                                                                                                 |
@@ -121,7 +121,7 @@ the platform; the export presents one patient). `Patient/{retired}` stays readab
 | External history (accepted imports) | `Condition` / `Observation` / `MedicationStatement` / `DocumentReference`, tagged external (see below) |
 | Dental record (libs/dental) | `Procedure`, `CarePlan`, `Observation`, `DocumentReference` (see "Dental record") |
 | Immunization (clinic) | `Immunization` (see "Immunizations") |
-| Patient history (clinic) | `Procedure`, `Condition`, `FamilyMemberHistory`, social-history `Observation` (see "Patient history") |
+| Patient history (clinic) | `Procedure`, `Condition`, `MedicationStatement` (medications taken), `FamilyMemberHistory`, social-history `Observation` (see "Patient history") |
 
 **Laboratory results:** only the current **released** version of each result is exported. Unreleased, superseded and
 cancelled results never leave the laboratory through this interface. (Unlike the patient portal, the `patient_releasable`
@@ -298,7 +298,13 @@ display ("A relative of the patient", "Another healthcare provider") otherwise, 
 **Past conditions** → `Condition` with category `…/codesystem/history-category#past-medical-history`,
 `verificationStatus` `unconfirmed` (or `entered-in-error`), `clinicalStatus` `active`/`resolved` as reported (none when
 not known), `onsetDateTime` at its precision and a note that it is not a diagnosis made here — deliberately **not**
-`problem-list-item` (the problem list is the diagnoses of consultations) nor `encounter-diagnosis`. **Family history**
+`problem-list-item` (the problem list is the diagnoses of consultations) nor `encounter-diagnosis`. **Medications
+taken** (not prescribed here; migration `0083`) → `MedicationStatement` (`status` `active` while taken, `stopped`,
+`unknown`, or `entered-in-error`; category `…/codesystem/history-category#medication-taken`; `medicationCodeableConcept`
+the name as `text` with the organization's code when given; `effectivePeriod` start and end at their precisions;
+`dateAsserted` when recorded; `informationSource` like a past procedure's `asserter`; `reasonCode` and `dosage.text` as
+written; notes saying it is not a prescription of this organization, with who prescribed it or where it came from and
+the source description; the note on marking it stopped is not exported). Never a `MedicationRequest`. **Family history**
 → `FamilyMemberHistory` (`completed` / `entered-in-error`; `relationship` in HL7 v3 RoleCode — MTH, FTH, SIS, BRO,
 SIB, HSIB, DAUC, SONC, CHILD, MGRMTH, MGRFTH, PGRMTH, PGRFTH, MAUNT, MUNCLE, PAUNT, PUNCLE, COUSN, FAMMEMB for "other"
 — with the relative as text; `deceasedBoolean` when stated; the condition with `onsetAge` in UCUM `a`; a cause of death

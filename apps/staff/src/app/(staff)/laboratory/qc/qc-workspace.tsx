@@ -246,8 +246,12 @@ function RecordRun({
         <form className="flex flex-col gap-2" onSubmit={submit}>
           <div className="grid gap-1">
             <Label htmlFor="qc-instrument">Instrument</Label>
-            <NativeSelect id="qc-instrument" value={f.instrumentId} onChange={(e) => setF({ ...f, instrumentId: e.target.value, testId: "", qcLotId: "" })}>
-              {instruments.length === 0 ? <option value="">No active instruments</option> : null}
+            <NativeSelect
+              emptyText="No active instruments"
+              id="qc-instrument"
+              value={f.instrumentId}
+              onChange={(e) => setF({ ...f, instrumentId: e.target.value, testId: "", qcLotId: "" })}
+            >
               {instruments.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}
@@ -268,8 +272,7 @@ function RecordRun({
           </div>
           <div className="grid gap-1">
             <Label htmlFor="qc-lot">Control lot</Label>
-            <NativeSelect id="qc-lot" value={f.qcLotId} onChange={(e) => setF({ ...f, qcLotId: e.target.value })} disabled={!f.testId}>
-              <option value="">Choose…</option>
+            <NativeSelect placeholder="Choose…" id="qc-lot" value={f.qcLotId} onChange={(e) => setF({ ...f, qcLotId: e.target.value })} disabled={!f.testId}>
               {lots.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.material.name} {l.material.level} · lot {l.lotNumber} (exp. {clinicalDate(l.expiresOn)})
@@ -577,8 +580,7 @@ function QcSetup({ materials, instruments, tests }: { materials: LabQcMaterial[]
           }}
         >
           <p className="text-table font-medium sm:col-span-4">New lot</p>
-          <NativeSelect aria-label="Material" value={lot.materialId} onChange={(e) => setLot({ ...lot, materialId: e.target.value })}>
-            <option value="">Material…</option>
+          <NativeSelect placeholder="Material…" aria-label="Material" value={lot.materialId} onChange={(e) => setLot({ ...lot, materialId: e.target.value })}>
             {materials.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name} · {m.level}
@@ -604,24 +606,26 @@ function QcSetup({ materials, instruments, tests }: { materials: LabQcMaterial[]
           }}
         >
           <p className="text-table font-medium sm:col-span-3">Target mean and SD</p>
-          <NativeSelect aria-label="Lot" value={target.qcLotId} onChange={(e) => setTarget({ ...target, qcLotId: e.target.value })}>
-            <option value="">Lot…</option>
+          <NativeSelect placeholder="Lot…" aria-label="Lot" value={target.qcLotId} onChange={(e) => setTarget({ ...target, qcLotId: e.target.value })}>
             {activeLots.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label}
               </option>
             ))}
           </NativeSelect>
-          <NativeSelect aria-label="Test" value={target.testId} onChange={(e) => setTarget({ ...target, testId: e.target.value })}>
-            <option value="">Test…</option>
+          <NativeSelect placeholder="Test…" aria-label="Test" value={target.testId} onChange={(e) => setTarget({ ...target, testId: e.target.value })}>
             {tests.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
           </NativeSelect>
-          <NativeSelect aria-label="Instrument" value={target.instrumentId} onChange={(e) => setTarget({ ...target, instrumentId: e.target.value })}>
-            <option value="">Instrument…</option>
+          <NativeSelect
+            placeholder="Instrument…"
+            aria-label="Instrument"
+            value={target.instrumentId}
+            onChange={(e) => setTarget({ ...target, instrumentId: e.target.value })}
+          >
             {instruments.map((i) => (
               <option key={i.id} value={i.id}>
                 {i.name}

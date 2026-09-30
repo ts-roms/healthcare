@@ -4230,6 +4230,32 @@ export interface PastCondition extends HistoryEntryMeta {
   sourceDescription: string | null;
 }
 
+export type ReportedMedicationStatus = "taking" | "stopped" | "unknown";
+
+/** A medicine taken that was not prescribed here (prescribed elsewhere, over the counter, supplements), as reported. */
+export interface ReportedMedication extends HistoryEntryMeta {
+  medication: string;
+  codeSystem: string | null;
+  code: string | null;
+  dose: string | null;
+  reason: string | null;
+  prescribedBy: string | null;
+  started: string | null;
+  startedPrecision: HistoryDatePrecision | null;
+  /** As reported when recorded. */
+  reportedStatus: ReportedMedicationStatus;
+  /** As it stands: stopped once marked stopped, otherwise as reported. */
+  status: ReportedMedicationStatus;
+  stopped: string | null;
+  stoppedPrecision: HistoryDatePrecision | null;
+  /** Marked stopped after it was recorded. */
+  stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+  notes: string | null;
+  source: "reported" | "recorded_here";
+  reportedBy: HistoryInformant | null;
+  sourceDescription: string | null;
+}
+
 export interface FamilyHistoryEntry extends HistoryEntryMeta {
   relationship: FamilyRelationship;
   relationshipText: string | null;
@@ -4290,6 +4316,7 @@ export interface PatientHistory {
   sensitiveAccess: boolean;
   procedures: PastProcedure[];
   conditions: PastCondition[];
+  medications: ReportedMedication[];
   family: { state: FamilyHistoryState; latestReview: FamilyReview | null; reviews: FamilyReview[]; entries: FamilyHistoryEntry[] };
   social: { current: SocialHistoryVersion | null; versions: SocialHistoryVersion[] };
 }
@@ -4299,6 +4326,9 @@ export interface WorkspaceHistory {
   proceduresTotal: number;
   conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
   conditionsTotal: number;
+  /** Taken and not stopped (not prescribed here). */
+  medications: Array<{ id: string; filedUnder: string | null; medication: string; dose: string | null; status: ReportedMedicationStatus }>;
+  medicationsTotal: number;
   family: {
     state: FamilyHistoryState;
     entries: Array<{ id: string; filedUnder: string | null; relative: string; condition: string; onsetAge: number | null }>;

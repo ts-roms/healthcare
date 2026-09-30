@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckIcon } from "lucide-react";
+import { Button, Checkbox } from "@healthcare/ui/primitives";
 import type { PortalDentalPlan } from "@/lib/api/types";
 import { decisionSummary, feeText, selectionEstimate } from "@/lib/dental";
 import { decideDentalPlan } from "./actions";
@@ -52,7 +53,7 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
         <p className="text-meta text-muted-foreground">Tick the treatments you want to go ahead with. Anything you leave unticked is declined.</p>
         {awaiting.map((item) => (
           <label key={item.id} className="flex items-start gap-2 text-body">
-            <input type="checkbox" className="mt-1 size-4" checked={accepted.has(item.id)} onChange={() => toggle(item.id)} />
+            <Checkbox className="mt-1" checked={accepted.has(item.id)} onCheckedChange={() => toggle(item.id)} />
             <span>
               {item.procedureName}
               {plan.estimate ? (
@@ -69,7 +70,7 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
       <p className="text-body font-medium">{decisionSummary(awaiting, accepted)}</p>
       {plan.estimate && accepted.size ? <SelectionEstimate {...selectionEstimate(awaiting, accepted)} /> : null}
       <label className="flex items-start gap-2 rounded-md bg-card p-2 text-body">
-        <input type="checkbox" className="mt-1 size-4" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+        <Checkbox className="mt-1" checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} />
         <span>{acknowledgement}</span>
       </label>
       {error ? (
@@ -77,13 +78,9 @@ export function PlanDecision({ plan, acknowledgement }: { plan: PortalDentalPlan
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending || !confirmed}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-primary-foreground disabled:opacity-60"
-      >
+      <Button type="submit" disabled={pending || !confirmed} className="h-10 gap-2 px-4">
         <CheckIcon className="size-4" aria-hidden /> Send my decision
-      </button>
+      </Button>
       <p className="text-meta text-muted-foreground">You can still talk to your dentist before deciding. Your decision is shared with your clinic.</p>
     </form>
   );

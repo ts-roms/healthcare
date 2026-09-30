@@ -16,7 +16,7 @@ async function ensureAndroidChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync("default", { name: "MyHealth", importance: Notifications.AndroidImportance.DEFAULT });
 }
 
-/** The operating system's side of push, for `lib/push.ts`. The Expo project id comes from `eas init` (app.json `extra.eas`). */
+/** The operating system's side of push, for `lib/push.ts`. The Expo project id comes from `EAS_PROJECT_ID` or `eas init` (app.config.ts → `extra.eas`). */
 export const nativePush: PushPlatform = {
   isPhysicalDevice: Device.isDevice,
   os: Platform.OS === "ios" ? "ios" : "android",

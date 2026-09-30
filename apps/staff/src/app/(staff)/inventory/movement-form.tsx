@@ -153,8 +153,7 @@ export function MovementForm({
           </Field>
           {kind === "transfer" ? (
             <Field label="To" id="mv-to">
-              <NativeSelect id="mv-to" value={f.toLocationId} onChange={(e) => set({ toLocationId: e.target.value })}>
-                <option value="">Choose…</option>
+              <NativeSelect placeholder="Choose…" id="mv-to" value={f.toLocationId} onChange={(e) => set({ toLocationId: e.target.value })}>
                 {allLocations
                   .filter((l) => l.id !== f.locationId)
                   .map((l) => (
@@ -166,8 +165,7 @@ export function MovementForm({
             </Field>
           ) : null}
           <Field label="Item" id="mv-item" wide={kind !== "transfer"}>
-            <NativeSelect id="mv-item" value={f.itemId} onChange={(e) => set({ itemId: e.target.value, lotId: "" })}>
-              <option value="">Choose…</option>
+            <NativeSelect placeholder="Choose…" id="mv-item" value={f.itemId} onChange={(e) => set({ itemId: e.target.value, lotId: "" })}>
               {items.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name} ({i.stockUnit}){i.controlled ? " — controlled" : ""}

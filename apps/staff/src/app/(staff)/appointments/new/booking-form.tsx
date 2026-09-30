@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CalendarPlusIcon } from "lucide-react";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import { cn } from "@healthcare/ui/lib/utils";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, RadioGroup, RadioGroupTile, toast } from "@healthcare/ui/primitives";
 import { updateCareActivity } from "../../clinic/care-plans/actions";
 import { bookAppointment } from "../actions";
 
@@ -158,23 +157,17 @@ export function BookingForm({
             {availabilityError}
           </p>
         ) : slots && slots.length > 0 ? (
-          <div role="radiogroup" aria-label="Open slots" className="flex flex-wrap gap-1.5">
+          <RadioGroup aria-label="Open slots" value={startsAt} onValueChange={setStartsAt} className="flex flex-wrap gap-1.5">
             {slots.map((s) => (
-              <button
+              <RadioGroupTile
                 key={s.startsAt}
-                type="button"
-                role="radio"
-                aria-checked={startsAt === s.startsAt}
-                onClick={() => setStartsAt(s.startsAt)}
-                className={cn(
-                  "tabular rounded-md border px-2.5 py-1 text-table outline-none hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring/50",
-                  startsAt === s.startsAt ? "border-primary bg-primary text-primary-foreground" : "bg-card",
-                )}
+                value={s.startsAt}
+                className="tabular px-2.5 py-1 text-table data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
               >
                 {clinicalTime(s.startsAt)}
-              </button>
+              </RadioGroupTile>
             ))}
-          </div>
+          </RadioGroup>
         ) : (
           <p className="text-body text-muted-foreground">No open slots on this day. Try another day or practitioner.</p>
         )}

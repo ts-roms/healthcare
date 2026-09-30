@@ -1,10 +1,18 @@
-import { recordFamilyHistorySchema, recordPastConditionSchema, recordPastProcedureSchema, familyReviewSchema, recordSocialHistorySchema } from "./history.dto";
+import {
+  recordFamilyHistorySchema,
+  recordPastConditionSchema,
+  recordPastProcedureSchema,
+  recordReportedMedicationSchema,
+  familyReviewSchema,
+  recordSocialHistorySchema,
+} from "./history.dto";
 import {
   alcoholText,
   changedSocialFields,
   EMPTY_SOCIAL,
   familyHistoryState,
   isPartialDateText,
+  medicationState,
   nextSocialVersion,
   partialDateInFuture,
   partialDateText,
@@ -12,6 +20,7 @@ import {
   relativeText,
   reviewConflict,
   socialHasContent,
+  stopBeforeStart,
   tobaccoText,
 } from "./history.rules";
 
@@ -143,5 +152,35 @@ describe("social history versions", () => {
     expect(recordSocialHistorySchema.safeParse({ occupation: "Driver" }).success).toBe(false);
     expect(recordSocialHistorySchema.safeParse({ basedOn: null, occupation: "Driver" }).success).toBe(true);
     expect(recordSocialHistorySchema.safeParse({ basedOn: null, effectiveDate: "2026-02-30" }).success).toBe(false);
+  });
+});
+
+describe("medications taken", () => {
+  it("refuses a stop only when it ends before the start, at the precisions known", () => {
+    const d = (v: string) => parsePartialDate(v);
+    expect(stopBeforeStart(d("2019-05"), d("2019"))).toBe(false);
+    expect(stopBeforeStart(d("2019-05-20"), d("2019-05"))).toBe(false);
+    expect(stopBeforeStart(d("2019-05"), d("2018"))).toBe(true);
+    expect(stopBeforeStart(d("2019-05-20"), d("2019-05-19"))).toBe(true);
+    expect(stopBeforeStart(d("2024-02"), d("2024-02-29"))).toBe(false);
+    expect(stopBeforeStart(null, d("2019"))).toBe(false);
+    expect(stopBeforeStart(d("2019"), null)).toBe(false);
+  });
+
+  it("is stopped once marked stopped, otherwise as reported", () => {
+    expect(medicationState({ reportedStatus: "taking", stopRecordedAt: null })).toBe("taking");
+    expect(medicationState({ reportedStatus: "unknown", stopRecordedAt: new Date() })).toBe("stopped");
+    expect(medicationState({ reportedStatus: "stopped", stopRecordedAt: null })).toBe("stopped");
+  });
+
+  it("validates what is recorded", () => {
+    const base = { medication: "Losartan 50 mg tablet", status: "taking" as const, source: "reported" as const, reportedBy: "patient" as const };
+    expect(recordReportedMedicationSchema.safeParse(base).success).toBe(true);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, stopped: "2020" }).success).toBe(false);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, status: "stopped", stopped: "2020" }).success).toBe(true);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, reportedBy: undefined }).success).toBe(false);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, source: "recorded_here", reportedBy: undefined }).success).toBe(true);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, code: "C09CA01" }).success).toBe(false);
+    expect(recordReportedMedicationSchema.safeParse({ ...base, started: "2019-13" }).success).toBe(false);
   });
 });

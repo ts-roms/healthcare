@@ -178,7 +178,7 @@ and opens the survivor's timeline for a retired record.
 
 Reads only. Migration `0058_patient_timeline.sql` adds indexes for the per-patient, newest-first page queries that had
 none: payments by patient, issued invoices by patient, all care plans by patient, completed care plan activities by
-patient, released laboratory result versions by patient. Migration `0083_patient_timeline_kinds.sql` adds the same for
+patient, released laboratory result versions by patient. Migration `0084_patient_timeline_kinds.sql` adds the same for
 the further kinds whose tables had no index leading with the patient: every allergy (the old index covers active ones),
 triage assessments, critical alerts, credit and debit notes, outbound exchanges (PhilHealth claims), DOH case reports
 and dispenses. Queue visits and specimens use their `UNIQUE (patient_id, id)` keys (specimen events then the

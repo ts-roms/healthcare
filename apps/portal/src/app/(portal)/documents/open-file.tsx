@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { DownloadIcon } from "lucide-react";
+import { Button } from "@healthcare/ui/primitives";
 import { openCertificate, openReferralLetter, openSharedDocument } from "./actions";
 
 /** Opens a certificate, a referral letter or a shared document through a short-lived link (each opening is recorded by the clinic). */
@@ -25,14 +26,9 @@ export function OpenFile({ kind, id, label }: { kind: "certificate" | "referral"
   };
   return (
     <span className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={open}
-        disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-meta font-medium hover:bg-muted disabled:opacity-60"
-      >
+      <Button type="button" onClick={open} disabled={pending} variant="outline" size="sm" className="h-8">
         <DownloadIcon className="size-4" aria-hidden /> {label}
-      </button>
+      </Button>
       {error ? (
         <span role="alert" className="text-meta text-danger-foreground">
           {error}

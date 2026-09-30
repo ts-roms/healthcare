@@ -1,4 +1,4 @@
-import type { FamilyRelationship, FamilyReviewOutcome, HistoryDatePrecision, UseStatus } from "./history.schema";
+import type { FamilyRelationship, FamilyReviewOutcome, HistoryDatePrecision, ReportedMedicationStatus, UseStatus } from "./history.schema";
 
 /**
  * Pure rules of the patient history (docs/domains/patient-history.md). Nothing here scores, classifies or infers
@@ -45,6 +45,28 @@ export function partialDateText(date: string | null, precision: HistoryDatePreci
 /** Whether a partial date starts after today (a year or month is in the future only when it starts after today). */
 export function partialDateInFuture(d: PartialDate, today: string): boolean {
   return d.date > today;
+}
+
+/** The last day a partial date can mean (the year's 31 December, the month's last day, the day itself). */
+function partialDateEnd(d: PartialDate): string {
+  if (d.precision === "day") return d.date;
+  const [y, m] = d.date.split("-").map(Number) as [number, number];
+  const end = d.precision === "year" ? new Date(Date.UTC(y, 11, 31)) : new Date(Date.UTC(y, m, 0));
+  return end.toISOString().slice(0, 10);
+}
+
+/**
+ * Whether a stop date can follow a start date at the precisions known: refused only when the stop period ends before
+ * the start period begins ("2019" may follow "2019-05"; "2018" may not).
+ */
+export function stopBeforeStart(started: PartialDate | null, stopped: PartialDate | null): boolean {
+  if (!started || !stopped) return false;
+  return partialDateEnd(stopped) < started.date;
+}
+
+/** A medicine taken, as it stands: stopped when recorded as stopped or marked stopped later; otherwise as reported. */
+export function medicationState(r: { reportedStatus: ReportedMedicationStatus; stopRecordedAt: Date | string | null }): ReportedMedicationStatus {
+  return r.stopRecordedAt ? "stopped" : r.reportedStatus;
 }
 
 export const RELATIONSHIP_LABEL: Record<FamilyRelationship, string> = {
