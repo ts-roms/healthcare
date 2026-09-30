@@ -7,7 +7,7 @@
 | `domains/`          | One document per domain, from `domains/_template.md` (patient, identity-access, organization, audit, documents, notification) |
 | `database/`         | Schema overview, migrations policy, retention/archival rules                                                                  |
 | `api/`              | API conventions, error format, versioning, generated OpenAPI                                                                  |
-| `security/`         | RBAC model, access scopes, audit, secrets, data privacy                                                                       |
+| `security/`         | RBAC model, access scopes, audit, secrets, data privacy, [compliance dependencies](security/compliance-dependencies.md)      |
 | `interoperability/` | External integrations, spec sources and versions, `dependencies.md`                                                           |
 | `deployment/`       | Environments, infrastructure, CI/CD                                                                                           |
 | `runbooks/`         | Operational procedures, incident response, backup/restore                                                                     |
