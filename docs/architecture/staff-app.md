@@ -270,6 +270,7 @@ cost per item, and received and used in a period. See `docs/domains/inventory.md
 
 ## Pharmacy
 
+`/clinic/prescriptions` (`prescription.read`, selected facility): prescriptions issued at the facility over a period (today by default, ≤ 92 days; `lib/prescription-list.ts`), **Everyone at this facility** or **Issued by me**, by status; each opens its consultation.
 `/pharmacy` (`prescription.dispense`): find a prescription by its number; today's dispenses at the facility.
 `/pharmacy/[prescriptionId]`: the patient's identification, allergy warnings the prescriber overrode, what was prescribed,
 dispensed and remains; dispense from stock (per item: stock item and location, quantity in its unit; needs

@@ -4613,3 +4613,25 @@ export interface WorkspaceProcedure {
   performedAt: string;
   performerName: string | null;
 }
+
+/** `GET /prescriptions/issued`: prescriptions issued at the selected facility over a period. */
+export interface IssuedPrescriptions {
+  facilityId: string;
+  from: string;
+  to: string;
+  counts: Record<Prescription["status"], number>;
+  truncated: boolean;
+  rows: Array<{
+    id: string;
+    prescriptionNumber: string;
+    status: Prescription["status"];
+    issuedAt: string;
+    encounterId: string;
+    patientId: string;
+    patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+    prescriber: { id: string; displayName: string | null };
+    items: Array<{ genericName: string; strength: string | null; dosageForm: string | null; quantity: number; quantityUnit: string }>;
+    replacesPrescriptionId: string | null;
+    cancellationReason: string | null;
+  }>;
+}
