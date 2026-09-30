@@ -78,6 +78,7 @@ Put the settings every backend process reads in **Project → Shared Variables**
 | `TRUST_PROXY`                                                                  | `true`. The rightmost `X-Forwarded-For` hop is Railway's edge (public traffic) or the staff/portal server (private network), so rate limits and the audit trail see the real client IP.                           |
 | `DATABASE_POOL_MAX`                                                            | Optional (default 10). Keep the sum over replicas below the Postgres connection limit.                                                                                                                            |
 | `FHIR_BASE_URL`                                                                | Optional: `https://${{RAILWAY_PUBLIC_DOMAIN}}/api/v1/fhir/r4`.                                                                                                                                                    |
+| `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, `PAYMONGO_PAYMENT_METHODS`   | Optional: online payment in MyHealth through PayMongo (see `docs/domains/billing.md`). Test keys first.                                                                                                           |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ORG_CODE`, `SEED_ORG_NAME`, … | Only for the one-time seed (below). Remove the password afterwards.                                                                                                                                               |
 
 ### staff
