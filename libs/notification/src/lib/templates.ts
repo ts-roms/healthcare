@@ -520,6 +520,37 @@ export function withoutSecrets(template: NotificationTemplate, variables: Record
   return Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, template.secretVariables!.includes(k) ? "[removed]" : v]));
 }
 
+/** What each message is about, for staff lists (communication log, patient history). Never the message itself. */
+export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
+  "patient.registered": "Welcome after registration",
+  "appointment.reminder": "Appointment reminder",
+  "appointment.self-service": "Booking made, moved or cancelled in MyHealth",
+  "appointment.no-show": "Missed appointment follow-up",
+  "care-plan.follow-up-due": "Care-plan follow-up due",
+  "clinic.message": "Notice from the clinic (MyHealth)",
+  "security.mfa-enabled": "Two-step verification turned on",
+  "portal.password-reset": "MyHealth password reset link",
+  "portal.password-changed": "MyHealth password changed",
+  "portal.email-verification": "MyHealth email verification code",
+  "portal.security-alert": "MyHealth security alert",
+  "staff.message": "Staff message",
+  "lab.results-available": "Results ready in MyHealth",
+  "dental.record-update": "Dental record update in MyHealth",
+  "records.update": "Records update in MyHealth",
+  "records.request-new": "New records request (staff)",
+  "appointment.waitlist-opened": "Waiting list: a time may have opened",
+  "portal.push-test": "Push notification test",
+  "portal.message-received": "A MyHealth message is waiting",
+  "portal.message-new": "New MyHealth message (staff)",
+  "clinic.referral-notice": "Referral notice (staff)",
+  "lab.result-notice": "Laboratory result notice (staff)",
+  "lab.quality-notice": "Laboratory quality notice (staff)",
+};
+
+export function templateLabel(key: string): string {
+  return (TEMPLATE_LABEL as Record<string, string>)[key] ?? key;
+}
+
 export function findTemplate(key: string): NotificationTemplate | undefined {
   return (TEMPLATES as readonly NotificationTemplate[]).find((t) => t.key === key);
 }

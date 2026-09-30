@@ -50,6 +50,32 @@ messages are not notifications and never leave MyHealth. Free text written by st
 (notices) and conversation messages, neither of which can leave the platform. `portal.message-received` (SMS/email, no
 content) and `portal.message-new` (in-app to staff) announce conversation messages.
 
+## Communication log
+
+What the platform sent, or did not send, to patients across the organization (CLAUDE.md §16: communication history). Every request is stored,
+including those suppressed by consent or preferences, so the log is complete. Staff in-app messages are not part of it: the staff inbox is private
+to its recipient.
+
+- `NotificationService.communicationLog(organizationId, query)` — messages to patients created over local days in the Philippines (`from`..`to`,
+  at most 92 days; notifications belong to no facility), newest first, filtered by channel, category, status (`not_sent` = failed, suppressed or
+  cancelled), template and patient (records merged into the patient included), paged (`page`, `pageSize` ≤ 100). Each row: kind of message
+  (`templateKey` and a staff-facing `templateLabel` from `TEMPLATE_LABEL`), channel, category, status, the reason when suppressed, the destination
+  masked, attempts, who asked for it (`createdBy`; null when the platform sent it on its own) and the delivery times. **Never** the rendered
+  message, its variables or the full destination.
+- `communicationSummary(organizationId, from, to)` — counts by status, by channel (sent / not sent), suppressed by reason and by template. No patients.
+- API (`apps/api/src/app/communications`, which adds the patient's number and name and the requester's name):
+  `GET /api/v1/communications` and `GET /communications/export` (CSV, formula-safe, at most 5,000 rows, a note when cut) need `notification.read`
+  **and** `patient.read` and are audited (`notification.log.view`, `notification.log.export`, with the filters and row counts);
+  `GET /communications/summary` needs `notification.read` only and names no patient.
+- A patient's own history stays `GET /notifications?patientId=` (latest 200, audited `notification.list`), now with `templateLabel`.
+- Staff: **Communications** (`/communications`: period, status, channel, kind and message filters; figures; breakdowns; list; CSV) and
+  `/patients/[id]/communications` (the patient's history with their preferences; linked from **Consent & communication** on the record).
+- Migration `0084`: index `notification_patient_log_idx` (organization, created_at, id for patient recipients); `notification.read` now also for
+  receptionists and records officers (the desk handles reminders and "I got nothing").
+- Not built: campaigns and patient segmentation, resending or cancelling from the log, delivery reports from SMS providers (none is selected),
+  per-facility filtering (notifications carry no facility). Campaigns wait on the organization's own rules for outreach consent and content
+  (Data Privacy Act; compliance register).
+
 ## Ports
 
 | Port                 | Implementations                                                                                                                                                                                               |
@@ -66,7 +92,8 @@ min, or stuck in `sending` > 15 min). At-least-once delivery.
 
 ## Permissions
 
-`notification.send`, `notification.read`; the in-app inbox needs only authentication.
+`notification.send`, `notification.read` (the communication log and a patient's communication history; org_admin, physician, dentist,
+receptionist, records_officer — the last two from migration `0084`); the in-app inbox needs only authentication.
 
 ## Dependencies
 

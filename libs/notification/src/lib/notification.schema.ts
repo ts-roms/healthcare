@@ -4,7 +4,8 @@ export const NOTIFICATION_CHANNELS = ["sms", "email", "push", "in_app"] as const
 export const NOTIFICATION_CATEGORIES = ["clinical", "administrative", "outreach", "security"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
-export type NotificationStatus = "queued" | "sending" | "sent" | "delivered" | "failed" | "cancelled" | "suppressed";
+export const NOTIFICATION_STATUSES = ["queued", "sending", "sent", "delivered", "failed", "cancelled", "suppressed"] as const;
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
 export const notification = pgTable("notification", {
   id: uuid("id").primaryKey().defaultRandom(),

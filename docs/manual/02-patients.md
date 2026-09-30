@@ -237,6 +237,23 @@ it for urgent or sensitive results — call the patient. To see everything writt
 If you don't see **Message in MyHealth**, you need the `patient.message.manage` permission (org admins, receptionists, nurses, physicians, dentists and records
 officers by default), and the patient needs an active account. See also [Patient messages](11-records-reporting-and-integrations.md#how-to-answer-patient-messages).
 
+## How to see what was sent to a patient
+
+In **Consent & communication** on the patient record, select **Messages sent to this patient** (you need `notification.read`: organization
+administrators, physicians, dentists, receptionists and records officers by default). The page lists every reminder, notice and MyHealth alert the
+clinic sent — or held back — newest first:
+
+- **Message** says what it was about (for example "Appointment reminder", "Results ready in MyHealth") and whether a staff member asked for it or
+  the platform sent it on its own. The content itself is never shown: messages outside MyHealth never carry clinical detail anyway.
+- **Channel** is text message, email, push or the MyHealth inbox, with the number or address partly hidden.
+- **Status** is shown with colour, icon and words: **Delivered**, **Sent**, **Waiting to send**, **Failed** (with the number of attempts),
+  **Cancelled** or **Not sent** with the reason — for example "No mobile number on record", "The patient turned this off" or "The patient has
+  not agreed to reminders and outreach".
+- The patient's **Communication preferences** are shown above the list.
+
+When a patient says they got nothing, look for **Not sent** and its reason: update the mobile number or email on the record, or record the
+patient's preferences in **Consent & communication**. **In the communication log** opens the same patient in the organization's log.
+
 ## How to use the Patient 360 workspace
 
 Patient 360 (`/patients/[id]/360`) puts what a clinician needs before and during a consultation on one screen. Open it with **Patient 360** on the patient

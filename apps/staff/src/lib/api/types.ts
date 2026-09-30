@@ -4479,3 +4479,67 @@ export interface ScheduleExceptionRow {
   endsAt: string;
   reason: string;
 }
+
+// ---- communications (docs/domains/notification.md, "Communication log") -----------------------------------------
+
+export type NotificationChannel = "sms" | "email" | "push" | "in_app";
+export type NotificationCategory = "clinical" | "administrative" | "outreach" | "security";
+export type NotificationStatus = "queued" | "sending" | "sent" | "delivered" | "failed" | "cancelled" | "suppressed";
+
+/** GET /communications: one message to a patient — what kind, how, and what became of it; never its content. */
+export interface CommunicationLogEntry {
+  id: string;
+  patientId: string;
+  patient: { id: string; patientNumber: string; displayName: string } | null;
+  channel: NotificationChannel;
+  category: NotificationCategory;
+  templateKey: string;
+  templateLabel: string;
+  status: NotificationStatus;
+  suppressionReason: string | null;
+  destinationMasked: string | null;
+  attemptCount: number;
+  requestedBy: string | null;
+  requestedByName: string | null;
+  createdAt: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+  readAt: string | null;
+}
+
+/** GET /communications/summary. */
+export interface CommunicationSummary {
+  from: string;
+  to: string;
+  total: number;
+  byStatus: Record<NotificationStatus, number>;
+  byChannel: Array<{ channel: NotificationChannel; total: number; sent: number; notSent: number }>;
+  suppressedByReason: Array<{ reason: string; total: number }>;
+  byTemplate: Array<{ templateKey: string; templateLabel: string; total: number; notSent: number }>;
+}
+
+/** GET /notifications?patientId= (a patient's communication history). */
+export interface PatientNotification {
+  id: string;
+  recipientPatientId: string | null;
+  channel: NotificationChannel;
+  category: NotificationCategory;
+  templateKey: string;
+  templateLabel: string;
+  status: NotificationStatus;
+  suppressionReason: string | null;
+  destinationMasked: string | null;
+  attemptCount: number;
+  lastError: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+  readAt: string | null;
+}

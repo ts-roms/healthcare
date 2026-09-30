@@ -512,6 +512,13 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             ) : (
               <p className="text-body text-muted-foreground">No communication preferences recorded.</p>
             )}
+            {can(session, "notification.read") ? (
+              <p className="md:col-span-2">
+                <Link className="text-table text-primary hover:underline" href={`/patients/${p.id}/communications`}>
+                  Messages sent to this patient
+                </Link>
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 

@@ -1,5 +1,5 @@
 import { Test } from "@nestjs/testing";
-import { CoreModule } from "@healthcare/core";
+import { CoreModule, localDate } from "@healthcare/core";
 import {
   CHANNEL_SENDERS,
   type ChannelSender,
@@ -8,7 +8,7 @@ import {
   NotificationDispatcher,
   NotificationWorkerModule,
 } from "@healthcare/notification";
-import { as, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
 
 class FailingSender implements ChannelSender {
   readonly channel = "email" as const;
@@ -155,10 +155,70 @@ describe("notifications", () => {
   });
 
   it("shows the communication history of a patient to authorized staff only", async () => {
-    await ctx.http().get(`/api/v1/notifications?patientId=${patientId}`).set(as(token)).expect(403);
+    await createStaff(ctx.pool, tenant, "cashier@example.ph", ["cashier"]);
+    const cashier = await login(ctx, "cashier@example.ph");
+    await ctx.http().get(`/api/v1/notifications?patientId=${patientId}`).set(as(cashier.accessToken)).expect(403);
     await createStaff(ctx.pool, tenant, "doctor@example.ph", ["physician"]);
     const doctor = await login(ctx, "doctor@example.ph");
     const history = await ctx.http().get(`/api/v1/notifications?patientId=${patientId}`).set(as(doctor.accessToken)).expect(200);
     expect(history.body.length).toBe(3);
+    expect(history.body[0]).toMatchObject({ templateKey: "patient.registered", templateLabel: "Welcome after registration" });
+    expect(history.body[0]).not.toHaveProperty("variables");
+    // Receptionists may read it too (migration 0084).
+    await ctx.http().get(`/api/v1/notifications?patientId=${patientId}`).set(as(token)).expect(200);
+  });
+
+  it("lists messages to patients in the communication log, with counts and a CSV, never their content", async () => {
+    const today = localDate(new Date(), "Asia/Manila");
+    const log = (q: string, t = token) => ctx.http().get(`/api/v1/communications?from=${today}&to=${today}${q}`).set(as(t));
+    const cashier = await login(ctx, "cashier@example.ph");
+    await log("", cashier.accessToken).expect(403);
+    await ctx.http().get(`/api/v1/communications?from=${today}&to=2000-01-01`).set(as(token)).expect(400);
+    await ctx.http().get(`/api/v1/communications?from=2026-01-01&to=2026-06-30`).set(as(token)).expect(400);
+
+    const all = await log("").expect(200);
+    // The three messages to the patient; the staff inbox message is not part of the log.
+    expect(all.body).toMatchObject({ page: 1, hasMore: false });
+    expect(all.body.items.map((i: { status: string }) => i.status).sort()).toEqual(["failed", "sent", "suppressed"]);
+    const suppressed = all.body.items.find((i: { status: string }) => i.status === "suppressed");
+    expect(suppressed).toMatchObject({
+      patient: { id: patientId, patientNumber: expect.stringMatching(/^P\d{8}$/), displayName: expect.stringContaining("Juan") },
+      channel: "sms",
+      category: "administrative",
+      templateLabel: "Welcome after registration",
+      suppressionReason: "opted_out",
+      requestedByName: expect.any(String),
+    });
+    expect(JSON.stringify(all.body)).not.toMatch(/Your patient number is|variables|juan@example\.ph|\+639171234567/);
+
+    const notSent = await log("&status=not_sent").expect(200);
+    expect(notSent.body.items.map((i: { status: string }) => i.status).sort()).toEqual(["failed", "suppressed"]);
+    expect((await log("&channel=email").expect(200)).body.items).toHaveLength(1);
+    expect((await log(`&patientId=${patientId}&templateKey=patient.registered`).expect(200)).body.items).toHaveLength(3);
+    expect((await log("&pageSize=2").expect(200)).body).toMatchObject({ hasMore: true });
+
+    const summary = await ctx.http().get(`/api/v1/communications/summary?from=${today}&to=${today}`).set(as(token)).expect(200);
+    expect(summary.body).toMatchObject({
+      total: 3,
+      byStatus: { sent: 1, failed: 1, suppressed: 1, delivered: 0 },
+      suppressedByReason: [{ reason: "opted_out", total: 1 }],
+      byTemplate: [{ templateKey: "patient.registered", total: 3, notSent: 2 }],
+    });
+    expect(summary.body.byChannel).toEqual(
+      expect.arrayContaining([
+        { channel: "sms", total: 2, sent: 1, notSent: 1 },
+        { channel: "email", total: 1, sent: 0, notSent: 1 },
+      ]),
+    );
+
+    const csv = await ctx.http().get(`/api/v1/communications/export?from=${today}&to=${today}`).set(as(token)).expect(200);
+    expect(csv.headers["content-type"]).toMatch(/text\/csv/);
+    expect(csv.text).toContain("Welcome after registration");
+    expect(csv.text).toContain("opted_out");
+    expect(csv.text).not.toMatch(/Your patient number is|\+639171234567/);
+
+    const audits = await auditRows(ctx.pool, "action LIKE 'notification.log.%'");
+    expect(audits.map((a) => a.action)).toEqual(expect.arrayContaining(["notification.log.view", "notification.log.export"]));
+    expect(audits.find((a) => a.action === "notification.log.export")?.metadata).toMatchObject({ rows: 3, truncated: false });
   });
 });
