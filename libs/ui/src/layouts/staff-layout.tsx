@@ -172,7 +172,7 @@ function SidebarNav({
   const [openGroup, setOpenGroup] = React.useState<string | null | undefined>(undefined);
   React.useEffect(() => setOpenGroup(undefined), [pathname]);
   return (
-    <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2">
+    <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ul className="flex flex-col gap-0.5">
         {items.map((item) => {
           const Icon = item.icon;
