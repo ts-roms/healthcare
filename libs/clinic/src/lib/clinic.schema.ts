@@ -397,7 +397,7 @@ export const medicalCertificate = pgTable("medical_certificate", {
 });
 export type MedicalCertificateRecord = typeof medicalCertificate.$inferSelect;
 
-// ---- Referrals (0075) -------------------------------------------------------------------------
+// ---- Referrals (0076) -------------------------------------------------------------------------
 
 export const REFERRAL_KINDS = ["internal", "external"] as const;
 export type ReferralKind = (typeof REFERRAL_KINDS)[number];

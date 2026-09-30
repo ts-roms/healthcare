@@ -78,6 +78,25 @@ const appConfigSchema = z
     LIVEKIT_URL: z.string().url().optional(),
     LIVEKIT_API_KEY: z.string().min(1).optional(),
     LIVEKIT_API_SECRET: z.string().min(1).optional(),
+    // Online payment through PayMongo's hosted checkout (docs/domains/billing.md). Leave PAYMONGO_SECRET_KEY unset to offer
+    // no online payment. PAYMONGO_WEBHOOK_SECRET is the signing secret of the webhook registered for
+    // checkout_session.payment.paid; PAYMONGO_PAYMENT_METHODS lists the payment method types enabled on the merchant account.
+    PAYMONGO_SECRET_KEY: z
+      .string()
+      .regex(/^sk_(test|live)_[A-Za-z0-9]+$/, "PAYMONGO_SECRET_KEY must be a PayMongo secret key (sk_test_… or sk_live_…)")
+      .optional(),
+    PAYMONGO_WEBHOOK_SECRET: z.string().min(1).optional(),
+    PAYMONGO_PAYMENT_METHODS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.enum(["card", "gcash", "grab_pay", "paymaya", "billease", "dob", "qrph"])).min(1))
+      .optional(),
+    PAYMONGO_API_BASE: z.string().url().optional(),
     // FHIR R4 read interface (docs/interoperability/fhir.md). FHIR_BASE_URL is the public base used in Bundle links,
     // e.g. https://api.example.ph/api/v1/fhir/r4 (defaults to the request's own URL). FHIR_IDENTIFIER_BASE namespaces the
     // platform's own identifier systems (the organization code is appended). FHIR_IDENTIFIER_SYSTEMS / FHIR_CODE_SYSTEMS are
@@ -107,6 +126,13 @@ const appConfigSchema = z
   .superRefine((config, ctx) => {
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
+    if (config.PAYMONGO_SECRET_KEY && (!config.PAYMONGO_WEBHOOK_SECRET || !config.PAYMONGO_PAYMENT_METHODS)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["PAYMONGO_SECRET_KEY"],
+        message: "PAYMONGO_SECRET_KEY needs PAYMONGO_WEBHOOK_SECRET and PAYMONGO_PAYMENT_METHODS",
+      });
+    }
   });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

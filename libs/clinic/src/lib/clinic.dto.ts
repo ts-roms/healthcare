@@ -383,7 +383,7 @@ export class IssueCertificateDto extends createZodDto(issueCertificateSchema) {}
 export const voidCertificateSchema = z.object({ reason: z.string().trim().min(5, "Say why the certificate is void").max(500) });
 export class VoidCertificateDto extends createZodDto(voidCertificateSchema) {}
 
-// ---- Referrals (0075) -------------------------------------------------------------------------
+// ---- Referrals (0076) -------------------------------------------------------------------------
 
 const optionalText = (min: number, max: number) => z.string().trim().min(min).max(max).optional();
 const referralVersion = z.number().int().positive();

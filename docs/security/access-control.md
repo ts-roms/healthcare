@@ -110,6 +110,10 @@ and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with
 the note as the reason). Payloads are never shown.
+Analyzer interfaces (migration 0075): `lab.instrument.message.submit` (org_admin; grant it to the instrument
+gateway's integration account's role — it can only post analyzer messages, which wait for review); settings need
+`lab.qc.manage`, the review `lab.result.read` / `lab.result.enter`; audited `lab.instrument.message.receive`,
+`lab.instrument.interface.configure`, `lab.instrument.test-code`, `lab.instrument.result.*`.
 FHIR imports (migration 0048): `interop.fhir.import` (org_admin; grant it to an
 integration account's role to submit) and `interop.fhir.import.review`
 (org_admin, records_officer; clinicians are not granted it by default —

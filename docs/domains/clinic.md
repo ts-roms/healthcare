@@ -62,7 +62,7 @@ by the issuing practitioner or staff with `encounter.amend`, and another issued.
 
 ## Referrals
 
-`referral` (migration `0075`; `libs/clinic/src/lib/referrals`) — made from a consultation (in progress or signed; not one
+`referral` (migration `0076`; `libs/clinic/src/lib/referrals`) — made from a consultation (in progress or signed; not one
 entered in error) by its **responsible practitioner** (`encounter.write`; 403 otherwise), either **internal** — to an
 active practitioner of the organization, never oneself — or **external** — to an outside provider named as the referrer
 writes it (facility and contact optional; not verified). The referrer writes the specialty or service asked for, the

@@ -20,6 +20,8 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
+import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
@@ -100,6 +102,7 @@ export class AppModule implements NestModule {
       imports: [PatientModule, AuthModule, InventoryModule],
       context: AppLaboratoryContext,
       archiveQueue: overrides.labReportArchiveQueue,
+      instrumentReader: AppInstrumentMessageReader,
     });
     // Imported by the app and by billing (which charges performed dental procedures through an adapter).
     // Dental supplies are issued from inventory through an adapter, inside dentistry's transaction; fee estimates read
@@ -115,7 +118,7 @@ export class AppModule implements NestModule {
       imports: [PatientModule, laboratory, dental],
       sources: AppBillingSources,
       patients: AppPatientDirectory,
-      paymentGateway: overrides.paymentGateway,
+      paymentGateway: overrides.paymentGateway ?? paymongoGatewayProvider(config),
     });
     // Imported by the app and by the PhilHealth module (YAKAP reads a consultation's prescriptions through an adapter).
     const prescriptions = PrescriptionModule.forRoot({

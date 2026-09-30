@@ -1,0 +1,44 @@
+{
+  "name": "@healthcare/instrument-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "instrument-gateway",
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "^build",
+          "typecheck"
+        ]
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "instrument-gateway:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "instrument-gateway:build:development"
+          },
+          "production": {
+            "buildTarget": "instrument-gateway:build:production"
+          }
+        }
+      }
+    },
+    "tags": [
+      "scope:worker",
+      "type:app"
+    ]
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@healthcare/interoperability": "workspace:*"
+  }
+}

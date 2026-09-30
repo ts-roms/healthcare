@@ -17,6 +17,7 @@ pnpm dev                          # everything below, in parallel (one terminal)
 pnpm dev:api                      # http://localhost:3333/api, docs at /api/docs
 pnpm dev:worker                   # notification worker
 pnpm dev:integration-worker       # integration worker (outbound exchanges: PhilHealth, …)
+pnpm dev:instrument-gateway       # analyzer gateway (needs GATEWAY_* variables; docs/domains/laboratory-instruments.md)
 pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
 pnpm storybook                    # http://localhost:6006 — design system
