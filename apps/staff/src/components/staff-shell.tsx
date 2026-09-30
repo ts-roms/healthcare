@@ -53,7 +53,12 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
             }
           />
           <form action={signOut}>
-            <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
+            <Button
+              type="submit"
+              variant="ghost"
+              className="w-full justify-start rounded-full px-3 text-sidebar-foreground hover:bg-sidebar-hover hover:text-sidebar-foreground"
+              title={`Sign out ${user.email}`}
+            >
               <LogOutIcon /> Sign out
             </Button>
           </form>

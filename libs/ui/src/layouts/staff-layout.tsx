@@ -113,7 +113,7 @@ function Brand({ name }: { name: string }) {
       <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
         <ActivityIcon className="size-4" aria-hidden />
       </span>
-      <span className="truncate text-section font-semibold text-primary-deep">{name}</span>
+      <span className="truncate text-section font-semibold text-sidebar-foreground">{name}</span>
     </div>
   );
 }
@@ -133,7 +133,7 @@ function SidebarNav({ items, pathname, Link, onNavigate }: { items: NavItem[]; p
                 aria-current={exact ? "page" : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  "flex h-9 items-center gap-2.5 rounded-full px-3 text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex h-9 items-center gap-2.5 rounded-full px-3 text-body font-medium text-sidebar-foreground transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
                   active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
                 )}
               >
@@ -156,8 +156,8 @@ function SidebarNav({ items, pathname, Link, onNavigate }: { items: NavItem[]; p
                           aria-current={cActive ? "page" : undefined}
                           onClick={onNavigate}
                           className={cn(
-                            "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-primary-deep focus-visible:ring-2 focus-visible:ring-ring",
-                            cActive && "font-semibold text-primary-deep",
+                            "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                            cActive && "font-semibold text-sidebar-foreground",
                           )}
                         >
                           {c.label}
