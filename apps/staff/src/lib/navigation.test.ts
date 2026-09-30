@@ -72,7 +72,12 @@ describe("navigationForPermissions", () => {
     const clinic = navigationForPermissions(["encounter.read", "care-plan.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);
     expect(clinic?.children?.every((c) => !("roles" in c))).toBe(true);
-    expect(clinic?.children?.length).toBe(5);
+    expect(clinic?.children?.length).toBe(4);
+    expect(
+      navigationForPermissions(["encounter.read", "prescription.read"])
+        .find((i) => i.href === "/clinic")
+        ?.children?.map((c) => c.href),
+    ).toContain("/clinic/prescriptions");
     expect(
       navigationForPermissions(["encounter.read"])
         .find((i) => i.href === "/clinic")

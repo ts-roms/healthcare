@@ -54,6 +54,12 @@ The top bar's bell shows the signed-in user's unread in-app messages (`GET /me/n
 critical and corrected results to the ordering practitioner, laboratory quality notices to quality managers, staff
 messages. See `docs/domains/notification.md`.
 
+## Prescriptions
+
+`/clinic/prescriptions` (`prescription.read` + `patient.read`) lists the selected facility's prescriptions over a period
+(default today, at most 92 days) from `GET /prescriptions/log`, with status (colour + icon + text) and "Dispensed here";
+filters live in the URL (`lib/prescription-log.ts`). It replaced the module placeholder.
+
 ## Communications
 
 `/communications` (`notification.read`; the list and CSV also need `patient.read`) is the organization's communication log: figures for a

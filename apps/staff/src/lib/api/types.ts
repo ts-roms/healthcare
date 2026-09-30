@@ -4613,3 +4613,17 @@ export interface WorkspaceProcedure {
   performedAt: string;
   performerName: string | null;
 }
+
+/** GET /prescriptions/log: one prescription in the facility's list (names only; no doses, instructions or notes). */
+export interface PrescriptionLogEntry {
+  id: string;
+  prescriptionNumber: string;
+  issuedAt: string;
+  status: "active" | "cancelled" | "superseded";
+  encounterId: string;
+  patient: { id: string; patientNumber: string; displayName: string; sex: string; age: number } | null;
+  prescriber: { id: string; name: string | null };
+  medicines: string[];
+  dispensed: boolean;
+  replacesPrescriptionId: string | null;
+}

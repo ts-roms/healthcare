@@ -63,6 +63,17 @@ read, prescriptions read and dispense, inventory read and move.
 `POST /prescriptions`, `GET /prescriptions?patientId=|encounterId=`, `GET /prescriptions/:id`,
 `POST /prescriptions/:id/{replace,cancel}`.
 
+**Prescription list** (`GET /prescriptions/log`, `prescription.read` + `patient.read`, selected facility): the facility's
+prescriptions issued over local days in the Philippines (`from`..`to`, at most 92), newest first, paged (`page`,
+`pageSize` ≤ 100), filtered by status, prescriber (`prescriberPractitionerId`, or `mine=true` for the caller's own
+practitioner record — `422 not_a_practitioner` without one) or number (`RX…`). Each row: number, when issued, status,
+the consultation, the patient's number, name, sex and age (`PrescribingContext.patientBriefs`), the prescriber's name
+(`PrescribingContext.practitionerNames`), the medicines by generic name and strength, whether anything was dispensed here
+(a dispense not reversed) and what it replaces — never doses, instructions, notes or allergy override reasons. One
+audit `prescription.log.view` per page with the filters and the patient ids shown. Staff `/clinic/prescriptions`
+(**Clinic → Prescriptions**, needs `prescription.read`; links to the consultation, the patient and, for staff who
+dispense, the pharmacy).
+
 Dispensing (`/api/v1/dispensing`, selected facility required): `GET stock` (medicines and supplies with usable stock),
 `GET prescriptions?number=RX…` (→ id), `GET prescriptions/:id` (patient identification, items, dispensed per unit,
 remaining, dispenses), `POST prescriptions/:id/dispenses` (`lines[]`: prescription item, inventory item, location,

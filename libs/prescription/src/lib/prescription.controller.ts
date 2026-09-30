@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
-import { CancelPrescriptionDto, IssuePrescriptionDto, ListPrescriptionsDto, ReplacePrescriptionDto } from "./prescription.dto";
+import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { CancelPrescriptionDto, IssuePrescriptionDto, ListPrescriptionsDto, PrescriptionLogDto, ReplacePrescriptionDto } from "./prescription.dto";
 import { PrescriptionService } from "./prescription.service";
 
 @ApiTags("prescriptions")
@@ -22,6 +22,14 @@ export class PrescriptionController {
   @RequirePermissions("prescription.read")
   list(@CurrentActor() actor: Actor, @Query() query: ListPrescriptionsDto) {
     return this.prescriptions.list(actor, { ...query, activeOnly: query.activeOnly === "true" });
+  }
+
+  @Get("log")
+  @RequirePermissions("prescription.read", "patient.read")
+  @RequireFacility()
+  @ApiOperation({ summary: "Prescriptions issued at the selected facility over a period (names only, no doses or notes; audited)" })
+  log(@CurrentActor() actor: Actor, @Query() query: PrescriptionLogDto) {
+    return this.prescriptions.log(actor, query);
   }
 
   @Get(":prescriptionId")

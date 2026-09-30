@@ -17,6 +17,8 @@ export interface PrescribingContext {
   allergies(organizationId: string, patientId: string): Promise<AllergyContext>;
   /** Minimal identification (to check who receives a dispense). Not audited by the adapter. */
   patientBriefs(organizationId: string, patientIds: string[]): Promise<Map<string, { patientNumber: string; displayName: string; sex: string; age: number }>>;
+  /** Display names of practitioners (prescribers in lists). */
+  practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>>;
 }
 
 export interface AllergyContext {

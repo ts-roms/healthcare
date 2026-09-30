@@ -125,6 +125,15 @@ Issued prescriptions cannot be edited.
 
 Only **Active** prescriptions can be replaced or cancelled. Dispensing is covered in [Pharmacy and inventory](09-pharmacy-and-inventory.md).
 
+### Find prescriptions across patients
+
+**Clinic → Prescriptions** lists prescriptions issued at the selected facility, newest first. It opens on today; choose
+**From** / **To** (up to 92 days), a **Status** (active, cancelled, replaced), a **Prescriber**, a **Number** such as
+`RX00000123`, or tick **Only mine**, then **Show**. Each row shows the number, the patient, the medicines by name, the
+prescriber, the status and **Dispensed here** when the pharmacy has dispensed any of it. Select the number to open the
+consultation (doses and instructions are there) or, if you dispense, **Dispense** to open it at the pharmacy. Each view of
+the list is recorded in the audit trail.
+
 ## How to order laboratory tests
 
 You need `lab.order.create`, and the encounter must be in progress.
