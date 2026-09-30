@@ -207,7 +207,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
 - The app's session code against a running API with a real laboratory workflow (external order → specimen → results → verify → approve →
   release): wrong password wording, sign-in, profile time zone, only releasable results, history, three concurrent requests after expiry on
   one refresh, restart from the stored token, and a clinic disabling access ending the session on the device.
-- Metro bundles for iOS and Android (`expo export`), and every SDK-managed package at the version Expo SDK 57 names.
+- Metro bundles for iOS and Android (`expo export`), and every SDK-managed package at the version Expo SDK 57 names (TypeScript `~6.0.3` since `expo install --check` flagged 5.9).
 - The screens rendered through React Native for Web in Chromium against the same API (sign-in with an error, results, history, sign-out),
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
