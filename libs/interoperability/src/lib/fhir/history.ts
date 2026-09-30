@@ -175,7 +175,10 @@ export function toReportedMedication(ctx: FhirContext, patientId: string, m: Rep
   const start = partialDateTime(m.startedDate, m.startedPrecision);
   const end = partialDateTime(m.stoppedDate, m.stoppedPrecision);
   // A stop recorded later changes the row as well: the latest change is the last-updated time.
-  const lastUpdated = [m.enteredInErrorAt, m.stopRecordedAt, m.recordedAt].filter((t): t is string => Boolean(t)).sort().at(-1)!;
+  const lastUpdated = [m.enteredInErrorAt, m.stopRecordedAt, m.recordedAt]
+    .filter((t): t is string => Boolean(t))
+    .sort()
+    .at(-1)!;
   return compact<MedicationStatement>({
     resourceType: "MedicationStatement",
     id: m.id,

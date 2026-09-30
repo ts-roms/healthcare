@@ -117,7 +117,8 @@ export class FhirRecordComposer {
       if (i.performerPractitionerId) practitionerIds.add(i.performerPractitionerId);
       if (i.facilityId) facilityIds.add(i.facilityId);
     }
-    for (const h of [...history.procedures, ...history.conditions, ...history.medications]) if (h.recorderPractitionerId) practitionerIds.add(h.recorderPractitionerId);
+    for (const h of [...history.procedures, ...history.conditions, ...history.medications])
+      if (h.recorderPractitionerId) practitionerIds.add(h.recorderPractitionerId);
     const practitioners = await this.clinic.practitioners(organizationId, [...practitionerIds]);
 
     return {

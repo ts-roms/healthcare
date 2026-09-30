@@ -1,6 +1,14 @@
 import type { Bundle, CapabilityStatement, Condition, FamilyMemberHistory, FhirResource, MedicationStatement, Observation, Procedure } from "fhir/r4";
 import { capabilityStatement, patientEverything, searchByPatient } from "./bundle";
-import { historyResources, partialDateTime, toFamilyMemberHistory, toPastCondition, toPastProcedure, toReportedMedication, toSocialHistoryObservations } from "./history";
+import {
+  historyResources,
+  partialDateTime,
+  toFamilyMemberHistory,
+  toPastCondition,
+  toPastProcedure,
+  toReportedMedication,
+  toSocialHistoryObservations,
+} from "./history";
 import { PAGE_SIZE } from "./search";
 import type {
   FamilyHistorySource,
@@ -258,7 +266,15 @@ describe("patient history as FHIR R4", () => {
     externalHistory: [],
     dental: null,
     immunizations: [],
-    history: { procedures: [procedure, imported], conditions: [condition], medications: [medication], family: [family], familyReview: null, social: [social], sensitiveIncluded },
+    history: {
+      procedures: [procedure, imported],
+      conditions: [condition],
+      medications: [medication],
+      family: [family],
+      familyReview: null,
+      social: [social],
+      sensitiveIncluded,
+    },
   });
 
   it("includes the history in $everything and searches, schema-valid, with a notice when sensitive parts are withheld", () => {

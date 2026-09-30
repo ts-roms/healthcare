@@ -47,7 +47,9 @@ export class PatientHistoryController {
 
   @Post("patients/:patientId/history/medications")
   @RequirePermissions("history.record")
-  @ApiOperation({ summary: "Record a medicine the patient takes that was not prescribed here (prescribed elsewhere, over the counter, supplements), as reported" })
+  @ApiOperation({
+    summary: "Record a medicine the patient takes that was not prescribed here (prescribed elsewhere, over the counter, supplements), as reported",
+  })
   medication(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RecordReportedMedicationDto) {
     return this.history.recordMedication(actor, patientId, body);
   }
