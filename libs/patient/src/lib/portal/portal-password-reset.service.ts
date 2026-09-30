@@ -23,7 +23,7 @@ const INVALID_RESET = "This link or date of birth is not correct, or the link ha
  * - Asking never reveals whether an account exists: the answer is always the same, and a link is sent only to the
  *   sign-in email of an active account with portal consent, at most {@link RESET_REQUESTS_PER_HOUR} per hour.
  * - The link carries a random token (only its hash is stored) that works once for {@link RESET_VALID_MINUTES} minutes.
- * - The sign-in email is not verified, so choosing the new password also needs the patient's date of birth; wrong
+ * - The sign-in email may not be verified (a mistyped one would hand the account to a stranger), so choosing the new password also needs the patient's date of birth; wrong
  *   birth dates burn the link after {@link RESET_MAX_FAILED_ATTEMPTS}.
  * - A reset signs the account out everywhere, clears a sign-in lockout and tells the account's email it happened.
  */

@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangleIcon, BanIcon, KeyRoundIcon } from "lucide-react";
+import { AlertTriangleIcon, BanIcon, KeyRoundIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Label, Textarea } from "@healthcare/ui/primitives";
 import type { PortalAccountStatus, PortalInvitation } from "@/lib/api/types";
-import { disablePortal, invitePortal } from "./portal-actions";
+import { disablePortal, invitePortal, resetPortalMfa } from "./portal-actions";
 
 interface PortalAccessProps {
   patientId: string;
@@ -23,6 +23,7 @@ interface PortalAccessProps {
 export function PortalAccess({ patientId, patientNumber, account, canManage, patientActive }: PortalAccessProps) {
   const [invitation, setInvitation] = React.useState<PortalInvitation | null>(null);
   const [disabling, setDisabling] = React.useState(false);
+  const [resettingMfa, setResettingMfa] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -37,6 +38,18 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
       if (result.ok) setInvitation(result.value);
       else setError(result.message);
     });
+
+  const resetMfa = (event: React.FormEvent) => {
+    event.preventDefault();
+    startTransition(async () => {
+      setError(null);
+      const result = await resetPortalMfa(patientId, reason);
+      if (result.ok) {
+        setResettingMfa(false);
+        setReason("");
+      } else setError(result.message);
+    });
+  };
 
   const disable = (event: React.FormEvent) => {
     event.preventDefault();
@@ -85,6 +98,33 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
         </p>
       ) : null}
 
+      {resettingMfa ? (
+        <form onSubmit={resetMfa} className="flex flex-col gap-2 rounded-md border p-3">
+          <Label htmlFor="portal-mfa-reason">Reason for turning off two-step verification</Label>
+          <Textarea
+            id="portal-mfa-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            minLength={5}
+            maxLength={500}
+            required
+            placeholder="e.g. Lost phone and recovery codes; identity checked at the front desk"
+          />
+          <p className="text-meta text-muted-foreground">
+            Check the patient&apos;s identity in person first. They are signed out everywhere and can set two-step verification up again. The reason is kept in
+            the audit trail and the patient is told by email.
+          </p>
+          <div className="flex gap-2">
+            <Button type="submit" variant="destructive" size="sm" disabled={pending || reason.trim().length < 5}>
+              <ShieldOffIcon aria-hidden /> {pending ? "Turning off…" : "Turn off two-step verification"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setResettingMfa(false)} disabled={pending}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
       {disabling ? (
         <form onSubmit={disable} className="flex flex-col gap-2 rounded-md border p-3">
           <Label htmlFor="portal-disable-reason">Reason for disabling</Label>
@@ -112,6 +152,11 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
           {canInvite ? (
             <Button size="sm" onClick={invite} disabled={pending}>
               <KeyRoundIcon aria-hidden /> {pending ? "Issuing…" : account.status === "none" ? "Invite to portal" : "Issue new code"}
+            </Button>
+          ) : null}
+          {canManage && account.status === "active" && account.mfaEnabled ? (
+            <Button variant="outline" size="sm" onClick={() => setResettingMfa(true)} disabled={pending}>
+              <ShieldOffIcon aria-hidden /> Turn off two-step verification
             </Button>
           ) : null}
           {canDisable ? (
@@ -148,6 +193,8 @@ function StatusLine({ account }: { account: PortalAccountStatus }) {
         <p className="flex flex-wrap items-center gap-2">
           <Badge variant="success">Active</Badge>
           <span>{account.email}</span>
+          <Badge variant={account.emailVerified ? "success" : "warning"}>{account.emailVerified ? "Email verified" : "Email not verified"}</Badge>
+          {account.mfaEnabled ? <Badge variant="info">Two-step verification on</Badge> : null}
           <span className="text-muted-foreground">· last sign-in {account.lastLoginAt ? clinicalDateTime(account.lastLoginAt) : "never"}</span>
         </p>
       );

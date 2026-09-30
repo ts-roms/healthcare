@@ -3,9 +3,9 @@
 import { cookies, headers as requestHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import { forwardedHeaders, safeNextPath, toApiError } from "@healthcare/web-session";
-import { API_BASE_URL, PORTAL_ORGANIZATION_CODE } from "@/lib/api/config";
+import { API_BASE_URL, COOKIES, PORTAL_ORGANIZATION_CODE, SECURE_COOKIES } from "@/lib/api/config";
 import { writeTokenCookies } from "@/lib/api/tokens";
-import type { PortalTokenResponse } from "@/lib/api/types";
+import type { PortalMfaRequired, PortalTokenResponse } from "@/lib/api/types";
 import { activateFormSchema, type FieldErrors, loginFormSchema, parseForm, patientMessage, resetFormSchema, resetRequestFormSchema } from "@/lib/forms";
 
 export interface AuthFormState {
@@ -13,6 +13,8 @@ export interface AuthFormState {
   fieldErrors?: FieldErrors;
   /** Non-secret values to put back in the form after an error. */
   values?: Record<string, string>;
+  /** The password was right and the second step (a code) is next. */
+  step?: "mfa";
   /** A reset link was asked for (the answer is the same whether or not an account exists). */
   requested?: boolean;
 }
@@ -30,22 +32,50 @@ async function send(path: string, body: unknown): Promise<Response> {
   return response;
 }
 
-async function post(path: string, body: unknown): Promise<PortalTokenResponse> {
-  return (await (await send(path, body)).json()) as PortalTokenResponse;
+async function post<T = PortalTokenResponse>(path: string, body: unknown): Promise<T> {
+  return (await (await send(path, body)).json()) as T;
 }
 
+/** One entry point for the sign-in form: the hidden `intent` field says whether the password or the code is being sent. */
 export async function signIn(_prev: AuthFormState, form: FormData): Promise<AuthFormState> {
+  return form.get("intent") === "mfa" ? verifyCode(form) : verifyPassword(form);
+}
+
+async function verifyPassword(form: FormData): Promise<AuthFormState> {
   const values = { email: String(form.get("email") ?? "") };
   const parsed = parseForm(loginFormSchema, form, ["email", "password"]);
   if (!parsed.ok) return { fieldErrors: parsed.errors, values };
 
-  let tokens: PortalTokenResponse;
+  let result: PortalTokenResponse | PortalMfaRequired;
   try {
-    tokens = await post("/portal/auth/login", { organizationCode: PORTAL_ORGANIZATION_CODE, ...parsed.data });
+    result = await post<PortalTokenResponse | PortalMfaRequired>("/portal/auth/login", { organizationCode: PORTAL_ORGANIZATION_CODE, ...parsed.data });
   } catch (error) {
     return { error: patientMessage(error), values };
   }
-  writeTokenCookies(await cookies(), tokens);
+  const jar = await cookies();
+  if (result.status === "mfa_required") {
+    // The challenge stays on the server side of the browser (httpOnly), like the session itself.
+    jar.set(COOKIES.mfaChallenge, result.challengeToken, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "strict", path: "/", maxAge: 300 });
+    return { step: "mfa", values };
+  }
+  writeTokenCookies(jar, result);
+  redirect(safeNextPath(form.get("next"), "/", AUTH_PATHS));
+}
+
+async function verifyCode(form: FormData): Promise<AuthFormState> {
+  const code = String(form.get("code") ?? "").trim();
+  const challengeToken = (await cookies()).get(COOKIES.mfaChallenge)?.value;
+  if (!challengeToken) return { error: "Your sign-in took too long. Enter your password again." };
+  if (code.length < 6) return { step: "mfa", fieldErrors: { code: "Enter the 6-digit code from your authenticator app, or a recovery code." } };
+  let tokens: PortalTokenResponse;
+  try {
+    tokens = await post("/portal/auth/mfa/verify", { challengeToken, code });
+  } catch (error) {
+    return { step: "mfa", error: patientMessage(error) };
+  }
+  const jar = await cookies();
+  jar.delete(COOKIES.mfaChallenge);
+  writeTokenCookies(jar, tokens);
   redirect(safeNextPath(form.get("next"), "/", AUTH_PATHS));
 }
 
