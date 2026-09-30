@@ -19,9 +19,6 @@ export class UpdateMembershipDto extends createZodDto(updateMembershipSchema) {}
 export const resetPasswordSchema = z.object({ temporaryPassword: passwordSchema, reason: z.string().trim().min(3).max(500) });
 export class ResetPasswordDto extends createZodDto(resetPasswordSchema) {}
 
-export const resetMfaSchema = z.object({ reason: z.string().trim().min(3).max(500) });
-export class ResetMfaDto extends createZodDto(resetMfaSchema) {}
-
 export const grantRoleSchema = z
   .object({
     roleId: z.string().uuid(),

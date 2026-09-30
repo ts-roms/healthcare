@@ -1,6 +1,6 @@
 import { boolean, date, integer, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0085_clinic_procedures.sql and 0087_clinic_procedure_supplies.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0085_clinic_procedures.sql and 0088_clinic_procedure_supplies.sql (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -49,7 +49,7 @@ export const clinicProcedure = pgTable("clinic_procedure", {
 export type ProcedureDefinitionRecord = typeof clinicProcedureDefinition.$inferSelect;
 export type ClinicProcedureRecord = typeof clinicProcedure.$inferSelect;
 
-// ---- supplies used, from inventory (0087) ----------------------------------------------------------------------
+// ---- supplies used, from inventory (0088) ----------------------------------------------------------------------
 
 /** The supplies a catalogue entry usually uses (configuration; staff confirm what was used each time). */
 export const clinicProcedureSupplyTemplateItem = pgTable(

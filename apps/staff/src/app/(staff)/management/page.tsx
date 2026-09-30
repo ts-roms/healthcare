@@ -8,7 +8,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
+  DateInput,
   Label,
   NativeSelect,
   Table,
@@ -89,11 +89,11 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
         <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filters">
           <div className="grid gap-1">
             <Label htmlFor="mgmt-from">From</Label>
-            <Input id="mgmt-from" name="from" type="date" defaultValue={data.from} className="w-40" />
+            <DateInput id="mgmt-from" name="from" defaultValue={data.from} className="w-40" />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="mgmt-to">To</Label>
-            <Input id="mgmt-to" name="to" type="date" defaultValue={data.to} className="w-40" />
+            <DateInput id="mgmt-to" name="to" defaultValue={data.to} className="w-40" />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="mgmt-facility">Facility</Label>

@@ -1,7 +1,16 @@
 import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { type Actor, AllowAccountSetup, CurrentActor, ForbiddenError, Public, RequireFacility, requestMetadataFrom, requireFacilityId } from "@healthcare/core";
+import {
+  type Actor,
+  AllowDuringMfaEnrollment,
+  CurrentActor,
+  ForbiddenError,
+  Public,
+  RequireFacility,
+  requestMetadataFrom,
+  requireFacilityId,
+} from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
 import {
@@ -16,6 +25,7 @@ import {
 } from "./auth.dto";
 import { AccessService, facilitiesInReach } from "./access.service";
 import { AuthService } from "./auth.service";
+import { MfaPolicyService } from "./mfa-policy.service";
 import { StaffPasswordResetService } from "./staff-password-reset.service";
 import { REALTIME_TICKET_TTL_SECONDS, TokenService } from "./tokens";
 
@@ -30,6 +40,7 @@ export class AuthController {
     private readonly access: AccessService,
     private readonly organizations: OrganizationService,
     private readonly tokens: TokenService,
+    private readonly mfaPolicy: MfaPolicyService,
     private readonly resets: StaffPasswordResetService,
   ) {}
 
@@ -91,7 +102,7 @@ export class AuthController {
   }
 
   @Post("logout")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentActor() actor: Actor): Promise<void> {
@@ -99,11 +110,12 @@ export class AuthController {
   }
 
   @Get("me")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Current user, organization, facility context and effective permissions" })
   async me(@CurrentActor() actor: Actor) {
     const [user, organization] = await Promise.all([this.auth.getUser(actor.userId), this.organizations.getOrganization(actor.organizationId)]);
+    const mfaPolicy = await this.mfaPolicy.forMember(user.id, actor.organizationId, user.mfaEnabled);
     return {
       user: {
         id: user.id,
@@ -113,19 +125,17 @@ export class AuthController {
         isPlatformAdmin: user.isPlatformAdmin,
         /** Signed in with a temporary password from an administrator: choose a new one first. */
         passwordChangeRequired: user.passwordChangeRequired,
-        /** The organization requires two-step verification and it is not set up: set it up first. */
-        mfaEnrollmentRequired: actor.mfaEnrollmentRequired ?? false,
       },
-      /** The organization requires two-step verification of its staff (it cannot be turned off). */
-      staffMfaRequired: organization.staffMfaRequired,
       organization: { id: organization.id, code: organization.code, name: organization.name },
       facilityId: actor.facilityId ?? null,
-      permissions: [...actor.permissions].sort(),
+      mfaPolicy,
+      // Until enrollment (or a temporary password is replaced), the member can do nothing else; the staff app shows only the set-up.
+      permissions: mfaPolicy.enrollmentRequired || user.passwordChangeRequired ? [] : [...actor.permissions].sort(),
     };
   }
 
   @Get("me/facilities")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Active facilities the current user can work in (holds a role there, or an organization-wide role); for the facility selector",
@@ -147,7 +157,7 @@ export class AuthController {
   }
 
   @Post("password")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)
@@ -157,7 +167,7 @@ export class AuthController {
   }
 
   @Post("mfa/setup")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Start TOTP enrollment; returns the secret and otpauth URI for a QR code" })
   setupMfa(@CurrentActor() actor: Actor) {
@@ -165,7 +175,7 @@ export class AuthController {
   }
 
   @Post("mfa/confirm")
-  @AllowAccountSetup()
+  @AllowDuringMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   @Throttle(CREDENTIAL_THROTTLE)

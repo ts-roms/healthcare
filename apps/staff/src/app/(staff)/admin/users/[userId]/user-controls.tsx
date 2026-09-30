@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import { grantRole, resetStaffPassword, resetStaffTwoStep, revokeRole, setMembershipStatus } from "../actions";
+import { grantRole, resetStaffPassword, revokeRole, setMembershipStatus } from "../actions";
 
 interface Option {
   id: string;
@@ -189,34 +189,27 @@ export function MembershipControl({ userId, status }: { userId: string; status: 
 }
 
 /**
- * Sign-in help for a member (user.manage, audited with a reason; their sessions end): a temporary password handed over
- * in person, to be replaced at the next sign-in, and turning off two-step verification after a lost phone. The API
- * refuses accounts also used in other organizations (a platform administrator resets those).
+ * A temporary password handed over in person (user.manage, audited with a reason; the person's sessions end), to be
+ * replaced at the next sign-in. The API refuses accounts also used in other organizations (a platform administrator
+ * resets those). Two-step verification is reset with the controls above (user.mfa.manage).
  */
-export function SignInResets({ userId, mfaEnabled }: { userId: string; mfaEnabled: boolean }) {
+export function TemporaryPasswordReset({ userId }: { userId: string }) {
   const router = useRouter();
-  const [open, setOpen] = React.useState<"password" | "two-step" | null>(null);
+  const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState({ temporaryPassword: "", confirm: "", reason: "" });
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   const close = () => {
-    setOpen(null);
+    setOpen(false);
     setError(null);
     setForm({ temporaryPassword: "", confirm: "", reason: "" });
   };
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value }));
   if (!open) {
     return (
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => setOpen("password")}>
-          Reset password…
-        </Button>
-        {mfaEnabled ? (
-          <Button size="sm" variant="outline" onClick={() => setOpen("two-step")}>
-            Turn off two-step verification…
-          </Button>
-        ) : null}
-      </div>
+      <Button size="sm" variant="outline" className="self-start" onClick={() => setOpen(true)}>
+        Reset password…
+      </Button>
     );
   }
   return (
@@ -226,44 +219,32 @@ export function SignInResets({ userId, mfaEnabled }: { userId: string; mfaEnable
         e.preventDefault();
         setError(null);
         startTransition(async () => {
-          const result = open === "password" ? await resetStaffPassword(userId, form) : await resetStaffTwoStep(userId, form.reason);
+          const result = await resetStaffPassword(userId, form);
           if (result.ok) {
-            toast.success(
-              open === "password"
-                ? "Temporary password set; they choose their own at the next sign-in"
-                : "Two-step verification turned off; they can set it up again under My account",
-            );
+            toast.success("Temporary password set; they choose their own at the next sign-in");
             close();
             router.refresh();
           } else setError(result.message);
         });
       }}
     >
-      <p className="font-medium">{open === "password" ? "Reset password" : "Turn off two-step verification"}</p>
-      {open === "password" ? (
-        <>
-          <p className="text-meta text-muted-foreground">
-            Give the temporary password to the person directly, never by email or chat. They must choose their own password when they next sign in.
-          </p>
-          <Label htmlFor="temporary-password">Temporary password</Label>
-          <Input
-            id="temporary-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            maxLength={128}
-            value={form.temporaryPassword}
-            onChange={set("temporaryPassword")}
-          />
-          <Label htmlFor="temporary-password-again">Temporary password again</Label>
-          <Input id="temporary-password-again" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
-        </>
-      ) : (
-        <p className="text-meta text-muted-foreground">
-          For a lost or replaced phone. Their next sign-in asks only for the password; ask them to turn it on again under My account.
-        </p>
-      )}
+      <p className="font-medium">Reset password</p>
+      <p className="text-meta text-muted-foreground">
+        Give the temporary password to the person directly, never by email or chat. They must choose their own password when they next sign in.
+      </p>
+      <Label htmlFor="temporary-password">Temporary password</Label>
+      <Input
+        id="temporary-password"
+        type="password"
+        autoComplete="new-password"
+        required
+        minLength={12}
+        maxLength={128}
+        value={form.temporaryPassword}
+        onChange={set("temporaryPassword")}
+      />
+      <Label htmlFor="temporary-password-again">Temporary password again</Label>
+      <Input id="temporary-password-again" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
       <Label htmlFor="reset-reason">Reason</Label>
       <Input
         id="reset-reason"
@@ -282,7 +263,7 @@ export function SignInResets({ userId, mfaEnabled }: { userId: string; mfaEnable
       ) : null}
       <div className="flex gap-2">
         <Button type="submit" size="sm" variant="destructive" disabled={pending}>
-          {pending ? "Saving…" : open === "password" ? "Set temporary password" : "Turn off"}
+          {pending ? "Saving…" : "Set temporary password"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={close} disabled={pending}>
           Cancel

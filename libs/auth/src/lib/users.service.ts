@@ -18,7 +18,7 @@ import type { z } from "zod";
 import { appUser, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
-import type { createRoleSchema, createUserSchema, grantRoleSchema, resetMfaSchema, resetPasswordSchema, updateMembershipSchema } from "./users.dto";
+import type { createRoleSchema, createUserSchema, grantRoleSchema, resetPasswordSchema, updateMembershipSchema } from "./users.dto";
 
 export interface StaffUserView {
   id: string;
@@ -206,7 +206,7 @@ export class UsersService {
   /**
    * Gives a member a temporary password (the administrator hands it over directly) that must be replaced at the next
    * sign-in: every session ends, a lockout is cleared, and until the person chooses a new password the API refuses all
-   * but their own account routes (migration 0088). Audited with the reason.
+   * but their own account routes (migration 0089). Audited with the reason.
    */
   async resetPassword(actor: Actor, userId: string, input: z.infer<typeof resetPasswordSchema>): Promise<StaffUserView> {
     const passwordHash = await hashPassword(input.temporaryPassword);
@@ -231,32 +231,6 @@ export class UsersService {
         resourceId: userId,
         reason: input.reason,
         metadata: { sessionsRevoked: revoked },
-      });
-    });
-    return this.get(actor.organizationId, userId);
-  }
-
-  /**
-   * Turns off a member's two-step verification (a lost phone): the next sign-in needs only the password, and the person
-   * can set it up again under My account. Every session ends. Audited with the reason.
-   */
-  async resetMfa(actor: Actor, userId: string, input: z.infer<typeof resetMfaSchema>): Promise<StaffUserView> {
-    await this.db.transaction(async (tx) => {
-      const user = await this.lockResettable(tx, actor, userId);
-      if (!user.mfaEnabled && !user.mfaPendingSecretEncrypted) {
-        throw new BusinessRuleError("Two-step verification is not turned on for this person", "mfa_not_enabled");
-      }
-      await tx
-        .update(appUser)
-        .set({ mfaEnabled: false, mfaSecretEncrypted: null, mfaPendingSecretEncrypted: null, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
-        .where(eq(appUser.id, userId));
-      const revoked = await this.sessions.revokeAllForUser(tx, userId, "mfa_reset");
-      await this.audit.record(tx, actor, {
-        action: "user.mfa-reset",
-        resourceType: "app_user",
-        resourceId: userId,
-        reason: input.reason,
-        metadata: { sessionsRevoked: revoked, wasEnabled: user.mfaEnabled },
       });
     });
     return this.get(actor.organizationId, userId);

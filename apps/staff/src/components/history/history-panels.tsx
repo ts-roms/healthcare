@@ -16,7 +16,7 @@ import {
   ShieldAlertIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import {
   markHistoryInError,
   recordFamilyHistory,
@@ -736,7 +736,7 @@ export function SocialVersionForm({
         </Field>
       ) : null}
       <Field id={`${id}-effective`} label="As of" span={2} hint="Leave empty for today.">
-        <Input id={`${id}-effective`} type="date" value={form.effectiveDate} onChange={(e) => set("effectiveDate", e.target.value)} />
+        <DateInput id={`${id}-effective`} value={form.effectiveDate} onChange={(e) => set("effectiveDate", e.target.value)} />
       </Field>
       {SOCIAL_TEXT.filter((f) => sensitiveAccess || !f.sensitive).map((f) => (
         <Field key={f.key} id={`${id}-${f.key}`} label={f.sensitive ? `${f.label} (sensitive)` : f.label} span={f.max > 200 ? 6 : 3}>

@@ -1,10 +1,5 @@
--- Staff sign-in security: an organization may require two-step verification of its staff, and staff may reset a
--- forgotten password through a single-use link emailed to their sign-in address.
--- See docs/security/access-control.md ("Required two-step verification", "Password reset by email").
-
--- While set, a member without two-step verification who signs in can only set it up (the API refuses everything else),
--- and members cannot turn it off.
-ALTER TABLE organization ADD COLUMN staff_mfa_required boolean NOT NULL DEFAULT false;
+-- Staff reset a forgotten password through a single-use link emailed to their sign-in address.
+-- See docs/security/access-control.md ("Password reset by email").
 
 -- A reset link: only the hash of its random token is kept; it works once, for a short time. With two-step verification
 -- on, choosing the new password also needs a current code; wrong codes burn the link.

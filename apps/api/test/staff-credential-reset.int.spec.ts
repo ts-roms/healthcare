@@ -1,11 +1,9 @@
-import { currentTotp } from "@healthcare/auth";
 import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWORD, type Tenant, type TestContext } from "./harness";
 
 const TEMPORARY = "Temporary-Pass-2026-x";
 
 /**
- * An administrator resets a staff member's password (a temporary one to replace at the next sign-in) or turns off their
- * two-step verification (docs/security/access-control.md, "Credential resets by an administrator"; migration 0088).
+ * An administrator resets a staff member's password (a temporary one to replace at the next sign-in) (docs/security/access-control.md, "Credential resets by an administrator"; migration 0089).
  */
 describe("staff credential resets by an administrator", () => {
   let ctx: TestContext;
@@ -68,30 +66,6 @@ describe("staff credential resets by an administrator", () => {
     const audit = await auditRows(ctx.pool, `action = 'user.password-reset' AND resource_id = $1`, [nurseId]);
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({ reason: "Forgot password", metadata: expect.objectContaining({ sessionsRevoked: 1 }) });
-  });
-
-  it("turns off two-step verification, so the next sign-in needs only the password", async () => {
-    const nurse = (await signIn("nurse@reset.ph", "Her-Own-New-Passphrase-5").expect(200)).body.accessToken as string;
-    const setup = await ctx.http().post("/api/v1/auth/mfa/setup").set(as(nurse)).expect(201);
-    await ctx
-      .http()
-      .post("/api/v1/auth/mfa/confirm")
-      .set(as(nurse))
-      .send({ code: currentTotp(setup.body.secret) })
-      .expect(204);
-    expect((await signIn("nurse@reset.ph", "Her-Own-New-Passphrase-5").expect(200)).body.status).toBe("mfa_required");
-
-    await ctx.http().post(`/api/v1/users/${nurseId}/mfa-reset`).set(as(admin)).send({ reason: "Lost phone" }).expect(200);
-    await ctx.http().get("/api/v1/auth/me").set(as(nurse)).expect(401);
-    expect((await signIn("nurse@reset.ph", "Her-Own-New-Passphrase-5").expect(200)).body.status).toBe("authenticated");
-    await ctx
-      .http()
-      .post(`/api/v1/users/${nurseId}/mfa-reset`)
-      .set(as(admin))
-      .send({ reason: "Again" })
-      .expect(422)
-      .expect((r) => expect(r.body.error.code).toBe("mfa_not_enabled"));
-    expect(await auditRows(ctx.pool, `action = 'user.mfa-reset' AND resource_id = $1`, [nurseId])).toHaveLength(1);
   });
 
   it("leaves your own account, accounts shared with other organizations and other organizations' members alone", async () => {

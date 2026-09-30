@@ -63,16 +63,14 @@ read, prescriptions read and dispense, inventory read and move.
 `POST /prescriptions`, `GET /prescriptions?patientId=|encounterId=`, `GET /prescriptions/:id`,
 `POST /prescriptions/:id/{replace,cancel}`.
 
-**Prescription list** (`GET /prescriptions/log`, `prescription.read` + `patient.read`, selected facility): the facility's
-prescriptions issued over local days in the Philippines (`from`..`to`, at most 92), newest first, paged (`page`,
-`pageSize` ≤ 100), filtered by status, prescriber (`prescriberPractitionerId`, or `mine=true` for the caller's own
-practitioner record — `422 not_a_practitioner` without one) or number (`RX…`). Each row: number, when issued, status,
-the consultation, the patient's number, name, sex and age (`PrescribingContext.patientBriefs`), the prescriber's name
-(`PrescribingContext.practitionerNames`), the medicines by generic name and strength, whether anything was dispensed here
-(a dispense not reversed) and what it replaces — never doses, instructions, notes or allergy override reasons. One
-audit `prescription.log.view` per page with the filters and the patient ids shown. Staff `/clinic/prescriptions`
-(**Clinic → Prescriptions**, needs `prescription.read`; links to the consultation, the patient and, for staff who
-dispense, the pharmacy).
+**Prescriptions issued at a facility** (`GET /prescriptions/issued`, `prescription.read`, selected facility required;
+`PrescriptionListService`): newest first over a period of the facility's calendar days (`from`, `to`; today by default; at most
+92 days), optionally by `status` or only the signed-in practitioner's (`mine=true`; `422 not_a_practitioner` for an account not
+linked to one). Each row: number, time, status, consultation, patient (minimal identification), prescriber name, and what was
+prescribed (name, strength, form, quantity — not the dose instructions, notes or allergy override: open the prescription for
+those), with the cancellation reason or the prescription it replaces. `counts` per status cover the whole period; at most 300
+rows (`truncated`). Every patient listed is audited (`prescription.list`, metadata `view: facility`). Prescriber names come
+through the `PrescribingContext.practitionerNames` port. Staff: **Clinic → Prescriptions** (`/clinic/prescriptions`).
 
 Dispensing (`/api/v1/dispensing`, selected facility required): `GET stock` (medicines and supplies with usable stock),
 `GET prescriptions?number=RX…` (→ id), `GET prescriptions/:id` (patient identification, items, dispensed per unit,

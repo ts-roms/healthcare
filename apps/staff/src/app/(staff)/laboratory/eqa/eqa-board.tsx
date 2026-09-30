@@ -11,6 +11,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DateInput,
   Input,
   Label,
   NativeSelect,
@@ -176,11 +177,11 @@ function SurveyForm({ schemes }: { schemes: LabEqaScheme[] }) {
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1">
               <Label htmlFor="eqa-received">Received</Label>
-              <Input id="eqa-received" type="date" value={f.receivedOn} onChange={(e) => setF({ ...f, receivedOn: e.target.value })} />
+              <DateInput id="eqa-received" value={f.receivedOn} onChange={(e) => setF({ ...f, receivedOn: e.target.value })} />
             </div>
             <div className="grid gap-1">
               <Label htmlFor="eqa-due">Due (optional)</Label>
-              <Input id="eqa-due" type="date" value={f.dueOn} onChange={(e) => setF({ ...f, dueOn: e.target.value })} />
+              <DateInput id="eqa-due" value={f.dueOn} onChange={(e) => setF({ ...f, dueOn: e.target.value })} />
             </div>
           </div>
           <Button type="submit" size="sm" className="self-start" disabled={pending || !f.schemeId || !f.receivedOn}>

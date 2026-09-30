@@ -6,15 +6,16 @@
 - Lockout: 5 consecutive failures lock the account for 15 minutes (MFA failures count too).
 - Login responses do not reveal whether an email exists; unknown emails still
   run a password verification for similar timing.
-- Optional TOTP MFA (RFC 6238). Secrets are encrypted at rest with AES-256-GCM
-  (`MFA_ENCRYPTION_KEY`). Enrollment requires confirming a code.
+- TOTP MFA (RFC 6238), optional unless the organization requires it (below).
+  Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
+  Enrollment requires confirming a code.
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
 
 ### Password reset by email
 
-Migration `0089` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
+Migration `0090` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
 (`/forgot-password`): `POST /auth/password-reset/request { email }` answers `204` whether or not the account exists; a link
 goes only to an active staff account with an active membership, at most 3 per hour, to its sign-in email through
 `NotificationService` (template `staff.password-reset`, internal, the link blanked once sent; recorded under the
@@ -25,33 +26,19 @@ only the token's SHA-256 is stored; it works once, for 30 minutes, and a new req
 password, is audited (`auth.password-reset`, failures with their reason) and the account's email is told
 (`staff.password-changed`). Without `STAFF_BASE_URL` no link is sent. Both endpoints are rate limited like sign-in.
 
-### Required two-step verification
+### Temporary password from an administrator
 
-An organization can require two-step verification of its staff (`organization.staff_mfa_required`, migration `0089`;
-Company settings, `organization.manage`, audited in `organization.update`). A member without it who signs in gets a
-session in which only the account routes (`@AllowAccountSetup()`: me, password, two-step set-up, sign-out) answer; the
-rest refuse with `403 mfa_enrollment_required` and the staff app shows only "Set up two-step verification". While the
-rule is on, turning it off is refused (`mfa_required_by_organization`). An administrator can still turn off a member's
-two-step verification after a lost phone (below); the member then sets it up again at the next sign-in.
-
-### Credential resets by an administrator
-
-Migration `0088`. With `user.manage`, an administrator can help a member of the organization sign in (`libs/auth`,
-`UsersService`); both need a reason, end every session of the person at once and are audited (`user.password-reset`,
-`user.mfa-reset`, with the sessions ended):
-
-- **Temporary password** (`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password):
-  the administrator gives it to the person directly. It also clears a lockout. `app_user.password_change_required` is
-  set: until the person changes it (`POST /auth/password`, which clears it), the `AccessGuard` refuses every route not
-  marked `@AllowAccountSetup()` (`/auth/me`, `/auth/me/facilities`, `/auth/password`, `/auth/logout`) with
-  `403 password_change_required`, and the staff app shows only "Choose your own password".
-- **Two-step verification off** (`POST /users/:id/mfa-reset`, `{ reason }`): for a lost phone; the secret (and any
-  unfinished enrolment) is removed and the person can enrol again under My account (`mfa_not_enabled` when it is off).
-- Never your own account (`self_modification`; use My account). A staff account's credentials are shared by every
-  organization it belongs to, so an account that is also a member elsewhere, or a platform administrator's, is refused
-  (`account_shared`) unless the administrator is a platform administrator. Another organization's member is not found.
-- No emailed reset link for staff: there is no verified staff email channel yet. The administrator should confirm the
-  person's identity in person before a reset (the reason records how).
+Migration `0089`. With `user.manage`, an administrator can give a member of the organization a temporary password
+(`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password; `UsersService`): the
+administrator gives it to the person directly. Every session of the person ends, a lockout is cleared, and it is audited
+(`user.password-reset`, with the reason and the sessions ended). `app_user.password_change_required` is set: until the
+person changes it (`POST /auth/password`, which clears it; or a reset by email), the `AccessGuard` refuses every route
+not marked `@AllowDuringMfaEnrollment()` (the account routes) with `403 password_change_required`, and the staff app
+shows only "Choose your own password". Never your own account (`self_modification`; use My account). A staff account's
+credentials are shared by every organization it belongs to, so an account that is also a member elsewhere, or a platform
+administrator's, is refused (`account_shared`) unless the administrator is a platform administrator. Another
+organization's member is not found. Two-step verification is reset with `user.mfa.manage` (below). The administrator
+should confirm the person's identity in person first (the reason records how).
 
 ## Authorization model
 
@@ -174,7 +161,7 @@ records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),
 `doh.rule.*` and `doh.facility-code.record`.
 
-Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
+Audited in Phase 1 (and the MFA policy, migration 0086): logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /
 facility / department changes, user membership and role changes, patient
 registration / duplicate override / view / search / updates / status /
@@ -200,9 +187,42 @@ sub-records / consent / preferences, document create / upload / list / download
   socket for the same user and facility only, and never after the session ends.
   Server-side clients may still connect with an access token and facility id.
 
+## Two-step verification policy
+
+An organization may require TOTP two-step verification for its staff
+(`staff_mfa_policy`, migration `0086`; no row = not required; optimistic
+`version`). `GET /security/mfa-policy` (`user.read`) shows the policy, member
+figures, members still without it and exemptions; `PUT /security/mfa-policy`
+(`user.mfa.manage`, org_admin) sets it — requiring it needs the
+administrator's own MFA first (`422 own_mfa_required`).
+
+- **Enforcement never locks anyone out.** A member without MFA (and not exempt)
+  still signs in with a password, but `ActorResolver` marks the actor
+  `mfaEnrollmentRequired` and `AccessGuard` answers
+  `403 mfa_enrollment_required` on every route except those marked
+  `@AllowDuringMfaEnrollment()` (`/auth/me`, `/auth/me/facilities`, logout,
+  password change, MFA setup and confirm). It is checked on every request, so
+  turning the policy on applies to existing sessions at their next request
+  (these refusals are not audited individually; the policy change is).
+  `/auth/me` returns `mfaPolicy` and no permissions while enrollment is due;
+  the staff app then shows only the set-up.
+- While any organization the person actively belongs to requires it (and has
+  not exempted them), they cannot turn their MFA off
+  (`422 mfa_required_by_organization`).
+- **Exemptions** per membership with a reason
+  (`PUT|DELETE /users/:id/mfa-exemption`, not oneself) for integration
+  accounts that sign in without a person (instrument gateway, FHIR senders).
+- **Reset** (`POST /users/:id/mfa-reset`, reason): clears the member's TOTP
+  secret and ends all their sessions; not oneself, and an account that also
+  belongs to another organization only by a platform administrator
+  (`403 member_of_other_organizations`), so one organization cannot weaken
+  another's sign-in. Identity checks before a reset are the organization's
+  procedure.
+- Audited: `auth.mfa-policy.update` (from/to, reason),
+  `auth.mfa-exemption.grant|revoke`, `auth.mfa.reset`.
+
 ## Known gaps (tracked for later phases)
 
-- MFA is optional; an organization-level "require MFA" policy is not implemented.
 - TOTP codes can be replayed within their 30-second window.
 - No breached-password screening.
 - Rate-limit counters are per instance (move to Redis before scaling out).

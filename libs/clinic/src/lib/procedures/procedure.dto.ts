@@ -62,7 +62,7 @@ export class RecordProcedureDto extends createZodDto(recordProcedureSchema) {}
 export const procedureInErrorSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
 export class ProcedureInErrorDto extends createZodDto(procedureInErrorSchema) {}
 
-// ---- supplies used, from inventory (migration 0087) -------------------------------------------------------------
+// ---- supplies used, from inventory (migration 0088) -------------------------------------------------------------
 
 const supplyQuantity = z.number().int().min(1).max(1000);
 const idempotencyKey = z.string().trim().min(8).max(100);

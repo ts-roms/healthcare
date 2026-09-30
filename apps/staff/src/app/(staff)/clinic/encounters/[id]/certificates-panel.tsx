@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { FileSignatureIcon, PlusIcon, PrinterIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, DateInput, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { MedicalCertificate } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import { issueCertificate, voidCertificate } from "../certificate-actions";
@@ -166,9 +166,8 @@ export function CertificatesPanel({
           <div className="flex flex-wrap items-end gap-2">
             <div className="grid gap-1">
               <Label htmlFor="cert-rest-from">Rest from (optional)</Label>
-              <Input
+              <DateInput
                 id="cert-rest-from"
-                type="date"
                 className="w-40"
                 value={form.restFrom}
                 onChange={(e) => setForm({ ...form, restFrom: e.target.value, restTo: form.restTo || e.target.value })}
@@ -176,9 +175,8 @@ export function CertificatesPanel({
             </div>
             <div className="grid gap-1">
               <Label htmlFor="cert-rest-to">to</Label>
-              <Input
+              <DateInput
                 id="cert-rest-to"
-                type="date"
                 className="w-40"
                 min={form.restFrom || today}
                 value={form.restTo}

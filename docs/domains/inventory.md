@@ -209,7 +209,7 @@ a line **of the same order** (composite keys through `(invoice_id, purchase_orde
   `DentalSupplies` port, in dentistry's transaction. Source `dental_procedure`; the staff movements list shows
   "Dental procedure". Items, locations and usable stock are read through `InventoryQueries`.
 - Clinic procedures ([clinic.md](clinic.md#procedures)): the same `issueForSource` / `returnForSource` pair behind the
-  clinic's `ProcedureSupplies` port (migration `0087`, source `clinic_procedure`, "Clinic procedure"; also left out of
+  clinic's `ProcedureSupplies` port (migration `0088`, source `clinic_procedure`, "Clinic procedure"; also left out of
   the once-per-lot index).
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 

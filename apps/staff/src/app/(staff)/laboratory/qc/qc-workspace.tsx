@@ -12,6 +12,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DateInput,
   Input,
   Label,
   NativeSelect,
@@ -588,7 +589,7 @@ function QcSetup({ materials, instruments, tests }: { materials: LabQcMaterial[]
             ))}
           </NativeSelect>
           <Input aria-label="Lot number" placeholder="Lot number" value={lot.lotNumber} onChange={(e) => setLot({ ...lot, lotNumber: e.target.value })} />
-          <Input aria-label="Expiry date" type="date" value={lot.expiresOn} onChange={(e) => setLot({ ...lot, expiresOn: e.target.value })} />
+          <DateInput aria-label="Expiry date" value={lot.expiresOn} onChange={(e) => setLot({ ...lot, expiresOn: e.target.value })} />
           <Button type="submit" size="sm" disabled={pending || !lot.materialId}>
             <PlusIcon /> Add lot
           </Button>

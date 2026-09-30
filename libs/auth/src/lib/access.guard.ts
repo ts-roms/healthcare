@@ -8,7 +8,8 @@ import { ActorResolver } from "./actor-resolver";
 /**
  * Global guard: authenticates every request (unless @Public), resolves the
  * organization/facility/department context and effective permissions, and
- * enforces route access metadata. Denials are audited.
+ * enforces route access metadata. Denials are audited (not the two-step verification enrollment redirect, which
+ * repeats on every page until the member sets it up; the policy change and enrollment are audited).
  *
  * The session is checked on every request so logout, password change and
  * membership suspension take effect immediately, not at token expiry.
@@ -18,14 +19,6 @@ export class PasswordChangeRequiredError extends DomainError {
   readonly httpStatus = 403;
   constructor() {
     super("Choose a new password before continuing");
-  }
-}
-
-export class MfaEnrollmentRequiredError extends DomainError {
-  readonly code = "mfa_enrollment_required";
-  readonly httpStatus = 403;
-  constructor() {
-    super("Your organization requires two-step verification: set it up before continuing");
   }
 }
 
@@ -52,11 +45,13 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
-    // Account set-up comes first: a temporary password from an administrator is replaced (0088), and two-step verification
-    // the organization requires is set up (0089); until then only the person's own account routes answer.
-    if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.accountSetup, targets)) {
+    // Account set-up comes first: a temporary password from an administrator is replaced (0089), and two-step verification
+    // the organization requires is set up; until then only the person's own account routes answer.
+    if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
       if (actor.passwordChangeRequired) throw new PasswordChangeRequiredError();
-      if (actor.mfaEnrollmentRequired) throw new MfaEnrollmentRequiredError();
+      if (actor.mfaEnrollmentRequired) {
+        throw new ForbiddenError("Your organization requires two-step verification. Set it up in My account to continue.", "mfa_enrollment_required");
+      }
     }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(ACCESS_METADATA.permissions, targets) ?? [];

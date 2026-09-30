@@ -54,16 +54,6 @@ export async function resetStaffPassword(userId: string, input: z.input<typeof r
   return result;
 }
 
-/** Turns off a member's two-step verification (e.g. a lost phone); their sessions end (user.manage, audited). */
-export async function resetStaffTwoStep(userId: string, why: string): Promise<ActionResult<StaffUser>> {
-  const parsed = reason.safeParse(why);
-  if (!z.uuid().safeParse(userId).success) return { ok: false, message: "Invalid request." };
-  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Give a reason." };
-  const result = await actionResult(() => api<StaffUser>(`/users/${userId}/mfa-reset`, { method: "POST", body: { reason: parsed.data } }));
-  if (result.ok) revalidatePath(`/admin/users/${userId}`);
-  return result;
-}
-
 const grantSchema = z.object({
   roleId: z.string().uuid("Choose a role."),
   facilityId: z.string().uuid().optional(),

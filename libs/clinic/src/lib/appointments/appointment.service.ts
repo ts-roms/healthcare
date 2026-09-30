@@ -200,7 +200,7 @@ export class AppointmentService {
   }
 
   /**
-   * The platform marks an appointment nobody attended as a no-show (the facility's automatic no-shows, migration 0086).
+   * The platform marks an appointment nobody attended as a no-show (the facility's automatic no-shows, migration 0087).
    * Same transition, audit and `AppointmentNoShow` event as staff recording it; `null` when the appointment is no longer
    * booked or confirmed (someone checked the patient in or changed it meanwhile, or another runner got there first).
    */

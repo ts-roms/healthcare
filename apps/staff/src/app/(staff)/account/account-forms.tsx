@@ -68,7 +68,10 @@ export function PasswordForm({ temporary = false }: { temporary?: boolean } = {}
   );
 }
 
-/** Turn two-step verification on (scan or type the setup key, then confirm a code) or off (password and a code). */
+/**
+ * Turn two-step verification on (scan or type the setup key, then confirm a code) or off (password and a code). With
+ * `required`, the organization requires it and it cannot be turned off.
+ */
 export function TwoStepSettings({ enabled, required = false }: { enabled: boolean; required?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();

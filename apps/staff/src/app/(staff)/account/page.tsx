@@ -39,7 +39,10 @@ export default async function AccountPage() {
             <p className="text-muted-foreground">
               With it on, signing in also asks for a 6-digit code from an authenticator app on your phone, so a stolen password alone is not enough.
             </p>
-            <TwoStepSettings enabled={session.user.mfaEnabled} required={session.staffMfaRequired ?? false} />
+            {session.mfaPolicy.required && !session.mfaPolicy.exempt ? (
+              <p className="font-medium">Your organization requires two-step verification for staff.</p>
+            ) : null}
+            <TwoStepSettings enabled={session.user.mfaEnabled} required={session.mfaPolicy.required && !session.mfaPolicy.exempt} />
           </CardContent>
         </Card>
       </div>

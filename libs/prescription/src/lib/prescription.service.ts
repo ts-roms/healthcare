@@ -9,27 +9,17 @@ import {
   type DbExecutor,
   DomainEventPublisher,
   ForbiddenError,
-  localDayBounds,
   NotFoundError,
-  type Page,
-  PH_TIMEZONE,
-  requireFacilityId,
   timelineFacility,
   timelineInstant,
   timelineRange,
   type TimelineWindow,
   filedAsPatient,
 } from "@healthcare/core";
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import { checkAllergies } from "./allergy-check";
-import type {
-  cancelPrescriptionSchema,
-  issuePrescriptionSchema,
-  PrescriptionItemInput,
-  PrescriptionLogQuery,
-  replacePrescriptionSchema,
-} from "./prescription.dto";
+import type { cancelPrescriptionSchema, issuePrescriptionSchema, PrescriptionItemInput, replacePrescriptionSchema } from "./prescription.dto";
 import {
   type AllergyWarning,
   prescription,
@@ -40,22 +30,6 @@ import {
   type PrescriptionRecord,
 } from "./prescription.schema";
 import { PRESCRIBING_CONTEXT, type PrescribingContext } from "./ports";
-
-/** One prescription in the facility's list: who, what (names only), by whom, and whether anything was dispensed here. */
-export interface PrescriptionLogEntry {
-  id: string;
-  prescriptionNumber: string;
-  issuedAt: Date;
-  status: PrescriptionRecord["status"];
-  encounterId: string;
-  patient: { id: string; patientNumber: string; displayName: string; sex: string; age: number } | null;
-  prescriber: { id: string; name: string | null };
-  /** Generic names (and strength) in line order. */
-  medicines: string[];
-  /** Any dispense recorded and not reversed. */
-  dispensed: boolean;
-  replacesPrescriptionId: string | null;
-}
 
 /** Professions allowed to issue prescriptions on this platform. */
 const PRESCRIBING_PROFESSIONS = new Set(["physician", "dentist"]);
@@ -207,91 +181,6 @@ export class PrescriptionService {
       await this.audit.recordStandalone(actor, { action: "prescription.list", resourceType: "prescription", patientId });
     }
     return this.views(this.db, rows);
-  }
-
-  /**
-   * The selected facility's prescriptions over local days (Asia/Manila), newest first, paged. Short display fields only
-   * (no doses, instructions, notes or override reasons); one audit for the page listing the patients shown.
-   */
-  async log(actor: Actor, query: PrescriptionLogQuery): Promise<Page<PrescriptionLogEntry>> {
-    const facilityId = requireFacilityId(actor);
-    const filters: SQL[] = [
-      eq(prescription.organizationId, actor.organizationId),
-      eq(prescription.facilityId, facilityId),
-      gte(prescription.issuedAt, localDayBounds(query.from, PH_TIMEZONE).start),
-      lt(prescription.issuedAt, localDayBounds(query.to, PH_TIMEZONE).end),
-    ];
-    if (query.status) filters.push(eq(prescription.status, query.status));
-    if (query.number) filters.push(eq(prescription.prescriptionNumber, query.number));
-    let prescriberId = query.prescriberPractitionerId;
-    if (query.mine === "true") {
-      const own = await this.context.prescriber(actor.organizationId, actor.userId);
-      if (!own) throw new BusinessRuleError("Your account is not linked to a practitioner", "not_a_practitioner");
-      prescriberId = own.id;
-    }
-    if (prescriberId) filters.push(eq(prescription.prescriberPractitionerId, prescriberId));
-    const rows = await this.db
-      .select()
-      .from(prescription)
-      .where(and(...filters))
-      .orderBy(desc(prescription.issuedAt), desc(prescription.id))
-      .limit(query.pageSize + 1)
-      .offset((query.page - 1) * query.pageSize);
-    const hasMore = rows.length > query.pageSize;
-    const page = rows.slice(0, query.pageSize);
-    const ids = page.map((r) => r.id);
-    const [items, dispensed, patients, prescribers] = await Promise.all([
-      ids.length
-        ? this.db
-            .select({ prescriptionId: prescriptionItem.prescriptionId, genericName: prescriptionItem.genericName, strength: prescriptionItem.strength })
-            .from(prescriptionItem)
-            .where(inArray(prescriptionItem.prescriptionId, ids))
-            .orderBy(asc(prescriptionItem.lineNumber))
-        : Promise.resolve([]),
-      ids.length
-        ? this.db
-            .selectDistinct({ prescriptionId: prescriptionDispense.prescriptionId })
-            .from(prescriptionDispense)
-            .where(and(inArray(prescriptionDispense.prescriptionId, ids), eq(prescriptionDispense.status, "recorded")))
-        : Promise.resolve([]),
-      this.context.patientBriefs(actor.organizationId, [...new Set(page.map((r) => r.patientId))]),
-      this.context.practitionerNames(actor.organizationId, [...new Set(page.map((r) => r.prescriberPractitionerId))]),
-    ]);
-    const wasDispensed = new Set(dispensed.map((d) => d.prescriptionId));
-    await this.audit.recordStandalone(actor, {
-      action: "prescription.log.view",
-      resourceType: "prescription",
-      metadata: {
-        from: query.from,
-        to: query.to,
-        status: query.status ?? null,
-        prescriberPractitionerId: prescriberId ?? null,
-        number: query.number ?? null,
-        page: query.page,
-        rows: page.length,
-        patientIds: [...new Set(page.map((r) => r.patientId))],
-      },
-    });
-    return {
-      items: page.map((r) => {
-        const brief = patients.get(r.patientId);
-        return {
-          id: r.id,
-          prescriptionNumber: r.prescriptionNumber,
-          issuedAt: r.issuedAt,
-          status: r.status,
-          encounterId: r.encounterId,
-          patient: brief ? { id: r.patientId, ...brief } : null,
-          prescriber: { id: r.prescriberPractitionerId, name: prescribers.get(r.prescriberPractitionerId) ?? null },
-          medicines: items.filter((i) => i.prescriptionId === r.id).map((i) => (i.strength ? `${i.genericName} ${i.strength}` : i.genericName)),
-          dispensed: wasDispensed.has(r.id),
-          replacesPrescriptionId: r.replacesPrescriptionId,
-        };
-      }),
-      page: query.page,
-      pageSize: query.pageSize,
-      hasMore,
-    };
   }
 
   /** Active prescriptions, for Patient 360. Not audited here; the caller audits. */

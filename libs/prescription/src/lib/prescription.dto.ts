@@ -59,29 +59,15 @@ export const listPrescriptionsSchema = z
   .refine((v) => v.patientId || v.encounterId, { message: "Provide patientId or encounterId" });
 export class ListPrescriptionsDto extends createZodDto(listPrescriptionsSchema) {}
 
-/**
- * The prescription list of the selected facility over local days (Asia/Manila), at most 92: by status, prescriber
- * (or the caller's own), or a prescription number. Paged.
- */
-export const prescriptionLogSchema = z
-  .object({
-    from: z.iso.date(),
-    to: z.iso.date(),
-    status: z.enum(["active", "cancelled", "superseded"]).optional(),
-    prescriberPractitionerId: z.uuid().optional(),
-    mine: z.enum(["true", "false"]).optional(),
-    number: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(/^RX\d{1,8}$/, "A prescription number looks like RX00000123")
-      .optional(),
-    page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(50),
-  })
-  .refine((v) => v.from <= v.to, { message: "The period ends before it starts", path: ["to"] })
-  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 < 92, { message: "Choose at most 92 days", path: ["to"] });
-export class PrescriptionLogDto extends createZodDto(prescriptionLogSchema) {}
-export type PrescriptionLogQuery = z.output<typeof prescriptionLogSchema>;
+const day = z.iso.date("Use YYYY-MM-DD");
+/** The prescriptions issued at the selected facility over a period of its own calendar days (at most 92). */
+export const issuedPrescriptionsSchema = z.object({
+  from: day.optional(),
+  to: day.optional(),
+  status: z.enum(["active", "cancelled", "superseded"]).optional(),
+  /** Only those issued by the signed-in practitioner. */
+  mine: z.enum(["true", "false"]).optional(),
+});
+export class IssuedPrescriptionsDto extends createZodDto(issuedPrescriptionsSchema) {}
 
 export type PrescriptionItemInput = z.infer<typeof prescriptionItemSchema>;

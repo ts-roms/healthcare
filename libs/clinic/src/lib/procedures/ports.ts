@@ -10,7 +10,7 @@ export interface ProcedureStaffNames {
 
 export const PROCEDURE_STAFF_NAMES = Symbol("PROCEDURE_STAFF_NAMES");
 
-// ---- supplies used, from inventory (migration 0087) -------------------------------------------------------------
+// ---- supplies used, from inventory (migration 0088) -------------------------------------------------------------
 
 export interface ProcedureSupplyItem {
   id: string;

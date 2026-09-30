@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { PurchaseOrder } from "@/lib/api/types";
 import type { PurchaseOrderAction } from "@/lib/inventory-mapping";
 import { approvePurchaseOrder, endPurchaseOrder, receivePurchaseOrder, submitPurchaseOrder } from "../../actions";
@@ -114,7 +114,7 @@ function ReceiveDelivery({
                     </div>
                     <div className="flex flex-col gap-1">
                       <Label htmlFor={`dr-exp-${l.id}`}>Expiry</Label>
-                      <Input id={`dr-exp-${l.id}`} type="date" value={rows[l.id]!.expiryDate} onChange={(e) => set(l.id, { expiryDate: e.target.value })} />
+                      <DateInput id={`dr-exp-${l.id}`} value={rows[l.id]!.expiryDate} onChange={(e) => set(l.id, { expiryDate: e.target.value })} />
                     </div>
                   </>
                 ) : null}

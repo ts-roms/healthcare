@@ -44,7 +44,7 @@ describe("navigationForPermissions", () => {
     const admin = navigationForPermissions(["integration.exchange.manage"]).find((i) => i.href === "/admin");
     expect(admin?.children?.map((c) => c.href)).toEqual(["/admin/integrations"]);
     const people = navigationForPermissions(["user.read", "user.manage", "organization.read"]).find((i) => i.href === "/admin");
-    expect(people?.children?.map((c) => c.href)).toEqual(["/admin/organization", "/admin/users", "/admin/roles", "/admin/facilities"]);
+    expect(people?.children?.map((c) => c.href)).toEqual(["/admin/organization", "/admin/users", "/admin/security", "/admin/roles", "/admin/facilities"]);
     const auditor = navigationForPermissions(["audit.read"]).find((i) => i.href === "/admin");
     expect(auditor?.children?.map((c) => c.href)).toEqual(["/admin/audit"]);
   });
@@ -72,12 +72,7 @@ describe("navigationForPermissions", () => {
     const clinic = navigationForPermissions(["encounter.read", "care-plan.read"]).find((i) => i.href === "/clinic");
     expect(clinic && "roles" in clinic).toBe(false);
     expect(clinic?.children?.every((c) => !("roles" in c))).toBe(true);
-    expect(clinic?.children?.length).toBe(4);
-    expect(
-      navigationForPermissions(["encounter.read", "prescription.read"])
-        .find((i) => i.href === "/clinic")
-        ?.children?.map((c) => c.href),
-    ).toContain("/clinic/prescriptions");
+    expect(clinic?.children?.length).toBe(5);
     expect(
       navigationForPermissions(["encounter.read"])
         .find((i) => i.href === "/clinic")

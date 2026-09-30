@@ -72,7 +72,7 @@ export class ClinicProcedureController {
     return this.procedures.markEnteredInError(actor, id, body.reason);
   }
 
-  // ---- supplies used, from inventory (migration 0087) ----------------------------------------------------------
+  // ---- supplies used, from inventory (migration 0088) ----------------------------------------------------------
 
   @Get("clinic/procedure-supplies/options")
   @RequirePermissions("encounter.read")

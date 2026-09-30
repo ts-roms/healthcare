@@ -14,7 +14,7 @@ export const ACCESS_METADATA = {
   permissions: "access:permissions",
   platformAdmin: "access:platform-admin",
   facility: "access:facility",
-  accountSetup: "access:account-setup",
+  mfaEnrollment: "access:mfa-enrollment",
 } as const;
 
 /** No authentication (login, health checks). Use sparingly. */
@@ -26,14 +26,15 @@ export const RequirePermissions = (...permissions: [Permission, ...Permission[]]
 /** Platform-level operations (e.g. creating organizations). */
 export const RequirePlatformAdmin = () => SetMetadata(ACCESS_METADATA.platformAdmin, true);
 
-/**
- * Allowed while the caller must still finish their account set-up — replace a temporary password, or set up two-step
- * verification their organization requires: their own account routes (me, password, two-step set-up, sign-out).
- */
-export const AllowAccountSetup = () => SetMetadata(ACCESS_METADATA.accountSetup, true);
-
 /** Request must carry an X-Facility-Id header the caller has access to. */
 export const RequireFacility = () => SetMetadata(ACCESS_METADATA.facility, true);
+
+/**
+ * Open to a signed-in member who must still finish their account set-up: two-step verification their organization
+ * requires (`403 mfa_enrollment_required` elsewhere), or a temporary password from an administrator to replace (migration
+ * 0089; `403 password_change_required` elsewhere). Their own account, facilities, password, enrollment and sign-out.
+ */
+export const AllowDuringMfaEnrollment = () => SetMetadata(ACCESS_METADATA.mfaEnrollment, true);
 
 export const CurrentActor = createParamDecorator((_: unknown, context: ExecutionContext): Actor => {
   const actor = context.switchToHttp().getRequest<Request>().actor;

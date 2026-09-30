@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { InventoryItem, InventoryLocation, InventorySupplier, StockRow } from "@/lib/api/types";
 import { parsePesos } from "@/lib/billing-mapping";
 import { adjustStock, issueStock, receiveStock, transferStock, writeOffStock } from "./actions";
@@ -179,7 +179,7 @@ export function MovementForm({
                 <Input id="mv-lot-number" value={f.lotNumber} maxLength={60} onChange={(e) => set({ lotNumber: e.target.value })} />
               </Field>
               <Field label="Expiry" id="mv-expiry">
-                <Input id="mv-expiry" type="date" value={f.expiryDate} onChange={(e) => set({ expiryDate: e.target.value })} />
+                <DateInput id="mv-expiry" value={f.expiryDate} onChange={(e) => set({ expiryDate: e.target.value })} />
               </Field>
             </>
           ) : null}

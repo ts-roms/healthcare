@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { YakapParticipation as Participation } from "@/lib/api/types";
 import { recordYakapParticipation } from "./yakap-actions";
 
@@ -66,8 +66,8 @@ export function YakapParticipation({
           />
           <Label htmlFor="yakap-valid-from">Valid from</Label>
           <Label htmlFor="yakap-valid-until">Valid until</Label>
-          <Input id="yakap-valid-from" type="date" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
-          <Input id="yakap-valid-until" type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
+          <DateInput id="yakap-valid-from" value={f.validFrom} onChange={(e) => setF({ ...f, validFrom: e.target.value })} />
+          <DateInput id="yakap-valid-until" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} />
           <Button type="submit" size="sm" className="justify-self-start" disabled={pending || !f.participationReference.trim()}>
             Save
           </Button>

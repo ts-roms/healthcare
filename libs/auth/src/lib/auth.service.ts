@@ -21,6 +21,7 @@ import type { z } from "zod";
 import { appUser, type AppUserRecord, organizationMembership } from "./auth.schema";
 import type { changePasswordSchema, loginSchema, MfaRequiredResponse, TokenResponse } from "./auth.dto";
 import { burnPasswordVerification, hashPassword, verifyPassword } from "./password";
+import { MfaPolicyService } from "./mfa-policy.service";
 import { SessionService } from "./session.service";
 import { TokenService } from "./tokens";
 import { generateTotpSecret, totpUri, verifyTotp } from "./totp";
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly sessions: SessionService,
     private readonly tokens: TokenService,
+    private readonly mfaPolicy: MfaPolicyService,
   ) {}
 
   async login(input: z.infer<typeof loginSchema>, request: RequestMetadata): Promise<TokenResponse | MfaRequiredResponse> {
@@ -219,8 +221,9 @@ export class AuthService {
   async disableMfa(actor: Actor, password: string, code: string): Promise<void> {
     const user = await this.getUser(actor.userId);
     if (!user.mfaEnabled || !user.mfaSecretEncrypted) throw new BusinessRuleError("Multi-factor authentication is not enabled", "mfa_not_enabled");
-    const [org] = await this.db.select({ required: organization.staffMfaRequired }).from(organization).where(eq(organization.id, actor.organizationId));
-    if (org?.required) throw new BusinessRuleError("Your organization requires two-step verification", "mfa_required_by_organization");
+    if (await this.mfaPolicy.requiredAnywhere(user.id)) {
+      throw new BusinessRuleError("Your organization requires two-step verification; it cannot be turned off", "mfa_required_by_organization");
+    }
     const validPassword = await verifyPassword(user.passwordHash, password);
     const validCode = verifyTotp(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code);
     if (!validPassword || !validCode) {

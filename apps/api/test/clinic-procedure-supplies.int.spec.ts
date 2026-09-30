@@ -19,7 +19,7 @@ interface SupplyUse {
 }
 
 /**
- * Supplies used in clinic procedures, taken from inventory (docs/domains/clinic.md, "Procedures"; migration 0087): the
+ * Supplies used in clinic procedures, taken from inventory (docs/domains/clinic.md, "Procedures"; migration 0088): the
  * dental pattern — templates per catalogue entry, issues through inventory's own rules in the clinic's transaction
  * (FEFO, never expired lots, all or nothing, only the clinic's categories), ledger rows that name the procedure,
  * idempotent retries, explicit returns, and organization isolation.

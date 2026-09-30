@@ -14,7 +14,7 @@ export const appUser = pgTable("app_user", {
   failedLoginCount: integer("failed_login_count").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
-  /** Set when an administrator gave a temporary password (0088): the person must choose a new one first. */
+  /** Set when an administrator gave a temporary password (0089): the person must choose a new one first. */
   passwordChangeRequired: boolean("password_change_required").notNull().default(false),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -52,8 +52,20 @@ export const organizationMembership = pgTable("organization_membership", {
   organizationId: uuid("organization_id").notNull(),
   userId: uuid("user_id").notNull(),
   status: text("status").$type<"active" | "suspended">().notNull().default("active"),
+  mfaExemptReason: text("mfa_exempt_reason"),
+  mfaExemptedBy: uuid("mfa_exempted_by"),
+  mfaExemptedAt: timestamp("mfa_exempted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The organization's two-step verification policy for staff (migration 0086); no row means not required. */
+export const staffMfaPolicy = pgTable("staff_mfa_policy", {
+  organizationId: uuid("organization_id").primaryKey(),
+  required: boolean("required").notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
 });
 
 export const roleAssignment = pgTable("role_assignment", {
@@ -84,7 +96,7 @@ export const authSession = pgTable("auth_session", {
   userAgent: text("user_agent"),
 });
 
-/** A staff password-reset link (0089): only the token's hash is stored; single use, short-lived. */
+/** A staff password-reset link (0090): only the token's hash is stored; single use, short-lived. */
 export const staffPasswordReset = pgTable("staff_password_reset", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),

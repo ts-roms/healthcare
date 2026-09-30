@@ -3,6 +3,7 @@ import { type Actor, BadRequestError, ForbiddenError, type RequestMetadata, Unau
 import { OrganizationService } from "@healthcare/organization";
 import { AccessService } from "./access.service";
 import { AuthService } from "./auth.service";
+import { MfaPolicyService } from "./mfa-policy.service";
 import { SessionService } from "./session.service";
 import { TokenService } from "./tokens";
 
@@ -26,6 +27,7 @@ export class ActorResolver {
     private readonly auth: AuthService,
     private readonly access: AccessService,
     private readonly organizations: OrganizationService,
+    private readonly mfaPolicy: MfaPolicyService,
   ) {}
 
   async resolve(accessToken: string, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
@@ -49,10 +51,11 @@ export class ActorResolver {
     if (user.status !== "active" || !(await this.auth.hasActiveMembership(user.id, claims.org))) {
       throw new UnauthenticatedError("Account access has been revoked", "access_revoked");
     }
-    const organization = await this.organizations.getOrganization(claims.org);
     const facilityId = await this.resolveFacility(context.facilityId, claims.org);
     const departmentId = await this.resolveDepartment(context.departmentId, claims.org, facilityId);
     const permissions = await this.access.resolvePermissions(user.id, claims.org, { facilityId, departmentId });
+    // Members with two-step verification on (the usual case once it is required) need no policy lookup.
+    const mfaEnrollmentRequired = user.mfaEnabled ? false : (await this.mfaPolicy.forMember(user.id, claims.org, false)).enrollmentRequired;
     return {
       kind: "user",
       userId: user.id,
@@ -62,8 +65,8 @@ export class ActorResolver {
       facilityId,
       isPlatformAdmin: user.isPlatformAdmin,
       passwordChangeRequired: user.passwordChangeRequired,
-      mfaEnrollmentRequired: organization.staffMfaRequired && !user.mfaEnabled,
       permissions,
+      mfaEnrollmentRequired,
       request,
     };
   }

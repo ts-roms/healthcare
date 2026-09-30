@@ -15,7 +15,7 @@ export interface BookingRules {
   waitlistEnabled: boolean;
   /** Waiting-list entries one patient may hold at the facility. */
   maxWaitlistEntries: number;
-  /** The platform marks the day's unattended appointments as no-shows after {@link autoNoShowHour} (migration 0086). */
+  /** The platform marks the day's unattended appointments as no-shows after {@link autoNoShowHour} (migration 0087). */
   autoNoShow: boolean;
   /** Local hour (12–23) after which a day's unattended appointments are marked. */
   autoNoShowHour: number;

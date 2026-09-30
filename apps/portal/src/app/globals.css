@@ -1,8 +1,8 @@
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
 @import "@healthcare/ui/styles.css";
 
 :root {
-  --font-inter: "Inter Variable";
+  --font-sans-face: "Plus Jakarta Sans Variable";
   /* Portal is softer and roomier than the staff workstation. */
   --radius: 0.75rem;
 }

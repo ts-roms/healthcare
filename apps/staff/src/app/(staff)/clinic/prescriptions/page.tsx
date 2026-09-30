@@ -1,61 +1,76 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CheckCircle2Icon, InfoIcon, PackageCheckIcon, RefreshCwIcon, XCircleIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, InfoIcon, RefreshCwIcon } from "lucide-react";
+import { ApiError } from "@healthcare/web-session";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Checkbox, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { can, getSession } from "@/lib/api/session";
-import type { Page, Practitioner, PrescriptionLogEntry } from "@/lib/api/types";
+import { can, getSelectedFacility, getSession } from "@/lib/api/session";
+import type { IssuedPrescriptions } from "@/lib/api/types";
 import { todayInManila } from "@/lib/consent-form";
-import { MAX_DAYS, PRESCRIPTION_STATUS_LABEL, prescriptionApiQuery, prescriptionLogHref, readPrescriptionFilters } from "@/lib/prescription-log";
+import {
+  MAX_PRESCRIPTION_LIST_DAYS,
+  PRESCRIPTION_STATUS_FILTERS,
+  prescribedLine,
+  prescriptionListHref,
+  prescriptionListQuery,
+  readPrescriptionListFilters,
+} from "@/lib/prescription-list";
 
 export const metadata = { title: "Prescriptions" };
 
-function StatusBadge({ status }: { status: PrescriptionLogEntry["status"] }) {
-  if (status === "active")
-    return (
-      <Badge variant="success">
-        <CheckCircle2Icon aria-hidden /> {PRESCRIPTION_STATUS_LABEL.active}
-      </Badge>
-    );
-  if (status === "superseded")
-    return (
-      <Badge variant="neutral">
-        <RefreshCwIcon aria-hidden /> {PRESCRIPTION_STATUS_LABEL.superseded}
-      </Badge>
-    );
-  return (
-    <Badge variant="warning">
-      <XCircleIcon aria-hidden /> {PRESCRIPTION_STATUS_LABEL.cancelled}
-    </Badge>
-  );
-}
+const STATUS = {
+  active: { label: "Active", variant: "success", Icon: CheckCircle2Icon },
+  superseded: { label: "Replaced", variant: "neutral", Icon: RefreshCwIcon },
+  cancelled: { label: "Cancelled", variant: "warning", Icon: BanIcon },
+} as const;
 
 /**
- * Prescriptions issued at the selected facility over a period: number, patient, medicines by name, prescriber,
- * status and whether anything was dispensed here. Doses and instructions stay on the prescription itself (the
- * consultation, or the pharmacy). Viewing is audited.
+ * Prescriptions issued at the selected facility: newest first over a period, by status or only the signed-in
+ * practitioner's. Each opens in the consultation it was issued in; the list shows what was prescribed, not how to take it.
  */
 export default async function PrescriptionsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [params, session] = await Promise.all([searchParams, getSession()]);
-  if (!can(session, "prescription.read") || !can(session, "patient.read")) redirect("/");
-  const { filters, adjusted } = readPrescriptionFilters(params, todayInManila());
-  const [page, practitioners] = await Promise.all([
-    api<Page<PrescriptionLogEntry>>("/prescriptions/log", { query: prescriptionApiQuery(filters) }),
-    can(session, "appointment.read") ? api<Practitioner[]>("/clinic/practitioners").catch(() => [] as Practitioner[]) : Promise.resolve([] as Practitioner[]),
-  ]);
-  const prescribers = practitioners.filter((p) => p.profession === "physician" || p.profession === "dentist");
-  const canDispense = can(session, "prescription.dispense");
+  const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
+  if (!can(session, "prescription.read")) redirect("/");
+  if (!facility) {
+    return (
+      <>
+        <PageHeader title="Prescriptions" />
+        <FacilityRequired action="The list shows the prescriptions issued at this facility." />
+      </>
+    );
+  }
+  const { filters, adjusted } = readPrescriptionListFilters(params, todayInManila());
+  let list: IssuedPrescriptions | null = null;
+  let notPractitioner = false;
+  try {
+    list = await api<IssuedPrescriptions>("/prescriptions/issued", { query: prescriptionListQuery(filters) });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "not_a_practitioner") notPractitioner = true;
+    else throw error;
+  }
+  const canOpenConsultation = can(session, "encounter.read");
 
   return (
     <>
-      <PageHeader
-        title="Prescriptions"
-        description="Prescriptions issued at this facility. Open one in its consultation for doses and instructions, or at the pharmacy to dispense it."
-      />
+      <PageHeader title="Prescriptions" description={`${facility.name} · prescriptions issued in consultations, newest first`} />
       <div className="flex flex-col gap-4 p-4">
-        <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-6">
+        <nav aria-label="Whose prescriptions" className="flex flex-wrap gap-1">
+          {[
+            { mine: false, label: "Everyone at this facility" },
+            { mine: true, label: "Issued by me" },
+          ].map((v) => (
+            <Button key={v.label} asChild size="sm" variant={filters.mine === v.mine ? "default" : "outline"}>
+              <Link href={prescriptionListHref({ ...filters, mine: v.mine })} aria-current={filters.mine === v.mine ? "page" : undefined}>
+                {v.label}
+              </Link>
+            </Button>
+          ))}
+        </nav>
+
+        <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-4">
           <div className="grid gap-1">
             <Label htmlFor="rx-from">From (day)</Label>
             <Input id="rx-from" name="from" type="date" defaultValue={filters.from} />
@@ -67,32 +82,15 @@ export default async function PrescriptionsPage({ searchParams }: { searchParams
           <div className="grid gap-1">
             <Label htmlFor="rx-status">Status</Label>
             <NativeSelect id="rx-status" name="status" defaultValue={filters.status}>
-              <option value="">Any status</option>
-              <option value="active">Active</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="superseded">Replaced</option>
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="rx-prescriber">Prescriber</Label>
-            <NativeSelect id="rx-prescriber" name="prescriber" defaultValue={filters.prescriber} emptyText="No prescribers set up">
-              <option value="">Anyone</option>
-              {prescribers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.displayName}
+              {PRESCRIPTION_STATUS_FILTERS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </NativeSelect>
           </div>
-          <div className="grid gap-1">
-            <Label htmlFor="rx-number">Number</Label>
-            <Input id="rx-number" name="number" placeholder="RX00000123" maxLength={10} defaultValue={filters.number} />
-          </div>
-          <div className="flex items-center gap-2 self-end pb-2">
-            <Checkbox id="rx-mine" name="mine" value="1" defaultChecked={filters.mine} />
-            <Label htmlFor="rx-mine">Only mine</Label>
-          </div>
-          <div className="flex gap-2 sm:col-span-3 lg:col-span-6">
+          {filters.mine ? <input type="hidden" name="mine" value="true" /> : null}
+          <div className="flex items-end gap-2">
             <Button type="submit" size="sm">
               Show
             </Button>
@@ -101,82 +99,90 @@ export default async function PrescriptionsPage({ searchParams }: { searchParams
             </Button>
           </div>
           {adjusted ? (
-            <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-3 lg:col-span-6">
-              <InfoIcon className="size-3.5" aria-hidden /> A period is at most {MAX_DAYS} days; showing the last {MAX_DAYS} days to {filters.to}.
+            <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-4">
+              <InfoIcon className="size-4" aria-hidden /> The list covers at most {MAX_PRESCRIPTION_LIST_DAYS} days, so the start was moved to {filters.from}.
             </p>
           ) : null}
         </form>
 
-        {page.items.length === 0 ? (
-          <p className="text-table text-muted-foreground">No prescriptions match.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Issued</TableHead>
-                <TableHead>Number</TableHead>
-                <TableHead>Patient</TableHead>
-                <TableHead>Medicines</TableHead>
-                <TableHead>Prescriber</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.items.map((rx) => (
-                <TableRow key={rx.id}>
-                  <TableCell className="whitespace-nowrap">{clinicalDateTime(rx.issuedAt)}</TableCell>
-                  <TableCell>
-                    <Link className="font-mono text-primary hover:underline" href={`/clinic/encounters/${rx.encounterId}`}>
-                      {rx.prescriptionNumber}
-                    </Link>
-                    {canDispense && rx.status === "active" ? (
-                      <Link className="block text-meta text-primary hover:underline" href={`/pharmacy/${rx.id}`}>
-                        Dispense
-                      </Link>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    {rx.patient ? (
-                      <Link className="text-primary hover:underline" href={`/patients/${rx.patient.id}`}>
-                        {rx.patient.displayName}
-                        <span className="block font-mono text-meta text-muted-foreground">
-                          {rx.patient.patientNumber} · {rx.patient.age} y · {rx.patient.sex}
-                        </span>
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">Unknown patient</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-80 whitespace-normal">{rx.medicines.join("; ")}</TableCell>
-                  <TableCell>{rx.prescriber.name ?? "—"}</TableCell>
-                  <TableCell>
-                    <span className="flex flex-col items-start gap-1">
-                      <StatusBadge status={rx.status} />
-                      {rx.dispensed ? (
-                        <Badge variant="info">
-                          <PackageCheckIcon aria-hidden /> Dispensed here
-                        </Badge>
-                      ) : null}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        <nav aria-label="Pages" className="flex items-center gap-2 text-table">
-          {filters.page > 1 ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={prescriptionLogHref(filters, filters.page - 1)}>Newer</Link>
-            </Button>
-          ) : null}
-          <span className="text-muted-foreground">Page {filters.page}</span>
-          {page.hasMore ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={prescriptionLogHref(filters, filters.page + 1)}>Older</Link>
-            </Button>
-          ) : null}
-        </nav>
+        {notPractitioner ? (
+          <p role="status" className="rounded-md border bg-muted px-3 py-2 text-body">
+            Your account is not linked to a practitioner, so you have no prescriptions of your own.{" "}
+            <Link className="text-primary hover:underline" href={prescriptionListHref({ ...filters, mine: false })}>
+              Show everyone&apos;s
+            </Link>
+          </p>
+        ) : list ? (
+          <>
+            <p className="text-meta text-muted-foreground">
+              {list.from === list.to ? `On ${list.from}` : `From ${list.from} to ${list.to}`}: {list.counts.active} active, {list.counts.superseded} replaced,{" "}
+              {list.counts.cancelled} cancelled.
+              {list.truncated ? " Only the newest 300 are listed; choose a shorter period to see the rest." : ""}
+            </p>
+            <Card className="py-0">
+              {list.rows.length === 0 ? (
+                <p className="p-4 text-body text-muted-foreground">No prescriptions in this period.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Prescription</TableHead>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Prescribed</TableHead>
+                      <TableHead>Prescriber</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {list.rows.map((r) => {
+                      const status = STATUS[r.status];
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell>
+                            {canOpenConsultation ? (
+                              <Link className="font-mono font-medium text-primary hover:underline" href={`/clinic/encounters/${r.encounterId}`}>
+                                {r.prescriptionNumber}
+                              </Link>
+                            ) : (
+                              <span className="font-mono font-medium">{r.prescriptionNumber}</span>
+                            )}
+                            <span className="block text-meta text-muted-foreground">{clinicalDateTime(r.issuedAt)}</span>
+                          </TableCell>
+                          <TableCell>
+                            {r.patient ? (
+                              <Link className="hover:underline" href={`/patients/${r.patientId}`}>
+                                {r.patient.displayName} <span className="text-muted-foreground">· {r.patient.patientNumber}</span>
+                              </Link>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-meta">
+                            <ul className="flex flex-col gap-0.5">
+                              {r.items.map((item, i) => (
+                                <li key={i}>{prescribedLine(item)}</li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                          <TableCell className="text-meta">{r.prescriber.displayName ?? "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant={status.variant}>
+                              <status.Icon aria-hidden /> {status.label}
+                            </Badge>
+                            {r.status === "cancelled" && r.cancellationReason ? (
+                              <span className="mt-1 block text-meta text-muted-foreground">{r.cancellationReason}</span>
+                            ) : null}
+                            {r.replacesPrescriptionId ? <span className="mt-1 block text-meta text-muted-foreground">Replaces an earlier one</span> : null}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </Card>
+          </>
+        ) : null}
       </div>
     </>
   );

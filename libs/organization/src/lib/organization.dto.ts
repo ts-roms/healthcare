@@ -17,8 +17,6 @@ export class CreateOrganizationDto extends createZodDto(createOrganizationSchema
 /** The code is the organization's permanent identifier and is never changed. */
 export const updateOrganizationSchema = z.object({
   name,
-  /** Require two-step verification of staff (left unchanged when omitted). */
-  staffMfaRequired: z.boolean().optional(),
   /** Optimistic lock: the version the client last read. */
   version: z.number().int().positive(),
 });

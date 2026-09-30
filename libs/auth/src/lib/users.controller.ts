@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
-import { CreateRoleDto, CreateUserDto, GrantRoleDto, ResetMfaDto, ResetPasswordDto, UpdateMembershipDto } from "./users.dto";
+import { CreateRoleDto, CreateUserDto, GrantRoleDto, ResetPasswordDto, UpdateMembershipDto } from "./users.dto";
 import { UsersService } from "./users.service";
 
 @ApiTags("users")
@@ -45,14 +45,6 @@ export class UsersController {
   })
   resetPassword(@CurrentActor() actor: Actor, @Param("userId", ParseUUIDPipe) userId: string, @Body() body: ResetPasswordDto) {
     return this.users.resetPassword(actor, userId, body);
-  }
-
-  @Post("users/:userId/mfa-reset")
-  @HttpCode(200)
-  @RequirePermissions("user.manage")
-  @ApiOperation({ summary: "Turn off a member's two-step verification (e.g. a lost phone); ends their sessions" })
-  resetMfa(@CurrentActor() actor: Actor, @Param("userId", ParseUUIDPipe) userId: string, @Body() body: ResetMfaDto) {
-    return this.users.resetMfa(actor, userId, body);
   }
 
   @Post("users/:userId/role-assignments")

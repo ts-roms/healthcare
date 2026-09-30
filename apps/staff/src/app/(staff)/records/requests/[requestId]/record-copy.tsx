@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DateInput, Label, toast } from "@healthcare/ui/primitives";
 import type { RecordCopySection, RecordsRequestDetail } from "@/lib/api/types";
 import { orderedCopySections, periodText, RECORD_COPY_SECTIONS } from "@/lib/records-mapping";
 import { documentLink, prepareCopy } from "../actions";
@@ -71,11 +71,11 @@ export function RecordCopyCard({ request, open }: { request: RecordsRequestDetai
             <div className="flex flex-wrap items-end gap-3">
               <div className="grid gap-1">
                 <Label htmlFor="copy-from">From</Label>
-                <Input id="copy-from" type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+                <DateInput id="copy-from" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
               </div>
               <div className="grid gap-1">
                 <Label htmlFor="copy-to">To</Label>
-                <Input id="copy-to" type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+                <DateInput id="copy-to" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
               </div>
               <Button disabled={pending || sections.size === 0 || Boolean(periodFrom && periodTo && periodTo < periodFrom)} onClick={prepare}>
                 Prepare copy

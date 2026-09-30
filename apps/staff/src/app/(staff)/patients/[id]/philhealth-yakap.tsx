@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileCheck2Icon, PlugZapIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { YakapRegistrationBadge } from "@/components/yakap-registration-badge";
 import type { YakapConsultationList, YakapRegistrationOverview, YakapRegistrationStatus } from "@/lib/api/types";
 import { recordYakapRegistration } from "./yakap-actions";
@@ -133,7 +133,7 @@ export function PhilHealthYakap({
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="yakap-effective">Effective date (if given)</Label>
-                <Input id="yakap-effective" type="date" value={f.effectiveDate} onChange={(e) => setF({ ...f, effectiveDate: e.target.value })} />
+                <DateInput id="yakap-effective" value={f.effectiveDate} onChange={(e) => setF({ ...f, effectiveDate: e.target.value })} />
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="yakap-reference">Reference{referenceNeeded ? "" : " (optional)"}</Label>

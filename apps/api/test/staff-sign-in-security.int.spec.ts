@@ -4,11 +4,11 @@ import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWOR
 const NEW_PASSWORD = "Bagong-Password-Ko-2026";
 
 /**
- * Staff sign-in security (docs/security/access-control.md; migration 0089): a password reset by email — the same answer
+ * Staff sign-in security (docs/security/access-control.md; migration 0090): a password reset by email — the same answer
  * whether or not the account exists, a single-use short-lived link, a current code when two-step verification is on,
- * every session ended — and an organization rule requiring two-step verification of staff.
+ * every session ended.
  */
-describe("staff password reset by email and required two-step verification", () => {
+describe("staff password reset by email", () => {
   let ctx: TestContext;
   let tenant: Tenant;
   let clerkId: string;
@@ -68,35 +68,5 @@ describe("staff password reset by email and required two-step verification", () 
     expect(missing.body.error.code).toBe("mfa_code_required");
     await post("/password-reset", { token, password: "Third-Passphrase-2026", code: "000000" }).expect(401);
     await post("/password-reset", { token, password: "Third-Passphrase-2026", code: currentTotp(setup.body.secret) }).expect(204);
-  });
-
-  it("requires two-step verification of staff when the organization says so", async () => {
-    const admin = (await login(ctx, "admin@signin.ph")).accessToken;
-    const org = (await ctx.http().get("/api/v1/organization").set(as(admin)).expect(200)).body;
-    await ctx.http().patch("/api/v1/organization").set(as(admin)).send({ name: org.name, staffMfaRequired: true, version: org.version }).expect(200);
-
-    // The admin has no two-step verification either: only account routes answer until it is set up.
-    const me = await ctx.http().get("/api/v1/auth/me").set(as(admin)).expect(200);
-    expect(me.body).toMatchObject({ staffMfaRequired: true, user: { mfaEnrollmentRequired: true } });
-    const refused = await ctx.http().get("/api/v1/users").set(as(admin)).expect(403);
-    expect(refused.body.error.code).toBe("mfa_enrollment_required");
-    const setup = await ctx.http().post("/api/v1/auth/mfa/setup").set(as(admin)).expect(201);
-    await ctx
-      .http()
-      .post("/api/v1/auth/mfa/confirm")
-      .set(as(admin))
-      .send({ code: currentTotp(setup.body.secret) })
-      .expect(204);
-    await ctx.http().get("/api/v1/users").set(as(admin)).expect(200);
-    // It cannot be turned off while the organization requires it.
-    const off = await ctx
-      .http()
-      .post("/api/v1/auth/mfa/disable")
-      .set(as(admin))
-      .send({ password: PASSWORD, code: currentTotp(setup.body.secret) })
-      .expect(422);
-    expect(off.body.error.code).toBe("mfa_required_by_organization");
-    const audit = await auditRows(ctx.pool, `action = 'organization.update'`);
-    expect(audit.length).toBeGreaterThan(0);
   });
 });

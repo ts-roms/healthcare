@@ -77,7 +77,7 @@ export class OrganizationService {
         action: "organization.update",
         resourceType: "organization",
         resourceId: actor.organizationId,
-        changes: diffChanges(before, changes, ["name", "staffMfaRequired"] as const),
+        changes: diffChanges(before, changes, ["name"] as const),
       });
       return updated;
     });

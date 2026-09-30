@@ -1,14 +1,18 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
-import { CancelPrescriptionDto, IssuePrescriptionDto, ListPrescriptionsDto, PrescriptionLogDto, ReplacePrescriptionDto } from "./prescription.dto";
+import { CancelPrescriptionDto, IssuedPrescriptionsDto, IssuePrescriptionDto, ListPrescriptionsDto, ReplacePrescriptionDto } from "./prescription.dto";
+import { PrescriptionListService } from "./prescription-list.service";
 import { PrescriptionService } from "./prescription.service";
 
 @ApiTags("prescriptions")
 @ApiBearerAuth()
 @Controller({ path: "prescriptions", version: "1" })
 export class PrescriptionController {
-  constructor(private readonly prescriptions: PrescriptionService) {}
+  constructor(
+    private readonly prescriptions: PrescriptionService,
+    private readonly lists: PrescriptionListService,
+  ) {}
 
   @Post()
   @RequirePermissions("prescription.issue")
@@ -24,12 +28,14 @@ export class PrescriptionController {
     return this.prescriptions.list(actor, { ...query, activeOnly: query.activeOnly === "true" });
   }
 
-  @Get("log")
-  @RequirePermissions("prescription.read", "patient.read")
+  @Get("issued")
   @RequireFacility()
-  @ApiOperation({ summary: "Prescriptions issued at the selected facility over a period (names only, no doses or notes; audited)" })
-  log(@CurrentActor() actor: Actor, @Query() query: PrescriptionLogDto) {
-    return this.prescriptions.log(actor, query);
+  @RequirePermissions("prescription.read")
+  @ApiOperation({
+    summary: "Prescriptions issued at the selected facility over a period of its calendar days (≤ 92), newest first; by status or only mine",
+  })
+  issued(@CurrentActor() actor: Actor, @Query() query: IssuedPrescriptionsDto) {
+    return this.lists.issued(actor, query);
   }
 
   @Get(":prescriptionId")

@@ -30,3 +30,6 @@ export * from "./status";
 export * from "./video-call";
 export * from "./vital-signs";
 export * from "../lib/format";
+export * from "./stat-card";
+export * from "./practitioner-card";
+export * from "./agenda-rail";

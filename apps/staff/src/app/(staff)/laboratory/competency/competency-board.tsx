@@ -10,7 +10,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
+  DateInput,
   Label,
   NativeSelect,
   Table,
@@ -211,11 +211,11 @@ function AssessmentForm({ staff, tests, departments }: { staff: LabCompetencyOve
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1">
               <Label htmlFor="competency-assessed">Assessed on</Label>
-              <Input id="competency-assessed" type="date" value={f.assessedOn} onChange={(e) => setF({ ...f, assessedOn: e.target.value })} />
+              <DateInput id="competency-assessed" value={f.assessedOn} onChange={(e) => setF({ ...f, assessedOn: e.target.value })} />
             </div>
             <div className="grid gap-1">
               <Label htmlFor="competency-due">Next due (optional)</Label>
-              <Input id="competency-due" type="date" value={f.nextDueOn} onChange={(e) => setF({ ...f, nextDueOn: e.target.value })} />
+              <DateInput id="competency-due" value={f.nextDueOn} onChange={(e) => setF({ ...f, nextDueOn: e.target.value })} />
             </div>
           </div>
           <Textarea

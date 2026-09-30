@@ -208,30 +208,4 @@ describe("dispensing", () => {
     const events = await ctx.pool.query(`SELECT event_type FROM domain_event WHERE event_type LIKE 'PrescriptionDispens%' ORDER BY occurred_at`);
     expect(events.rows.map((e) => e.event_type)).toEqual(["PrescriptionDispensed", "PrescriptionDispensed", "PrescriptionDispenseReversed"]);
   });
-
-  it("lists the facility's prescriptions for clinicians, names only, audited", async () => {
-    const today = manilaDate(0);
-    const log = (t: string, q = "") => req(t).get(`/prescriptions/log?from=${today}&to=${today}${q}`);
-    await log(cashier).expect(403);
-    await req(doctor).get(`/prescriptions/log?from=${today}&to=2000-01-01`).expect(400);
-    await log(doctor, "&number=12345").expect(400);
-    const all = await log(doctor).expect(200);
-    const row = all.body.items.find((r: { id: string }) => r.id === ids.rx);
-    expect(row).toMatchObject({
-      prescriptionNumber: ids.rxNumber,
-      // Cancelled by the test above, after some of it was dispensed.
-      status: "cancelled",
-      dispensed: true,
-      patient: { id: ids.patient, patientNumber: expect.stringMatching(/^P\d{8}$/) },
-      prescriber: { name: expect.any(String) },
-    });
-    expect(row.medicines).toEqual(expect.arrayContaining([expect.stringContaining("Amoxicillin")]));
-    expect(JSON.stringify(all.body)).not.toMatch(/instructions|dose|notes|allergyOverrideReason/i);
-    expect((await log(doctor, `&number=${ids.rxNumber!.toLowerCase()}`).expect(200)).body.items.map((r: { id: string }) => r.id)).toEqual([ids.rx]);
-    expect((await log(doctor, "&mine=true").expect(200)).body.items.map((r: { id: string }) => r.id)).toContain(ids.rx);
-    expect((await log(doctor, "&status=active").expect(200)).body.items.some((r: { id: string }) => r.id === ids.rx)).toBe(false);
-    await log(admin, "&mine=true").expect(422);
-    const audit = await auditRows(ctx.pool, "action = 'prescription.log.view'");
-    expect(audit.some((a) => (a.metadata?.patientIds as string[] | undefined)?.includes(ids.patient!))).toBe(true);
-  });
 });
