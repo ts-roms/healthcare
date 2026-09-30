@@ -7,6 +7,8 @@ import { PortalMfaService } from "./security/portal-mfa.service";
 import { PortalMfaLoginController, PortalSecurityController } from "./security/portal-security.controller";
 import { PortalPreferencesController } from "./preferences/portal-preferences.controller";
 import { PortalPreferencesService } from "./preferences/portal-preferences.service";
+import { ConsentTextController } from "./consents/consent-text.controller";
+import { ConsentTextService } from "./consents/consent-text.service";
 import { PortalConsentsController } from "./consents/portal-consents.controller";
 import { PortalConsentService } from "./consents/portal-consents.service";
 import { PatientController } from "./patient.controller";
@@ -35,6 +37,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalSecurityController,
     PortalMessageThreadsController,
     PatientMessagesController,
+    ConsentTextController,
     PortalMfaLoginController,
   ],
   providers: [
@@ -53,6 +56,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PortalMfaService,
     PatientMessageService,
     PortalSecurityMailers,
+    ConsentTextService,
   ],
   exports: [
     PatientRecordService,

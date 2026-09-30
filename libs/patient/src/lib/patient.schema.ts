@@ -179,7 +179,24 @@ export const patientConsent = pgTable("patient_consent", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   /** 0069: the patient's MyHealth account, for a withdrawal the patient recorded themself. */
   recordedByPortalAccount: uuid("recorded_by_portal_account"),
+  /** 0076: the wording version the patient read before giving this consent online. */
+  consentTextId: uuid("consent_text_id"),
 });
+
+/** Mirrors database/migrations/0076_consent_wording_online_consent.sql: the organization's own consent wording, one immutable row per version. */
+export const consentText = pgTable("consent_text", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  consentType: text("consent_type").$type<ConsentType>().notNull(),
+  version: integer("version").notNull(),
+  offered: boolean("offered").notNull(),
+  title: text("title"),
+  body: text("body"),
+  acknowledgement: text("acknowledgement"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ConsentTextRecord = typeof consentText.$inferSelect;
 
 export const patientCommunicationPreference = pgTable(
   "patient_communication_preference",

@@ -106,8 +106,11 @@ export interface ConsentView {
   /** The staff user who recorded it; null when the patient recorded it in MyHealth. */
   recordedBy: string | null;
   recordedAt: string;
-  /** Recorded by staff at the clinic, or by the patient in MyHealth (a withdrawal). */
+  /** Recorded by staff at the clinic, or by the patient in MyHealth (a withdrawal, or a consent given online). */
   recordedVia: "staff" | "myhealth";
+  /** The wording version the patient read, for a consent given online (migration 0076). */
+  consentTextId: string | null;
+  wordingVersion?: number | null;
 }
 
 export function toConsentView(c: PatientConsentRecord): ConsentView {
@@ -123,5 +126,6 @@ export function toConsentView(c: PatientConsentRecord): ConsentView {
     recordedBy: c.recordedBy,
     recordedAt: c.recordedAt.toISOString(),
     recordedVia: c.recordedByPortalAccount ? "myhealth" : "staff",
+    consentTextId: c.consentTextId,
   };
 }

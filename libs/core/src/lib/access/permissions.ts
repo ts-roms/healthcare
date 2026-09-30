@@ -126,6 +126,8 @@ export const PERMISSIONS = [
   // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0074).
   "patient.message.read",
   "patient.message.manage",
+  // Write the organization's consent wording that patients read before giving a consent online (migration 0076).
+  "consent.wording.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
