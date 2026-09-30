@@ -14,6 +14,7 @@ export const PERMISSIONS = [
   "patient.update",
   "patient.consent.manage",
   "patient.portal.manage",
+  "patient.portal.proxy.manage",
   // Patient merge (migration 0068)
   "patient.merge",
   "document.read",
@@ -135,7 +136,7 @@ export const PERMISSIONS = [
   "document.retention.manage",
   // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).
   "lab.instrument.message.submit",
-  // Immunization history (migration 0080); the vaccine catalogue is managed with clinic.configure.
+  // Immunization history (migration 0081); the vaccine catalogue is managed with clinic.configure.
   "immunization.read",
   "immunization.record",
 ] as const;

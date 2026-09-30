@@ -3,18 +3,19 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { ImmunizationService } from "@healthcare/clinic";
 import { Public } from "@healthcare/core";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's immunization history in MyHealth: doses given (here or elsewhere, as reported or imported), with the
  * vaccine, dose, date at its precision and where it was given. Not shown: doses not given, entries in error, staff
  * notes, lot details and who recorded them. Public to the staff guard; the patient guard re-checks the session,
- * account and portal consent. Audited with actor type "patient".
+ * account and portal consent; a guardian acting for a dependent may read it (`ProxyAllowed`). Audited with actor type "patient".
  */
 @ApiTags("portal")
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal", version: "1" })
 export class PortalImmunizationsController {
   constructor(

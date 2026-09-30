@@ -78,7 +78,7 @@ that gates the domain's own reads:
 On the page, the summary panels need `patient.read` + `clinical.read` (prescriptions also `prescription.read`, care plans
 `care-plan.read`) and laboratory results `lab.result.read` (`lib/patient-workspace.ts` → `workspaceAccess`). A withheld
 panel shows "Not available to you." — never an empty list. No permission was added. The `immunizations` panel (migration
-`0080`, [immunizations](immunizations.md)) lists the latest 8 records not in error: vaccine, dose as recorded, date at
+`0081`, [immunizations](immunizations.md)) lists the latest 8 records not in error: vaccine, dose as recorded, date at
 its precision, given / not given, source and whether a reaction is recorded — never notes or reasons.
 
 ## API

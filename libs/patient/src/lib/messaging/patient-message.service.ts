@@ -151,7 +151,14 @@ export class PatientMessageService {
           lastMessageFrom: "patient",
         })
         .returning();
-      const message = await this.insertMessage(tx, thread!, "patient", { accountId: principal.accountId }, input.body, now);
+      const message = await this.insertMessage(
+        tx,
+        thread!,
+        "patient",
+        { accountId: principal.accountId, viaGuardian: Boolean(principal.proxy) },
+        input.body,
+        now,
+      );
       await this.record(tx, patientAuditContext(principal), thread!, message, "portal.message-send", true);
       return { ...toPortalView(thread!), messages: [toMessageView(message, null)] };
     });
@@ -179,7 +186,7 @@ export class PatientMessageService {
         })
         .where(eq(patientMessageThread.id, thread.id))
         .returning();
-      const message = await this.insertMessage(tx, updated!, "patient", { accountId: principal.accountId }, body, now);
+      const message = await this.insertMessage(tx, updated!, "patient", { accountId: principal.accountId, viaGuardian: Boolean(principal.proxy) }, body, now);
       await this.record(tx, patientAuditContext(principal), updated!, message, "portal.message-send", notify);
       return { ...toPortalView(updated!), messages: await this.messagesOf(tx, thread.id) };
     });
@@ -388,7 +395,7 @@ export class PatientMessageService {
     tx: DbExecutor,
     thread: PatientMessageThreadRecord,
     sender: MessageSender,
-    by: { accountId?: string; userId?: string },
+    by: { accountId?: string; userId?: string; viaGuardian?: boolean },
     body: string,
     at: Date,
   ): Promise<PatientMessageRecord> {
@@ -402,6 +409,7 @@ export class PatientMessageService {
         senderPortalAccountId: by.accountId ?? null,
         senderUserId: by.userId ?? null,
         body,
+        viaGuardian: by.viaGuardian ?? false,
         createdAt: at,
       })
       .returning();
@@ -495,6 +503,7 @@ function toMessageView(message: PatientMessageRecord, staffName: string | null):
     sender: message.senderType,
     senderName: message.senderType === "staff" ? staffName : null,
     body: message.body,
+    viaGuardian: message.viaGuardian,
     createdAt: message.createdAt.toISOString(),
   };
 }

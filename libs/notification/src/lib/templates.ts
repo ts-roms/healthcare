@@ -200,7 +200,16 @@ export const TEMPLATES = [
     internal: true,
     variables: z.object({
       organizationName: shortText,
-      event: z.enum(["mfa_enabled", "mfa_disabled", "mfa_reset_by_clinic", "recovery_code_used", "recovery_codes_renewed", "email_changed"]),
+      event: z.enum([
+        "mfa_enabled",
+        "mfa_disabled",
+        "mfa_reset_by_clinic",
+        "recovery_code_used",
+        "recovery_codes_renewed",
+        "email_changed",
+        "proxy_access_granted",
+        "proxy_access_ended",
+      ]),
       /** For "recovery_code_used": how many are left; for "email_changed": the new address, partly hidden. */
       detail: shortText.optional(),
     }),
@@ -212,6 +221,9 @@ export const TEMPLATES = [
           "The clinic turned off two-step verification for your MyHealth account, and you were signed out everywhere. Set it up again when you sign in.",
         recovery_code_used: `A recovery code was used to sign in to your MyHealth account${v.detail ? ` (${v.detail} left)` : ""}.`,
         recovery_codes_renewed: "New recovery codes were made for your MyHealth account. The old ones no longer work.",
+        proxy_access_granted:
+          "The clinic allowed another person, who has their own MyHealth account, to see and act on your records in MyHealth. You can end this in MyHealth under People.",
+        proxy_access_ended: "Another person's access to your records in MyHealth was ended.",
         email_changed: `The sign-in email of your MyHealth account was changed${v.detail ? ` to ${v.detail}` : ""}.`,
       }[v.event];
       return {

@@ -46,5 +46,5 @@ export interface ImmunizationContext {
 
 export const IMMUNIZATION_CONTEXT = Symbol("IMMUNIZATION_CONTEXT");
 
-/** Inventory item categories a dose may be taken from (owned by the clinic; migration 0080 adds `vaccine`). */
+/** Inventory item categories a dose may be taken from (owned by the clinic; migration 0081 adds `vaccine`). */
 export const VACCINE_CATEGORIES = ["vaccine"] as const;

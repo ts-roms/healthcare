@@ -1,6 +1,6 @@
 import { date, integer, numeric, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0080_immunizations.sql (the migration is the source of truth).
+// Mirrors database/migrations/0081_immunizations.sql (the migration is the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 

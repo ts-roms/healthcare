@@ -40,6 +40,7 @@ import type {
   PatientSummaryResponse,
   PatientTimelinePage,
   PortalAccountStatus,
+  StaffProxyOverview,
   YakapConsultationList,
   YakapRegistrationOverview,
 } from "@/lib/api/types";
@@ -52,6 +53,7 @@ import { PhilHealthEligibility } from "./philhealth-eligibility";
 import { PhilHealthYakap } from "./philhealth-yakap";
 import { ConsentList } from "./consent-list";
 import { PortalAccess } from "./portal-access";
+import { ProxyAccess } from "./proxy-access";
 import { SendPortalMessage } from "./send-portal-message";
 import { RecordConsent } from "./record-consent";
 import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
@@ -157,6 +159,15 @@ async function loadMergeHistory(p: PatientDetail): Promise<MergeHistoryEntry[] |
   }
 }
 
+/** Guardian access for the record; null when it cannot be shown. */
+async function loadProxies(id: string): Promise<StaffProxyOverview | null> {
+  try {
+    return await api<StaffProxyOverview>(`/patients/${id}/portal-proxies`);
+  } catch {
+    return null;
+  }
+}
+
 /** Patient portal account status; null when it cannot be shown (the rest of the record still renders). */
 async function loadPortalAccount(id: string): Promise<PortalAccountStatus | null> {
   try {
@@ -200,10 +211,11 @@ async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverv
 
 export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, summary, portal, labResults, labArchives, eligibility, yakap, externalHistory, recent, facility, session] = await Promise.all([
+  const [p, summary, portal, proxies, labResults, labArchives, eligibility, yakap, externalHistory, recent, facility, session] = await Promise.all([
     loadPatient(id),
     loadSummary(id),
     loadPortalAccount(id),
+    loadProxies(id),
     loadLabResults(id),
     loadArchivedLabReports(id),
     loadEligibility(id),
@@ -595,6 +607,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             ) : (
               <p className="text-body text-muted-foreground">Portal status is unavailable right now.</p>
             )}
+            {proxies ? (
+              <div className="mt-4 border-t pt-4">
+                <ProxyAccess patientId={p.id} overview={proxies} canManage={can(session, "patient.portal.proxy.manage") && p.status === "active"} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

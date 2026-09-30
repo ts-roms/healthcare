@@ -20,6 +20,29 @@ export interface PortalMe {
   account: { email: string; emailVerified: boolean; mfaEnabled: boolean };
   /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
   timeZone: string;
+  /** Set when the signed-in person is acting for someone else: `patient` is then that person, `account` the signed-in person's own. */
+  acting: { relationship: string; scopes: ("view" | "act")[] } | null;
+}
+
+/** `GET /portal/proxy/dependents` row */
+export interface PortalDependent {
+  grantId: string;
+  patientId: string;
+  displayName: string;
+  relationship: string;
+  scopes: ("view" | "act")[];
+  grantedAt: string;
+  expiresAt: string | null;
+}
+
+/** `GET /portal/proxy/guardians` row */
+export interface PortalGuardian {
+  grantId: string;
+  displayName: string;
+  relationship: string;
+  scopes: ("view" | "act")[];
+  grantedAt: string;
+  expiresAt: string | null;
 }
 
 /** `GET /portal/appointments` row */
@@ -543,6 +566,8 @@ export interface PortalThreadMessage {
   sender: "patient" | "staff";
   senderName: string | null;
   body: string;
+  /** Written by a parent or guardian acting for the patient. */
+  viaGuardian: boolean;
   createdAt: string;
 }
 

@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { BillingDocuments, DepositService, InvoiceService, OnlinePaymentService, StartOnlinePaymentDto } from "@healthcare/billing";
 import { pdfFile, Public } from "@healthcare/core";
-import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
 
 /**
  * The patient's bills in MyHealth: issued (and voided) invoices with what is
@@ -15,6 +15,7 @@ import { CurrentPatient, PatientAccessGuard, patientAuditContext, type PortalPri
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@ProxyAllowed()
 @Controller({ path: "portal/billing", version: "1" })
 export class PortalBillingController {
   constructor(

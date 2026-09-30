@@ -63,7 +63,7 @@ by the issuing practitioner or staff with `encounter.amend`, and another issued.
 ## Immunizations
 
 The immunization history and the organization's vaccine catalogue live in `libs/clinic/src/lib/immunizations`
-(migration `0080`; permissions `immunization.read`, `immunization.record`; catalogue with `clinic.configure`): doses given
+(migration `0081`; permissions `immunization.read`, `immunization.record`; catalogue with `clinic.configure`): doses given
 here (optionally from vaccine stock, in the same transaction), not given with the clinician's reason, reported with a
 partial date, and accepted from FHIR imports; immutable, corrected by entered in error. No schedule or due dose is
 encoded. See [immunizations](immunizations.md).
