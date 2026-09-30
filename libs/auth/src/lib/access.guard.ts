@@ -8,7 +8,8 @@ import { ActorResolver } from "./actor-resolver";
 /**
  * Global guard: authenticates every request (unless @Public), resolves the
  * organization/facility/department context and effective permissions, and
- * enforces route access metadata. Denials are audited.
+ * enforces route access metadata. Denials are audited (not the two-step verification enrollment redirect, which
+ * repeats on every page until the member sets it up; the policy change and enrollment are audited).
  *
  * The session is checked on every request so logout, password change and
  * membership suspension take effect immediately, not at token expiry.
@@ -36,6 +37,11 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
+
+    // The organization requires two-step verification this member has not set up: only enrollment is open.
+    if (actor.mfaEnrollmentRequired && !this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
+      throw new ForbiddenError("Your organization requires two-step verification. Set it up in My account to continue.", "mfa_enrollment_required");
+    }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(ACCESS_METADATA.permissions, targets) ?? [];
     const needsPlatformAdmin = this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.platformAdmin, targets) ?? false;

@@ -39,6 +39,8 @@ export interface Me {
   user: { id: string; email: string; displayName: string; mfaEnabled: boolean; isPlatformAdmin: boolean };
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
+  /** The organization's two-step verification requirement for this member; with `enrollmentRequired`, permissions are empty. */
+  mfaPolicy: { required: boolean; exempt: boolean; enrollmentRequired: boolean };
   permissions: string[];
 }
 
@@ -4401,6 +4403,16 @@ export interface StaffUser {
   roleAssignments: StaffRoleAssignment[];
 }
 
+export interface MfaPolicy {
+  required: boolean;
+  version: number;
+  updatedAt: string | null;
+  updatedBy: { id: string; displayName: string } | null;
+  members: { active: number; withMfa: number; exempt: number; withoutMfa: number };
+  pending: Array<{ id: string; displayName: string; email: string }>;
+  exemptions: Array<{ userId: string; displayName: string; email: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
+}
+
 export interface StaffRoleDefinition {
   id: string;
   key: string;
@@ -4408,6 +4420,15 @@ export interface StaffRoleDefinition {
   description: string | null;
   isSystem: boolean;
   permissions: string[];
+}
+
+export interface Organization {
+  id: string;
+  code: string;
+  name: string;
+  status: "active" | "suspended" | "archived";
+  version: number;
+  updatedAt: string;
 }
 
 export interface FacilityDetail extends Facility {
@@ -4603,4 +4624,26 @@ export interface WorkspaceProcedure {
   description: string;
   performedAt: string;
   performerName: string | null;
+}
+
+/** `GET /prescriptions/issued`: prescriptions issued at the selected facility over a period. */
+export interface IssuedPrescriptions {
+  facilityId: string;
+  from: string;
+  to: string;
+  counts: Record<Prescription["status"], number>;
+  truncated: boolean;
+  rows: Array<{
+    id: string;
+    prescriptionNumber: string;
+    status: Prescription["status"];
+    issuedAt: string;
+    encounterId: string;
+    patientId: string;
+    patient: { patientNumber: string; displayName: string; sex: string; age: number } | null;
+    prescriber: { id: string; displayName: string | null };
+    items: Array<{ genericName: string; strength: string | null; dosageForm: string | null; quantity: number; quantityUnit: string }>;
+    replacesPrescriptionId: string | null;
+    cancellationReason: string | null;
+  }>;
 }

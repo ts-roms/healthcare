@@ -6,8 +6,9 @@
 - Lockout: 5 consecutive failures lock the account for 15 minutes (MFA failures count too).
 - Login responses do not reveal whether an email exists; unknown emails still
   run a password verification for similar timing.
-- Optional TOTP MFA (RFC 6238). Secrets are encrypted at rest with AES-256-GCM
-  (`MFA_ENCRYPTION_KEY`). Enrollment requires confirming a code.
+- TOTP MFA (RFC 6238), optional unless the organization requires it (below).
+  Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
+  Enrollment requires confirming a code.
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
@@ -133,7 +134,7 @@ records_officer) and `doh.settings.manage` (org_admin); audited `doh.case.*`
 (detection and outcomes as the system; dismissals with the reason),
 `doh.rule.*` and `doh.facility-code.record`.
 
-Audited in Phase 1: logins (success/failure/lockout/MFA), logout, password and
+Audited in Phase 1 (and the MFA policy, migration 0086): logins (success/failure/lockout/MFA), logout, password and
 MFA changes, session revocation on token reuse, access denials, organization /
 facility / department changes, user membership and role changes, patient
 registration / duplicate override / view / search / updates / status /
@@ -159,9 +160,42 @@ sub-records / consent / preferences, document create / upload / list / download
   socket for the same user and facility only, and never after the session ends.
   Server-side clients may still connect with an access token and facility id.
 
+## Two-step verification policy
+
+An organization may require TOTP two-step verification for its staff
+(`staff_mfa_policy`, migration `0086`; no row = not required; optimistic
+`version`). `GET /security/mfa-policy` (`user.read`) shows the policy, member
+figures, members still without it and exemptions; `PUT /security/mfa-policy`
+(`user.mfa.manage`, org_admin) sets it — requiring it needs the
+administrator's own MFA first (`422 own_mfa_required`).
+
+- **Enforcement never locks anyone out.** A member without MFA (and not exempt)
+  still signs in with a password, but `ActorResolver` marks the actor
+  `mfaEnrollmentRequired` and `AccessGuard` answers
+  `403 mfa_enrollment_required` on every route except those marked
+  `@AllowDuringMfaEnrollment()` (`/auth/me`, `/auth/me/facilities`, logout,
+  password change, MFA setup and confirm). It is checked on every request, so
+  turning the policy on applies to existing sessions at their next request
+  (these refusals are not audited individually; the policy change is).
+  `/auth/me` returns `mfaPolicy` and no permissions while enrollment is due;
+  the staff app then shows only the set-up.
+- While any organization the person actively belongs to requires it (and has
+  not exempted them), they cannot turn their MFA off
+  (`422 mfa_required_by_organization`).
+- **Exemptions** per membership with a reason
+  (`PUT|DELETE /users/:id/mfa-exemption`, not oneself) for integration
+  accounts that sign in without a person (instrument gateway, FHIR senders).
+- **Reset** (`POST /users/:id/mfa-reset`, reason): clears the member's TOTP
+  secret and ends all their sessions; not oneself, and an account that also
+  belongs to another organization only by a platform administrator
+  (`403 member_of_other_organizations`), so one organization cannot weaken
+  another's sign-in. Identity checks before a reset are the organization's
+  procedure.
+- Audited: `auth.mfa-policy.update` (from/to, reason),
+  `auth.mfa-exemption.grant|revoke`, `auth.mfa.reset`.
+
 ## Known gaps (tracked for later phases)
 
-- MFA is optional; an organization-level "require MFA" policy is not implemented.
 - TOTP codes can be replayed within their 30-second window.
 - No breached-password screening.
 - Rate-limit counters are per instance (move to Redis before scaling out).

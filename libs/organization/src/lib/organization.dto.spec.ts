@@ -1,4 +1,4 @@
-import { createFacilitySchema, createOrganizationSchema, normalizeContactNumber, updateFacilitySchema } from "./organization.dto";
+import { createFacilitySchema, createOrganizationSchema, normalizeContactNumber, updateFacilitySchema, updateOrganizationSchema } from "./organization.dto";
 
 describe("organization input rules", () => {
   it("normalizes codes to lower case and rejects unsafe ones", () => {
@@ -16,6 +16,12 @@ describe("organization input rules", () => {
   it("requires the version being edited on update", () => {
     expect(updateFacilitySchema.safeParse({ name: "Renamed" }).success).toBe(false);
     expect(updateFacilitySchema.safeParse({ name: "Renamed", version: 3 }).success).toBe(true);
+  });
+
+  it("renames an organization by name and version only, never its code", () => {
+    expect(updateOrganizationSchema.safeParse({ name: "New Name" }).success).toBe(false);
+    expect(updateOrganizationSchema.safeParse({ name: "  ", version: 1 }).success).toBe(false);
+    expect(updateOrganizationSchema.parse({ name: " New Name ", version: 2, code: "other" })).toEqual({ name: "New Name", version: 2 });
   });
 
   it("stores recognizable mobile numbers in E.164 and keeps landlines as typed", () => {

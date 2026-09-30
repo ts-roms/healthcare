@@ -63,6 +63,15 @@ read, prescriptions read and dispense, inventory read and move.
 `POST /prescriptions`, `GET /prescriptions?patientId=|encounterId=`, `GET /prescriptions/:id`,
 `POST /prescriptions/:id/{replace,cancel}`.
 
+**Prescriptions issued at a facility** (`GET /prescriptions/issued`, `prescription.read`, selected facility required;
+`PrescriptionListService`): newest first over a period of the facility's calendar days (`from`, `to`; today by default; at most
+92 days), optionally by `status` or only the signed-in practitioner's (`mine=true`; `422 not_a_practitioner` for an account not
+linked to one). Each row: number, time, status, consultation, patient (minimal identification), prescriber name, and what was
+prescribed (name, strength, form, quantity — not the dose instructions, notes or allergy override: open the prescription for
+those), with the cancellation reason or the prescription it replaces. `counts` per status cover the whole period; at most 300
+rows (`truncated`). Every patient listed is audited (`prescription.list`, metadata `view: facility`). Prescriber names come
+through the `PrescribingContext.practitionerNames` port. Staff: **Clinic → Prescriptions** (`/clinic/prescriptions`).
+
 Dispensing (`/api/v1/dispensing`, selected facility required): `GET stock` (medicines and supplies with usable stock),
 `GET prescriptions?number=RX…` (→ id), `GET prescriptions/:id` (patient identification, items, dispensed per unit,
 remaining, dispenses), `POST prescriptions/:id/dispenses` (`lines[]`: prescription item, inventory item, location,

@@ -166,8 +166,8 @@ export function Odontogram({ chart, notation = "fdi", dentition = "permanent", s
 
   const row = ([right, left]: readonly (readonly string[])[], lower: boolean, key: string) => (
     <div key={key} className="flex items-stretch justify-center">
-      <div className="flex gap-0.5 border-r-2 border-foreground/30 pr-1.5">{right!.map((t) => renderTooth(t, lower))}</div>
-      <div className="flex gap-0.5 pl-1.5">{left!.map((t) => renderTooth(t, lower))}</div>
+      <div className="flex gap-0.5 border-r-2 border-foreground/30 pr-1.5">{(right ?? []).map((t) => renderTooth(t, lower))}</div>
+      <div className="flex gap-0.5 pl-1.5">{(left ?? []).map((t) => renderTooth(t, lower))}</div>
     </div>
   );
 

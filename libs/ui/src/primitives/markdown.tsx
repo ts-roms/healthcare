@@ -54,7 +54,7 @@ export function Markdown({ source, resolveHref = (href) => href, linkComponent: 
     hr: () => <hr className="my-6" />,
     a: ({ href = "", children }) => {
       const target = resolveHref(href);
-      if (target === null) return <>{children}</>;
+      if (target === null) return children;
       if (/^https?:/.test(target)) {
         return (
           <a href={target} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">

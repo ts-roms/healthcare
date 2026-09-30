@@ -14,6 +14,14 @@ const optionalText = (max: number) => z.string().trim().min(1).max(max).optional
 export const createOrganizationSchema = z.object({ code, name });
 export class CreateOrganizationDto extends createZodDto(createOrganizationSchema) {}
 
+/** The code is the organization's permanent identifier and is never changed. */
+export const updateOrganizationSchema = z.object({
+  name,
+  /** Optimistic lock: the version the client last read. */
+  version: z.number().int().positive(),
+});
+export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}
+
 const facilityFields = z.object({
   name,
   facilityType: z.enum(FACILITY_TYPES),
