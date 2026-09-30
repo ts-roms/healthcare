@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Button,
   DateInput,
+  DateTimeInput,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -205,11 +206,11 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-start">From</Label>
-          <Input id="closure-start" type="datetime-local" required value={form.starts} onChange={set("starts")} />
+          <DateTimeInput id="closure-start" required value={form.starts} onValueChange={(v) => setForm((f) => ({ ...f, starts: v }))} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-end">Until</Label>
-          <Input id="closure-end" type="datetime-local" required min={form.starts} value={form.ends} onChange={set("ends")} />
+          <DateTimeInput id="closure-end" required min={form.starts} value={form.ends} onValueChange={(v) => setForm((f) => ({ ...f, ends: v }))} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="closure-reason">Reason</Label>

@@ -21,3 +21,4 @@ export * from "./markdown";
 export * from "./popover";
 export * from "./calendar";
 export * from "./date-input";
+export * from "./date-time-input";
