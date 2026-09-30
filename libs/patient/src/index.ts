@@ -25,6 +25,7 @@ export { PrepareRecordCopyDto, SubmitRecordsRequestDto } from "./lib/records-req
 export * from "./lib/consents/portal-consent.rules";
 export * from "./lib/consents/portal-consent.views";
 export * from "./lib/consents/consent-text.service";
+export * from "./lib/preferences/push-device-counts";
 export * from "./lib/messaging/patient-message.rules";
 export * from "./lib/messaging/patient-message.schema";
 export * from "./lib/messaging/patient-message.service";

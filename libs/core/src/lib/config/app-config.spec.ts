@@ -56,3 +56,20 @@ describe("integration payload keys", () => {
     );
   });
 });
+
+describe("web push keys", () => {
+  const base = {
+    NODE_ENV: "test",
+    DATABASE_URL: "postgres://x",
+    JWT_ACCESS_SECRET: "a".repeat(40),
+    MFA_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
+  };
+  const vapid = { VAPID_PUBLIC_KEY: "P".repeat(87), VAPID_PRIVATE_KEY: "K".repeat(43), VAPID_SUBJECT: "mailto:privacy@example.ph" };
+
+  it("are optional, and only whole", () => {
+    expect(loadAppConfig(base).VAPID_PUBLIC_KEY).toBeUndefined();
+    expect(loadAppConfig({ ...base, ...vapid }).VAPID_SUBJECT).toBe("mailto:privacy@example.ph");
+    expect(() => loadAppConfig({ ...base, VAPID_PUBLIC_KEY: vapid.VAPID_PUBLIC_KEY })).toThrow(/together/);
+    expect(() => loadAppConfig({ ...base, ...vapid, VAPID_SUBJECT: "privacy@example.ph" })).toThrow(/mailto/);
+  });
+});

@@ -3,6 +3,7 @@ import { UsersService } from "@healthcare/auth";
 import { DomainEventHandlers, type DomainEventRecord, systemActor } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
+import { PatientPush } from "./patient-push";
 import { PortalAccountService } from "@healthcare/patient";
 
 /** Who hears about new records requests: staff of the records office (any facility of the organization). */
@@ -22,6 +23,7 @@ export class PatientRecordsNotices implements OnModuleInit {
     private readonly organizations: OrganizationService,
     private readonly notifications: NotificationService,
     private readonly users: UsersService,
+    private readonly push: PatientPush,
   ) {}
 
   onModuleInit(): void {
@@ -46,6 +48,14 @@ export class PatientRecordsNotices implements OnModuleInit {
         idempotencyKey: `records:${event.id}:${channel}`,
       });
     await message("in_app");
+    if (
+      await this.push.send(actor, patientId, {
+        templateKey: "records.update",
+        variables: { ...variables, organizationName: organization.name.slice(0, 80) },
+        idempotencyKey: `records:${event.id}:push`,
+      })
+    )
+      return;
     const sms = await message("sms");
     if (sms.status === "suppressed") await message("email");
   }

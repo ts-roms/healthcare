@@ -234,7 +234,7 @@ export const TEMPLATES = [
     version: 1,
     category: "clinical",
     // Leaves the platform (SMS/email): no test names, values or flags — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.object({ kind: z.enum(["ready", "updated"]), organizationName: shortText }),
     render: (v) =>
       v.kind === "ready"
@@ -252,7 +252,7 @@ export const TEMPLATES = [
     version: 1,
     category: "clinical",
     // Leaves the platform (SMS/email): no tooth, procedure, image type or finding — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.object({ kind: z.enum(["image-shared", "plan-to-review", "plan-to-decide"]), organizationName: shortText }),
     render: (v) => {
       switch (v.kind) {
@@ -279,7 +279,7 @@ export const TEMPLATES = [
     version: 1,
     category: "administrative",
     // Leaves the platform (SMS/email): no diagnosis, purpose or document title — only a pointer to MyHealth.
-    channels: ["sms", "email", "in_app"],
+    channels: ["sms", "email", "push", "in_app"],
     variables: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("certificate-ready"), organizationName: shortText }),
       z.object({ kind: z.literal("request-answered"), organizationName: shortText, requestNumber: z.string().regex(/^RR\d{8}$/) }),
@@ -321,11 +321,25 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "portal.push-test",
+    version: 1,
+    category: "administrative",
+    // Sent when a patient asks "send me a test": to show that notifications reach this device. Nothing about care.
+    channels: ["push"],
+    internal: true,
+    variables: z.object({ organizationName: shortText }),
+    render: (v) => ({
+      subject: "Notifications are on",
+      text: `${v.organizationName}: this is a test. MyHealth notifications reach this device.`,
+      href: "/notification-settings",
+    }),
+  }),
+  defineTemplate({
     key: "portal.message-received",
     version: 1,
     category: "administrative",
     // Leaves the platform (SMS/email): no name, subject or words of the message — only that one is waiting in MyHealth.
-    channels: ["sms", "email"],
+    channels: ["sms", "email", "push"],
     variables: z.object({ organizationName: shortText }),
     render: (v) => ({
       subject: "You have a new message",

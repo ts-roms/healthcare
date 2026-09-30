@@ -41,4 +41,12 @@ describe("resolvePatientContact", () => {
   it("requires a destination on file", () => {
     expect(resolvePatientContact({ ...base, primaryMobile: undefined })).toEqual({ allowed: false, reason: "no_mobile_number" });
   });
+
+  it("pushes to the MyHealth account that allowed it, under the same preferences", () => {
+    const push = { ...base, channel: "push" as const };
+    expect(resolvePatientContact(push)).toEqual({ allowed: false, reason: "no_push_device" });
+    expect(resolvePatientContact({ ...push, pushAccountId: "acct-1" })).toEqual({ allowed: true, destination: "acct-1" });
+    expect(resolvePatientContact({ ...push, pushAccountId: "acct-1", optedIn: false })).toEqual({ allowed: false, reason: "opted_out" });
+    expect(resolvePatientContact({ ...push, pushAccountId: "acct-1", category: "outreach" })).toEqual({ allowed: false, reason: "no_outreach_opt_in" });
+  });
 });

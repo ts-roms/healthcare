@@ -73,6 +73,14 @@ const appConfigSchema = z
       .url()
       .transform((value) => value.replace(/\/+$/, ""))
       .optional(),
+    // Web Push to patients' browsers (docs/domains/notification.md, "Push"). A VAPID key pair (`npx web-push generate-vapid-keys`) and
+    // a contact address (mailto: or https:); all three or none. Without them MyHealth does not offer push.
+    VAPID_PUBLIC_KEY: z.string().min(40).optional(),
+    VAPID_PRIVATE_KEY: z.string().min(20).optional(),
+    VAPID_SUBJECT: z
+      .string()
+      .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, "VAPID_SUBJECT is a mailto: or https: address")
+      .optional(),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
     // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
     LIVEKIT_URL: z.string().url().optional(),
@@ -124,6 +132,14 @@ const appConfigSchema = z
     INTEGRATION_PAYLOAD_KEY_ID: z.string().regex(ENCRYPTION_KEY_ID_PATTERN, "a key id from INTEGRATION_PAYLOAD_KEYS").optional(),
   })
   .superRefine((config, ctx) => {
+    const vapid = [config.VAPID_PUBLIC_KEY, config.VAPID_PRIVATE_KEY, config.VAPID_SUBJECT];
+    if (vapid.some(Boolean) && !vapid.every(Boolean)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["VAPID_PUBLIC_KEY"],
+        message: "Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together, or none of them",
+      });
+    }
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     if (config.PAYMONGO_SECRET_KEY && (!config.PAYMONGO_WEBHOOK_SECRET || !config.PAYMONGO_PAYMENT_METHODS)) {

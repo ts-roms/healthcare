@@ -59,6 +59,8 @@ import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
+import { PatientPush } from "./portal/patient-push";
+import { PortalPushController, PortalPushDevices } from "./portal/portal-push.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
@@ -203,6 +205,7 @@ export class AppModule implements NestModule {
         ManagementDashboardController,
         PortalBillingController,
         PortalBookingController,
+        PortalPushController,
         PortalDentalController,
         PortalDocumentsController,
         PortalMessagesController,
@@ -223,6 +226,8 @@ export class AppModule implements NestModule {
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,
+        PatientPush,
+        PortalPushDevices,
         PatientRecordsNotices,
         ReferralNotices,
         PortalSecurityNotices,

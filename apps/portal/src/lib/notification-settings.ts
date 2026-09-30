@@ -1,7 +1,12 @@
 import type { PortalPreference, PreferenceCategory, PreferenceChannel } from "./api/types";
 
-export const PREFERENCE_CHANNELS: readonly PreferenceChannel[] = ["sms", "email"];
-export const CHANNEL_TEXT: Record<PreferenceChannel, string> = { sms: "Text message", email: "Email" };
+export const PREFERENCE_CHANNELS: readonly PreferenceChannel[] = ["sms", "email", "push"];
+export const CHANNEL_TEXT: Record<PreferenceChannel, string> = { sms: "Text message", email: "Email", push: "Notification on your phone or computer" };
+
+/** The channels to show: push only where the clinic can send it. */
+export function channelsShown(pushConfigured: boolean): readonly PreferenceChannel[] {
+  return pushConfigured ? PREFERENCE_CHANNELS : PREFERENCE_CHANNELS.filter((c) => c !== "push");
+}
 
 /** The kinds of message, in the patient's words. */
 export const CATEGORY_TEXT: Record<PreferenceCategory, { title: string; about: string }> = {
@@ -43,6 +48,6 @@ export function changedChoices(saved: Selection, next: Selection): Array<{ chann
 }
 
 /** Care messages switched off on every channel the clinic can reach the patient on: worth a warning before saving. */
-export function careMessagesOff(next: Selection): boolean {
-  return PREFERENCE_CHANNELS.every((channel) => next[selectionKey(channel, "clinical")] === false);
+export function careMessagesOff(next: Selection, channels: readonly PreferenceChannel[] = PREFERENCE_CHANNELS): boolean {
+  return channels.every((channel) => next[selectionKey(channel, "clinical")] === false);
 }

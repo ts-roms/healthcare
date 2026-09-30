@@ -10,14 +10,15 @@ import {
   CATEGORY_TEXT,
   changedChoices,
   CHANNEL_TEXT,
-  PREFERENCE_CHANNELS,
+  channelsShown,
   selectionKey,
   selectionOf,
 } from "@/lib/notification-settings";
 import { saveNotificationSettings } from "./actions";
 
-/** Text message and email, per kind of message. Only what changed is saved; the destination is the number or address the clinic has on record. */
-export function SettingsForm({ initial }: { initial: PortalPreferences }) {
+/** Text message, email and push, per kind of message. Only what changed is saved; the destination is the number or address the clinic has on record. */
+export function SettingsForm({ initial, pushConfigured }: { initial: PortalPreferences; pushConfigured: boolean }) {
+  const channels = channelsShown(pushConfigured);
   const [saved, setSaved] = React.useState(() => selectionOf(initial.preferences));
   const [next, setNext] = React.useState(saved);
   const [destinations, setDestinations] = React.useState(initial.destinations);
@@ -51,7 +52,7 @@ export function SettingsForm({ initial }: { initial: PortalPreferences }) {
           <legend className="px-1 font-semibold">{CATEGORY_TEXT[category].title}</legend>
           <p className="text-body text-muted-foreground">{CATEGORY_TEXT[category].about}</p>
           <div className="flex flex-col gap-2">
-            {PREFERENCE_CHANNELS.map((channel) => {
+            {channels.map((channel) => {
               const key = selectionKey(channel, category);
               const id = `pref-${key}`;
               return (
@@ -60,7 +61,11 @@ export function SettingsForm({ initial }: { initial: PortalPreferences }) {
                   <Label htmlFor={id} className="flex flex-col items-start gap-0">
                     <span>{CHANNEL_TEXT[channel]}</span>
                     <span className="text-meta font-normal text-muted-foreground">
-                      {destinations[channel] ? `To ${destinations[channel]}` : "The clinic has no number or address on record — nothing can be sent"}
+                      {destinations[channel]
+                        ? `To ${destinations[channel]}`
+                        : channel === "push"
+                          ? "Turn on notifications on a device below first"
+                          : "The clinic has no number or address on record — nothing can be sent"}
                     </span>
                   </Label>
                 </div>
@@ -69,7 +74,7 @@ export function SettingsForm({ initial }: { initial: PortalPreferences }) {
           </div>
         </fieldset>
       ))}
-      {careMessagesOff(next) ? (
+      {careMessagesOff(next, channels) ? (
         <p role="status" className="flex gap-2 rounded-lg border border-warning/40 bg-warning-subtle p-3 text-body text-warning-foreground">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           Messages about your care are off on every channel. Check MyHealth yourself for new results and follow-up.

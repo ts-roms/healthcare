@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AuthService } from "@healthcare/auth";
 import type { NotificationCategory, NotificationChannel, Recipient, RecipientDirectory, RecipientResolution } from "@healthcare/notification";
+import { PushSubscriptionService } from "@healthcare/notification";
 import { PatientRecordService, PortalAccountService } from "@healthcare/patient";
 
 /**
@@ -14,6 +15,7 @@ export class AppRecipientDirectory implements RecipientDirectory {
     private readonly patients: PatientRecordService,
     private readonly auth: AuthService,
     private readonly portal: PortalAccountService,
+    private readonly push: PushSubscriptionService,
   ) {}
 
   async resolve(organizationId: string, recipient: Recipient, channel: NotificationChannel, category: NotificationCategory): Promise<RecipientResolution> {
@@ -26,7 +28,13 @@ export class AppRecipientDirectory implements RecipientDirectory {
         return email ? { allowed: true, destination: email } : { allowed: false, reason: "no_portal_account" };
       }
       const portalActive = channel === "in_app" && (await this.portal.canUsePortal(organizationId, recipient.patientId));
-      return this.patients.resolveContact(organizationId, recipient.patientId, channel, category, portalActive);
+      // Push goes to the devices of the patient's MyHealth account, only while they can sign in and have allowed at least one.
+      let pushAccountId: string | undefined;
+      if (channel === "push") {
+        const accountId = await this.portal.activeAccountId(organizationId, recipient.patientId);
+        if (accountId && (await this.push.hasDevice(accountId))) pushAccountId = accountId;
+      }
+      return this.patients.resolveContact(organizationId, recipient.patientId, channel, category, portalActive, pushAccountId);
     }
     if (!(await this.auth.hasActiveMembership(recipient.userId, organizationId))) return { allowed: false, reason: "user_not_member" };
     if (channel === "in_app") return { allowed: true, destination: null };
