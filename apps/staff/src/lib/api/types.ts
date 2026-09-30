@@ -3026,21 +3026,36 @@ export interface LabQualitySummary {
 
 export type PatientTimelineKind =
   | "appointment"
+  | "queue_visit"
+  | "triage"
   | "encounter"
   | "referral"
+  | "medical_certificate"
   | "procedure"
   | "vitals"
+  | "allergy"
+  | "consent"
   | "prescription"
+  | "dispense"
   | "lab_order"
+  | "specimen"
   | "lab_result_release"
+  | "critical_value"
   | "dental"
+  | "dental_imaging"
   | "care_plan"
   | "invoice"
   | "payment"
+  | "billing_note"
+  | "deposit"
+  | "philhealth_claim"
+  | "philhealth_eligibility"
+  | "doh_case_report"
   | "communication"
   | "external_history"
   | "document"
-  | "immunization";
+  | "immunization"
+  | "records_request";
 
 export type PatientTimelineLinkType =
   | "appointment"
@@ -3053,7 +3068,10 @@ export type PatientTimelineLinkType =
   | "invoice"
   | "patient_external_history"
   | "patient_immunizations"
-  | "patient_record";
+  | "patient_record"
+  | "billing_account"
+  | "doh_case_report"
+  | "records_request";
 
 /** One timeline row: short display text only (no notes, values or message content); the link opens the record. */
 export interface PatientTimelineEntry {

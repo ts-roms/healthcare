@@ -27,6 +27,7 @@ import { PortalSecurityMailers } from "./portal/portal-security-mailer";
 import { PortalTokenService } from "./portal/portal-tokens";
 import { RecordsRequestController } from "./records-requests/records-request.controller";
 import { RecordsRequestService } from "./records-requests/records-request.service";
+import { PatientTimelineQueries } from "./patient-timeline.queries";
 
 @Module({
   imports: [JwtModule.register({})],
@@ -47,6 +48,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
   ],
   providers: [
     PatientRecordService,
+    PatientTimelineQueries,
     PatientReportingQueries,
     PatientRegistrationService,
     PatientSearchService,
@@ -67,6 +69,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
   ],
   exports: [
     PatientRecordService,
+    PatientTimelineQueries,
     PatientReportingQueries,
     PatientRegistrationService,
     PortalAccountService,

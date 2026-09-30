@@ -21,9 +21,11 @@ import {
   encounter,
   encounterNoteRevision,
   externalHistoryEntry,
+  medicalCertificate,
   practitioner,
   referral,
   referralSetting,
+  triageAssessment,
   visit,
   visitType,
   vitalSignSet,
@@ -576,6 +578,158 @@ export class ClinicQueries {
         ),
       )
       .orderBy(desc(at), desc(externalHistoryEntry.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Allergies when recorded, with the substance as recorded, category, criticality, verification, source and current
+   * status (entered in error included) — never the reaction or status reason. Allergies belong to the organization's
+   * record, not a facility, so a facility filter leaves them out.
+   */
+  timelineAllergies(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return Promise.resolve([]);
+    const at = allergyIntolerance.recordedAt;
+    return this.db
+      .select({
+        id: allergyIntolerance.id,
+        patientId: allergyIntolerance.patientId,
+        at: timelineInstant(at),
+        substance: allergyIntolerance.substance,
+        category: allergyIntolerance.category,
+        criticality: allergyIntolerance.criticality,
+        verification: allergyIntolerance.verification,
+        source: allergyIntolerance.source,
+        status: allergyIntolerance.status,
+      })
+      .from(allergyIntolerance)
+      .where(
+        and(
+          eq(allergyIntolerance.organizationId, organizationId),
+          filedAsPatient(allergyIntolerance.patientId, patientId),
+          timelineRange("allergy", at, allergyIntolerance.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(allergyIntolerance.id))
+      .limit(window.limit);
+  }
+
+  /** Allergy reviews when recorded ("no known allergies" or reviewed); organization-level like allergies. */
+  timelineAllergyReviews(organizationId: string, patientId: string, window: TimelineWindow) {
+    if (window.facilityIds) return Promise.resolve([]);
+    const at = allergyReview.reviewedAt;
+    return this.db
+      .select({
+        id: allergyReview.id,
+        patientId: allergyReview.patientId,
+        at: timelineInstant(at),
+        noKnownAllergies: allergyReview.noKnownAllergies,
+      })
+      .from(allergyReview)
+      .where(
+        and(
+          eq(allergyReview.organizationId, organizationId),
+          filedAsPatient(allergyReview.patientId, patientId),
+          timelineRange("allergy_review", at, allergyReview.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(allergyReview.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Queue visits at check-in: visit type, queue number, arrival, priority and status, and the consultation started from
+   * the visit (if any) — never the chief complaint, where the patient was called to or why the visit was closed.
+   */
+  timelineVisits(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = visit.checkedInAt;
+    return this.db
+      .select({
+        id: visit.id,
+        patientId: visit.patientId,
+        at: timelineInstant(at),
+        facilityId: visit.facilityId,
+        status: visit.status,
+        queueNumber: visit.queueNumber,
+        priority: visit.priority,
+        arrivalMode: visit.arrivalMode,
+        checkedInVia: visit.checkedInVia,
+        visitTypeName: visitType.name,
+        appointmentId: visit.appointmentId,
+        encounterId: sql<string | null>`(SELECT e.id FROM ${encounter} e WHERE e.visit_id = ${visit.id} AND e.status <> 'entered_in_error' LIMIT 1)`,
+      })
+      .from(visit)
+      .innerJoin(visitType, eq(visitType.id, visit.visitTypeId))
+      .where(
+        and(
+          eq(visit.organizationId, organizationId),
+          filedAsPatient(visit.patientId, patientId),
+          timelineFacility(visit.facilityId, window),
+          timelineRange("queue_visit", at, visit.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(visit.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Triage assessments when assessed: the priority given and the status (entered in error included) — never the chief
+   * complaint, pain score, risk flags, notes or vital values (vital signs are their own entries).
+   */
+  timelineTriage(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = triageAssessment.assessedAt;
+    return this.db
+      .select({
+        id: triageAssessment.id,
+        patientId: triageAssessment.patientId,
+        at: timelineInstant(at),
+        facilityId: visit.facilityId,
+        status: triageAssessment.status,
+        priority: triageAssessment.priority,
+        visitId: triageAssessment.visitId,
+        encounterId: sql<string | null>`(SELECT e.id FROM ${encounter} e WHERE e.visit_id = ${visit.id} AND e.status <> 'entered_in_error' LIMIT 1)`,
+      })
+      .from(triageAssessment)
+      .innerJoin(visit, eq(visit.id, triageAssessment.visitId))
+      .where(
+        and(
+          eq(triageAssessment.organizationId, organizationId),
+          filedAsPatient(triageAssessment.patientId, patientId),
+          timelineFacility(visit.facilityId, window),
+          timelineRange("triage", at, triageAssessment.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(triageAssessment.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Medical certificates when issued: number, issuing practitioner and status (void included) — never the purpose,
+   * findings, recommendations, rest period or void reason.
+   */
+  timelineMedicalCertificates(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = medicalCertificate.issuedAt;
+    return this.db
+      .select({
+        id: medicalCertificate.id,
+        patientId: medicalCertificate.patientId,
+        at: timelineInstant(at),
+        facilityId: medicalCertificate.facilityId,
+        status: medicalCertificate.status,
+        certificateNumber: medicalCertificate.certificateNumber,
+        encounterId: medicalCertificate.encounterId,
+        practitionerName: practitioner.displayName,
+      })
+      .from(medicalCertificate)
+      .innerJoin(practitioner, eq(practitioner.id, medicalCertificate.practitionerId))
+      .where(
+        and(
+          eq(medicalCertificate.organizationId, organizationId),
+          filedAsPatient(medicalCertificate.patientId, patientId),
+          timelineFacility(medicalCertificate.facilityId, window),
+          timelineRange("medical_certificate", at, medicalCertificate.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(medicalCertificate.id))
       .limit(window.limit);
   }
 

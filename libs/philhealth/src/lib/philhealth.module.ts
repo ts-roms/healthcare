@@ -5,6 +5,7 @@ import { PhilHealthEligibilityService } from "./eligibility.service";
 import { philhealthGatewayProvider } from "./gateway";
 import { PhilHealthController } from "./philhealth.controller";
 import { PhilHealthClaimsService } from "./philhealth-claims.service";
+import { PhilHealthRecordQueries } from "./philhealth-record.queries";
 import { PhilHealthSettingsService } from "./philhealth-settings.service";
 import { PhilHealthOutcomes } from "./philhealth-outcomes";
 import {
@@ -43,6 +44,7 @@ export class PhilHealthModule {
       controllers: [PhilHealthController, PhilHealthEligibilityController, PhilHealthYakapController],
       providers: [
         PhilHealthClaimsService,
+        PhilHealthRecordQueries,
         PhilHealthSettingsService,
         PhilHealthOutcomes,
         options.gateway ?? philhealthGatewayProvider,
@@ -54,7 +56,7 @@ export class PhilHealthModule {
         options.yakapGateway ?? philhealthYakapGatewayProvider,
         { provide: PHILHEALTH_YAKAP_SOURCES, useClass: options.yakapSources },
       ],
-      exports: [PhilHealthClaimsService],
+      exports: [PhilHealthClaimsService, PhilHealthRecordQueries],
     };
   }
 }

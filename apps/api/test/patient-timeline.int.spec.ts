@@ -232,6 +232,8 @@ describe("patient timeline", () => {
       "dental",
       "encounter",
       "lab_result_release",
+      "specimen",
+      "specimen",
       "lab_order",
       "care_plan",
       "prescription",
@@ -313,11 +315,20 @@ describe("patient timeline", () => {
     expect(forCashier.withheld).not.toContain("invoice");
 
     const forMedtech = await timeline(medtech, "?limit=100");
-    expect(new Set(forMedtech.items.map((e) => e.kind))).toEqual(new Set(["lab_order", "lab_result_release"]));
+    expect(new Set(forMedtech.items.map((e) => e.kind))).toEqual(new Set(["lab_order", "specimen", "lab_result_release"]));
     expect(forMedtech.withheld).toEqual(expect.arrayContaining(["dental", "encounter", "invoice", "communication"]));
 
     const forDoctor = await timeline(doctor, "?limit=100");
-    expect(forDoctor.withheld).toEqual(["invoice", "payment"]);
+    expect(forDoctor.withheld).toEqual([
+      "dental_imaging",
+      "invoice",
+      "payment",
+      "billing_note",
+      "deposit",
+      "philhealth_claim",
+      "philhealth_eligibility",
+      "records_request",
+    ]);
     expect(forDoctor.items.some((e) => e.kind === "dental")).toBe(true);
 
     // Asking only for withheld kinds returns nothing and names them — without counts.

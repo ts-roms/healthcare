@@ -31,7 +31,7 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 | Placeholder page          | A menu item for a module not built yet. It shows that the module is not available; it holds no data.                                                                                |
 | Role                      | A named set of permissions given to a user, e.g. receptionist, nurse, physician, med tech, pathologist, dentist, pharmacist, cashier, records officer, org admin.                   |
 | Surviving record          | The record kept when duplicates are merged. Every screen of it also shows the records of each **merged record**, marked **Filed under**.                                            |
-| Timeline                  | The patient's history in date order (`/patients/[id]/timeline`): visits, encounters, results released, prescriptions, dental work, invoices, messages and more.                     |
+| Timeline                  | The patient's record in date order (`/patients/[id]/timeline`): visits, triage, encounters, allergies, specimens, results, prescriptions, dental work, invoices, claims and more.   |
 
 ### Clinic, consultations and telemedicine
 

@@ -6,15 +6,17 @@ export type StatusTone = "done" | "active" | "waiting" | "stopped" | "failed" | 
 
 /** Filter chips: groups of timeline kinds, in the order shown. */
 export const TIMELINE_GROUPS = [
-  { key: "visits", label: "Visits", kinds: ["appointment", "encounter", "vitals", "referral", "procedure"] },
-  { key: "prescriptions", label: "Prescriptions", kinds: ["prescription"] },
-  { key: "laboratory", label: "Laboratory", kinds: ["lab_order", "lab_result_release"] },
-  { key: "dental", label: "Dental", kinds: ["dental"] },
+  { key: "visits", label: "Visits", kinds: ["appointment", "queue_visit", "triage", "encounter", "vitals", "referral", "medical_certificate", "procedure"] },
+  { key: "allergies", label: "Allergies and consents", kinds: ["allergy", "consent"] },
+  { key: "prescriptions", label: "Prescriptions", kinds: ["prescription", "dispense"] },
+  { key: "laboratory", label: "Laboratory", kinds: ["lab_order", "specimen", "lab_result_release", "critical_value"] },
+  { key: "dental", label: "Dental", kinds: ["dental", "dental_imaging"] },
   { key: "care-plans", label: "Care plans", kinds: ["care_plan"] },
-  { key: "billing", label: "Billing", kinds: ["invoice", "payment"] },
+  { key: "billing", label: "Billing", kinds: ["invoice", "payment", "billing_note", "deposit"] },
+  { key: "claims", label: "PhilHealth and DOH", kinds: ["philhealth_claim", "philhealth_eligibility", "doh_case_report"] },
   { key: "messages", label: "Messages", kinds: ["communication"] },
   { key: "imported", label: "Imported history", kinds: ["external_history"] },
-  { key: "documents", label: "Documents", kinds: ["document"] },
+  { key: "documents", label: "Documents and requests", kinds: ["document", "records_request"] },
   { key: "immunizations", label: "Immunizations", kinds: ["immunization"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; kinds: readonly PatientTimelineKind[] }>;
 
@@ -22,21 +24,36 @@ export type TimelineGroupKey = (typeof TIMELINE_GROUPS)[number]["key"];
 
 export const KIND_LABELS: Record<PatientTimelineKind, string> = {
   appointment: "Appointment",
+  queue_visit: "Queue visit",
+  triage: "Triage",
   encounter: "Encounter",
   referral: "Referral",
+  medical_certificate: "Medical certificate",
   procedure: "Procedure",
   vitals: "Vital signs",
+  allergy: "Allergy",
+  consent: "Consent",
   prescription: "Prescription",
+  dispense: "Dispensing",
   lab_order: "Laboratory order",
+  specimen: "Specimen",
   lab_result_release: "Laboratory results",
+  critical_value: "Critical result",
   dental: "Dental",
+  dental_imaging: "Dental image",
   care_plan: "Care plan",
   invoice: "Invoice",
   payment: "Payment",
+  billing_note: "Credit or debit note",
+  deposit: "Deposit and credit",
+  philhealth_claim: "PhilHealth claim",
+  philhealth_eligibility: "PhilHealth answer",
+  doh_case_report: "DOH case report",
   communication: "Message",
   external_history: "Imported history",
   document: "Document",
   immunization: "Immunization",
+  records_request: "Records request",
 };
 
 export interface TimelineFilters {
@@ -122,6 +139,12 @@ export function entryHref(entry: PatientTimelineEntry, patientId: string, timeZo
       return `/clinic/care-plans/${link.id}`;
     case "invoice":
       return `/billing/invoices/${link.id}`;
+    case "billing_account":
+      return `/billing/patients/${link.id}`;
+    case "doh_case_report":
+      return `/reporting/${link.id}`;
+    case "records_request":
+      return `/records/requests/${link.id}`;
     default:
       return null;
   }
@@ -176,6 +199,59 @@ const STATUS: Record<string, { label: string; variant: Variant; tone: StatusTone
   // Immunizations
   "immunization:completed": { label: "Given", variant: "success", tone: "done" },
   "immunization:not_done": { label: "Not given", variant: "warning", tone: "stopped" },
+  // Queue visits
+  "queue_visit:waiting": { label: "Waiting", variant: "info", tone: "waiting" },
+  "queue_visit:in_triage": { label: "In triage", variant: "info", tone: "active" },
+  "queue_visit:awaiting_consultation": { label: "Awaiting consultation", variant: "info", tone: "waiting" },
+  "queue_visit:in_consultation": { label: "In consultation", variant: "info", tone: "active" },
+  "queue_visit:left_without_being_seen": { label: "Left without being seen", variant: "warning", tone: "stopped" },
+  // Allergies and consents
+  "allergy:inactive": { label: "Inactive", variant: "neutral", tone: "stopped" },
+  "allergy:resolved": { label: "Resolved", variant: "neutral", tone: "done" },
+  "consent:granted": { label: "Granted", variant: "success", tone: "done" },
+  "consent:refused": { label: "Refused", variant: "warning", tone: "stopped" },
+  "consent:withdrawn": { label: "Withdrawn", variant: "warning", tone: "stopped" },
+  // Dispensing
+  "dispense:recorded": { label: "Dispensed", variant: "success", tone: "done" },
+  "dispense:reversed": { label: "Reversed", variant: "warning", tone: "stopped" },
+  // Specimens and critical results
+  "specimen:collected": { label: "Collected", variant: "info", tone: "done" },
+  "specimen:received": { label: "Received", variant: "info", tone: "done" },
+  "specimen:rejected": { label: "Rejected", variant: "danger", tone: "failed" },
+  "critical_value:communicated": { label: "Awaiting acknowledgement", variant: "warning", tone: "waiting" },
+  "critical_value:acknowledged": { label: "Acknowledged", variant: "success", tone: "done" },
+  // Dental images shared in MyHealth
+  "dental_imaging:shared": { label: "Shared", variant: "info", tone: "done" },
+  "dental_imaging:withdrawn": { label: "Sharing withdrawn", variant: "neutral", tone: "stopped" },
+  // Deposit and credit account
+  "deposit:deposit": { label: "Received", variant: "success", tone: "done" },
+  "deposit:application": { label: "Applied", variant: "info", tone: "done" },
+  "deposit:release": { label: "Released", variant: "neutral", tone: "stopped" },
+  "deposit:transfer_in": { label: "Moved in", variant: "neutral", tone: "done" },
+  "deposit:transfer_out": { label: "Moved out", variant: "neutral", tone: "done" },
+  // PhilHealth and DOH (the answer as recorded; the platform decides nothing)
+  "philhealth_claim:rejected": { label: "Rejected", variant: "danger", tone: "failed" },
+  "philhealth_claim:not_configured": { label: "Not sent", variant: "neutral", tone: "stopped" },
+  "philhealth_claim:failed": { label: "Failed", variant: "danger", tone: "failed" },
+  "philhealth_eligibility:queued": { label: "Inquiry sent", variant: "neutral", tone: "waiting" },
+  "philhealth_eligibility:failed": { label: "Inquiry failed", variant: "danger", tone: "failed" },
+  "doh_case_report:failed": { label: "Submission failed", variant: "danger", tone: "failed" },
+  "philhealth_eligibility:eligible": { label: "Eligible", variant: "success", tone: "done" },
+  "philhealth_eligibility:not_eligible": { label: "Not eligible", variant: "warning", tone: "stopped" },
+  "philhealth_eligibility:undetermined": { label: "Undetermined", variant: "neutral", tone: "neutral" },
+  "philhealth_eligibility:registered": { label: "Registered", variant: "success", tone: "done" },
+  "philhealth_eligibility:not_registered": { label: "Not registered", variant: "warning", tone: "stopped" },
+  "philhealth_eligibility:pending": { label: "Pending", variant: "neutral", tone: "waiting" },
+  "philhealth_eligibility:unknown": { label: "Unknown", variant: "neutral", tone: "neutral" },
+  "doh_case_report:pending_review": { label: "Awaiting review", variant: "warning", tone: "waiting" },
+  "doh_case_report:reported": { label: "Reported", variant: "success", tone: "done" },
+  "doh_case_report:dismissed": { label: "Dismissed", variant: "neutral", tone: "stopped" },
+  "doh_case_report:rejected": { label: "Rejected", variant: "danger", tone: "failed" },
+  // Records requests
+  "records_request:submitted": { label: "Submitted", variant: "info", tone: "waiting" },
+  "records_request:in_review": { label: "In review", variant: "info", tone: "active" },
+  "records_request:fulfilled": { label: "Fulfilled", variant: "success", tone: "done" },
+  "records_request:withdrawn": { label: "Withdrawn", variant: "neutral", tone: "stopped" },
 };
 
 /**
