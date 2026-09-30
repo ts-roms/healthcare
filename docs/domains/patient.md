@@ -90,15 +90,16 @@ birth date, sex, deceased vs not, identifiers of the same type and issuer with d
 `warnings` from the `PatientMergeContext` port (adapter `apps/api/src/app/adapters/patient-merge-adapters.ts`), the
 MyHealth handling and the records that will be re-pointed. Pure rules in `merge/patient-merge.rules.ts` (unit-tested).
 
-| Work under the record to retire                                      | Kind                                                       | Why it blocks                                                 |
-| -------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| Encounter in progress (in person or online)                          | `encounter_in_progress`, `online_consultation_in_progress` | New notes, orders and prescriptions cannot be filed under it  |
-| Queue visit not ended                                                | `queue_visit`                                              | Triage and the consultation would start under it              |
-| Booked or confirmed appointment not yet ended                        | `upcoming_appointment`                                     | Reminders are never sent to a merged record; check-in refused |
-| Laboratory order still active (to collect, receive, result, release) | `lab_order_open`                                           | Results would be released to a retired record                 |
-| Draft invoice; charge not yet invoiced                               | `draft_invoice`, `uninvoiced_charge`                       | Invoices of the survivor cannot take the retired's charges    |
-| Deposit or credit balance at a facility                              | `account_balance`                                          | Applying and refunding use one record's own ledger            |
-| Active care plan                                                     | `care_plan_active` (warning only)                          | Stays under the retired number; its reminders are not sent    |
+| Work under the record to retire                                      | Kind                                                       | Why it blocks                                                                                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Encounter in progress (in person or online)                          | `encounter_in_progress`, `online_consultation_in_progress` | New notes, orders and prescriptions cannot be filed under it                                                           |
+| Queue visit not ended                                                | `queue_visit`                                              | Triage and the consultation would start under it                                                                       |
+| Booked or confirmed appointment not yet ended                        | `upcoming_appointment`                                     | Reminders are never sent to a merged record; check-in refused                                                          |
+| Laboratory order still active (to collect, receive, result, release) | `lab_order_open`                                           | Results would be released to a retired record                                                                          |
+| Draft invoice; charge not yet invoiced                               | `draft_invoice`, `uninvoiced_charge`                       | Invoices of the survivor cannot take the retired's charges                                                             |
+| Deposit or credit balance at a facility                              | `account_balance`                                          | Applying and refunding use one record's own ledger                                                                     |
+| Active care plan                                                     | `care_plan_active` (warning only)                          | Stays under the retired number; its reminders are not sent                                                             |
+| Open referral (sent or accepted)                                     | `referral_open` (warning only)                             | Stays under the retired number (its letter names it); answers and replies are still recorded; no new referral under it |
 
 **Merge** (`POST /patients/:id/merge`, body `survivorPatientId`, `reason`, `retiredVersion`, `survivorVersion`,
 `acknowledgedDifferences`): refused unless both records are in the caller's organization (404 otherwise), neither is

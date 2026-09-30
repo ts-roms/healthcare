@@ -102,6 +102,7 @@ a parameter of `$everything`.
 | Vital sign set                         | One `Observation` per measurement (LOINC, UCUM); blood pressure as components; BMI computed                    |
 | Appointment                            | `Appointment`                                                                                                  |
 | Laboratory order item                  | `ServiceRequest` (order number as requisition)                                                                 |
+| Referral (libs/clinic)                 | `ServiceRequest`, category SNOMED CT `3457005` Patient referral (see "Referrals")                              |
 | Released laboratory result             | `Observation` (LOINC when the test has one; `corrected` for a later version); interpretation from the flag     |
 | Laboratory order with released results | `DiagnosticReport` (`partial` while tests are pending)                                                         |
 | Prescription line                      | `MedicationRequest` (prescription number as group identifier; superseded → `stopped`)                          |
@@ -144,6 +145,32 @@ answers with a redirect to a signed download that expires in 5 minutes; no objec
 
 **Entered in error:** resources keep their `entered-in-error` status (FHIR expects them to be visible as such), and
 conditions/allergies in error carry no clinical status (invariants `con-5`, `ait-2`).
+
+### Referrals
+
+Each referral made from a consultation (`docs/domains/clinic.md`, "Referrals") is a `ServiceRequest`
+(`libs/interoperability/src/lib/fhir/referrals.ts`, composed from `ClinicQueries.referralRecords`; merged records
+included):
+
+- `category` SNOMED CT `3457005` _Patient referral_ (text "Referral"); `intent` `order`; the referral number as
+  identifier (`…/referral-number` in the organization's local namespace); `code` and `performerType` the specialty or
+  service as the referrer wrote it (text only; no code set is assumed).
+- `status`: sent and accepted → `active`; completed → `completed`; declined and cancelled → `revoked` (the platform's
+  own status in a `note`).
+- `priority` from the referrer's urgency: routine → `routine`, urgent → `urgent`, **emergency → `stat`**. R4 ranks
+  `routine < urgent < asap < stat`; `stat` ("with the highest priority") is the only code that says the recipient should
+  act immediately, which is what an emergency referral asks. The referrer's own word is also kept in a `note`, so a
+  receiving system that ranks differently can read it.
+- `subject`, `encounter` (the referring consultation), `authoredOn` (issued at), `requester` (the referring
+  `Practitioner`); `performer`: the practitioner referred to (internal), or for an outside provider contained
+  resources exactly as written (not verified): an `Organization` for the facility (or the provider when no facility is
+  named; the contact as `telecom` `other`) and, when both are named, a `Practitioner` for the provider.
+- `reasonCode` the reason in the referrer's words; `reasonReference` the diagnoses they listed (`Condition`); the
+  clinical summary as a `note`; `supportingInfo` the letter (`referral_letter` document, same id as the referral) and
+  the outside provider's reply document — only when those are exported too (`document.read`; never a dangling
+  reference; a cancelled referral's letter is archived and not exported).
+- `_lastUpdated` stays refused for `ServiceRequest` (a referral's status changes in place without a separate change
+  time for everything shown).
 
 ### Performing laboratory (send-outs)
 
@@ -246,7 +273,7 @@ the resource types and counts disclosed).
 
 No official URIs for Philippine national identifiers are on record, so none are invented:
 
-- The platform's own identifiers (patient number, facility code, order and prescription numbers) use a local
+- The platform's own identifiers (patient number, facility code, order, prescription and referral numbers) use a local
   namespace: `FHIR_IDENTIFIER_BASE/{organization code}/…` (defaults to `{API origin}/fhir/identifiers`).
 - National identifiers (PhilHealth PIN, PhilSys number, PRC license, facility license) default to
   `…/identifier/{type}` under that namespace until **configured** with `FHIR_IDENTIFIER_SYSTEMS`, a JSON map from the

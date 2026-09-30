@@ -281,12 +281,15 @@ You can have up to 5 open conversations, and send up to 10 messages an hour. The
 Notices are not conversations: to ask something, use **New message**. To stop reminders by text message or email, change your
 [notification settings](#how-to-choose-which-messages-you-get).
 
-## How to get your medical certificates and copies of your records
+## How to get your medical certificates, referral letters and copies of your records
 
 Choose **Documents** on **Home**.
 
 - **Medical certificates** — certificates your doctor issued after a visit. Choose **Download** to open one. You get a message when a new one is
   ready. A certificate the clinic cancelled is no longer listed.
+- **Referrals** — when your doctor refers you to another doctor or clinic: who it is to, the date and where it stands (for example "Sent — bring the
+  letter when you go"). Choose **Letter** to open the referral letter to bring or send. You get a message when a new one is ready. A referral your
+  doctor cancelled stays listed as cancelled, without its letter.
 - **Copies of your records** — to ask the clinic's records office for copies:
   1. Choose **Ask for copies of my records**.
   2. Tick what you need (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical certificates or
