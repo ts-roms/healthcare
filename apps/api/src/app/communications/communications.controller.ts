@@ -96,7 +96,7 @@ export class CommunicationsController {
       patientId: query.patientId,
       metadata: { ...this.filters(query), rows: items.length, truncated: page.hasMore },
     });
-    const body = Buffer.from(`﻿${toCsv(rows)}`, "utf8");
+    const body = Buffer.from(`\uFEFF${toCsv(rows)}`, "utf8");
     const filename = `communications-${query.from}-to-${query.to}.csv`;
     return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
   }
