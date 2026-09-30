@@ -54,6 +54,8 @@ import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
+import { PatientMessageNoticeSource } from "./portal/patient-message-notice-source";
+import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -224,6 +226,8 @@ export class AppModule implements NestModule {
         PatientRecordsNotices,
         ReferralNotices,
         PortalSecurityNotices,
+        PatientMessageNoticeSource,
+        PatientMessageNotices,
         // Rate limiting applies to every route, including the public login endpoints.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },

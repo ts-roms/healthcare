@@ -29,10 +29,16 @@ export async function bookAppointment(input: {
   return result;
 }
 
-export async function rescheduleAppointment(appointmentId: string, startsAt: string, version: number): Promise<Result<BookedAppointment>> {
-  if (!UUID.test(appointmentId)) return { ok: false, message: "Invalid request." };
+/** Moves the visit to another open time; `practitionerId` names another doctor at the same clinic (the same doctor when omitted). */
+export async function rescheduleAppointment(
+  appointmentId: string,
+  startsAt: string,
+  version: number,
+  practitionerId?: string,
+): Promise<Result<BookedAppointment>> {
+  if (!UUID.test(appointmentId) || (practitionerId && !UUID.test(practitionerId))) return { ok: false, message: "Invalid request." };
   const result = await run(() =>
-    portalApi<BookedAppointment>(`/portal/appointments/${appointmentId}/reschedule`, { method: "POST", body: { startsAt, version } }),
+    portalApi<BookedAppointment>(`/portal/appointments/${appointmentId}/reschedule`, { method: "POST", body: { startsAt, version, practitionerId } }),
   );
   if (result.ok) revalidatePath("/", "layout");
   return result;
@@ -43,5 +49,31 @@ export async function cancelAppointment(appointmentId: string, version: number, 
   const body = { version, reason: reason?.trim() || undefined };
   const result = await run(() => portalApi<BookedAppointment>(`/portal/appointments/${appointmentId}/cancel`, { method: "POST", body }));
   if (result.ok) revalidatePath("/", "layout");
+  return result;
+}
+
+/** Asks to be told when a time opens on days with no open times (where the clinic allows it). Nothing is booked. */
+export async function joinWaitlist(input: {
+  facilityId: string;
+  visitTypeId: string;
+  practitionerId?: string;
+  earliestDate: string;
+  latestDate: string;
+}): Promise<Result<{ id: string }>> {
+  if (!UUID.test(input.facilityId) || !UUID.test(input.visitTypeId) || (input.practitionerId && !UUID.test(input.practitionerId)))
+    return { ok: false, message: "Invalid request." };
+  if (!DATE.test(input.earliestDate) || !DATE.test(input.latestDate)) return { ok: false, message: "Invalid request." };
+  const result = await run(() => portalApi<{ id: string }>("/portal/booking/waitlist", { method: "POST", body: input }));
+  if (result.ok) revalidatePath("/appointments");
+  return result;
+}
+
+export async function leaveWaitlist(entryId: string): Promise<Result<null>> {
+  if (!UUID.test(entryId)) return { ok: false, message: "Invalid request." };
+  const result = await run(async () => {
+    await portalApi<void>(`/portal/booking/waitlist/${entryId}/leave`, { method: "POST" });
+    return null;
+  });
+  if (result.ok) revalidatePath("/appointments");
   return result;
 }

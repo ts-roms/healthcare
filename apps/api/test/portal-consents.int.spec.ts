@@ -104,7 +104,7 @@ describe("MyHealth consents", () => {
          SELECT organization_id, patient_id, 'research', 'granted', now(), 'electronic', id FROM patient_portal_account WHERE patient_id = $1`,
         [patientId],
       ),
-    ).rejects.toThrow(/patient_consent_patient_withdrawal/);
+    ).rejects.toThrow(/patient_consent_patient_decision/);
     await expect(
       ctx.pool.query(
         `INSERT INTO patient_consent (organization_id, patient_id, consent_type, decision, effective_at, captured_via)

@@ -1,5 +1,7 @@
 export * from "./lib/appointments/appointment-reminders";
 export * from "./lib/appointments/patient-booking.service";
+export * from "./lib/appointments/patient-waitlist.service";
+export * from "./lib/config/booking-rules.service";
 export * from "./lib/domain/patient-booking";
 export * from "./lib/clinic.module";
 export * from "./lib/clinic.schema";
@@ -15,7 +17,7 @@ export type { VitalsView } from "./lib/triage/triage.service";
 export type { VisitView, QueueEntryView } from "./lib/queue/visit.service";
 export type { EncounterView } from "./lib/encounters/encounter.service";
 export type { AppointmentListItem, AppointmentView } from "./lib/appointments/appointment.service";
-export { PatientBookDto, PatientCancelDto, PatientRescheduleDto, PatientSlotsDto } from "./lib/clinic.dto";
+export { PatientBookDto, PatientCancelDto, PatientRescheduleDto, PatientSlotsDto, PatientWaitlistJoinDto } from "./lib/clinic.dto";
 export * from "./lib/certificates/medical-certificate.service";
 export * from "./lib/certificates/medical-certificate.rules";
 export * from "./lib/referrals/referral.service";

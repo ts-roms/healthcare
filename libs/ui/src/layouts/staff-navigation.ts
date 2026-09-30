@@ -4,6 +4,7 @@ import {
   ClipboardListIcon,
   CalendarDaysIcon,
   FileInputIcon,
+  InboxIcon,
   FlaskConicalIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
@@ -90,6 +91,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Billing", href: "/billing", icon: ReceiptIcon, roles: ["billing", "reception", "admin"] },
   { label: "Pharmacy", href: "/pharmacy", icon: PillIcon, roles: ["nurse", "admin"] },
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
+  { label: "Patient messages", href: "/messages", icon: InboxIcon },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
   { label: "Management", href: "/management", icon: ChartColumnIcon, roles: ["admin"] },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
@@ -112,6 +114,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
     children: [
       { label: "Integrations", href: "/admin/integrations" },
       { label: "Compliance", href: "/admin/compliance" },
+      { label: "Consent wording", href: "/admin/consent-wording" },
     ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },

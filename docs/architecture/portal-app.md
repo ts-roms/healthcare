@@ -104,20 +104,26 @@ The records endpoints are composed in the API (`apps/api/src/app/portal/portal-r
 **Online booking.** `/appointments/book` walks the patient through the kind of visit (only visit types the clinic opened
 for online booking), the clinic (when there is more than one), the doctor ("any available doctor" or one by name), a day
 and an open time (morning/afternoon), an optional reason, then confirm. `/appointments/[id]` moves a visit to another
-open time with the same doctor, or cancels it (optional reason) — offered only while the API says `canReschedule` /
+open time — with the same doctor or another one at the same clinic — or cancels it (optional reason) — offered only while the API says `canReschedule` /
 `canCancel`. The rules live in the clinic domain (`libs/clinic/src/lib/domain/patient-booking.ts`) and are re-checked on
-every call: book at least 2 hours ahead and at most 60 days out, only on the schedule's slot grid, at most 3 open
-self-bookings, changes until 2 hours before; rescheduling only for online-bookable visit types. Patient changes are
+every call, with each clinic's own rules (`facility_booking_rule`, migration `0077`; by default at least 2 hours ahead, at most 60 days
+out, at most 3 open self-bookings, changes until 2 hours before), only on the schedule's slot grid; rescheduling only for
+online-bookable visit types. Where the clinic turns on its **waiting list**, a day with no open times offers "Tell me if a time opens"
+(`GET/POST /portal/booking/waitlist`); the patient is texted or emailed when a time may have opened (no time, doctor or reason in
+the message) and books it themselves, and lists or removes their requests under Visits. See `docs/domains/clinic.md`
+("Online booking rules and the waiting list"). Patient changes are
 audited with actor type `patient`, carry no staff user (`appointment.booked_by_patient`, `updated_by_patient`), and are
 confirmed by SMS (`appointment.self-service`: facility, date and time only); the usual reminder follows. Refusals are
 shown in plain words (`lib/booking.ts`). An online consultation booked this way continues with the questionnaire and
 waiting room above.
 
-**Messages.** `/messages` lists the patient's in-app messages newest first — results-ready notices, booking
+**Conversations (two-way messaging, migration `0076`; `libs/patient/src/lib/messaging`, `docs/domains/patient-messaging.md`).** `/messages` starts with **Your conversations** and **New message** (`/messages/new`: topic, subject, text up to 2,000 characters; `/messages/[threadId]`: the exchange and a reply box). Every place the patient writes says MyHealth is not for emergencies and that messages are read during clinic hours. At most 5 open conversations and 10 messages an hour; text only; a conversation the clinic closed takes no more messages (start a new one). The clinic replies from staff `/messages` (`patient.message.read|manage`); the patient gets a text or email that a message is waiting (`portal.message-received`, no name, subject or content) and the navigation badge counts unread replies together with notices.
+
+**Notices.** Below the conversations, `/messages` lists the patient's in-app notices newest first — results-ready notices, booking
 confirmations, "we missed you" after a no-show, care-plan follow-up reminders and messages staff send from the patient
 record ("Message in MyHealth", `clinic.message`). New ones are labelled and marked read once shown; the navigation shows
 the unread count. Each message links to where to act (results, visits, booking; `lib/messages.ts`). Messages are
-one-way: the page tells patients to call the clinic, or 911 in an emergency.
+read-only: a notice is not a conversation; questions go through **New message**.
 
 **Documents** (`/documents`, a **Documents** button on Home; `portal-documents.controller.ts`, audited `portal.documents-view`): the patient's issued medical certificates (purpose, visit date, practitioner, rest days — never the findings) and their records requests with the records office's note or reason and the documents shared, each opened through a short-lived audited link; a form to ask for copies (what, period, details, purpose; at most 3 open) and **Withdraw this request**. The `records.update` message links here.
 
@@ -132,8 +138,18 @@ the organization's data protection officer). A withdrawal is a new, append-only 
 (`recorded_by_portal_account`, electronic, effective at once; audited `portal.consent-withdraw`; event `PatientConsentWithdrawn`); the database
 allows a patient's account to record only electronic withdrawals and every decision exactly one recorder. Withdrawing MyHealth revokes every
 session of the account in the same transaction and signs the patient out (`/login?reason=access_withdrawn`); signing in is refused until the clinic
-records a new grant. Staff see the decision on the patient record marked "by the patient in MyHealth". Granting consent online is not offered: it
-needs the organization's own consent wording. Wording: `lib/consents.ts`.
+records a new grant. Staff see the decision on the patient record marked "by the patient in MyHealth". Wording: `lib/consents.ts`.
+
+**Giving a consent online** (migration `0078`; `libs/patient/src/lib/consents`). The platform ships **no consent wording**. An organization writes its own for
+telemedicine, HMO sharing, PhilHealth sharing and research (staff `/admin/consent-wording`, `consent.wording.manage`, org_admin): a title, the text and the
+statement the patient confirms, each save an immutable version (`consent_text`), and "stop offering online" is a version too. A consent is offered in MyHealth
+only while its latest version is offered and it is not already in effect (`canGive`). The patient opens **Read and give consent** (`/privacy/[type]`;
+`GET /portal/consents/:type/wording`, audited `portal.consent-wording-view`), ticks the confirmation and gives it (`POST /portal/consents/:type/give`,
+`acknowledged: true` and the version id): recorded electronically by their account as an ordinary append-only consent that keeps the wording version
+(`patient_consent.consent_text_id`), effective at once, audited `portal.consent-give`, event `PatientConsentGiven` (ids only). If the wording changed while
+they read, the give is refused (`409 consent_wording_changed`) and they read the new one. The database allows the patient's account to record only
+electronic withdrawals, or grants against a wording version. Consent to data processing and general treatment, and to MyHealth itself, are still given at the
+clinic. Whether an electronic consent meets the organization's legal needs is for its data protection officer to decide; nothing here states it does.
 
 **Dental.** Off unless the organization turns on "Dental records in MyHealth" (`/dental/settings`, `dental.settings.manage`;
 off by default). The navigation shows **Dental** only when `GET /portal/dental/availability` says records are shared and
@@ -180,4 +196,4 @@ The **API** also needs `PORTAL_BASE_URL` (the portal's public address, e.g. `htt
 
 ## Not yet
 
-giving consents online (needs the organization's consent wording), proxy access for guardians and dependents, choosing another doctor when rescheduling (cancel and book again), a waiting list for full days, per-clinic booking rules, replying to messages (two-way messaging), push notifications (needs the mobile app).
+proxy access for guardians and dependents, push notifications (needs the mobile app).

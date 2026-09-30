@@ -173,9 +173,9 @@ disable portal accounts; org admin, receptionist, records officer), `patient.mer
 - Merging never moves records, so a domain's own write paths keep the retired id (e.g. amending an old note). Reads
   of a retired record show only its own records; its timeline and Patient 360 open the survivor's in the staff app.
 - Care plans left active under a retired record keep their activities but are not reminded; the preview warns.
-- Portal: no self-service password reset, email verification, patient MFA, or
-  guardian/dependent proxy access yet. One portal deployment serves one
+- Portal: no guardian/dependent proxy access yet. One portal deployment serves one
   organization (`PORTAL_ORGANIZATION_CODE`).
 - MyHealth offers withdrawal of telemedicine, HMO and PhilHealth data sharing, research and portal access consents only; data processing and
-  general treatment consent are withdrawn at the clinic (assumption to confirm with the organization's data protection officer). Granting
-  consent online is not offered (needs the organization's consent wording).
+  general treatment consent are withdrawn at the clinic (assumption to confirm with the organization's data protection officer). Patients may
+  give the same four online, but only against the organization's own wording (`consent_text`, migration `0078`; the platform ships none) and only while it
+  offers them; the consent records the wording version. See `docs/architecture/portal-app.md`.

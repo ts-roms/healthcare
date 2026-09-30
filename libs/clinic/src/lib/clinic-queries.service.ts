@@ -29,6 +29,7 @@ import {
 import { publicView } from "./clinic-support";
 import { canApply } from "./domain/appointment-state";
 import { patientMayChange } from "./domain/patient-booking";
+import { BookingRulesService } from "./config/booking-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { TriageService, toVitalsView } from "./triage/triage.service";
 
@@ -43,6 +44,7 @@ export class ClinicQueries {
     @Inject(DATABASE) private readonly db: Database,
     private readonly config: ClinicConfigService,
     private readonly triage: TriageService,
+    private readonly bookingRules: BookingRulesService,
   ) {}
 
   practitionerForUser(organizationId: string, userId: string) {
@@ -82,7 +84,10 @@ export class ClinicQueries {
       .where(and(eq(appointment.organizationId, organizationId), filedAsPatient(appointment.patientId, patientId), gte(appointment.startsAt, since)))
       .orderBy(asc(appointment.startsAt))
       .limit(200);
-    const changeable = (r: { status: (typeof rows)[number]["status"]; startsAt: Date }) => canApply("cancel", r.status) && patientMayChange(r.startsAt, now);
+    // Each clinic sets how long before the start a patient may still change a visit online.
+    const rulesByFacility = await this.bookingRules.forFacilities(organizationId, [...new Set(rows.map((r) => r.facilityId))]);
+    const changeable = (r: { status: (typeof rows)[number]["status"]; startsAt: Date; facilityId: string }) =>
+      canApply("cancel", r.status) && patientMayChange(r.startsAt, now, rulesByFacility.get(r.facilityId));
     return {
       // What the patient may still do themselves in MyHealth (the API enforces the same rules).
       upcoming: rows

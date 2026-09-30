@@ -4,16 +4,18 @@ import { Button } from "@healthcare/ui/primitives";
 import { EmptyState } from "@/components/empty-state";
 import { VisitCard } from "@/components/visit-card";
 import { portalApi } from "@/lib/api/client";
-import type { BookingOptions, PortalAppointments } from "@/lib/api/types";
+import type { BookingOptions, PortalAppointments, PortalWaitlistEntry } from "@/lib/api/types";
+import { WaitlistList } from "./waitlist-list";
 
 const DONE = { booked: "Your visit is booked.", moved: "Your visit was moved.", cancelled: "Your visit was cancelled." } as const;
 
 export const metadata = { title: "Visits" };
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Partial<Record<keyof typeof DONE, string>>> }) {
-  const [{ upcoming, past }, options, done] = await Promise.all([
+  const [{ upcoming, past }, options, waiting, done] = await Promise.all([
     portalApi<PortalAppointments>("/portal/appointments"),
     portalApi<BookingOptions>("/portal/booking/options"),
+    portalApi<PortalWaitlistEntry[]>("/portal/booking/waitlist"),
     searchParams,
   ]);
   const canBook = options.visitTypes.length > 0 && options.facilities.length > 0;
@@ -50,6 +52,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           upcoming.map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         )}
       </section>
+      {waiting.length ? <WaitlistList entries={waiting} /> : null}
       {past.length ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-section-lg font-semibold">Past year</h2>
