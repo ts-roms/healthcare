@@ -81,6 +81,10 @@ const appConfigSchema = z
       .string()
       .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, "VAPID_SUBJECT is a mailto: or https: address")
       .optional(),
+    // Push to the MyHealth mobile app through the Expo push service (docs/architecture/mobile-app.md). No account is needed to
+    // send; EXPO_ACCESS_TOKEN is only for Expo projects with "enhanced push security" turned on. Off unless enabled.
+    EXPO_PUSH_ENABLED: booleanString.default(false),
+    EXPO_ACCESS_TOKEN: z.string().min(10).optional(),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
     // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
     LIVEKIT_URL: z.string().url().optional(),
@@ -238,6 +242,8 @@ const BLANK_MEANS_UNSET = [
   "VAPID_PUBLIC_KEY",
   "VAPID_PRIVATE_KEY",
   "VAPID_SUBJECT",
+  "EXPO_PUSH_ENABLED",
+  "EXPO_ACCESS_TOKEN",
   "LIVEKIT_URL",
   "LIVEKIT_API_KEY",
   "LIVEKIT_API_SECRET",

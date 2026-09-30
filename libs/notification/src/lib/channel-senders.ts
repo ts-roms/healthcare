@@ -4,6 +4,7 @@ import { createTransport, type Transporter } from "nodemailer";
 import type { NotificationChannel } from "./notification.schema";
 import type { ChannelSender, SendResult } from "./ports";
 import { PushSubscriptionService } from "./push/push-subscription.service";
+import { LibraryExpoPushTransport } from "./push/expo-push.transport";
 import { LibraryWebPushTransport, vapidFrom, WebPushSender } from "./push/web-push.sender";
 import type { RenderedMessage } from "./templates";
 
@@ -67,7 +68,8 @@ export function defaultChannelSenders(config: AppConfig, db?: Database): Channel
   return [
     // SMS and push providers are integration dependencies; add adapters here once selected.
     fallback("sms"),
-    // Push is Web Push to patients' browsers: it needs no provider account, only our VAPID key pair.
+    // Push is Web Push to patients' browsers (our VAPID key pair) and the Expo push service for the MyHealth mobile app
+    // (EXPO_PUSH_ENABLED): neither needs a provider account of its own.
     pushSender(config, db) ?? fallback("push"),
     config.SMTP_URL ? new SmtpEmailSender(config.SMTP_URL, config.EMAIL_FROM) : fallback("email"),
   ];
@@ -75,5 +77,10 @@ export function defaultChannelSenders(config: AppConfig, db?: Database): Channel
 
 function pushSender(config: AppConfig, db: Database | undefined): ChannelSender | undefined {
   const vapid = vapidFrom(config);
-  return vapid && db ? new WebPushSender(new PushSubscriptionService(db), new LibraryWebPushTransport(vapid)) : undefined;
+  if (!db || (!vapid && !config.EXPO_PUSH_ENABLED)) return undefined;
+  return new WebPushSender(
+    new PushSubscriptionService(db),
+    vapid ? new LibraryWebPushTransport(vapid) : undefined,
+    config.EXPO_PUSH_ENABLED ? new LibraryExpoPushTransport(config.EXPO_ACCESS_TOKEN) : undefined,
+  );
 }

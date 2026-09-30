@@ -15,7 +15,14 @@ const base64url = z.string().regex(/^[A-Za-z0-9_-]+={0,2}$/);
 class RegisterDeviceDto extends createZodDto(
   z.object({ endpoint: z.url().max(2048).startsWith("https://"), keys: z.object({ p256dh: base64url.min(40).max(200), auth: base64url.min(10).max(100) }) }),
 ) {}
-class PushStatusQueryDto extends createZodDto(z.object({ endpoint: z.url().max(2048).optional() })) {}
+class RegisterMobileDeviceDto extends createZodDto(
+  z.object({
+    token: z.string().regex(/^(Exponent|Expo)PushToken\[[A-Za-z0-9_-]{10,100}\]$/, "Not an Expo push token"),
+    platform: z.enum(["ios", "android"]),
+    deviceName: z.string().trim().min(1).max(60).optional(),
+  }),
+) {}
+class PushStatusQueryDto extends createZodDto(z.object({ endpoint: z.url().max(2048).optional(), token: z.string().max(200).optional() })) {}
 
 /**
  * The devices a patient has allowed to receive notifications (Web Push; docs/domains/notification.md, "Push"). Public to the
@@ -43,9 +50,11 @@ export class PortalPushController {
     const configured = Boolean(this.config.VAPID_PUBLIC_KEY && this.config.VAPID_PRIVATE_KEY && this.config.VAPID_SUBJECT);
     return {
       configured,
+      /** The MyHealth mobile app may register its device (the platform sends through the Expo push service). */
+      mobileConfigured: this.config.EXPO_PUSH_ENABLED,
       vapidPublicKey: configured ? (this.config.VAPID_PUBLIC_KEY ?? null) : null,
       devices: await this.devices.list(patient.accountId),
-      thisDeviceId: query.endpoint ? await this.devices.idOfEndpoint(patient.accountId, query.endpoint) : null,
+      thisDeviceId: (query.endpoint ?? query.token) ? await this.devices.idOfEndpoint(patient.accountId, (query.endpoint ?? query.token)!) : null,
     };
   }
 
@@ -61,6 +70,22 @@ export class PortalPushController {
       resourceId: device.id,
       patientId: patient.patientId,
       metadata: { device: device.label },
+    });
+    return device;
+  }
+
+  @Post("mobile-devices")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: "Register the MyHealth mobile app on this phone to receive notifications (up to 5 devices, browsers included)" })
+  async registerMobile(@CurrentPatient() patient: PortalPrincipal, @Body() body: RegisterMobileDeviceDto) {
+    if (!this.config.EXPO_PUSH_ENABLED) throw new BusinessRuleError("Notifications on this device are not available at this clinic", "push_not_available");
+    const device = await this.devices.registerMobile(patient.organizationId, patient.accountId, body);
+    await this.audit.recordStandalone(patientAuditContext(patient), {
+      action: "portal.push-register",
+      resourceType: "push_subscription",
+      resourceId: device.id,
+      patientId: patient.patientId,
+      metadata: { device: device.label, kind: "expo" },
     });
     return device;
   }
