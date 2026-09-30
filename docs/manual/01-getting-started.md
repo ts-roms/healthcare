@@ -94,8 +94,13 @@ Click your name in the top bar to open **My account** (`/account`).
 - **Recovery codes:** without your phone, type a recovery code instead of the 6 digits when signing in; each works once. **My account** shows how
   many are left. **New recovery codes…** (your password and a code from the app) makes a new set, and the old ones stop working.
 
-If you lose your phone and have no recovery codes left, ask your administrator to **reset** your two-step verification. You are signed out, and you
-set it up again at your next sign-in.
+**Forgot your password?** On the sign-in page, select **Forgot your password?**, enter the email you sign in with and select **Send me a link**. Open
+the link in the email within 30 minutes (it works once), enter the new password twice — and, if you use two-step verification, a code from your app or a recovery code —
+then **Save new password**. You are signed out everywhere and sign in with the new password.
+
+If you lose your phone and have no recovery codes left, ask your administrator to **reset** your two-step verification. You are signed out, and you set it up again at your next sign-in.
+If the email does not arrive, your administrator can give you a temporary password in person. After signing in with it, every page shows **Choose your
+own password**: enter the temporary password, then your new one twice, and select **Choose this password**.
 
 ## How to read your notifications
 

@@ -4,9 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CheckCircle2Icon, HandIcon, PlusIcon, ShieldAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import { markProcedureInError, recordProcedure } from "@/app/(staff)/clinic/procedure-actions";
-import type { ClinicProcedure, Practitioner, ProcedureDefinition } from "@/lib/api/types";
+import { Badge, Button, DateTimeInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { issueProcedureSupplies, markProcedureInError, recordProcedure, returnProcedureSupplies } from "@/app/(staff)/clinic/procedure-actions";
+import { SuppliesUsed } from "@/components/supplies-used";
+import type { ClinicProcedure, Practitioner, ProcedureDefinition, ProcedureSupplyOptions, SupplyUse } from "@/lib/api/types";
+import { draftFromTemplate } from "@/lib/supply-mapping";
 import { BLANK_PROCEDURE_FORM, definitionLabel, type ProcedureForm } from "@/lib/procedure-form";
 
 export interface EncounterProcedures {
@@ -17,12 +19,16 @@ export interface EncounterProcedures {
   canRecord: boolean;
   canAmend: boolean;
   currentUserId: string;
+  /** Supplies used by these procedures (from inventory), and what the supplies form needs (encounter.write). */
+  supplyUses: SupplyUse[];
+  supplyOptions: ProcedureSupplyOptions | null;
 }
 
 /**
  * Procedures performed in this consultation (docs/domains/clinic.md, "Procedures"): recorded from the organization's
  * own catalogue with who performed them; a mistake is marked entered in error with a reason (never edited or deleted).
- * Not for online consultations. Billing charges a procedure its catalogue maps to a service.
+ * Not for online consultations. Billing charges a procedure its catalogue maps to a service. The supplies a procedure
+ * used are issued from inventory under it (and unused ones returned), like dental procedures.
  */
 export function ProceduresPanel({
   encounterId,
@@ -62,6 +68,25 @@ export function ProceduresPanel({
               encounterId={encounterId}
               patientId={patientId}
               canMark={data.canRecord && !p.enteredInError && (p.recordedBy === data.currentUserId || data.canAmend)}
+              supplies={
+                <SuppliesUsed
+                  procedureId={p.id}
+                  active={!p.enteredInError}
+                  uses={data.supplyUses}
+                  options={data.supplyOptions}
+                  template={
+                    data.supplyOptions
+                      ? draftFromTemplate(
+                          data.supplyOptions.items.map((i) => i.id),
+                          data.supplyOptions.templates.find((t) => t.definitionId === p.definitionId)?.items,
+                        )
+                      : []
+                  }
+                  canRecord={data.canRecord && data.supplyOptions !== null}
+                  onIssue={(input) => issueProcedureSupplies(encounterId, p.id, input)}
+                  onReturn={(input) => returnProcedureSupplies(encounterId, p.id, input)}
+                />
+              }
             />
           ))}
         </ul>
@@ -91,11 +116,13 @@ function ProcedureRow({
   encounterId,
   patientId,
   canMark,
+  supplies,
 }: {
   procedure: ClinicProcedure;
   encounterId: string;
   patientId: string;
   canMark: boolean;
+  supplies: React.ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -133,6 +160,7 @@ function ProcedureRow({
           {p.enteredInError.byName ? ` (${p.enteredInError.byName}, ${clinicalDateTime(p.enteredInError.at)})` : ""}
         </p>
       ) : null}
+      {supplies}
       {canMark && !open ? (
         <div>
           <Button type="button" size="xs" variant="ghost" onClick={() => setOpen(true)}>
@@ -254,7 +282,7 @@ function RecordProcedureForm({
       </div>
       <div className="grid gap-1 sm:col-span-2">
         <Label htmlFor={`${id}-when`}>When</Label>
-        <Input id={`${id}-when`} type="datetime-local" value={form.performedAt} onChange={(e) => set("performedAt", e.target.value)} />
+        <DateTimeInput id={`${id}-when`} value={form.performedAt} onValueChange={(v) => set("performedAt", v)} />
         <span className="text-meta text-muted-foreground">Leave empty for now.</span>
       </div>
       <div className="grid gap-1 sm:col-span-2">

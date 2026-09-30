@@ -65,6 +65,17 @@ case, after booking you return to where you started.
 
 > Not available in the staff app yet: recurring appointments. The waiting list is under **Waiting list** (see below).
 
+## How to use the calendar
+
+**Calendar** in the menu shows the selected facility's month, week or day. Appointments and staff events appear together (untick **Show appointments** to see events only); click an appointment to open that day's schedule.
+
+1. Choose **New event**, give it a title and a type (meeting, event, blocked time, training or reminder).
+2. Set the start and end (or tick **All day**). Times are in the facility's time zone.
+3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
+4. Choose **Add event**.
+
+Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Appointments → Schedules** for that.
+
 ## How to confirm, cancel or mark a no-show
 
 On the day schedule, each open appointment (**Booked** or **Confirmed**) shows the actions you may take:
@@ -74,7 +85,9 @@ On the day schedule, each open appointment (**Booked** or **Confirmed**) shows t
 - **Cancel** — opens a box. Enter a **Reason for cancelling \*** (at least 3 characters, for example "Patient called to cancel"), then select
   **Cancel appointment**. Select **Keep** to leave it booked.
 - **No-show** — appears only once the appointment's start time has passed. Marking a no-show may send the patient a "we missed you" message
-  inviting them to book again (not if they already have another visit booked), subject to their communication preferences.
+  inviting them to book again (not if they already have another visit booked), subject to their communication preferences. Where the clinic turned
+  on **Automatic no-shows** (see "How to choose which visit types patients may book online"), appointments nobody attended are marked for you at the
+  end of the day.
 
 These actions need `appointment.manage`.
 
@@ -218,6 +231,16 @@ most 3 open bookings, and can change or cancel until 2 hours before. Their booki
 online bookings per patient**, **Changes and cancellations close (hours before)**, and whether patients may ask to be told when a time opens on a full
 day (**Waiting list**, with **Waiting-list requests per patient**). Change the numbers and select **Save rules** (needs `clinic.configure`; the change is
 audited). A clinic that never saved rules shows **Platform defaults** and uses them. Turn the waiting list on only if the front desk will work it.
+
+Two more settings sit with the booking rules, both off until you turn them on:
+
+- **Automatic no-shows** — tick **Mark appointments nobody attended as no-shows at the end of the day** and choose **Mark them after** (clinic time,
+  from 12:00 PM to 11:00 PM). Every hour after that time, booked or confirmed appointments of that day that ended without a check-in become
+  **No-show**, exactly as if someone had selected **No-show**: the patient may get the usual "we missed you" message. Only the last two days are
+  looked at, so turning it on does not change older appointments. The audit trail records these as made by the system.
+- **Online check-in** — tick **Patients may check in from MyHealth when they arrive** and set **Check-in opens (minutes before)** and **Check-in
+  closes (minutes after the start)**. Within that window a patient with an in-person appointment can select **I'm at the clinic — check in** in
+  MyHealth. They join the queue **Waiting** for triage with a ticket number, marked **Checked in online**, so look for them in the waiting area.
 
 ## How to work the waiting list
 

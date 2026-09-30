@@ -1,11 +1,14 @@
 import { cookies } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
+import { KeyRoundIcon } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
 import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
 import { COOKIES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
 import { setRequestTimeZone } from "@/lib/time-zone";
+import { PasswordForm } from "./account/account-forms";
 
 /** The top bar's badge; a failure here never takes the page down. */
 async function unreadNotices(): Promise<number> {
@@ -33,8 +36,38 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       timeZone={timeZone}
       unreadNotices={unread}
     >
-      {/* Until the member sets up the two-step verification their organization requires, the API opens nothing else. */}
-      {session.mfaPolicy.enrollmentRequired ? <MfaEnrollmentGate organizationName={session.organization.name} /> : children}
+      {/* Until the member replaces a temporary password, or sets up the two-step verification their organization requires, the API opens nothing else. */}
+      {session.user.passwordChangeRequired ? (
+        <ChooseNewPassword />
+      ) : session.mfaPolicy.enrollmentRequired ? (
+        <MfaEnrollmentGate organizationName={session.organization.name} />
+      ) : (
+        children
+      )}
     </StaffShell>
+  );
+}
+
+/**
+ * Signed in with a temporary password from an administrator: every page asks for a new one first (the API refuses
+ * everything else until then; migration 0090).
+ */
+function ChooseNewPassword() {
+  return (
+    <div className="mx-auto w-full max-w-lg p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <KeyRoundIcon className="mr-1 inline size-4" aria-hidden /> Choose your own password
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-table">
+          <p className="text-muted-foreground">
+            An administrator gave you a temporary password. Enter it, then choose a new one that only you know. Nothing else opens until you do.
+          </p>
+          <PasswordForm temporary />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -13,10 +13,21 @@ import {
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { Request } from "express";
-import { ChangePasswordDto, LoginDto, MfaConfirmDto, MfaDisableDto, MfaVerifyDto, RecoveryCodesRenewDto, RefreshDto } from "./auth.dto";
+import {
+  ChangePasswordDto,
+  LoginDto,
+  MfaConfirmDto,
+  MfaDisableDto,
+  MfaVerifyDto,
+  RecoveryCodesRenewDto,
+  RefreshDto,
+  StaffPasswordResetDto,
+  StaffPasswordResetRequestDto,
+} from "./auth.dto";
 import { AccessService, facilitiesInReach } from "./access.service";
 import { AuthService } from "./auth.service";
 import { MfaPolicyService } from "./mfa-policy.service";
+import { StaffPasswordResetService } from "./staff-password-reset.service";
 import { REALTIME_TICKET_TTL_SECONDS, TokenService } from "./tokens";
 
 // Credential endpoints get a much tighter rate limit than the API default.
@@ -31,6 +42,7 @@ export class AuthController {
     private readonly organizations: OrganizationService,
     private readonly tokens: TokenService,
     private readonly mfaPolicy: MfaPolicyService,
+    private readonly resets: StaffPasswordResetService,
   ) {}
 
   @Post("realtime-tickets")
@@ -52,6 +64,24 @@ export class AuthController {
   @ApiOperation({ summary: "Sign in with email and password; may require an MFA step" })
   login(@Body() body: LoginDto, @Req() request: Request) {
     return this.auth.login(body, requestMetadataFrom(request));
+  }
+
+  @Post("password-reset/request")
+  @Public()
+  @HttpCode(204)
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "Ask for a password-reset link by email (same answer whether or not the account exists)" })
+  async requestPasswordReset(@Body() body: StaffPasswordResetRequestDto, @Req() request: Request): Promise<void> {
+    await this.resets.request(body, requestMetadataFrom(request));
+  }
+
+  @Post("password-reset")
+  @Public()
+  @HttpCode(204)
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "Choose a new password with the emailed link (and a current code when two-step verification is on); signs out everywhere" })
+  async resetPassword(@Body() body: StaffPasswordResetDto, @Req() request: Request): Promise<void> {
+    await this.resets.confirm(body, requestMetadataFrom(request));
   }
 
   @Post("mfa/verify")
@@ -98,12 +128,14 @@ export class AuthController {
         mfaEnabled: user.mfaEnabled,
         recoveryCodesRemaining,
         isPlatformAdmin: user.isPlatformAdmin,
+        /** Signed in with a temporary password from an administrator: choose a new one first. */
+        passwordChangeRequired: user.passwordChangeRequired,
       },
       organization: { id: organization.id, code: organization.code, name: organization.name },
       facilityId: actor.facilityId ?? null,
       mfaPolicy,
-      // Until enrollment, the member can do nothing else; the staff app shows only the set-up.
-      permissions: mfaPolicy.enrollmentRequired ? [] : [...actor.permissions].sort(),
+      // Until enrollment (or a temporary password is replaced), the member can do nothing else; the staff app shows only the set-up.
+      permissions: mfaPolicy.enrollmentRequired || user.passwordChangeRequired ? [] : [...actor.permissions].sort(),
     };
   }
 

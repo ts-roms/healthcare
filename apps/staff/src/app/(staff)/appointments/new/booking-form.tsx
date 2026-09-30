@@ -5,7 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CalendarPlusIcon } from "lucide-react";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, RadioGroup, RadioGroupTile, toast } from "@healthcare/ui/primitives";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  DateInput,
+  Input,
+  Label,
+  NativeSelect,
+  RadioGroup,
+  RadioGroupTile,
+  toast,
+} from "@healthcare/ui/primitives";
 import { updateCareActivity } from "../../clinic/care-plans/actions";
 import { bookAppointment } from "../actions";
 
@@ -142,7 +155,7 @@ export function BookingForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor="date">Day *</Label>
-          <Input id="date" type="date" min={today} value={selection.date} onChange={(e) => e.target.value && select({ date: e.target.value })} />
+          <DateInput id="date" min={today} value={selection.date} onChange={(e) => e.target.value && select({ date: e.target.value })} />
         </div>
       </fieldset>
 

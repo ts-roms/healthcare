@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
+import { Badge, Button, Checkbox, DateInput, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import type { StaffProxyGrant, StaffProxyOverview } from "@/lib/api/types";
 import { grantProxy, revokeProxy } from "./proxy-actions";
 
@@ -195,7 +195,7 @@ export function ProxyAccess({ patientId, overview, canManage }: { patientId: str
               </label>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="proxy-until">Ends on (optional)</Label>
-                <Input id="proxy-until" type="date" value={form.expiresOn} onChange={(e) => setForm({ ...form, expiresOn: e.target.value })} />
+                <DateInput id="proxy-until" value={form.expiresOn} onChange={(e) => setForm({ ...form, expiresOn: e.target.value })} />
               </div>
             </div>
             <div className="flex gap-2">

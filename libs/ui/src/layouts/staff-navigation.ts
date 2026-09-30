@@ -3,6 +3,7 @@ import {
   ChartColumnIcon,
   ClipboardListIcon,
   CalendarDaysIcon,
+  CalendarRangeIcon,
   FileInputIcon,
   InboxIcon,
   FlaskConicalIcon,
@@ -16,6 +17,7 @@ import {
   ReceiptIcon,
   SmileIcon,
   StethoscopeIcon,
+  UserRoundCogIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -42,7 +44,9 @@ const FRONT_DESK: StaffRole[] = ["doctor", "nurse", "reception", "dentist", "adm
 export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboardIcon },
   { label: "Patients", href: "/patients", icon: UsersIcon, roles: ["doctor", "nurse", "reception", "dentist", "billing", "admin"] },
+  { label: "Calendar", href: "/calendar", icon: CalendarRangeIcon, roles: FRONT_DESK },
   { label: "Appointments", href: "/appointments", icon: CalendarDaysIcon, roles: FRONT_DESK },
+  { label: "Doctors", href: "/doctors", icon: UserRoundCogIcon, roles: FRONT_DESK },
   { label: "Queue", href: "/queue", icon: ListOrderedIcon, roles: [...FRONT_DESK, "billing"] },
   {
     label: "Clinic",

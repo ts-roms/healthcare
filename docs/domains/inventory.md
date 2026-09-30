@@ -81,7 +81,8 @@ port, **inside the caller's transaction** so the workflow's record and the stock
 - `usableAt(organizationId, facilityId, categories)` — usable stock per location and item (what can be taken).
 - `consume` and `issueForSource` take the **item categories** the calling workflow may use (`categories`), each list
   owned by that workflow's domain: dispensing `DISPENSABLE_CATEGORIES` (medicine, medical supply), reagent loads
-  `REAGENT_CATEGORY`, dental supplies `DENTAL_SUPPLY_CATEGORIES` (dental and medical supply, medicine, PPE, other).
+  `REAGENT_CATEGORY`, dental supplies `DENTAL_SUPPLY_CATEGORIES` (dental and medical supply, medicine, PPE, other),
+  clinic procedure supplies `CLINIC_SUPPLY_CATEGORIES` (medical supply, medicine, PPE, other).
   Anything else is refused with `item_category_not_allowed` (details: item, category, allowed) — dispensing never hands
   over a laboratory reagent, whatever is kept in the same room.
 
@@ -207,6 +208,9 @@ a line **of the same order** (composite keys through `(invoice_id, purchase_orde
   through `returnForSource` (partial, never more than the procedure still holds from the lot), behind dentistry's
   `DentalSupplies` port, in dentistry's transaction. Source `dental_procedure`; the staff movements list shows
   "Dental procedure". Items, locations and usable stock are read through `InventoryQueries`.
+- Clinic procedures ([clinic.md](clinic.md#procedures)): the same `issueForSource` / `returnForSource` pair behind the
+  clinic's `ProcedureSupplies` port (migration `0089`, source `clinic_procedure`, "Clinic procedure"; also left out of
+  the once-per-lot index).
 - Billing: supply charges are billing's concern (charge capture), not inventory's.
 
 ## Open questions / assumptions

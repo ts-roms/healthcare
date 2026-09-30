@@ -5,3 +5,4 @@ export * from "./patient-layout";
 export * from "./staff-layout";
 export * from "./staff-navigation";
 export * from "./telemedicine-layout";
+export * from "./sidebar-promo";

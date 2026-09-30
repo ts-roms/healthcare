@@ -10,7 +10,7 @@
   Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
   Enrollment requires confirming a code. Each code works once: the last
   accepted time step is kept (`app_user.mfa_last_used_step`, migration
-  `0087`) and a code for that step or an earlier one is refused, checked with
+  `0092`) and a code for that step or an earlier one is refused, checked with
   the account row locked (sign-in, set-up, turning off, renewing codes).
 - Recovery codes: 10 single-use codes (`K7M2P-X9QRT`, ~49 bits) are returned
   once by `POST /auth/mfa/confirm` and by `POST /auth/mfa/recovery-codes`
@@ -23,6 +23,33 @@
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
+
+### Password reset by email
+
+Migration `0091` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
+(`/forgot-password`): `POST /auth/password-reset/request { email }` answers `204` whether or not the account exists; a link
+goes only to an active staff account with an active membership, at most 3 per hour, to its sign-in email through
+`NotificationService` (template `staff.password-reset`, internal, the link blanked once sent; recorded under the
+organization joined first). The link is `STAFF_BASE_URL/reset-password#token=…` (the fragment never reaches a server);
+only the token's SHA-256 is stored; it works once, for 30 minutes, and a new request supersedes it. `POST
+/auth/password-reset { token, password, code? }`: with two-step verification on, a current code is required
+(`401 mfa_code_required`; five wrong codes burn the link). A reset ends every session, clears a lockout and a temporary
+password, is audited (`auth.password-reset`, failures with their reason) and the account's email is told
+(`staff.password-changed`). Without `STAFF_BASE_URL` no link is sent. Both endpoints are rate limited like sign-in.
+
+### Temporary password from an administrator
+
+Migration `0090`. With `user.manage`, an administrator can give a member of the organization a temporary password
+(`POST /users/:id/password-reset`, `{ temporaryPassword, reason }`; same rules as any password; `UsersService`): the
+administrator gives it to the person directly. Every session of the person ends, a lockout is cleared, and it is audited
+(`user.password-reset`, with the reason and the sessions ended). `app_user.password_change_required` is set: until the
+person changes it (`POST /auth/password`, which clears it; or a reset by email), the `AccessGuard` refuses every route
+not marked `@AllowDuringMfaEnrollment()` (the account routes) with `403 password_change_required`, and the staff app
+shows only "Choose your own password". Never your own account (`self_modification`; use My account). A staff account's
+credentials are shared by every organization it belongs to, so an account that is also a member elsewhere, or a platform
+administrator's, is refused (`account_shared`) unless the administrator is a platform administrator. Another
+organization's member is not found. Two-step verification is reset with `user.mfa.manage` (below). The administrator
+should confirm the person's identity in person first (the reason records how).
 
 ## Authorization model
 

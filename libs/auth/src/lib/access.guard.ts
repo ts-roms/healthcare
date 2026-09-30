@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuditService } from "@healthcare/audit";
-import { ACCESS_METADATA, BadRequestError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import { ACCESS_METADATA, BadRequestError, DomainError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
 import type { Request } from "express";
 import { ActorResolver } from "./actor-resolver";
 
@@ -14,6 +14,14 @@ import { ActorResolver } from "./actor-resolver";
  * The session is checked on every request so logout, password change and
  * membership suspension take effect immediately, not at token expiry.
  */
+export class PasswordChangeRequiredError extends DomainError {
+  readonly code = "password_change_required";
+  readonly httpStatus = 403;
+  constructor() {
+    super("Choose a new password before continuing");
+  }
+}
+
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
@@ -37,10 +45,13 @@ export class AccessGuard implements CanActivate {
       requestMetadataFrom(request),
     );
     request.actor = actor;
-
-    // The organization requires two-step verification this member has not set up: only enrollment is open.
-    if (actor.mfaEnrollmentRequired && !this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
-      throw new ForbiddenError("Your organization requires two-step verification. Set it up in My account to continue.", "mfa_enrollment_required");
+    // Account set-up comes first: a temporary password from an administrator is replaced (0090), and two-step verification
+    // the organization requires is set up; until then only the person's own account routes answer.
+    if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
+      if (actor.passwordChangeRequired) throw new PasswordChangeRequiredError();
+      if (actor.mfaEnrollmentRequired) {
+        throw new ForbiddenError("Your organization requires two-step verification. Set it up in My account to continue.", "mfa_enrollment_required");
+      }
     }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(ACCESS_METADATA.permissions, targets) ?? [];

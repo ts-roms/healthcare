@@ -73,6 +73,13 @@ const appConfigSchema = z
       .url()
       .transform((value) => value.replace(/\/+$/, ""))
       .optional(),
+    // Public address of the staff app, e.g. https://staff.example.ph. Staff password-reset emails link to it; without it no
+    // reset email is sent.
+    STAFF_BASE_URL: z
+      .string()
+      .url()
+      .transform((value) => value.replace(/\/+$/, ""))
+      .optional(),
     // Web Push to patients' browsers (docs/domains/notification.md, "Push"). A VAPID key pair (`npx web-push generate-vapid-keys`) and
     // a contact address (mailto: or https:); all three or none. Without them MyHealth does not offer push.
     VAPID_PUBLIC_KEY: z.string().min(40).optional(),
@@ -239,6 +246,7 @@ const BLANK_MEANS_UNSET = [
   "S3_FORCE_PATH_STYLE",
   "SMTP_URL",
   "PORTAL_BASE_URL",
+  "STAFF_BASE_URL",
   "VAPID_PUBLIC_KEY",
   "VAPID_PRIVATE_KEY",
   "VAPID_SUBJECT",

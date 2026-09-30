@@ -143,6 +143,20 @@ You see "Your visit is booked." The clinic sends you a confirmation and, later, 
 
 For an online visit, note: not every concern can be handled online. Your doctor may ask you to come to the clinic.
 
+## How to check in when you arrive
+
+Some clinics let you check in from MyHealth for a visit **at the clinic**, so you do not have to line up at the desk.
+
+1. When you are at the clinic, open **Visits**.
+2. Under your visit, choose **I'm at the clinic — check in**.
+3. You see "You are checked in. Your number is A-003 — please wait to be called." Wait in the waiting area; a nurse calls your number first.
+
+Only check in when you are at the clinic. The button appears from a set time before your visit (usually an hour); before that you see "You can check
+in here from … on the day." Soon after your visit's start time, online check-in closes and you check in at the desk. If your clinic does not offer it,
+there is no button — check in at the desk as usual. Online consultations do not use this: you join them from their own page.
+
+Some clinics mark visits nobody came to as **Missed** at the end of the day. If you cannot come, cancel your visit or call the clinic.
+
 ## How to change or cancel a visit
 
 Below an upcoming visit you can change, choose **Change or cancel** (or **Cancel** if the visit can only be cancelled).
@@ -459,6 +473,7 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - Each clinic sets its own booking rules; unless it has, you must book at least 2 hours ahead and not more than 60 days ahead, you can have at most 3 open
   online bookings at a time, and online changes and cancellations close 2 hours before the visit. A visit can be moved to another doctor at the same
   clinic, not to another clinic.
+- Online check-in is only for visits at the clinic, only where the clinic offers it, and only from the time it opens until shortly after the start.
 - The waiting list is only for days with no open times, only where the clinic has turned it on, for at most 14 days at a time, and you can have a few
   requests at once. It never books for you.
 - For an online consultation, you must answer the questions before you can enter the waiting room, and the video opens only when the doctor starts.

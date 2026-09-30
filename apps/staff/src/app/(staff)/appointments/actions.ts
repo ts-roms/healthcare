@@ -87,6 +87,11 @@ const bookingRulesSchema = z.object({
   changeCutoffMinutes: z.number().int().min(0).max(10_080),
   waitlistEnabled: z.boolean(),
   maxWaitlistEntries: z.number().int().min(1).max(10),
+  autoNoShow: z.boolean(),
+  autoNoShowHour: z.number().int().min(12, "Choose a time from noon").max(23),
+  onlineCheckIn: z.boolean(),
+  checkInOpensMinutes: z.number().int().min(0).max(240, "Online check-in can open at most 4 hours before"),
+  checkInClosesMinutes: z.number().int().min(0).max(120, "Online check-in can stay open at most 2 hours after the start"),
   version: z.number().int().positive().nullable(),
 });
 /** Sets one facility's online booking rules (needs clinic.configure; audited with before and after). */

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { PurchaseOrderInvoicing } from "@/lib/api/types";
 import { parsePesos, peso, pesoInput } from "@/lib/billing-mapping";
 import { recordSupplierInvoice } from "../../actions";
@@ -74,11 +74,11 @@ export function RecordSupplierInvoice({ invoicing }: { invoicing: PurchaseOrderI
           </div>
           <div className="grid gap-1">
             <Label htmlFor="invoice-date">Invoice date</Label>
-            <Input id="invoice-date" type="date" value={f.invoiceDate} onChange={(e) => setF({ ...f, invoiceDate: e.target.value })} />
+            <DateInput id="invoice-date" value={f.invoiceDate} onChange={(e) => setF({ ...f, invoiceDate: e.target.value })} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="invoice-due">Due date (optional)</Label>
-            <Input id="invoice-due" type="date" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} />
+            <DateInput id="invoice-due" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} />
           </div>
         </div>
         <fieldset className="flex flex-col gap-2">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { safeNextPath } from "@healthcare/web-session";
 import { LoginForm } from "./login-form";
 
@@ -16,7 +17,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <p className="text-body text-muted-foreground">Sign in to your staff account to continue.</p>
       </div>
       <LoginForm next={safeNextPath(next)} notice={reason ? NOTICES[reason] : undefined} />
-      <p className="text-meta text-muted-foreground">Trouble signing in? Ask your organization administrator to reset your password or authenticator.</p>
+      <p className="text-meta text-muted-foreground">
+        <Link href="/forgot-password" className="font-medium text-primary underline-offset-4 hover:underline">
+          Forgot your password?
+        </Link>{" "}
+        Lost your authenticator? Ask your organization administrator.
+      </p>
     </div>
   );
 }

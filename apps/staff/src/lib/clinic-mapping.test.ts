@@ -22,6 +22,7 @@ const visit: QueueVisit = {
   patientId: "p1",
   appointmentId: null,
   arrivalMode: "walk_in",
+  checkedInVia: "staff",
   ticket: "A-007",
   queueNumber: 7,
   queueDate: "2026-09-27",
@@ -53,6 +54,9 @@ describe("toQueueEntry", () => {
     expect(toQueueEntry({ ...visit, status: "in_triage" }).status).toBe("vitals");
     expect(toQueueEntry({ ...visit, status: "in_consultation" }).status).toBe("with-provider");
     expect(toQueueEntry({ ...visit, status: "left_without_being_seen" }).station).toBe("Left without being seen · Fever");
+    // An in-person patient who checked in from MyHealth; an online consultation's waiting room is not "checked in online".
+    expect(toQueueEntry({ ...visit, status: "waiting", checkedInVia: "patient_portal" }).station).toBe("Waiting · Checked in online · Fever");
+    expect(toQueueEntry({ ...visit, checkedInVia: "patient_portal", modality: "telemedicine" }).station).not.toContain("online");
   });
 
   it("shows where a called patient should go, and non-routine priority", () => {

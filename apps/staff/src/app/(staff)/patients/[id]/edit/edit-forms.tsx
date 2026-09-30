@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, Checkbox, DateInput, DateTimeInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import { label } from "@/lib/patient-mapping";
 import {
   ADDRESS_USE_OPTIONS,
@@ -123,7 +123,7 @@ export function DemographicsForm({ patientId, current, version }: { patientId: s
           <Input id="genderIdentity" value={form.genderIdentity} onChange={set("genderIdentity")} />
         </Field>
         <Field id="birthDate" label="Birth date *" error={errors.birthDate}>
-          <Input id="birthDate" type="date" required value={form.birthDate} onChange={set("birthDate")} />
+          <DateInput id="birthDate" required value={form.birthDate} onChange={set("birthDate")} />
         </Field>
         <div className="flex items-end pb-2">
           <CheckField id="birthDateIsEstimated" checked={form.birthDateIsEstimated} onChange={(v) => setForm((f) => ({ ...f, birthDateIsEstimated: v }))}>
@@ -193,13 +193,7 @@ export function StatusForm({ patientId, version, status }: { patientId: string; 
         </Field>
         {form.status === "deceased" ? (
           <Field id="deceasedAt" label="Date and time of death *" error={errors.deceasedAt}>
-            <Input
-              id="deceasedAt"
-              type="datetime-local"
-              required
-              value={form.deceasedAt}
-              onChange={(e) => setForm((f) => ({ ...f, deceasedAt: e.target.value }))}
-            />
+            <DateTimeInput id="deceasedAt" required value={form.deceasedAt} onValueChange={(v) => setForm((f) => ({ ...f, deceasedAt: v }))} />
           </Field>
         ) : null}
         <Field id="status-reason" label="Reason *" error={errors.reason} className="sm:col-span-2">
@@ -433,7 +427,7 @@ function IdentifierFields({ patientId, close }: { patientId: string; close: () =
           </Field>
         ) : null}
         <Field id="identifier-until" label="Valid until" error={errors.validUntil}>
-          <Input id="identifier-until" type="date" value={form.validUntil} onChange={set("validUntil")} />
+          <DateInput id="identifier-until" value={form.validUntil} onChange={set("validUntil")} />
         </Field>
       </div>
       <p className="text-meta text-muted-foreground">An ID already on another patient&apos;s record is refused: that may be a duplicate record.</p>

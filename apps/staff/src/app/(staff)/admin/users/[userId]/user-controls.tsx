@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
-import { grantRole, revokeRole, setMembershipStatus } from "../actions";
+import { grantRole, resetStaffPassword, revokeRole, setMembershipStatus } from "../actions";
 
 interface Option {
   id: string;
@@ -181,6 +181,91 @@ export function MembershipControl({ userId, status }: { userId: string; status: 
           {pending ? "Saving…" : verb}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * A temporary password handed over in person (user.manage, audited with a reason; the person's sessions end), to be
+ * replaced at the next sign-in. The API refuses accounts also used in other organizations (a platform administrator
+ * resets those). Two-step verification is reset with the controls above (user.mfa.manage).
+ */
+export function TemporaryPasswordReset({ userId }: { userId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [form, setForm] = React.useState({ temporaryPassword: "", confirm: "", reason: "" });
+  const [error, setError] = React.useState<string | null>(null);
+  const [pending, startTransition] = React.useTransition();
+  const close = () => {
+    setOpen(false);
+    setError(null);
+    setForm({ temporaryPassword: "", confirm: "", reason: "" });
+  };
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" className="self-start" onClick={() => setOpen(true)}>
+        Reset password…
+      </Button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-md border p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        startTransition(async () => {
+          const result = await resetStaffPassword(userId, form);
+          if (result.ok) {
+            toast.success("Temporary password set; they choose their own at the next sign-in");
+            close();
+            router.refresh();
+          } else setError(result.message);
+        });
+      }}
+    >
+      <p className="font-medium">Reset password</p>
+      <p className="text-meta text-muted-foreground">
+        Give the temporary password to the person directly, never by email or chat. They must choose their own password when they next sign in.
+      </p>
+      <Label htmlFor="temporary-password">Temporary password</Label>
+      <Input
+        id="temporary-password"
+        type="password"
+        autoComplete="new-password"
+        required
+        minLength={12}
+        maxLength={128}
+        value={form.temporaryPassword}
+        onChange={set("temporaryPassword")}
+      />
+      <Label htmlFor="temporary-password-again">Temporary password again</Label>
+      <Input id="temporary-password-again" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
+      <Label htmlFor="reset-reason">Reason</Label>
+      <Input
+        id="reset-reason"
+        required
+        minLength={3}
+        maxLength={500}
+        placeholder="e.g. forgot password, confirmed in person"
+        value={form.reason}
+        onChange={set("reason")}
+      />
+      <p className="text-meta text-muted-foreground">They are signed out everywhere at once.</p>
+      {error ? (
+        <p role="alert" className="text-meta text-danger-foreground">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" variant="destructive" disabled={pending}>
+          {pending ? "Saving…" : "Set temporary password"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={close} disabled={pending}>
           Cancel
         </Button>
       </div>

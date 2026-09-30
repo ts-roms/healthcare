@@ -56,3 +56,16 @@ export interface MfaRequiredResponse {
   status: "mfa_required";
   challengeToken: string;
 }
+
+// ---- password reset by email (migration 0091) ----------------------------------------------------------------------
+
+export const staffPasswordResetRequestSchema = z.object({ email: emailSchema });
+export class StaffPasswordResetRequestDto extends createZodDto(staffPasswordResetRequestSchema) {}
+
+export const staffPasswordResetSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: passwordSchema,
+  /** A current authenticator code (each works once) or a recovery code, when two-step verification is on for the account. */
+  code: secondFactorCode.optional(),
+});
+export class StaffPasswordResetDto extends createZodDto(staffPasswordResetSchema) {}

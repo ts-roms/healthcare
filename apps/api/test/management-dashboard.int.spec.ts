@@ -73,8 +73,10 @@ describe("management dashboard", () => {
         [tenant.organizationId, facilityId, patientId, doc.practitionerId, modality, doc.userId],
       );
     await encounter(ids.juan, tenant.facilityId, "now() - interval '40 days'");
-    await encounter(ids.juan, tenant.facilityId, "now() - interval '1 hour'");
-    await encounter(ids.ana, tenant.otherFacilityId, "now() - interval '1 hour'", "telemedicine");
+    // An hour ago, but never before today's start in Manila (the test may run just after midnight there).
+    const earlierToday = "greatest(now() - interval '1 hour', date_trunc('day', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila')";
+    await encounter(ids.juan, tenant.facilityId, earlierToday);
+    await encounter(ids.ana, tenant.otherFacilityId, earlierToday, "telemedicine");
 
     // A laboratory test ordered, collected and released at the main facility.
     const lab = (path: string, body: object) => api(admin).post(`/laboratory${path}`, body).expect(201);

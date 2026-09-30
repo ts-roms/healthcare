@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { ProcedureDefinition } from "@/lib/api/types";
+import type { ProcedureDefinition, ProcedureSupplyOptions } from "@/lib/api/types";
 import { ProcedureCatalog } from "./procedure-catalog";
+import { ProcedureSupplyTemplates } from "./procedure-supply-templates";
 
 export const metadata = { title: "Procedures" };
 
@@ -15,7 +16,10 @@ export const metadata = { title: "Procedures" };
 export default async function ProceduresPage() {
   const session = await getSession();
   if (!can(session, "encounter.read")) redirect("/");
-  const definitions = await api<ProcedureDefinition[]>("/clinic/procedure-definitions", { query: { includeInactive: "true" } });
+  const [definitions, supplyOptions] = await Promise.all([
+    api<ProcedureDefinition[]>("/clinic/procedure-definitions", { query: { includeInactive: "true" } }),
+    api<ProcedureSupplyOptions>("/clinic/procedure-supplies/options"),
+  ]);
   return (
     <>
       <PageHeader
@@ -23,6 +27,7 @@ export default async function ProceduresPage() {
         description="The procedures your clinic performs in consultations (not dental work or vaccinations), with your own codes. Billing charges a procedure when a service is mapped to its code (Billing → Settings)."
       />
       <ProcedureCatalog definitions={definitions} canConfigure={can(session, "clinic.configure")} />
+      <ProcedureSupplyTemplates options={supplyOptions} definitions={definitions} canConfigure={can(session, "clinic.configure")} />
     </>
   );
 }

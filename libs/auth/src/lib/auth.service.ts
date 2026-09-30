@@ -21,17 +21,15 @@ import type { z } from "zod";
 import { appUser, type AppUserRecord, organizationMembership, staffRecoveryCode } from "./auth.schema";
 import type { changePasswordSchema, loginSchema, MfaRequiredResponse, TokenResponse } from "./auth.dto";
 import { burnPasswordVerification, hashPassword, verifyPassword } from "./password";
-import { clearStaffMfa } from "./mfa-store";
+import { clearStaffMfa, type SecondFactorResult, spendSecondFactor } from "./mfa-store";
 import { MfaPolicyService } from "./mfa-policy.service";
 import { SessionService } from "./session.service";
 import { TokenService } from "./tokens";
-import { generateRecoveryCode, hashRecoveryCode, RECOVERY_CODE_COUNT, type SecondFactorKind, secondFactorKind } from "./second-factor";
+import { generateRecoveryCode, hashRecoveryCode, RECOVERY_CODE_COUNT } from "./second-factor";
 import { generateTotpSecret, totpUri, verifyTotpStep } from "./totp";
 
 export const MAX_FAILED_LOGINS = 5;
 export const LOCKOUT_MINUTES = 15;
-
-type SecondFactorResult = { ok: true; kind: SecondFactorKind; recoveryCodesLeft?: number } | { ok: false };
 
 const invalidCredentials = () => new UnauthenticatedError("Invalid email or password", "invalid_credentials");
 
@@ -181,14 +179,14 @@ export class AuthService {
     await this.db.transaction(async (tx) => {
       await tx
         .update(appUser)
-        .set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date(), version: sql`${appUser.version} + 1` })
+        .set({ passwordHash, passwordChangedAt: new Date(), passwordChangeRequired: false, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
         .where(eq(appUser.id, user.id));
       const revoked = await this.sessions.revokeAllForUser(tx, user.id, "password_changed", actor.sessionId);
       await this.audit.record(tx, actor, {
         action: "auth.password.change",
         resourceType: "app_user",
         resourceId: user.id,
-        metadata: { otherSessionsRevoked: revoked },
+        metadata: { otherSessionsRevoked: revoked, replacedTemporary: user.passwordChangeRequired },
       });
     });
   }
@@ -302,31 +300,10 @@ export class AuthService {
     return user;
   }
 
-  /**
-   * Checks the app's code (a time step not newer than the last accepted one is refused: a code works once) or, where
-   * allowed, a recovery code, and spends it — in the caller's transaction, with the account row locked.
-   */
-  private async checkSecondFactor(tx: DbExecutor, user: AppUserRecord, code: string, allowRecovery: boolean): Promise<SecondFactorResult> {
-    const kind = secondFactorKind(code);
-    if (!kind || !user.mfaEnabled || !user.mfaSecretEncrypted) return { ok: false };
-    if (kind === "totp") {
-      const step = verifyTotpStep(decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code.replace(/\s+/g, ""));
-      if (step === null || (user.mfaLastUsedStep !== null && step <= user.mfaLastUsedStep)) return { ok: false };
-      await tx.update(appUser).set({ mfaLastUsedStep: step }).where(eq(appUser.id, user.id));
-      return { ok: true, kind };
-    }
-    if (!allowRecovery) return { ok: false };
-    const [used] = await tx
-      .update(staffRecoveryCode)
-      .set({ usedAt: new Date() })
-      .where(and(eq(staffRecoveryCode.userId, user.id), eq(staffRecoveryCode.codeHash, hashRecoveryCode(user.id, code)), isNull(staffRecoveryCode.usedAt)))
-      .returning({ id: staffRecoveryCode.id });
-    if (!used) return { ok: false };
-    const [left] = await tx
-      .select({ n: count() })
-      .from(staffRecoveryCode)
-      .where(and(eq(staffRecoveryCode.userId, user.id), isNull(staffRecoveryCode.usedAt)));
-    return { ok: true, kind, recoveryCodesLeft: left?.n ?? 0 };
+  /** The app's code or, where allowed, a recovery code, spent in the caller's transaction (`spendSecondFactor`). */
+  private checkSecondFactor(tx: DbExecutor, user: AppUserRecord, code: string, allowRecovery: boolean): Promise<SecondFactorResult> {
+    if (!user.mfaEnabled || !user.mfaSecretEncrypted) return Promise.resolve({ ok: false });
+    return spendSecondFactor(tx, user, decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code, allowRecovery);
   }
 
   private async replaceRecoveryCodes(tx: DbExecutor, userId: string): Promise<string[]> {

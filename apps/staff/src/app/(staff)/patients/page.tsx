@@ -1,6 +1,19 @@
 import Link from "next/link";
 import { SearchIcon, UserPlusIcon } from "lucide-react";
-import { Badge, Button, Checkbox, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  DateInput,
+  Input,
+  NativeSelect,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@healthcare/ui/primitives";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
@@ -81,7 +94,7 @@ export default async function PatientsPage({
         </label>
         <label className="grid gap-1">
           <span className="text-meta font-medium text-muted-foreground">Birth date</span>
-          <Input name="birthDate" type="date" defaultValue={birthDate} className="w-44" />
+          <DateInput name="birthDate" defaultValue={birthDate} className="w-44" />
         </label>
         <label className="grid gap-1">
           <span className="text-meta font-medium text-muted-foreground">ID</span>

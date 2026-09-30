@@ -11,11 +11,13 @@ export const appUser = pgTable("app_user", {
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecretEncrypted: text("mfa_secret_encrypted"),
   mfaPendingSecretEncrypted: text("mfa_pending_secret_encrypted"),
-  /** The last accepted TOTP time step: a code works once (migration 0087). */
+  /** The last accepted TOTP time step: a code works once (migration 0092). */
   mfaLastUsedStep: bigint("mfa_last_used_step", { mode: "number" }),
   failedLoginCount: integer("failed_login_count").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Set when an administrator gave a temporary password (0090): the person must choose a new one first. */
+  passwordChangeRequired: boolean("password_change_required").notNull().default(false),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -96,11 +98,25 @@ export const authSession = pgTable("auth_session", {
   userAgent: text("user_agent"),
 });
 
+/** A staff password-reset link (0091): only the token's hash is stored; single use, short-lived. */
+export const staffPasswordReset = pgTable("staff_password_reset", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  consumedReason: text("consumed_reason").$type<"reset" | "superseded" | "exhausted" | "account_inactive">(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
 export type AppUserRecord = typeof appUser.$inferSelect;
 export type RoleRecord = typeof role.$inferSelect;
 export type AuthSessionRecord = typeof authSession.$inferSelect;
 
-/** Single-use codes for signing in without the authenticator app; only hashes are kept (migration 0087). */
+/** Single-use codes for signing in without the authenticator app; only hashes are kept (migration 0092). */
 export const staffRecoveryCode = pgTable("staff_recovery_code", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),

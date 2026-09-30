@@ -24,11 +24,13 @@ export interface StaffLayoutProps {
   Link?: LinkComponent;
   navigation?: NavItem[];
   productName?: string;
+  /** Bottom of the sidebar (and mobile menu): a help card, sign-out. */
+  sidebarFooter?: React.ReactNode;
 }
 
 /**
- * Desktop-first staff shell: narrow dark sidebar (role-filtered), a 44px top
- * bar with global patient search, and a full-bleed content area.
+ * Desktop-first staff shell: light sidebar with a filled pill for the active item
+ * (role-filtered), a soft top bar with global patient search, and a full-bleed content area.
  */
 /** The sidebar's collapsed state: per viewer, in local storage when available (else for this page load only). */
 const SIDEBAR_EVENT = "healthcare:sidebar";
@@ -70,6 +72,7 @@ export function StaffLayout({
   Link = DefaultLink,
   navigation,
   productName = "Healthcare Platform",
+  sidebarFooter,
 }: StaffLayoutProps) {
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -97,10 +100,14 @@ export function StaffLayout({
     <TooltipProvider delayDuration={300}>
       <div className="flex h-dvh overflow-hidden bg-background">
         <aside
-          className={cn("hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex", collapsed ? "w-12" : "w-56")}
+          className={cn(
+            "hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
+            collapsed ? "w-14" : "w-60",
+          )}
         >
           <Brand name={productName} collapsed={collapsed} />
           {railNav}
+          {sidebarFooter && !collapsed ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
           <div className="shrink-0 border-t border-sidebar-border p-2">
             <button
               type="button"
@@ -115,15 +122,16 @@ export function StaffLayout({
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-11 shrink-0 items-center gap-2 border-b bg-card px-3">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger className="rounded-md p-1.5 hover:bg-accent lg:hidden" aria-label="Open navigation">
                 <MenuIcon className="size-4" />
               </SheetTrigger>
-              <SheetContent side="left" className="bg-sidebar p-0 text-sidebar-foreground">
+              <SheetContent side="left" className="flex flex-col border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <Brand name={productName} />
                 {nav}
+                {sidebarFooter ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
               </SheetContent>
             </Sheet>
             <form
@@ -134,13 +142,13 @@ export function StaffLayout({
                 onSearch?.(searchRef.current?.value ?? "");
               }}
             >
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <input
                 ref={searchRef}
                 type="search"
                 aria-label="Search patients"
                 placeholder="Search patients: name, patient no. or mobile…"
-                className="h-8 w-full rounded-md border border-input bg-background pr-9 pl-8 text-body outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                className="h-9 w-full rounded-full border border-transparent bg-muted pr-9 pl-9 text-body outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
               />
               <Kbd className="absolute top-1/2 right-2 -translate-y-1/2">/</Kbd>
             </form>
@@ -155,11 +163,11 @@ export function StaffLayout({
 
 function Brand({ name, collapsed = false }: { name: string; collapsed?: boolean }) {
   return (
-    <div className={cn("flex h-11 shrink-0 items-center gap-2 border-b border-sidebar-border px-3", collapsed && "justify-center px-0")}>
-      <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <ActivityIcon className="size-3.5" aria-hidden />
+    <div className={cn("flex h-14 shrink-0 items-center gap-2 px-4", collapsed && "justify-center px-0")}>
+      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <ActivityIcon className="size-4" aria-hidden />
       </span>
-      {collapsed ? null : <span className="truncate text-body font-semibold text-sidebar-accent-foreground">{name}</span>}
+      {collapsed ? null : <span className="truncate text-section font-semibold text-primary-deep">{name}</span>}
     </div>
   );
 }
@@ -187,7 +195,7 @@ function SidebarNav({
     setOpenGroup(undefined);
   }
   return (
-    <nav aria-label="Main" className="flex-1 [scrollbar-width:none] overflow-y-auto px-2 py-2 [&::-webkit-scrollbar]:hidden">
+    <nav aria-label="Main" className="flex-1 [scrollbar-width:none] overflow-y-auto px-3 py-2 [&::-webkit-scrollbar]:hidden">
       <ul className="flex flex-col gap-0.5">
         {items.map((item) => {
           const Icon = item.icon;
@@ -204,9 +212,9 @@ function SidebarNav({
                     aria-label={collapsed ? item.label : undefined}
                     onClick={onNavigate}
                     className={cn(
-                      "flex h-8 items-center gap-2.5 rounded-md px-2 text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex h-9 items-center gap-2.5 rounded-full px-3 text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
                       collapsed && "justify-center px-0",
-                      active && "bg-sidebar-accent text-sidebar-accent-foreground",
+                      active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
                     )}
                   >
                     {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
@@ -225,8 +233,8 @@ function SidebarNav({
                       aria-expanded={expanded}
                       onClick={() => setOpenGroup(expanded ? null : item.href)}
                       className={cn(
-                        "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                        active && "bg-sidebar-accent text-sidebar-accent-foreground",
+                        "flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
+                        active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
                       )}
                     >
                       {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
@@ -258,8 +266,8 @@ function SidebarNav({
                           aria-current={cActive ? "page" : undefined}
                           onClick={onNavigate}
                           className={cn(
-                            "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                            cActive && "font-semibold text-sidebar-accent-foreground",
+                            "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-primary-deep focus-visible:ring-2 focus-visible:ring-ring",
+                            cActive && "font-semibold text-primary-deep",
                           )}
                         >
                           {c.label}

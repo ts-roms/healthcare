@@ -47,6 +47,11 @@ describe("online booking rules, another doctor, and the waiting list", () => {
     changeCutoffMinutes: 120,
     waitlistEnabled: false,
     maxWaitlistEntries: 3,
+    autoNoShow: false,
+    autoNoShowHour: 20,
+    onlineCheckIn: false,
+    checkInOpensMinutes: 60,
+    checkInClosesMinutes: 15,
     ...over,
   });
   async function setRules(over: Partial<Record<string, unknown>>) {
