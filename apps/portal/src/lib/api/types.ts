@@ -560,6 +560,48 @@ export interface PortalImmunization {
   where: string | null;
 }
 
+/** `GET /portal/health-history`: the patient's history as the clinic recorded it (no staff notes, entries in error left out). */
+export interface PortalHealthHistory {
+  procedures: Array<{
+    id: string;
+    description: string;
+    /** "2019", "2019-05", "2019-05-12", or null when not known. */
+    performed: string | null;
+    performer: string | null;
+    bodySite: string | null;
+    source: "reported" | "recorded_here" | "external_import";
+  }>;
+  conditions: Array<{ id: string; description: string; onset: string | null; status: "active" | "resolved" | "unknown"; source: "reported" | "recorded_here" }>;
+  family: {
+    state: "not_recorded" | "recorded" | "none_known" | "unknown";
+    unknownReason: "adopted" | "not_known" | "declined_to_answer" | null;
+    reviewedOn: string | null;
+    entries: Array<{
+      id: string;
+      relative: string;
+      condition: string;
+      onsetAge: number | null;
+      deceased: boolean | null;
+      causeOfDeath: string | null;
+      source: "reported" | "external_import";
+    }>;
+  };
+  social: {
+    effectiveDate: string;
+    tobacco: string | null;
+    alcohol: string | null;
+    occupation: string | null;
+    occupationalExposures: string | null;
+    livingSituation: string | null;
+    physicalActivity: string | null;
+    diet: string | null;
+    /** True for someone acting for the patient: substance use and sexual history are shown only to the patient. */
+    sensitiveWithheld: boolean;
+    substanceUse: string | null;
+    sexualHistory: string | null;
+  } | null;
+}
+
 export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
 
 /** `GET /portal/message-threads` row: a conversation with the clinic. */
