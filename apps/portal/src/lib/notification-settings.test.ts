@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PortalPreference } from "./api/types";
-import { careMessagesOff, changedChoices, selectionOf } from "./notification-settings";
+import { careMessagesOff, changedChoices, channelsShown, selectionOf } from "./notification-settings";
 
-const pref = (channel: "sms" | "email", category: "clinical" | "administrative" | "outreach", enabled: boolean): PortalPreference => ({
+const pref = (channel: "sms" | "email" | "push", category: "clinical" | "administrative" | "outreach", enabled: boolean): PortalPreference => ({
   channel,
   category,
   choice: null,
@@ -17,6 +17,9 @@ const all = [
   pref("email", "clinical", true),
   pref("email", "administrative", true),
   pref("email", "outreach", false),
+  pref("push", "clinical", true),
+  pref("push", "administrative", true),
+  pref("push", "outreach", false),
 ];
 
 describe("notification settings", () => {
@@ -31,8 +34,16 @@ describe("notification settings", () => {
 
   it("warns only when care messages are off on every channel", () => {
     const saved = selectionOf(all);
-    expect(careMessagesOff(saved)).toBe(false);
-    expect(careMessagesOff({ ...saved, "sms.clinical": false })).toBe(false);
-    expect(careMessagesOff({ ...saved, "sms.clinical": false, "email.clinical": false })).toBe(true);
+    const shown = channelsShown(false);
+    expect(careMessagesOff(saved, shown)).toBe(false);
+    expect(careMessagesOff({ ...saved, "sms.clinical": false }, shown)).toBe(false);
+    expect(careMessagesOff({ ...saved, "sms.clinical": false, "email.clinical": false }, shown)).toBe(true);
+    // With push offered too, it counts as a channel that can still reach the patient.
+    expect(careMessagesOff({ ...saved, "sms.clinical": false, "email.clinical": false }, channelsShown(true))).toBe(false);
+  });
+
+  it("shows push only where the clinic can send it", () => {
+    expect(channelsShown(false)).toEqual(["sms", "email"]);
+    expect(channelsShown(true)).toEqual(["sms", "email", "push"]);
   });
 });

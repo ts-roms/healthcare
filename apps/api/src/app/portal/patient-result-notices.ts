@@ -3,6 +3,7 @@ import { DomainEventHandlers, type DomainEventRecord, localDate, PH_TIMEZONE, sy
 import { LabPatientAccess } from "@healthcare/laboratory";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
+import { PatientPush } from "./patient-push";
 import { PortalAccountService } from "@healthcare/patient";
 
 /**
@@ -21,6 +22,7 @@ export class PatientResultNotices implements OnModuleInit {
     private readonly portal: PortalAccountService,
     private readonly organizations: OrganizationService,
     private readonly notifications: NotificationService,
+    private readonly push: PatientPush,
   ) {}
 
   onModuleInit(): void {
@@ -47,6 +49,7 @@ export class PatientResultNotices implements OnModuleInit {
       variables,
       idempotencyKey: `${key}:in_app`,
     });
+    if (await this.push.send(actor, event.patientId, { templateKey: "lab.results-available", variables, idempotencyKey: `${key}:push` })) return;
     const sms = await this.notifications.send(actor, {
       recipient: { type: "patient", patientId: event.patientId },
       channel: "sms",

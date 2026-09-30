@@ -5,8 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { COMMUNICATION_CATEGORIES, patient, patientCommunicationPreference, patientContactPoint } from "../patient.schema";
 import { patientAuditContext, type PortalPrincipal } from "../portal/portal-account.service";
+import { PushDeviceCounts } from "./push-device-counts";
 import {
   defaultOptedIn,
+  describePushDevices,
   maskDestination,
   PORTAL_PREFERENCE_CATEGORIES,
   PORTAL_PREFERENCE_CHANNELS,
@@ -33,6 +35,7 @@ export class PortalPreferencesService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly pushDevices: PushDeviceCounts,
   ) {}
 
   async get(principal: PortalPrincipal): Promise<PortalPreferencesView> {
@@ -111,7 +114,10 @@ export class PortalPreferencesService {
     ]);
     const destinations = {} as Record<PortalPreferenceChannel, string | null>;
     for (const channel of PORTAL_PREFERENCE_CHANNELS) {
-      destinations[channel] = maskDestination(channel, contacts.find((c) => c.system === (channel === "sms" ? "mobile" : "email"))?.value);
+      destinations[channel] =
+        channel === "push"
+          ? describePushDevices(await this.pushDevices.count(principal.accountId))
+          : maskDestination(channel, contacts.find((c) => c.system === (channel === "sms" ? "mobile" : "email"))?.value);
     }
     const preferences: PortalPreferenceView[] = [];
     for (const channel of PORTAL_PREFERENCE_CHANNELS) {

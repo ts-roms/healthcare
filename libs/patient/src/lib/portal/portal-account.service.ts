@@ -516,6 +516,16 @@ export class PortalAccountService {
     return { accountId: row.account.id, patientId: row.account.patientId, organizationId: row.account.organizationId, sessionId: row.session.id, request };
   }
 
+  /** The MyHealth account of a patient who can sign in now (active, with portal consent); undefined otherwise. For push; not audited. */
+  async activeAccountId(organizationId: string, patientId: string): Promise<string | undefined> {
+    const [account] = await this.db
+      .select({ id: patientPortalAccount.id, status: patientPortalAccount.status })
+      .from(patientPortalAccount)
+      .where(and(eq(patientPortalAccount.organizationId, organizationId), eq(patientPortalAccount.patientId, patientId)));
+    if (account?.status !== "active") return undefined;
+    return (await this.hasPortalConsent(this.db, organizationId, patientId)) ? account.id : undefined;
+  }
+
   /** Whether the patient can sign in to the portal now (active account and portal consent). For notifications; not audited. */
   async canUsePortal(organizationId: string, patientId: string): Promise<boolean> {
     const [account] = await this.db

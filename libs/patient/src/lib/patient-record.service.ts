@@ -579,6 +579,7 @@ export class PatientRecordService {
     channel: CommunicationChannel,
     category: CommunicationCategory,
     portalActive = false,
+    pushAccountId?: string,
   ): Promise<ContactResolution> {
     const [record] = await this.db
       .select({ status: patient.status })
@@ -607,6 +608,7 @@ export class PatientRecordService {
       primaryMobile: primaries.find((c) => c.system === "mobile")?.value,
       primaryEmail: primaries.find((c) => c.system === "email")?.value,
       portalActive,
+      pushAccountId,
     });
   }
 

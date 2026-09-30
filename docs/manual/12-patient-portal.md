@@ -333,13 +333,27 @@ decide again. If your clinic does not allow online decisions, you see "To decide
 ## How to choose which messages you get
 
 1. Choose **Profile**, then **Notification settings**.
-2. For each kind of message — **About your care**, **Appointments and bills** and **Check-in reminders** — tick or untick **Text message** and **Email**.
+2. For each kind of message — **About your care**, **Appointments and bills** and **Check-in reminders** — tick or untick **Text message**, **Email** and,
+   if your clinic offers it, **Notification on your phone or computer**.
    Under each you see where the message would go (for example "To •••• 4567"). If the clinic has no number or address for you, nothing can be sent there.
 3. Choose **Save settings**. It applies from the next message.
 
 Messages in MyHealth itself always reach you here. **About your care** includes "your results are ready" notices; if you switch these off on both
 channels, you are warned, and you should check MyHealth yourself for new results. **Check-in reminders** are off until you turn them on. A text or email
 never names a test or a result. To change the number or address the clinic uses, ask the clinic to update your record.
+
+## How to get notifications on your phone or computer
+
+If your clinic offers it, **Notification settings** shows **Notifications on your devices**.
+
+1. On the phone or computer you want to use, choose **Turn on notifications on this device** and allow notifications when your browser asks.
+2. The device is listed (for example "Chrome on Android · this device"). Choose **Send me a test** to check it works.
+3. From now on a short notice appears on that device when a message, result, document or dental item is waiting in MyHealth. It never says what it is:
+   sign in to read it. If you have a device turned on, you get the notice there **instead of** a text message or email.
+4. To stop, choose **Remove** next to a device, or untick **Notification on your phone or computer** for the kinds of message you do not want.
+
+You can use up to 5 devices. If the browser says notifications are blocked, allow them for this site in the browser's settings. Some browsers cannot do this
+(on an iPhone, add MyHealth to your Home Screen first); then you keep getting text messages and emails.
 
 ## How to see and withdraw your consents
 

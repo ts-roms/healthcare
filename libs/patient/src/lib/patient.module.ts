@@ -5,6 +5,7 @@ import { PatientMessageService } from "./messaging/patient-message.service";
 import { PortalEmailService } from "./security/portal-email.service";
 import { PortalMfaService } from "./security/portal-mfa.service";
 import { PortalMfaLoginController, PortalSecurityController } from "./security/portal-security.controller";
+import { PushDeviceCounts } from "./preferences/push-device-counts";
 import { PortalPreferencesController } from "./preferences/portal-preferences.controller";
 import { PortalPreferencesService } from "./preferences/portal-preferences.service";
 import { ConsentTextController } from "./consents/consent-text.controller";
@@ -57,6 +58,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     PatientMessageService,
     PortalSecurityMailers,
     ConsentTextService,
+    PushDeviceCounts,
   ],
   exports: [
     PatientRecordService,
@@ -67,6 +69,7 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
     RecordsRequestService,
     PortalSecurityMailers,
     PatientMessageService,
+    PushDeviceCounts,
   ],
 })
 export class PatientModule {}
