@@ -94,6 +94,21 @@ export interface PatientWorkspace {
   }> | null;
   dentalImages: Array<{ id: string; filedUnder: string | null; facility: Facility; kind: string; takenOn: string; teeth: string[] }> | null;
   documents: Array<{ id: string; filedUnder: string | null; facility: Facility; category: string; title: string; uploadedAt: string }> | null;
+  /** Open referrals first (oldest first), then the latest finished ones; never the reason or summary. */
+  referrals: Array<{
+    id: string;
+    filedUnder: string | null;
+    referralNumber: string;
+    status: string;
+    urgency: string;
+    kind: string;
+    specialty: string | null;
+    /** The practitioner referred to, or the outside provider (and facility) as the referrer wrote them. */
+    recipient: string;
+    referringPractitionerName: string;
+    issuedAt: string;
+    overdue: boolean;
+  }> | null;
   /** Records merged into this patient, read with it (ADR-0009). */
   linkedRecords: Array<{ id: string; patientNumber: string }>;
   withheld: WorkspacePanel[];
@@ -136,7 +151,7 @@ export class PatientWorkspaceService {
 
     const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
     const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
-    const [encounters, visit, critical, orders, images, documents] = await Promise.all([
+    const [encounters, visit, critical, orders, images, documents, referrals] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
         : none,
@@ -148,6 +163,7 @@ export class PatientWorkspaceService {
       has("dental_images") ? this.dental.workspaceImages(organizationId, patientId, WORKSPACE_LIMITS.dentalImages) : none,
       // One more than shown, so documents that are dental images (listed as images) can be left out.
       has("documents") ? this.documents.recentForPatient(organizationId, patientId, WORKSPACE_LIMITS.documents + WORKSPACE_LIMITS.dentalImages) : none,
+      has("referrals") ? this.clinic.workspaceReferrals(organizationId, patientId, WORKSPACE_LIMITS.referrals) : none,
     ]);
 
     const userId = actorUserId(actor);
@@ -251,6 +267,24 @@ export class PatientWorkspaceService {
                 : [],
             )
         : null,
+      referrals: referrals
+        ? referrals.map((r) => ({
+            id: r.id,
+            filedUnder: filedUnder(r.patientId),
+            referralNumber: r.referralNumber,
+            status: r.status,
+            urgency: r.urgency,
+            kind: r.kind,
+            specialty: r.specialty,
+            recipient:
+              r.kind === "internal"
+                ? (r.toPractitionerName ?? "A practitioner of the organization")
+                : [r.externalProvider, r.externalFacility].filter(Boolean).join(", "),
+            referringPractitionerName: r.referringPractitionerName,
+            issuedAt: iso(r.issuedAt),
+            overdue: r.overdue,
+          }))
+        : null,
       linkedRecords: [...linked].map(([id, patientNumber]) => ({ id, patientNumber })),
       withheld,
     };
@@ -270,6 +304,7 @@ export class PatientWorkspaceService {
           labOrders: result.labOrders?.length ?? null,
           dentalImages: result.dentalImages?.length ?? null,
           documents: result.documents?.length ?? null,
+          referrals: result.referrals?.length ?? null,
         },
       },
     });

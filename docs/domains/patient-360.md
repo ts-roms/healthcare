@@ -33,6 +33,7 @@ None. `GET /patients/:id/workspace` returns (`apps/api/src/app/patient-360/patie
 | `labOrders`        | Open (active) laboratory orders, latest first (≤ 10): number, priority, ordered at, encounter, each test's name and status                                                                                                                                                                                        | Clinical indication, notes                     |
 | `dentalImages`     | The latest 8 radiographs and photos (not entered in error): kind, date taken, teeth, facility                                                                                                                                                                                                                     | Notes; the file (opened through a signed link) |
 | `documents`        | The latest 8 documents staff uploaded (available, not domain-managed), without those listed as dental images: category, title, uploaded at                                                                                                                                                                        | The file (opened through a signed link)        |
+| `referrals`        | Open referrals first (oldest first), then the latest finished ones (≤ 8): number, recipient (practitioner here, or the outside provider and facility as written), specialty, urgency, status, referrer, issued at, `overdue` (the organization's follow-up threshold, off by default)                             | The reason, clinical summary, notes            |
 | `withheld`         | Panels the caller may not read (their field is null); never counted                                                                                                                                                                                                                                               |                                                |
 
 ## Commands
@@ -42,7 +43,7 @@ consultation** button); an online visit opens Telemedicine instead.
 
 ## Queries
 
-- `ClinicQueries.workspaceEncounters` and `workspaceActiveVisit` (`libs/clinic`)
+- `ClinicQueries.workspaceEncounters`, `workspaceActiveVisit` and `workspaceReferrals` (`libs/clinic`)
 - `LabRecordQueries.unacknowledgedCriticalAlerts` and `openOrders` (`libs/laboratory`)
 - `DentalRecordQueries.workspaceImages` (`libs/dental`)
 - `DocumentRecordQueries.recentForPatient` (`libs/documents`)
@@ -73,6 +74,7 @@ that gates the domain's own reads:
 | `lab_orders`        | `lab.order.read`                                          | as `critical_results`, plus phlebotomist                                |
 | `dental_images`     | `dental.imaging.read`                                     | dentist, dental_assistant, org_admin                                    |
 | `documents`         | `document.read`                                           | physician, nurse, dentist, dental_assistant, records_officer, org_admin |
+| `referrals`         | `encounter.read`                                          | as `current_encounter`                                                  |
 
 On the page, the summary panels need `patient.read` + `clinical.read` (prescriptions also `prescription.read`, care plans
 `care-plan.read`) and laboratory results `lab.result.read` (`lib/patient-workspace.ts` → `workspaceAccess`). A withheld
@@ -87,7 +89,8 @@ One `patient.workspace.view` audit per request with the panels shown and withhel
 
 ## Database relationships
 
-No tables and no migration: the queries use existing indexes (encounter, diagnosis, laboratory, dental image and document
+No tables of its own. The referrals panel reads `referral` and the organization's `referral_setting` (migration `0080`);
+the queries use existing indexes (encounter, diagnosis, laboratory, dental image and document
 indexes by patient; migration `0058` for the timeline).
 
 ## Integration points

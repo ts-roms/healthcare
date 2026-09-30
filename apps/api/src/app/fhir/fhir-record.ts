@@ -64,8 +64,9 @@ export class FhirRecordComposer {
     const patient = await this.patients.getDetail(actor, patientId);
     const withDocuments = include.documents ?? canReadDocuments(actor);
     const withDental = include.dental ?? canReadDental(actor);
-    const [clinic, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages] = await Promise.all([
+    const [clinic, referrals, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages] = await Promise.all([
       this.clinic.patientRecord(organizationId, patientId),
+      this.clinic.referralRecords(organizationId, patientId),
       this.lab.patientRecord(organizationId, patientId),
       this.prescriptions.allForPatient(organizationId, patientId),
       this.carePlans.allForPatient(organizationId, patientId),
@@ -87,6 +88,10 @@ export class FhirRecordComposer {
     }
     for (const o of labOrders) if (o.orderingPractitionerId) practitionerIds.add(o.orderingPractitionerId);
     for (const p of prescriptions) practitionerIds.add(p.prescriberPractitionerId);
+    for (const r of referrals) {
+      practitionerIds.add(r.referringPractitionerId);
+      if (r.toPractitionerId) practitionerIds.add(r.toPractitionerId);
+    }
     for (const c of carePlans) if (c.authorPractitionerId) practitionerIds.add(c.authorPractitionerId);
     if (dental) {
       for (const r of [...dental.examinations, ...dental.procedures, ...dental.perioCharts]) {
@@ -212,6 +217,25 @@ export class FhirRecordComposer {
         authorPractitionerId: c.authorPractitionerId,
         createdAt: c.createdAt.toISOString(),
         activities: c.activities.map((a) => ({ id: a.id, kind: a.kind, description: a.description, status: a.status, dueDate: a.dueDate })),
+      })),
+      referrals: referrals.map((r) => ({
+        id: r.id,
+        referralNumber: r.referralNumber,
+        kind: r.kind,
+        status: r.status,
+        urgency: r.urgency,
+        encounterId: r.encounterId,
+        referringPractitionerId: r.referringPractitionerId,
+        toPractitionerId: r.toPractitionerId,
+        externalProvider: r.externalProvider,
+        externalFacility: r.externalFacility,
+        externalContact: r.externalContact,
+        specialty: r.specialty,
+        reason: r.reason,
+        clinicalSummary: r.clinicalSummary,
+        diagnosisIds: r.diagnosisIds,
+        issuedAt: r.issuedAt.toISOString(),
+        replyDocumentId: r.replyDocumentId,
       })),
       documents:
         documents?.map((d) => ({

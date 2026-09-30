@@ -2,6 +2,7 @@ import { as, auditRows, createClinician, createStaff, createTenant, createTestAp
 
 interface Workspace {
   patientId: string;
+  referrals: Array<{ id: string; status: string }> | null;
   facility: { id: string; name: string } | null;
   timeZone: string;
   currentEncounter: {
@@ -308,4 +309,5 @@ const PANEL_FIELDS: Record<string, keyof Workspace> = {
   lab_orders: "labOrders",
   dental_images: "dentalImages",
   documents: "documents",
+  referrals: "referrals",
 };

@@ -200,7 +200,15 @@ select **Complete referral**; the referrer is told.
 reply**: write a summary and, if you uploaded the reply to the patient record, its document id. The platform sends nothing to outside
 providers by itself.
 
-Referrals appear on the patient's timeline (without the reason). **Clinic → Referrals** also lists referrals you made and all open ones.
+Referrals appear on the patient's timeline (without the reason), in a **Referrals** card on the patient record and in the **Referrals** panel of
+Patient 360. **Clinic → Referrals** also lists referrals you made, all open ones and **Overdue** ones. When the patient uses MyHealth, they see the
+referral (to whom, when, where it stands) and can open the letter; they get a message that a referral letter is ready, without who it is to or why.
+
+**Overdue referrals.** Your organization can choose after how many days a referral still awaiting an answer (from a practitioner here) or a reply
+(from an outside provider) is marked **Overdue** (with a clock icon and the word). It is off until someone sets it: staff who may configure the
+clinic open **Clinic → Referrals → Follow-up setting**, tick **Flag referrals still awaiting an answer or reply**, enter the number of days (1–365)
+and select **Save**; untick it to turn the flag off. The platform assumes no deadline and sends nothing by itself — follow the referral up the way
+your organization does.
 
 ## How to amend a signed encounter
 

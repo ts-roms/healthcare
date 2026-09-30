@@ -5,6 +5,7 @@ import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
+import { ReferralOverdueBadge } from "@/components/referral-overdue-badge";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { AppointmentItem, Page, Referral } from "@/lib/api/types";
@@ -69,9 +70,10 @@ export default async function ReferralPage({ params }: { params: Promise<{ id: s
         <Card>
           <CardHeader>
             <CardTitle>The referral</CardTitle>
-            <Badge variant={REFERRAL_STATUS[referral.status].variant} className="ml-auto">
-              {REFERRAL_STATUS[referral.status].label}
-            </Badge>
+            <span className="ml-auto flex flex-wrap gap-1">
+              <ReferralOverdueBadge overdue={referral.overdue} />
+              <Badge variant={REFERRAL_STATUS[referral.status].variant}>{REFERRAL_STATUS[referral.status].label}</Badge>
+            </span>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-table">
             <Row label="Patient">

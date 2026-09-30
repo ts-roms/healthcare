@@ -440,7 +440,22 @@ export interface PortalRecordsRequest {
   documents: Array<{ documentId: string; title: string; category: string; sharedAt: string }>;
 }
 
+/** A referral made for the patient: who it is to, when, how urgent and where it stands (the letter holds the rest). */
+export interface PortalReferral {
+  id: string;
+  referralNumber: string;
+  issuedAt: string;
+  status: "sent" | "accepted" | "declined" | "completed" | "cancelled";
+  urgency: "routine" | "urgent" | "emergency";
+  recipient: string;
+  specialty: string | null;
+  referringPractitionerName: string | null;
+  letterAvailable: boolean;
+}
+
 export interface PortalDocuments {
+  /** Older API versions leave it out. */
+  referrals?: PortalReferral[];
   certificates: PortalCertificate[];
   requests: PortalRecordsRequest[];
   /** What the clinic tells patients before they ask, in its own words (none: null). */

@@ -93,6 +93,14 @@ export class AppPatientMergeContext implements PatientMergeContext {
           at: null,
           link: { type: "care_plan", id: p.id },
         })),
+      // Open referrals stay under this number (their letter names it); a warning, not a blocker.
+      ...clinic.referrals.map((r): MergeWorkItem => ({
+        kind: "referral_open",
+        id: r.id,
+        label: `Open referral ${r.referralNumber} to ${r.kind === "internal" ? (r.toPractitionerName ?? "a practitioner") : (r.externalProvider ?? "an outside provider")} (${r.status}): it stays under this number`,
+        at: iso(r.issuedAt),
+        link: { type: "referral", id: r.id },
+      })),
     ];
     return items;
   }

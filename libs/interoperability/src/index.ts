@@ -5,6 +5,7 @@ export * from "./lib/fhir/dental";
 export * from "./lib/fhir/documents";
 export * from "./lib/fhir/external";
 export * from "./lib/fhir/orders";
+export * from "./lib/fhir/referrals";
 export * from "./lib/fhir/search";
 export * from "./lib/fhir/sources";
 export * from "./lib/fhir/terminology";

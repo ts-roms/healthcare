@@ -92,8 +92,9 @@ Open a patient from the search results. The record (`/patients/[id]`) shows:
   visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
   decision.
 - **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
-- **Consent & communication**, **Recent activity**, **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient
-  portal (MyHealth)**.
+- **Consent & communication**, **Recent activity**, **Referrals** (the patient's referrals with their status and **Overdue** when your organization flags
+  them; select one to open it), **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient portal
+  (MyHealth)**.
 
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 
@@ -255,6 +256,8 @@ record, **360** in the search results, **Patient 360** on a queue ticket, or **P
 - **Laboratory results** — the latest released value of the patient's most relevant tests (critical and abnormal first, then tests with earlier results), with
   **Trend** for each and a small chart for up to two tests. **All results** goes to the record's laboratory section.
 - **Open laboratory orders** — each order's priority, when it was ordered and each test's stage (for example "To collect").
+- **Referrals** — open referrals first, then the latest finished ones: number, to whom, urgency, status and **Overdue** when your organization flags
+  them. Select one to open it (the reason is read there).
 - **Images and documents** — dental radiographs and photos and the documents uploaded for the patient. Select one to open it (a link valid for a few minutes;
   each opening is recorded).
 - **Problem list**, **Active medications** (with prescriber, prescription number and date), **Care plans** (with the next due activity and **Overdue** when it
@@ -264,7 +267,7 @@ Every panel shows only what your role may read. A panel you may not see says "No
 panel links to the screen where the work is done. Opening Patient 360 is recorded in the audit trail.
 
 When other records were merged into this patient, a line under the alerts says "Includes the records of P…", and every row filed under one of those numbers
-says **Filed under P…** (consultations, orders, results, problems, medicines, images and documents). Opening Patient 360 of a merged (retired) record opens
+says **Filed under P…** (consultations, orders, results, problems, medicines, referrals, images and documents). Opening Patient 360 of a merged (retired) record opens
 the surviving record's workspace.
 
 ## How to use the timeline

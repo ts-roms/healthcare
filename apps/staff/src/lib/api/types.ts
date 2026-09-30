@@ -297,14 +297,15 @@ export type MergeWorkKind =
   | "draft_invoice"
   | "uninvoiced_charge"
   | "account_balance"
-  | "care_plan_active";
+  | "care_plan_active"
+  | "referral_open";
 
 export interface MergeWorkItem {
   kind: MergeWorkKind;
   id: string;
   label: string;
   at: string | null;
-  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan"; id: string } | null;
+  link: { type: "encounter" | "visit" | "appointment" | "lab_order" | "invoice" | "billing_patient" | "care_plan" | "referral"; id: string } | null;
 }
 
 export interface MergeDifference {
@@ -3352,7 +3353,7 @@ export interface PurchaseOrderInvoicing {
 
 // ---- Patient 360 workspace (GET /patients/:id/workspace; panels gated per domain) --------------------------------
 
-export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents";
+export type PatientWorkspacePanel = "current_encounter" | "encounter_history" | "critical_results" | "lab_orders" | "dental_images" | "documents" | "referrals";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3427,6 +3428,20 @@ export interface WorkspaceLabOrder {
   tests: Array<{ id: string; testName: string; status: LabItemStatus }>;
 }
 
+export interface WorkspaceReferral {
+  id: string;
+  filedUnder?: string | null;
+  referralNumber: string;
+  status: ReferralStatus;
+  urgency: "routine" | "urgent" | "emergency";
+  kind: "internal" | "external";
+  specialty: string | null;
+  recipient: string;
+  referringPractitionerName: string;
+  issuedAt: string;
+  overdue: boolean;
+}
+
 export interface PatientWorkspace {
   patientId: string;
   facility: WorkspaceFacilityRef | null;
@@ -3444,6 +3459,8 @@ export interface PatientWorkspace {
     title: string;
     uploadedAt: string;
   }> | null;
+  /** Open referrals first, then the latest; never the reason or summary (needs encounter.read). */
+  referrals?: WorkspaceReferral[] | null;
   /** Records merged into this patient, read with it. */
   linkedRecords?: Array<{ id: string; patientNumber: string }>;
   withheld: PatientWorkspacePanel[];
@@ -3960,6 +3977,14 @@ export interface Referral {
   /** The caller is the practitioner referred to / the referrer (the API checks again). */
   forYou: boolean;
   byYou: boolean;
+  /** Still waiting for the recipient past the organization's threshold (never while the flag is off). */
+  overdue: boolean;
+}
+
+/** The organization's referral follow-up setting (migration 0080); version 0 while never saved. */
+export interface ReferralSettings {
+  overdueAfterDays: number | null;
+  version: number;
 }
 
 /** `GET /patients/:id/portal-proxies`: guardian access, as the clinic sees it. */

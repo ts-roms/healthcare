@@ -51,7 +51,9 @@ reminders are sent to it. Each item links to the screen that resolves it:
 | Deposit or credit balance               | Apply it to an invoice or refund it                      |
 
 An **active care plan** is only a note: it stays under the retired number and is shown on the surviving record, but its reminders are no longer sent.
-Consider closing it and starting one on the surviving record. Reload the page after resolving the items.
+Consider closing it and starting one on the surviving record. An **open referral** is also only a note: it stays under the retired number (its letter
+names it) and is shown with the surviving record; answers and replies are still recorded on it, but no new referral can be made under the retired
+number. Reload the page after resolving the items.
 
 The page also says what happens to MyHealth: if only the retired record has an account, it moves to the surviving record (the patient signs in
 again; the surviving record's portal consent applies). If both have one, the retired record's account is disabled.
@@ -343,6 +345,7 @@ Other systems (for example a referral hospital's system) can read a patient's re
   an integration account.
 - Documents also need `document.read`; the dental record also needs `dental.record.read`.
 - Only **released** laboratory results are exported. Imported allergies and external history are exported marked as from an external source.
+- Referrals are exported as referral requests (`ServiceRequest`), with the urgency (an emergency referral as the highest priority, "stat").
 - Every access is audited with the patient and what was returned.
 - Other systems send records in through `POST /api/v1/fhir/r4/imports` (`interop.fhir.import`); these land in the review queue described above.
 

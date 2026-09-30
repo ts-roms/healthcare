@@ -463,3 +463,14 @@ export const referral = pgTable("referral", {
   version: integer("version").notNull().default(1),
 });
 export type ReferralRecord = typeof referral.$inferSelect;
+
+// ---- Referral follow-up (0080) ----------------------------------------------------------------
+
+export const referralSetting = pgTable("referral_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  /** Null: referrals are never flagged as overdue. */
+  overdueAfterDays: integer("overdue_after_days"),
+  version: integer("version").notNull().default(1),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});

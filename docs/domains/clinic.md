@@ -93,8 +93,33 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
   `encounter.referral.print`), `POST /referrals/:id/{answer,appointment,complete,cancel}`. Audit
   `encounter.referral.create | accept | decline | appointment | complete | cancel`; events `ReferralCreated`,
   `ReferralAccepted`, `ReferralDeclined`, `ReferralCompleted`, `ReferralCancelled` (ids, number, kind and status only).
-- Staff: **Referrals** in the encounter workspace; `/clinic/referrals` (referred to me, made by me, all open, all) and
-  `/clinic/referrals/[id]`. Patients do not see referrals in MyHealth yet (they receive the printed letter).
+- **Overdue flag** (migration `0080`, `referral_setting`): the organization may choose a number of days (1–365) after
+  which a referral still waiting for the recipient — status `sent`: an internal one not yet accepted or declined, an
+  external one whose reply is not recorded — is flagged **overdue**. Off by default (no deadline is assumed; nothing is
+  sent automatically). `GET /referrals/settings` (`encounter.read`), `PUT /referrals/settings` (`clinic.configure`,
+  optimistic `version`, 0 while never saved; audited `encounter.referral.settings` with before and after).
+  `overdue` is on every referral view, `GET /referrals?view=overdue` lists them oldest first (empty while off), and
+  the Patient 360 panel carries it too (`referralOverdue` in `referral.rules.ts`; partial index `referral_awaiting`).
+- **Merged records**: patient-scoped reads (`?patientId=`, timeline, Patient 360, FHIR, MyHealth) include referrals
+  filed under records merged into the patient (`filedAsPatient`); a new referral under a retired record is refused by
+  the 0068 trigger (`referral_not_for_merged_patient`, `422 patient_merged`); open referrals of the record to retire
+  are a merge **warning** (`referral_open`: they stay under that number, whose letter names it), not a blocker.
+- **Patient 360**: panel `referrals` (`encounter.read`, withheld otherwise): open ones first (oldest first), then the
+  latest finished — number, recipient, specialty, urgency, status, referrer, issue time, overdue, `filedUnder`; never
+  the reason or summary (`ClinicQueries.workspaceReferrals`).
+- **FHIR R4**: each referral is a `ServiceRequest` (category SNOMED CT `3457005` Patient referral; see
+  `docs/interoperability/fhir.md`), in `$everything` and `ServiceRequest?patient=` (`ClinicQueries.referralRecords`).
+- **MyHealth**: `GET /portal/documents` lists the patient's referrals (number, recipient and specialty, issue time,
+  urgency, referrer, status, whether a letter is available — not the reason or summary); `GET
+/portal/referrals/:id/link` gives a short-lived link to the letter (not for a cancelled referral), audited as the
+  patient's `document.download`. `ReferralCreated` → `records.update` (`referral-ready`) to the patient in the app,
+  then push, else SMS, else email — "a referral letter from your visit is ready", no recipient, specialty or reason
+  (`PatientRecordsNotices`; MyHealth users only).
+- Staff: **Referrals** in the encounter workspace; `/clinic/referrals` (referred to me, made by me, all open, overdue,
+  all; **Follow-up setting** for `clinic.configure`), `/clinic/referrals/[id]` (Overdue badge with icon and text),
+  `/clinic/referrals/settings`, a **Referrals** card on the patient record and the Patient 360 panel.
+- Care plan activities of kind `referral` are not linked to referral records (a follow-up, if needed, would add the
+  link); the activity is tracked on the care plan as before.
 
 ## Rules
 
