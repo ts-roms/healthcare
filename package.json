@@ -11,6 +11,7 @@
     "dev": "nx run-many -t serve dev -p api notification-worker integration-worker staff portal --parallel=8 --output-style=stream",
     "dev:staff": "nx run staff:dev",
     "dev:portal": "nx run portal:dev",
+    "dev:mobile": "nx run mobile:dev",
     "dev:api": "nx serve api",
     "dev:worker": "nx serve notification-worker",
     "dev:integration-worker": "nx serve integration-worker",

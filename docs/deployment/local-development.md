@@ -20,6 +20,7 @@ pnpm dev:integration-worker       # integration worker (outbound exchanges: Phil
 pnpm dev:instrument-gateway       # analyzer gateway (needs GATEWAY_* variables; docs/domains/laboratory-instruments.md)
 pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
+pnpm dev:mobile                   # Expo dev server for the MyHealth mobile app (set EXPO_PUBLIC_API_BASE_URL and EXPO_PUBLIC_ORGANIZATION_CODE; docs/architecture/mobile-app.md)
 pnpm storybook                    # http://localhost:6006 — design system
 ```
 

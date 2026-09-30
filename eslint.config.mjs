@@ -9,7 +9,7 @@ import prettier from "eslint-config-prettier";
  *     app → feature → ui → data-access → contract → domain → util
  *
  *   scope:* — who owns it.
- *     staff / portal       app-specific code
+ *     staff / portal / mobile  app-specific code
  *     shared               usable by everyone
  *     clinic, laboratory…  a clinical domain: it may use its own scope and
  *                          `shared`, and reach another domain ONLY through
@@ -57,6 +57,8 @@ export const depConstraints = [
   { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
   { sourceTag: "scope:staff", onlyDependOnLibsWithTags: ["scope:staff", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   { sourceTag: "scope:portal", onlyDependOnLibsWithTags: ["scope:portal", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
+  // The mobile app talks to the API over HTTP only: it shares no code with the Next.js apps (their session code is server-side).
+  { sourceTag: "scope:mobile", onlyDependOnLibsWithTags: ["scope:mobile"] },
   // The API is the composition root: it wires domains together through adapters.
   { sourceTag: "scope:api", onlyDependOnLibsWithTags: ["scope:api", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   // Workers use platform services; the integration worker also the interoperability layer (adapters). Never clinical domains.
