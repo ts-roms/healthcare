@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { BusinessRuleError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
 import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
-import { type PushRevokedReason, pushSubscription, type PushSubscriptionRecord } from "./push-subscription.schema";
+import { type PushDeviceKind, type PushRevokedReason, pushSubscription, type PushSubscriptionRecord } from "./push-subscription.schema";
 
 /** A patient's devices that may receive push, at most this many at once. */
 export const MAX_PUSH_DEVICES = 5;
@@ -10,10 +10,19 @@ export const MAX_PUSH_FAILURES = 5;
 
 export interface PushDeviceView {
   id: string;
-  /** A short description from the browser's own identification ("Chrome on Android"). */
+  /** A short description: from the browser's own identification ("Chrome on Android"), or the app's own name for the device. */
   label: string;
+  kind: PushDeviceKind;
   createdAt: string;
   lastSuccessAt: string | null;
+}
+
+export interface MobileDevice {
+  /** The Expo push token the app obtained from the operating system. */
+  token: string;
+  platform: "ios" | "android";
+  /** The name the person gave the phone, if the app could read it. */
+  deviceName?: string;
 }
 
 export interface BrowserSubscription {
@@ -32,12 +41,7 @@ export class PushSubscriptionService {
 
   async list(accountId: string): Promise<PushDeviceView[]> {
     const rows = await this.active(accountId);
-    return rows.map((r) => ({
-      id: r.id,
-      label: describeDevice(r.userAgent),
-      createdAt: r.createdAt.toISOString(),
-      lastSuccessAt: r.lastSuccessAt?.toISOString() ?? null,
-    }));
+    return rows.map(toDeviceView);
   }
 
   /** The id of the account's device with this browser address, if it is registered and active. */
@@ -50,9 +54,38 @@ export class PushSubscriptionService {
   }
 
   async register(organizationId: string, accountId: string, subscription: BrowserSubscription, userAgent: string | undefined): Promise<PushDeviceView> {
+    return this.save(organizationId, accountId, {
+      kind: "web",
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      userAgent: userAgent?.slice(0, 512) ?? null,
+      deviceLabel: null,
+    });
+  }
+
+  /** The MyHealth app registers its Expo push token: same limits and same account rules as a browser. */
+  async registerMobile(organizationId: string, accountId: string, device: MobileDevice): Promise<PushDeviceView> {
+    const system = device.platform === "ios" ? "iPhone" : "Android";
+    const name = device.deviceName?.trim().slice(0, 60);
+    return this.save(organizationId, accountId, {
+      kind: "expo",
+      endpoint: device.token,
+      p256dh: null,
+      auth: null,
+      userAgent: null,
+      deviceLabel: name ? `MyHealth app on ${name}` : `MyHealth app on ${system}`,
+    });
+  }
+
+  private async save(
+    organizationId: string,
+    accountId: string,
+    device: { kind: PushDeviceKind; endpoint: string; p256dh: string | null; auth: string | null; userAgent: string | null; deviceLabel: string | null },
+  ): Promise<PushDeviceView> {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`push:${accountId}`}, 0))`);
-      const [existing] = await tx.select().from(pushSubscription).where(eq(pushSubscription.endpoint, subscription.endpoint)).for("update");
+      const [existing] = await tx.select().from(pushSubscription).where(eq(pushSubscription.endpoint, device.endpoint)).for("update");
       const [active] = await tx
         .select({ n: count() })
         .from(pushSubscription)
@@ -61,27 +94,11 @@ export class PushSubscriptionService {
       if (!alreadyMine && (active?.n ?? 0) >= MAX_PUSH_DEVICES) {
         throw new BusinessRuleError(`You can receive notifications on up to ${MAX_PUSH_DEVICES} devices. Remove one first.`, "too_many_push_devices");
       }
-      const values = {
-        organizationId,
-        portalAccountId: accountId,
-        endpoint: subscription.endpoint,
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth,
-        userAgent: userAgent?.slice(0, 512) ?? null,
-        revokedAt: null,
-        revokedReason: null,
-        failureCount: 0,
-      };
+      const values = { organizationId, portalAccountId: accountId, ...device, revokedAt: null, revokedReason: null, failureCount: 0 };
       const [row] = existing
         ? await tx.update(pushSubscription).set(values).where(eq(pushSubscription.id, existing.id)).returning()
         : await tx.insert(pushSubscription).values(values).returning();
-      const saved = row!;
-      return {
-        id: saved.id,
-        label: describeDevice(saved.userAgent),
-        createdAt: saved.createdAt.toISOString(),
-        lastSuccessAt: saved.lastSuccessAt?.toISOString() ?? null,
-      };
+      return toDeviceView(row!);
     });
   }
 
@@ -138,6 +155,16 @@ export class PushSubscriptionService {
       }
     }
   }
+}
+
+function toDeviceView(r: PushSubscriptionRecord): PushDeviceView {
+  return {
+    id: r.id,
+    label: r.deviceLabel ?? describeDevice(r.userAgent),
+    kind: r.kind,
+    createdAt: r.createdAt.toISOString(),
+    lastSuccessAt: r.lastSuccessAt?.toISOString() ?? null,
+  };
 }
 
 /** "Chrome on Android", "Safari on iPhone", "Firefox on Windows": from the browser's own identification, no more. */

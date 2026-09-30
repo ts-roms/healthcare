@@ -1,6 +1,8 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { patientMessage } from "@/lib/api-error";
 import type { PortalMe } from "@/lib/api-types";
+import { nativePush } from "@/lib/native-push";
+import { unregisterThisPhone } from "@/lib/push";
 import { session } from "@/lib/session-instance";
 
 type AppSession =
@@ -55,7 +57,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     state,
     retry: () => void (session.signedIn ? loadMe() : start()),
     signedIn: loadMe,
-    signOut: () => session.signOut(),
+    // This phone stops receiving the patient's notifications before the session ends (best effort; never blocks sign-out).
+    signOut: async () => {
+      await unregisterThisPhone(session, nativePush);
+      await session.signOut();
+    },
   };
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

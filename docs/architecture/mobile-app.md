@@ -1,6 +1,6 @@
 # Mobile app — requirements and status
 
-**Status: first slice built** — patients sign in and read their released results (`apps/mobile`, [§7](#7-first-slice-apps-mobile)). Only
+**Status: first slice built** — patients sign in, read their released results and can receive push notifications on the phone (`apps/mobile`, [§7](#7-first-slice-apps-mobile); push is a provisional D6 choice, [§8](#8-push-to-the-app-provisional-d6)). Only
 what the decisions in [§4](#4-decisions-needed-before-implementation) cover may be built; the rest waits for its decision. This note separates
 what the repository already establishes from what still has to be decided; it does not add requirements of its own.
 
@@ -92,8 +92,9 @@ only when released, releasable and — if critical — acknowledged) are enforce
 ### Push (PARTIALLY VERIFIED)
 
 Push exists as **Web Push** only: `POST /portal/push/subscriptions` takes a browser subscription (`endpoint` + `p256dh`/`auth` keys),
-`WebPushSender` delivers content-free notices, up to 5 devices per account ([notification.md](../domains/notification.md#push-web-push-to-patients-browsers)).
-A native device token (Expo, FCM, APNs) cannot be registered through that contract.
+`WebPushSender` delivers content-free notices, up to 5 devices per account ([notification.md](../domains/notification.md#push-browsers-and-the-mobile-app)).
+A native device token (Expo, FCM, APNs) cannot be registered through that contract; the app registers through
+`POST /portal/push/mobile-devices` instead (migration `0081`, [§8](#8-push-to-the-app-provisional-d6)).
 
 ### Shared code (PARTIALLY VERIFIED)
 
@@ -132,6 +133,8 @@ Record the answer (and who decided) here before building the part it governs.
   - D5: the refresh token in the Keychain/Keystore (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`: not in backups, not on another device), the access
     token in memory, the API's session length unchanged (14 days), no app lock or biometric unlock; nothing else about the patient is
     stored on the device.
+  - D6 (added after D2, at the product owner's request to build push; confirm or change): push through the **Expo push service**; the
+    app's Expo token is registered as one of the account's push devices (§8).
   - D12: result types and wording shared with MyHealth on the web through `@healthcare/domain/portal-results`; the few other response
     types mirrored by hand in `apps/mobile/src/lib/api-types.ts`, as the web apps do. No contract library yet.
 
@@ -158,7 +161,7 @@ Every other decision below is still **UNKNOWN**.
 
 1. ~~Record D1–D5 and D12.~~ D1, D2 recorded; D4, D5, D12 provisional; D3 open.
 2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
-3. Add the remaining D2 areas, then push (D6) and links (D7) if chosen, each with its own API change, documentation and tests.
+3. Add the remaining D2 areas, then links (D7) if chosen, each with its own API change, documentation and tests. Push (D6) is built provisionally (§8).
 4. Teleconsultation (D8) last, as it carries the most native dependencies.
 
 ## 6. Out of scope for this note
@@ -171,12 +174,13 @@ MyHealth ([portal-app.md](portal-app.md#guardians-and-dependents)); whether the 
 Expo SDK 57 (React Native 0.86, React 19.2.3), expo-router, TypeScript strict. Nx project `mobile`, tags `scope:mobile`, `type:app`; it may
 import only `type:domain` libraries (`eslint.config.mjs`), i.e. `@healthcare/domain/portal-results`, never backend or web-only code.
 
-| Screen                           | API                                                        | Notes                                                                                                                       |
-| -------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in (`/sign-in`)             | `POST /portal/auth/login`, `POST /portal/auth/mfa/verify`  | Password, then the authenticator or recovery code when the account uses two-step verification. Errors worded as on the web. |
-| Your results (`/`)               | `GET /portal/me` (clinic time zone), `GET /portal/results` | Latest result per test, same wording as MyHealth (icon + words + colour). Pull to refresh.                                  |
-| Result history (`/results/[id]`) | `GET /portal/results/trend?testId=`                        | Every visible value with the range it had at the time. No chart yet.                                                        |
-| Sign out (header)                | `POST /portal/auth/logout`                                 | Ends the session at the API (best effort) and clears the device.                                                            |
+| Screen                           | API                                                                                                    | Notes                                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in (`/sign-in`)             | `POST /portal/auth/login`, `POST /portal/auth/mfa/verify`                                              | Password, then the authenticator or recovery code when the account uses two-step verification. Errors worded as on the web. |
+| Your results (`/`)               | `GET /portal/me` (clinic time zone), `GET /portal/results`                                             | Latest result per test, same wording as MyHealth (icon + words + colour). Pull to refresh.                                  |
+| Result history (`/results/[id]`) | `GET /portal/results/trend?testId=`                                                                    | Every visible value with the range it had at the time. No chart yet.                                                        |
+| Notifications (`/notifications`) | `GET /portal/push`, `POST /portal/push/mobile-devices`, `/push/test`, `/push/subscriptions/:id/remove` | Turn push on or off for this phone, send a test, remove other devices (§8).                                                 |
+| Sign out (header)                | `POST /portal/auth/logout`                                                                             | Unregisters this phone from push (best effort), ends the session at the API (best effort) and clears the device.            |
 
 **Session** (`src/lib/session.ts`, platform-neutral): access token in memory, refresh token in `expo-secure-store`; refreshes 30 s before
 expiry and **single-flight** (a second use of a rotated token would revoke the session); retries a request once after a 401; signs the patient
@@ -196,6 +200,37 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
 - The screens rendered through React Native for Web in Chromium against the same API (sign-in with an error, results, history, sign-out),
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
-**Not built (each needs its decision):** activation and password reset in the app (D7), push (D6), deep links (D7), charts and printable
-reports, guardian access (D2), screen protection (D11), offline caching (D10), store builds and signing (D13), end-to-end journeys through the
+**Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
+reports, guardian access (D2), Expo push receipts (§8), screen protection (D11), offline caching (D10), store builds and signing (D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
+
+## 8. Push to the app (provisional D6)
+
+The platform sends to phones through the **Expo push service** (`https://exp.host/--/api/v2/push/send`; `ExpoPushTransport` in
+`libs/notification`), which relays to Apple (APNs) and Google (FCM). Sending needs no account; `EXPO_PUSH_ENABLED=true` on the API and the
+notification worker turns it on (`EXPO_ACCESS_TOKEN` only if the Expo project uses "enhanced push security"). Without it the app says the
+clinic has not turned notifications on.
+
+- **One device table.** The app's Expo token is a `push_subscription` row with `kind = 'expo'` (migration `0081`; the token is the `endpoint`,
+  there are no browser keys, `device_label` names the phone). The per-account limit of 5 devices (browsers included), removal, the
+  "notification settings" device count, failure counting and the patient's preferences are the same as for browsers. A token registered by
+  another account moves to that account.
+- **One sender.** `WebPushSender` delivers a `push` notification to every active device of the account — browsers through Web Push, phones
+  through Expo — for whichever the platform has set up. A ticket of `DeviceNotRegistered` drops the device; a service failure is retried; a
+  refusal counts toward the 5-failure limit.
+- **Content.** Exactly what a browser push carries: a title, one line and a page (`data.url`) — never a result, a name or a reason. The
+  "push first" rule applies (`apps/api/src/app/portal/patient-push.ts`): with the app turned on, results-ready, records, dental and
+  message-waiting notices go there instead of SMS or email.
+- **In the app** (`src/lib/push.ts`, platform-neutral and unit-tested; `src/lib/native-push.ts` for `expo-notifications`): the Notifications
+  screen asks the phone's permission only when the patient turns notifications on, registers the token, sends a test, turns it off or removes
+  another device. Tapping a results notice opens the results list; other notices open the app. Signing out unregisters the phone first
+  (best effort) — a device the API can no longer reach is dropped by the failure rules. `PatientSession.post` has the same refresh and
+  sign-out rules as `get`.
+- **Build.** Receiving push needs the app linked to an Expo project (`eas init`, which writes `extra.eas.projectId` to `app.json`), a
+  development or store build through EAS, an Apple Developer account and, for Android, the organization's own Firebase credentials uploaded
+  to the Expo project. Expo Go on Android cannot receive remote push.
+- **Tests.** App: `src/lib/push.test.ts` (permission, registration, refusals, sign-out) and the session's POST tests. API:
+  `apps/api/test/portal-push-mobile.int.spec.ts` (registration, limits, the database constraint, sending, gone tokens, retries). **Not yet run
+  on a device.**
+- **Not built:** Expo push _receipts_ (Expo reports some failures, notably an uninstalled app, only in receipts fetched later; until then such a
+  device stays registered and is dropped after 5 failed sends or removed by the patient), badges, deep links into other screens.

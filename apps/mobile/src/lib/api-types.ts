@@ -28,3 +28,23 @@ export interface PortalMe {
   /** The patient's clinic's time zone: dates are shown in it. */
   timeZone: string;
 }
+
+/** A device that receives this account's notifications (`GET /portal/push`). */
+export interface PushDevice {
+  id: string;
+  label: string;
+  kind: "web" | "expo";
+  createdAt: string;
+  lastSuccessAt: string | null;
+}
+
+/** `GET /portal/push` */
+export interface PushStatus {
+  /** Push to browsers is offered. */
+  configured: boolean;
+  /** Push to this app is offered (`EXPO_PUSH_ENABLED`). */
+  mobileConfigured: boolean;
+  devices: PushDevice[];
+  /** The device with the token asked about, if it is registered. */
+  thisDeviceId: string | null;
+}

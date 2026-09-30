@@ -55,7 +55,8 @@ class FakeApi {
       this.nextDataStatus = null;
       return error(status, status === 422 ? "invalid_mfa_code" : "failed", "Refused");
     }
-    return json(200, { path });
+    if (path.endsWith("/remove")) return new Response(null, { status: 204 });
+    return json(200, { path, method: init?.method ?? "GET", body });
   };
 
   private issue() {
@@ -160,7 +161,7 @@ describe("requests", () => {
 
   it("retries once after a 401 with a refreshed token", async () => {
     api.access = "rotated-elsewhere"; // the API no longer accepts the token this device holds
-    await expect(session.get("/portal/results")).resolves.toEqual({ path: "/portal/results" });
+    await expect(session.get("/portal/results")).resolves.toMatchObject({ path: "/portal/results" });
     expect(api.refreshCalls).toBe(1);
   });
 
@@ -194,6 +195,32 @@ describe("requests", () => {
     });
     await expect(offline.get("/portal/results")).rejects.toBeInstanceOf(TypeError);
     expect(store.value).toBe(api.current);
+  });
+});
+
+describe("posts (this phone's notifications)", () => {
+  beforeEach(async () => {
+    await session.signIn("ana@example.com", "right");
+  });
+
+  it("sends a JSON body with the bearer token, and reads an empty answer", async () => {
+    await expect(session.post("/portal/push/mobile-devices", { token: "t", platform: "ios" })).resolves.toEqual({
+      path: "/portal/push/mobile-devices",
+      method: "POST",
+      body: { token: "t", platform: "ios" },
+    });
+    expect(api.requests.at(-1)!.headers["content-type"]).toBe("application/json");
+    await expect(session.post("/portal/push/subscriptions/d1/remove")).resolves.toBeUndefined();
+    expect(api.requests.at(-1)!.body).toEqual({});
+  });
+
+  it("refreshes and retries after a 401 like a read, and signs out when the session is refused", async () => {
+    api.access = "rotated-elsewhere";
+    await expect(session.post("/portal/push/test")).resolves.toMatchObject({ method: "POST" });
+    expect(api.refreshCalls).toBe(1);
+    api.revoked = true;
+    await expect(session.post("/portal/push/test")).rejects.toBeInstanceOf(SessionEndedError);
+    expect(session.signedIn).toBe(false);
   });
 });
 

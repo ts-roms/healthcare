@@ -138,7 +138,7 @@ describe("MyHealth push notifications", () => {
 
   it("is offered with the platform's public key, and lists no device to begin with", async () => {
     const status = (await portal(patients["juan"]!.token).get("/push").expect(200)).body;
-    expect(status).toEqual({ configured: true, vapidPublicKey: vapid.publicKey, devices: [], thisDeviceId: null });
+    expect(status).toEqual({ configured: true, mobileConfigured: false, vapidPublicKey: vapid.publicKey, devices: [], thisDeviceId: null });
     await ctx.http().get("/api/v1/portal/push").expect(401);
     await ctx.http().get("/api/v1/portal/push").set(as(admin, tenant.facilityId)).expect(401);
   });
@@ -293,7 +293,7 @@ describe("MyHealth push notifications", () => {
   });
 
   it("holds the database to https addresses and one reason per revoked device", async () => {
-    await expect(ctx.pool.query("UPDATE push_subscription SET endpoint = 'http://x.example.test/a'")).rejects.toThrow(/endpoint/);
+    await expect(ctx.pool.query("UPDATE push_subscription SET endpoint = 'http://x.example.test/a'")).rejects.toThrow(/push_subscription_kind_shape/);
     await expect(ctx.pool.query("UPDATE push_subscription SET revoked_at = now(), revoked_reason = NULL WHERE revoked_at IS NULL")).rejects.toThrow(
       /push_subscription_check/,
     );

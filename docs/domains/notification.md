@@ -70,9 +70,9 @@ min, or stuck in `sending` > 15 min). At-least-once delivery.
 
 ## Dependencies
 
-SMS providers, and push to a mobile app: see `docs/interoperability/dependencies.md`.
+SMS providers, and store publication of the mobile app: see `docs/interoperability/dependencies.md`.
 
-## Push (Web Push to patients' browsers)
+## Push (browsers and the mobile app)
 
 Migration `0079` (`push_subscription`). Standard Web Push (RFC 8030, message encryption RFC 8291, VAPID): no provider account, only the
 platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` or `https:` contact), all three or none
@@ -91,4 +91,8 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
 - **Push first** (`apps/api/src/app/portal/patient-push.ts`): for a patient with a device, the results-ready, records, dental and
   "a message is waiting" notices go to the device instead of SMS or email; without a device there is no push attempt (no suppressed row)
   and SMS then email work as before. The waiting-list notice stays SMS or email.
-- Not built: push for staff, push to the mobile app (Expo/FCM/APNs; `apps/mobile` has no push yet), topics or badges, delivery receipts from the browser.
+- **Mobile app** (migration `0081`; `docs/architecture/mobile-app.md`): the MyHealth app registers its Expo push token
+  (`POST /portal/push/mobile-devices`) as a `push_subscription` row with `kind = 'expo'` — same 5-device limit, removal, failure
+  handling and preferences. `WebPushSender` sends to phones through the Expo push service (`ExpoPushTransport`; `EXPO_PUSH_ENABLED=true`,
+  optional `EXPO_ACCESS_TOKEN`), with the same content-free payload. `DeviceNotRegistered` drops the device; a service failure is retried.
+- Not built: push for staff, topics or badges, delivery receipts from the browser or from Expo (an uninstalled app is dropped after 5 failed sends).

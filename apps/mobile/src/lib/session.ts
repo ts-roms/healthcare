@@ -71,7 +71,7 @@ export class PatientSession {
 
   async signIn(email: string, password: string): Promise<SignInResult> {
     this.challenge = null;
-    const result = await this.post<PortalTokenResponse | PortalMfaRequired>("/portal/auth/login", {
+    const result = await this.postPublic<PortalTokenResponse | PortalMfaRequired>("/portal/auth/login", {
       organizationCode: this.options.organizationCode,
       email,
       password,
@@ -88,7 +88,7 @@ export class PatientSession {
   /** The second step: a code from the authenticator app, or a recovery code. */
   async verifyCode(code: string): Promise<void> {
     if (!this.challenge) throw new ApiError(401, "challenge_missing", "Your sign-in took too long. Enter your password again.");
-    const tokens = await this.post<PortalTokenResponse>("/portal/auth/mfa/verify", { challengeToken: this.challenge, code });
+    const tokens = await this.postPublic<PortalTokenResponse>("/portal/auth/mfa/verify", { challengeToken: this.challenge, code });
     this.challenge = null;
     await this.start(tokens);
   }
@@ -107,23 +107,41 @@ export class PatientSession {
   }
 
   /** An authenticated GET. Refreshes when needed, retries once after a 401, and ends the session if the API refuses it. */
-  async get<T>(path: string): Promise<T> {
+  get<T>(path: string): Promise<T> {
+    return this.request<T>(path, "GET");
+  }
+
+  /** An authenticated POST, with the same refresh and sign-out rules as `get` (used for this phone's notifications). */
+  post<T>(path: string, body: unknown = {}): Promise<T> {
+    return this.request<T>(path, "POST", body);
+  }
+
+  private async request<T>(path: string, method: "GET" | "POST", body?: unknown): Promise<T> {
     await this.ensureAccess();
-    let response = await this.authorized(path);
+    let response = await this.authorized(path, method, body);
     if (response.status === 401) {
       await this.refresh();
-      response = await this.authorized(path);
+      response = await this.authorized(path, method, body);
       if (response.status === 401) {
         await this.end("session_ended");
         throw new SessionEndedError();
       }
     }
     if (!response.ok) throw await ApiError.from(response);
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 
-  private authorized(path: string): Promise<Response> {
-    return this.fetchImpl(`${this.options.baseUrl}${path}`, { headers: { accept: "application/json", authorization: `Bearer ${this.access?.token ?? ""}` } });
+  private authorized(path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<Response> {
+    return this.fetchImpl(`${this.options.baseUrl}${path}`, {
+      method,
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${this.access?.token ?? ""}`,
+        ...(method === "POST" ? { "content-type": "application/json" } : {}),
+      },
+      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
+    });
   }
 
   private async ensureAccess(): Promise<void> {
@@ -147,7 +165,7 @@ export class PatientSession {
     }
     let tokens: PortalTokenResponse;
     try {
-      tokens = await this.post<PortalTokenResponse>("/portal/auth/refresh", { refreshToken });
+      tokens = await this.postPublic<PortalTokenResponse>("/portal/auth/refresh", { refreshToken });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         await this.end("session_ended");
@@ -182,7 +200,8 @@ export class PatientSession {
     for (const listener of this.listeners) listener(state);
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  /** An unauthenticated POST (sign-in, code, refresh). */
+  private async postPublic<T>(path: string, body: unknown): Promise<T> {
     const response = await this.fetchImpl(`${this.options.baseUrl}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },

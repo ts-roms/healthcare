@@ -20,6 +20,7 @@ pnpm dev:integration-worker       # integration worker (outbound exchanges: Phil
 pnpm dev:instrument-gateway       # analyzer gateway (needs GATEWAY_* variables; docs/domains/laboratory-instruments.md)
 pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
+pnpm dev:mobile                   # Expo dev server for the patient mobile app (see "Mobile app" below)
 pnpm storybook                    # http://localhost:6006 — design system
 ```
 
@@ -46,7 +47,7 @@ The integration tests drop and recreate the `public` schema of
 
 ### Mobile app (`apps/mobile`)
 
-The patient app (Expo; sign-in and results so far — [mobile-app.md](../architecture/mobile-app.md)) talks to the API over the network, so a
+The patient app (Expo; sign-in, results and push notifications so far — [mobile-app.md](../architecture/mobile-app.md)) talks to the API over the network, so a
 phone or emulator needs the development machine's address, not `localhost` (the Android emulator reaches the host at `10.0.2.2`):
 
 ```bash
