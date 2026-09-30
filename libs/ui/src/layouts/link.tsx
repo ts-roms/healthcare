@@ -6,7 +6,7 @@ export type LinkComponent = React.ComponentType<{
   className?: string;
   children?: React.ReactNode;
   "aria-current"?: "page" | undefined;
-  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onClick?: () => void;
 }>;
 
 export const DefaultLink: LinkComponent = ({ href, children, ...props }) => (

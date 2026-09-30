@@ -167,8 +167,10 @@ function SidebarNav({
   onNavigate: () => void;
   collapsed?: boolean;
 }) {
-  // Groups with sub-items open when active; a manual toggle overrides that until the page changes group.
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({});
+  // Accordion: one group open at a time. The group holding the current page is open by default;
+  // a click on a group header overrides that (`null` = all closed) until the page changes.
+  const [openGroup, setOpenGroup] = React.useState<string | null | undefined>(undefined);
+  React.useEffect(() => setOpenGroup(undefined), [pathname]);
   return (
     <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2">
       <ul className="flex flex-col gap-0.5">
@@ -176,7 +178,7 @@ function SidebarNav({
           const Icon = item.icon;
           const active = isActive(pathname, item.href);
           const exact = item.children ? pathname === item.href : active;
-          const expanded = openGroups[item.href] ?? active;
+          const expanded = openGroup === undefined ? active : openGroup === item.href;
           return (
             <li key={item.href}>
               {(() => {
@@ -185,22 +187,10 @@ function SidebarNav({
                     href={item.children?.[0]?.href ?? item.href}
                     aria-current={exact ? "page" : undefined}
                     aria-label={collapsed ? item.label : undefined}
-                    onClick={(event) => {
-                      if (item.children && !collapsed) {
-                        // First click opens the group and goes to its first page; the next click closes it.
-                        if (expanded) {
-                          event.preventDefault();
-                          setOpenGroups((prev) => ({ ...prev, [item.href]: false }));
-                          return;
-                        }
-                        setOpenGroups((prev) => ({ ...prev, [item.href]: true }));
-                      }
-                      onNavigate();
-                    }}
+                    onClick={onNavigate}
                     className={cn(
                       "flex h-8 items-center gap-2.5 rounded-md px-2 text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
                       collapsed && "justify-center px-0",
-                      item.children && !collapsed && "pr-8",
                       active && "bg-sidebar-accent text-sidebar-accent-foreground",
                     )}
                   >
@@ -215,18 +205,19 @@ function SidebarNav({
                 );
                 if (item.children && !collapsed) {
                   return (
-                    <div className="relative">
-                      {link}
-                      <button
-                        type="button"
-                        aria-expanded={expanded}
-                        aria-label={`${expanded ? "Collapse" : "Expand"} ${item.label}`}
-                        onClick={() => setOpenGroups((prev) => ({ ...prev, [item.href]: !expanded }))}
-                        className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-sidebar-muted outline-none hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <ChevronDownIcon className={cn("size-3.5 transition-transform", !expanded && "-rotate-90")} aria-hidden />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() => setOpenGroup(expanded ? null : item.href)}
+                      className={cn(
+                        "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-body font-medium transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                        active && "bg-sidebar-accent text-sidebar-accent-foreground",
+                      )}
+                    >
+                      {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+                      {item.label}
+                      <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")} aria-hidden />
+                    </button>
                   );
                 }
                 return collapsed ? (
