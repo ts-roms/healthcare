@@ -14,6 +14,8 @@ export const appUser = pgTable("app_user", {
   failedLoginCount: integer("failed_login_count").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Set when an administrator gave a temporary password (0090): the person must choose a new one first. */
+  passwordChangeRequired: boolean("password_change_required").notNull().default(false),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -90,6 +92,20 @@ export const authSession = pgTable("auth_session", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokedReason: text("revoked_reason"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
+/** A staff password-reset link (0091): only the token's hash is stored; single use, short-lived. */
+export const staffPasswordReset = pgTable("staff_password_reset", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  consumedReason: text("consumed_reason").$type<"reset" | "superseded" | "exhausted" | "account_inactive">(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
 });

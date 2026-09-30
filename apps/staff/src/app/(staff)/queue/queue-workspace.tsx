@@ -10,6 +10,7 @@ import type { ActionResult } from "@/lib/api/action-result";
 import type { QueueVisit } from "@/lib/api/types";
 import {
   canStartConsultation,
+  checkedInOnline,
   canTriage,
   moveNeedsReason,
   QUEUE_BOARD_STATUSES,
@@ -182,6 +183,7 @@ function VisitPanel({
           <dt className="text-muted-foreground">Arrived</dt>
           <dd>
             {clinicalTime(visit.checkedInAt)} · {visit.arrivalMode === "appointment" ? "appointment" : "walk-in"}
+            {checkedInOnline(visit) ? " · checked in online in MyHealth" : ""}
           </dd>
           {visit.chiefComplaint ? (
             <>

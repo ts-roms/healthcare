@@ -102,8 +102,23 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
 /encounters/:id/procedures`, `GET /patients/:id/procedures`, `POST /procedures/:id/entered-in-error`. Audit
   `clinic.procedure-catalog.create|update`, `encounter.procedure.record` (the late-entry reason as the audit reason),
   `encounter.procedure.entered-in-error`, `encounter.procedure.view`. No new permission.
-- **Not built**: supplies used (taken from inventory as dental procedures do), consent forms for procedures, templates of
-  procedure notes, and procedures outside a consultation.
+- **Supplies used** (migration `0089`, `ProcedureSuppliesService`, the dental pattern): each catalogue entry may list the
+  supplies it usually uses (`clinic_procedure_supply_template_item`; `PUT /clinic/procedure-definitions/:id/supplies`,
+  `clinic.configure`, audited `clinic.procedure-supply-template.update`; staff `/clinic/procedures`). After a procedure,
+  staff with `encounter.write` confirm what was used (prefilled from the template) and the stock location of the
+  selected facility: `POST /procedures/:id/supplies` issues it through inventory's own command
+  (`InventoryStockService.issueForSource`, behind the `ProcedureSupplies` port, in the clinic's transaction: first expiry
+  first out, never expired lots, all lines or none, controlled items with a reason and a reference, only
+  `CLINIC_SUPPLY_CATEGORIES` — medical supply, medicine, PPE, other; never dental supplies, reagents or vaccines).
+  Idempotent by key; a further use may follow. Unused supplies go back only through `POST /procedures/:id/supplies/returns`
+  (a reason; never more than is still out per issued line, to the same lots and location), also after the procedure
+  was entered in error; a procedure entered in error takes no new supplies (`procedure_entered_in_error`). Append-only
+  `clinic_procedure_supply_use` / `_line` (item and lot snapshot for traceability); ledger source `clinic_procedure`,
+  "Clinic procedure". `GET /encounters/:id/procedure-supplies`, `GET /clinic/procedure-supplies/options`. Audit
+  `clinic.procedure-supplies.issue|return`; events `ClinicProcedureSuppliesIssued|Returned` (ids and counts). The pure
+  rules are shared with dentistry (`libs/core`, `supplies/supply-use.ts`). No default stock location per facility (staff
+  choose each time) and supplies are not charged automatically.
+- **Not built**: consent forms for procedures, templates of procedure notes, and procedures outside a consultation.
 
 ## Patient history
 
@@ -245,10 +260,35 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Open questions / assumptions
 
-- No-show automation (marking at end of day), online self check-in and room scheduling views are not built.
+- Room scheduling views are not built. Automatic no-shows and online check-in: see below.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
   are part of the [patient history](patient-history.md).
+
+## Automatic no-shows and online check-in
+
+Migration `0088`. Both are part of each facility's booking rules (`facility_booking_rule`, same endpoints, versioning and
+`facility.booking-rules-update` audit as below) and **off by default**.
+
+- **Automatic no-shows** (`auto_no_show`, `auto_no_show_hour` 12–23, default 20:00): `AutomaticNoShows` runs hourly in the API
+  and, at facilities that turned it on, marks booked or confirmed appointments that have ended without a check-in as no-shows
+  once the facility's local time is past the hour **on the appointment's own day** (`autoNoShowDue`, `libs/clinic/src/lib/domain/patient-booking.ts`).
+  It only looks at appointments that started in the last 48 hours, so turning it on never reaches into old history. Each
+  appointment is locked and re-checked (`AppointmentService.markNoShowAutomatically`), so several API instances mark it once. The
+  transition, the `appointment.no-show` audit (system actor, `metadata.automatic = true`) and the `AppointmentNoShow` event
+  (`payload.automatic`) are those of a no-show recorded by staff, so the "we missed you" follow-up and reminder withdrawal apply.
+  `appointment.no_show_automatic` marks it (only on a no-show, by constraint); who last changed the appointment is left as it was.
+- **Online check-in** (`online_check_in`, `check_in_opens_minutes` 0–240 before the start, default 60; `check_in_closes_minutes`
+  0–120 after it, default 15): `POST /portal/appointments/:id/check-in` (`PatientAccessGuard`, proxy `act`) checks the patient in
+  for their own **in-person** appointment (`VisitService.checkInByPatient`; an online consultation's waiting room is separate).
+  The visit joins the queue **waiting for triage** like any arrival, with `checked_in_via = 'patient_portal'` and no staff user;
+  the appointment is `checked_in` (`updated_by_patient`), audited `appointment.check-in` as the patient (`via: patient_portal`),
+  with `AppointmentCheckedIn` (`byPatient`) and `QueueEntryUpdated`. Checking in again returns the same visit. Refusals:
+  `online_check_in_not_offered`, `check_in_too_early`, `check_in_too_late`, `not_in_person`, `invalid_appointment_status`,
+  `already_in_queue`; another patient's appointment is not found. `GET /portal/appointments` gives each upcoming visit
+  `canCheckIn`, `checkInOpensAt` and, once checked in, its `queueTicket`. The staff queue shows "Checked in online".
+- The platform cannot tell whether the patient is really at the clinic; the window is the clinic's control, and the desk sees who
+  checked in online. No location check is made.
 
 ## Online booking rules and the waiting list
 

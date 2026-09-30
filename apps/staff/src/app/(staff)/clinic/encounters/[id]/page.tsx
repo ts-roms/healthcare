@@ -9,6 +9,8 @@ import type {
   ClinicProcedure,
   ImmunizationRecord,
   ProcedureDefinition,
+  ProcedureSupplyOptions,
+  SupplyUse,
   CarePlan,
   CarePlanDetail,
   CodingSystem,
@@ -112,6 +114,13 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     optional<ClinicProcedure[]>(`/encounters/${encounter.id}/procedures`),
     can(session, "encounter.write") ? optional<ProcedureDefinition[]>("/clinic/procedure-definitions") : Promise.resolve([] as ProcedureDefinition[]),
   ]);
+  // Supplies used by the procedures (from inventory): only once a procedure is recorded.
+  const [supplyUses, supplyOptions] = procedures?.length
+    ? await Promise.all([
+        optional<SupplyUse[]>(`/encounters/${encounter.id}/procedure-supplies`),
+        can(session, "encounter.write") ? optional<ProcedureSupplyOptions>("/clinic/procedure-supplies/options") : Promise.resolve(null),
+      ])
+    : [null, null];
   const names = new Map((practitioners ?? []).map((p) => [p.id, p.displayName]));
   const mine = practitioners?.find((p) => p.userId === session.user.id);
   const controls = encounterControls(encounter.status, {
@@ -189,6 +198,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
               canRecord: can(session, "encounter.write") && patient.status === "active",
               canAmend: can(session, "encounter.amend"),
               currentUserId: session.user.id,
+              supplyUses: supplyUses ?? [],
+              supplyOptions,
             }
           : null
       }

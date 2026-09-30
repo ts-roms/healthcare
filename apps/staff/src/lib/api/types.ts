@@ -36,7 +36,15 @@ export interface OrganizationChoice {
 }
 
 export interface Me {
-  user: { id: string; email: string; displayName: string; mfaEnabled: boolean; isPlatformAdmin: boolean };
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+    mfaEnabled: boolean;
+    isPlatformAdmin: boolean;
+    /** Signed in with a temporary password from an administrator: every page asks for a new one first. */
+    passwordChangeRequired?: boolean;
+  };
   organization: { id: string; code: string; name: string };
   facilityId: string | null;
   /** The organization's two-step verification requirement for this member; with `enrollmentRequired`, permissions are empty. */
@@ -384,6 +392,8 @@ export interface QueueVisit {
   patientId: string;
   appointmentId: string | null;
   arrivalMode: "walk_in" | "appointment";
+  /** The patient checked in from MyHealth (an online consultation's waiting room, or online check-in for an in-person visit). */
+  checkedInVia: "staff" | "patient_portal";
   ticket: string;
   queueNumber: number;
   queueDate: string;
@@ -2989,6 +2999,18 @@ export interface DentalSupplyUse {
   lines: DentalSupplyUseLine[];
 }
 
+/** A supply use of a dental or clinic procedure (same shape from both APIs). */
+export type SupplyUse = DentalSupplyUse;
+export type SupplyUseLine = DentalSupplyUseLine;
+
+/** What a supplies form needs: the facility's stock locations and the items with usable stock per location. */
+export type SupplyOptions = Omit<DentalSupplyOptions, "templates" | "defaultLocationId"> & { defaultLocationId?: string | null };
+
+/** `GET /clinic/procedure-supplies/options`: as for dental, with templates per catalogue entry. */
+export interface ProcedureSupplyOptions extends SupplyOptions {
+  templates: Array<{ definitionId: string; items: Array<{ itemId: string; quantity: number }> }>;
+}
+
 /** GET /dental/patients/:id adds the supplies used by the patient's procedures. */
 export interface DentalRecordSupplies {
   supplyUses?: DentalSupplyUse[];
@@ -3753,6 +3775,13 @@ export interface BookingRules {
   changeCutoffMinutes: number;
   waitlistEnabled: boolean;
   maxWaitlistEntries: number;
+  /** Unattended appointments are marked as no-shows after `autoNoShowHour` (local) on their day. */
+  autoNoShow: boolean;
+  autoNoShowHour: number;
+  /** Patients may check in for in-person appointments in MyHealth, within the window around the start. */
+  onlineCheckIn: boolean;
+  checkInOpensMinutes: number;
+  checkInClosesMinutes: number;
 }
 
 /** `GET /clinic/booking-rules` row. */
@@ -4399,6 +4428,8 @@ export interface StaffUser {
   accountStatus: string;
   membershipStatus: "active" | "suspended" | string;
   mfaEnabled: boolean;
+  /** Has a temporary password from an administrator, not yet replaced. */
+  passwordChangeRequired: boolean;
   lastLoginAt: string | null;
   roleAssignments: StaffRoleAssignment[];
 }

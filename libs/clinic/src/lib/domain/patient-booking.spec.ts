@@ -1,4 +1,12 @@
-import { DEFAULT_BOOKING_RULES, patientBookingWindow, patientMayChange, waitlistMatches, waitlistRangeProblem } from "./patient-booking";
+import {
+  autoNoShowDue,
+  DEFAULT_BOOKING_RULES,
+  onlineCheckInWindow,
+  patientBookingWindow,
+  patientMayChange,
+  waitlistMatches,
+  waitlistRangeProblem,
+} from "./patient-booking";
 
 const now = new Date("2026-09-28T01:00:00Z");
 const inMinutes = (m: number) => new Date(now.getTime() + m * 60_000);
@@ -51,5 +59,30 @@ describe("waiting list rules", () => {
     expect(waitlistMatches(entry, { date: "2026-10-02", practitionerId: "dr1", visitTypeId: "vt2" })).toBe(false);
     expect(waitlistMatches({ ...entry, practitionerId: "dr2" }, { date: "2026-10-02", practitionerId: "dr1", visitTypeId: "vt1" })).toBe(false);
     expect(waitlistMatches({ ...entry, visitTypeId: null }, { date: "2026-10-02", practitionerId: "dr1", visitTypeId: "vt9" })).toBe(true);
+  });
+});
+
+describe("online check-in and automatic no-shows", () => {
+  const start = new Date("2026-10-01T02:00:00Z"); // 10:00 in Manila
+  const on = { ...DEFAULT_BOOKING_RULES, onlineCheckIn: true, checkInOpensMinutes: 60, checkInClosesMinutes: 15 };
+  const at = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
+
+  it("offers online check-in only where the clinic turned it on, within its window", () => {
+    expect(onlineCheckInWindow(start, at(-30), DEFAULT_BOOKING_RULES)).toBe("not_offered");
+    expect(onlineCheckInWindow(start, at(-61), on)).toBe("too_early");
+    expect(onlineCheckInWindow(start, at(-60), on)).toBeNull();
+    expect(onlineCheckInWindow(start, at(15), on)).toBeNull();
+    expect(onlineCheckInWindow(start, at(16), on)).toBe("too_late");
+  });
+
+  it("marks an unattended appointment only after the clinic's hour on its own day", () => {
+    const rules = { ...DEFAULT_BOOKING_RULES, autoNoShow: true, autoNoShowHour: 20 };
+    const appointment = { endsAt: at(30), dayStart: new Date("2026-09-30T16:00:00Z") }; // Oct 1, 00:00 Manila
+    expect(autoNoShowDue(appointment, new Date("2026-10-01T11:59:00Z"), rules)).toBe(false); // 19:59
+    expect(autoNoShowDue(appointment, new Date("2026-10-01T12:00:00Z"), rules)).toBe(true); // 20:00
+    expect(autoNoShowDue(appointment, new Date("2026-10-02T01:00:00Z"), rules)).toBe(true); // the next morning
+    expect(autoNoShowDue(appointment, new Date("2026-10-01T12:00:00Z"), DEFAULT_BOOKING_RULES)).toBe(false);
+    // An evening appointment that has not ended yet is left alone.
+    expect(autoNoShowDue({ ...appointment, endsAt: new Date("2026-10-01T12:30:00Z") }, new Date("2026-10-01T12:10:00Z"), rules)).toBe(false);
   });
 });

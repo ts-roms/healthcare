@@ -15,6 +15,10 @@ export class CreateUserDto extends createZodDto(createUserSchema) {}
 export const updateMembershipSchema = z.object({ status: z.enum(["active", "suspended"]), reason: z.string().trim().min(3).max(500) });
 export class UpdateMembershipDto extends createZodDto(updateMembershipSchema) {}
 
+/** A temporary password the administrator gives the person directly; it must be replaced at the next sign-in. */
+export const resetPasswordSchema = z.object({ temporaryPassword: passwordSchema, reason: z.string().trim().min(3).max(500) });
+export class ResetPasswordDto extends createZodDto(resetPasswordSchema) {}
+
 export const grantRoleSchema = z
   .object({
     roleId: z.string().uuid(),

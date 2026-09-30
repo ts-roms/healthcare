@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarIcon, ChevronRightIcon, MapPinIcon, PencilIcon, VideoIcon } from "lucide-react";
 import type { PortalAppointment } from "@/lib/api/types";
 import { APPOINTMENT_STATUS, visitTime } from "@/lib/records";
+import { CheckIn } from "./check-in";
 
 export function VisitCard({ visit, upcoming = false }: { visit: PortalAppointment; upcoming?: boolean }) {
   const Icon = visit.modality === "telemedicine" ? VideoIcon : CalendarIcon;
@@ -16,13 +17,18 @@ export function VisitCard({ visit, upcoming = false }: { visit: PortalAppointmen
   ) : (
     card
   );
-  if (!upcoming || !(visit.canCancel || visit.canReschedule)) return body;
+  const changeable = visit.canCancel || visit.canReschedule;
+  const checkIn = visit.canCheckIn || Boolean(visit.checkInOpensAt) || Boolean(visit.queueTicket);
+  if (!upcoming || !(changeable || checkIn)) return body;
   return (
     <div className="flex flex-col gap-1">
       {body}
-      <Link href={`/appointments/${visit.id}`} className="inline-flex items-center gap-1 self-end px-1 text-meta font-medium text-primary hover:underline">
-        <PencilIcon className="size-3.5" aria-hidden /> {visit.canReschedule ? "Change or cancel" : "Cancel"}
-      </Link>
+      {checkIn ? <CheckIn visit={visit} /> : null}
+      {changeable ? (
+        <Link href={`/appointments/${visit.id}`} className="inline-flex items-center gap-1 self-end px-1 text-meta font-medium text-primary hover:underline">
+          <PencilIcon className="size-3.5" aria-hidden /> {visit.canReschedule ? "Change or cancel" : "Cancel"}
+        </Link>
+      ) : null}
     </div>
   );
 }

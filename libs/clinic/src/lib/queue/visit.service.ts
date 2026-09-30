@@ -21,7 +21,10 @@ import type { z } from "zod";
 import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, walkInSchema } from "../clinic.dto";
 import { appointment, encounter, facilityQueueCounter, type Modality, visit, type VisitRecord, visitType, type VisitStatus } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
+import { BookingRulesService } from "../config/booking-rules.service";
 import { ClinicConfigService } from "../config/clinic-config.service";
+import type { PatientBookingContext } from "../appointments/patient-booking.service";
+import { onlineCheckInWindow } from "../domain/patient-booking";
 import { appointmentEvent } from "../appointments/appointment.service";
 import { canApply } from "../domain/appointment-state";
 import { ACTIVE_VISIT_STATUSES, canTransition, compareQueueOrder, queueTicket, requiresReason } from "../domain/queue-state";
@@ -65,6 +68,7 @@ export class VisitService {
     private readonly organizations: OrganizationService,
     private readonly config: ClinicConfigService,
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
+    private readonly bookingRules: BookingRulesService,
   ) {}
 
   async walkIn(actor: Actor, input: z.infer<typeof walkInSchema>): Promise<VisitView> {
@@ -198,6 +202,75 @@ export class VisitService {
         return row;
       }),
     );
+  }
+
+  /**
+   * The patient checks in for their own in-person appointment in MyHealth (docs/domains/clinic.md, "Automatic no-shows
+   * and online check-in"), where the facility offers it and within its window. The visit joins the queue waiting for
+   * triage like any arrival, marked as checked in online. Checking in again returns the same visit.
+   */
+  async checkInByPatient(ctx: PatientBookingContext, appointmentId: string, now = new Date()): Promise<VisitView> {
+    const actor = systemActor(ctx.organizationId, null, "patient-online-check-in");
+    const row = await this.guardArrival(undefined, () =>
+      this.db.transaction(async (tx) => {
+        const [booked] = await tx
+          .select()
+          .from(appointment)
+          .where(and(eq(appointment.organizationId, ctx.organizationId), eq(appointment.id, appointmentId), eq(appointment.patientId, ctx.patientId)))
+          .for("update");
+        // Another patient's appointment is reported as not found, never as forbidden.
+        const current = found(booked, "Appointment");
+        if (current.status === "checked_in") {
+          const [existing] = await tx.select().from(visit).where(eq(visit.appointmentId, appointmentId));
+          if (existing) return existing;
+        }
+        const [type] = await tx.select({ modality: visitType.modality }).from(visitType).where(eq(visitType.id, current.visitTypeId));
+        if (type?.modality !== "in_person") {
+          throw new BusinessRuleError("Online consultations are joined from their own page", "not_in_person");
+        }
+        if (!canApply("check_in", current.status)) {
+          throw new BusinessRuleError(`This appointment is ${current.status.replace(/_/g, " ")}`, "invalid_appointment_status");
+        }
+        const rules = await this.bookingRules.forFacility(ctx.organizationId, current.facilityId, tx);
+        const refusal = onlineCheckInWindow(current.startsAt, now, rules);
+        if (refusal === "not_offered")
+          throw new BusinessRuleError("This clinic does not offer online check-in — please check in at the desk", "online_check_in_not_offered");
+        if (refusal === "too_early") {
+          throw new BusinessRuleError(`Online check-in opens ${rules.checkInOpensMinutes} minutes before your appointment`, "check_in_too_early");
+        }
+        if (refusal === "too_late")
+          throw new BusinessRuleError("Online check-in has closed for this appointment — please check in at the desk", "check_in_too_late");
+        const [updated] = await tx
+          .update(appointment)
+          .set({ status: "checked_in", checkedInAt: now, updatedBy: null, updatedByPatient: true, updatedAt: now, version: sql`${appointment.version} + 1` })
+          .where(eq(appointment.id, appointmentId))
+          .returning();
+        const inserted = await this.insertVisit(tx, actor, current.facilityId, {
+          patientId: current.patientId,
+          appointmentId,
+          visitTypeId: current.visitTypeId,
+          arrivalMode: "appointment",
+          priority: "routine",
+          chiefComplaint: current.reason ?? null,
+          assignedPractitionerId: current.practitionerId,
+          byPatient: true,
+        });
+        await this.audit.record(tx, ctx.audit, {
+          action: "appointment.check-in",
+          resourceType: "appointment",
+          resourceId: appointmentId,
+          patientId: inserted.patientId,
+          metadata: { visitId: inserted.id, via: "patient_portal" },
+        });
+        await this.events.record(
+          tx,
+          appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: inserted.id, byPatient: true }),
+          queueEvent(inserted),
+        );
+        return inserted;
+      }),
+    );
+    return toVisitView(row);
   }
 
   /** Today's queue (or another date) for the actor's facility, in service order. */
@@ -348,8 +421,10 @@ export class VisitService {
     facilityId: string,
     values: Pick<typeof visit.$inferInsert, "patientId" | "visitTypeId" | "arrivalMode" | "priority" | "chiefComplaint" | "assignedPractitionerId"> & {
       appointmentId?: string;
-      /** Online check-in by the patient: no staff user, straight to the consultation queue (no triage). */
+      /** Online consultation joined by the patient: no staff user, straight to the consultation queue (no triage). */
       viaPortal?: boolean;
+      /** In-person appointment checked in by the patient in MyHealth: no staff user, waiting for triage like any arrival. */
+      byPatient?: boolean;
     },
   ): Promise<VisitRecord> {
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
@@ -363,7 +438,8 @@ export class VisitService {
         set: { nextValue: sql`${facilityQueueCounter.nextValue} + 1` },
       })
       .returning({ value: facilityQueueCounter.nextValue });
-    const { viaPortal, ...fields } = values;
+    const { viaPortal, byPatient, ...fields } = values;
+    const patientCheckedIn = viaPortal || byPatient;
     const [row] = await tx
       .insert(visit)
       .values({
@@ -372,8 +448,8 @@ export class VisitService {
         facilityId,
         queueDate,
         queueNumber: found(counter, "Queue counter").value,
-        checkedInBy: viaPortal ? null : actor.userId,
-        checkedInVia: viaPortal ? "patient_portal" : "staff",
+        checkedInBy: patientCheckedIn ? null : actor.userId,
+        checkedInVia: patientCheckedIn ? "patient_portal" : "staff",
         status: viaPortal ? "awaiting_consultation" : "waiting",
       })
       .returning();

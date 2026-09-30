@@ -35,6 +35,25 @@ export async function setMembershipStatus(userId: string, status: "active" | "su
   return result;
 }
 
+const resetPasswordSchema = z
+  .object({
+    temporaryPassword: z.string().min(12, "The temporary password needs at least 12 characters.").max(128),
+    confirm: z.string(),
+    reason,
+  })
+  .refine((v) => v.temporaryPassword === v.confirm, { message: "The passwords do not match.", path: ["confirm"] });
+
+/** Gives a member a temporary password to replace at the next sign-in; their sessions end (user.manage, audited). */
+export async function resetStaffPassword(userId: string, input: z.input<typeof resetPasswordSchema>): Promise<ActionResult<StaffUser>> {
+  const parsed = resetPasswordSchema.safeParse(input);
+  if (!z.uuid().safeParse(userId).success) return { ok: false, message: "Invalid request." };
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the password." };
+  const { temporaryPassword, reason: why } = parsed.data;
+  const result = await actionResult(() => api<StaffUser>(`/users/${userId}/password-reset`, { method: "POST", body: { temporaryPassword, reason: why } }));
+  if (result.ok) revalidatePath(`/admin/users/${userId}`);
+  return result;
+}
+
 const grantSchema = z.object({
   roleId: z.string().uuid("Choose a role."),
   facilityId: z.string().uuid().optional(),

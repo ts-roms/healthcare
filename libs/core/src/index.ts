@@ -24,3 +24,4 @@ export * from "./lib/events/domain-event.schema";
 export * from "./lib/events/domain-events";
 export * from "./lib/time/zoned-time";
 export * from "./lib/http/pdf-file";
+export * from "./lib/supplies/supply-use";

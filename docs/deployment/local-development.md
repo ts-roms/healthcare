@@ -30,7 +30,7 @@ To try the patient portal: in the staff app, open a patient, use **Record
 consent** (Consent & communication) to record "Patient portal access" as
 granted, then **Invite to portal** on the patient page. On http://localhost:3001 choose
 "Set up your account" and enter the patient number, date of birth and the code.
-The portal serves the organization in `PORTAL_ORGANIZATION_CODE` (seeded: `demo`). `PORTAL_BASE_URL` (the API's setting; `http://localhost:3001` in `.env.example`) is where password-reset emails link; with no mail provider the reset link is written to the API log in development.
+The portal serves the organization in `PORTAL_ORGANIZATION_CODE` (seeded: `demo`). `PORTAL_BASE_URL` (the API's setting; `http://localhost:3001` in `.env.example`) is where password-reset emails link; with no mail provider the reset link is written to the API log in development. `STAFF_BASE_URL` (`http://localhost:3000`) does the same for staff password-reset links.
 
 Checks (what CI runs):
 

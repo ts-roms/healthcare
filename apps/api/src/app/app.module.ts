@@ -23,7 +23,7 @@ import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-ad
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
-import { AppImmunizationContext } from "./adapters/immunization-adapters";
+import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immunization-adapters";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -56,6 +56,7 @@ import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
+import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageNoticeSource } from "./portal/patient-message-notice-source";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
@@ -162,6 +163,7 @@ export class AppModule implements NestModule {
           imports: [PatientModule, AuthModule, InventoryModule],
           patientDirectory: AppPatientDirectory,
           immunizationContext: AppImmunizationContext,
+          procedureSupplies: AppProcedureSupplies,
         }),
         prescriptions,
         carePlans,
@@ -243,6 +245,7 @@ export class AppModule implements NestModule {
         PatientRecordsNotices,
         ReferralNotices,
         PortalSecurityNotices,
+        StaffSecurityNotices,
         PatientMessageNoticeSource,
         PatientMessageNotices,
         // Rate limiting applies to every route, including the public login endpoints.

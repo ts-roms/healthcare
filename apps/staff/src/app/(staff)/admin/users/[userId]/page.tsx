@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
+import { KeyRoundIcon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
@@ -10,7 +10,7 @@ import type { MfaPolicy, StaffRoleDefinition, StaffUser } from "@/lib/api/types"
 import { ApiError } from "@healthcare/web-session";
 import { MfaExemptionControl, ResetMfaButton } from "../../security/security-controls";
 import { organizationDirectory, scopeLabel } from "../directory";
-import { GrantRoleForm, MembershipControl, RevokeRoleButton } from "./user-controls";
+import { GrantRoleForm, MembershipControl, RevokeRoleButton, TemporaryPasswordReset } from "./user-controls";
 
 export const metadata = { title: "Staff user" };
 
@@ -122,7 +122,15 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
               </div>
             ) : null}
             <p className="text-muted-foreground">Last sign-in: {user.lastLoginAt ? clinicalDateTime(user.lastLoginAt) : "never"}</p>
+            {user.passwordChangeRequired ? (
+              <p>
+                <Badge variant="warning">
+                  <KeyRoundIcon aria-hidden /> Temporary password — must choose their own at the next sign-in
+                </Badge>
+              </p>
+            ) : null}
             {manage && !self ? <MembershipControl userId={user.id} status={user.membershipStatus === "active" ? "active" : "suspended"} /> : null}
+            {manage && !self ? <TemporaryPasswordReset userId={user.id} /> : null}
             {self ? <p className="text-meta text-muted-foreground">You cannot suspend yourself. Change your own password under My account.</p> : null}
           </CardContent>
         </Card>

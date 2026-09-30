@@ -61,3 +61,47 @@ export class RecordProcedureDto extends createZodDto(recordProcedureSchema) {}
 
 export const procedureInErrorSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
 export class ProcedureInErrorDto extends createZodDto(procedureInErrorSchema) {}
+
+// ---- supplies used, from inventory (migration 0089) -------------------------------------------------------------
+
+const supplyQuantity = z.number().int().min(1).max(1000);
+const idempotencyKey = z.string().trim().min(8).max(100);
+const supplyReference = z.string().trim().min(1).max(80);
+
+export const procedureSupplyTemplateSchema = z.object({
+  /** The supplies this procedure usually uses, in order; an empty list clears the template. */
+  items: z.array(z.object({ itemId: z.uuid(), quantity: supplyQuantity })).max(30),
+});
+export class ProcedureSupplyTemplateDto extends createZodDto(procedureSupplyTemplateSchema) {}
+
+export const recordProcedureSuppliesSchema = z.object({
+  /** A stock location of the procedure's facility (the selected facility). */
+  locationId: z.uuid(),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.uuid(),
+        quantity: supplyQuantity,
+        /** Required with the reference for a controlled item (inventory enforces it). */
+        reason: z.string().trim().min(3).max(500).optional(),
+        reference: supplyReference.optional(),
+      }),
+    )
+    .min(1)
+    .max(30),
+  idempotencyKey,
+});
+export class RecordProcedureSuppliesDto extends createZodDto(recordProcedureSuppliesSchema) {}
+
+export const returnProcedureSuppliesSchema = z.object({
+  /** Issued lines of this procedure and how much of each comes back unused. */
+  lines: z
+    .array(z.object({ lineId: z.uuid(), quantity: supplyQuantity }))
+    .min(1)
+    .max(60),
+  reason: z.string().trim().min(3).max(500),
+  /** Required for a controlled item (inventory enforces it). */
+  reference: supplyReference.optional(),
+  idempotencyKey,
+});
+export class ReturnProcedureSuppliesDto extends createZodDto(returnProcedureSuppliesSchema) {}

@@ -11,6 +11,8 @@ import { MfaPolicyController } from "./mfa-policy.controller";
 import { MfaPolicyService } from "./mfa-policy.service";
 import { PermissionCatalogCheck } from "./permission-catalog.check";
 import { SessionService } from "./session.service";
+import { StaffPasswordResetService } from "./staff-password-reset.service";
+import { StaffSecurityMailers } from "./staff-security-mailer";
 import { TokenService } from "./tokens";
 import { UsersController } from "./users.controller";
 import { UsersService } from "./users.service";
@@ -29,10 +31,12 @@ import { UsersService } from "./users.service";
     MfaPolicyService,
     PermissionCatalogCheck,
     SessionService,
+    StaffPasswordResetService,
+    StaffSecurityMailers,
     TokenService,
     UsersService,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AccessService, ActorResolver, AuthService, MfaPolicyService, UsersService],
+  exports: [AccessService, ActorResolver, AuthService, MfaPolicyService, StaffSecurityMailers, UsersService],
 })
 export class AuthModule {}

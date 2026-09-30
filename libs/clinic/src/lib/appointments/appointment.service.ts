@@ -16,6 +16,7 @@ import {
   type Page,
   pageOffset,
   PgErrorCode,
+  systemActor,
   toPage,
   filedAsPatient,
 } from "@healthcare/core";
@@ -197,6 +198,35 @@ export class AppointmentService {
     if (!noShowAllowed(current.startsAt, new Date()))
       throw new BusinessRuleError("A no-show can be recorded only after the start time", "too_early_for_no_show");
     return this.transition(actor, appointmentId, version, "no_show", { status: "no_show", noShowAt: new Date() }, "AppointmentNoShow");
+  }
+
+  /**
+   * The platform marks an appointment nobody attended as a no-show (the facility's automatic no-shows, migration 0088).
+   * Same transition, audit and `AppointmentNoShow` event as staff recording it; `null` when the appointment is no longer
+   * booked or confirmed (someone checked the patient in or changed it meanwhile, or another runner got there first).
+   */
+  async markNoShowAutomatically(organizationId: string, facilityId: string, appointmentId: string, now = new Date()): Promise<AppointmentView | null> {
+    const actor = systemActor(organizationId, facilityId, "automatic-no-show");
+    return this.db.transaction(async (tx) => {
+      const current = await this.lock(tx, organizationId, appointmentId);
+      if (!canApply("no_show", current.status) || current.endsAt > now) return null;
+      const [updated] = await tx
+        .update(appointment)
+        .set({ status: "no_show", noShowAt: now, noShowAutomatic: true, updatedAt: now, version: sql`${appointment.version} + 1` })
+        .where(eq(appointment.id, appointmentId))
+        .returning();
+      const row = found(updated, "Appointment");
+      await this.audit.record(tx, actor, {
+        action: "appointment.no-show",
+        resourceType: "appointment",
+        resourceId: appointmentId,
+        patientId: row.patientId,
+        changes: { status: { from: current.status, to: row.status } },
+        metadata: { automatic: true },
+      });
+      await this.events.record(tx, appointmentEvent("AppointmentNoShow", row, { automatic: true }));
+      return publicView(row);
+    });
   }
 
   async reschedule(actor: Actor, appointmentId: string, input: z.infer<typeof rescheduleSchema>): Promise<AppointmentView> {

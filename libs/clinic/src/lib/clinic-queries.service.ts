@@ -17,6 +17,7 @@ import {
   allergyIntolerance,
   allergyReview,
   appointment,
+  type AppointmentStatus,
   diagnosis,
   encounter,
   encounterNoteRevision,
@@ -33,7 +34,8 @@ import {
 import { publicView } from "./clinic-support";
 import { referralOverdue } from "./referrals/referral.rules";
 import { canApply } from "./domain/appointment-state";
-import { patientMayChange } from "./domain/patient-booking";
+import { type BookingRules, onlineCheckInWindow, patientMayChange } from "./domain/patient-booking";
+import { ACTIVE_VISIT_STATUSES, queueTicket } from "./domain/queue-state";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { TriageService, toVitalsView } from "./triage/triage.service";
@@ -93,15 +95,44 @@ export class ClinicQueries {
     const rulesByFacility = await this.bookingRules.forFacilities(organizationId, [...new Set(rows.map((r) => r.facilityId))]);
     const changeable = (r: { status: (typeof rows)[number]["status"]; startsAt: Date; facilityId: string }) =>
       canApply("cancel", r.status) && patientMayChange(r.startsAt, now, rulesByFacility.get(r.facilityId));
+    // The queue number of an in-person visit the patient is checked in for, so they know when they are called.
+    const checkedIn = rows.filter((r) => r.status === "checked_in" && r.modality === "in_person" && r.endsAt >= now).map((r) => r.id);
+    const tickets = new Map(
+      checkedIn.length
+        ? (
+            await this.db
+              .select({ appointmentId: visit.appointmentId, queueNumber: visit.queueNumber })
+              .from(visit)
+              .where(and(eq(visit.organizationId, organizationId), inArray(visit.appointmentId, checkedIn), inArray(visit.status, [...ACTIVE_VISIT_STATUSES])))
+          ).map((v) => [v.appointmentId, queueTicket(v.queueNumber)])
+        : [],
+    );
     return {
       // What the patient may still do themselves in MyHealth (the API enforces the same rules).
       upcoming: rows
         .filter((r) => r.endsAt >= now)
-        .map(({ onlineBooking, ...r }) => ({ ...r, canCancel: changeable(r), canReschedule: changeable(r) && onlineBooking })),
+        .map(({ onlineBooking, ...r }) => ({
+          ...r,
+          queueTicket: tickets.get(r.id) ?? null,
+          canCancel: changeable(r),
+          canReschedule: changeable(r) && onlineBooking,
+          // In-person only: an online consultation is joined from its own page.
+          canCheckIn:
+            r.modality === "in_person" && canApply("check_in", r.status) && onlineCheckInWindow(r.startsAt, now, rulesByFacility.get(r.facilityId)) === null,
+          // When online check-in will open, if the clinic offers it and it has not opened yet.
+          checkInOpensAt: checkInOpensAt(r, now, rulesByFacility.get(r.facilityId)),
+        })),
       past: rows
         .filter((r) => r.endsAt < now)
         .reverse()
-        .map(({ onlineBooking: _onlineBooking, ...r }) => ({ ...r, canCancel: false, canReschedule: false })),
+        .map(({ onlineBooking: _onlineBooking, ...r }) => ({
+          ...r,
+          canCancel: false,
+          canReschedule: false,
+          canCheckIn: false,
+          checkInOpensAt: null,
+          queueTicket: null,
+        })),
     };
   }
 
@@ -984,4 +1015,11 @@ export class ClinicQueries {
       .from(practitioner)
       .where(and(eq(practitioner.organizationId, organizationId), inArray(practitioner.id, practitionerIds)));
   }
+}
+
+/** When online check-in opens for an in-person appointment still ahead, where the clinic offers it. */
+function checkInOpensAt(r: { modality: string; status: AppointmentStatus; startsAt: Date }, now: Date, rules: BookingRules | undefined): Date | null {
+  if (!rules?.onlineCheckIn || r.modality !== "in_person" || !canApply("check_in", r.status)) return null;
+  const opens = new Date(r.startsAt.getTime() - rules.checkInOpensMinutes * 60_000);
+  return opens > now ? opens : null;
 }

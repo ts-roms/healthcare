@@ -27,6 +27,8 @@ export async function changeOwnPassword(input: z.input<typeof passwordSchema>): 
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the passwords." };
   const { currentPassword, newPassword } = parsed.data;
   const result = await actionResult(() => api<void>("/auth/password", { method: "POST", body: { currentPassword, newPassword } }));
+  // A temporary password no longer blocks the other pages (the layout reads the flag from the session).
+  if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
 }
 

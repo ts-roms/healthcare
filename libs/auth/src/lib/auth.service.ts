@@ -169,14 +169,14 @@ export class AuthService {
     await this.db.transaction(async (tx) => {
       await tx
         .update(appUser)
-        .set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date(), version: sql`${appUser.version} + 1` })
+        .set({ passwordHash, passwordChangedAt: new Date(), passwordChangeRequired: false, updatedAt: new Date(), version: sql`${appUser.version} + 1` })
         .where(eq(appUser.id, user.id));
       const revoked = await this.sessions.revokeAllForUser(tx, user.id, "password_changed", actor.sessionId);
       await this.audit.record(tx, actor, {
         action: "auth.password.change",
         resourceType: "app_user",
         resourceId: user.id,
-        metadata: { otherSessionsRevoked: revoked },
+        metadata: { otherSessionsRevoked: revoked, replacedTemporary: user.passwordChangeRequired },
       });
     });
   }
