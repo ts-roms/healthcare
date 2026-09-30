@@ -132,6 +132,8 @@ Not encoded or generated here; each store asks for them and reviews them. Check 
   kept.
 - `eas.json`: all three build profiles and the submit profile, on both platforms, pass `@expo/eas-json` 24.8 (the validator eas-cli 24.8
   uses), which also rejects a broken copy.
-- Every SDK-managed package (including `expo-dev-client`) at the version Expo SDK 57 names; iOS and Android bundles build.
+- Every SDK-managed package (including `expo-dev-client`) at the version Expo SDK 57 names, including TypeScript `~6.0.3`, which
+  `expo install --check` asks for (the offline comparison against the table in the `expo` package had missed it); iOS and Android bundles
+  build. Run `pnpm exec expo install --check` from `apps/mobile` — not the repository root, where no Expo CLI is installed.
 - **Not verified:** any EAS build, credential set-up or store submission (no Expo or store accounts, and Expo's services are not reachable
   from the development environment used).
