@@ -15,6 +15,8 @@ export interface PrescribingContext {
   >;
   /** Active allergies and whether the allergy history has been reviewed. */
   allergies(organizationId: string, patientId: string): Promise<AllergyContext>;
+  /** Practitioners' display names, for lists of prescriptions. */
+  practitionerNames(organizationId: string, practitionerIds: string[]): Promise<Map<string, string>>;
   /** Minimal identification (to check who receives a dispense). Not audited by the adapter. */
   patientBriefs(organizationId: string, patientIds: string[]): Promise<Map<string, { patientNumber: string; displayName: string; sex: string; age: number }>>;
 }

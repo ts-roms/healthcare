@@ -7,6 +7,8 @@ import { AccessService } from "./access.service";
 import { ActorResolver } from "./actor-resolver";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { MfaPolicyController } from "./mfa-policy.controller";
+import { MfaPolicyService } from "./mfa-policy.service";
 import { PermissionCatalogCheck } from "./permission-catalog.check";
 import { SessionService } from "./session.service";
 import { TokenService } from "./tokens";
@@ -19,17 +21,18 @@ import { UsersService } from "./users.service";
  */
 @Module({
   imports: [JwtModule.register({}), OrganizationModule],
-  controllers: [AuthController, UsersController],
+  controllers: [AuthController, MfaPolicyController, UsersController],
   providers: [
     AccessService,
     ActorResolver,
     AuthService,
+    MfaPolicyService,
     PermissionCatalogCheck,
     SessionService,
     TokenService,
     UsersService,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AccessService, ActorResolver, AuthService, UsersService],
+  exports: [AccessService, ActorResolver, AuthService, MfaPolicyService, UsersService],
 })
 export class AuthModule {}

@@ -50,8 +50,20 @@ export const organizationMembership = pgTable("organization_membership", {
   organizationId: uuid("organization_id").notNull(),
   userId: uuid("user_id").notNull(),
   status: text("status").$type<"active" | "suspended">().notNull().default("active"),
+  mfaExemptReason: text("mfa_exempt_reason"),
+  mfaExemptedBy: uuid("mfa_exempted_by"),
+  mfaExemptedAt: timestamp("mfa_exempted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The organization's two-step verification policy for staff (migration 0086); no row means not required. */
+export const staffMfaPolicy = pgTable("staff_mfa_policy", {
+  organizationId: uuid("organization_id").primaryKey(),
+  required: boolean("required").notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
 });
 
 export const roleAssignment = pgTable("role_assignment", {

@@ -30,6 +30,37 @@ export interface StaffLayoutProps {
  * Desktop-first staff shell: narrow dark sidebar (role-filtered), a 44px top
  * bar with global patient search, and a full-bleed content area.
  */
+/** The sidebar's collapsed state: per viewer, in local storage when available (else for this page load only). */
+const SIDEBAR_EVENT = "healthcare:sidebar";
+let sidebarInMemory = false;
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1";
+  } catch {
+    return sidebarInMemory;
+  }
+}
+
+function writeSidebarCollapsed(next: boolean): void {
+  sidebarInMemory = next;
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
+  } catch {
+    /* per-viewer convenience only */
+  }
+  window.dispatchEvent(new Event(SIDEBAR_EVENT));
+}
+
+function subscribeSidebar(onChange: () => void): () => void {
+  window.addEventListener(SIDEBAR_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(SIDEBAR_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
 export function StaffLayout({
   role,
   pathname,
@@ -43,27 +74,9 @@ export function StaffLayout({
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
-  const [collapsed, setCollapsed] = React.useState(false);
-
-  React.useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1");
-    } catch {
-      /* storage unavailable: start expanded */
-    }
-  }, []);
-
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        /* per-viewer convenience only */
-      }
-      return next;
-    });
-  };
+  // Expanded on the server and on first paint; the viewer's choice is read from storage after hydration.
+  const collapsed = React.useSyncExternalStore(subscribeSidebar, readSidebarCollapsed, () => false);
+  const toggleCollapsed = () => writeSidebarCollapsed(!readSidebarCollapsed());
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,10 +97,7 @@ export function StaffLayout({
     <TooltipProvider delayDuration={300}>
       <div className="flex h-dvh overflow-hidden bg-background">
         <aside
-          className={cn(
-            "hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
-            collapsed ? "w-12" : "w-56",
-          )}
+          className={cn("hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex", collapsed ? "w-12" : "w-56")}
         >
           <Brand name={productName} collapsed={collapsed} />
           {railNav}
@@ -170,9 +180,14 @@ function SidebarNav({
   // Accordion: one group open at a time. The group holding the current page is open by default;
   // a click on a group header overrides that (`null` = all closed) until the page changes.
   const [openGroup, setOpenGroup] = React.useState<string | null | undefined>(undefined);
-  React.useEffect(() => setOpenGroup(undefined), [pathname]);
+  const [openedOn, setOpenedOn] = React.useState(pathname);
+  if (openedOn !== pathname) {
+    // A new page: back to the default (reset during render, not in an effect).
+    setOpenedOn(pathname);
+    setOpenGroup(undefined);
+  }
   return (
-    <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav aria-label="Main" className="flex-1 [scrollbar-width:none] overflow-y-auto px-2 py-2 [&::-webkit-scrollbar]:hidden">
       <ul className="flex flex-col gap-0.5">
         {items.map((item) => {
           const Icon = item.icon;
@@ -216,7 +231,10 @@ function SidebarNav({
                     >
                       {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
                       {item.label}
-                      <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")} aria-hidden />
+                      <ChevronDownIcon
+                        className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")}
+                        aria-hidden
+                      />
                     </button>
                   );
                 }

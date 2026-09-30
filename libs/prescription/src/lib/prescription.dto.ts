@@ -59,4 +59,15 @@ export const listPrescriptionsSchema = z
   .refine((v) => v.patientId || v.encounterId, { message: "Provide patientId or encounterId" });
 export class ListPrescriptionsDto extends createZodDto(listPrescriptionsSchema) {}
 
+const day = z.iso.date("Use YYYY-MM-DD");
+/** The prescriptions issued at the selected facility over a period of its own calendar days (at most 92). */
+export const issuedPrescriptionsSchema = z.object({
+  from: day.optional(),
+  to: day.optional(),
+  status: z.enum(["active", "cancelled", "superseded"]).optional(),
+  /** Only those issued by the signed-in practitioner. */
+  mine: z.enum(["true", "false"]).optional(),
+});
+export class IssuedPrescriptionsDto extends createZodDto(issuedPrescriptionsSchema) {}
+
 export type PrescriptionItemInput = z.infer<typeof prescriptionItemSchema>;

@@ -9,7 +9,7 @@ why a button or menu is missing.
 
 > A few administration tasks still have **no screen in the staff app**: defining diagnosis coding systems, and changing or retiring a role once created.
 > They are done through the platform's REST API (`/api/v1`, documented at `/api/docs` on the API server) by someone with the right permission. There is no way
-> yet for an administrator to reset another person's password or two-step verification.
+> yet for an administrator to reset another person's password (two-step verification can be reset: see "Two-step verification for staff" below).
 
 ## Roles and default permissions
 
@@ -49,14 +49,15 @@ not repeated. A dash (—) means only the organization administrator has it by d
 
 ### Organization, users and audit
 
-| Permission            | What it allows                                           | Default roles (besides Organization administrator)                                                                                                                          |
-| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `audit.read`          | View the audit trail                                     | Auditor                                                                                                                                                                     |
-| `organization.manage` | Manage organization settings, facilities and departments | —                                                                                                                                                                           |
-| `organization.read`   | View organization, facilities and departments            | Auditor, Dental assistant, Dentist, Inventory officer, Medical records officer, Medical technologist, Nurse, Pathologist, Pharmacist, Phlebotomist, Physician, Receptionist |
-| `role.manage`         | Create and edit organization roles                       | —                                                                                                                                                                           |
-| `user.manage`         | Create staff users, grant and revoke roles               | —                                                                                                                                                                           |
-| `user.read`           | View staff users and their role assignments              | —                                                                                                                                                                           |
+| Permission            | What it allows                                                                                               | Default roles (besides Organization administrator)                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audit.read`          | View the audit trail                                                                                         | Auditor                                                                                                                                                                     |
+| `organization.manage` | Manage organization settings, facilities and departments                                                     | —                                                                                                                                                                           |
+| `organization.read`   | View organization, facilities and departments                                                                | Auditor, Dental assistant, Dentist, Inventory officer, Medical records officer, Medical technologist, Nurse, Pathologist, Pharmacist, Phlebotomist, Physician, Receptionist |
+| `role.manage`         | Create and edit organization roles                                                                           | —                                                                                                                                                                           |
+| `user.manage`         | Create staff users, grant and revoke roles                                                                   | —                                                                                                                                                                           |
+| `user.mfa.manage`     | Require two-step verification for staff, exempt integration accounts, reset a member's two-step verification | —                                                                                                                                                                           |
+| `user.read`           | View staff users and their role assignments                                                                  | —                                                                                                                                                                           |
 
 ### Patients and documents
 
@@ -256,8 +257,24 @@ yourself can be ticked. Roles cannot be changed or retired from the screen yet; 
 
 **Passwords and two-step verification.** Each person changes their own password and turns two-step verification on or off under **My account** (click
 their name in the top bar; see [Getting started](01-getting-started.md)). There is no self-service password reset and no way for an administrator to reset
-someone else's password or two-step verification yet. Two-step verification is optional; an organization-wide "require MFA" policy does not exist yet.
-Changing a password signs out the person's other sessions.
+someone else's password yet. Changing a password signs out the person's other sessions. Two-step verification can be required for everyone (below).
+
+## Two-step verification for staff
+
+**Administration → Sign-in security** (`/admin/security`, needs `user.read`; changes need `user.mfa.manage`, organization administrators by default) shows
+whether your organization requires two-step verification, how many active members have it on, are exempt or still lack it, the list of those still
+without it, and the exempt accounts. Every change is audited.
+
+1. **Turn on your own first.** You can require it only once your own account uses it (**My account**).
+2. **Exempt integration accounts before requiring it.** Accounts that sign in without a person — the instrument gateway's, a system that sends FHIR
+   imports — cannot type a code. Open the account under **Staff users**, click **Exempt from two-step verification…**, give the reason (for example
+   "Instrument gateway integration account") and confirm. Remove an exemption there or on **Sign-in security**. You cannot exempt yourself.
+3. **Require it:** click **Require it for all staff…**, optionally give a reason, and confirm. From their next page, a member without it sees only **Set up
+   two-step verification**: nobody is locked out, but they cannot open anything else until it is on, and nobody can turn theirs off while it is required.
+   **Stop requiring it…** undoes this.
+4. **Lost or replaced phone:** check who is asking (in person, or by a call you place to a number you already have), open their page under **Staff users**
+   and click **Reset two-step verification…** with the reason. Their sessions end at once and they set it up again at their next sign-in. You cannot reset
+   your own (use **My account**), and an account that also belongs to another organization can only be reset by a platform administrator.
 
 ## How facilities and departments are managed
 
@@ -388,22 +405,26 @@ entries.
 - A role granted for a facility applies only while that facility is selected.
 - Users and patients of one organization are never visible to another organization.
 - Accounts lock for 15 minutes after 5 failed sign-in attempts; passwords need at least 12 characters.
+- When two-step verification is required, a member without it (and not exempt) can only set it up, and nobody can turn theirs off.
 - Audit entries cannot be updated or deleted.
 
 ## Troubleshooting / common messages
 
-| Message                                                                           | Meaning                                                                  | What to do                                                                                |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| You do not have permission to perform this action                                 | The user's roles do not include the permission at the selected facility. | Check their role grants and whether the grant is limited to another facility.             |
-| A staff member sees no facility selector                                          | They hold no role in any active facility.                                | Grant a role for the organization or for their facility.                                  |
-| Facility is not accessible                                                        | The selected facility is inactive or not in the organization.            | Select an active facility.                                                                |
-| You cannot grant permissions you do not hold                                      | The role contains permissions the granting user lacks.                   | Ask an organization administrator to grant it.                                            |
-| The user already has this role in this scope                                      | The same role is already granted at that level.                          | No action needed.                                                                         |
-| This person is already a member of the organization                               | The email is already a member.                                           | Grant roles instead of adding them again.                                                 |
-| This email has no account yet: set a first password for them.                     | The email is new to the platform.                                        | Set a first password of at least 12 characters and give it to them in person.             |
-| You cannot change your own membership status                                      | Self-suspension or self-reactivation is blocked.                         | Ask another administrator.                                                                |
-| Facility was modified by someone else (expected version …). Reload and try again. | Someone changed the facility at the same time.                           | Read the facility again and repeat the change with the new version.                       |
-| Too many failed attempts. Try again later.                                        | The account is locked for 15 minutes.                                    | Wait, then have the user sign in again. Investigate repeated lockouts in the audit trail. |
+| Message                                                                                     | Meaning                                                                        | What to do                                                                                |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| You do not have permission to perform this action                                           | The user's roles do not include the permission at the selected facility.       | Check their role grants and whether the grant is limited to another facility.             |
+| A staff member sees no facility selector                                                    | They hold no role in any active facility.                                      | Grant a role for the organization or for their facility.                                  |
+| Facility is not accessible                                                                  | The selected facility is inactive or not in the organization.                  | Select an active facility.                                                                |
+| You cannot grant permissions you do not hold                                                | The role contains permissions the granting user lacks.                         | Ask an organization administrator to grant it.                                            |
+| The user already has this role in this scope                                                | The same role is already granted at that level.                                | No action needed.                                                                         |
+| This person is already a member of the organization                                         | The email is already a member.                                                 | Grant roles instead of adding them again.                                                 |
+| This email has no account yet: set a first password for them.                               | The email is new to the platform.                                              | Set a first password of at least 12 characters and give it to them in person.             |
+| You cannot change your own membership status                                                | Self-suspension or self-reactivation is blocked.                               | Ask another administrator.                                                                |
+| Facility was modified by someone else (expected version …). Reload and try again.           | Someone changed the facility at the same time.                                 | Read the facility again and repeat the change with the new version.                       |
+| Too many failed attempts. Try again later.                                                  | The account is locked for 15 minutes.                                          | Wait, then have the user sign in again. Investigate repeated lockouts in the audit trail. |
+| Your organization requires two-step verification. Set it up in My account to continue.      | The member has not set up the two-step verification the organization requires. | Set it up on the page shown; an integration account needs an exemption instead.           |
+| Turn on two-step verification for your own account before requiring it                      | You tried to require it without using it yourself.                             | Turn it on under My account first.                                                        |
+| This account also belongs to another organization; ask a platform administrator to reset it | The person signs in to more than one organization.                             | Ask a platform administrator.                                                             |
 
 ## Related chapters
 

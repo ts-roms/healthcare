@@ -55,6 +55,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/records/requests": ["patient.records-request.manage"],
   "/admin/organization": ["organization.read"],
   "/admin/users": ["user.read"],
+  "/admin/security": ["user.read"],
   "/admin/roles": ["user.read"],
   "/admin/facilities": ["organization.read"],
   "/admin/audit": ["audit.read"],

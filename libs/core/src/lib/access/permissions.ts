@@ -143,6 +143,8 @@ export const PERMISSIONS = [
   // sexual history also need encounter.write.
   "history.read",
   "history.record",
+  // Staff two-step verification policy: require it, exempt integration accounts, reset a member's (migration 0086).
+  "user.mfa.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
