@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Checkbox, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { RecordsRequestSetting } from "@/lib/api/types";
 import { saveRecordsRequestSetting } from "./actions";
 
@@ -48,12 +48,7 @@ export function ProcedureForm({ setting, canEdit }: { setting: RecordsRequestSet
           <p className="text-meta text-muted-foreground">Each new request gets a response date; open requests past it are flagged. Leave empty for none.</p>
         </div>
         <label className="flex items-start gap-2 text-table">
-          <input
-            type="checkbox"
-            className="mt-1 size-4"
-            checked={f.identityCheckRequired}
-            onChange={(e) => setF({ ...f, identityCheckRequired: e.target.checked })}
-          />
+          <Checkbox className="mt-1" checked={f.identityCheckRequired} onCheckedChange={(checked) => setF({ ...f, identityCheckRequired: checked === true })} />
           <span>
             Record how the requester&apos;s identity was confirmed before sharing
             <span className="block text-meta text-muted-foreground">Sharing is refused until staff write how they checked it.</span>

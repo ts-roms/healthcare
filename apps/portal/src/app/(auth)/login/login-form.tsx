@@ -36,9 +36,9 @@ function LoginSteps({ next, notice, onRestart }: { next: string; notice?: string
         <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Checking…" : "Sign in"}
         </Button>
-        <button type="button" onClick={onRestart} className="text-center text-body font-medium text-primary underline-offset-4 hover:underline">
+        <Button type="button" onClick={onRestart} variant="link">
           Start over
-        </button>
+        </Button>
       </form>
     );
   }

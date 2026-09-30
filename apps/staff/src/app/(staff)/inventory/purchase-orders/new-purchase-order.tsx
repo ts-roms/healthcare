@@ -89,8 +89,7 @@ export function NewPurchaseOrder({
         >
           <div className="grid gap-2 sm:grid-cols-2">
             <Field id="po-supplier" label="Supplier">
-              <NativeSelect id="po-supplier" value={f.supplierId} onChange={(e) => setF({ ...f, supplierId: e.target.value })}>
-                <option value="">Choose…</option>
+              <NativeSelect placeholder="Choose…" id="po-supplier" value={f.supplierId} onChange={(e) => setF({ ...f, supplierId: e.target.value })}>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -112,8 +111,12 @@ export function NewPurchaseOrder({
             </Field>
             {methods.length ? (
               <Field id="po-method" label="Procurement method">
-                <NativeSelect id="po-method" value={f.procurementMethodId} onChange={(e) => setF({ ...f, procurementMethodId: e.target.value })}>
-                  <option value="">Choose…</option>
+                <NativeSelect
+                  placeholder="Choose…"
+                  id="po-method"
+                  value={f.procurementMethodId}
+                  onChange={(e) => setF({ ...f, procurementMethodId: e.target.value })}
+                >
                   {methods.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.code} · {m.name}
@@ -140,8 +143,12 @@ export function NewPurchaseOrder({
               return (
                 <div key={line.key} className="grid grid-cols-[1fr_5rem_6rem_auto] items-end gap-2">
                   <Field id={`po-item-${index}`} label={`Item ${index + 1}`}>
-                    <NativeSelect id={`po-item-${index}`} value={line.itemId} onChange={(e) => setLine(line.key, { itemId: e.target.value })}>
-                      <option value="">Choose…</option>
+                    <NativeSelect
+                      placeholder="Choose…"
+                      id={`po-item-${index}`}
+                      value={line.itemId}
+                      onChange={(e) => setLine(line.key, { itemId: e.target.value })}
+                    >
                       {items.map((i) => (
                         <option key={i.id} value={i.id}>
                           {i.name}

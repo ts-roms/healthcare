@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CreditCardIcon } from "lucide-react";
+import { Button } from "@healthcare/ui/primitives";
 import { peso } from "@/lib/billing";
 import { startOnlinePayment } from "./actions";
 
@@ -13,10 +14,10 @@ export function PayOnline({ invoiceId, balance }: { invoiceId: string; balance: 
   const [key] = React.useState(() => crypto.randomUUID());
   return (
     <div className="mt-2 flex flex-col gap-1">
-      <button
+      <Button
         type="button"
         disabled={pending}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-primary-foreground disabled:opacity-60"
+        className="h-10 gap-2 px-4"
         onClick={() =>
           startTransition(async () => {
             setError(null);
@@ -27,7 +28,7 @@ export function PayOnline({ invoiceId, balance }: { invoiceId: string; balance: 
         }
       >
         <CreditCardIcon className="size-4" aria-hidden /> Pay {peso(balance)} online
-      </button>
+      </Button>
       {error ? (
         <p role="alert" className="text-meta text-danger-foreground">
           {error}

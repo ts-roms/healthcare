@@ -288,8 +288,7 @@ function InstrumentLog({ instrument, canLog, canManage }: { instrument: LabInstr
           {needsOutcome ? (
             <div className="grid gap-1">
               <Label htmlFor={`outcome-${instrument.id}`}>Outcome *</Label>
-              <NativeSelect id={`outcome-${instrument.id}`} value={f.outcome} onChange={(e) => setF({ ...f, outcome: e.target.value })}>
-                <option value="">Choose…</option>
+              <NativeSelect placeholder="Choose…" id={`outcome-${instrument.id}`} value={f.outcome} onChange={(e) => setF({ ...f, outcome: e.target.value })}>
                 <option value="pass">Passed</option>
                 <option value="fail">Failed</option>
               </NativeSelect>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { PaperclipIcon } from "lucide-react";
-import { toast } from "@healthcare/ui/primitives";
+import { Button, toast } from "@healthcare/ui/primitives";
 import { consentDocumentLink } from "./consent-actions";
 
 /** Opens the signed consent form in a new tab with a short-lived link (each opening is audited by the API). */
@@ -22,13 +22,8 @@ export function SignedFormLink({ documentId }: { documentId: string }) {
       }
     });
   return (
-    <button
-      type="button"
-      onClick={open}
-      disabled={pending}
-      className="inline-flex items-center gap-1 text-meta font-medium text-primary underline-offset-4 hover:underline"
-    >
+    <Button type="button" onClick={open} disabled={pending} variant="link" size="xs" className="h-auto gap-1 px-0">
       <PaperclipIcon className="size-3.5" aria-hidden /> {pending ? "Opening…" : "Signed form"}
-    </button>
+    </Button>
   );
 }

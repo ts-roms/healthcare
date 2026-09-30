@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AlertTriangleIcon, CheckCircle2Icon, FilePenLineIcon, InfoIcon } from "lucide-react";
-import { Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, RadioGroup, RadioGroupItem, Textarea, toast } from "@healthcare/ui/primitives";
 import {
   checkConsentFile,
   CONSENT_CAPTURE,
@@ -113,14 +113,14 @@ export function RecordConsent({ patientId, canUpload }: { patientId: string; can
 
       <fieldset className="grid gap-1">
         <legend className="mb-1 text-table font-medium">Patient&apos;s decision</legend>
-        <div className="flex flex-wrap gap-4">
+        <RadioGroup name="decision" value={form.decision} onValueChange={(value) => set("decision", value)} className="flex flex-wrap gap-4">
           {Object.entries(CONSENT_DECISIONS).map(([value, text]) => (
             <label key={value} className="flex items-center gap-1.5">
-              <input type="radio" name="decision" value={value} checked={form.decision === value} onChange={() => set("decision", value)} className="size-4" />
+              <RadioGroupItem value={value} />
               {text}
             </label>
           ))}
-        </div>
+        </RadioGroup>
       </fieldset>
 
       <div className="grid gap-3 sm:grid-cols-2">

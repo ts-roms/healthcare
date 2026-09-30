@@ -73,14 +73,9 @@ export function PatientLabResults({
                   {latest.versionNumber > 1 ? <span className="block text-meta text-warning-foreground">Corrected: {latest.correctionReason}</span> : null}
                   <PerformedBy laboratory={latest.performingLaboratory} />
                   {(latest.attachments ?? []).map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      className="flex items-center gap-1 text-meta text-primary hover:underline"
-                      onClick={() => openAttachment(a.id)}
-                    >
+                    <Button key={a.id} type="button" variant="link" size="xs" className="h-auto gap-1 px-0" onClick={() => openAttachment(a.id)}>
                       <PaperclipIcon className="size-3" aria-hidden /> {a.title}
-                    </button>
+                    </Button>
                   ))}
                 </TableCell>
                 <TableCell>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { SendIcon } from "lucide-react";
-import { Button, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import { TOPIC_OPTIONS } from "@/lib/messaging-mapping";
 import { startConversation } from "../../messages/actions";
 
@@ -55,18 +55,13 @@ export function SendPortalMessage({ patientId }: { patientId: string }) {
     <form onSubmit={send} className="flex flex-col gap-2 rounded-lg border p-3">
       <div className="flex flex-col gap-1">
         <Label htmlFor="message-topic">About</Label>
-        <select
-          id="message-topic"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value as typeof topic)}
-          className="h-9 rounded-md border border-input bg-card px-2 text-body"
-        >
+        <NativeSelect id="message-topic" value={topic} onChange={(e) => setTopic(e.target.value as typeof topic)}>
           {TOPIC_OPTIONS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="message-title">Subject</Label>
