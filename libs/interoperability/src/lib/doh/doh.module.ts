@@ -1,6 +1,7 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { DohController } from "./doh.controller";
 import { DohEvents } from "./doh-events";
+import { DohRecordQueries } from "./doh-record.queries";
 import { DohReportsService } from "./doh-reports.service";
 import { DohRescans } from "./doh-rescans.service";
 import { DohSettingsService } from "./doh-settings.service";
@@ -25,12 +26,13 @@ export class DohReportingModule {
       providers: [
         DohReportsService,
         DohRescans,
+        DohRecordQueries,
         DohSettingsService,
         DohEvents,
         options.gateway ?? dohGatewayProvider,
         { provide: DOH_CASE_SOURCES, useClass: options.sources },
       ],
-      exports: [DohRescans],
+      exports: [DohRescans, DohRecordQueries],
     };
   }
 }

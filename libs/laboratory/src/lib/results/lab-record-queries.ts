@@ -1,7 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
-import { labCriticalAlert, labOrder, labOrderItem, labReportArchive, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import {
+  labCriticalAlert,
+  labOrder,
+  labOrderItem,
+  labReportArchive,
+  labResult,
+  labSpecimen,
+  labSpecimenEvent,
+  labSpecimenType,
+  labTest,
+} from "../laboratory.schema";
 import { labReferenceLaboratory } from "../send-outs/send-out.schema";
 
 /**
@@ -230,6 +240,89 @@ export class LabRecordQueries {
       )
       .having(timelineRange("lab_result_release", at, id, window))
       .orderBy(desc(at), desc(id))
+      .limit(window.limit);
+  }
+
+  /** The specimen events listed on the timeline (collected, received, rejected); each is its own source. */
+  static readonly TIMELINE_SPECIMEN_EVENTS = ["collected", "received", "rejected"] as const;
+
+  /**
+   * Specimen events of one kind for the patient timeline, when they happened: accession number, specimen type, the
+   * names of the tests on the specimen, the order number and whether a recollection was asked — never the rejection
+   * reason (free text) or who handled it. Source `specimen_{event}`.
+   */
+  timelineSpecimenEvents(organizationId: string, patientId: string, window: TimelineWindow, event: (typeof LabRecordQueries.TIMELINE_SPECIMEN_EVENTS)[number]) {
+    const at = labSpecimenEvent.occurredAt;
+    return this.db
+      .select({
+        id: labSpecimenEvent.id,
+        patientId: labSpecimen.patientId,
+        at: timelineInstant(at),
+        facilityId: labSpecimen.facilityId,
+        event: labSpecimenEvent.event,
+        specimenId: labSpecimen.id,
+        specimenStatus: labSpecimen.status,
+        accessionNumber: labSpecimen.accessionNumber,
+        specimenType: labSpecimenType.name,
+        orderId: labOrder.id,
+        orderNumber: labOrder.orderNumber,
+        encounterId: labOrder.encounterId,
+        tests: sql<
+          string[]
+        >`coalesce((SELECT array_agg(i.test_name ORDER BY i.test_name) FROM ${labOrderItem} i WHERE i.specimen_id = ${labSpecimen.id}), '{}')`,
+        recollectionRequested: sql<boolean>`EXISTS (SELECT 1 FROM ${labSpecimenEvent} r WHERE r.specimen_id = ${labSpecimen.id} AND r.event = 'recollection_requested')`,
+      })
+      .from(labSpecimenEvent)
+      .innerJoin(labSpecimen, eq(labSpecimen.id, labSpecimenEvent.specimenId))
+      .innerJoin(labSpecimenType, eq(labSpecimenType.id, labSpecimen.specimenTypeId))
+      .innerJoin(labOrder, eq(labOrder.id, labSpecimen.orderId))
+      .where(
+        and(
+          eq(labSpecimenEvent.organizationId, organizationId),
+          eq(labSpecimenEvent.event, event),
+          filedAsPatient(labSpecimen.patientId, patientId),
+          timelineFacility(labSpecimen.facilityId, window),
+          timelineRange(`specimen_${event}`, at, labSpecimenEvent.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(labSpecimenEvent.id))
+      .limit(window.limit);
+  }
+
+  /**
+   * Critical-value alerts for the patient timeline, when communicated (`step = communicated`: to whom as recorded, how,
+   * and whether read back) or acknowledged by the care team (`step = acknowledged`), with the test name — never the
+   * value, flag detail or the communication note. Sources `critical_communicated` and `critical_acknowledged`.
+   */
+  timelineCriticalAlerts(organizationId: string, patientId: string, window: TimelineWindow, step: "communicated" | "acknowledged") {
+    const at = step === "communicated" ? labCriticalAlert.communicatedAt : labCriticalAlert.acknowledgedAt;
+    return this.db
+      .select({
+        id: labCriticalAlert.id,
+        patientId: labCriticalAlert.patientId,
+        at: timelineInstant(at),
+        facilityId: labCriticalAlert.facilityId,
+        status: labCriticalAlert.status,
+        communicatedTo: labCriticalAlert.communicatedTo,
+        communicationMethod: labCriticalAlert.communicationMethod,
+        readBackConfirmed: labCriticalAlert.readBackConfirmed,
+        resultId: labCriticalAlert.resultId,
+        orderId: labResult.orderId,
+        testName: labOrderItem.testName,
+      })
+      .from(labCriticalAlert)
+      .innerJoin(labResult, eq(labResult.id, labCriticalAlert.resultId))
+      .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
+      .where(
+        and(
+          eq(labCriticalAlert.organizationId, organizationId),
+          filedAsPatient(labCriticalAlert.patientId, patientId),
+          isNotNull(at),
+          timelineFacility(labCriticalAlert.facilityId, window),
+          timelineRange(`critical_${step}`, at, labCriticalAlert.id, window),
+        ),
+      )
+      .orderBy(desc(at), desc(labCriticalAlert.id))
       .limit(window.limit);
   }
 }

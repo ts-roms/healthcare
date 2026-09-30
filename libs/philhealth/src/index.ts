@@ -4,6 +4,8 @@ export * from "./lib/eligibility.service";
 export * from "./lib/gateway";
 export * from "./lib/philhealth-claim-handler";
 export * from "./lib/philhealth-claims.service";
+export * from "./lib/philhealth-record.queries";
+export * from "./lib/philhealth-record.queries";
 export * from "./lib/philhealth-settings.service";
 export * from "./lib/philhealth-worker";
 export * from "./lib/philhealth.module";

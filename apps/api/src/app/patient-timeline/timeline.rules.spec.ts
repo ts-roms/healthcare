@@ -1,5 +1,15 @@
-import { BadRequestError, type TimelinePosition } from "@healthcare/core";
-import { compareTimeline, decodeCursor, encodeCursor, humanize, mergePage, summarizeNames, TIMELINE_KIND_KEYS, visibleKinds } from "./timeline.rules";
+import { BadRequestError, PERMISSIONS, type TimelinePosition } from "@healthcare/core";
+import {
+  compareTimeline,
+  decodeCursor,
+  encodeCursor,
+  humanize,
+  mergePage,
+  summarizeNames,
+  TIMELINE_KIND_KEYS,
+  TIMELINE_KINDS,
+  visibleKinds,
+} from "./timeline.rules";
 
 const at = (s: string) => `2026-09-${s}.000000Z`;
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -9,17 +19,35 @@ describe("visibleKinds", () => {
   it("includes only the kinds whose domain read permission the caller holds and withholds the rest", () => {
     const cashier = new Set(["patient.read", "billing.charge.read"]);
     const result = visibleKinds(cashier);
-    expect(result.included).toEqual(["invoice", "payment"]);
-    expect(result.withheld).toEqual(TIMELINE_KIND_KEYS.filter((k) => k !== "invoice" && k !== "payment"));
+    // Consents are read with the patient record itself (patient.read).
+    expect(result.included).toEqual(["consent", "invoice", "payment", "billing_note", "deposit"]);
+    expect(result.withheld).toEqual(TIMELINE_KIND_KEYS.filter((k) => !result.included.includes(k)));
   });
 
   it("maps each kind to its domain's permission", () => {
-    const labTech = new Set(["patient.read", "lab.order.read", "lab.result.read"]);
-    expect(visibleKinds(labTech).included).toEqual(["lab_order", "lab_result_release"]);
+    const labTech = new Set(["lab.order.read", "lab.result.read"]);
+    expect(visibleKinds(labTech).included).toEqual(["lab_order", "specimen", "lab_result_release", "critical_value"]);
     const clinical = new Set(["clinical.read"]);
-    expect(visibleKinds(clinical).included).toEqual(["vitals", "external_history"]);
+    expect(visibleKinds(clinical).included).toEqual(["triage", "vitals", "allergy", "external_history"]);
     expect(visibleKinds(new Set(["dental.record.read"])).included).toEqual(["dental"]);
+    expect(visibleKinds(new Set(["dental.imaging.read"])).included).toEqual(["dental_imaging"]);
     expect(visibleKinds(new Set(["notification.read"])).included).toEqual(["communication"]);
+    expect(visibleKinds(new Set(["clinic.queue.read"])).included).toEqual(["queue_visit"]);
+    expect(visibleKinds(new Set(["encounter.read"])).included).toEqual(["encounter", "referral", "medical_certificate"]);
+    expect(visibleKinds(new Set(["prescription.read"])).included).toEqual(["prescription", "dispense"]);
+    expect(visibleKinds(new Set(["philhealth.claim.submit"])).included).toEqual(["philhealth_claim"]);
+    expect(visibleKinds(new Set(["philhealth.eligibility.manage"])).included).toEqual(["philhealth_eligibility"]);
+    expect(visibleKinds(new Set(["doh.report.manage"])).included).toEqual(["doh_case_report"]);
+    expect(visibleKinds(new Set(["patient.records-request.manage"])).included).toEqual(["records_request"]);
+  });
+
+  it("gates every kind by a permission of the catalog", () => {
+    for (const kind of TIMELINE_KIND_KEYS) expect(PERMISSIONS).toContain(TIMELINE_KINDS[kind].permission);
+  });
+
+  it("gives every source one kind only", () => {
+    const sources = TIMELINE_KIND_KEYS.flatMap((k) => TIMELINE_KINDS[k].sources);
+    expect(new Set(sources).size).toBe(sources.length);
   });
 
   it("limits to the requested kinds, withholding only requested ones", () => {
@@ -80,6 +108,12 @@ describe("cursors", () => {
   it("round-trips a position", () => {
     const position = pos("05T08:00:00", "lab_result_release", 7);
     expect(decodeCursor(encodeCursor(position))).toEqual(position);
+  });
+
+  it("accepts a cursor of every source", () => {
+    for (const kind of TIMELINE_KIND_KEYS) {
+      for (const source of TIMELINE_KINDS[kind].sources) expect(decodeCursor(encodeCursor(pos("05T08:00:00", source, 1))).source).toBe(source);
+    }
   });
 
   it.each([
