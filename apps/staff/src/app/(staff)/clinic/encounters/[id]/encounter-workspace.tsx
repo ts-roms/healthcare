@@ -56,6 +56,7 @@ import { label, toVitalSigns } from "@/lib/patient-mapping";
 import { amendNote, loadRevisions, markEncounterEnteredInError, saveNote, signEncounter } from "../actions";
 import { CarePlansPanel, type FollowUpContext, followUpHref } from "./care-plans-panel";
 import { CertificatesPanel } from "./certificates-panel";
+import { type EncounterImmunizations, ImmunizationsPanel } from "./immunizations-panel";
 import { ReferralsPanel } from "./referrals-panel";
 import { DiagnosesPanel } from "./diagnoses-panel";
 import { LabOrdersPanel } from "./lab-orders-panel";
@@ -83,6 +84,7 @@ export function EncounterWorkspace({
   telemedicine,
   lab,
   certificates,
+  immunizations = null,
   referrals,
 }: {
   encounter: EncounterDetail;
@@ -116,6 +118,8 @@ export function EncounterWorkspace({
   };
   /** Medical certificates of this consultation (items null: no access). */
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
+  /** Immunizations: this consultation's doses and the history (null: no access). */
+  immunizations?: EncounterImmunizations | null;
   /** Referrals from this consultation (items null: no access). */
   referrals: { items: Referral[] | null; canRefer: boolean; practitioners: Practitioner[]; currentPractitionerId: string | null };
 }) {
@@ -412,6 +416,12 @@ export function EncounterWorkspace({
                   .join("; ")
                   .slice(0, 2000)}
                 today={followUp.today}
+              />
+              <ImmunizationsPanel
+                encounterId={encounter.id}
+                patientId={encounter.patientId}
+                open={encounter.status !== "entered_in_error"}
+                data={immunizations}
               />
               <ReferralsPanel
                 encounterId={encounter.id}

@@ -340,6 +340,48 @@ export interface ExternalHistorySource {
 }
 
 /**
+ * An immunization record (clinic): a dose given here, not given (with the reason), reported by the patient or another
+ * provider (historical), or accepted from an import. Immutable except for being marked entered in error and a reaction
+ * added once (database trigger), so the latest of those times and `recordedAt` is a reliable last-updated time.
+ */
+export interface ImmunizationSource {
+  id: string;
+  source: "administered_here" | "historical" | "external_import";
+  status: "completed" | "not_done";
+  /** refused, contraindicated, unavailable or other; with the clinician's (or sender's) words. */
+  notDoneReason: string | null;
+  notDoneReasonText: string | null;
+  vaccineName: string;
+  /** A catalogue code-system key (administered here, historical) or the system URI as received (imports). */
+  vaccineCodeSystem: string | null;
+  vaccineCode: string | null;
+  vaccineManufacturer: string | null;
+  doseLabel: string | null;
+  doseNumber: number | null;
+  /** YYYY-MM-DD (a year as 1 January, a month as its first day). */
+  occurrenceDate: string;
+  occurrencePrecision: "year" | "month" | "day" | "time";
+  occurredAt: string | null;
+  facilityId: string | null;
+  encounterId: string | null;
+  performerPractitionerId: string | null;
+  performerName: string | null;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  route: string | null;
+  site: string | null;
+  doseQuantity: number | null;
+  doseUnit: string | null;
+  /** Where the information came from (reported or imported doses). */
+  sourceDescription: string | null;
+  declaredSource: string | null;
+  adverseReaction: string | null;
+  adverseReactionRecordedAt: string | null;
+  recordedAt: string;
+  enteredInErrorAt: string | null;
+}
+
+/**
  * The dental record (libs/dental), in this layer's terms. Teeth are FDI / ISO 3950 two-digit codes; surfaces the
  * platform's fixed set (M, D, O, I, B, L). Examinations, procedures and periodontal charts are immutable except for
  * being marked entered in error (database trigger), so `enteredInErrorAt ?? recorded/performed time` is reliable.
@@ -498,4 +540,6 @@ export interface PatientRecordSource {
   externalHistory: ExternalHistorySource[];
   /** The dental record, or null when the caller may not read it (dental resources are then withheld, with a notice). */
   dental: DentalRecordSource | null;
+  /** The immunization history (entries in error included, marked). */
+  immunizations: ImmunizationSource[];
 }

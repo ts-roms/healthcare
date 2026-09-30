@@ -60,6 +60,14 @@ by the issuing practitioner or staff with `encounter.amend`, and another issued.
   `encounter.certificate.print`), `POST /medical-certificates/:id/void`. Audit `encounter.certificate.issue | void`;
   events `MedicalCertificateIssued`, `MedicalCertificateVoided` (ids and the number only).
 
+## Immunizations
+
+The immunization history and the organization's vaccine catalogue live in `libs/clinic/src/lib/immunizations`
+(migration `0081`; permissions `immunization.read`, `immunization.record`; catalogue with `clinic.configure`): doses given
+here (optionally from vaccine stock, in the same transaction), not given with the clinician's reason, reported with a
+partial date, and accepted from FHIR imports; immutable, corrected by entered in error. No schedule or due dose is
+encoded. See [immunizations](immunizations.md).
+
 ## Referrals
 
 `referral` (migration `0079`; `libs/clinic/src/lib/referrals`) — made from a consultation (in progress or signed; not one

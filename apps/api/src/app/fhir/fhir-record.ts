@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CarePlanService } from "@healthcare/care-plan";
-import { ClinicQueries } from "@healthcare/clinic";
+import { ClinicQueries, ImmunizationService } from "@healthcare/clinic";
 import { type Actor, APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -26,7 +26,7 @@ export const canReadDental = (actor: Actor) => actor.permissions.has("dental.rec
  * document descriptions, and dental images' descriptions — are included only
  * for a caller who may read documents (`document.read`); the dental record only
  * for one who may read it (`dental.record.read`). External history comes from
- * the clinic.
+ * the clinic, and so does the immunization history.
  */
 @Injectable()
 export class FhirRecordComposer {
@@ -40,6 +40,7 @@ export class FhirRecordComposer {
     private readonly carePlans: CarePlanService,
     private readonly documents: DocumentRecordQueries,
     private readonly dental: DentalRecordQueries,
+    private readonly immunizations: ImmunizationService,
   ) {}
 
   async context(organizationId: string, requestBaseUrl: string): Promise<FhirContext> {
@@ -64,19 +65,21 @@ export class FhirRecordComposer {
     const patient = await this.patients.getDetail(actor, patientId);
     const withDocuments = include.documents ?? canReadDocuments(actor);
     const withDental = include.dental ?? canReadDental(actor);
-    const [clinic, referrals, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages] = await Promise.all([
-      this.clinic.patientRecord(organizationId, patientId),
-      this.clinic.referralRecords(organizationId, patientId),
-      this.lab.patientRecord(organizationId, patientId),
-      this.prescriptions.allForPatient(organizationId, patientId),
-      this.carePlans.allForPatient(organizationId, patientId),
-      this.organizations.listFacilities(organizationId),
-      withDocuments ? this.documents.patientRecord(organizationId, patientId) : null,
-      withDocuments ? this.lab.reportArchives(organizationId, patientId) : [],
-      withDental ? this.dental.patientRecord(organizationId, patientId) : null,
-      // Dental images are documents: their descriptions go with the documents (document.read), like any document's metadata.
-      withDocuments ? this.dental.images(organizationId, patientId) : [],
-    ]);
+    const [clinic, referrals, labOrders, prescriptions, carePlans, facilities, documents, reportArchives, dental, dentalImages, immunizations] =
+      await Promise.all([
+        this.clinic.patientRecord(organizationId, patientId),
+        this.clinic.referralRecords(organizationId, patientId),
+        this.lab.patientRecord(organizationId, patientId),
+        this.prescriptions.allForPatient(organizationId, patientId),
+        this.carePlans.allForPatient(organizationId, patientId),
+        this.organizations.listFacilities(organizationId),
+        withDocuments ? this.documents.patientRecord(organizationId, patientId) : null,
+        withDocuments ? this.lab.reportArchives(organizationId, patientId) : [],
+        withDental ? this.dental.patientRecord(organizationId, patientId) : null,
+        // Dental images are documents: their descriptions go with the documents (document.read), like any document's metadata.
+        withDocuments ? this.dental.images(organizationId, patientId) : [],
+        this.immunizations.patientRecord(organizationId, patientId),
+      ]);
     const reports = reportVersions(reportArchives, new Set(documents?.map((d) => d.id)));
     const images = new Map(dentalImages.map((i) => [i.documentId, i]));
 
@@ -100,6 +103,10 @@ export class FhirRecordComposer {
       }
       for (const p of dental.plans) practitionerIds.add(p.practitionerId);
       for (const t of dental.chart) practitionerIds.add(t.practitionerId);
+    }
+    for (const i of immunizations) {
+      if (i.performerPractitionerId) practitionerIds.add(i.performerPractitionerId);
+      if (i.facilityId) facilityIds.add(i.facilityId);
     }
     const practitioners = await this.clinic.practitioners(organizationId, [...practitionerIds]);
 
@@ -265,6 +272,38 @@ export class FhirRecordComposer {
             perioCharts: dental.perioCharts.map((c) => ({ ...c, recordedAt: c.recordedAt.toISOString(), enteredInErrorAt: iso(c.enteredInErrorAt) })),
           }
         : null,
+      immunizations: immunizations.map((i) => ({
+        id: i.id,
+        source: i.source,
+        status: i.status,
+        notDoneReason: i.statusReason,
+        notDoneReasonText: i.statusReasonText,
+        vaccineName: i.vaccineName,
+        vaccineCodeSystem: i.vaccineCodeSystem,
+        vaccineCode: i.vaccineCode,
+        vaccineManufacturer: i.vaccineManufacturer,
+        doseLabel: i.doseLabel,
+        doseNumber: i.doseNumber,
+        occurrenceDate: i.occurrenceDate,
+        occurrencePrecision: i.occurrencePrecision,
+        occurredAt: iso(i.occurredAt),
+        facilityId: i.facilityId,
+        encounterId: i.encounterId,
+        performerPractitionerId: i.performerPractitionerId,
+        performerName: i.performerName,
+        lotNumber: i.lotNumber,
+        expiryDate: i.expiryDate,
+        route: i.route,
+        site: i.site,
+        doseQuantity: i.doseQuantity,
+        doseUnit: i.doseUnit,
+        sourceDescription: i.sourceDescription,
+        declaredSource: i.declaredSource,
+        adverseReaction: i.adverseReaction,
+        adverseReactionRecordedAt: iso(i.adverseReactionRecordedAt),
+        recordedAt: i.recordedAt.toISOString(),
+        enteredInErrorAt: iso(i.enteredInErrorAt),
+      })),
     };
   }
 }

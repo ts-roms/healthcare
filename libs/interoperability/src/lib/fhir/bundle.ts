@@ -4,6 +4,7 @@ import { toAllergyIntolerance, toAppointment, toCondition, toEncounter, toNoKnow
 import { dentalResources } from "./dental";
 import { toDocumentReference } from "./documents";
 import { toExternalHistoryResource } from "./external";
+import { toImmunization } from "./immunization";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
 import { toReferralServiceRequest } from "./referrals";
 import { compact } from "./support";
@@ -25,6 +26,7 @@ export const PATIENT_COMPARTMENT_TYPES = [
   "CarePlan",
   "DocumentReference",
   "Procedure",
+  "Immunization",
 ] as const;
 export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
 
@@ -33,11 +35,12 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
  * immutable once issued (cancel/replace records its time), exported documents never change after upload (a dental
  * image's description only when added or marked entered in error), external history entries (the only
  * MedicationStatements, and imported document descriptions) and dental procedures (the only Procedures) change only
- * when marked entered in error (database triggers). The other records are updated in place without a trustworthy
+ * when marked entered in error (database triggers), and immunizations only when marked entered in error or when a
+ * reaction is added (database trigger). The other records are updated in place without a trustworthy
  * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
  * them rather than answered approximately.
  */
-export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference", "Procedure"];
+export const LAST_UPDATED_TYPES: readonly CompartmentType[] = ["MedicationRequest", "MedicationStatement", "DocumentReference", "Procedure", "Immunization"];
 
 /** Types that include dental records (withheld from callers who may not read the dental record). */
 export const DENTAL_TYPES: readonly CompartmentType[] = ["Observation", "CarePlan", "Procedure"];
@@ -70,6 +73,7 @@ export function patientResources(ctx: FhirContext, src: PatientRecordSource): { 
   for (const e of src.externalHistory) if (e.kind !== "document" || src.documents !== null) clinical.push(toExternalHistoryResource(ctx, patientId, e));
   // Dental record (withheld, with a notice, from callers who may not read it); dental images are documents, above.
   if (src.dental) clinical.push(...dentalResources(ctx, patientId, src.dental));
+  for (const i of src.immunizations) clinical.push(toImmunization(ctx, patientId, i));
 
   const supporting: FhirResource[] = [
     toOrganization(ctx),
@@ -193,6 +197,7 @@ const TYPE_DOCUMENTATION: Partial<Record<CompartmentType, string>> = {
   CarePlan: `Care plans, and dental treatment plans (category dental; the patient's decision per item as the activity's status reason). ${DENTAL}`,
   DocumentReference: `Available documents only (not archived ones; dental images with their kind, teeth and visit), and document descriptions from other systems (no content); requires document.read. ${IMPORTED}`,
   Procedure: `Performed dental procedures (the organization's own procedure codes; bodySite the FDI tooth and surfaces). ${DENTAL}`,
+  Immunization: `Doses given here (primarySource true), not given (not-done with the reason), reported by the patient or another provider (primarySource false, reportOrigin as text) and accepted from imports. vaccineCode is the organization's own catalogue code (a local code system unless configured); partial dates at their precision. ${IMPORTED}`,
 };
 
 /** What this read-only endpoint supports (GET /metadata). */

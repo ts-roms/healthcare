@@ -28,8 +28,10 @@ answer; **no deadline, fee or disclosure rule is encoded** (compliance dependenc
   offered to the patient.
 - **Copy of the record** (`records_request_export`, append-only) — a PDF compiled from the patient's record for the
   request: its id is the stored document's (category `record_copy`, generated, of the same patient — composite key),
-  the sections (1–8 of allergies, consultations, laboratory, prescriptions, care_plans, dental, certificates,
-  documents), the optional period, who prepared it and when. A new copy is a new document; none is ever replaced.
+  the sections (1–9 of allergies, consultations, laboratory, prescriptions, care_plans, dental, certificates,
+  documents, immunizations — the last added by migration `0081`: doses given, reported and imported, and doses not
+  given with the kind of reason, whose date falls in the period, or whose year or month overlaps it; entries in error
+  and staff notes left out), the optional period, who prepared it and when. A new copy is a new document; none is ever replaced.
 
 ## Copy of the record
 
@@ -76,7 +78,7 @@ values are the organization's own; no deadline, fee or disclosure rule is sugges
 | Take in review | `patient.records-request.manage` | Submitted only; optimistic `version`.                                                                                 |
 | Share (fulfil) | `patient.records-request.manage` | Open; 1–50 documents of this patient, ordinary and available (`document_not_shareable`); optional note; closes.       |
 | Decline        | `patient.records-request.manage` | Open; reason (3–1000) the patient reads; closes.                                                                      |
-| Prepare a copy | `patient.records-request.manage` | Open (`request_closed` otherwise); 1–8 sections; period in order. Stores a `record_copy` document; request unchanged. |
+| Prepare a copy | `patient.records-request.manage` | Open (`request_closed` otherwise); 1–9 sections; period in order. Stores a `record_copy` document; request unchanged. |
 
 ## Queries
 

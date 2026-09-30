@@ -6,9 +6,20 @@ describe("Patient 360 workspace rules", () => {
     expect([...cashier.included]).toEqual([]);
     expect(cashier.withheld).toEqual(WORKSPACE_PANEL_KEYS);
 
-    const physician = visiblePanels(new Set(["patient.read", "encounter.read", "lab.result.read", "lab.order.read", "document.read"]));
-    expect([...physician.included]).toEqual(["current_encounter", "encounter_history", "critical_results", "lab_orders", "documents", "referrals"]);
+    const physician = visiblePanels(new Set(["patient.read", "encounter.read", "lab.result.read", "lab.order.read", "document.read", "immunization.read"]));
+    expect([...physician.included]).toEqual([
+      "current_encounter",
+      "encounter_history",
+      "critical_results",
+      "lab_orders",
+      "documents",
+      "referrals",
+      "immunizations",
+    ]);
     expect(physician.withheld).toEqual(["dental_images"]);
+
+    const withoutImmunizations = visiblePanels(new Set(["patient.read", "encounter.read"]));
+    expect(withoutImmunizations.withheld).toContain("immunizations");
 
     const medtech = visiblePanels(new Set(["lab.result.read", "lab.order.read"]));
     expect([...medtech.included]).toEqual(["critical_results", "lab_orders"]);

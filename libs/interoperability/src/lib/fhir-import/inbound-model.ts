@@ -4,7 +4,7 @@
  * here is a clinical record. Accepting an entry turns it into the owning domain's own record through a port.
  */
 
-export const IMPORT_KINDS = ["patient", "allergy", "condition", "observation", "medication", "document", "not_supported"] as const;
+export const IMPORT_KINDS = ["patient", "allergy", "condition", "observation", "medication", "document", "immunization", "not_supported"] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 /** FHIR resource types that can be reviewed (everything else is kept as "not supported for import"). */
@@ -16,6 +16,7 @@ export const IMPORTABLE_RESOURCE_TYPES = {
   MedicationStatement: "medication",
   MedicationRequest: "medication",
   DocumentReference: "document",
+  Immunization: "immunization",
 } as const satisfies Record<string, Exclude<ImportKind, "not_supported">>;
 export type ImportableResourceType = keyof typeof IMPORTABLE_RESOURCE_TYPES;
 
@@ -140,12 +141,49 @@ export interface ImportedDocument extends ImportedBase {
   attachments: Array<{ contentType: string | null; title: string | null; size: number | null; inline: boolean; url: string | null }>;
 }
 
+export interface ImportedImmunization extends ImportedBase {
+  kind: "immunization";
+  subject: SubjectMatch;
+  vaccine: string | null;
+  codes: ImportedCode[];
+  /** completed, not-done or entered-in-error, as received. */
+  status: string;
+  /** Why it was not given, as text (statusReason). */
+  notDoneReason: string | null;
+  /** The date the platform can record (a FHIR dateTime: year, month, day or instant), else null. */
+  occurrence: string | null;
+  /** occurrenceString as received (e.g. "childhood"), when no date was given. */
+  occurrenceText: string | null;
+  /** False: reported to the sender by someone else (reportOrigin says who). */
+  primarySource: boolean | null;
+  reportOrigin: string | null;
+  lotNumber: string | null;
+  /** YYYY-MM-DD when a full date was given. */
+  expirationDate: string | null;
+  site: string | null;
+  route: string | null;
+  doseQuantity: { value: number; unit: string | null } | null;
+  /** Who gave it, as the sender names them (display of the performer). */
+  performer: string | null;
+  manufacturer: string | null;
+  /** protocolApplied.doseNumber as text. */
+  doseNumber: string | null;
+  location: string | null;
+}
+
 export interface NotSupportedEntry extends ImportedBase {
   kind: "not_supported";
 }
 
 export type ImportedItem =
-  ImportedPatient | ImportedAllergy | ImportedCondition | ImportedObservation | ImportedMedication | ImportedDocument | NotSupportedEntry;
+  | ImportedPatient
+  | ImportedAllergy
+  | ImportedCondition
+  | ImportedObservation
+  | ImportedMedication
+  | ImportedDocument
+  | ImportedImmunization
+  | NotSupportedEntry;
 
 /**
  * External clinical history, as the clinic domain records it on accept: clearly labelled as from outside, never an
@@ -169,6 +207,27 @@ export interface ImportedAllergyInput {
   reaction?: string;
   severity?: "mild" | "moderate" | "severe";
   criticality: ImportedAllergy["criticality"];
+}
+
+/** An immunization recorded from an import: kept as received (the clinic validates it again). */
+export interface ImportedImmunizationInput {
+  vaccineName: string;
+  vaccineCodeSystem: string | null;
+  vaccineCode: string | null;
+  manufacturer: string | null;
+  status: "completed" | "not_done";
+  notDoneReasonText: string | null;
+  occurrence: string;
+  doseLabel: string | null;
+  doseNumber: number | null;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  route: string | null;
+  site: string | null;
+  doseQuantity: number | null;
+  doseUnit: string | null;
+  performerName: string | null;
+  sourceDescription: string | null;
 }
 
 /** Where an accepted record came from: the source as declared and the import reference. */

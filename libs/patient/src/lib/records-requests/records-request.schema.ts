@@ -11,7 +11,17 @@ export type RecordsRequestScope = (typeof RECORDS_REQUEST_SCOPES)[number];
 export const RECORDS_REQUEST_STATUSES = ["submitted", "in_review", "fulfilled", "declined", "withdrawn"] as const;
 export type RecordsRequestStatus = (typeof RECORDS_REQUEST_STATUSES)[number];
 /** The sections a copy of the record may contain. */
-export const RECORD_COPY_SECTIONS = ["allergies", "consultations", "laboratory", "prescriptions", "care_plans", "dental", "certificates", "documents"] as const;
+export const RECORD_COPY_SECTIONS = [
+  "allergies",
+  "consultations",
+  "laboratory",
+  "prescriptions",
+  "care_plans",
+  "dental",
+  "certificates",
+  "documents",
+  "immunizations",
+] as const;
 export type RecordCopySection = (typeof RECORD_COPY_SECTIONS)[number];
 
 export const recordsRequestNumberSequence = pgTable("records_request_number_sequence", {

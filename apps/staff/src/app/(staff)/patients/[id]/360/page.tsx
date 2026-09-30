@@ -14,6 +14,7 @@ import {
   type LucideIcon,
   PillIcon,
   StethoscopeIcon,
+  SyringeIcon,
   TestTubeIcon,
   UserIcon,
   WaypointsIcon,
@@ -47,6 +48,7 @@ import {
   WITHHELD_TEXT,
 } from "@/lib/patient-workspace";
 import { EncounterHistory } from "./encounter-history";
+import { occurrenceLabel, SOURCE_LABEL } from "@/lib/immunization-form";
 import { WorkspaceFiles } from "./workspace-files";
 
 // Never put patient names in the tab title (shoulder surfing, browser history).
@@ -431,6 +433,55 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               )
             ) : (
               <Withheld />
+            )}
+          </Panel>
+
+          <Panel
+            title="Immunizations"
+            icon={SyringeIcon}
+            action={
+              can(session, "immunization.read") ? (
+                <Link href={`/patients/${id}/immunizations`} className="text-meta text-primary hover:underline">
+                  Full history
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "immunizations") || !workspace?.immunizations ? (
+              <Withheld />
+            ) : workspace.immunizations.length ? (
+              <ul className="flex flex-col gap-1.5 text-body">
+                {workspace.immunizations.map((i) => (
+                  <li key={i.id} className="flex flex-col gap-0.5">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{i.vaccineName}</span>
+                      {i.dose ? <span className="text-muted-foreground">· {i.dose}</span> : null}
+                      {i.status === "not_done" ? (
+                        <Badge variant="warning">
+                          <AlertTriangleIcon aria-hidden /> Not given
+                        </Badge>
+                      ) : null}
+                      {i.hasReaction ? (
+                        <Badge variant="warning">
+                          <AlertOctagonIcon aria-hidden /> Reaction recorded
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="text-meta text-muted-foreground">
+                      {[
+                        occurrenceLabel(i.occurrence, i.occurrencePrecision, { date: clinicalDate, dateTime: clinicalDateTime }),
+                        SOURCE_LABEL[i.source],
+                        i.facility?.name,
+                        filedUnderText(i.filedUnder),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-table text-muted-foreground">No immunizations recorded.</p>
             )}
           </Panel>
 

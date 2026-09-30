@@ -8,7 +8,18 @@ import { OrganizationService } from "@healthcare/organization";
 import { type PrepareRecordCopyDto, RECORD_COPY_SECTIONS, type RecordCopySection, RecordsRequestService } from "@healthcare/patient";
 import { facilityLetterhead, type Letterhead, pdfDate, pdfDateTime, type PdfWriter, renderPdf } from "@healthcare/pdf";
 import { FhirRecordComposer } from "../fhir/fhir-record";
-import { type CopyPeriod, dateInPeriod, flagLabel, instantInPeriod, periodLabel, referenceRange, resultValue, spanOverlapsPeriod } from "./record-copy.rules";
+import {
+  type CopyPeriod,
+  dateInPeriod,
+  flagLabel,
+  instantInPeriod,
+  occurrenceLabel,
+  occurrenceSpan,
+  periodLabel,
+  referenceRange,
+  resultValue,
+  spanOverlapsPeriod,
+} from "./record-copy.rules";
 
 const DEFAULT_TIME_ZONE = "Asia/Manila";
 
@@ -21,6 +32,7 @@ const SECTION_TITLES: Record<RecordCopySection, string> = {
   dental: "Dental treatment",
   certificates: "Medical certificates",
   documents: "Documents on file",
+  immunizations: "Immunizations",
 };
 
 type SignedNotes = Awaited<ReturnType<ClinicQueries["signedNotes"]>>;
@@ -354,7 +366,46 @@ const RENDERERS: Record<RecordCopySection, Renderer> = {
     );
     w.paragraph("Files (reports, images, scans) are shared as separate documents.", { muted: true, size: 8.5 });
   },
+
+  immunizations: renderImmunizations,
 };
+
+const SOURCE_LABEL: Record<string, string> = { administered_here: "Given here", historical: "Reported", external_import: "From another provider" };
+const NOT_GIVEN: Record<string, string> = { refused: "refused", contraindicated: "contraindicated", unavailable: "vaccine unavailable", other: "other reason" };
+
+// Doses given in the period (a dose recorded only by year or month counts when that year or month overlaps it); doses
+// not given are listed as such with the kind of reason; entries in error are left out. Staff notes are not copied.
+function renderImmunizations(w: PdfWriter, { record }: CopyContent, period: CopyPeriod, timeZone: string): void {
+  const facilities = new Map(record.facilities.map((f) => [f.id, f.name]));
+  const doses = record.immunizations.filter((i) => {
+    if (i.enteredInErrorAt) return false;
+    const span = occurrenceSpan(i.occurrenceDate, i.occurrencePrecision);
+    return spanOverlapsPeriod(span.start, span.end, period);
+  });
+  if (!doses.length) {
+    none(w, "immunizations");
+    return;
+  }
+  w.table(
+    [
+      { header: "Date given", width: 1.6 },
+      { header: "Vaccine", width: 3 },
+      { header: "Dose", width: 1.2 },
+      { header: "Where / by", width: 2.4 },
+      { header: "Lot", width: 1.3 },
+      { header: "Record", width: 1.8 },
+    ],
+    doses.map((i) => [
+      i.occurredAt ? localDay(i.occurredAt, timeZone) : occurrenceLabel(i.occurrenceDate, i.occurrencePrecision, (d) => pdfDate(d)),
+      i.vaccineName,
+      i.doseLabel ?? (i.doseNumber !== null ? String(i.doseNumber) : ""),
+      (i.facilityId ? facilities.get(i.facilityId) : null) ?? i.performerName ?? "",
+      i.lotNumber ?? "",
+      i.status === "not_done" ? `Not given (${NOT_GIVEN[i.notDoneReason ?? "other"] ?? "other reason"})` : (SOURCE_LABEL[i.source] ?? i.source),
+    ]),
+  );
+  w.paragraph("Doses reported by the patient or received from other providers are labelled as such.", { muted: true, size: 8.5 });
+}
 
 function vitalsLine(v: PatientRecordSource["vitals"][number]): string {
   return [

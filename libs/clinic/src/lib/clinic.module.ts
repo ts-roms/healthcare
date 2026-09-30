@@ -29,6 +29,9 @@ import { ExternalHistoryController } from "./external/external-history.controlle
 import { ExternalRecordsService } from "./external/external-records.service";
 import { OnlineVisitService } from "./online/online-visit.service";
 import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
+import { ImmunizationController } from "./immunizations/immunization.controller";
+import { ImmunizationService } from "./immunizations/immunization.service";
+import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -36,6 +39,8 @@ export interface ClinicModuleOptions {
   /** Modules providing what the patient directory adapter depends on. */
   imports?: ModuleMetadata["imports"];
   patientDirectory: Type<PatientDirectory>;
+  /** Staff names and vaccine stock for immunizations (adapter in apps/api). */
+  immunizationContext: Type<ImmunizationContext>;
 }
 
 /** Clinic / EMR: scheduling, queue, triage, encounters, diagnoses, clinic dashboard. */
@@ -55,6 +60,7 @@ export class ClinicModule {
         ClinicDashboardController,
         ExternalHistoryController,
         MedicalCertificateController,
+        ImmunizationController,
         ReferralController,
       ],
       providers: [
@@ -78,6 +84,8 @@ export class ClinicModule {
         TriageService,
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
+        ImmunizationService,
+        { provide: IMMUNIZATION_CONTEXT, useClass: options.immunizationContext },
       ],
       exports: [
         ClinicQueries,
@@ -89,6 +97,7 @@ export class ClinicModule {
         PatientBookingService,
         PatientWaitlistService,
         BookingRulesService,
+        ImmunizationService,
       ],
     };
   }

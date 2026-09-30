@@ -93,7 +93,7 @@ const code = z
 const itemSchema = z.object({
   code,
   name: z.string().trim().min(1, "Enter the name.").max(160),
-  category: z.enum(["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "other"]),
+  category: z.enum(["medicine", "medical_supply", "reagent", "laboratory_consumable", "dental_supply", "ppe", "vaccine", "other"]),
   stockUnit: z.string().trim().min(1, "Enter the stock unit.").max(40),
   tracksLots: z.boolean(),
   controlled: z.boolean(),
