@@ -221,9 +221,45 @@ export function integrationPayloadKeyring(config: IntegrationKeyConfig): Keyring
   return { currentKeyId, keys };
 }
 
+/**
+ * Settings that mean "not configured" when blank. Hosting dashboards (Railway, Docker env files) commonly leave a variable
+ * defined but empty; for these an empty value is the same as an absent one. Deliberately not listed: NODE_ENV, REDIS_URL,
+ * secrets and keys that are required or change security behaviour, so a blank one still fails at start-up.
+ */
+const BLANK_MEANS_UNSET = [
+  "S3_ENDPOINT",
+  "S3_REGION",
+  "S3_BUCKET",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+  "S3_FORCE_PATH_STYLE",
+  "SMTP_URL",
+  "PORTAL_BASE_URL",
+  "VAPID_PUBLIC_KEY",
+  "VAPID_PRIVATE_KEY",
+  "VAPID_SUBJECT",
+  "LIVEKIT_URL",
+  "LIVEKIT_API_KEY",
+  "LIVEKIT_API_SECRET",
+  "PAYMONGO_SECRET_KEY",
+  "PAYMONGO_WEBHOOK_SECRET",
+  "PAYMONGO_PAYMENT_METHODS",
+  "PAYMONGO_API_BASE",
+  "FHIR_BASE_URL",
+  "FHIR_IDENTIFIER_BASE",
+  "FHIR_IDENTIFIER_SYSTEMS",
+  "FHIR_CODE_SYSTEMS",
+] as const;
+
+function withoutBlankOptionals(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned = { ...env };
+  for (const name of BLANK_MEANS_UNSET) if (cleaned[name]?.trim() === "") delete cleaned[name];
+  return cleaned;
+}
+
 /** Parses and validates configuration. Fails fast with every problem listed. */
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const result = appConfigSchema.safeParse(env);
+  const result = appConfigSchema.safeParse(withoutBlankOptionals(env));
   if (!result.success) {
     const problems = result.error.issues.map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`);
     throw new Error(`Invalid configuration:\n${problems.join("\n")}`);
