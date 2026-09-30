@@ -7,8 +7,6 @@ import { BellIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } f
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import {
-  Avatar,
-  AvatarFallback,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -104,16 +102,12 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Account menu" title={user.displayName}>
-                <Avatar className="size-7">
-                  <AvatarFallback className="text-meta">{initials(user.displayName)}</AvatarFallback>
-                </Avatar>
+                <UserInitials name={user.displayName} className="size-7 text-meta" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuLabel className="flex items-center gap-3">
-                <Avatar className="size-10">
-                  <AvatarFallback>{initials(user.displayName)}</AvatarFallback>
-                </Avatar>
+                <UserInitials name={user.displayName} className="size-10 text-section" />
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-body font-semibold">{user.displayName}</span>
                   <span className="block truncate text-meta font-normal text-muted-foreground">{user.email}</span>
@@ -158,6 +152,18 @@ function DemoDataBanner() {
         Nothing here is saved.
       </span>
     </div>
+  );
+}
+
+/** Initials on the brand colour; solid tokens so it reads in both themes (no photo is stored for staff). */
+function UserInitials({ name, className }: { name: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground select-none ${className ?? ""}`}
+    >
+      {initials(name)}
+    </span>
   );
 }
 
