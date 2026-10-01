@@ -4,7 +4,8 @@ import * as React from "react";
 import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
 import type { StaffRole } from "@healthcare/domain";
 import { Kbd } from "../primitives/kbd";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "../primitives/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "../primitives/popover";
+import { Sheet,SheetContent, SheetTitle, SheetTrigger } from "../primitives/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../primitives/tooltip";
 import { cn } from "../lib/utils";
 import { DefaultLink, isActive, type LinkComponent } from "./link";
@@ -172,6 +173,67 @@ function Brand({ name, collapsed = false }: { name: string; collapsed?: boolean 
   );
 }
 
+/** A group in the collapsed rail: its icon opens a pop-out beside the rail listing the sub-pages. */
+function CollapsedGroup({
+  item,
+  pathname,
+  Link,
+  active,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  Link: LinkComponent;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const Icon = item.icon;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={item.label}
+          aria-haspopup="menu"
+          className={cn(
+            "flex h-9 w-full items-center justify-center rounded-full text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
+            active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
+          )}
+        >
+          {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="start" sideOffset={12} className="w-52 p-1.5">
+        <p className="px-2 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{item.label}</p>
+        <ul className="flex flex-col gap-0.5">
+          {item.children?.map((c) => {
+            const cActive = isActive(pathname, c.href);
+            return (
+              <li key={c.href}>
+                <Link
+                  href={c.href}
+                  aria-current={cActive ? "page" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onNavigate();
+                  }}
+                  className={cn(
+                    "flex h-8 items-center rounded-md px-2 text-table outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                    cActive && "bg-accent font-semibold text-primary-deep",
+                  )}
+                >
+                  {c.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SidebarNav({
   items,
   pathname,
@@ -245,6 +307,9 @@ function SidebarNav({
                       />
                     </button>
                   );
+                }
+                if (item.children && collapsed) {
+                  return <CollapsedGroup item={item} pathname={pathname} Link={Link} active={active} onNavigate={onNavigate} />;
                 }
                 return collapsed ? (
                   <Tooltip>
