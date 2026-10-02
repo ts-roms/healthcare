@@ -28,7 +28,8 @@ Other permissions used in this chapter: `encounter.write` (start, write notes, a
 follow-ups), `clinical.read` (clinical summary) and `allergy.manage`. Physicians and dentists have all of these by default; organization
 administrators have every permission.
 
-**Clinic → Prescriptions** and **Clinic → Referrals** in the menu are not yet available. Prescriptions are written inside the encounter.
+Prescriptions are written inside the encounter. **Clinic → Prescriptions** lists the prescriptions issued at your facility (see "How to find
+prescriptions issued at your facility") and **Clinic → Referrals** lists referrals (see "How to refer a patient").
 
 ## How to start a consultation
 
