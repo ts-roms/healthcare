@@ -187,3 +187,27 @@ waiting times, a PDF export.
 **Not decided here.** A data warehouse, ETL or an analytics tool (`CLAUDE.md` §38, "advanced analytics") is a separate
 decision with its own data-protection questions; nothing in the repository asks for it. See
 [management-dashboard.md](management-dashboard.md).
+
+## ADR-0012 Telemetry: OpenTelemetry over OTLP, no backend chosen, no error-tracking SDK
+
+**Status:** accepted (2026-10-02). **Context:** phase 1 of observability (`docs/architecture/observability.md`) gave
+the platform JSON logs, an access log, operational `event` names and health probes without any external service, and
+left traces, metrics, error tracking and alerting as decisions. The stack (`CLAUDE.md` §1) names OpenTelemetry; the
+organization has not chosen a backend, and any backend receives data about requests that can carry patient data.
+
+**Decision.** The processes are instrumented with the OpenTelemetry SDK and export traces and metrics over OTLP/HTTP
+**only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set**; the repository names no backend, dashboard or alert rule, and the
+alert conditions are a runbook (`docs/runbooks/alerts.md`). Span attributes that can carry a person's data (URLs,
+query strings, headers, client addresses, user agents, Redis arguments) are removed by a span processor before export,
+and database spans carry no statement text or parameter values, so the rule is enforced in code rather than by the
+backend's configuration. No error-tracking SDK is added: exceptions reach the trace backend as span status and events
+under the same scrubbing; a dedicated error-tracking service would receive stack traces and request context, which is a
+data-processing decision (compliance register, "Hosting and data protection") before any is adopted. Logs are not
+exported through OpenTelemetry: the hosting provider's log stream remains the record, with `traceId` on each access-log
+and unhandled-error line to join the two.
+
+**Consequences.** Nothing changes for a deployment that sets no endpoint. Instrumentation depends on the webpack build
+leaving `node_modules` external (it does; a build that bundled `pg`, `ioredis`, `express` or `@nestjs/core` would
+silently stop it, which the `telemetry.started` line makes visible). Choosing a backend adds its endpoint, credentials
+and alert rules to the deployment, not code. Revisit if the organization adopts an error-tracking service (scrubbing
+rules and a DPA first) or if OTLP logs become the preferred log path.

@@ -3,6 +3,7 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { NotificationDispatcher } from "./notification.dispatcher";
 import type { NotificationQueue } from "./ports";
+import { observeQueueDepth, type QueueDepth, recordJobFailure, recordReconcileFailure } from "@healthcare/core";
 
 export const NOTIFICATION_QUEUE_NAME = "notifications";
 const RECONCILE_INTERVAL_MS = 60_000;
@@ -19,6 +20,7 @@ export class BullMqNotificationQueue implements NotificationQueue, OnModuleDestr
   constructor(redisUrl: string) {
     this.connection = connect(redisUrl);
     this.queue = new Queue(NOTIFICATION_QUEUE_NAME, { connection: this.connection });
+    observeQueueDepth(NOTIFICATION_QUEUE_NAME, () => this.queue.getJobCounts("waiting", "delayed", "failed") as Promise<QueueDepth>);
   }
 
   async enqueue(notificationId: string, delayMs = 0): Promise<void> {
@@ -71,6 +73,7 @@ export class NotificationWorkerRunner {
     this.worker.on("failed", (job, error) =>
       this.logger.warn({ event: "queue.job_failed", queue: NOTIFICATION_QUEUE_NAME, jobId: job?.id, message: error.message }),
     );
+    this.worker.on("failed", () => recordJobFailure(NOTIFICATION_QUEUE_NAME));
     this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
     this.logger.log(`Notification worker started (concurrency ${concurrency})`);
   }
@@ -82,6 +85,7 @@ export class NotificationWorkerRunner {
       if (ids.length) this.logger.log(`Re-enqueued ${ids.length} stranded notification(s)`);
     } catch (error) {
       this.logger.error({ event: "queue.reconcile_failed", queue: NOTIFICATION_QUEUE_NAME, message: String(error) });
+      recordReconcileFailure(NOTIFICATION_QUEUE_NAME);
     }
   }
 

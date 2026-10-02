@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/
 import { and, asc, inArray, isNull, sql } from "drizzle-orm";
 import { DATABASE, type Database, type DbExecutor } from "../database/database";
 import { domainEvent, type DomainEventRecord } from "./domain-event.schema";
+import { recordHandlerFailure, recordOutboxBatch } from "../telemetry/metrics";
 
 /**
  * A fact that happened in a domain (CLAUDE.md §26). Payloads carry
@@ -117,6 +118,7 @@ export class OutboxRelay implements OnApplicationShutdown {
         .orderBy(asc(domainEvent.position))
         .limit(BATCH_SIZE)
         .for("update", { skipLocked: true });
+      recordOutboxBatch(events.length, events[0]?.occurredAt ?? null);
       const published: string[] = [];
       for (const event of events) {
         const error = await this.dispatch(event);
@@ -130,6 +132,7 @@ export class OutboxRelay implements OnApplicationShutdown {
           .set({ attempts, lastError: error.slice(0, 2000), failedAt: attempts >= OUTBOX_MAX_ATTEMPTS ? new Date() : null })
           .where(sql`${domainEvent.id} = ${event.id}`);
         this.logger.warn({ event: "event.handler_failed", eventType: event.eventType, eventId: event.id, attempt: attempts, message: String(error) });
+        recordHandlerFailure(event.eventType, attempts >= OUTBOX_MAX_ATTEMPTS);
       }
       if (published.length) await tx.update(domainEvent).set({ publishedAt: new Date() }).where(inArray(domainEvent.id, published));
       return events.length;

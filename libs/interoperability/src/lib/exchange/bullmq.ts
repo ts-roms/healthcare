@@ -4,6 +4,7 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { IntegrationExchangeProcessor } from "./exchange-processor";
 import { INTEGRATION_QUEUE, type IntegrationQueue } from "./exchange-types";
+import { observeQueueDepth, type QueueDepth, recordJobFailure, recordReconcileFailure } from "@healthcare/core";
 
 export const INTEGRATION_QUEUE_NAME = "integrations";
 const RECONCILE_INTERVAL_MS = 5 * 60_000;
@@ -21,6 +22,7 @@ export class BullMqIntegrationQueue implements IntegrationQueue, OnModuleDestroy
   constructor(redisUrl: string) {
     this.connection = connect(redisUrl);
     this.queue = new Queue(INTEGRATION_QUEUE_NAME, { connection: this.connection });
+    observeQueueDepth(INTEGRATION_QUEUE_NAME, () => this.queue.getJobCounts("waiting", "delayed", "failed") as Promise<QueueDepth>);
   }
 
   async enqueue(exchangeId: string): Promise<void> {
@@ -75,6 +77,7 @@ export class IntegrationWorkerRunner {
     this.worker.on("failed", (job, error) =>
       this.logger.warn({ event: "queue.job_failed", queue: INTEGRATION_QUEUE_NAME, jobId: job?.id, attempt: job?.attemptsMade, message: error.message }),
     );
+    this.worker.on("failed", () => recordJobFailure(INTEGRATION_QUEUE_NAME));
     this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
     this.logger.log(`Integration worker started (concurrency ${concurrency})`);
   }
@@ -86,6 +89,7 @@ export class IntegrationWorkerRunner {
       if (ids.length) this.logger.log(`Re-enqueued ${ids.length} stranded exchange(s)`);
     } catch (error) {
       this.logger.error({ event: "queue.reconcile_failed", queue: INTEGRATION_QUEUE_NAME, message: String(error) });
+      recordReconcileFailure(INTEGRATION_QUEUE_NAME);
     }
   }
 
