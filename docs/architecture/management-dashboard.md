@@ -26,7 +26,8 @@ in). The pure rules — range, facility scope, suppression, comparison, retentio
 `management-dashboard.rules.ts` (with the CSV writer and summary table; the other export tables in the service); the definitions below in
 `management-dashboard.definitions.ts` (returned as `definitions` and shown in the staff app). They stay in the API
 rather than a separate `libs/reporting` library: the dashboard is the only consumer, and one place avoids duplicating
-the rules.
+the rules (ADR-0011 records when the library is created: a second process, such as scheduled reports from a worker,
+needing the same rules).
 
 ## Metric definitions ("How is this calculated?")
 
