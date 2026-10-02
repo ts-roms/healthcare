@@ -49,7 +49,8 @@ export function OfflineWorkspace({
   const [actions, setActions] = React.useState<OfflineAction[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [replaying, setReplaying] = React.useState(false);
-  const supported = typeof window !== "undefined" && offlineStorageAvailable();
+  // Decided after hydration (the server renders the workspace), so the cached copy and the live page hydrate alike.
+  const supported = React.useSyncExternalStore(subscribeNothing, offlineStorageAvailable, () => true);
 
   const persist = React.useCallback(async (next: OfflineAction[]) => {
     setActions(next);
@@ -188,6 +189,10 @@ export function OfflineWorkspace({
       </div>
     </div>
   );
+}
+
+function subscribeNothing(): () => void {
+  return () => undefined;
 }
 
 function subscribeOnline(callback: () => void): () => void {
