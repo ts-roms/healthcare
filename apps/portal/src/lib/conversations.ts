@@ -14,6 +14,27 @@ export const TOPIC_LABEL: Record<MessageTopic, string> = Object.fromEntries(TOPI
 export const BODY_MAX = 2000;
 export const SUBJECT_MAX = 100;
 
+/** Files a patient may send with a message: photos and PDFs, 10 MB each, three with one message, ten a day (the API checks too). */
+export const ATTACHMENT_TYPES = ["image/jpeg", "image/png", "image/heic", "application/pdf"] as const;
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACHMENTS_MAX = 3;
+
+export function attachmentProblem(files: Array<{ type: string; size: number }>): string | null {
+  if (files.length > ATTACHMENTS_MAX) return `You can send up to ${ATTACHMENTS_MAX} files with one message.`;
+  for (const file of files) {
+    if (!(ATTACHMENT_TYPES as readonly string[]).includes(file.type)) return "Only photos (JPEG, PNG, HEIC) and PDF files can be sent.";
+    if (file.size > ATTACHMENT_MAX_BYTES) return "Each file must be 10 MB or smaller.";
+  }
+  return null;
+}
+
+/** A file size in words. */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** Shown wherever the patient writes: this is not a way to reach the clinic in an emergency. */
 export const NOT_FOR_EMERGENCIES =
   "Messages are read during clinic hours, not all day, and are not for urgent problems. In an emergency call 911 or go to the nearest emergency room.";
@@ -36,6 +57,12 @@ export function conversationMessage(code: string | undefined, fallback: string):
       return "The clinic closed this conversation. Start a new message if you still need help.";
     case "messaging_not_available":
       return "Messages cannot be sent from this record. Please call the clinic.";
+    case "upload_rate_limited":
+      return "You have sent many files today. Try again tomorrow, or call the clinic.";
+    case "attachment_not_allowed":
+      return "One of the files could not be attached. Remove it and try again.";
+    case "storage_upload_failed":
+      return "A file could not be uploaded. Check your connection and try again.";
     default:
       return fallback;
   }

@@ -46,3 +46,40 @@ export function compareForQueue(
   if (aw !== bw) return aw ? -1 : 1;
   return aw ? a.lastMessageAt.getTime() - b.lastMessageAt.getTime() : b.lastMessageAt.getTime() - a.lastMessageAt.getTime();
 }
+
+// ---- attachments, routing and response targets (migration 0097) ------------------------------------------------
+
+/** Documents one message may carry, and what a patient may upload in MyHealth. */
+export const MAX_ATTACHMENTS_PER_MESSAGE = 3;
+export const MAX_PATIENT_UPLOADS_PER_DAY = 10;
+export const MAX_PATIENT_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const PATIENT_UPLOAD_CONTENT_TYPES = ["image/jpeg", "image/png", "image/heic", "application/pdf"] as const;
+export type PatientUploadContentType = (typeof PATIENT_UPLOAD_CONTENT_TYPES)[number];
+
+export interface MessageRouting {
+  routeRoleKey: string | null;
+  routeUserId: string | null;
+  autoAssign: boolean;
+  responseTargetHours: number | null;
+}
+
+/** Who is assigned a new patient conversation on arrival: the routed person when the rule says so, else nobody. */
+export function initialAssignee(setting: Pick<MessageRouting, "routeUserId" | "autoAssign"> | null): string | null {
+  return setting?.autoAssign && setting.routeUserId ? setting.routeUserId : null;
+}
+
+/** When the clinic means to have answered a message the patient wrote now; null without a target. */
+export function responseDueAt(setting: Pick<MessageRouting, "responseTargetHours"> | null, writtenAt: Date): Date | null {
+  return setting?.responseTargetHours ? new Date(writtenAt.getTime() + setting.responseTargetHours * 3_600_000) : null;
+}
+
+/** Whether a conversation waiting for the clinic has passed its target. */
+export function isOverdue(thread: { status: ThreadStatus; lastMessageFrom: MessageSender; responseDueAt: Date | null }, now: Date): boolean {
+  return awaitingClinic(thread) && thread.responseDueAt !== null && thread.responseDueAt.getTime() <= now.getTime();
+}
+
+/** Whether the responsible people are reminded of this breach: once per due time, never twice for the same one. */
+export function overdueReminderDue(thread: { responseDueAt: Date | null; overdueNotifiedAt: Date | null }, now: Date): boolean {
+  if (!thread.responseDueAt || thread.responseDueAt.getTime() > now.getTime()) return false;
+  return thread.overdueNotifiedAt === null || thread.overdueNotifiedAt.getTime() < thread.responseDueAt.getTime();
+}

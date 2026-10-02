@@ -4,12 +4,17 @@
 
 A patient and the clinic write to each other in conversations, inside MyHealth. It replaces "call the clinic" for
 non-urgent questions and lets the clinic ask a patient something and get an answer. It is **not** an emergency
-channel, is **not** watched in real time, carries **text only** (no photos or documents), and is **not** a place to
-release results or give urgent instructions. MyHealth says so wherever a patient writes, and staff screens repeat it.
-Care advice given in a reply is the clinician's own; nothing here decides or suggests anything clinically.
+channel, is **not** watched in real time, and is **not** a place to release results or give urgent instructions.
+MyHealth says so wherever a patient writes, and staff screens repeat it. A message carries text and up to three
+documents of the patient's record (migration `0097`): photos or PDFs the patient uploads, or documents the clinic
+holds. Care advice given in a reply is the clinician's own; nothing here decides or suggests anything clinically.
 
-Not built: attachments, staff-only internal notes, routing rules by topic or staff role, service-level targets or
-overdue alerts beyond showing how long a conversation has waited, auto-replies, canned answers.
+Staff may keep **internal notes** on a conversation that the patient never sees; each facility may **route** a topic
+to a role or to one person (optionally assigning on arrival) and set a **response target** in calendar hours, past
+which the conversation is marked overdue and the responsible people reminded once.
+
+Not built: auto-replies, canned answers, business-hour targets (targets count calendar hours), escalation beyond the
+one reminder, malware scanning of uploads (a dependency of the documents platform), image previews.
 
 ## Entities
 
@@ -20,6 +25,19 @@ overdue alerts beyond showing how long a conversation has waited, auto-replies, 
   `closed_at` / `closed_by`, `version`. Migration `0076`.
 - `patient_message` — append-only (`prevent_mutation` trigger): `sender_type`, exactly one of
   `sender_portal_account_id` (the patient's MyHealth account) or `sender_user_id` (staff), `body` (1–2,000).
+- `patient_message_attachment` (migration `0097`) — append-only: a message's documents (`document_id` of the same
+  patient, `position` 0–2, one row per message and document). A patient attaches only their own finished uploads
+  (`document.source = 'patient_upload'`, `created_by_portal_account`, status `available`; JPEG, PNG, HEIC or PDF, at
+  most 10 MB, 10 uploads a day); the clinic attaches available documents of the patient's record that no other domain
+  manages. Attachments are opened only behind short-lived signed links the documents platform audits.
+- `patient_message_note` — append-only staff notes (`author_user_id`, `body` 1–2,000); never in a portal view, never in
+  audit metadata or events.
+- `patient_message_setting` — one per facility and topic: `route_role_key` **or** `route_user_id` (or neither:
+  everyone who can reply at the facility), `auto_assign` (needs a person), `response_target_hours` (1–168, or none),
+  `version`, who last changed it.
+- `patient_message_thread.response_due_at` — set when the patient writes (last message at + target hours of the
+  facility's setting for the topic), cleared by a staff reply; `overdue_notified_at` records the reminder sent for the
+  current target.
 - A new conversation under a **merged** record is refused by the database trigger (`PM001` → `422 patient_merged`);
   replies to existing ones are not (corrections of what exists). Reads follow merged records with `filedAsPatient`.
 
@@ -39,45 +57,60 @@ overdue alerts beyond showing how long a conversation has waited, auto-replies, 
 Patient: own conversations (newest first), one conversation with its messages, unread count (also counted in the
 navigation badge `GET /portal/messages/unread-count`). Staff: the queue (`filter=awaiting|open|closed|all`,
 `assignedToMe`, `patientId`, `facilityId`; conversations waiting for the clinic first, longest wait on top), one
-conversation, `awaiting-count`. Staff lists carry the patient's name and number, never message text.
+conversation, `awaiting-count`, `overdue-count`, `settings?facilityId=`. Staff lists carry the patient's name and
+number, the note count and the response target (`responseDueAt`, `overdue`), never message or note text. Attachment
+links: `GET /portal/message-threads/:id/attachments/:documentId/link` (own conversation) and
+`GET /patient-messages/:id/attachments/:documentId/link` (`patient.message.read` + `document.read`).
 
 ## Events
 
 `PatientMessageSent` (`sender`, `notify`; ids only — a message's text never travels through the outbox). Handled in
 `apps/api/src/app/portal/patient-message-notices.ts`, idempotent per event:
 
-- a patient's message → in-app `portal.message-new` to the assigned person, or to everyone who can reply
-  (`patient.message.manage`) at the patient's facility — once for a run of messages (`notify` is false when the
-  patient wrote last); the notice has no name or text and links to the conversation;
+- a patient's message → in-app `portal.message-new` to the assigned person; else the person the topic is routed to;
+  else the holders of the routed role who can reply; else everyone who can reply (`patient.message.manage`) at the
+  patient's facility — once for a run of messages (`notify` is false when the patient wrote last); the notice has no
+  name or text and links to the conversation (`PatientMessageNotices.recipientsOf`);
+- hourly, `PatientMessageReminders` (API process, advisory-locked) sends in-app `portal.message-overdue` to the same
+  people for each conversation past its target, once per target (`overdue_notified_at`); a later patient message
+  after a reply sets a new target that can be reminded again;
 - the clinic's message → the patient by SMS, or email when SMS is not possible (`portal.message-received`: "you have a
   new message in MyHealth"), with consent and communication preferences applied — never the sender, subject or words.
 
 ## Permissions
 
-`patient.message.read` (see the queue and conversations) and `patient.message.manage` (reply, start, assign, close,
-reopen) — granted to org_admin, receptionist, nurse, physician, dentist and records_officer (migration `0076`). The
-patient side needs a MyHealth session (`PatientAccessGuard`).
+`patient.message.read` (see the queue, conversations and notes) and `patient.message.manage` (reply, start, assign,
+close, reopen, add notes) — granted to org_admin, receptionist, nurse, physician, dentist and records_officer
+(migration `0076`); `clinic.configure` for routing and targets; `document.read` as well to open an attachment from
+the staff side. The patient side needs a MyHealth session (`PatientAccessGuard`). No new permission in `0097`.
 
 ## API
 
-Patient: `GET/POST /portal/message-threads`, `GET /portal/message-threads/unread-count`,
-`GET /portal/message-threads/:id`, `POST /portal/message-threads/:id/messages`.
-Staff: `GET/POST /patient-messages`, `GET /patient-messages/awaiting-count`, `GET /patient-messages/:id`,
-`POST /patient-messages/:id/messages | assignment | close | reopen`.
+Patient: `GET/POST /portal/message-threads` (`documentIds` optional), `GET /portal/message-threads/unread-count`,
+`POST /portal/message-threads/uploads`, `POST …/uploads/:documentId/complete`, `GET /portal/message-threads/:id`,
+`POST /portal/message-threads/:id/messages`, `GET …/:id/attachments/:documentId/link`.
+Staff: `GET/POST /patient-messages`, `GET /patient-messages/awaiting-count | overdue-count`,
+`GET|PUT /patient-messages/settings`, `GET /patient-messages/:id`,
+`POST /patient-messages/:id/messages | notes | assignment | close | reopen`, `GET …/:id/attachments/:documentId/link`.
 
 ## Audit
 
 Patient: `portal.message-send`, `portal.message-thread-view`, `portal.message-threads-view`. Staff:
 `patient.message-reply`, `patient.message-start`, `patient.message-thread-view`, `patient.message-assign`,
-`patient.message-close`, `patient.message-reopen`. Audit metadata holds ids and topics, never message text.
+`patient.message-close`, `patient.message-reopen`, `patient.message-note`, `patient.message-settings-update`;
+uploads and links through the documents platform (`document.create`, `document.upload-complete`,
+`document.download`). Audit metadata holds ids, topics and attachment counts, never message or note text.
 
 ## Screens
 
-MyHealth `/messages` (conversations above the notices, **New message**), `/messages/new`, `/messages/[threadId]`.
-Staff `/messages` (queue), `/messages/[threadId]`, and **Message in MyHealth** on the patient record (starts a
-conversation) with a link to all conversations with that patient.
+MyHealth `/messages` (conversations above the notices, **New message**), `/messages/new` and `/messages/[threadId]`
+(both with **Add a photo or PDF**; files open behind short-lived links). Staff `/messages` (queue with the response
+target and note count), `/messages/[threadId]` (attachments, reply with files, **Internal notes**),
+`/messages/settings` (routing and targets per topic at the selected facility), and **Message in MyHealth** on the
+patient record (starts a conversation) with a link to all conversations with that patient.
 
 ## Integration points
 
-Notification platform (in-app to staff; SMS/email to patients), patient merge (links, not moves), audit. No external
-system.
+Notification platform (in-app to staff; SMS/email to patients), documents platform (patient uploads are
+`clinical_attachment` documents of the record; signed links), the staff directory (`UsersService.holdersOfRole` for
+routed roles), patient merge (links, not moves), audit. No external system.

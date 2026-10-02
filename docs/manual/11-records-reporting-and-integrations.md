@@ -82,16 +82,27 @@ recorded on the surviving record **after** the merge stays there — check it an
 Patients write to the clinic in MyHealth (**Messages → New message**). They are told messages are read during clinic hours, are not for urgent problems, and
 are not for emergencies. Choose **Patient messages** in the menu (needs `patient.message.read`; replying needs `patient.message.manage`).
 
-1. The list opens on **Waiting for us**: open conversations where the patient wrote last, the longest wait first, with how long each has waited. Use **Open**,
-   **All**, **Closed**, **Assigned to me**, or a patient's own conversations from the patient record.
+1. The list opens on **Waiting for us**: open conversations where the patient wrote last, the longest wait first, with how long each has waited and, where
+   the clinic set a target, **due in …** or **… past target** (marked ⚠). Use **Open**, **All**, **Closed**, **Assigned to me**, or a patient's own
+   conversations from the patient record.
 2. Select **Reply** to open a conversation. Opening one is audited. Read it, write your reply in plain words and select **Send reply**. Sending takes the
    conversation for you if nobody has it. **Assign to me** and **Release** move it between colleagues.
-3. The patient is sent a text or email saying **a message is waiting** — never what it says. You are notified in the app when a patient writes (once for a run of
-   messages).
-4. When the question is settled, select **Close conversation**. The patient can still read it but cannot add to it; **Reopen** it if needed.
+3. Files the patient sent (photos, PDFs) appear under their message; select one to open it (each opening is recorded). To send a file back, choose
+   **Attach files** before **Send reply**: up to 3 images or PDFs of 10 MB or less, filed in the patient's record as attachments.
+4. **Internal notes** on the right are for the clinic only — the patient never sees them, and they cannot be edited or deleted. Use them to record who you
+   checked with or what to do next.
+5. The patient is sent a text or email saying **a message is waiting** — never what it says. You are notified in the app when a patient writes (once for a run
+   of messages), and once more if a conversation passes its response target.
+6. When the question is settled, select **Close conversation**. The patient can still read it but cannot add to it; **Reopen** it if needed.
 
-If a message describes something urgent, **call the patient**; do not answer an emergency by message. Do not put results or urgent instructions in a reply. Messages
-carry text only (no attachments), and nothing said here is a diagnosis by the system: a reply is the clinician's own.
+**Routing and response targets** (needs `clinic.configure`; **Routing and response targets** above the list, for the facility selected in the top bar): for
+each topic a patient can write about, choose who is told of a new message — everyone who can reply, everyone with a role, or one person (optionally
+**assigned on arrival**) — and **Answer within** so many hours (1–168, calendar hours; clinic hours and holidays are not taken into account). Past the
+target the conversation is marked and the responsible people get one reminder in the app.
+
+If a message describes something urgent, **call the patient**; do not answer an emergency by message. Do not put results or urgent instructions in a reply.
+Nothing said here is a diagnosis by the system: a reply is the clinician's own. Files from patients are not checked for malware by the platform — open them as
+you would any file from outside.
 
 ## How to answer a patient's records request
 

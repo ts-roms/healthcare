@@ -3,22 +3,26 @@
 import * as React from "react";
 import { PhoneIcon } from "lucide-react";
 import { Button, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
-import { BODY_MAX, charactersLeft, conversationMessage, NOT_FOR_EMERGENCIES, SUBJECT_MAX, TOPICS } from "@/lib/conversations";
+import { attachmentProblem, BODY_MAX, charactersLeft, conversationMessage, NOT_FOR_EMERGENCIES, SUBJECT_MAX, TOPICS } from "@/lib/conversations";
+import { AttachmentPicker } from "../attachment-picker";
 import { startConversation } from "../conversation-actions";
 
 /** Writes to the clinic. Says first that this is not for emergencies; the API limits open conversations and writing speed. */
 export function NewConversationForm() {
   const [body, setBody] = React.useState("");
+  const [files, setFiles] = React.useState<File[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   const left = charactersLeft(body);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const problem = attachmentProblem(files);
+    if (problem) return setError(problem);
     const form = new FormData(event.currentTarget);
     startTransition(async () => {
       setError(null);
-      const result = await startConversation({ topic: String(form.get("topic") ?? ""), subject: String(form.get("subject") ?? ""), body });
+      const result = await startConversation({ topic: String(form.get("topic") ?? ""), subject: String(form.get("subject") ?? ""), body }, form);
       // A successful start redirects to the conversation; only a refusal comes back here.
       if (result && !result.ok) setError(conversationMessage(result.code, result.message));
     });
@@ -48,10 +52,10 @@ export function NewConversationForm() {
         <Label htmlFor="body">Your message</Label>
         <Textarea id="body" name="body" required rows={6} value={body} onChange={(e) => setBody(e.target.value)} aria-describedby="body-left" />
         <p id="body-left" className={`text-meta ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-          {left < 0 ? `${-left} characters too many` : `${left.toLocaleString("en")} of ${BODY_MAX.toLocaleString("en")} characters left`}. Please do not send
-          photos or documents here.
+          {left < 0 ? `${-left} characters too many` : `${left.toLocaleString("en")} of ${BODY_MAX.toLocaleString("en")} characters left`}
         </p>
       </div>
+      <AttachmentPicker id="new-files" files={files} onChange={setFiles} />
       {error ? (
         <p role="alert" className="text-body text-destructive">
           {error}

@@ -8,6 +8,7 @@ import type { PortalThreadDetail } from "@/lib/api/types";
 import { NOT_FOR_EMERGENCIES, TOPIC_LABEL } from "@/lib/conversations";
 import { UUID } from "@/lib/api/result";
 import { messageTime } from "@/lib/messages";
+import { AttachmentLinks } from "./attachment-links";
 import { ReplyForm } from "./reply-form";
 
 export const metadata = { title: "Conversation" };
@@ -43,6 +44,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ t
               <time dateTime={m.createdAt}>{messageTime(m.createdAt, timeZone)}</time>
             </p>
             <p className="text-body whitespace-pre-line">{m.body}</p>
+            {m.attachments.length ? <AttachmentLinks threadId={thread.id} attachments={m.attachments} /> : null}
           </li>
         ))}
       </ol>

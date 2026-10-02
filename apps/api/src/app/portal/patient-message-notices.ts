@@ -4,15 +4,15 @@ import { DomainEventHandlers, type DomainEventRecord, systemActor } from "@healt
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { PatientPush } from "./patient-push";
-import { PortalAccountService } from "@healthcare/patient";
-import { PatientMessageNoticeSource } from "./patient-message-notice-source";
+import { PatientMessageService, PortalAccountService } from "@healthcare/patient";
 
 const MANAGE_PERMISSION = "patient.message.manage";
 
 /**
  * Notices of MyHealth conversations (docs/domains/patient-messaging.md), one per event and recipient:
- * - a patient's message tells the clinic in the app (the assigned person, or everyone who can reply at the patient's facility),
- *   once for a run of messages;
+ * - a patient's message tells the clinic in the app — the assigned person; else the person the topic is routed to; else the
+ *   holders of the role it is routed to who can reply; else everyone who can reply at the patient's facility — once for a
+ *   run of messages;
  * - the clinic's reply tells the patient by SMS, or email when SMS is not possible, that a message is waiting — never
  *   its content, the sender or the subject. Consent and communication preferences apply.
  */
@@ -24,7 +24,7 @@ export class PatientMessageNotices implements OnModuleInit {
     private readonly organizations: OrganizationService,
     private readonly notifications: NotificationService,
     private readonly users: UsersService,
-    private readonly source: PatientMessageNoticeSource,
+    private readonly messages: PatientMessageService,
     private readonly push: PatientPush,
   ) {}
 
@@ -41,10 +41,7 @@ export class PatientMessageNotices implements OnModuleInit {
   private async tellClinic(event: DomainEventRecord): Promise<void> {
     if (event.payload["notify"] !== true) return;
     const threadId = event.aggregateId;
-    const assigned = await this.source.assignedTo(event.organizationId, threadId);
-    const recipients = assigned
-      ? [{ id: assigned }]
-      : await this.users.holdersOf(event.organizationId, MANAGE_PERMISSION, event.facilityId ?? null).then((people) => people.map((p) => ({ id: p.id })));
+    const recipients = await this.recipientsOf(event.organizationId, threadId, event.facilityId ?? null);
     const actor = systemActor(event.organizationId, event.facilityId, "patient-message-notice");
     for (const person of recipients) {
       await this.notifications.send(actor, {
@@ -55,6 +52,21 @@ export class PatientMessageNotices implements OnModuleInit {
         idempotencyKey: `message-new:${event.id}:${person.id}`,
       });
     }
+  }
+
+  /** Who is told of a patient's message: the assignee, the routed person, the routed role's repliers, or every replier at the facility. */
+  async recipientsOf(organizationId: string, threadId: string, facilityId: string | null): Promise<Array<{ id: string }>> {
+    const routing = await this.messages.routingOf(organizationId, threadId);
+    const scope = routing.facilityId ?? facilityId;
+    if (routing.assignedTo) return [{ id: routing.assignedTo }];
+    if (routing.routeUserId) return [{ id: routing.routeUserId }];
+    const repliers = await this.users.holdersOf(organizationId, MANAGE_PERMISSION, scope);
+    if (routing.routeRoleKey) {
+      const holders = await this.users.holdersOfRole(organizationId, routing.routeRoleKey, scope);
+      const named = repliers.filter((p) => holders.some((h) => h.id === p.id));
+      if (named.length) return named.map((p) => ({ id: p.id }));
+    }
+    return repliers.map((p) => ({ id: p.id }));
   }
 
   private async tellPatient(event: DomainEventRecord): Promise<void> {

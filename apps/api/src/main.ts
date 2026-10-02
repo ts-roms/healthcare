@@ -14,6 +14,7 @@ import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
 import { LaboratoryQualityReminders } from "./app/laboratory-quality-reminders";
+import { PatientMessageReminders } from "./app/portal/patient-message-reminders";
 import { ManagementReportRuns } from "./app/management-dashboard/management-report-runs";
 
 async function bootstrap(): Promise<void> {
@@ -37,6 +38,8 @@ async function bootstrap(): Promise<void> {
   app.get(WaitlistOffersService).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
+  // Hourly: MyHealth conversations past the clinic's response target (one in-app reminder per breach; docs/domains/patient-messaging.md).
+  app.get(PatientMessageReminders).start();
   // Hourly: scheduled management reports whose period has ended (CSV files stored, recipients told).
   app.get(ManagementReportRuns).start();
   // Every minute: approved outreach campaigns whose time has come (docs/domains/crm.md).

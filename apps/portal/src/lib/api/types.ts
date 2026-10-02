@@ -627,6 +627,15 @@ export interface PortalThread {
   unread: boolean;
 }
 
+/** A file carried with a message (a photo or PDF the patient sent, or a document the clinic shared); opened behind a short-lived link. */
+export interface PortalThreadAttachment {
+  documentId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface PortalThreadMessage {
   id: string;
   sender: "patient" | "staff";
@@ -635,6 +644,7 @@ export interface PortalThreadMessage {
   /** Written by a parent or guardian acting for the patient. */
   viaGuardian: boolean;
   createdAt: string;
+  attachments: PortalThreadAttachment[];
 }
 
 export interface PortalThreadDetail extends PortalThread {

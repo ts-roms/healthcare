@@ -65,7 +65,7 @@ import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
-import { PatientMessageNoticeSource } from "./portal/patient-message-notice-source";
+import { PatientMessageReminders } from "./portal/patient-message-reminders";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
@@ -269,8 +269,8 @@ export class AppModule implements NestModule {
         ReferralNotices,
         PortalSecurityNotices,
         StaffSecurityNotices,
-        PatientMessageNoticeSource,
         PatientMessageNotices,
+        PatientMessageReminders,
         // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
         // its Redis connection closes with the application.
         { provide: RedisThrottlerStorage, useValue: rateLimits },
