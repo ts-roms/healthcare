@@ -262,7 +262,8 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   recovery code; not while the organization requires it); recovery codes left and **New recovery codes…** (password and an app code). Sign-in takes
   an app code or a recovery code (`lib/second-factor.ts`).
 
-Not built: editing roles, coding systems.
+Not built: editing roles. Registering a diagnosis coding system has no screen: it is API-only (`POST /coding-systems`, `clinic.configure`,
+audited `coding-system.create`); the encounter workspace reads the systems registered (`GET /coding-systems`).
 
 ## Integrations (administration)
 
