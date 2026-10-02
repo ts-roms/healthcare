@@ -196,8 +196,8 @@ describe("patient timeline: further kinds", () => {
     // 5. Dental: an image (shared in MyHealth) and a periodontal chart, from a dental visit.
     ids.dentalEncounter = (await api(dentistToken).post("/encounters", { patientId, chiefComplaint: "SECRET-TOOTHACHE" }).expect(201)).body.id;
     const documentId = await one(
-      `INSERT INTO document (organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, created_by)
-       VALUES ($1, $2, $3, 'imaging', 'SECRET-IMAGE-TITLE', 'secret-pano.png', 'image/png', 2048, $4, 'available', now(), $5) RETURNING id`,
+      `INSERT INTO document (organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, created_by, scan_status, scanned_at)
+       VALUES ($1, $2, $3, 'imaging', 'SECRET-IMAGE-TITLE', 'secret-pano.png', 'image/png', 2048, $4, 'available', now(), $5, 'not_scanned', now()) RETURNING id`,
       [org, facility, patientId, `test/${randomUUID()}`, dentist.userId],
     );
     ids.image = await one(

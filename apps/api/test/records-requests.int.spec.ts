@@ -41,8 +41,8 @@ describe("records requests and MyHealth documents", () => {
   const addDocument = async (forPatient: string, title: string) => {
     const id = randomUUID();
     await ctx.pool.query(
-      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source)
-       VALUES ($1, $2, $3, $4, 'other', $5, 'copy.pdf', 'application/pdf', 1000, $6, 'available', now(), 'generated')`,
+      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source, scan_status, scanned_at)
+       VALUES ($1, $2, $3, $4, 'other', $5, 'copy.pdf', 'application/pdf', 1000, $6, 'available', now(), 'generated', 'clean', now())`,
       [id, tenant.organizationId, tenant.facilityId, forPatient, title, `org/${tenant.organizationId}/documents/${id}`],
     );
     return id;

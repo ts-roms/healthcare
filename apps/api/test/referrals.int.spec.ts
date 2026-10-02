@@ -189,8 +189,8 @@ describe("referrals", () => {
     await api(doctor).post(`/referrals/${ids.external}/answer`, { decision: "accept", version: 1 }).expect(422);
     const reply = randomUUID();
     await ctx.pool.query(
-      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source)
-       VALUES ($1, $2, $3, $4, 'clinical_attachment', 'Stress test report', 'report.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated')`,
+      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source, scan_status, scanned_at)
+       VALUES ($1, $2, $3, $4, 'clinical_attachment', 'Stress test report', 'report.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated', 'clean', now())`,
       [reply, tenant.organizationId, tenant.facilityId, patientId, `org/${tenant.organizationId}/documents/${reply}`],
     );
     const done = await api(doctor)

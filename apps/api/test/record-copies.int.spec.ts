@@ -76,8 +76,8 @@ describe("copies of the record for records requests", () => {
     await staff(doctor).post(`/encounters/${ids.encounter}/certificates`, { purpose: "Absence from work", findings: "Dengue fever" }).expect(201);
     ids.upload = randomUUID();
     await ctx.pool.query(
-      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source)
-       VALUES ($1, $2, $3, $4, 'referral_letter', 'Referral from Barangay Health Center', 'referral.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated')`,
+      `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source, scan_status, scanned_at)
+       VALUES ($1, $2, $3, $4, 'referral_letter', 'Referral from Barangay Health Center', 'referral.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated', 'clean', now())`,
       [ids.upload, tenant.organizationId, tenant.facilityId, patientId, `org/${tenant.organizationId}/documents/${ids.upload}`],
     );
 
