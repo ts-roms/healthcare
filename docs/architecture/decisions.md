@@ -158,3 +158,30 @@ and whether CI holds a Railway token to run `terraform plan` are decisions recor
 and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
 the code; the dashboard parts change rarely, and a checked checklist is a smaller, auditable step than an untested
 module. Local development stays Docker Compose (`infrastructure/docker/docker-compose.yml`).
+
+## ADR-0011 Reporting: figures in their domains, composition in the API, `libs/reporting` only for a second consumer
+
+**Decision.** Reporting has three layers and no library of its own yet. **Figures** are computed by each domain's own
+reporting query (`PatientReportingQueries`, `ClinicReportingQueries`, `LabReportingQueries`, `DentalReportingQueries`,
+`TelemedicineReportingQueries`, `BillingReportingQueries`) over the shared period helpers in `libs/core`
+(`ReportingWindow`, `reportingRange` / `reportingDay` / `reportingFacility`, formula-safe `toCsv`); a domain's figures
+never leave its library, as the boundary rules require. **Composition** — range and facility scope, small-cell
+suppression (patient counts 1–4 shown as "<5", rates on them withheld), the previous-period comparison, key figures and
+their directions, retention, revenue gating, the CSV tables and the metric definitions — lives in the API
+(`apps/api/src/app/management-dashboard/`, pure rules in `management-dashboard.rules.ts` with their own tests), because
+the management dashboard is its only consumer and one place avoids a second copy of the rules. The other reports
+(billing daily report, communication log and export, controlled-items register, laboratory quality summary) stay
+with their domains or their API composition the same way.
+
+**When `libs/reporting` is created.** The moment a **second process** must apply the same rules — in practice
+_scheduled management reports_ produced by the notification worker, which cannot import `apps/api` — the pure rules
+and definitions move from the API into `libs/reporting` (`scope:shared`, `type:util`: no database access, no domain
+imports; it takes figures and returns tables), and the API and the worker both depend on it. Until then the library
+stays planned, so that a report sent by email can never disagree with the screen about what "<5" or "net revenue"
+means. Dashboard features that stay in the API do not trigger it: same period last year, median and percentile
+waiting and turnaround times, per-department laboratory figures, inventory and dispensing figures, telemedicine
+waiting times, a PDF export.
+
+**Not decided here.** A data warehouse, ETL or an analytics tool (`CLAUDE.md` §38, "advanced analytics") is a separate
+decision with its own data-protection questions; nothing in the repository asks for it. See
+[management-dashboard.md](management-dashboard.md).
