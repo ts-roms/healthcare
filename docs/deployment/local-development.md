@@ -5,7 +5,7 @@ Requirements: Node 22+, pnpm 10, Docker (or local PostgreSQL 16 + Redis).
 ```bash
 pnpm install
 cp .env.example .env              # then set SEED_ADMIN_PASSWORD
-pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit
+pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit (the integration tests need PostgreSQL and, for rate limits, Redis)
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
 pnpm dev                          # everything below, in parallel (one terminal)

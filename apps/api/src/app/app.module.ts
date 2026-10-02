@@ -24,6 +24,7 @@ import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immunization-adapters";
+import { RedisThrottlerStorage } from "./redis-throttler-storage";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -99,6 +100,8 @@ export interface AppModuleOverrides {
   breachedPasswordChecker?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
   disableRateLimit?: boolean;
+  /** Where the shared rate-limit counters live (tests: their own Redis address and a key prefix of their own). */
+  rateLimitStorage?: { redisUrl: string; keyPrefix?: string };
 }
 
 /**
@@ -138,14 +141,17 @@ export class AppModule implements NestModule {
       dispensingStock: AppDispensingStock,
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
+    const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
+    const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {
       module: AppModule,
       imports: [
         CoreModule.forRoot(config),
-        // In-memory limits are per instance; move storage to Redis before scaling out.
+        // Counters are shared by every instance through Redis; while Redis is unreachable requests are let through.
         ThrottlerModule.forRoot({
           throttlers: [{ name: "default", ttl: 60_000, limit: 300 }],
           skipIf: () => overrides.disableRateLimit === true,
+          storage: rateLimits,
         }),
         AuditModule,
         OrganizationModule,
@@ -251,7 +257,9 @@ export class AppModule implements NestModule {
         StaffSecurityNotices,
         PatientMessageNoticeSource,
         PatientMessageNotices,
-        // Rate limiting applies to every route, including the public login endpoints.
+        // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
+        // its Redis connection closes with the application.
+        { provide: RedisThrottlerStorage, useValue: rateLimits },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
