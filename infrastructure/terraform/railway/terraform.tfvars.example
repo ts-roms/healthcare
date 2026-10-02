@@ -1,0 +1,38 @@
+# Non-secret inputs of one environment. Copy to terraform.tfvars (ignored by git) next to a backend.tf. Secrets are
+# never put in a file in the repository: pass them with TF_VAR_secrets / TF_VAR_api_secrets (JSON) or a .tfvars file
+# kept outside the repository (docs/runbooks/railway-terraform.md).
+
+project_name     = "healthcare"
+environment_name = "production"
+source_repo      = "ts-roms/healthcare"
+source_branch    = "main"
+
+# Either custom domains the organization owns...
+# custom_domains = {
+#   api    = "api.example.ph"
+#   staff  = "staff.example.ph"
+#   portal = "myhealth.example.ph"
+# }
+# ...or Railway-provided subdomains (the default when a custom domain is not given).
+service_subdomains = {
+  api    = "healthcare-api"
+  staff  = "healthcare-staff"
+  portal = "healthcare-portal"
+}
+
+api_port                 = 8080
+portal_organization_code = "demo"
+log_level                = "log"
+
+optional_settings = {
+  # S3_ENDPOINT        = "https://..."
+  # S3_REGION          = "ap-southeast-1"
+  # S3_BUCKET          = "healthcare-documents"
+  # S3_FORCE_PATH_STYLE = "true"
+  # EMAIL_FROM         = "MyHealth <no-reply@example.ph>"
+  # OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp.example.net"
+}
+
+api_settings = {
+  # DATABASE_POOL_MAX = "10"
+}

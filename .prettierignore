@@ -6,3 +6,8 @@ dist
 coverage
 test-output
 .nx
+
+# Terraform provider downloads and state (infrastructure/terraform)
+.terraform
+*.tfstate
+*.tfstate.*

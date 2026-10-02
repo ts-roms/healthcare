@@ -137,23 +137,24 @@ Redis connections for live updates and one for rate limits.
 
 ## What is codified and what is not
 
-The checklist for rebuilding this environment or creating another (ADR-0010). Tick each row when setting one up; the
-"by hand" rows are the candidates for Terraform once a provider for Railway has been verified.
+The checklist for rebuilding this environment or creating another (ADR-0010). Rows marked Terraform are managed by
+`infrastructure/terraform/railway/` (`docs/runbooks/railway-terraform.md`); tick the "by hand" rows when setting one
+up.
 
-| Item                                                                                             | Where it is defined                                                   |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| Build command, watch patterns, pre-deploy migration, start command, health check, restarts       | `railway.json` next to each app (config-as-code), root `railway.json` |
-| Project, environment                                                                             | By hand (dashboard)                                                   |
-| Postgres and Redis services                                                                      | By hand (Railway templates)                                           |
-| The five app services, bound to this repository and its branch                                   | By hand                                                               |
-| Each service's config-as-code path (**Settings → Config-as-code**)                               | By hand                                                               |
-| Deploy-on-push turned off per service (**Settings → Source**)                                    | By hand                                                               |
-| Shared and per-service variables (tables above); secrets generated per environment               | By hand; secrets never in the repository                              |
-| Public domains for `api`, `staff`, `portal`; `CORS_ORIGINS` and `REALTIME_URL` follow them       | By hand                                                               |
-| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                         | By hand, steps above                                                  |
-| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                          | Not set up (observability.md)                                         |
-| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`) | Not chosen; variables above once it is                                |
-| Local development dependencies                                                                   | `infrastructure/docker/docker-compose.yml`                            |
+| Item                                                                                             | Where it is defined                                                                     |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Build command, watch patterns, pre-deploy migration, start command, health check, restarts       | `railway.json` next to each app (config-as-code), root `railway.json`                   |
+| Project, default environment                                                                     | Terraform (`railway_project`)                                                           |
+| Postgres and Redis services                                                                      | By hand (Railway templates; the provider has no database resource)                      |
+| The five app services, bound to this repository and its branch                                   | Terraform (`railway_service`, `source_repo`, `source_repo_branch`)                      |
+| Each service's config-as-code path                                                               | Terraform (`config_path`)                                                               |
+| Deploy-on-push turned off per service (**Settings → Source**)                                    | By hand (not in the provider)                                                           |
+| Shared and per-service variables (tables above)                                                  | Terraform (`railway_variable`); secrets supplied at apply time, never in the repository |
+| Public domains for `api`, `staff`, `portal`; `CORS_ORIGINS` and `REALTIME_URL` follow them       | Terraform (`railway_custom_domain` / `railway_service_domain`; derived variables)       |
+| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                         | By hand, steps above                                                                    |
+| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                          | Not set up (observability.md; Railway checks on `PORT` only)                            |
+| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`) | Not chosen; `optional_settings` / `secrets` in Terraform once it is                     |
+| Local development dependencies                                                                   | `infrastructure/docker/docker-compose.yml`                                              |
 
 In production the API does not serve Swagger (`/api/docs`).
 

@@ -135,7 +135,8 @@ Inspect the repository before every change — do not assume any file, library, 
 - End-to-end: `apps/e2e` (Playwright, target `e2e`, `pnpm test:e2e`) runs the §31 critical journeys in a browser against the built API, staff app and portal, with its own database (`healthcare_e2e`, recreated per run) and ports. Journeys drive the real screens; the only shortcut is moving a booked teleconsultation to "now" in the database. See `docs/deployment/local-development.md`.
 - ESLint 9 flat config with `@nx/enforce-module-boundaries` (tags and constraints in `docs/architecture/module-boundaries.md`). Prettier (160 columns, Tailwind plugin) over the whole repo.
 - Observability: production processes log one JSON object per line (`ConsoleLogger({ json })`), an access log per request (route template, status, duration, request id, actor id — never bodies or ids in URLs), and operational failures with stable `event` names; `GET /api/v1/health/ready` reports database (required, `503`), Redis and object storage (degrade to `200 degraded`); workers serve `/live` and `/ready` on `HEALTH_PORT` when set. Traces and metrics through OpenTelemetry (`@healthcare/core/telemetry`, imported first in each `main.ts`; HTTP, Express, NestJS, `pg`, ioredis; the platform's own outbox and queue instruments in `libs/core/src/lib/telemetry/metrics.ts`), exported over OTLP/HTTP only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, every span scrubbed of URLs, query strings, headers, client addresses and Redis arguments before export; log lines carry `traceId`; no backend chosen, no error-tracking service (ADR-0012); alert conditions in `docs/runbooks/alerts.md`. See `docs/architecture/observability.md`.
-- CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e (PostgreSQL + Redis services, Chromium installed when `e2e` is affected; report uploaded on failure) → build (+ `build-storybook`).
+- CI: `.github/workflows/ci.yml` runs `nx sync:check`, `prettier --check`, then `nx affected` lint → typecheck → test → integration (with a PostgreSQL service) → e2e (PostgreSQL + Redis services, Chromium installed when `e2e` is affected; report uploaded on failure) → build (+ `build-storybook`); a second job runs `terraform fmt -check` and `terraform validate` on `infrastructure/terraform/railway/` (never `plan` or `apply`; CI holds no Railway token).
+- Infrastructure: `railway.json` per app (build, pre-deploy migration, start, health, restarts) and `infrastructure/terraform/railway/` (the Railway project, the five services bound to the repository with their `railway.json`, variables with secrets supplied at apply time, public domains; community provider `terraform-community-providers/railway` verified in ADR-0010); Postgres and Redis templates, deploy-on-push and the first deploy stay by hand (`docs/deployment/railway.md`, `docs/runbooks/railway-terraform.md`).
 - Commands: `pnpm dev` (API, workers, staff and portal in parallel), `pnpm dev:api` (:3333), `pnpm dev:worker`, `pnpm dev:integration-worker`, `pnpm dev:instrument-gateway`, `pnpm dev:deps` (PostgreSQL, Redis, object storage, Mailpit and LiveKit in Docker), `pnpm dev:staff` (:3000), `pnpm dev:portal` (:3001), `pnpm storybook` (:6006), `pnpm db:migrate`, `pnpm db:seed`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration` (wipes `TEST_DATABASE_URL`), `pnpm test:e2e` (recreates `healthcare_e2e`), `pnpm build`, `pnpm format`, `pnpm nx sync:check`. See `docs/deployment/local-development.md`.
 
 **Backend conventions** (details in `docs/architecture/`)
@@ -176,19 +177,19 @@ Inspect the repository before every change — do not assume any file, library, 
 
 Use this stack unless there is a strong, documented technical reason to change it.
 
-| Area           | Choice                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                                       |
-| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate                       |
-| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere.                                     |
-| Database       | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder                      |
-| Cache / jobs   | Redis + BullMQ                                                                                                                    |
-| Object storage | S3-compatible                                                                                                                     |
-| Mobile         | React Native + Expo (primarily for patients)                                                                                      |
-| Realtime       | WebSockets / Socket.IO                                                                                                            |
-| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component.                  |
-| Infrastructure | Docker, GitHub Actions; Railway config-as-code today, Terraform once a provider is verified (ADR-0010); CDN/WAF where appropriate |
-| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                                                |
+| Area           | Choice                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                                                                                               |
+| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate                                                                               |
+| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere.                                                                                             |
+| Database       | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder                                                                              |
+| Cache / jobs   | Redis + BullMQ                                                                                                                                                                            |
+| Object storage | S3-compatible                                                                                                                                                                             |
+| Mobile         | React Native + Expo (primarily for patients)                                                                                                                                              |
+| Realtime       | WebSockets / Socket.IO                                                                                                                                                                    |
+| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component.                                                                          |
+| Infrastructure | Docker, GitHub Actions; Railway config-as-code plus Terraform for the project, services, variables and domains (`infrastructure/terraform/railway/`, ADR-0010); CDN/WAF where appropriate |
+| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                                                                                                        |
 
 **PostgreSQL:** do not store the healthcare system as arbitrary JSON. Use JSONB only where genuinely appropriate (configurable forms, structured extension fields, specialty-specific data).
 
@@ -231,7 +232,7 @@ libs/
   interoperability/ (FHIR mapping) pdf/                                          [exist]
   philhealth/                                                                    [exists]
 
-database/migrations/  tools/  docs/  infrastructure/
+database/migrations/  tools/  docs/  infrastructure/ (docker/, terraform/railway/)
 nx.json  package.json  pnpm-workspace.yaml  tsconfig.base.json (frontend)  tsconfig.node.json (backend)
 ```
 

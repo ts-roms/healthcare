@@ -1,0 +1,14 @@
+# Copy to backend.tf (ignored by git) and fill in the remote backend the organization controls. Examples:
+#
+# terraform {
+#   backend "s3" {
+#     bucket         = "healthcare-terraform-state"
+#     key            = "railway/production.tfstate"
+#     region         = "ap-southeast-1"
+#     encrypt        = true
+#     dynamodb_table = "healthcare-terraform-locks"
+#   }
+# }
+#
+# or an HTTP backend, Terraform Cloud / HCP Terraform workspace, etc. Terraform state holds every variable value this
+# module manages, secrets included, so the backend must encrypt at rest and restrict who can read it.
