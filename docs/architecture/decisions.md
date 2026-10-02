@@ -137,7 +137,7 @@ record's own ledger (the preview blocks merging a record that still holds a bala
 retired record, so the survivor cannot hold the same identifier as well. Records created on the survivor after a
 merge stay there when it is undone.
 
-## ADR-0010 Infrastructure as code: Railway config-as-code now, Terraform only for what a verified provider covers
+## ADR-0010 Infrastructure as code: Railway config-as-code, Terraform for what the verified provider covers
 
 **Decision.** The platform's infrastructure code today is Railway **config-as-code**: one `railway.json` per service
 (build, pre-deploy migration, start command, health check, restart policy) next to its app. Everything else about an
@@ -154,10 +154,26 @@ declares them as sensitive variables supplied at apply time, and state lives in 
 organization controls. The choice of backend, whether a community-maintained provider is acceptable in production,
 and whether CI holds a Railway token to run `terraform plan` are decisions recorded here when made.
 
-**Why not Terraform now.** Nothing in the repository verifies that a Railway provider exists and covers these items,
-and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
+**Why not Terraform at first.** Nothing in the repository verified that a Railway provider existed and covered these
+items, and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
 the code; the dashboard parts change rarely, and a checked checklist is a smaller, auditable step than an untested
 module. Local development stays Docker Compose (`infrastructure/docker/docker-compose.yml`).
+
+**Provider verified and adopted (2026-10-02).** `terraform-community-providers/railway` — community-maintained
+(not a Railway product), MPL-2.0, v0.6.2 released April 2026 after v0.6.0 and v0.6.1 in late 2025; resources
+`project`, `environment`, `service` (source repository and branch, root directory, `config_path`, regions and
+replicas, volumes, cron, images), `variable`, `variable_collection`, `shared_variable`, `custom_domain`,
+`service_domain`, `tcp_proxy`; checked from the provider's repository, not the registry, which this container
+cannot reach. It covers the project and environment, the five app services bound to the repository with their
+`railway.json`, their variables and public domains; it has no resource for the Postgres and Redis templates, for
+deploy-on-push, for the first deploy order or the seed. `infrastructure/terraform/railway/` now describes exactly the
+covered items (validated against the provider's schema; CI runs `fmt -check` and `validate`, never `plan` or
+`apply`); the rest stays the checklist in `railway.md`. Decided with it: the databases stay Railway templates by
+hand and reach the services as Railway references; the existing environment is imported by whoever holds the
+token, following `docs/runbooks/railway-terraform.md`, not by CI; CI holds no Railway token; the state backend is
+declared in an ignored `backend.tf` so the module chooses none. Accepting a community-maintained provider is the
+organization's call to revisit if it goes unmaintained — the module touches no data, and `railway.json` stays the
+authoritative build and deploy configuration either way.
 
 ## ADR-0011 Reporting: figures in their domains, composition in the API, `libs/reporting` only for a second consumer
 

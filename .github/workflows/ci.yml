@@ -117,3 +117,28 @@ jobs:
 
       - name: Build
         run: pnpm exec nx affected -t build build-storybook --outputStyle=static
+
+  terraform:
+    name: Terraform format and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The Railway environment module (infrastructure/terraform/railway, ADR-0010): formatting and a validation against
+    # the provider's schema. No plan or apply: CI holds no Railway token and no state (docs/runbooks/railway-terraform.md).
+    defaults:
+      run:
+        working-directory: infrastructure/terraform/railway
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.13"
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      - name: Init (providers only)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate
