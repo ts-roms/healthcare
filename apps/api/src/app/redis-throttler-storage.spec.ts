@@ -42,6 +42,11 @@ class FakeRedis {
     return Object.fromEntries([...(this.hashes.get(key) ?? new Map())].map(([field, value]) => [field, String(value)]));
   }
 
+  async ping(): Promise<string> {
+    if (this.down) throw new Error("connect ECONNREFUSED");
+    return "PONG";
+  }
+
   disconnect(): void {
     /* nothing to close */
   }
@@ -125,7 +130,7 @@ describe("RedisThrottlerStorage", () => {
     for (let i = 0; i < 5; i += 1) expect(await hit()).toMatchObject({ totalHits: 0, isBlocked: false, timeToExpire: 60 });
     expect(redis.evals).toBe(5);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]?.[0]).toContain("Rate limiting is off while Redis is unreachable");
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({ event: "rate_limit.redis_unreachable" });
     redis.down = false;
     expect(await hit()).toMatchObject({ totalHits: 1, isBlocked: false });
   });

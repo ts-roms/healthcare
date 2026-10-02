@@ -68,7 +68,9 @@ export class NotificationWorkerRunner {
       },
       { connection: this.connection, concurrency },
     );
-    this.worker.on("failed", (job, error) => this.logger.warn(`Job ${job?.id} failed: ${error.message}`));
+    this.worker.on("failed", (job, error) =>
+      this.logger.warn({ event: "queue.job_failed", queue: NOTIFICATION_QUEUE_NAME, jobId: job?.id, message: error.message }),
+    );
     this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
     this.logger.log(`Notification worker started (concurrency ${concurrency})`);
   }
@@ -79,7 +81,7 @@ export class NotificationWorkerRunner {
       for (const id of ids) await this.queue.enqueue(id);
       if (ids.length) this.logger.log(`Re-enqueued ${ids.length} stranded notification(s)`);
     } catch (error) {
-      this.logger.error(`Reconciliation failed: ${String(error)}`);
+      this.logger.error({ event: "queue.reconcile_failed", queue: NOTIFICATION_QUEUE_NAME, message: String(error) });
     }
   }
 

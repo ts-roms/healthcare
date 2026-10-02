@@ -49,6 +49,7 @@ interface RedisLike {
   hincrby(key: string, field: string, increment: number): Promise<number>;
   pexpire(key: string, milliseconds: number): Promise<number>;
   hgetall(key: string): Promise<Record<string, string>>;
+  ping(): Promise<string>;
   disconnect(): void;
 }
 
@@ -130,6 +131,15 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnApplicationShu
     return rows;
   }
 
+  /** Readiness probe through the same short-timeout connection: never throws. */
+  async ping(): Promise<boolean> {
+    try {
+      return (await this.redis.ping()) === "PONG";
+    } catch {
+      return false;
+    }
+  }
+
   onApplicationShutdown(): void {
     this.redis.disconnect();
   }
@@ -138,6 +148,6 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnApplicationShu
     const now = Date.now();
     if (now - this.lastWarningAt < WARNING_INTERVAL_MS) return;
     this.lastWarningAt = now;
-    this.logger.warn(`Rate limiting is off while Redis is unreachable: ${error.message}`);
+    this.logger.warn({ event: "rate_limit.redis_unreachable", message: `Rate limiting is off while Redis is unreachable: ${error.message}` });
   }
 }
