@@ -122,6 +122,10 @@ export const PERMISSIONS = [
   "management.dashboard.read",
   // Scheduled management reports: cadence, tables, facility scope and recipients (migration 0093).
   "management.report.manage",
+  "crm.read",
+  "crm.segment.manage",
+  "crm.campaign.manage",
+  "crm.campaign.approve",
   // Inventory valuation: stock values and the cost of stock received, used and written off (migration 0061).
   "inventory.valuation.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).

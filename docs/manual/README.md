@@ -31,23 +31,24 @@ Developers and system operators should read the technical documentation instead:
 
 ## Find a task quickly
 
-| I want to…                                 | Go to                                                           |
-| ------------------------------------------ | --------------------------------------------------------------- |
-| Register a new patient                     | [Patients → registration](02-patients.md)                       |
-| Book an appointment or check a patient in  | [Appointments and queue](03-appointments-and-queue.md)          |
-| Take vital signs at triage                 | [Appointments and queue → triage](03-appointments-and-queue.md) |
-| Write and sign a consultation note         | [Consultations](04-consultations-and-care-plans.md)             |
-| Prescribe, or order laboratory tests       | [Consultations](04-consultations-and-care-plans.md)             |
-| Collect a specimen and print its label     | [Laboratory](06-laboratory.md)                                  |
-| Enter, verify, approve and release results | [Laboratory](06-laboratory.md)                                  |
-| Record a QC run or a fridge temperature    | [Laboratory quality](07-laboratory-quality.md)                  |
-| See reagent use and cost per test run      | [Laboratory quality](07-laboratory-quality.md)                  |
-| Chart teeth or record a dental procedure   | [Dental](08-dental.md)                                          |
-| Dispense a prescription                    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)          |
-| Receive stock or raise a purchase order    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)          |
-| Issue an invoice and take payment          | [Billing](10-billing.md)                                        |
-| Give a patient access to MyHealth          | [Patients → patient portal access](02-patients.md)              |
-| Help a patient activate MyHealth           | [MyHealth patient portal](12-patient-portal.md)                 |
+| I want to…                                 | Go to                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Register a new patient                     | [Patients → registration](02-patients.md)                                             |
+| Send a message to a group of patients      | [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign) |
+| Book an appointment or check a patient in  | [Appointments and queue](03-appointments-and-queue.md)                                |
+| Take vital signs at triage                 | [Appointments and queue → triage](03-appointments-and-queue.md)                       |
+| Write and sign a consultation note         | [Consultations](04-consultations-and-care-plans.md)                                   |
+| Prescribe, or order laboratory tests       | [Consultations](04-consultations-and-care-plans.md)                                   |
+| Collect a specimen and print its label     | [Laboratory](06-laboratory.md)                                                        |
+| Enter, verify, approve and release results | [Laboratory](06-laboratory.md)                                                        |
+| Record a QC run or a fridge temperature    | [Laboratory quality](07-laboratory-quality.md)                                        |
+| See reagent use and cost per test run      | [Laboratory quality](07-laboratory-quality.md)                                        |
+| Chart teeth or record a dental procedure   | [Dental](08-dental.md)                                                                |
+| Dispense a prescription                    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                |
+| Receive stock or raise a purchase order    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                |
+| Issue an invoice and take payment          | [Billing](10-billing.md)                                                              |
+| Give a patient access to MyHealth          | [Patients → patient portal access](02-patients.md)                                    |
+| Help a patient activate MyHealth           | [MyHealth patient portal](12-patient-portal.md)                                       |
 
 ## How to read this manual
 

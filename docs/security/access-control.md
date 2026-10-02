@@ -172,6 +172,12 @@ and the instrument log are append-only. Quality management (migration 0055)
 uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record`,
 `lab.nonconformance.*`, `lab.eqa.*`, `lab.competency.record`; competency is never
 self-assessed.
+Outreach (migration 0094): `crm.read` (org_admin, records_officer) lists segments and
+campaigns and previews a segment (audited); `crm.segment.manage` and
+`crm.campaign.manage` (org_admin) define segments and draft, submit, reopen and cancel
+campaigns; `crm.campaign.approve` (org_admin) approves a submitted campaign, never
+one's own (`approver_is_author`). Sending runs as the system actor and is audited
+(`crm.campaign.run`, counts only); `POST /outreach/opt-out` is public, token-based.
 Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
 a facility-scoped grant limits the figures to that facility; revenue, collections
 and service revenue (JSON sections and the `services`, `categories`, `revenue` and

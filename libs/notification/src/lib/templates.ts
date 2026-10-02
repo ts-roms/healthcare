@@ -130,6 +130,27 @@ export const TEMPLATES = [
           },
   }),
   defineTemplate({
+    key: "outreach.campaign",
+    version: 1,
+    // Outreach the organization planned and a second person approved (libs/crm): sent only by the campaign runner,
+    // never through the public send endpoint. Category "outreach": the patient's explicit opt-in per channel decides.
+    category: "outreach",
+    channels: ["sms", "email", "push", "in_app"],
+    internal: true,
+    // The organization's own wording; the API checks it against each channel's length. No variables that could carry
+    // clinical detail: a subject, a body and the opt-out link.
+    variables: z.object({
+      organizationName: shortText,
+      subject: z.string().trim().min(2).max(120).optional(),
+      body: z.string().trim().min(10).max(2000),
+      optOutLink: z.string().url().max(500).optional(),
+    }),
+    render: (v) => ({
+      subject: v.subject ?? `A message from ${v.organizationName}`,
+      text: `${v.body}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
+    }),
+  }),
+  defineTemplate({
     key: "clinic.message",
     version: 1,
     category: "administrative",
@@ -575,6 +596,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "appointment.no-show": "Missed appointment follow-up",
   "care-plan.follow-up-due": "Care-plan follow-up due",
   "clinic.message": "Notice from the clinic (MyHealth)",
+  "outreach.campaign": "Outreach campaign",
   "security.mfa-enabled": "Two-step verification turned on",
   "portal.password-reset": "MyHealth password reset link",
   "staff.password-reset": "Staff password reset link",

@@ -221,6 +221,10 @@ advises.
 | `interop.fhir.read`           | Read patient records through the FHIR R4 interface (whole-record export; audited)                                   | —                                                  |
 | `management.dashboard.read`   | View the management dashboard and download its tables (aggregate figures; revenue also needs `billing.report.read`) | —                                                  |
 | `management.report.manage`    | Schedule weekly or monthly management reports for named recipients (produced with the scheduler's own permissions)  | —                                                  |
+| `crm.read`                    | View outreach segments and campaigns, preview who matches a segment (audited)                                       | Medical records officer                            |
+| `crm.segment.manage`          | Define outreach segments from non-clinical criteria                                                                 | —                                                  |
+| `crm.campaign.manage`         | Draft, submit and cancel outreach campaigns                                                                         | —                                                  |
+| `crm.campaign.approve`        | Approve an outreach campaign written by someone else                                                                | —                                                  |
 
 **Things to notice in the defaults:**
 
