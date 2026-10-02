@@ -6,7 +6,8 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, Tabl
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { MfaPolicy } from "@/lib/api/types";
+import type { MfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
+import { RateLimitRefusals } from "./rate-limit-refusals";
 import { MfaExemptionControl, MfaPolicyToggle } from "./security-controls";
 
 export const metadata = { title: "Sign-in security" };
@@ -15,7 +16,11 @@ export const metadata = { title: "Sign-in security" };
 export default async function SignInSecurityPage() {
   const session = await getSession();
   if (!can(session, "user.read")) redirect("/");
-  const policy = await api<MfaPolicy>("/security/mfa-policy");
+  const [policy, refusals] = await Promise.all([
+    api<MfaPolicy>("/security/mfa-policy"),
+    // Platform-wide refusal counts: platform administrators only (the API refuses everyone else).
+    session.user.isPlatformAdmin ? api<RateLimitRefusalsView>("/rate-limits/refusals?days=30").catch(() => null) : Promise.resolve(null),
+  ]);
   const manage = can(session, "user.mfa.manage");
   return (
     <>
@@ -128,6 +133,7 @@ export default async function SignInSecurityPage() {
             )}
           </CardContent>
         </Card>
+        {refusals ? <RateLimitRefusals view={refusals} /> : null}
       </div>
     </>
   );
