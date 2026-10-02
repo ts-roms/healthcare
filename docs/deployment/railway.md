@@ -115,6 +115,23 @@ unset, so a variable left empty in the dashboard does not stop start-up. Require
    `railway ssh --service api`, then `pnpm db:seed`. The seed is idempotent.
 5. Deploy the workers, `staff` and `portal`. Sign in to the staff app with the seeded administrator and enrol MFA.
 
+## Running more than one API instance
+
+Nothing in the repository assumes a single `api` instance any more:
+
+- **Rate limits** count in Redis (`docs/security/access-control.md`).
+- **Background work** is claimed per row (`SKIP LOCKED`: outbox relay, DOH rescans, FHIR import retention) or under an
+  advisory lock with idempotency keys (recall, laboratory-quality and push-receipt reminders), so every instance may run
+  its timers.
+- **Live updates** (queue and laboratory sockets) share their rooms through Redis (`@socket.io/redis-adapter`,
+  `apps/api/src/app/realtime/io-adapter.ts`): an event processed by one instance reaches the browsers connected to the
+  others. The staff app connects **websocket-only**, so no sticky sessions are needed — keep it that way (HTTP
+  long-polling would need them). While Redis is unreachable each instance delivers to its own sockets and the staff
+  app's 15-second poll covers the rest (`realtime.redis_unreachable` in the logs).
+
+To watch: `DATABASE_POOL_MAX` summed over replicas against the Postgres connection limit; each instance holds two more
+Redis connections for live updates and one for rate limits.
+
 ## What is codified and what is not
 
 The checklist for rebuilding this environment or creating another (ADR-0010). Tick each row when setting one up; the
