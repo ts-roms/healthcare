@@ -19,6 +19,7 @@ import {
 } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
+import { OfflineBanner } from "./offline-banner";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
 
@@ -156,6 +157,7 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       }
     >
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
+      <OfflineBanner />
       {children}
     </StaffLayout>
   );

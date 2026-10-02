@@ -172,7 +172,7 @@ describe("outreach segments and campaigns", () => {
     const draft = draftRes.body;
     const submittedRes = await api(admin).post(`/outreach/campaigns/${draft.id}/submit`, { version: draft.version });
     const submitted = submittedRes.body;
-    const approvedRes = await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version });
+    await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version }).expect(201);
     await runs.tick();
     const [notice] = (
       await ctx.pool.query<{ variables: { optOutLink?: string; body: string } }>(
