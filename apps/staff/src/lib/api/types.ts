@@ -436,6 +436,8 @@ export interface AppointmentItem {
   reason: string | null;
   version: number;
   patient: PatientBrief | null;
+  /** The room, when the booking names one (migration 0096 views). */
+  room?: { id: string; name: string } | null;
 }
 
 export interface Practitioner {
@@ -3131,6 +3133,112 @@ export interface PatientTimelinePage {
   timeZone: string;
 }
 
+// ---- Outreach (GET /outreach/segments, /outreach/campaigns; crm.read) ---------------------------------------------
+
+export type OutreachChannel = "sms" | "email" | "push" | "in_app";
+
+export interface OutreachSegmentCriteria {
+  ageMin?: number;
+  ageMax?: number;
+  sex?: "male" | "female";
+  cityMunicipality?: string;
+  province?: string;
+  registeredFrom?: string;
+  registeredTo?: string;
+  lastVisitBefore?: string;
+  noVisitForMonths?: number;
+  carePlanActivityDueWithinDays?: number;
+  optedInChannel?: OutreachChannel;
+}
+
+export interface OutreachSegment {
+  id: string;
+  name: string;
+  description: string | null;
+  criteria: OutreachSegmentCriteria;
+  status: "active" | "archived";
+  version: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachSegmentPreview {
+  total: number;
+  members: Array<{ patientId: string; patientNumber: string; displayName: string; sex: string; age: number }>;
+  truncated: boolean;
+}
+
+export type OutreachCampaignStatus = "draft" | "submitted" | "approved" | "sending" | "completed" | "cancelled";
+
+export interface OutreachCampaignSummary {
+  patients: number;
+  byChannel: Array<{ channel: OutreachChannel; queued: number; delivered: number; suppressed: number; failed: number }>;
+  suppressedByReason: Array<{ reason: string; total: number }>;
+}
+
+export interface OutreachCampaign {
+  id: string;
+  segmentId: string;
+  segmentName: string;
+  name: string;
+  channels: OutreachChannel[];
+  subject: string | null;
+  body: string;
+  status: OutreachCampaignStatus;
+  sendAt: string | null;
+  createdBy: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Counts once sending started; null before. */
+  summary: OutreachCampaignSummary | null;
+}
+
+// ---- Scheduled management reports (GET|POST /management/report-schedules, GET /management/reports) ------------------
+
+export type ManagementReportTable = string;
+
+export interface ManagementReportSchedule {
+  id: string;
+  name: string;
+  cadence: "weekly" | "monthly";
+  tables: ManagementReportTable[];
+  /** One facility, or null for every facility the owner may report on. */
+  facilityId: string | null;
+  recipientUserIds: string[];
+  /** Whose permissions produce the report: whoever last created or changed the schedule. */
+  ownerUserId: string;
+  status: "active" | "paused";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManagementReportRun {
+  id: string;
+  scheduleId: string;
+  periodFrom: string;
+  periodTo: string;
+  facilityId: string | null;
+  status: "producing" | "produced" | "partial" | "failed";
+  withheld: Array<{ table: ManagementReportTable; reason: string }>;
+  error: string | null;
+  startedAt: string;
+  producedAt: string | null;
+  files: Array<{ table: ManagementReportTable; storedAt: string | null }>;
+}
+
 // ---- Management dashboard (GET /management/dashboard, management.dashboard.read; amounts in centavos) ------------
 
 export interface ManagementDashboard {
@@ -3742,8 +3850,22 @@ export interface PatientThread {
   assignedTo: { id: string; displayName: string } | null;
   /** Open, and the patient wrote last. */
   awaitingClinic: boolean;
+  /** When the clinic means to have answered (null without a target, or once answered), and whether that has passed. */
+  responseDueAt: string | null;
+  overdue: boolean;
+  /** Staff-only notes on the conversation (never shown to the patient). */
+  noteCount: number;
   closedAt: string | null;
   version: number;
+}
+
+/** A document of the patient's record carried with a message (migration 0097); opened behind a short-lived link. */
+export interface PatientThreadAttachment {
+  documentId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 export interface PatientThreadMessage {
@@ -3754,10 +3876,37 @@ export interface PatientThreadMessage {
   /** Written by a parent or guardian acting for the patient. */
   viaGuardian: boolean;
   createdAt: string;
+  attachments: PatientThreadAttachment[];
+}
+
+/** A staff-only note on a conversation. */
+export interface PatientThreadNote {
+  id: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
 }
 
 export interface PatientThreadDetail extends PatientThread {
   messages: PatientThreadMessage[];
+  notes: PatientThreadNote[];
+}
+
+/** `GET /patient-messages/settings?facilityId=`: where a topic's conversations go and how soon the clinic means to answer. */
+export interface PatientMessageSetting {
+  id: string;
+  facilityId: string;
+  topic: MessageTopic;
+  /** A role of the organization (its key), or one person; neither = everyone who can reply at the facility. */
+  routeRoleKey: string | null;
+  routeUserId: string | null;
+  routeUserName: string | null;
+  /** New conversations are assigned to the routed person on arrival. */
+  autoAssign: boolean;
+  /** Calendar hours after a patient's message by which the clinic means to answer (1–168); null = no target. */
+  responseTargetHours: number | null;
+  version: number;
+  updatedAt: string;
 }
 
 /** `GET /waitlist?facilityId=` row: a patient waiting for a time. */
@@ -3791,6 +3940,49 @@ export interface BookingRules {
   onlineCheckIn: boolean;
   checkInOpensMinutes: number;
   checkInClosesMinutes: number;
+  /** When a time opens for the waiting list: a content-free notice, or an offer of the exact time to accept (migration 0096). */
+  waitlistMode: "notice" | "offer";
+  offerHoldMinutes: number;
+  offerBatch: number;
+}
+
+/** `GET /clinic/waitlist-rules` row: a waiting-list rule for one visit type or practitioner at a facility. */
+export interface WaitlistRule {
+  id: string;
+  facilityId: string;
+  scope: "visit_type" | "practitioner";
+  visitTypeId: string | null;
+  visitTypeName: string | null;
+  practitionerId: string | null;
+  practitionerName: string | null;
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number | null;
+  version: number;
+  updatedAt: string;
+}
+
+export type WaitlistOfferStatus = "offered" | "accepted" | "declined" | "expired" | "withdrawn" | "taken";
+
+/** `GET /waitlist/offers` row: a time held for a waiting patient. */
+export interface WaitlistOffer {
+  id: string;
+  facilityId: string;
+  entryId: string;
+  patientId: string;
+  patient: { patientNumber: string; displayName: string } | null;
+  practitionerId: string;
+  visitTypeId: string;
+  startsAt: string;
+  endsAt: string;
+  offeredFor: string;
+  expiresAt: string;
+  status: WaitlistOfferStatus;
+  appointmentId: string | null;
+  acceptedByPatient: boolean;
+  withdrawReason: string | null;
+  createdAt: string;
+  closedAt: string | null;
 }
 
 /** `GET /clinic/booking-rules` row. */
@@ -4626,17 +4818,53 @@ export interface ProcedureDefinition {
   codeSystem: string | null;
   externalCode: string | null;
   requiresBodySite: boolean;
+  /** Recording a procedure of this entry needs a recorded consent (migration 0095). */
+  consentRequired: boolean;
+  /** May be recorded under a queue visit without a consultation (procedure.record). */
+  allowedOutsideConsultation: boolean;
+  /** The organization's own text that prefills the notes. */
+  noteTemplate: string | null;
+  /** The current (latest) version of the organization's consent wording for this entry, if any. */
+  consentWording: ProcedureConsentWording | null;
   status: "active" | "inactive";
   version: number;
 }
 
-/** A procedure recorded in a consultation (GET /encounters/:id/procedures, /patients/:id/procedures). */
+/** One version of the organization's consent wording for a catalogue entry (append-only). */
+export interface ProcedureConsentWording {
+  id: string;
+  definitionId: string;
+  version: number;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+/** The consent recorded against a procedure (one per procedure). */
+export interface ProcedureConsent {
+  id: string;
+  capturedVia: "paper" | "electronic" | "verbal";
+  givenBy: "patient" | "representative";
+  representativeName: string | null;
+  representativeRelationship: string | null;
+  wording: { id: string; version: number } | null;
+  obtainedBy: { id: string; name: string };
+  obtainedAt: string;
+  documentId: string | null;
+  notes: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** A procedure recorded in a consultation or under a queue visit (GET /encounters/:id/procedures, /visits/:id/procedures, /patients/:id/procedures). */
 export interface ClinicProcedure {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */
   patientId: string;
   facility: { id: string; name: string };
-  encounterId: string;
+  /** The consultation, or null when performed under a queue visit without one. */
+  encounterId: string | null;
+  visitId: string | null;
   definitionId: string;
   code: string;
   name: string;
@@ -4650,6 +4878,8 @@ export interface ClinicProcedure {
   quantity: number;
   notes: string | null;
   lateEntryReason: string | null;
+  /** The consent recorded against it, if any. */
+  consent: ProcedureConsent | null;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
   recordedAt: string;
   recordedBy: string;
@@ -4660,7 +4890,9 @@ export interface ClinicProcedure {
 export interface WorkspaceProcedure {
   id: string;
   filedUnder: string | null;
-  encounterId: string;
+  /** The consultation, or null when performed under a queue visit without one. */
+  encounterId: string | null;
+  visitId: string | null;
   description: string;
   performedAt: string;
   performerName: string | null;

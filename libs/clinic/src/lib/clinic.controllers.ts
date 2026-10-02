@@ -14,6 +14,10 @@ import {
   CheckInDto,
   CloseWaitlistDto,
   UpdateBookingRulesDto,
+  UpsertWaitlistRuleDto,
+  WaitlistOffersQueryDto,
+  WaitlistRulesQueryDto,
+  WithdrawOfferDto,
   CreateAllergyDto,
   CreateCodingSystemDto,
   CreateExceptionDto,
@@ -42,7 +46,9 @@ import {
   WalkInDto,
 } from "./clinic.dto";
 import { AppointmentService } from "./appointments/appointment.service";
+import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { BookingRulesService } from "./config/booking-rules.service";
+import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
@@ -67,7 +73,24 @@ export class ClinicConfigController {
   constructor(
     private readonly config: ClinicConfigService,
     private readonly bookingRules: BookingRulesService,
+    private readonly waitlistRules: WaitlistRulesService,
   ) {}
+
+  @Get("waitlist-rules")
+  @RequirePermissions("appointment.read")
+  @ApiOperation({ summary: "A facility's waiting-list rules per visit type or practitioner (the facility's own rule applies to the rest)" })
+  listWaitlistRules(@CurrentActor() actor: Actor, @Query() query: WaitlistRulesQueryDto) {
+    return this.waitlistRules.list(actor, query.facilityId);
+  }
+
+  @Put("waitlist-rules")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({
+    summary: "Set the waiting-list rule for one visit type or practitioner at a facility (a practitioner's rule wins over a visit type's; audited)",
+  })
+  upsertWaitlistRule(@CurrentActor() actor: Actor, @Body() body: UpsertWaitlistRuleDto) {
+    return this.waitlistRules.upsert(actor, body);
+  }
 
   @Get("booking-rules")
   @RequirePermissions("appointment.read")
@@ -185,6 +208,7 @@ export class AppointmentController {
   constructor(
     private readonly appointments: AppointmentService,
     private readonly visits: VisitService,
+    private readonly waitlistOffers: WaitlistOffersService,
   ) {}
 
   @Get("appointments/availability")
@@ -266,6 +290,31 @@ export class AppointmentController {
   @RequirePermissions("appointment.manage")
   closeWaitlist(@CurrentActor() actor: Actor, @Param("entryId", ParseUUIDPipe) id: string, @Body() body: CloseWaitlistDto) {
     return this.appointments.closeWaitlistEntry(actor, id, body);
+  }
+
+  // ---- offers from the waiting list (migration 0096) -----------------------------------------------------------
+
+  @Get("waitlist/offers")
+  @RequirePermissions("appointment.read")
+  @ApiOperation({ summary: "Times held for waiting patients at a facility (open offers; includeClosed=true for all)" })
+  offers(@CurrentActor() actor: Actor, @Query() query: WaitlistOffersQueryDto) {
+    return this.waitlistOffers.listForStaff(actor, query.facilityId, query.includeClosed === "true");
+  }
+
+  @Post("waitlist/offers/:offerId/accept")
+  @HttpCode(200)
+  @RequirePermissions("appointment.manage")
+  @ApiOperation({ summary: "Accept a held time for the patient after speaking to them: booked at the front desk, the entry closed as booked" })
+  acceptOffer(@CurrentActor() actor: Actor, @Param("offerId", ParseUUIDPipe) id: string) {
+    return this.waitlistOffers.acceptByStaff(actor, id);
+  }
+
+  @Post("waitlist/offers/:offerId/withdraw")
+  @HttpCode(200)
+  @RequirePermissions("appointment.manage")
+  @ApiOperation({ summary: "Withdraw a held time with a reason (the time is not handed on automatically)" })
+  withdrawOffer(@CurrentActor() actor: Actor, @Param("offerId", ParseUUIDPipe) id: string, @Body() body: WithdrawOfferDto) {
+    return this.waitlistOffers.withdraw(actor, id, body.reason);
   }
 }
 

@@ -133,11 +133,14 @@ describe("MyHealth communication preferences", () => {
     expect(JSON.stringify(rows[0]!.changes)).toContain("sms.outreach");
   });
 
-  it("requires exactly one recorder in the database", async () => {
+  it("never records a preference as both a staff member and the patient (none is the opt-out link, migration 0094)", async () => {
+    const [{ id: userId }] = (await ctx.pool.query<{ id: string }>("SELECT id FROM app_user WHERE email = 'admin@prefs.ph'")).rows;
+    const [{ id: accountId }] = (await ctx.pool.query<{ id: string }>("SELECT id FROM patient_portal_account WHERE patient_id = $1", [patientId])).rows;
     await expect(
       ctx.pool.query(
-        `INSERT INTO patient_communication_preference (organization_id, patient_id, channel, category, opted_in) VALUES ($1, $2, 'email', 'clinical', true)`,
-        [tenant.organizationId, patientId],
+        `INSERT INTO patient_communication_preference (organization_id, patient_id, channel, category, opted_in, updated_by, updated_by_portal_account)
+         VALUES ($1, $2, 'email', 'clinical', true, $3, $4)`,
+        [tenant.organizationId, patientId, userId, accountId],
       ),
     ).rejects.toThrow(/patient_communication_preference_one_recorder/);
   });

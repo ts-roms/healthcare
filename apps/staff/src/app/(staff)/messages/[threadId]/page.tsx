@@ -7,8 +7,10 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientThreadDetail } from "@/lib/api/types";
-import { threadStatus, TOPIC_LABEL } from "@/lib/messaging-mapping";
+import { dueState, threadStatus, TOPIC_LABEL } from "@/lib/messaging-mapping";
+import { AttachmentList } from "./attachment-list";
 import { ThreadActions } from "./thread-actions";
+import { ThreadNotes } from "./thread-notes";
 
 export const metadata = { title: "Conversation" };
 
@@ -26,6 +28,8 @@ export default async function PatientThreadPage({ params }: { params: Promise<{ 
     throw e;
   }
   const status = threadStatus(thread);
+  const due = dueState(thread);
+  const canManage = can(session, "patient.message.manage");
   return (
     <>
       <PageHeader
@@ -36,9 +40,15 @@ export default async function PatientThreadPage({ params }: { params: Promise<{ 
         <Card>
           <CardHeader>
             <CardTitle>Conversation</CardTitle>
-            <Badge variant={status.variant} className="ml-auto">
-              {status.label}
-            </Badge>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {due ? (
+                <Badge variant={due.overdue ? "danger" : "neutral"}>
+                  {due.overdue ? "⚠ " : ""}
+                  {due.label}
+                </Badge>
+              ) : null}
+              <Badge variant={status.variant}>{status.label}</Badge>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <ol className="flex flex-col gap-3" aria-label="Messages">
@@ -54,33 +64,37 @@ export default async function PatientThreadPage({ params }: { params: Promise<{ 
                     <time dateTime={m.createdAt}>{clinicalDateTime(m.createdAt)}</time>
                   </p>
                   <p className="text-body whitespace-pre-line">{m.body}</p>
+                  {m.attachments.length ? <AttachmentList threadId={thread.id} attachments={m.attachments} /> : null}
                 </li>
               ))}
             </ol>
-            <ThreadActions thread={thread} canManage={can(session, "patient.message.manage")} />
+            <ThreadActions thread={thread} canManage={canManage} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Patient</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-table">
-            <Link className="text-primary hover:underline" href={`/patients/${thread.patientId}`}>
-              {thread.patientName} · {thread.patientNumber}
-            </Link>
-            <Link className="text-primary hover:underline" href={`/messages?patientId=${thread.patientId}&view=all`}>
-              All conversations with this patient
-            </Link>
-            <p className="text-meta text-muted-foreground">
-              Assigned to: {thread.assignedTo?.displayName ?? "no one"}
-              {thread.closedAt ? ` · closed ${clinicalDateTime(thread.closedAt)}` : ""}
-            </p>
-            <p className="text-meta text-muted-foreground">
-              Patients are told MyHealth is not for emergencies and that messages are read during clinic hours. A reply sends the patient a text or email saying
-              a message is waiting — never what it says.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Patient</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-table">
+              <Link className="text-primary hover:underline" href={`/patients/${thread.patientId}`}>
+                {thread.patientName} · {thread.patientNumber}
+              </Link>
+              <Link className="text-primary hover:underline" href={`/messages?patientId=${thread.patientId}&view=all`}>
+                All conversations with this patient
+              </Link>
+              <p className="text-meta text-muted-foreground">
+                Assigned to: {thread.assignedTo?.displayName ?? "no one"}
+                {thread.closedAt ? ` · closed ${clinicalDateTime(thread.closedAt)}` : ""}
+              </p>
+              <p className="text-meta text-muted-foreground">
+                Patients are told MyHealth is not for emergencies and that messages are read during clinic hours. A reply sends the patient a text or email
+                saying a message is waiting — never what it says.
+              </p>
+            </CardContent>
+          </Card>
+          <ThreadNotes threadId={thread.id} notes={thread.notes} canManage={canManage} />
+        </div>
       </div>
     </>
   );

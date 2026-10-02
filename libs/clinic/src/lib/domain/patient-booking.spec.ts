@@ -6,6 +6,11 @@ import {
   patientMayChange,
   waitlistMatches,
   waitlistRangeProblem,
+  resolveWaitlistRule,
+  offerCandidates,
+  offerExpiry,
+  offerable,
+  type OfferCandidate,
 } from "./patient-booking";
 
 const now = new Date("2026-09-28T01:00:00Z");
@@ -84,5 +89,75 @@ describe("online check-in and automatic no-shows", () => {
     expect(autoNoShowDue(appointment, new Date("2026-10-01T12:00:00Z"), DEFAULT_BOOKING_RULES)).toBe(false);
     // An evening appointment that has not ended yet is left alone.
     expect(autoNoShowDue({ ...appointment, endsAt: new Date("2026-10-01T12:30:00Z") }, new Date("2026-10-01T12:10:00Z"), rules)).toBe(false);
+  });
+
+  describe("waiting-list rules per visit type or practitioner (0096)", () => {
+    const facility = { waitlistEnabled: true, maxWaitlistEntries: 3, maxAdvanceDays: 60 };
+    const forType = { scope: "visit_type" as const, visitTypeId: "vt", practitionerId: null, enabled: false, maxEntries: 1, maxDaysAhead: null };
+    const forDoctor = { scope: "practitioner" as const, visitTypeId: null, practitionerId: "dr", enabled: true, maxEntries: 5, maxDaysAhead: 90 };
+
+    it("falls back to the facility's rule", () => {
+      expect(resolveWaitlistRule(facility, [], { visitTypeId: "vt", practitionerId: null })).toEqual({
+        enabled: true,
+        maxEntries: 3,
+        maxDaysAhead: 60,
+        source: "facility",
+      });
+      expect(resolveWaitlistRule(facility, [forType], { visitTypeId: "other", practitionerId: "x" })).toMatchObject({ source: "facility" });
+    });
+
+    it("applies a visit type's rule, and a practitioner's over it; a rule's horizon never exceeds the facility's", () => {
+      expect(resolveWaitlistRule(facility, [forType], { visitTypeId: "vt", practitionerId: null })).toEqual({
+        enabled: false,
+        maxEntries: 1,
+        maxDaysAhead: 60,
+        source: "visit_type",
+      });
+      expect(resolveWaitlistRule(facility, [forType, forDoctor], { visitTypeId: "vt", practitionerId: "dr" })).toEqual({
+        enabled: true,
+        maxEntries: 5,
+        maxDaysAhead: 60,
+        source: "practitioner",
+      });
+      expect(resolveWaitlistRule({ ...facility, maxAdvanceDays: 120 }, [forDoctor], { visitTypeId: null, practitionerId: "dr" }).maxDaysAhead).toBe(90);
+    });
+  });
+
+  describe("offers from the waiting list (0096)", () => {
+    const entry = (id: string, over: Partial<OfferCandidate> = {}): OfferCandidate => ({
+      id,
+      patientId: `p-${id}`,
+      priority: "routine",
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+      earliestDate: "2026-10-05",
+      latestDate: "2026-10-07",
+      practitionerId: null,
+      visitTypeId: null,
+      ...over,
+    });
+    const opened = { date: "2026-10-06", practitionerId: "dr", visitTypeId: "vt", freedByPatientId: "p-c" };
+
+    it("offers to matching entries, urgent first then oldest, never the patient who freed it nor one already offered that day", () => {
+      const entries = [
+        entry("a", { createdAt: new Date("2026-09-02T00:00:00Z") }),
+        entry("b", { priority: "soon", createdAt: new Date("2026-09-03T00:00:00Z") }),
+        entry("c"),
+        entry("d", { practitionerId: "other" }),
+        entry("e", { earliestDate: "2026-10-08", latestDate: "2026-10-09" }),
+        entry("f", { createdAt: new Date("2026-08-01T00:00:00Z") }),
+      ];
+      expect(offerCandidates(entries, opened, new Set(["f"]), 2).map((e) => e.id)).toEqual(["b", "a"]);
+      expect(offerCandidates(entries, opened, new Set(), 10).map((e) => e.id)).toEqual(["b", "f", "a"]);
+      expect(offerCandidates(entries, opened, new Set(), 0)).toHaveLength(1);
+    });
+
+    it("holds a time for the facility's hold, but never past the online lead time before the start", () => {
+      const now = new Date("2026-10-06T00:00:00Z");
+      const rules = { offerHoldMinutes: 120, minLeadMinutes: 120 };
+      expect(offerExpiry(now, new Date("2026-10-06T08:00:00Z"), rules)).toEqual(new Date("2026-10-06T02:00:00Z"));
+      expect(offerExpiry(now, new Date("2026-10-06T03:00:00Z"), rules)).toEqual(new Date("2026-10-06T01:00:00Z"));
+      expect(offerable(now, new Date("2026-10-06T08:00:00Z"), rules)).toBe(true);
+      expect(offerable(now, new Date("2026-10-06T02:00:30Z"), rules)).toBe(false);
+    });
   });
 });

@@ -119,6 +119,8 @@ export function CalendarBoard({
   const [editing, setEditing] = React.useState<{ event: CalendarEventItem | null; date: string } | null>(null);
   const [viewing, setViewing] = React.useState<CalendarEventItem | null>(null);
   const [showAppointments, setShowAppointments] = React.useState(true);
+  // The day view can be laid out by room (migration 0096 views): one card per room, then events and bookings without a room.
+  const [byRoom, setByRoom] = React.useState(false);
 
   const practitionerNames = React.useMemo(() => new Map(practitioners.map((p) => [p.id, p.displayName])), [practitioners]);
   const entries = React.useMemo(
@@ -131,6 +133,22 @@ export function CalendarBoard({
   );
   const byDay = React.useMemo(() => entriesByDay(entries, timeZone), [entries, timeZone]);
   const days = viewDays(view, date);
+  const roomColumns = React.useMemo(() => {
+    if (view !== "day" || !byRoom) return null;
+    const items = byDay.get(date) ?? [];
+    const columns = new Map<string, { name: string; items: typeof items }>();
+    for (const entry of items) {
+      const room = entry.appointment?.room ?? null;
+      const key = room ? room.id : "none";
+      const name = room ? room.name : entry.source === "event" ? "Events and no room" : "No room";
+      const column = columns.get(key) ?? { name: key === "none" ? "Events and no room" : name, items: [] };
+      column.items.push(entry);
+      columns.set(key, column);
+    }
+    return [...columns.entries()]
+      .map(([key, c]) => ({ key, ...c }))
+      .sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : a.name.localeCompare(b.name)));
+  }, [view, byRoom, byDay, date]);
   const month = date.slice(0, 7);
 
   const run = (call: () => Promise<ActionResult<unknown>>, success: string, done: () => void) =>
@@ -158,6 +176,12 @@ export function CalendarBoard({
           <label className="flex items-center gap-2 text-table">
             <Checkbox checked={showAppointments} onCheckedChange={(v) => setShowAppointments(v === true)} aria-label="Show appointments" />
             Show appointments
+          </label>
+        ) : null}
+        {view === "day" && canOpenAppointments ? (
+          <label className="flex items-center gap-2 text-table">
+            <Checkbox checked={byRoom} onCheckedChange={(v) => setByRoom(v === true)} aria-label="Lay the day out by room" />
+            By room
           </label>
         ) : null}
         <span className="ml-auto flex items-center gap-3 text-meta text-muted-foreground">
@@ -215,6 +239,22 @@ export function CalendarBoard({
               );
             })}
           </div>
+        </div>
+      ) : roomColumns ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {roomColumns.length === 0 ? <p className="text-meta text-muted-foreground">Nothing scheduled.</p> : null}
+          {roomColumns.map((column) => (
+            <Card key={column.key} className="p-3">
+              <h2 className="text-table font-medium">{column.name}</h2>
+              <ul className="mt-2 flex flex-col gap-1">
+                {column.items.map((entry) => (
+                  <li key={entry.key}>
+                    <EntryChip entry={entry} timeZone={timeZone} onOpenEvent={setViewing} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ))}
         </div>
       ) : (
         <div className={`grid gap-3 ${view === "week" ? "md:grid-cols-2 xl:grid-cols-7" : ""}`}>

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import { OrganizationModule } from "@healthcare/organization";
 import { PatientMessagesController, PortalMessageThreadsController } from "./messaging/patient-message.controller";
 import { PatientMessageService } from "./messaging/patient-message.service";
 import { PortalEmailService } from "./security/portal-email.service";
@@ -30,7 +31,8 @@ import { RecordsRequestService } from "./records-requests/records-request.servic
 import { PatientTimelineQueries } from "./patient-timeline.queries";
 
 @Module({
-  imports: [JwtModule.register({})],
+  // Organization: facility checks for message routing settings (migration 0097).
+  imports: [JwtModule.register({}), OrganizationModule],
   controllers: [
     PatientController,
     PortalController,

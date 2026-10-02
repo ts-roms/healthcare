@@ -41,6 +41,8 @@ import { PROCEDURE_STAFF_NAMES, PROCEDURE_SUPPLIES, type ProcedureSupplies } fro
 import { ProcedureSuppliesService } from "./procedures/procedure-supplies.service";
 import { ClinicProcedureController } from "./procedures/procedure.controller";
 import { ClinicProcedureService } from "./procedures/procedure.service";
+import { WaitlistRulesService } from "./config/waitlist-rules.service";
+import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
@@ -97,6 +99,8 @@ export class ClinicModule {
         PatientBookingNotices,
         PatientBookingService,
         PatientWaitlistService,
+        WaitlistRulesService,
+        WaitlistOffersService,
         WaitlistNotices,
         TriageService,
         VisitService,
@@ -121,6 +125,8 @@ export class ClinicModule {
         OnlineVisitService,
         PatientBookingService,
         PatientWaitlistService,
+        WaitlistOffersService,
+        WaitlistRulesService,
         BookingRulesService,
         ImmunizationService,
         PatientHistoryService,

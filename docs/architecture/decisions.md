@@ -137,7 +137,7 @@ record's own ledger (the preview blocks merging a record that still holds a bala
 retired record, so the survivor cannot hold the same identifier as well. Records created on the survivor after a
 merge stay there when it is undone.
 
-## ADR-0010 Infrastructure as code: Railway config-as-code now, Terraform only for what a verified provider covers
+## ADR-0010 Infrastructure as code: Railway config-as-code, Terraform for what the verified provider covers
 
 **Decision.** The platform's infrastructure code today is Railway **config-as-code**: one `railway.json` per service
 (build, pre-deploy migration, start command, health check, restart policy) next to its app. Everything else about an
@@ -154,7 +154,106 @@ declares them as sensitive variables supplied at apply time, and state lives in 
 organization controls. The choice of backend, whether a community-maintained provider is acceptable in production,
 and whether CI holds a Railway token to run `terraform plan` are decisions recorded here when made.
 
-**Why not Terraform now.** Nothing in the repository verifies that a Railway provider exists and covers these items,
-and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
+**Why not Terraform at first.** Nothing in the repository verified that a Railway provider existed and covered these
+items, and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
 the code; the dashboard parts change rarely, and a checked checklist is a smaller, auditable step than an untested
 module. Local development stays Docker Compose (`infrastructure/docker/docker-compose.yml`).
+
+**Provider verified and adopted (2026-10-02).** `terraform-community-providers/railway` — community-maintained
+(not a Railway product), MPL-2.0, v0.6.2 released April 2026 after v0.6.0 and v0.6.1 in late 2025; resources
+`project`, `environment`, `service` (source repository and branch, root directory, `config_path`, regions and
+replicas, volumes, cron, images), `variable`, `variable_collection`, `shared_variable`, `custom_domain`,
+`service_domain`, `tcp_proxy`; checked from the provider's repository, not the registry, which this container
+cannot reach. It covers the project and environment, the five app services bound to the repository with their
+`railway.json`, their variables and public domains; it has no resource for the Postgres and Redis templates, for
+deploy-on-push, for the first deploy order or the seed. `infrastructure/terraform/railway/` now describes exactly the
+covered items (validated against the provider's schema; CI runs `fmt -check` and `validate`, never `plan` or
+`apply`); the rest stays the checklist in `railway.md`. Decided with it: the databases stay Railway templates by
+hand and reach the services as Railway references; the existing environment is imported by whoever holds the
+token, following `docs/runbooks/railway-terraform.md`, not by CI; CI holds no Railway token; the state backend is
+declared in an ignored `backend.tf` so the module chooses none. Accepting a community-maintained provider is the
+organization's call to revisit if it goes unmaintained — the module touches no data, and `railway.json` stays the
+authoritative build and deploy configuration either way.
+
+## ADR-0011 Reporting: figures in their domains, composition in the API, `libs/reporting` only for a second consumer
+
+**Decision.** Reporting has three layers and no library of its own yet. **Figures** are computed by each domain's own
+reporting query (`PatientReportingQueries`, `ClinicReportingQueries`, `LabReportingQueries`, `DentalReportingQueries`,
+`TelemedicineReportingQueries`, `BillingReportingQueries`) over the shared period helpers in `libs/core`
+(`ReportingWindow`, `reportingRange` / `reportingDay` / `reportingFacility`, formula-safe `toCsv`); a domain's figures
+never leave its library, as the boundary rules require. **Composition** — range and facility scope, small-cell
+suppression (patient counts 1–4 shown as "<5", rates on them withheld), the previous-period comparison, key figures and
+their directions, retention, revenue gating, the CSV tables and the metric definitions — lives in the API
+(`apps/api/src/app/management-dashboard/`, pure rules in `management-dashboard.rules.ts` with their own tests), because
+the management dashboard is its only consumer and one place avoids a second copy of the rules. The other reports
+(billing daily report, communication log and export, controlled-items register, laboratory quality summary) stay
+with their domains or their API composition the same way.
+
+**When `libs/reporting` is created.** The moment a **second process** must apply the same rules — a worker or another
+application that cannot import `apps/api` — the pure rules and definitions move from the API into `libs/reporting`
+(`scope:shared`, `type:util`: no database access, no domain imports; it takes figures and returns tables), and both
+depend on it. Until then the library stays planned, so that a report sent by email can never disagree with the screen
+about what "<5" or "net revenue" means. _Scheduled management reports_ did **not** trigger it: they run in the API
+process (`ManagementReportRuns`, like the other scheduled jobs) and call the same `ManagementDashboardService.export`
+the screen calls, so there is still one copy of the rules and one consumer
+(`docs/architecture/management-dashboard.md`, "Scheduled reports"); the notification worker only delivers the notices. Dashboard features that stay in the API do not trigger it: same period last year, median and percentile
+waiting and turnaround times, per-department laboratory figures, inventory and dispensing figures, telemedicine
+waiting times, a PDF export.
+
+**Not decided here.** A data warehouse, ETL or an analytics tool (`CLAUDE.md` §38, "advanced analytics") is a separate
+decision with its own data-protection questions; nothing in the repository asks for it. See
+[management-dashboard.md](management-dashboard.md).
+
+## ADR-0012 Telemetry: OpenTelemetry over OTLP, no backend chosen, no error-tracking SDK
+
+**Status:** accepted (2026-10-02). **Context:** phase 1 of observability (`docs/architecture/observability.md`) gave
+the platform JSON logs, an access log, operational `event` names and health probes without any external service, and
+left traces, metrics, error tracking and alerting as decisions. The stack (`CLAUDE.md` §1) names OpenTelemetry; the
+organization has not chosen a backend, and any backend receives data about requests that can carry patient data.
+
+**Decision.** The processes are instrumented with the OpenTelemetry SDK and export traces and metrics over OTLP/HTTP
+**only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set**; the repository names no backend, dashboard or alert rule, and the
+alert conditions are a runbook (`docs/runbooks/alerts.md`). Span attributes that can carry a person's data (URLs,
+query strings, headers, client addresses, user agents, Redis arguments) are removed by a span processor before export,
+and database spans carry no statement text or parameter values, so the rule is enforced in code rather than by the
+backend's configuration. No error-tracking SDK is added: exceptions reach the trace backend as span status and events
+under the same scrubbing; a dedicated error-tracking service would receive stack traces and request context, which is a
+data-processing decision (compliance register, "Hosting and data protection") before any is adopted. Logs are not
+exported through OpenTelemetry: the hosting provider's log stream remains the record, with `traceId` on each access-log
+and unhandled-error line to join the two.
+
+**Consequences.** Nothing changes for a deployment that sets no endpoint. Instrumentation depends on the webpack build
+leaving `node_modules` external (it does; a build that bundled `pg`, `ioredis`, `express` or `@nestjs/core` would
+silently stop it, which the `telemetry.started` line makes visible). Choosing a backend adds its endpoint, credentials
+and alert rules to the deployment, not code. Revisit if the organization adopts an error-tracking service (scrubbing
+rules and a DPA first) or if OTLP logs become the preferred log path.
+
+## ADR-0013 Offline: capture and replay through the live routes, human-reviewed, never merged
+
+**Status:** accepted (2026-10-02). **Context:** `CLAUDE.md` §30 asks for eventual offline support (registration,
+queue, vitals, selected documentation, printing, local encrypted temporary storage, sync after reconnect) and forbids
+unsafe synchronization. The staff app calls the API only from its server, tokens never reach browser JavaScript, and
+nothing is cached in the browser; the API already makes unsafe requests retry-safe with an `Idempotency-Key`
+(`IdempotencyInterceptor`: the stored response replays for 24 hours, the same key with another body is refused).
+
+**Decision.** Offline is a **queue of captured actions**, not a copy of the record. Phase 1 captures three actions on
+one page (`/offline`): register a patient, check a walk-in into the queue, record triage with vital signs. Nothing
+with server-side decision support or immutability rules is captured offline: prescribing, signing notes, results,
+billing, consents. Replay goes through the **same server actions the live screens use**, in capture order, each
+action carrying its own idempotency key (the action id), so the session cookie, permissions, audit, duplicate
+detection and every validation apply unchanged and a dropped connection mid-replay is safe to retry. Chaining: a
+walk-in for a patient registered offline waits for that registration's replay to return the id; vital signs for an
+offline walk-in wait for its visit id. Whatever the API refuses — a possible duplicate, an unknown patient number,
+a closed visit, a validation error — is **parked** with the reason for a person to resolve on the live screen; the
+app never merges, overrides or retries a refusal on its own, and anything that waited on a parked action is parked
+with it. Server state always wins. Captured actions live in IndexedDB encrypted with a key that exists for the
+browser session only (sessionStorage), so a closed tab discards what was not sent, and the page says so; no patient
+list, clinical data or credential is stored. A service worker keeps the Offline page and the app's static files
+reachable without a connection; the page shows the queue, visit types and practitioners **as of its last load with a
+connection**, labelled with that time. Everything else in the app stays online-only.
+
+**Consequences.** The feature is only as current as the last online load of the Offline page and only as durable as
+the browser tab; both are deliberate for phase 1 and documented in the manual. Later decisions, each its own: a
+staff-chosen offline PIN so the outbox survives a closed tab; more captured actions (appointments, documentation);
+the mobile app (D10 stays as is). Printing stays online (every PDF is rendered by the API). Patient data held
+briefly in a browser on a shared computer is a data-protection matter recorded in the compliance register.

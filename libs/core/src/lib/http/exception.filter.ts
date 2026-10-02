@@ -6,6 +6,7 @@ import { asPgError, PgErrorCode } from "../database/database";
 import { patientMergedError } from "../database/patient-links";
 import { DomainError } from "../errors";
 import "./request-augmentation";
+import { traceContext } from "../telemetry/correlation";
 
 export interface ErrorBody {
   error: {
@@ -32,7 +33,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     body.error.requestId = request.requestId;
     if (status >= 500) {
       this.logger.error(
-        { event: "http.unhandled_error", method: request.method, route: request.route?.path ?? request.path, requestId: request.requestId },
+        { event: "http.unhandled_error", method: request.method, route: request.route?.path ?? request.path, requestId: request.requestId, ...traceContext() },
         exception instanceof Error ? exception.stack : String(exception),
       );
     }

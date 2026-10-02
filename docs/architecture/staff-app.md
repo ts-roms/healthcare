@@ -112,6 +112,23 @@ and payloads in `lib/patient-edit.ts` (unit tested); server actions in `app/(sta
 
 **Patient merge** ([patient.md](../domains/patient.md#patient-merge-link-dont-move)): with `patient.merge`, the record's action bar has **Merge duplicate…** → `/patients/[id]/merge` (search the other record, then **Keep P…** on the survivor's side) → `/patients/[retired]/merge/[survivor]` (side-by-side comparison from `GET /patients/:id/merge-preview`, differences flagged with icon and text, work in progress linked to the screens that resolve it, MyHealth handling). The client `MergeForm` asks to tick each difference, a reason and the retired number typed; the `mergePatient` server action checks the same (`checkMergeForm` in `lib/patient-merge.ts`, unit tested) and the API enforces everything. A retired record shows "Merged into P… on … by …" (from `GET /patients/:id/merges`) and is read only; its timeline and 360 redirect to the survivor's. A survivor shows **Merged records** with the history and **Unmerge…** (reason). Rows filed under another number carry "Filed under P…" as text (`filedUnder` from the API, or the summary's `linkedRecords` matched to each row's `patientId`). Search notes a match found through a merged record (`resolvedFrom`).
 
+## Offline (capture and replay)
+
+ADR-0013. `/offline` is the one page that works without a connection: a snapshot of today's queue, the in-person
+visit types and the practitioners as of its last load with a connection (shown with that time), and three forms —
+register a patient, check in a walk-in (a patient registered here or a patient number resolved at replay), triage
+with vital signs (a visit from the snapshot or a walk-in captured here). Each capture becomes an action in the
+**outbox** (`apps/staff/src/lib/offline/outbox.ts`, pure rules with tests: capture order, chaining on a registration
+or walk-in, parking, the banner's counts), stored in IndexedDB encrypted with a session-only key
+(`crypto.ts`, `store.ts`; the key in sessionStorage, so a reload keeps the outbox and a closed tab discards it). When
+the connection returns (or on **Send now**) the page replays one action at a time through the live server actions
+`registerPatient`, `registerWalkIn` and `recordTriage` with the action id as the idempotency key; a refusal parks the
+action with the API's reason (possible duplicates list the candidates to review on the live screen), and anything
+that waited on it is parked too. `public/sw.js` (registered by `OfflineBanner` in the shell) serves `/offline` from
+its cache when the network fails and caches `/_next/static/` files; it touches no other request. The banner on every
+page shows "No connection" or "N offline actions waiting" with a full-page link to `/offline`. Permissions gate each
+form (`patient.register`, `clinic.queue.manage`, `clinic.triage.write`) and the API re-checks every replay.
+
 ## Queue and appointments
 
 Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule.

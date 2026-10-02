@@ -118,7 +118,39 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
   `clinic.procedure-supplies.issue|return`; events `ClinicProcedureSuppliesIssued|Returned` (ids and counts). The pure
   rules are shared with dentistry (`libs/core`, `supplies/supply-use.ts`). No default stock location per facility (staff
   choose each time) and supplies are not charged automatically.
-- **Not built**: consent forms for procedures, templates of procedure notes, and procedures outside a consultation.
+- **Consent** (migration `0095`): each catalogue entry may carry the organization's own consent wording, versioned
+  and append-only (`clinic_procedure_consent_wording`; `GET|POST /clinic/procedure-definitions/:id/consent-wordings`,
+  `clinic.configure`, audited `clinic.procedure-consent-wording.publish`; the platform ships none), and may require
+  consent (`consent_required`). A printable form for one patient — letterhead, identification, the procedure, the current
+  wording and its version, signature lines — comes from `GET /clinic/procedure-definitions/:id/consent-form.pdf?patientId=`
+  (`encounter.read` + `patient.read`, audited `clinic.procedure-consent-form.print`, not stored; the signed form is
+  uploaded as a `consent_form` document). The consent is recorded against the procedure (`clinic_procedure_consent`, one
+  per procedure, append-only): captured on paper, electronically (the wording version shown is required) or verbally;
+  by the patient or a representative named as written with the relationship; who obtained it (the performer by default)
+  and when (the performed time by default; never after it, `consent_after_procedure`); an optional scan (a `consent_form`
+  document of the same patient, `document_not_consent_form`); notes. Given with the procedure (`consent` in the record
+  body; `procedure_consent_required` when the entry requires it) or added once later (`POST /procedures/:id/consent`,
+  `encounter.write` or `procedure.record`; `consent_already_recorded`). Audited `clinic.procedure-consent.record` (ids,
+  how captured, wording version, whether a scan is linked — never names or notes). Refusals are not recorded: a procedure
+  not performed has no record. What a valid informed consent must say and who may consent for a minor or an
+  incapacitated patient are compliance dependencies; nothing here decides them.
+- **Note template** (migration `0095`): the organization's own text per catalogue entry (`note_template`, ≤ 2000) that
+  prefills the notes when the entry is chosen; the stored note is what the clinician submitted (an untouched template is
+  replaced when another entry is chosen; typed text stays). No placeholders, no clinical rule.
+- **Outside a consultation** (migration `0095`): a catalogue entry the organization allows
+  (`allowed_outside_consultation`, off by default — which procedures a nurse carries out without a physician's
+  consultation is the organization's clinical governance) may be recorded under an open, in-person **queue visit**
+  instead of a consultation: `encounter_id` is nullable, `visit_id` names the visit, and a database CHECK keeps a
+  procedure filed under one or the other, never free-floating. `POST /visits/:id/procedures` needs the new permission
+  `procedure.record` (org_admin, physician, nurse) and the selected facility; the visit must be open
+  (`visit_closed`), in person (`visit_online`) and the entry allowed (`procedure_requires_consultation`); performed not
+  before check-in (`performed_before_visit`); no late entry (nothing is signed). `GET /visits/:id/procedures`
+  (`encounter.read`). Billing, supplies, entered in error and consent work unchanged. Reads show it: the patient's list
+  (`visitId`), timeline (`… · outside a consultation`, linked to the patient record), Patient 360, FHIR `Procedure`
+  without `encounter`, and the copy of the record under "Procedures outside a consultation". Staff: **Procedures** on the
+  queue ticket → `/queue/visits/[id]/procedures`; **Procedures done here** on the patient record → `/patients/[id]/procedures`.
+- **Not built**: procedure-specific consent for the patient to give online, consent for a series of procedures, and
+  recording a refusal of consent.
 
 ## Patient history
 
@@ -260,7 +292,10 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Open questions / assumptions
 
-- Room scheduling views are not built. Automatic no-shows and online check-in: see below.
+- Room views (migration `0096`): `GET /appointments` takes `roomId` and each row carries `room { id, name }` when the booking names one;
+  the staff day schedule (`/appointments?view=room`) and the calendar's day view (**By room**) lay the day out one column per active room
+  of the facility, then "No room". Read-only: booking, rescheduling and the `appointment_room_no_overlap` constraint are unchanged;
+  room equipment, turnover time and room bookings without a patient are not built. Automatic no-shows and online check-in: see below.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
   are part of the [patient history](patient-history.md).
@@ -320,5 +355,26 @@ Migration `0077`.
   SMS is not possible, that a time may have opened and to sign in and book it (`appointment.waitlist-opened`: the clinic and the
   day only), once per entry per day, never to the patient who freed the time, and only while the facility's waiting list is on and the
   time is still bookable. Nothing is booked automatically: first come, first served.
-- Not built: rules per visit type or per practitioner, automatic offers or booking from the waiting list, waiting lists for online
-  consultations' pre-consult, a fee or deposit rule.
+- **Rules per visit type or practitioner** (migration `0096`, `waitlist_rule`, `WaitlistRulesService`; `GET /clinic/waitlist-rules?facilityId=`
+  with `appointment.read`, `PUT /clinic/waitlist-rules` with `clinic.configure`, versioned and audited `facility.waitlist-rule-update`): whether
+  patients may join, how many requests and how far ahead (never beyond the facility's horizon) for one visit type or one practitioner at a
+  facility. The facility's own rule stays the default; a practitioner's rule wins over a visit type's (`resolveWaitlistRule`). A request the
+  rule refuses answers `waitlist_not_offered`; a rule's limit counts the patient's requests under that rule. MyHealth asks
+  `GET /portal/booking/waitlist-allowance?facilityId&visitTypeId&practitionerId` before offering the button. Staff: **Waiting-list rules per
+  visit type or practitioner** on `/appointments/visit-types` (selected facility).
+- **Offers from the waiting list** (migration `0096`, `waitlist_offer`, `WaitlistOffersService`): a facility chooses `waitlist_mode` `notice`
+  (above, the default) or `offer`, with `offer_hold_minutes` (15–1440, default 120) and `offer_batch` (1–5, default 1). In `offer` mode an opened
+  time (a cancellation, or a visit moved away; the visit type's length) is **held** for the first matching patient-made entries — urgent first,
+  then oldest; never the patient who freed it; one offer per entry per day (`offerCandidates`) — until the hold runs out or the online lead time
+  before the start, whichever is first (`offerExpiry`). The patient is texted or emailed that a time is being held (`appointment.waitlist-offer`:
+  the clinic, the day and the hold; the time is shown after sign-in) and in MyHealth accepts it (`POST /portal/booking/offers/:id/accept`:
+  booked through the ordinary patient booking, so lead time, limits and the exclusion constraints apply; the first acceptance wins, the other
+  offers of that time become `taken`) or declines it (`…/decline`: the entry stays on the list and the time goes to the next entries at once).
+  Staff (`/appointments/waitlist`, **Times being held**) accept it for the patient after speaking to them (`POST /waitlist/offers/:id/accept`,
+  `appointment.manage`: booked at the front desk, the entry closed as booked) or withdraw it with a reason (`…/withdraw`; not handed on).
+  `GET /waitlist/offers?facilityId=&includeClosed=` lists them (audited `waitlist.offers.view`). The hourly `WaitlistOffersService.expire`
+  (started in `main.ts`) expires offers whose hold ran out and hands each time on while it is still free. Audit `waitlist.offer.accept |
+decline | withdraw`; events `WaitlistOfferMade | Accepted | Expired` (ids only). **Fully automatic booking without the patient's or staff's
+  acceptance is deliberately not built**: it would create appointments nobody agreed to, which the reminder and no-show rules then act on.
+- Not built: waiting lists for online consultations' pre-consult, a fee or deposit rule, offers to entries staff added (they have no MyHealth
+  side; staff book those by phone as before).

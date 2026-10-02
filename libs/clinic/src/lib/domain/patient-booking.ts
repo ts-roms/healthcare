@@ -25,6 +25,12 @@ export interface BookingRules {
   checkInOpensMinutes: number;
   /** …and closes this long after it (later, the patient checks in at the desk). */
   checkInClosesMinutes: number;
+  /** When a time opens: tell waiting patients (`notice`), or offer them the exact time to accept (`offer`; migration 0096). */
+  waitlistMode: "notice" | "offer";
+  /** How long an offered time is held before it goes to the next entries. */
+  offerHoldMinutes: number;
+  /** How many entries one opened time is offered to at once (the first acceptance wins). */
+  offerBatch: number;
 }
 
 export const DEFAULT_BOOKING_RULES: BookingRules = {
@@ -39,6 +45,9 @@ export const DEFAULT_BOOKING_RULES: BookingRules = {
   onlineCheckIn: false,
   checkInOpensMinutes: 60,
   checkInClosesMinutes: 15,
+  waitlistMode: "notice",
+  offerHoldMinutes: 120,
+  offerBatch: 1,
 };
 
 /** The most days one waiting-list entry may span: a request for "some day soon", not for the whole horizon. */
@@ -106,3 +115,89 @@ export function waitlistMatches(
 
 /** The old name, for callers that only need the platform's defaults. */
 export const PATIENT_BOOKING_RULES = DEFAULT_BOOKING_RULES;
+
+// ---- waiting-list rules per visit type or practitioner (migration 0096) ------------------------------------------
+
+/** What a patient's waiting-list request is allowed at this facility, for this visit type and practitioner. */
+export interface WaitlistAllowance {
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number;
+  /** Which rule decided: the practitioner's, the visit type's, or the facility's. */
+  source: "practitioner" | "visit_type" | "facility";
+}
+
+export interface WaitlistRuleLike {
+  scope: "visit_type" | "practitioner";
+  visitTypeId: string | null;
+  practitionerId: string | null;
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number | null;
+}
+
+/**
+ * The rule that applies to a request: a rule for the practitioner asked for wins over one for the visit type, which wins
+ * over the facility's own (the default). A rule's horizon falls back to the facility's.
+ */
+export function resolveWaitlistRule(
+  facility: Pick<BookingRules, "waitlistEnabled" | "maxWaitlistEntries" | "maxAdvanceDays">,
+  rules: WaitlistRuleLike[],
+  request: { visitTypeId: string | null; practitionerId: string | null },
+): WaitlistAllowance {
+  const pick = (scope: WaitlistRuleLike["scope"], id: string | null) =>
+    id ? rules.find((r) => r.scope === scope && (scope === "practitioner" ? r.practitionerId : r.visitTypeId) === id) : undefined;
+  const rule = pick("practitioner", request.practitionerId) ?? pick("visit_type", request.visitTypeId);
+  if (!rule) {
+    return { enabled: facility.waitlistEnabled, maxEntries: facility.maxWaitlistEntries, maxDaysAhead: facility.maxAdvanceDays, source: "facility" };
+  }
+  return {
+    enabled: rule.enabled,
+    maxEntries: rule.maxEntries,
+    maxDaysAhead: Math.min(rule.maxDaysAhead ?? facility.maxAdvanceDays, facility.maxAdvanceDays),
+    source: rule.scope,
+  };
+}
+
+// ---- offers from the waiting list (migration 0096) --------------------------------------------------------------
+
+export interface OfferCandidate {
+  id: string;
+  patientId: string;
+  priority: "routine" | "soon";
+  createdAt: Date;
+  earliestDate: string;
+  latestDate: string;
+  practitionerId: string | null;
+  visitTypeId: string | null;
+}
+
+/**
+ * Which waiting entries an opened time is offered to: those it matches, never the patient who freed it, never one
+ * already offered a time that day (`alreadyOffered`), urgent first then oldest first, at most `batch` of them.
+ */
+export function offerCandidates(
+  entries: OfferCandidate[],
+  opened: { date: string; practitionerId: string; visitTypeId: string | null; freedByPatientId: string | null },
+  alreadyOffered: ReadonlySet<string>,
+  batch: number,
+): OfferCandidate[] {
+  return entries
+    .filter((e) => e.patientId !== opened.freedByPatientId)
+    .filter((e) => !alreadyOffered.has(e.id))
+    .filter((e) => waitlistMatches(e, opened))
+    .sort((a, b) => (a.priority === b.priority ? a.createdAt.getTime() - b.createdAt.getTime() : a.priority === "soon" ? -1 : 1))
+    .slice(0, Math.max(1, batch));
+}
+
+/** When an offer made now stops being valid: after the hold, and never later than the facility's online lead time before the start. */
+export function offerExpiry(now: Date, startsAt: Date, rules: Pick<BookingRules, "offerHoldMinutes" | "minLeadMinutes">): Date {
+  const hold = new Date(now.getTime() + rules.offerHoldMinutes * 60_000);
+  const latest = new Date(startsAt.getTime() - rules.minLeadMinutes * 60_000);
+  return hold.getTime() < latest.getTime() ? hold : latest;
+}
+
+/** Whether a time is still worth offering: the patient must be able to accept it before the lead time runs out. */
+export function offerable(now: Date, startsAt: Date, rules: Pick<BookingRules, "minLeadMinutes">): boolean {
+  return startsAt.getTime() - rules.minLeadMinutes * 60_000 > now.getTime() + 60_000;
+}

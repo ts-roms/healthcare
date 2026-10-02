@@ -7,8 +7,8 @@ import { CalendarClockIcon, CalendarXIcon, CheckIcon, LogInIcon, UserXIcon } fro
 import { AppointmentCard } from "@healthcare/ui/healthcare";
 import { Button, Card, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
-import type { AppointmentItem, Practitioner, VisitType } from "@/lib/api/types";
-import { type AppointmentAction, appointmentActions, groupByPractitioner, toAppointment } from "@/lib/clinic-mapping";
+import type { AppointmentItem, ClinicRoom, Practitioner, VisitType } from "@/lib/api/types";
+import { type AppointmentAction, appointmentActions, groupByPractitioner, groupByRoom, toAppointment } from "@/lib/clinic-mapping";
 import { cancelAppointment, checkInAppointment, confirmAppointment, markNoShow } from "./actions";
 import { RescheduleForm } from "./reschedule-form";
 
@@ -25,6 +25,8 @@ export function AppointmentsDay({
   canOpenRecord,
   facilityId,
   timeZone,
+  rooms = [],
+  byRoom = false,
 }: {
   items: AppointmentItem[];
   truncated: boolean;
@@ -38,6 +40,10 @@ export function AppointmentsDay({
   canOpenRecord: boolean;
   facilityId: string;
   timeZone: string;
+  /** The facility's rooms, for the by-room view (migration 0096). */
+  rooms?: ClinicRoom[];
+  /** Lay the day out by room instead of by practitioner. */
+  byRoom?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -53,7 +59,11 @@ export function AppointmentsDay({
 
   const practitionerMap = React.useMemo(() => new Map(practitioners.map((p) => [p.id, p])), [practitioners]);
   const visitTypeMap = React.useMemo(() => new Map(visitTypes.map((v) => [v.id, v])), [visitTypes]);
-  const groups = groupByPractitioner(items, practitionerMap);
+  const groups = byRoom
+    ? groupByRoom(items, rooms).map((g) => ({ key: g.roomId ?? "none", title: g.name, items: g.items }))
+    : groupByPractitioner(items, practitionerMap).map((g) => ({ key: g.practitionerId, title: g.practitioner?.displayName ?? "Practitioner", items: g.items }));
+  const pageHref = (view: "practitioner" | "room") =>
+    `/appointments?date=${date}${practitionerId ? `&practitionerId=${practitionerId}` : ""}${view === "room" ? "&view=room" : ""}`;
 
   const run = (call: () => Promise<ActionResult<unknown>>, success: string | ((data: unknown) => string)) =>
     startTransition(async () => {
@@ -98,7 +108,7 @@ export function AppointmentsDay({
             emptyText="No practitioners set up"
             id="practitioner-filter"
             value={practitionerId}
-            onChange={(e) => router.push(`/appointments?date=${date}${e.target.value ? `&practitionerId=${e.target.value}` : ""}`)}
+            onChange={(e) => router.push(`/appointments?date=${date}${e.target.value ? `&practitionerId=${e.target.value}` : ""}${byRoom ? "&view=room" : ""}`)}
           >
             <option value="">All practitioners</option>
             {practitioners.map((p) => (
@@ -108,9 +118,22 @@ export function AppointmentsDay({
             ))}
           </NativeSelect>
         </div>
+        <div className="grid gap-1">
+          <Label htmlFor="layout-filter">Lay out by</Label>
+          <NativeSelect
+            id="layout-filter"
+            value={byRoom ? "room" : "practitioner"}
+            onChange={(e) => router.push(pageHref(e.target.value as "practitioner" | "room"))}
+          >
+            <option value="practitioner">Practitioner</option>
+            <option value="room">Room</option>
+          </NativeSelect>
+        </div>
       </div>
 
-      {groups.length === 0 ? <p className="text-body text-muted-foreground">No appointments on this day.</p> : null}
+      {groups.length === 0 ? (
+        <p className="text-body text-muted-foreground">{byRoom && rooms.length === 0 ? "No rooms set up at this facility." : "No appointments on this day."}</p>
+      ) : null}
       {truncated ? (
         <p role="status" className="text-table text-warning-foreground">
           Showing the first 100 appointments. Filter by practitioner to see the rest.
@@ -119,12 +142,15 @@ export function AppointmentsDay({
 
       <div className="grid gap-4 xl:grid-cols-2">
         {groups.map((g) => (
-          <Card key={g.practitionerId}>
+          <Card key={g.key}>
             <CardHeader>
-              <CardTitle>{g.practitioner?.displayName ?? "Practitioner"}</CardTitle>
-              <span className="ml-auto text-meta text-muted-foreground">{g.items.filter((a) => a.status !== "cancelled").length} scheduled</span>
+              <CardTitle>{g.title}</CardTitle>
+              <span className="ml-auto text-meta text-muted-foreground">
+                {g.items.length === 0 ? "nothing booked" : `${g.items.filter((a) => a.status !== "cancelled").length} scheduled`}
+              </span>
             </CardHeader>
             <ul className="divide-y px-3">
+              {g.items.length === 0 ? <li className="py-2 text-meta text-muted-foreground">Free all day.</li> : null}
               {g.items.map((a) => {
                 const actions = appointmentActions(a, {
                   now,

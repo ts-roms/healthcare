@@ -1,10 +1,20 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, RequirePermissions } from "@healthcare/core";
 import { CurrentPatient, PatientAccessGuard, ProxyAllowed } from "../portal/patient-access.guard";
 import type { PortalPrincipal } from "../portal/portal-account.service";
-import { AssignThreadDto, ReplyDto, StaffStartThreadDto, StartThreadDto, ThreadQueryDto } from "./patient-message.dto";
+import {
+  AssignThreadDto,
+  NoteDto,
+  PatientUploadDto,
+  ReplyDto,
+  SettingsQueryDto,
+  StaffStartThreadDto,
+  StartThreadDto,
+  ThreadQueryDto,
+  UpsertSettingDto,
+} from "./patient-message.dto";
 import { PatientMessageService } from "./patient-message.service";
 
 /** The patient's conversations with the clinic in MyHealth. Public to the staff guard; the patient guard protects every request. */
@@ -29,6 +39,30 @@ export class PortalMessageThreadsController {
     return { unread: await this.messages.unreadCountForPatient(patient) };
   }
 
+  @Post("uploads")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: "Prepare an upload (image or PDF, 10 MB, 10 a day) to attach to a message; returns a signed upload URL" })
+  startUpload(@CurrentPatient() patient: PortalPrincipal, @Body() body: PatientUploadDto) {
+    return this.messages.startPatientUpload(patient, body);
+  }
+
+  @Post("uploads/:documentId/complete")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Confirm an upload is in place so it can be attached" })
+  completeUpload(@CurrentPatient() patient: PortalPrincipal, @Param("documentId", ParseUUIDPipe) documentId: string) {
+    return this.messages.completePatientUpload(patient, documentId);
+  }
+
+  @Get(":threadId/attachments/:documentId/link")
+  @ApiOperation({ summary: "A short-lived link to an attachment of the conversation (audited)" })
+  attachmentLink(
+    @CurrentPatient() patient: PortalPrincipal,
+    @Param("threadId", ParseUUIDPipe) threadId: string,
+    @Param("documentId", ParseUUIDPipe) documentId: string,
+  ) {
+    return this.messages.attachmentLinkForPatient(patient, threadId, documentId);
+  }
+
   @Get(":threadId")
   @ApiOperation({ summary: "One conversation with its messages; opening it marks the clinic's messages read" })
   open(@CurrentPatient() patient: PortalPrincipal, @Param("threadId", ParseUUIDPipe) threadId: string) {
@@ -47,7 +81,7 @@ export class PortalMessageThreadsController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: "Write in an open conversation" })
   reply(@CurrentPatient() patient: PortalPrincipal, @Param("threadId", ParseUUIDPipe) threadId: string, @Body() body: ReplyDto) {
-    return this.messages.replyForPatient(patient, threadId, body.body);
+    return this.messages.replyForPatient(patient, threadId, body.body, body.documentIds);
   }
 }
 
@@ -76,6 +110,34 @@ export class PatientMessagesController {
     return { awaiting: await this.messages.awaitingCount(actor) };
   }
 
+  @Get("overdue-count")
+  @RequirePermissions("patient.message.read")
+  @ApiOperation({ summary: "Conversations past their response target" })
+  async overdue(@CurrentActor() actor: Actor) {
+    return { overdue: await this.messages.overdueCount(actor) };
+  }
+
+  @Get("settings")
+  @RequirePermissions("patient.message.read")
+  @ApiOperation({ summary: "Routing and response targets per topic at a facility" })
+  settings(@CurrentActor() actor: Actor, @Query() query: SettingsQueryDto) {
+    return this.messages.listSettings(actor, query.facilityId);
+  }
+
+  @Put("settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set where a topic's conversations go and how soon the clinic means to answer (audited, versioned)" })
+  upsertSetting(@CurrentActor() actor: Actor, @Body() body: UpsertSettingDto) {
+    return this.messages.upsertSetting(actor, body);
+  }
+
+  @Get(":threadId/attachments/:documentId/link")
+  @RequirePermissions("patient.message.read", "document.read")
+  @ApiOperation({ summary: "A short-lived link to an attachment of the conversation (audited)" })
+  attachmentLink(@CurrentActor() actor: Actor, @Param("threadId", ParseUUIDPipe) threadId: string, @Param("documentId", ParseUUIDPipe) documentId: string) {
+    return this.messages.attachmentLinkForStaff(actor, threadId, documentId);
+  }
+
   @Get(":threadId")
   @RequirePermissions("patient.message.read")
   @ApiOperation({ summary: "One conversation with its messages (audited)" })
@@ -95,7 +157,15 @@ export class PatientMessagesController {
   @RequirePermissions("patient.message.manage")
   @ApiOperation({ summary: "Reply; the patient is told by SMS or email that a message is waiting (never its content)" })
   reply(@CurrentActor() actor: Actor, @Param("threadId", ParseUUIDPipe) threadId: string, @Body() body: ReplyDto) {
-    return this.messages.replyForStaff(actor, threadId, body.body);
+    return this.messages.replyForStaff(actor, threadId, body.body, body.documentIds);
+  }
+
+  @Post(":threadId/notes")
+  @HttpCode(201)
+  @RequirePermissions("patient.message.manage")
+  @ApiOperation({ summary: "Add an internal note the patient never sees" })
+  note(@CurrentActor() actor: Actor, @Param("threadId", ParseUUIDPipe) threadId: string, @Body() body: NoteDto) {
+    return this.messages.addNote(actor, threadId, body.body);
   }
 
   @Post(":threadId/assignment")

@@ -21,7 +21,7 @@ import {
   filedAsPatient,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
-import { and, asc, eq, gte, isNull, lt, lte, notInArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import type {
   BookAppointmentInput,
@@ -31,7 +31,7 @@ import type {
   listAppointmentsSchema,
   rescheduleSchema,
 } from "../clinic.dto";
-import { appointment, type AppointmentRecord, practitionerSchedule, scheduleException, waitlistEntry } from "../clinic.schema";
+import { appointment, type AppointmentRecord, practitionerSchedule, room, scheduleException, waitlistEntry } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
 import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
@@ -148,6 +148,7 @@ export class AppointmentService {
     if (query.practitionerId) filters.push(eq(appointment.practitionerId, query.practitionerId));
     if (query.patientId) filters.push(filedAsPatient(appointment.patientId, query.patientId));
     if (query.status) filters.push(eq(appointment.status, query.status));
+    if (query.roomId) filters.push(eq(appointment.roomId, query.roomId));
     if (query.date) {
       const timeZone = query.facilityId ? (await this.organizations.getFacility(actor.organizationId, query.facilityId)).timezone : "Asia/Manila";
       const { start, end } = localDayBounds(query.date, timeZone);
@@ -166,6 +167,17 @@ export class AppointmentService {
     }
     const page = toPage(rows, query);
     const patients = await this.patients.summaries(actor.organizationId, [...new Set(page.items.map((a) => a.patientId))]);
+    const roomIds = [...new Set(page.items.map((a) => a.roomId).filter((id): id is string => Boolean(id)))];
+    const rooms = roomIds.length
+      ? new Map(
+          (
+            await this.db
+              .select({ id: room.id, name: room.name })
+              .from(room)
+              .where(and(eq(room.organizationId, actor.organizationId), inArray(room.id, roomIds)))
+          ).map((r) => [r.id, r.name]),
+        )
+      : new Map<string, string>();
     if (!query.patientId && page.items.length > 0) {
       // A schedule shows who is booked: record that patients were listed.
       await this.audit.recordStandalone(actor, {
@@ -174,7 +186,14 @@ export class AppointmentService {
         metadata: { facilityId: query.facilityId, practitionerId: query.practitionerId, date: query.date, count: page.items.length },
       });
     }
-    return { ...page, items: page.items.map((a) => ({ ...publicView(a), patient: patients.get(a.patientId) ?? null })) };
+    return {
+      ...page,
+      items: page.items.map((a) => ({
+        ...publicView(a),
+        patient: patients.get(a.patientId) ?? null,
+        room: a.roomId ? { id: a.roomId, name: rooms.get(a.roomId) ?? "" } : null,
+      })),
+    };
   }
 
   async confirm(actor: Actor, appointmentId: string, version: number): Promise<AppointmentView> {

@@ -165,6 +165,14 @@ permissions plus dental) and `dental_assistant` (a nurse's plus the dental
 record and imaging); recording also requires a practitioner with profession
 `dentist`. Audited `dental.*` (views, examinations, plans, procedures, images,
 corrections with the reason); image links are audited as `document.download`.
+Clinic procedures outside a consultation (migration 0095): `procedure.record`
+(org_admin, physician, nurse) records a procedure under an open in-person queue
+visit for catalogue entries the organization allows outside a consultation, and
+adds consent to a procedure recorded without one (also `encounter.write`);
+consent wording is clinic configuration (`clinic.configure`). Audited
+`clinic.procedure-consent-wording.publish`, `clinic.procedure-consent-form.print`
+(with the patient), `clinic.procedure-consent.record` (ids, how captured, the
+wording version — never the representative's name or notes).
 Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
 (org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
 pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions
@@ -172,6 +180,12 @@ and the instrument log are append-only. Quality management (migration 0055)
 uses the same permissions; audited `lab.storage-unit.*`, `lab.temperature.record`,
 `lab.nonconformance.*`, `lab.eqa.*`, `lab.competency.record`; competency is never
 self-assessed.
+Outreach (migration 0094): `crm.read` (org_admin, records_officer) lists segments and
+campaigns and previews a segment (audited); `crm.segment.manage` and
+`crm.campaign.manage` (org_admin) define segments and draft, submit, reopen and cancel
+campaigns; `crm.campaign.approve` (org_admin) approves a submitted campaign, never
+one's own (`approver_is_author`). Sending runs as the system actor and is audited
+(`crm.campaign.run`, counts only); `POST /outreach/opt-out` is public, token-based.
 Management dashboard (migration 0059): `management.dashboard.read` (org_admin);
 a facility-scoped grant limits the figures to that facility; revenue, collections
 and service revenue (JSON sections and the `services`, `categories`, `revenue` and
@@ -179,7 +193,15 @@ and service revenue (JSON sections and the `services`, `categories`, `revenue` a
 **every** facility in scope — otherwise `billing` is `null`, listed in `withheld`,
 billing is not queried, and a revenue export is refused (403) and audited as a
 denial. Audited `management.dashboard.view` (range, facilities, withheld) and
-`management.dashboard.export` (table, range, facilities, withheld, rows). Counts
+`management.dashboard.export` (table, range, facilities, withheld, rows). Scheduled
+reports (migration 0093): `management.report.manage` (org_admin) creates, changes,
+pauses and resumes schedules; the caller becomes the owner and must hold what the
+schedule needs (dashboard read for the scope, `billing.report.read` for revenue
+tables), and every recipient must be an active member with dashboard read for the
+scope; reports are produced with the owner's permissions re-resolved at each run,
+and a download (`management.dashboard.read`) re-checks billing reporting for
+revenue tables (403, audited as a denial); audited `management.report.produce`
+(system actor) and `management.report.download`. Counts
 and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with

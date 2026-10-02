@@ -168,6 +168,28 @@ export interface BookingRulesView {
   maxWaitlistEntries: number;
 }
 
+/** `GET /portal/booking/waitlist-allowance`: whether this clinic takes a request for the visit type and doctor chosen. */
+export interface WaitlistAllowance {
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number;
+}
+
+/** `GET /portal/booking/offers` row: a time the clinic is holding for the patient from the waiting list. */
+export interface PortalWaitlistOffer {
+  id: string;
+  facilityId: string;
+  facilityName: string;
+  timeZone: string;
+  visitTypeId: string;
+  visitTypeName: string;
+  practitionerId: string;
+  practitionerName: string;
+  startsAt: string;
+  endsAt: string;
+  expiresAt: string;
+}
+
 /** `GET /portal/booking/waitlist` row. */
 export interface PortalWaitlistEntry {
   id: string;
@@ -605,6 +627,15 @@ export interface PortalThread {
   unread: boolean;
 }
 
+/** A file carried with a message (a photo or PDF the patient sent, or a document the clinic shared); opened behind a short-lived link. */
+export interface PortalThreadAttachment {
+  documentId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface PortalThreadMessage {
   id: string;
   sender: "patient" | "staff";
@@ -613,6 +644,7 @@ export interface PortalThreadMessage {
   /** Written by a parent or guardian acting for the patient. */
   viaGuardian: boolean;
   createdAt: string;
+  attachments: PortalThreadAttachment[];
 }
 
 export interface PortalThreadDetail extends PortalThread {

@@ -1,0 +1,9 @@
+# State, provider binaries and anything that may hold a secret or an environment's values
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+backend.tf
+crash.log
+.terraform.lock.hcl

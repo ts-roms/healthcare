@@ -10,6 +10,7 @@ import {
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
+  MegaphoneIcon,
   MessageSquareIcon,
   MonitorIcon,
   PackageIcon,
@@ -99,7 +100,17 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Patient messages", href: "/messages", icon: InboxIcon },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
-  { label: "Management", href: "/management", icon: ChartColumnIcon, roles: ["admin"] },
+  { label: "Outreach", href: "/outreach", icon: MegaphoneIcon, roles: ["admin"] },
+  {
+    label: "Management",
+    href: "/management",
+    icon: ChartColumnIcon,
+    roles: ["admin"],
+    children: [
+      { label: "Dashboard", href: "/management" },
+      { label: "Scheduled reports", href: "/management/reports" },
+    ],
+  },
   { label: "Disease reporting", href: "/reporting", icon: ClipboardListIcon, roles: ["doctor", "admin"] },
   {
     label: "Records",

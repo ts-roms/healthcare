@@ -206,8 +206,21 @@ nebulization, an injection and the like (dental work and vaccines have their own
 
 1. Select **Record procedure**.
 2. Choose the **Procedure**, who **Performed by** (you, or another practitioner such as the nurse who did it), **When** (leave empty for now),
-   the **Body site** (asked for some procedures, for example "left forearm"), **How many** (billed as this quantity) and any **Notes**.
-3. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
+   the **Body site** (asked for some procedures, for example "left forearm"), **How many** (billed as this quantity) and any **Notes**. When your
+   clinic has written a note template for the procedure, the notes are prefilled with it: write what applies (the template is only a starting
+   point and is replaced if you choose another procedure before typing).
+3. **Consent.** When the entry requires consent, the consent part of the form is open and the procedure cannot be recorded without it; otherwise
+   tick **Record the consent obtained** if you want it on the record. Say how it was **Obtained** — **Signed on paper**, **Electronically** (the
+   patient read your clinic's current wording; the version is recorded) or **In words** —, whether it was **Given by** the patient or a
+   representative (their name and relationship, as written), **When obtained** (leave empty for the time of the procedure; it can never be after
+   it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and any notes. **Print consent form** opens a
+   form with your clinic's wording for this patient to sign; upload the signed form as a document and link it here or later with
+   **Record consent…** under the procedure (once).
+4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
+
+Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the
+system records what you enter and decides nothing about it. An administrator writes the consent wording and note template per procedure under
+**Clinic → Procedures** (**Consent wording**: each published version is kept, and a recorded consent names the version shown).
 
 Procedures are not recorded in online consultations. After the consultation is signed, only staff who may amend consultations can add one, and
 they must say **why it is recorded after signing**; it is marked **Recorded after signing**. A mistake: **Entered in error…** with a reason (the

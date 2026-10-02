@@ -120,6 +120,12 @@ export const PERMISSIONS = [
   "interop.fhir.import.review",
   // Management dashboard: cross-domain operational figures, counts and amounts only (migration 0059).
   "management.dashboard.read",
+  // Scheduled management reports: cadence, tables, facility scope and recipients (migration 0093).
+  "management.report.manage",
+  "crm.read",
+  "crm.segment.manage",
+  "crm.campaign.manage",
+  "crm.campaign.approve",
   // Inventory valuation: stock values and the cost of stock received, used and written off (migration 0061).
   "inventory.valuation.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
@@ -143,6 +149,8 @@ export const PERMISSIONS = [
   // sexual history also need encounter.write.
   "history.read",
   "history.record",
+  // Clinic procedures outside a consultation (migration 0095)
+  "procedure.record",
   // Staff calendar: meetings, events and blocked time beside appointments (migration 0087).
   "calendar.read",
   "calendar.manage",

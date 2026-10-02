@@ -82,16 +82,27 @@ recorded on the surviving record **after** the merge stays there — check it an
 Patients write to the clinic in MyHealth (**Messages → New message**). They are told messages are read during clinic hours, are not for urgent problems, and
 are not for emergencies. Choose **Patient messages** in the menu (needs `patient.message.read`; replying needs `patient.message.manage`).
 
-1. The list opens on **Waiting for us**: open conversations where the patient wrote last, the longest wait first, with how long each has waited. Use **Open**,
-   **All**, **Closed**, **Assigned to me**, or a patient's own conversations from the patient record.
+1. The list opens on **Waiting for us**: open conversations where the patient wrote last, the longest wait first, with how long each has waited and, where
+   the clinic set a target, **due in …** or **… past target** (marked ⚠). Use **Open**, **All**, **Closed**, **Assigned to me**, or a patient's own
+   conversations from the patient record.
 2. Select **Reply** to open a conversation. Opening one is audited. Read it, write your reply in plain words and select **Send reply**. Sending takes the
    conversation for you if nobody has it. **Assign to me** and **Release** move it between colleagues.
-3. The patient is sent a text or email saying **a message is waiting** — never what it says. You are notified in the app when a patient writes (once for a run of
-   messages).
-4. When the question is settled, select **Close conversation**. The patient can still read it but cannot add to it; **Reopen** it if needed.
+3. Files the patient sent (photos, PDFs) appear under their message; select one to open it (each opening is recorded). To send a file back, choose
+   **Attach files** before **Send reply**: up to 3 images or PDFs of 10 MB or less, filed in the patient's record as attachments.
+4. **Internal notes** on the right are for the clinic only — the patient never sees them, and they cannot be edited or deleted. Use them to record who you
+   checked with or what to do next.
+5. The patient is sent a text or email saying **a message is waiting** — never what it says. You are notified in the app when a patient writes (once for a run
+   of messages), and once more if a conversation passes its response target.
+6. When the question is settled, select **Close conversation**. The patient can still read it but cannot add to it; **Reopen** it if needed.
 
-If a message describes something urgent, **call the patient**; do not answer an emergency by message. Do not put results or urgent instructions in a reply. Messages
-carry text only (no attachments), and nothing said here is a diagnosis by the system: a reply is the clinician's own.
+**Routing and response targets** (needs `clinic.configure`; **Routing and response targets** above the list, for the facility selected in the top bar): for
+each topic a patient can write about, choose who is told of a new message — everyone who can reply, everyone with a role, or one person (optionally
+**assigned on arrival**) — and **Answer within** so many hours (1–168, calendar hours; clinic hours and holidays are not taken into account). Past the
+target the conversation is marked and the responsible people get one reminder in the app.
+
+If a message describes something urgent, **call the patient**; do not answer an emergency by message. Do not put results or urgent instructions in a reply.
+Nothing said here is a diagnosis by the system: a reply is the clinician's own. Files from patients are not checked for malware by the platform — open them as
+you would any file from outside.
 
 ## How to answer a patient's records request
 
@@ -399,6 +410,49 @@ billing report access (`billing.report.read`) for every facility shown.
   such a count shows as **withheld**.
 - Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
 - These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
+
+## How to send an outreach campaign
+
+**Who:** organization administrators (`crm.segment.manage`, `crm.campaign.manage`; approval needs `crm.campaign.approve` and a second person).
+Records officers can read segments and campaigns.
+
+1. Open **Outreach** in the menu (`/outreach`).
+2. Under **Segments**, select **New segment** and choose who matches: age range, sex, city or province, when they registered, when they last
+   visited (or no visit for a number of months), a care-plan activity due soon, or an opt-in to a channel. Every filled criterion must hold.
+   **Preview** shows how many patients match today and a short work list; every preview is recorded in the audit trail.
+3. Under **Campaigns**, select **New campaign**: the segment, the channels, a subject (for email and MyHealth), the message in plain text, and
+   optionally when to send. The screen shows the length allowed for the chosen channels. Save the draft and select **Submit for approval**.
+4. **Someone else** opens the campaign and selects **Approve**. The system refuses an approval by the person who wrote or submitted it.
+5. The campaign is sent at its time, or within a minute. Open it to see the **Result**: how many patients were in the segment, and per channel
+   how many messages were queued, delivered, not sent or failed, with the reasons (for example "No outreach opt-in on this channel").
+
+**Things to know:**
+
+- A message goes out only on a channel the patient has **opted in to for outreach** (MyHealth → Notification settings, or recorded at the
+  clinic). Deceased, merged and inactive records are never contacted. Messages about care, appointments and bills are not affected.
+- Segments cannot use diagnoses, results or medications. Do not put anything about a person's health in a campaign message.
+- Every outreach email carries a link the patient can use to stop outreach on that channel; it is recorded on their record.
+- A campaign cannot change once approved: cancel it with a reason and draft a new one. Who received what appears in **Communications**.
+
+## How to schedule a weekly or monthly report
+
+**Who:** organization administrators (`management.report.manage`); anyone with `management.dashboard.read` can open the produced reports.
+
+1. Open **Management → Scheduled reports** (`/management/reports`), or **Scheduled reports** next to the CSV downloads on the dashboard.
+2. Select **New schedule**. Give it a name, choose **Weekly** (Monday to Sunday) or **Monthly** (calendar month), a **Facility** or all the
+   facilities you may report on, the **Tables** wanted and the **Recipients**.
+3. Select **Schedule**. After the end of each week or month the tables are produced as CSV files and every recipient gets a message in the app
+   and by email saying the report is ready — the message never contains figures.
+4. Under **Produced reports**, select a table's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
+
+**Things to know:**
+
+- Reports are produced with the permissions of the person who set the schedule up (or last changed it). The system refuses a schedule for
+  facilities you may not report on, revenue tables without billing report access, and recipients who may not view the dashboard for that scope.
+- A revenue table opens only for a reader with billing report access for every facility of the report, even when it was produced.
+- If a permission is taken away later, the affected table shows as **withheld** on that run (status **Partly withheld**); a report that could not
+  be produced shows **Failed** with the reason and is tried again every hour for a week.
+- Choosing recipients needs access to the staff list (`user.read`). Each download is recorded in the audit trail.
 
 ## Rules the system enforces
 

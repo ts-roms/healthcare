@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { charactersLeft, conversationMessage, threadState } from "./conversations";
+import { attachmentProblem, charactersLeft, conversationMessage, fileSize, threadState } from "./conversations";
 
 describe("conversations", () => {
   it("says where a conversation stands", () => {
@@ -18,5 +18,20 @@ describe("conversations", () => {
   it("counts what is left to write", () => {
     expect(charactersLeft("hello")).toBe(1995);
     expect(charactersLeft("x".repeat(2001))).toBe(-1);
+  });
+
+  it("checks files before they are sent", () => {
+    expect(attachmentProblem([])).toBeNull();
+    expect(
+      attachmentProblem([
+        { type: "image/heic", size: 10 },
+        { type: "application/pdf", size: 10 },
+      ]),
+    ).toBeNull();
+    expect(attachmentProblem([{ type: "video/mp4", size: 10 }])).toMatch(/Only photos/);
+    expect(attachmentProblem([{ type: "image/jpeg", size: 10 * 1024 * 1024 + 1 }])).toMatch(/10 MB/);
+    expect(attachmentProblem(Array(4).fill({ type: "image/jpeg", size: 1 }))).toMatch(/up to 3/);
+    expect(fileSize(2048)).toBe("2 KB");
+    expect(conversationMessage("upload_rate_limited", "x")).toMatch(/many files today/);
   });
 });

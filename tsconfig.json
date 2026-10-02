@@ -68,6 +68,9 @@
     },
     {
       "path": "./apps/instrument-gateway"
+    },
+    {
+      "path": "./libs/crm"
     }
   ],
   "compilerOptions": {}

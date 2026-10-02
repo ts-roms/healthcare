@@ -4,15 +4,26 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { ClinicProcedure, ProcedureDefinition, SupplyUse } from "@/lib/api/types";
-import { type DefinitionForm, definitionFormSchema, procedureFormSchema, procedurePayload, type ProcedureForm } from "@/lib/procedure-form";
+import type { ClinicProcedure, ProcedureConsentWording, ProcedureDefinition, SupplyUse } from "@/lib/api/types";
+import {
+  type ConsentWordingForm,
+  consentPayload,
+  consentWordingFormSchema,
+  type DefinitionForm,
+  definitionFormSchema,
+  procedureFormSchema,
+  procedurePayload,
+  type ProcedureForm,
+} from "@/lib/procedure-form";
 
 const uuid = z.uuid();
 
-function refresh(encounterId: string, patientId?: string) {
-  revalidatePath(`/clinic/encounters/${encounterId}`);
+function refresh(encounterId: string | null, patientId?: string, visitId?: string | null) {
+  if (encounterId) revalidatePath(`/clinic/encounters/${encounterId}`);
+  if (visitId) revalidatePath(`/queue/visits/${visitId}/procedures`);
   if (patientId) {
     revalidatePath(`/patients/${patientId}`);
+    revalidatePath(`/patients/${patientId}/procedures`);
     revalidatePath(`/patients/${patientId}/360`);
   }
 }
@@ -29,9 +40,20 @@ export async function recordProcedure(encounterId: string, patientId: string, fo
   return result;
 }
 
+/** Records a procedure performed under a queue visit without a consultation (procedure.record; entries the catalogue allows). */
+export async function recordVisitProcedure(visitId: string, patientId: string, form: ProcedureForm): Promise<ActionResult<ClinicProcedure>> {
+  if (!uuid.safeParse(visitId).success || !uuid.safeParse(patientId).success) return { ok: false, message: "Invalid request." };
+  const parsed = procedureFormSchema.safeParse({ ...form, signed: false });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the procedure." };
+  const result = await actionResult(() => api<ClinicProcedure>(`/visits/${visitId}/procedures`, { method: "POST", body: procedurePayload(parsed.data) }));
+  if (result.ok) refresh(null, patientId, visitId);
+  return result;
+}
+
 const inErrorSchema = z.object({
   procedureId: z.uuid(),
-  encounterId: z.uuid(),
+  encounterId: z.uuid().nullable(),
+  visitId: z.uuid().nullable().optional(),
   patientId: z.uuid(),
   reason: z.string().trim().min(3, "Give a reason (at least 3 characters).").max(500),
 });
@@ -39,9 +61,36 @@ const inErrorSchema = z.object({
 export async function markProcedureInError(input: z.input<typeof inErrorSchema>): Promise<ActionResult<ClinicProcedure>> {
   const parsed = inErrorSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
-  const { procedureId, encounterId, patientId, reason } = parsed.data;
+  const { procedureId, encounterId, visitId, patientId, reason } = parsed.data;
   const result = await actionResult(() => api<ClinicProcedure>(`/procedures/${procedureId}/entered-in-error`, { method: "POST", body: { reason } }));
-  if (result.ok) refresh(encounterId, patientId);
+  if (result.ok) refresh(encounterId, patientId, visitId);
+  return result;
+}
+
+const consentSchema = z.object({ procedureId: z.uuid(), encounterId: z.uuid().nullable(), visitId: z.uuid().nullable().optional(), patientId: z.uuid() });
+/** Records the consent obtained for a procedure recorded without one (once). */
+export async function recordProcedureConsent(input: z.input<typeof consentSchema>, form: ProcedureForm): Promise<ActionResult<ClinicProcedure>> {
+  const parsed = consentSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const consent = procedureFormSchema.safeParse({ ...form, definitionId: parsed.data.procedureId, consentGiven: true, consentRequired: true, signed: false });
+  if (!consent.success) return { ok: false, message: consent.error.issues[0]?.message ?? "Check the consent." };
+  const { procedureId, encounterId, visitId, patientId } = parsed.data;
+  const result = await actionResult(() =>
+    api<ClinicProcedure>(`/procedures/${procedureId}/consent`, { method: "POST", body: consentPayload(consent.data).consent }),
+  );
+  if (result.ok) refresh(encounterId, patientId, visitId);
+  return result;
+}
+
+/** Publishes the next version of the organization's consent wording for a catalogue entry (clinic.configure). */
+export async function publishConsentWording(definitionId: string, form: ConsentWordingForm): Promise<ActionResult<ProcedureConsentWording>> {
+  if (!uuid.safeParse(definitionId).success) return { ok: false, message: "Invalid request." };
+  const parsed = consentWordingFormSchema.safeParse(form);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the wording." };
+  const result = await actionResult(() =>
+    api<ProcedureConsentWording>(`/clinic/procedure-definitions/${definitionId}/consent-wordings`, { method: "POST", body: parsed.data }),
+  );
+  if (result.ok) revalidatePath("/clinic/procedures");
   return result;
 }
 
@@ -49,11 +98,11 @@ export async function markProcedureInError(input: z.input<typeof inErrorSchema>)
 export async function createProcedureDefinition(form: DefinitionForm): Promise<ActionResult<ProcedureDefinition>> {
   const parsed = definitionFormSchema.safeParse(form);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the procedure." };
-  const { codeSystem, externalCode, ...rest } = parsed.data;
+  const { codeSystem, externalCode, noteTemplate, ...rest } = parsed.data;
   const result = await actionResult(() =>
     api<ProcedureDefinition>("/clinic/procedure-definitions", {
       method: "POST",
-      body: { ...rest, ...(externalCode ? { codeSystem, externalCode } : {}) },
+      body: { ...rest, ...(externalCode ? { codeSystem, externalCode } : {}), ...(noteTemplate ? { noteTemplate } : {}) },
     }),
   );
   if (result.ok) revalidatePath("/clinic/procedures");
@@ -67,6 +116,9 @@ const updateSchema = z.object({
   codeSystem: z.string().trim().toLowerCase().max(40).nullable().optional(),
   externalCode: z.string().trim().max(40).nullable().optional(),
   requiresBodySite: z.boolean().optional(),
+  consentRequired: z.boolean().optional(),
+  allowedOutsideConsultation: z.boolean().optional(),
+  noteTemplate: z.string().trim().max(2000).nullable().optional(),
   status: z.enum(["active", "inactive"]).optional(),
 });
 /** Changes a catalogue entry (its code never changes). */

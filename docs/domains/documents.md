@@ -67,6 +67,17 @@ with a reason as usual. See `docs/architecture/compliance-configuration.md`.
 `ObjectStorage` (presigned upload/download, head, `putIfAbsent`, `get`) with `S3ObjectStorage` (AWS SDK v3,
 SSE-AES256, `If-None-Match: *` for server-side writes) and `InMemoryObjectStorage` (tests).
 
+## Patient uploads (MyHealth messages)
+
+A patient may upload a photo or PDF to send with a MyHealth message (migration `0097`,
+[patient messaging](patient-messaging.md)): `DocumentsService.createForPatient` files a `clinical_attachment`
+document of the patient's own record with `source = 'patient_upload'` and `created_by_portal_account` (no staff
+`created_by`; CHECK `document_patient_upload_creator`), `completeUploadForPatient` verifies the stored object, and
+`patientUploadsToday` counts a day's uploads for the limit. Only JPEG, PNG, HEIC and PDF up to 10 MB, through the
+same presigned flow (the portal server sends the bytes). Uploads are opened only behind short-lived audited links;
+the clinic sees them in the conversation and in the patient's documents.
+
 ## Not yet
 
-Malware scanning, checksum verification, retention schedules, thumbnails, DICOM viewing.
+Malware scanning (patient uploads are a reason to add it before go-live), checksum verification, retention schedules,
+thumbnails, DICOM viewing.

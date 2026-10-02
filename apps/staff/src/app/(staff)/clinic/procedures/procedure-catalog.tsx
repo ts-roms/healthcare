@@ -3,7 +3,21 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2Icon, MinusCircleIcon, PencilIcon } from "lucide-react";
-import { Badge, Button, Checkbox, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+  toast,
+} from "@healthcare/ui/primitives";
 import { createProcedureDefinition, updateProcedureDefinition } from "@/app/(staff)/clinic/procedure-actions";
 import type { ProcedureDefinition } from "@/lib/api/types";
 import { BLANK_DEFINITION_FORM, type DefinitionForm } from "@/lib/procedure-form";
@@ -14,6 +28,9 @@ const toForm = (d: ProcedureDefinition): DefinitionForm => ({
   codeSystem: d.codeSystem ?? "",
   externalCode: d.externalCode ?? "",
   requiresBodySite: d.requiresBodySite,
+  consentRequired: d.consentRequired,
+  allowedOutsideConsultation: d.allowedOutsideConsultation,
+  noteTemplate: d.noteTemplate ?? "",
 });
 
 export function ProcedureCatalog({ definitions, canConfigure }: { definitions: ProcedureDefinition[]; canConfigure: boolean }) {
@@ -39,6 +56,9 @@ export function ProcedureCatalog({ definitions, canConfigure }: { definitions: P
             codeSystem: form.externalCode?.trim() ? form.codeSystem : null,
             externalCode: form.externalCode?.trim() ? form.externalCode : null,
             requiresBodySite: form.requiresBodySite,
+            consentRequired: form.consentRequired,
+            allowedOutsideConsultation: form.allowedOutsideConsultation,
+            noteTemplate: form.noteTemplate?.trim() ? form.noteTemplate : null,
           })
         : await createProcedureDefinition(form);
       if (result.ok) {
@@ -67,6 +87,8 @@ export function ProcedureCatalog({ definitions, canConfigure }: { definitions: P
               <TableHead>Procedure</TableHead>
               <TableHead>Other code</TableHead>
               <TableHead>Body site</TableHead>
+              <TableHead>Consent</TableHead>
+              <TableHead>Outside a consultation</TableHead>
               <TableHead>Status</TableHead>
               {canConfigure ? <TableHead className="sr-only">Actions</TableHead> : null}
             </TableRow>
@@ -78,6 +100,11 @@ export function ProcedureCatalog({ definitions, canConfigure }: { definitions: P
                 <TableCell className="font-medium">{d.name}</TableCell>
                 <TableCell className="font-mono text-meta">{d.externalCode ? `${d.codeSystem}|${d.externalCode}` : "—"}</TableCell>
                 <TableCell className="text-meta">{d.requiresBodySite ? "Asked when recording" : "Optional"}</TableCell>
+                <TableCell className="text-meta">
+                  {d.consentRequired ? "Required" : "Optional"}
+                  {d.consentWording ? ` · wording v${d.consentWording.version}` : ""}
+                </TableCell>
+                <TableCell className="text-meta">{d.allowedOutsideConsultation ? "Allowed" : "No"}</TableCell>
                 <TableCell>
                   {d.status === "active" ? (
                     <Badge variant="success">
@@ -140,6 +167,36 @@ export function ProcedureCatalog({ definitions, canConfigure }: { definitions: P
               onCheckedChange={(v) => setForm((f) => ({ ...f, requiresBodySite: v === true }))}
             />
             <Label htmlFor="procedure-body-site">Ask for the body site</Label>
+          </div>
+          <div className="flex items-center gap-2 sm:col-span-3">
+            <Checkbox
+              id="procedure-consent-required"
+              checked={form.consentRequired}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, consentRequired: v === true }))}
+            />
+            <Label htmlFor="procedure-consent-required">Consent must be recorded with the procedure</Label>
+          </div>
+          <div className="flex items-center gap-2 sm:col-span-3">
+            <Checkbox
+              id="procedure-outside"
+              checked={form.allowedOutsideConsultation}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, allowedOutsideConsultation: v === true }))}
+            />
+            <Label htmlFor="procedure-outside">May be recorded under a visit without a consultation</Label>
+          </div>
+          <div className="grid gap-1 sm:col-span-6">
+            <Label htmlFor="procedure-note-template">Note template</Label>
+            <Textarea
+              id="procedure-note-template"
+              rows={3}
+              maxLength={2000}
+              value={form.noteTemplate}
+              onChange={(e) => setForm((f) => ({ ...f, noteTemplate: e.target.value }))}
+              placeholder={"e.g. Anaesthetic:\nSutures:\nTolerated:"}
+            />
+            <span className="text-meta text-muted-foreground">
+              Prefills the notes when this procedure is chosen; the clinician writes what applies. Not a clinical rule.
+            </span>
           </div>
           <p className="text-meta text-muted-foreground sm:col-span-6">
             Codes are your organization&apos;s own. If you also use another code set (for example a relative value scale edition you are licensed to use), name

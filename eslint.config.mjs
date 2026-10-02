@@ -36,6 +36,7 @@ const DOMAIN_SCOPES = [
   "dental",
   "telemedicine",
   "care-plan",
+  "crm",
   "prescription",
   "billing",
   "inventory",

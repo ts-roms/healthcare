@@ -4,6 +4,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@healthcare/audit";
 import { AuthModule, PasswordScreeningModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
+import { CrmModule } from "@healthcare/crm";
 import { ClinicModule } from "@healthcare/clinic";
 import { DentalModule } from "@healthcare/dental";
 import { accessLogMiddleware, type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
@@ -20,6 +21,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppCrmPreferenceWriter, AppCrmSegmentSource } from "./adapters/crm-adapters";
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
@@ -47,6 +49,9 @@ import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
 import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
+import { ManagementReportController } from "./management-dashboard/management-report.controller";
+import { ManagementReportRuns } from "./management-dashboard/management-report-runs";
+import { ManagementReportService } from "./management-dashboard/management-report.service";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
@@ -60,7 +65,7 @@ import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
-import { PatientMessageNoticeSource } from "./portal/patient-message-notice-source";
+import { PatientMessageReminders } from "./portal/patient-message-reminders";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
@@ -143,6 +148,8 @@ export class AppModule implements NestModule {
       dispensingStock: AppDispensingStock,
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
+    // Outreach: who matches a segment is read here (patient, clinic, care plans); opt-outs go to the patient domain.
+    const crm = CrmModule.forRoot({ imports: [PatientModule], segmentSource: AppCrmSegmentSource, preferenceWriter: AppCrmPreferenceWriter });
     const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
     const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {
@@ -178,6 +185,7 @@ export class AppModule implements NestModule {
         }),
         prescriptions,
         carePlans,
+        crm,
         // Phase 3 — laboratory.
         laboratory,
         // Phase 5 — telemedicine.
@@ -226,6 +234,7 @@ export class AppModule implements NestModule {
         PatientTimelineController,
         PatientWorkspaceController,
         ManagementDashboardController,
+        ManagementReportController,
         PortalBillingController,
         PortalBookingController,
         PortalPushController,
@@ -245,6 +254,8 @@ export class AppModule implements NestModule {
         PatientTimelineService,
         PatientWorkspaceService,
         ManagementDashboardService,
+        ManagementReportService,
+        ManagementReportRuns,
         RecordCopyService,
         RealtimeGateway,
         LaboratoryNotifications,
@@ -258,8 +269,8 @@ export class AppModule implements NestModule {
         ReferralNotices,
         PortalSecurityNotices,
         StaffSecurityNotices,
-        PatientMessageNoticeSource,
         PatientMessageNotices,
+        PatientMessageReminders,
         // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
         // its Redis connection closes with the application.
         { provide: RedisThrottlerStorage, useValue: rateLimits },

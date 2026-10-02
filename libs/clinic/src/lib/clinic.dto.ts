@@ -152,6 +152,8 @@ export const listAppointmentsSchema = pageQuerySchema
     from: isoDateTime.optional(),
     to: isoDateTime.optional(),
     status: z.enum(["booked", "confirmed", "checked_in", "completed", "cancelled", "no_show"]).optional(),
+    /** Appointments in one room (migration 0096 views). */
+    roomId: z.string().uuid().optional(),
   })
   .refine((v) => (v.from === undefined) === (v.to === undefined), { message: "Give both from and to", path: ["to"] })
   .refine(
@@ -392,6 +394,13 @@ export const patientWaitlistJoinSchema = z.object({
 });
 export class PatientWaitlistJoinDto extends createZodDto(patientWaitlistJoinSchema) {}
 
+export const patientWaitlistAllowanceSchema = z.object({
+  facilityId: z.string().uuid(),
+  visitTypeId: z.string().uuid(),
+  practitionerId: z.string().uuid().optional(),
+});
+export class PatientWaitlistAllowanceDto extends createZodDto(patientWaitlistAllowanceSchema) {}
+
 // ---- Online booking rules per facility (migration 0077) --------------------------------------
 
 export const updateBookingRulesSchema = z.object({
@@ -408,10 +417,44 @@ export const updateBookingRulesSchema = z.object({
   onlineCheckIn: z.boolean().default(false),
   checkInOpensMinutes: z.number().int().min(0).max(240).default(60),
   checkInClosesMinutes: z.number().int().min(0).max(120).default(15),
+  /** When a time opens for the waiting list: a content-free notice, or an offer of the exact time to accept (0096). */
+  waitlistMode: z.enum(["notice", "offer"]).default("notice"),
+  offerHoldMinutes: z.number().int().min(15).max(1440).default(120),
+  offerBatch: z.number().int().min(1).max(5).default(1),
   /** The version read; not needed the first time a facility gets its own rules. */
   version: z.number().int().positive().optional(),
 });
 export class UpdateBookingRulesDto extends createZodDto(updateBookingRulesSchema) {}
+
+// ---- Waiting-list rules per visit type or practitioner, and offers (migration 0096) ------------
+
+export const waitlistRulesQuerySchema = z.object({ facilityId: z.string().uuid() });
+export class WaitlistRulesQueryDto extends createZodDto(waitlistRulesQuerySchema) {}
+
+export const upsertWaitlistRuleSchema = z
+  .object({
+    facilityId: z.string().uuid(),
+    scope: z.enum(["visit_type", "practitioner"]),
+    visitTypeId: z.string().uuid().optional(),
+    practitionerId: z.string().uuid().optional(),
+    enabled: z.boolean(),
+    maxEntries: z.number().int().min(1).max(10),
+    /** The facility's horizon when left out. */
+    maxDaysAhead: z.number().int().min(1).max(365).nullable().optional(),
+    /** The version read when changing an existing rule. */
+    version: z.number().int().positive().optional(),
+  })
+  .refine((v) => (v.scope === "visit_type" ? Boolean(v.visitTypeId) && !v.practitionerId : Boolean(v.practitionerId) && !v.visitTypeId), {
+    message: "Name the visit type or the practitioner the rule is for",
+    path: ["scope"],
+  });
+export class UpsertWaitlistRuleDto extends createZodDto(upsertWaitlistRuleSchema) {}
+
+export const waitlistOffersQuerySchema = z.object({ facilityId: z.string().uuid(), includeClosed: z.enum(["true", "false"]).optional() });
+export class WaitlistOffersQueryDto extends createZodDto(waitlistOffersQuerySchema) {}
+
+export const withdrawOfferSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+export class WithdrawOfferDto extends createZodDto(withdrawOfferSchema) {}
 
 // ---- Medical certificates (migration 0068) ---------------------------------------------------
 

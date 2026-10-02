@@ -6,6 +6,7 @@ import {
   canStartConsultation,
   canTriage,
   groupByPractitioner,
+  groupByRoom,
   moveNeedsReason,
   queueMoves,
   shiftDate,
@@ -241,5 +242,29 @@ describe("zonedLocalToIso", () => {
     expect(zonedLocalToIso("2026-10-01T00:15", "Asia/Manila")).toBe("2026-09-30T16:15:00.000Z");
     expect(zonedLocalToIso("2026-07-01T09:00", "America/New_York")).toBe("2026-07-01T13:00:00.000Z");
     expect(() => zonedLocalToIso("2026-10-01 09:30", "Asia/Manila")).toThrow();
+  });
+
+  it("lays a day out by room: every active room, in name order, then bookings without a room", () => {
+    const at = (h: number) => `2026-10-06T0${h}:00:00.000Z`;
+    const rows = [
+      { startsAt: at(3), room: { id: "r2", name: "Room 2" } },
+      { startsAt: at(1), room: { id: "r2", name: "Room 2" } },
+      { startsAt: at(2), room: null },
+      { startsAt: at(4), room: { id: "old", name: "Old room" } },
+    ];
+    const rooms = [
+      { id: "r2", name: "Room 2", status: "active" as const },
+      { id: "r1", name: "Room 1", status: "active" as const },
+      { id: "r9", name: "Storage", status: "inactive" as const },
+    ];
+    const columns = groupByRoom(rows, rooms);
+    expect(columns.map((c) => [c.name, c.items.length])).toEqual([
+      ["Room 1", 0],
+      ["Room 2", 2],
+      ["Old room", 1],
+      ["No room", 1],
+    ]);
+    expect(columns[1]!.items.map((i) => i.startsAt)).toEqual([at(1), at(3)]);
+    expect(groupByRoom([], rooms).map((c) => c.name)).toEqual(["Room 1", "Room 2"]);
   });
 });

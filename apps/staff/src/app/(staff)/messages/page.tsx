@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientThread } from "@/lib/api/types";
-import { MESSAGE_VIEWS, messageView, threadStatus, TOPIC_LABEL, waitingFor } from "@/lib/messaging-mapping";
+import { dueState, MESSAGE_VIEWS, messageView, threadStatus, TOPIC_LABEL, waitingFor } from "@/lib/messaging-mapping";
 
 export const metadata = { title: "Patient messages" };
 
@@ -56,6 +56,9 @@ export default async function PatientMessagesPage({ searchParams }: { searchPara
               <Link href="/messages">Clear patient filter</Link>
             </Button>
           ) : null}
+          <Button asChild size="sm" variant="ghost" className="ml-auto">
+            <Link href="/messages/settings">Routing and response targets</Link>
+          </Button>
         </nav>
         <Card className="py-0">
           {threads.length === 0 ? (
@@ -74,6 +77,7 @@ export default async function PatientMessagesPage({ searchParams }: { searchPara
               <TableBody>
                 {threads.map((t) => {
                   const status = threadStatus(t);
+                  const due = dueState(t);
                   return (
                     <TableRow key={t.id}>
                       <TableCell>
@@ -82,12 +86,19 @@ export default async function PatientMessagesPage({ searchParams }: { searchPara
                       <TableCell>
                         <span className="font-medium">{t.subject}</span>
                         <span className="block text-meta text-muted-foreground">
-                          {TOPIC_LABEL[t.topic]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"} · {clinicalDateTime(t.lastMessageAt)}
+                          {TOPIC_LABEL[t.topic]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"}
+                          {t.noteCount ? ` · ${t.noteCount} ${t.noteCount === 1 ? "note" : "notes"}` : ""} · {clinicalDateTime(t.lastMessageAt)}
                         </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant={status.variant}>{status.label}</Badge>
                         {t.awaitingClinic ? <span className="block text-meta text-muted-foreground">waiting {waitingFor(t.lastMessageAt)}</span> : null}
+                        {due ? (
+                          <span className={`block text-meta ${due.overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
+                            {due.overdue ? "⚠ " : ""}
+                            {due.label}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-meta">{t.assignedTo?.displayName ?? "—"}</TableCell>
                       <TableCell className="text-right">

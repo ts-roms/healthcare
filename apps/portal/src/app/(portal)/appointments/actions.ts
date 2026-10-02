@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { portalApi } from "@/lib/api/client";
 import { type Result, run, UUID } from "@/lib/api/result";
-import type { BookedAppointment, BookingSlots } from "@/lib/api/types";
+import type { BookedAppointment, BookingSlots, WaitlistAllowance } from "@/lib/api/types";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -82,6 +82,34 @@ export async function leaveWaitlist(entryId: string): Promise<Result<null>> {
     await portalApi<void>(`/portal/booking/waitlist/${entryId}/leave`, { method: "POST" });
     return null;
   });
+  if (result.ok) revalidatePath("/appointments");
+  return result;
+}
+
+/** Whether the clinic takes a waiting-list request for this visit type and doctor (its rules per visit type or doctor decide). */
+export async function loadWaitlistAllowance(input: { facilityId: string; visitTypeId: string; practitionerId?: string }): Promise<Result<WaitlistAllowance>> {
+  if (!UUID.test(input.facilityId) || !UUID.test(input.visitTypeId) || (input.practitionerId && !UUID.test(input.practitionerId)))
+    return { ok: false, message: "Invalid request." };
+  const query = new URLSearchParams({
+    facilityId: input.facilityId,
+    visitTypeId: input.visitTypeId,
+    ...(input.practitionerId ? { practitionerId: input.practitionerId } : {}),
+  });
+  return run(() => portalApi<WaitlistAllowance>(`/portal/booking/waitlist-allowance?${query.toString()}`));
+}
+
+/** Accepts a time the clinic is holding: booked like any online booking (the first acceptance wins). */
+export async function acceptOffer(offerId: string): Promise<Result<BookedAppointment>> {
+  if (!UUID.test(offerId)) return { ok: false, message: "Invalid request." };
+  const result = await run(() => portalApi<BookedAppointment>(`/portal/booking/offers/${offerId}/accept`, { method: "POST" }));
+  if (result.ok) revalidatePath("/appointments");
+  return result;
+}
+
+/** Declines a held time; the request stays on the waiting list. */
+export async function declineOffer(offerId: string): Promise<Result<null>> {
+  if (!UUID.test(offerId)) return { ok: false, message: "Invalid request." };
+  const result = await run(() => portalApi<null>(`/portal/booking/offers/${offerId}/decline`, { method: "POST" }));
   if (result.ok) revalidatePath("/appointments");
   return result;
 }

@@ -18,6 +18,7 @@ import type { patientWaitlistJoinSchema } from "../clinic.dto";
 import { practitioner, practitionerSchedule, visitType, waitlistEntry } from "../clinic.schema";
 import { found } from "../clinic-support";
 import { BookingRulesService } from "../config/booking-rules.service";
+import { WaitlistRulesService } from "../config/waitlist-rules.service";
 import { availableSlots } from "../domain/availability";
 import { type BookingRules, waitlistRangeProblem } from "../domain/patient-booking";
 import { AppointmentService } from "./appointment.service";
@@ -55,6 +56,7 @@ export class PatientWaitlistService {
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly rules: BookingRulesService,
+    private readonly waitlistRules: WaitlistRulesService,
     private readonly appointments: AppointmentService,
   ) {}
 
@@ -104,8 +106,20 @@ export class PatientWaitlistService {
       .where(and(eq(facility.organizationId, ctx.organizationId), eq(facility.id, input.facilityId)));
     if (!site || site.status !== "active") throw new NotFoundError("Facility");
     const rules = await this.rules.forFacility(ctx.organizationId, input.facilityId);
-    if (!rules.waitlistEnabled) {
-      throw new BusinessRuleError("This clinic does not take waiting-list requests online — please call the clinic", "waitlist_not_available");
+    // The facility's rule, unless the clinic set one for this visit type or practitioner (migration 0096).
+    const allowance = await this.waitlistRules.allowance(
+      ctx.organizationId,
+      input.facilityId,
+      { visitTypeId: input.visitTypeId, practitionerId: input.practitionerId ?? null },
+      rules,
+    );
+    if (!allowance.enabled) {
+      throw new BusinessRuleError(
+        allowance.source === "facility"
+          ? "This clinic does not take waiting-list requests online — please call the clinic"
+          : "This clinic does not take waiting-list requests for this kind of visit or doctor online — please call the clinic",
+        allowance.source === "facility" ? "waitlist_not_available" : "waitlist_not_offered",
+      );
     }
     const [type] = await this.db
       .select()
@@ -115,7 +129,7 @@ export class PatientWaitlistService {
       throw new BusinessRuleError("This kind of visit cannot be booked online — please call the clinic", "not_bookable_online");
     }
     const today = localDate(now, site.timezone);
-    const problem = waitlistRangeProblem(input.earliestDate, input.latestDate, today, rules);
+    const problem = waitlistRangeProblem(input.earliestDate, input.latestDate, today, { ...rules, maxAdvanceDays: allowance.maxDaysAhead });
     if (problem) throw new BusinessRuleError(RANGE_MESSAGES[problem], `waitlist_${problem}`);
     if (input.practitionerId) {
       const [p] = await this.db
@@ -149,9 +163,12 @@ export class PatientWaitlistService {
             gte(waitlistEntry.latestDate, today),
           ),
         );
-      if (mine.length >= rules.maxWaitlistEntries) {
+      // The rule's own limit counts requests under that rule; the facility's counts all of them.
+      const source = allowance.source;
+      const counted = source === "facility" ? mine : mine.filter((e) => this.underSameRule(e, source, input));
+      if (counted.length >= allowance.maxEntries) {
         throw new ConflictError(
-          `You are already on this clinic's waiting list ${rules.maxWaitlistEntries} times — remove one first`,
+          `You are already on this clinic's waiting list ${allowance.maxEntries} times — remove one first`,
           undefined,
           "too_many_waitlist_entries",
         );
@@ -203,6 +220,18 @@ export class PatientWaitlistService {
     };
   }
 
+  /** Whether the patient may join for this visit type and practitioner at the facility, and how many requests (migration 0096). */
+  async allowance(ctx: PatientBookingContext, query: { facilityId: string; visitTypeId: string; practitionerId?: string }) {
+    const rules = await this.rules.forFacility(ctx.organizationId, query.facilityId);
+    const a = await this.waitlistRules.allowance(
+      ctx.organizationId,
+      query.facilityId,
+      { visitTypeId: query.visitTypeId, practitionerId: query.practitionerId ?? null },
+      rules,
+    );
+    return { enabled: a.enabled, maxEntries: a.maxEntries, maxDaysAhead: a.maxDaysAhead };
+  }
+
   /** The patient takes themselves off the list. */
   async leave(ctx: PatientBookingContext, entryId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
@@ -229,6 +258,14 @@ export class PatientWaitlistService {
         metadata: { via: "patient_portal" },
       });
     });
+  }
+
+  private underSameRule(
+    entry: { practitionerId: string | null; visitTypeId: string | null },
+    source: "practitioner" | "visit_type",
+    input: { practitionerId?: string; visitTypeId: string },
+  ): boolean {
+    return source === "practitioner" ? entry.practitionerId === (input.practitionerId ?? null) : entry.visitTypeId === input.visitTypeId;
   }
 
   /** Whether any bookable time is open on the days (for the practitioner asked, or anyone on duty). */

@@ -1,6 +1,7 @@
 import type { LoggerService } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
 import "./request-augmentation";
+import { traceContext } from "../telemetry/correlation";
 
 /** One line per finished request: ids and shapes only — never the URL's ids or query string, a name, an address or a body. */
 export interface AccessLogEntry {
@@ -11,6 +12,9 @@ export interface AccessLogEntry {
   status: number;
   durationMs: number;
   requestId?: string;
+  /** The active trace, when telemetry is on (docs/architecture/observability.md). */
+  traceId?: string;
+  spanId?: string;
   /** The staff user behind the request, when authenticated. Patients are logged as `patient` without an id. */
   actor?: { kind: "user" | "system"; userId: string } | { kind: "patient" };
 }
@@ -28,6 +32,8 @@ export function accessLogEntry(req: Request, res: Response, durationMs: number):
     durationMs: Math.round(durationMs),
   };
   if (req.requestId) entry.requestId = req.requestId;
+  const span = traceContext();
+  if (span) Object.assign(entry, span);
   if (req.actor) entry.actor = { kind: req.actor.kind, userId: req.actor.userId };
   else if ("patientPrincipal" in req && req.patientPrincipal) entry.actor = { kind: "patient" };
   return entry;

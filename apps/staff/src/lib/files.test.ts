@@ -20,6 +20,8 @@ describe("file routes", () => {
     expect(fileApiPath(["send-out-manifests", id])).toBe(`/laboratory/send-out-dispatches/${id}/manifest.pdf`);
     expect(fileHref.sendOutManifest(id)).toBe(`/files/send-out-manifests/${id}`);
     expect(fileApiPath(["dental-estimates", id])).toBe(`/dental/treatment-plans/${id}/estimate.pdf`);
+    expect(fileApiPath(["procedure-consent-forms", id, id])).toBe(`/clinic/procedure-definitions/${id}/consent-form.pdf?patientId=${id}`);
+    expect(fileApiPath(["procedure-consent-forms", id])).toBeNull();
     expect(fileHref.dentalEstimate(id)).toBe(`/files/dental-estimates/${id}`);
     expect(fileApiPath(["medical-certificates", id])).toBe(`/medical-certificates/${id}/certificate.pdf`);
     expect(fileHref.medicalCertificate(id)).toBe(`/files/medical-certificates/${id}`);

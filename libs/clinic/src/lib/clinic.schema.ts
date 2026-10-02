@@ -178,10 +178,62 @@ export const facilityBookingRule = pgTable("facility_booking_rule", {
   onlineCheckIn: boolean("online_check_in").notNull().default(false),
   checkInOpensMinutes: integer("check_in_opens_minutes").notNull().default(60),
   checkInClosesMinutes: integer("check_in_closes_minutes").notNull().default(15),
+  /** What happens when a time opens for the waiting list: a notice, or an offer of the exact time (0096). */
+  waitlistMode: text("waitlist_mode").$type<WaitlistMode>().notNull().default("notice"),
+  offerHoldMinutes: integer("offer_hold_minutes").notNull().default(120),
+  offerBatch: integer("offer_batch").notNull().default(1),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   updatedBy: uuid("updated_by").notNull(),
   version: integer("version").notNull().default(1),
 });
+
+export type WaitlistMode = "notice" | "offer";
+export type WaitlistRuleScope = "visit_type" | "practitioner";
+
+/** A waiting-list rule for one visit type or one practitioner at a facility, overriding the facility's own (0096). */
+export const waitlistRule = pgTable("waitlist_rule", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  scope: text("scope").$type<WaitlistRuleScope>().notNull(),
+  visitTypeId: uuid("visit_type_id"),
+  practitionerId: uuid("practitioner_id"),
+  enabled: boolean("enabled").notNull(),
+  maxEntries: integer("max_entries").notNull(),
+  maxDaysAhead: integer("max_days_ahead"),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+
+export type WaitlistRuleRecord = typeof waitlistRule.$inferSelect;
+
+export type WaitlistOfferStatus = "offered" | "accepted" | "declined" | "expired" | "withdrawn" | "taken";
+
+/** An exact time offered to a waiting-list entry, held until accepted, declined, withdrawn, taken by another or expired (0096). */
+export const waitlistOffer = pgTable("waitlist_offer", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  entryId: uuid("entry_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  practitionerId: uuid("practitioner_id").notNull(),
+  visitTypeId: uuid("visit_type_id").notNull(),
+  startsAt: ts("starts_at").notNull(),
+  endsAt: ts("ends_at").notNull(),
+  offeredFor: date("offered_for", { mode: "string" }).notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  status: text("status").$type<WaitlistOfferStatus>().notNull().default("offered"),
+  appointmentId: uuid("appointment_id"),
+  acceptedBy: uuid("accepted_by"),
+  acceptedByPatient: boolean("accepted_by_patient").notNull().default(false),
+  withdrawnBy: uuid("withdrawn_by"),
+  withdrawReason: text("withdraw_reason"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  closedAt: ts("closed_at"),
+});
+
+export type WaitlistOfferRecord = typeof waitlistOffer.$inferSelect;
 
 export const facilityQueueCounter = pgTable(
   "facility_queue_counter",

@@ -3,6 +3,7 @@ import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./lab-report-archive";
+import { observeQueueDepth, type QueueDepth, recordJobFailure, recordReconcileFailure } from "@healthcare/core";
 
 export const LAB_REPORT_ARCHIVE_QUEUE_NAME = "lab-report-archive";
 const JOB_ATTEMPTS = 5;
@@ -20,6 +21,7 @@ export class BullMqLabReportArchiveQueue implements LabReportArchiveQueue, OnMod
   constructor(redisUrl: string) {
     this.connection = connect(redisUrl);
     this.queue = new Queue(LAB_REPORT_ARCHIVE_QUEUE_NAME, { connection: this.connection });
+    observeQueueDepth(LAB_REPORT_ARCHIVE_QUEUE_NAME, () => this.queue.getJobCounts("waiting", "delayed", "failed") as Promise<QueueDepth>);
   }
 
   async enqueue(archiveId: string): Promise<void> {
@@ -80,6 +82,7 @@ export class LabReportArchiveWorker implements OnApplicationShutdown {
     this.worker.on("failed", (job, error) =>
       this.logger.warn({ event: "queue.job_failed", queue: LAB_REPORT_ARCHIVE_QUEUE_NAME, jobId: job?.id, attempt: job?.attemptsMade, message: error.message }),
     );
+    this.worker.on("failed", () => recordJobFailure(LAB_REPORT_ARCHIVE_QUEUE_NAME));
     this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
     this.logger.log(`Laboratory report archive worker started (concurrency ${concurrency})`);
   }
@@ -91,6 +94,7 @@ export class LabReportArchiveWorker implements OnApplicationShutdown {
       if (ids.length) this.logger.log(`Re-enqueued ${ids.length} pending report archive(s)`);
     } catch (error) {
       this.logger.error({ event: "queue.reconcile_failed", queue: LAB_REPORT_ARCHIVE_QUEUE_NAME, message: String(error) });
+      recordReconcileFailure(LAB_REPORT_ARCHIVE_QUEUE_NAME);
     }
   }
 

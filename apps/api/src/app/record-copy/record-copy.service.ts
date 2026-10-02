@@ -198,7 +198,9 @@ const RENDERERS: Record<RecordCopySection, Renderer> = {
     const practitioners = new Map(record.practitioners.map((p) => [p.id, p]));
     const facilities = new Map(record.facilities.map((f) => [f.id, f.name]));
     const encounters = record.encounters.filter((e) => e.status === "completed" && instantInPeriod(e.startedAt, period, timeZone));
-    if (!encounters.length) return none(w, "consultations");
+    // Procedures performed under a queue visit without a consultation (migration 0095).
+    const outside = record.clinicProcedures.filter((p) => !p.encounterId && !p.enteredInErrorAt && instantInPeriod(p.performedAt, period, timeZone));
+    if (!encounters.length && !outside.length) return none(w, "consultations");
     for (const e of encounters) {
       const clinician = practitioners.get(e.practitionerId);
       w.paragraph(
@@ -252,6 +254,22 @@ const RENDERERS: Record<RecordCopySection, Renderer> = {
         for (const [label, text] of parts) if (text?.trim()) w.paragraph(`${label}: ${text.trim()}`);
         if (note.kind === "amendment") w.paragraph(`Note amended ${pdfDateTime(note.authoredAt, timeZone)}.`, { muted: true, size: 8.5 });
       }
+      w.space(0.8);
+    }
+    if (outside.length) {
+      w.paragraph("Procedures outside a consultation", { bold: true });
+      w.table(
+        [
+          { header: "Procedure", width: 5 },
+          { header: "Code", width: 1.5 },
+          { header: "Performed", width: 3 },
+        ],
+        outside.map((p) => [
+          procedureText(p),
+          p.code,
+          `${pdfDateTime(new Date(p.performedAt), timeZone)} · ${practitioners.get(p.performerPractitionerId)?.displayName ?? ""} · ${facilities.get(p.facilityId) ?? ""}`,
+        ]),
+      );
       w.space(0.8);
     }
   },

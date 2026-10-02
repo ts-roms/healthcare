@@ -130,6 +130,27 @@ export const TEMPLATES = [
           },
   }),
   defineTemplate({
+    key: "outreach.campaign",
+    version: 1,
+    // Outreach the organization planned and a second person approved (libs/crm): sent only by the campaign runner,
+    // never through the public send endpoint. Category "outreach": the patient's explicit opt-in per channel decides.
+    category: "outreach",
+    channels: ["sms", "email", "push", "in_app"],
+    internal: true,
+    // The organization's own wording; the API checks it against each channel's length. No variables that could carry
+    // clinical detail: a subject, a body and the opt-out link.
+    variables: z.object({
+      organizationName: shortText,
+      subject: z.string().trim().min(2).max(120).optional(),
+      body: z.string().trim().min(10).max(2000),
+      optOutLink: z.string().url().max(500).optional(),
+    }),
+    render: (v) => ({
+      subject: v.subject ?? `A message from ${v.organizationName}`,
+      text: `${v.body}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
+    }),
+  }),
+  defineTemplate({
     key: "clinic.message",
     version: 1,
     category: "administrative",
@@ -162,6 +183,26 @@ export const TEMPLATES = [
       text:
         `Someone asked to reset the password of your staff account. To choose a new password, open this link within ${v.validMinutes} minutes (it works once):\n\n${v.link}\n\n` +
         "If two-step verification is on, you will also need a code from your authenticator app. If you did not ask for this, ignore this message; your password stays as it is.",
+    }),
+  }),
+  defineTemplate({
+    key: "management.report-ready",
+    version: 1,
+    category: "administrative",
+    // To the recipients of a scheduled management report: the schedule's name and period only, never a figure.
+    channels: ["in_app", "email"],
+    internal: true,
+    variables: z.object({
+      scheduleName: z.string().min(1).max(120),
+      periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      link: z.url().max(500).optional(),
+    }),
+    render: (v) => ({
+      subject: `Management report ready: ${v.scheduleName}`,
+      text:
+        `The scheduled management report "${v.scheduleName}" for ${v.periodFrom} to ${v.periodTo} is ready. ` +
+        `Open Management → Scheduled reports in the staff app to download its tables.${v.link ? `\n\n${v.link}/management/reports` : ""}`,
     }),
   }),
   defineTemplate({
@@ -371,6 +412,18 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "appointment.waitlist-offer",
+    version: 1,
+    category: "administrative",
+    // Leaves the platform (SMS/email): the clinic and the day only — the offered time is shown after sign-in (0096).
+    channels: ["sms", "email"],
+    variables: z.object({ facilityName: shortText, date: shortText, holdText: shortText }),
+    render: (v) => ({
+      subject: "A time is being held for you",
+      text: `${v.facilityName}: a time on ${v.date} is being held for you for ${v.holdText}. Sign in to MyHealth to accept or decline it.`,
+    }),
+  }),
+  defineTemplate({
     key: "portal.push-test",
     version: 1,
     category: "administrative",
@@ -394,6 +447,19 @@ export const TEMPLATES = [
     render: (v) => ({
       subject: "You have a new message",
       text: `${v.organizationName}: you have a new message in MyHealth. Sign in to read it.`,
+    }),
+  }),
+  defineTemplate({
+    key: "portal.message-overdue",
+    version: 1,
+    category: "administrative",
+    // In-app to the clinic's staff when a conversation waits past the response target. No name and no text.
+    channels: ["in_app"],
+    variables: z.object({ threadId: z.uuid() }),
+    render: (v) => ({
+      subject: "A patient's message is waiting past its target",
+      text: "A MyHealth conversation has waited longer than the clinic means to take. Open it to reply.",
+      href: `/messages/${v.threadId}`,
     }),
   }),
   defineTemplate({
@@ -555,6 +621,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "appointment.no-show": "Missed appointment follow-up",
   "care-plan.follow-up-due": "Care-plan follow-up due",
   "clinic.message": "Notice from the clinic (MyHealth)",
+  "outreach.campaign": "Outreach campaign",
   "security.mfa-enabled": "Two-step verification turned on",
   "portal.password-reset": "MyHealth password reset link",
   "staff.password-reset": "Staff password reset link",
@@ -568,9 +635,11 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
+  "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",
   "portal.message-received": "A MyHealth message is waiting",
   "portal.message-new": "New MyHealth message (staff)",
+  "portal.message-overdue": "MyHealth message past its target (staff)",
   "clinic.referral-notice": "Referral notice (staff)",
   "lab.result-notice": "Laboratory result notice (staff)",
   "lab.quality-notice": "Laboratory quality notice (staff)",
