@@ -342,6 +342,15 @@ transmitted to those systems. Details are in [Records, reporting and integration
 > (`organization.read`), **Audit log** (`audit.read`), **Integrations** (`integration.exchange.manage`), **Compliance** (`compliance.review.manage`) or
 > **Consent wording** (`consent.wording.manage`). **Administration** itself lists the pages open to you.
 
+## How to watch sign-in limits (platform administrators)
+
+The platform refuses a client address that sends more than 10 sign-in or account requests a minute ("Too many attempts"). Patients using the
+MyHealth app on one mobile network can share an address, so several of them may be refused together. Platform administrators see **Rate-limit
+refusals, last 30 days** at the bottom of **Administration → Sign-in security** (`/admin/security`): one row per route and day, MyHealth routes
+first, with how many times an address went over its allowance. No address, account or patient is shown or stored. Counts cover the whole platform
+and are kept for 100 days. Repeated refusals on MyHealth sign-in are the evidence for asking IT to review the allowance; an account's own lockout
+after 5 wrong passwords is separate and not counted here.
+
 ## How to write the consent wording for online consent
 
 Patients can give some consents themselves in MyHealth, but only after reading **your organization's own wording**. The platform provides no wording and does

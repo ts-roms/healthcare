@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import type { ThrottlerStorage } from "@nestjs/throttler";
 import IORedis from "ioredis";
+import { localDate } from "@healthcare/core";
 
 /**
  * Rate-limit counters shared by every API instance (docs/security/access-control.md): one Redis script per check counts
@@ -32,9 +33,22 @@ type ThrottlerStorageRecord = Awaited<ReturnType<ThrottlerStorage["increment"]>>
 const COMMAND_TIMEOUT_MS = 250;
 const WARNING_INTERVAL_MS = 60_000;
 
-/** The two calls made on the connection (so tests can pass a fake). */
+/** How long refusal counts are kept, and the day they are counted in (platform-wide, like the communication log). */
+const REFUSAL_RETENTION_MS = 100 * 24 * 60 * 60 * 1000;
+const REFUSAL_TIME_ZONE = "Asia/Manila";
+
+export interface RateLimitRefusalRow {
+  day: string;
+  route: string;
+  refusals: number;
+}
+
+/** The calls made on the connection (so tests can pass a fake). */
 interface RedisLike {
   eval(script: string, numKeys: number, ...args: string[]): Promise<unknown>;
+  hincrby(key: string, field: string, increment: number): Promise<number>;
+  pexpire(key: string, milliseconds: number): Promise<number>;
+  hgetall(key: string): Promise<Record<string, string>>;
   disconnect(): void;
 }
 
@@ -87,6 +101,33 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnApplicationShu
       this.warn(error as Error);
       return { totalHits: 0, timeToExpire: Math.ceil(ttl / 1000), isBlocked: false, timeToBlockExpire: 0 };
     }
+  }
+
+  /**
+   * Counts one refusal under the route template (`POST /api/v1/portal/auth/login`), never the address, account or
+   * body, in a hash per Asia/Manila day kept 100 days. Fire-and-forget: a Redis failure only warns.
+   */
+  async recordRefusal(route: string, now = new Date()): Promise<void> {
+    const key = `${this.prefix}refusals:${localDate(now, REFUSAL_TIME_ZONE)}`;
+    try {
+      await this.redis.hincrby(key, route, 1);
+      await this.redis.pexpire(key, REFUSAL_RETENTION_MS);
+    } catch (error) {
+      this.warn(error as Error);
+    }
+  }
+
+  /** Refusals per route for the last `days` Asia/Manila days (today included), newest day first. */
+  async refusals(days: number, now = new Date()): Promise<RateLimitRefusalRow[]> {
+    const rows: RateLimitRefusalRow[] = [];
+    for (let back = 0; back < days; back += 1) {
+      const day = localDate(new Date(now.getTime() - back * 24 * 60 * 60 * 1000), REFUSAL_TIME_ZONE);
+      const counts = await this.redis.hgetall(`${this.prefix}refusals:${day}`);
+      for (const [route, count] of Object.entries(counts).sort(([a], [b]) => a.localeCompare(b))) {
+        rows.push({ day, route, refusals: Number(count) });
+      }
+    }
+    return rows;
   }
 
   onApplicationShutdown(): void {

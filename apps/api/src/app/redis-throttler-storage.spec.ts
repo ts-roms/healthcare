@@ -24,9 +24,30 @@ class FakeRedis {
     return [hits, ttlLeft, 0, 0];
   }
 
+  async hincrby(key: string, field: string, increment: number): Promise<number> {
+    if (this.down) throw new Error("connect ECONNREFUSED");
+    const hash = this.hashes.get(key) ?? new Map<string, number>();
+    hash.set(field, (hash.get(field) ?? 0) + increment);
+    this.hashes.set(key, hash);
+    return hash.get(field)!;
+  }
+
+  async pexpire(key: string, milliseconds: number): Promise<number> {
+    this.expiries.set(key, this.now + milliseconds);
+    return 1;
+  }
+
+  async hgetall(key: string): Promise<Record<string, string>> {
+    if (this.down) throw new Error("connect ECONNREFUSED");
+    return Object.fromEntries([...(this.hashes.get(key) ?? new Map())].map(([field, value]) => [field, String(value)]));
+  }
+
   disconnect(): void {
     /* nothing to close */
   }
+
+  readonly hashes = new Map<string, Map<string, number>>();
+  readonly expiries = new Map<string, number>();
 
   private incr(key: string, ttl: number): number {
     const entry = this.keys.get(key);
@@ -76,6 +97,26 @@ describe("RedisThrottlerStorage", () => {
   it("keeps throttlers and keys apart", async () => {
     await storage.increment("same", 60_000, 1, 0, "default");
     expect(await storage.increment("same", 60_000, 1, 0, "login")).toMatchObject({ totalHits: 1, isBlocked: false });
+  });
+
+  it("counts refusals by route template and Asia/Manila day, kept 100 days", async () => {
+    const lateEvening = new Date("2026-10-02T15:30:00Z"); // 23:30 in Manila
+    await storage.recordRefusal("POST /api/v1/portal/auth/login", lateEvening);
+    await storage.recordRefusal("POST /api/v1/portal/auth/login", lateEvening);
+    await storage.recordRefusal("POST /api/v1/auth/login", new Date("2026-10-02T16:30:00Z")); // 00:30 the next Manila day
+    expect(redis.expiries.get("test:refusals:2026-10-02")).toBe(100 * 24 * 60 * 60 * 1000);
+    await expect(storage.refusals(2, new Date("2026-10-03T02:00:00Z"))).resolves.toEqual([
+      { day: "2026-10-03", route: "POST /api/v1/auth/login", refusals: 1 },
+      { day: "2026-10-02", route: "POST /api/v1/portal/auth/login", refusals: 2 },
+    ]);
+    await expect(storage.refusals(1, new Date("2026-10-03T02:00:00Z"))).resolves.toHaveLength(1);
+  });
+
+  it("only warns when a refusal cannot be counted", async () => {
+    const warn = jest.spyOn(storage["logger"], "warn").mockImplementation(() => undefined);
+    redis.down = true;
+    await expect(storage.recordRefusal("POST /api/v1/auth/login")).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("lets requests through while Redis is unreachable, warning at most once a minute", async () => {

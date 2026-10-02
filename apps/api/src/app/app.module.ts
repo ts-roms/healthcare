@@ -1,6 +1,6 @@
 import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@healthcare/audit";
 import { AuthModule, PasswordScreeningModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
@@ -25,6 +25,8 @@ import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immunization-adapters";
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
+import { RateLimitGuard } from "./rate-limit.guard";
+import { RateLimitsController } from "./rate-limits.controller";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -216,6 +218,7 @@ export class AppModule implements NestModule {
         IntegrationModule.forRoot({ imports: [PatientModule], patients: AppExchangePatients, queue: overrides.integrationQueue }),
       ],
       controllers: [
+        RateLimitsController,
         FhirController,
         FhirImportReceiveController,
         HealthController,
@@ -260,7 +263,7 @@ export class AppModule implements NestModule {
         // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
         // its Redis connection closes with the application.
         { provide: RedisThrottlerStorage, useValue: rateLimits },
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },

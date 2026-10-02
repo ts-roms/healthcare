@@ -2805,6 +2805,13 @@ export interface PayloadKeyOverview {
   keys: PayloadKeyUsage[];
 }
 
+/** Rate-limit refusals per route template and Asia/Manila day, platform-wide (platform administrators). */
+export interface RateLimitRefusals {
+  days: number;
+  timeZone: string;
+  rows: Array<{ day: string; route: string; refusals: number }>;
+}
+
 // ---- Laboratory quality management (Phase 9): temperatures, nonconformance, EQA, competency ----------------
 
 export type StorageUnitKind = "refrigerator" | "freezer" | "incubator" | "water_bath" | "room" | "other";
