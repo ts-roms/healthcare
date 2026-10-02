@@ -1,9 +1,12 @@
 import "dotenv/config";
+// First: imports are hoisted in order, so telemetry starts before anything that loads http, express, @nestjs/core, pg or ioredis.
+import { telemetry } from "./telemetry";
 import { ConsoleLogger, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { AutomaticNoShows } from "@healthcare/clinic";
+import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
@@ -40,6 +43,7 @@ async function bootstrap(): Promise<void> {
   // Renders released laboratory reports and archives them in object storage (BullMQ, see printable-documents.md).
   app.get(LabReportArchiveWorker).start();
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");
+  Logger.log(telemetryStartupEvent(telemetry), "Telemetry");
 }
 
 bootstrap().catch((error: unknown) => {

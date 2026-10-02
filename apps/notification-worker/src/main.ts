@@ -1,6 +1,9 @@
 import "dotenv/config";
+// First: imports are hoisted in order, so telemetry starts before anything that loads http, express, @nestjs/core, pg or ioredis.
+import { telemetry } from "./telemetry";
 import { ConsoleLogger, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig } from "@healthcare/core";
 import { startWorkerHealth } from "./health";
 import { ExpoPushReceipts } from "@healthcare/notification";
@@ -19,6 +22,7 @@ async function bootstrap(): Promise<void> {
   // Receipts of messages sent to the MyHealth app through Expo: gone apps are dropped, delivered notices marked.
   if (config.EXPO_PUSH_ENABLED) app.get(ExpoPushReceipts).start();
   Logger.log("Notification worker running", "Bootstrap");
+  Logger.log(telemetryStartupEvent(telemetry), "Telemetry");
 }
 
 bootstrap().catch((error: unknown) => {
