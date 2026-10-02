@@ -23,7 +23,12 @@
   removes them.
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
-- Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
+- Credential endpoints are rate limited to 10/min per client; the API default is 300/min. The counters are shared by
+  every API instance through Redis (`apps/api/src/app/redis-throttler-storage.ts`: one atomic script per check counts
+  the client's hits in a fixed window and, over the limit, answers `429 rate_limited` with `Retry-After`; keys under
+  `throttle:` always expire). A fixed window can let up to twice the limit through around a window boundary. While
+  Redis is unreachable, requests are let through (a warning is logged at most once a minute; a check waits at most
+  250 ms) — the account lockout above, kept in PostgreSQL, still applies.
 
 ### Breached-password screening
 
@@ -255,7 +260,6 @@ administrator's own MFA first (`422 own_mfa_required`).
 
 ## Known gaps (tracked for later phases)
 
-- Rate-limit counters are per instance (move to Redis before scaling out).
 - `app_user.kind = 'patient'` (migration `0004`) is unused: patients sign in with their own accounts
   (`patient_portal_account`, migration `0013`; `PatientAccessGuard`), not as `app_user` rows.
 - Data retention periods and deletion/anonymization procedures must be defined

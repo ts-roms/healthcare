@@ -15,6 +15,7 @@ import { AppModule, type AppModuleOverrides } from "../src/app/app.module";
 import { configureApp } from "../src/app/configure-app";
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_test";
+export const TEST_REDIS_URL = process.env.TEST_REDIS_URL ?? "redis://localhost:6379";
 export const PASSWORD = "Correct-Horse-Battery-9";
 
 export class RecordingQueue implements NotificationQueue {
@@ -84,6 +85,8 @@ export async function createTestApp(
     | "referenceLabGateway"
     | "paymentGateway"
     | "breachedPasswordChecker"
+    | "disableRateLimit"
+    | "rateLimitStorage"
   > = {},
   env: Record<string, string> = {},
 ): Promise<TestContext> {
