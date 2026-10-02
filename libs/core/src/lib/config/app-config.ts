@@ -97,6 +97,11 @@ const appConfigSchema = z
     // send; EXPO_ACCESS_TOKEN is only for Expo projects with "enhanced push security" turned on. Off unless enabled.
     EXPO_PUSH_ENABLED: booleanString.default(false),
     EXPO_ACCESS_TOKEN: z.string().min(10).optional(),
+    // Malware scanning of uploaded documents through clamd's INSTREAM protocol (docs/domains/documents.md). Unset: files
+    // are recorded as not scanned (the readiness probe and a production start-up warning say so).
+    CLAMAV_HOST: z.string().min(1).optional(),
+    CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+    CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
     // LIVEKIT_URL is the WebSocket URL browsers connect to, e.g. wss://video.example.ph.
     LIVEKIT_URL: z.string().url().optional(),
@@ -263,6 +268,9 @@ const BLANK_MEANS_UNSET = [
   "VAPID_SUBJECT",
   "EXPO_PUSH_ENABLED",
   "EXPO_ACCESS_TOKEN",
+  "CLAMAV_HOST",
+  "CLAMAV_PORT",
+  "CLAMAV_TIMEOUT_MS",
   "LIVEKIT_URL",
   "LIVEKIT_API_KEY",
   "LIVEKIT_API_SECRET",

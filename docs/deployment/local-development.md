@@ -5,7 +5,7 @@ Requirements: Node 22+, pnpm 10, Docker (or local PostgreSQL 16 + Redis).
 ```bash
 pnpm install
 cp .env.example .env              # then set SEED_ADMIN_PASSWORD
-pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit (the integration tests need PostgreSQL and, for rate limits, Redis)
+pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit, clamd (the integration tests need PostgreSQL and, for rate limits, Redis)
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
 pnpm dev                          # everything below, in parallel (one terminal)
@@ -84,3 +84,4 @@ fails on any browser error or server error (5xx), not only on missing text. On f
 minified React error (e.g. "#441") becomes readable with `E2E_STAFF_DEV=1`, which runs the staff app with `next dev`.
 
 Mailpit (captured email): http://localhost:8025. Object storage console (RustFS): http://localhost:9001 (user `healthcare`, password `healthcare-dev-secret`).
+Malware scanning (clamd on :3310) is on only with `CLAMAV_HOST=localhost` in `.env`; the container downloads signatures on first start, which takes a few minutes. Without it uploads are recorded as "not scanned" (`docs/domains/documents.md`).

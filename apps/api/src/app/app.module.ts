@@ -44,6 +44,7 @@ import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
+import { DocumentNotifications } from "./document-notifications";
 import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
@@ -85,6 +86,8 @@ import { AppRecipientDirectory } from "./recipient-directory";
 export interface AppModuleOverrides {
   /** Replaces S3 object storage (tests). */
   objectStorage?: Provider;
+  /** Override the malware scanner (tests). */
+  malwareScanner?: Provider;
   /** Replaces the BullMQ notification queue (tests). */
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
@@ -169,7 +172,7 @@ export class AppModule implements NestModule {
         PasswordScreeningModule.forRoot(overrides.breachedPasswordChecker),
         AuthModule,
         PatientModule,
-        DocumentsModule.forRoot({ storage: overrides.objectStorage }),
+        DocumentsModule.forRoot({ storage: overrides.objectStorage, scanner: overrides.malwareScanner }),
         NotificationModule.forRoot({
           imports: [PatientModule, AuthModule],
           recipientDirectory: AppRecipientDirectory,
@@ -260,6 +263,7 @@ export class AppModule implements NestModule {
         RealtimeGateway,
         LaboratoryNotifications,
         LaboratoryQualityNotifications,
+        DocumentNotifications,
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,

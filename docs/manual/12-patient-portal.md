@@ -311,7 +311,8 @@ Questions about a bill? Ask the clinic's cashier and bring your invoice number.
 1. Choose **Messages**, then **New message**.
 2. Choose **What is it about?** (a general question, your appointment, test results, medicines, a bill, or something else), write a **Subject** and your
    message (up to 2,000 characters). You may **add a photo or PDF** — for example a picture of a rash or a referral letter — up to 3 files of 10 MB or less
-   with one message, and up to 10 files a day; the clinic keeps them in your record. Choose **Send message**.
+   with one message, and up to 10 files a day; the clinic keeps them in your record. Files may be checked for viruses before they are accepted; one
+   that is found unsafe is refused, so remove it and try again or call the clinic. Choose **Send message**.
 3. The clinic's reply appears in the same conversation. You get a text or an email saying **a message is waiting** (it never says what it is);
    sign in to read it. New replies are marked and counted next to **Messages**.
 4. Open a conversation to read it and write back. Files sent with a message open in a new tab when you select them (the clinic records each

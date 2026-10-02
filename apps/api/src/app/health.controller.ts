@@ -52,6 +52,8 @@ export class HealthController {
       { name: "database", required: true, probe: () => this.db.execute(sql`SELECT 1`).then(() => "ok" as const) },
       { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
       { name: "objectStorage", required: false, probe: () => this.probeStorage() },
+      // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
+      { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
     ];
     const report = await healthReport(checks);
     res.status(healthStatusCode(report));

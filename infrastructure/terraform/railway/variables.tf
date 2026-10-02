@@ -78,7 +78,7 @@ variable "optional_settings" {
   description = <<-EOT
     Non-secret optional settings shared by the API and both workers, by variable name (for example OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME, S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_FORCE_PATH_STYLE, EMAIL_FROM, VAPID_PUBLIC_KEY, VAPID_SUBJECT,
-    EXPO_PUSH_ENABLED, LIVEKIT_URL, FHIR_BASE_URL, PAYMONGO_PAYMENT_METHODS). Values are plain strings; see
+    EXPO_PUSH_ENABLED, LIVEKIT_URL, FHIR_BASE_URL, PAYMONGO_PAYMENT_METHODS, CLAMAV_HOST, CLAMAV_PORT). Values are plain strings; see
     docs/deployment/railway.md for each one.
   EOT
   type        = map(string)

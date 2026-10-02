@@ -10,7 +10,9 @@ Metadata and controlled access for files kept in S3-compatible storage
 1. `POST /documents` registers metadata (allowed type, ≤ 50 MB) and returns a
    10-minute presigned `PUT` with the headers to send.
 2. Client uploads directly to storage.
-3. `POST /documents/:id/complete` verifies the object exists with the declared size → `available`.
+3. `POST /documents/:id/complete` reads the object back: size as declared, SHA-256 (refused when it differs from a
+   checksum declared at registration, `422 checksum_mismatch`), then the malware scanner's verdict → `available`
+   (`scan_status` `clean`, or `not_scanned` without a scanner) or `quarantined` (migration `0098`, below).
 4. `GET /documents/:id/download-url` issues a 5-minute URL; each issuance is audited.
 5. `POST /documents/:id/archive` (reason required). Documents are never deleted by the API.
 
@@ -77,7 +79,34 @@ document of the patient's own record with `source = 'patient_upload'` and `creat
 same presigned flow (the portal server sends the bytes). Uploads are opened only behind short-lived audited links;
 the clinic sees them in the conversation and in the patient's documents.
 
+## Malware scanning and checksums (migration `0098`)
+
+Every completed upload (staff or patient) is read back from storage in the completing request, hashed and scanned
+through the `MalwareScanner` port (`libs/documents/src/lib/malware-scanner.ts`): `ClamAvScanner` speaks clamd's
+`INSTREAM` protocol over TCP to `CLAMAV_HOST`:`CLAMAV_PORT` (default 3310; `CLAMAV_TIMEOUT_MS`, default 60 s; no
+third-party dependency); `UnconfiguredMalwareScanner` is the default when `CLAMAV_HOST` is unset.
+
+- **Clean** → `available`, `scan_status = 'clean'`, `scanned_at`, `sha256`.
+- **Infected** → `status = 'quarantined'`, `scan_status = 'quarantined'`, the scanner's `scan_signature`. A quarantined
+  document is never `available`, so every existing check across domains (attachments, consent forms, FHIR, links)
+  already refuses it; the object stays in storage for the organization's incident handling (nothing is deleted). The
+  completing call answers `422 upload_quarantined`; the change is audited `document.quarantine` (signature, never the
+  title); `DocumentQuarantined` (ids only) → in-app `document.quarantine-notice` to the facility's holders of
+  `document.archive` (the records office) and the staff uploader (`apps/api/src/app/document-notifications.ts`).
+- **Scanner configured but unreachable** → `422 scan_unavailable`; the document stays `pending_upload` so the client
+  can retry. Readiness reports `malwareScanner` `unreachable` (`200 degraded`).
+- **No scanner configured** → `available` with `scan_status = 'not_scanned'`; readiness reports `unconfigured` and the
+  API logs `documents.scanner_unconfigured` at start-up in production. Documents stored before `0098` carry
+  `not_scanned` (uploads) or `clean` (generated); their `sha256` is null ("not recorded").
+- **Generated documents** (`storeGenerated`) are clean by origin and hashed at storage time.
+- `sha256` (optional, hex) may be declared at `POST /documents`; `declared_sha256` is kept on the row and never
+  returned. Verification of stored documents against their hash (an integrity review) is not built.
+
+Running clamd: `clamav` in the development compose file (`CLAMAV_HOST=localhost`); on Railway a private service from
+the `clamav/clamav` image (`docs/deployment/railway.md`). clamd's `StreamMaxLength` must cover `MAX_DOCUMENT_BYTES`
+(50 MB). Scanning is a safeguard, not a guarantee: signature updates, engine choice and incident handling are the
+organization's (compliance register).
+
 ## Not yet
 
-Malware scanning (patient uploads are a reason to add it before go-live), checksum verification, retention schedules,
-thumbnails, DICOM viewing.
+Integrity review of stored documents against their checksums, retention schedules, thumbnails, DICOM viewing.

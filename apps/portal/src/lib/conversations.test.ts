@@ -33,5 +33,7 @@ describe("conversations", () => {
     expect(attachmentProblem(Array(4).fill({ type: "image/jpeg", size: 1 }))).toMatch(/up to 3/);
     expect(fileSize(2048)).toBe("2 KB");
     expect(conversationMessage("upload_rate_limited", "x")).toMatch(/many files today/);
+    expect(conversationMessage("upload_quarantined", "x")).toMatch(/unsafe/);
+    expect(conversationMessage("scan_unavailable", "x")).toMatch(/checked right now/);
   });
 });

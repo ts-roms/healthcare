@@ -85,6 +85,7 @@ export async function createTestApp(
     | "referenceLabGateway"
     | "paymentGateway"
     | "breachedPasswordChecker"
+    | "malwareScanner"
     | "disableRateLimit"
     | "rateLimitStorage"
   > & {
