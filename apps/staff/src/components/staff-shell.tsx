@@ -18,7 +18,8 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
-import { isDemoPath, navigationForPermissions } from "@/lib/navigation";
+import type { StaffBadges } from "@/lib/api/types";
+import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
 import { OfflineBanner } from "./offline-banner";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
@@ -34,16 +35,37 @@ export interface StaffShellProps {
   timeZone: string | null;
   /** Unread in-app messages of the signed-in user. */
   unreadNotices: number;
+  /** Counts for the navigation (`GET /me/badges`); refreshed every minute from `/badges`. */
+  badges: StaffBadges | null;
   children: React.ReactNode;
 }
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, children }: StaffShellProps) {
+const BADGES_REFRESH_MS = 60_000;
+
+export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, badges, children }: StaffShellProps) {
   // Set during render, before the page below renders, so every client component formats times in the facility's zone.
   setClinicTimeZone(timeZone);
   const pathname = usePathname();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const navigation = React.useMemo(() => navigationForPermissions(permissions), [permissions]);
+  // Polled counts replace the server-rendered ones; a new server render (navigation) resets them through the prop.
+  const [polled, setPolled] = React.useState<{ from: StaffBadges | null; counts: StaffBadges | null }>({ from: badges, counts: null });
+  const counts = polled.from === badges && polled.counts ? polled.counts : badges;
+  React.useEffect(() => {
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch("/badges", { cache: "no-store" });
+        if (response.status === 200) {
+          const fresh = (await response.json()) as StaffBadges;
+          setPolled({ from: badges, counts: fresh });
+        }
+      } catch {
+        // Keep the last counts; the next tick tries again.
+      }
+    }, BADGES_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [badges]);
+  const navigation = React.useMemo(() => withBadgeCounts(navigationForPermissions(permissions), counts), [permissions, counts]);
 
   // Company settings are the administration pages; staff without access to any of them only see their own account.
   const canOpenCompanySettings = navigation.some((item) => item.href === "/admin" && item.children?.some((c) => c.href === "/admin/organization"));

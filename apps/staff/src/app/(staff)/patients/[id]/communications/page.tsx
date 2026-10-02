@@ -5,6 +5,7 @@ import { ApiError } from "@healthcare/web-session";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { DeliveryStatus } from "@/components/communications/delivery-status";
+import { MessageActions } from "@/components/communications/message-actions";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -32,6 +33,10 @@ export default async function PatientCommunicationsPage({ params }: { params: Pr
   });
   if (patient.mergedIntoPatientId) redirect(`/patients/${patient.mergedIntoPatientId}/communications`);
   const history = await api<PatientNotification[]>("/notifications", { query: { patientId: id } });
+  const canManage = can(session, "notification.manage");
+  // The latest message sent again from each one (the history lists both rows).
+  const resentAs = new Map<string, string>();
+  for (const m of [...history].reverse()) if (m.resentFrom && !resentAs.has(m.resentFrom)) resentAs.set(m.resentFrom, m.id);
 
   return (
     <>
@@ -92,6 +97,7 @@ export default async function PatientCommunicationsPage({ params }: { params: Pr
                 <TableHead>Message</TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
+                {canManage ? <TableHead className="sr-only">Actions</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -121,7 +127,13 @@ export default async function PatientCommunicationsPage({ params }: { params: Pr
                         after {m.attemptCount} attempts{m.lastError ? ` — ${m.lastError}` : ""}
                       </span>
                     ) : null}
+                    {m.resentFrom ? <span className="block text-meta text-muted-foreground">sent again from an earlier message</span> : null}
                   </TableCell>
+                  {canManage ? (
+                    <TableCell className="text-right">
+                      <MessageActions notificationId={m.id} status={m.status} patientId={id} resentAs={resentAs.get(m.id) ?? null} />
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>

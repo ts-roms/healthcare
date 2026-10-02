@@ -1,3 +1,4 @@
+import type { StaffBadges } from "./api/types";
 import { STAFF_NAVIGATION, type NavItem } from "@healthcare/ui/layouts";
 
 /** Modules whose screens still run on demo fixtures (their API may exist but is not wired yet). */
@@ -89,4 +90,21 @@ export function navigationForPermissions(permissions: readonly string[], items: 
 
 export function isDemoPath(pathname: string): boolean {
   return DEMO_MODULES.some((m) => pathname === m || pathname.startsWith(`${m}/`)) || pathname.startsWith("/preview/");
+}
+
+/** Which navigation entry shows which count (`GET /me/badges`); a module's count is the sum of what it lists. */
+export const BADGE_COUNTS: Record<string, (b: StaffBadges) => number | null> = {
+  "/messages": (b) => b.messagesAwaiting,
+  "/laboratory": (b) => b.criticalResults,
+  "/records": (b) => b.recordsRequests,
+  "/reporting": (b) => b.caseReports,
+};
+
+/** Adds the counts to the navigation entries that have one (0 and withheld counts show nothing). */
+export function withBadgeCounts(items: NavItem[], badges: StaffBadges | null): NavItem[] {
+  if (!badges) return items;
+  return items.map((item) => {
+    const count = BADGE_COUNTS[item.href]?.(badges) ?? null;
+    return count ? { ...item, count } : item;
+  });
 }

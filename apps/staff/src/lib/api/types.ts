@@ -4772,6 +4772,9 @@ export interface CommunicationLogEntry {
   failedAt: string | null;
   cancelledAt: string | null;
   readAt: string | null;
+  /** The message this one was resent from, and the latest message sent again from this one (migration 0099). */
+  resentFrom: string | null;
+  resentAs: string | null;
 }
 
 /** GET /communications/summary. */
@@ -4806,6 +4809,16 @@ export interface PatientNotification {
   failedAt: string | null;
   cancelledAt: string | null;
   readAt: string | null;
+  resentFrom: string | null;
+}
+
+/** `GET /me/badges`: counts for the navigation; null where the user may not see the module or no facility is selected. */
+export interface StaffBadges {
+  messagesAwaiting: number | null;
+  messagesOverdue: number | null;
+  criticalResults: number | null;
+  recordsRequests: number | null;
+  caseReports: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------

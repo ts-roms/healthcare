@@ -1,9 +1,15 @@
-import { Controller, Get, Query, StreamableFile } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuditService } from "@healthcare/audit";
 import { UsersService } from "@healthcare/auth";
 import { type Actor, CurrentActor, RequirePermissions, toCsv } from "@healthcare/core";
-import { type CommunicationLogEntry, CommunicationLogDto, CommunicationSummaryDto, NotificationService } from "@healthcare/notification";
+import {
+  type CommunicationLogEntry,
+  CommunicationLogDto,
+  CommunicationReasonDto,
+  CommunicationSummaryDto,
+  NotificationService,
+} from "@healthcare/notification";
 import { PatientRecordService } from "@healthcare/patient";
 
 /** The most rows one CSV export carries (a period of at most 92 days). */
@@ -99,6 +105,22 @@ export class CommunicationsController {
     const body = Buffer.from(`\uFEFF${toCsv(rows)}`, "utf8");
     const filename = `communications-${query.from}-to-${query.to}.csv`;
     return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
+  }
+
+  @Post(":notificationId/cancel")
+  @HttpCode(200)
+  @RequirePermissions("notification.manage")
+  @ApiOperation({ summary: "Cancel a message to a patient not yet sent, with a reason (audited)" })
+  cancel(@CurrentActor() actor: Actor, @Param("notificationId", ParseUUIDPipe) notificationId: string, @Body() body: CommunicationReasonDto) {
+    return this.notifications.cancel(actor, notificationId, body.reason);
+  }
+
+  @Post(":notificationId/resend")
+  @HttpCode(201)
+  @RequirePermissions("notification.manage")
+  @ApiOperation({ summary: "Send again a message that was not sent: a new message, consent and preferences re-checked (audited)" })
+  resend(@CurrentActor() actor: Actor, @Param("notificationId", ParseUUIDPipe) notificationId: string, @Body() body: CommunicationReasonDto) {
+    return this.notifications.resend(actor, notificationId, body.reason);
   }
 
   private filters(query: CommunicationLogDto) {

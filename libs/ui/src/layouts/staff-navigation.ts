@@ -32,6 +32,8 @@ export interface NavItem {
   roles?: StaffRole[];
   /** Short tag shown next to the label, e.g. "Demo" for modules without a backend yet. */
   badge?: string;
+  /** Items waiting in the module (e.g. messages awaiting a reply); shown as a number with an accessible label. */
+  count?: number;
   children?: NavItem[];
 }
 

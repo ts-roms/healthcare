@@ -4,6 +4,7 @@ import { DownloadIcon, InfoIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, DateInput, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { DeliveryStatus } from "@/components/communications/delivery-status";
+import { MessageActions } from "@/components/communications/message-actions";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -41,6 +42,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
   const [params, session] = await Promise.all([searchParams, getSession()]);
   if (!can(session, "notification.read")) redirect("/");
   const canSeePatients = can(session, "patient.read");
+  const canManage = can(session, "notification.manage");
   const { filters, adjusted } = readCommunicationFilters(params, todayInManila());
   const [summary, page] = await Promise.all([
     api<CommunicationSummary>("/communications/summary", { query: { from: filters.from, to: filters.to } }),
@@ -213,6 +215,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
                 <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Requested by</TableHead>
+                {canManage ? <TableHead className="sr-only">Actions</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -243,8 +246,15 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
                   <TableCell>
                     <DeliveryStatus status={m.status} reason={m.suppressionReason} />
                     {m.status === "failed" ? <span className="text-meta text-muted-foreground">after {m.attemptCount} attempts</span> : null}
+                    {m.resentAs ? <span className="block text-meta text-muted-foreground">sent again later</span> : null}
+                    {m.resentFrom ? <span className="block text-meta text-muted-foreground">sent again from an earlier message</span> : null}
                   </TableCell>
                   <TableCell>{m.requestedBy ? (m.requestedByName ?? "A staff member") : <span className="text-muted-foreground">Automatic</span>}</TableCell>
+                  {canManage ? (
+                    <TableCell className="text-right">
+                      <MessageActions notificationId={m.id} status={m.status} patientId={m.patientId} resentAs={m.resentAs} />
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
