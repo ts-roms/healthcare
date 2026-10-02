@@ -176,19 +176,19 @@ Inspect the repository before every change — do not assume any file, library, 
 
 Use this stack unless there is a strong, documented technical reason to change it.
 
-| Area           | Choice                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                      |
-| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate      |
-| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere.                    |
-| Database       | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder     |
-| Cache / jobs   | Redis + BullMQ                                                                                                   |
-| Object storage | S3-compatible                                                                                                    |
-| Mobile         | React Native + Expo (primarily for patients)                                                                     |
-| Realtime       | WebSockets / Socket.IO                                                                                           |
-| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component. |
-| Infrastructure | Docker, Terraform, GitHub Actions, CDN/WAF where appropriate                                                     |
-| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                               |
+| Area           | Choice                                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | **Nx + pnpm + TypeScript**. Do **not** introduce Turborepo.                                                                       |
+| Frontend       | Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, React Hook Form, Zod, TanStack Query where appropriate                       |
+| Backend        | NestJS, TypeScript, REST, OpenAPI/Swagger. Validation: **Zod** (via `nestjs-zod`) everywhere.                                     |
+| Database       | PostgreSQL — primary transactional store, strong relational modeling. SQL migrations + Drizzle query builder                      |
+| Cache / jobs   | Redis + BullMQ                                                                                                                    |
+| Object storage | S3-compatible                                                                                                                     |
+| Mobile         | React Native + Expo (primarily for patients)                                                                                      |
+| Realtime       | WebSockets / Socket.IO                                                                                                            |
+| Telemedicine   | WebRTC via a proven/managed provider (e.g. LiveKit). The app owns the clinical workflow; video is one component.                  |
+| Infrastructure | Docker, GitHub Actions; Railway config-as-code today, Terraform once a provider is verified (ADR-0010); CDN/WAF where appropriate |
+| Observability  | OpenTelemetry, Prometheus, Grafana, centralized structured logging, error tracking                                                |
 
 **PostgreSQL:** do not store the healthcare system as arbitrary JSON. Use JSONB only where genuinely appropriate (configurable forms, structured extension fields, specialty-specific data).
 

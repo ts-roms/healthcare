@@ -136,3 +136,25 @@ or a balance.
 record's own ledger (the preview blocks merging a record that still holds a balance). Identifiers stay active on the
 retired record, so the survivor cannot hold the same identifier as well. Records created on the survivor after a
 merge stay there when it is undone.
+
+## ADR-0010 Infrastructure as code: Railway config-as-code now, Terraform only for what a verified provider covers
+
+**Decision.** The platform's infrastructure code today is Railway **config-as-code**: one `railway.json` per service
+(build, pre-deploy migration, start command, health check, restart policy) next to its app. Everything else about an
+environment — the project, the Postgres and Redis services, the five app services bound to the repository, each
+service's config-as-code path, deploy-on-push turned off, variables and domains — is set in the dashboard by hand and
+is listed as a checklist in [railway.md](../deployment/railway.md#what-is-codified-and-what-is-not), so an environment
+can be rebuilt or a second one (staging) created step by step. Terraform (named in `CLAUDE.md` §1) is adopted only
+after a provider for Railway has been verified outside this repository — its maintainer, licence and which of the
+checklist items it manages — and then only for those items, under `infrastructure/terraform/`.
+
+**Secrets.** No secret (`JWT_ACCESS_SECRET`, `MFA_ENCRYPTION_KEY`, integration payload keys, S3, SMTP, VAPID, PayMongo,
+LiveKit, Expo) is ever written into a Terraform file, a committed `.tfvars` or state kept in the repository: a module
+declares them as sensitive variables supplied at apply time, and state lives in an encrypted remote backend the
+organization controls. The choice of backend, whether a community-maintained provider is acceptable in production,
+and whether CI holds a Railway token to run `terraform plan` are decisions recorded here when made.
+
+**Why not Terraform now.** Nothing in the repository verifies that a Railway provider exists and covers these items,
+and this project's rule is not to assume an integration. Config-as-code already holds the parts that change with
+the code; the dashboard parts change rarely, and a checked checklist is a smaller, auditable step than an untested
+module. Local development stays Docker Compose (`infrastructure/docker/docker-compose.yml`).
