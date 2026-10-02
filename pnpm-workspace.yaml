@@ -15,6 +15,9 @@ onlyBuiltDependencies:
 
 # Security fixes for transitive dependencies (see `pnpm audit --prod`). Remove an entry once its parent ships the fix.
 overrides:
+  # @nestjs/platform-socket.io and @socket.io/redis-adapter must share one socket.io copy: two copies give two incompatible
+  # `Server` types (and two adapter registries). Keep every dependent on the version the root declares.
+  "socket.io": "^4.8.4"
   # @nestjs/swagger 11.4.7 pins js-yaml 5.3.0 (GHSA: merge keys not bounded); 5.4.1+ is patched, same major.
   "@nestjs/swagger>js-yaml": ^5.4.2
   # @storybook/addon-docs takes `react` and `react-dom` as its own dependencies. Since apps/mobile pins the React its React

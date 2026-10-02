@@ -45,6 +45,7 @@ alert on them once one exists:
 | `queue.job_failed`             | warn  | API and workers (BullMQ)      | A job attempt failed (`queue`, `jobId`, `attempt`); BullMQ retries. Repeats on one queue = the downstream dependency.                 |
 | `queue.reconcile_failed`       | error | API and workers               | The reconciler that re-enqueues stranded rows failed (`queue`); stranded work waits until the next run.                               |
 | `rate_limit.redis_unreachable` | warn  | API (`RedisThrottlerStorage`) | Rate limits are off while Redis is down (at most once a minute); account lockout still applies.                                       |
+| `realtime.redis_unreachable`   | warn  | API (`ConfiguredIoAdapter`)   | Live updates reach only this instance while Redis is down (at most once a minute); the staff app's 15-second poll covers the rest.    |
 
 Other warnings keep their text form; the `event` names above are the ones worth alerting on.
 
