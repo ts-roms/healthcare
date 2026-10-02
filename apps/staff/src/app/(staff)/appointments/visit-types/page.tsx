@@ -1,17 +1,24 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { can, getSession } from "@/lib/api/session";
-import type { FacilityBookingRules, VisitType } from "@/lib/api/types";
+import { getPractitioners } from "@/lib/api/clinic";
+import { can, getSelectedFacility, getSession } from "@/lib/api/session";
+import type { FacilityBookingRules, VisitType, WaitlistRule } from "@/lib/api/types";
 import { BookingRules } from "./booking-rules";
 import { VisitTypeList } from "./visit-type-list";
+import { WaitlistRules } from "./waitlist-rules";
 
 export const metadata = { title: "Visit types" };
 
 export default async function VisitTypesPage() {
-  const session = await getSession();
+  const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
   if (!can(session, "appointment.read")) redirect("/");
-  const [visitTypes, bookingRules] = await Promise.all([api<VisitType[]>("/clinic/visit-types"), api<FacilityBookingRules[]>("/clinic/booking-rules")]);
+  const [visitTypes, bookingRules, waitlistRules, practitioners] = await Promise.all([
+    api<VisitType[]>("/clinic/visit-types"),
+    api<FacilityBookingRules[]>("/clinic/booking-rules"),
+    facility ? api<WaitlistRule[]>("/clinic/waitlist-rules", { query: { facilityId: facility.id } }) : Promise.resolve([] as WaitlistRule[]),
+    facility ? getPractitioners() : Promise.resolve([]),
+  ]);
   return (
     <>
       <PageHeader
@@ -20,6 +27,18 @@ export default async function VisitTypesPage() {
       />
       <VisitTypeList visitTypes={visitTypes} canConfigure={can(session, "clinic.configure")} />
       <BookingRules facilities={bookingRules} canConfigure={can(session, "clinic.configure")} />
+      {facility ? (
+        <WaitlistRules
+          facilityId={facility.id}
+          facilityName={facility.name}
+          rules={waitlistRules}
+          visitTypes={visitTypes.filter((v) => v.status === "active")}
+          practitioners={practitioners}
+          canConfigure={can(session, "clinic.configure")}
+        />
+      ) : (
+        <p className="px-4 pb-4 text-table text-muted-foreground">Select a facility in the top bar to set waiting-list rules per visit type or practitioner.</p>
+      )}
     </>
   );
 }

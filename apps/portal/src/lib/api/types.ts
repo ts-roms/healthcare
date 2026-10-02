@@ -168,6 +168,28 @@ export interface BookingRulesView {
   maxWaitlistEntries: number;
 }
 
+/** `GET /portal/booking/waitlist-allowance`: whether this clinic takes a request for the visit type and doctor chosen. */
+export interface WaitlistAllowance {
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number;
+}
+
+/** `GET /portal/booking/offers` row: a time the clinic is holding for the patient from the waiting list. */
+export interface PortalWaitlistOffer {
+  id: string;
+  facilityId: string;
+  facilityName: string;
+  timeZone: string;
+  visitTypeId: string;
+  visitTypeName: string;
+  practitionerId: string;
+  practitionerName: string;
+  startsAt: string;
+  endsAt: string;
+  expiresAt: string;
+}
+
 /** `GET /portal/booking/waitlist` row. */
 export interface PortalWaitlistEntry {
   id: string;

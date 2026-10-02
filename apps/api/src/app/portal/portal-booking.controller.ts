@@ -7,8 +7,10 @@ import {
   PatientCancelDto,
   PatientRescheduleDto,
   PatientSlotsDto,
+  PatientWaitlistAllowanceDto,
   PatientWaitlistJoinDto,
   PatientWaitlistService,
+  WaitlistOffersService,
 } from "@healthcare/clinic";
 import { Public } from "@healthcare/core";
 import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
@@ -30,6 +32,7 @@ export class PortalBookingController {
   constructor(
     private readonly booking: PatientBookingService,
     private readonly waitlist: PatientWaitlistService,
+    private readonly offers: WaitlistOffersService,
   ) {}
 
   @Get("booking/options")
@@ -48,6 +51,32 @@ export class PortalBookingController {
   @ApiOperation({ summary: "The patient's waiting-list requests for full days" })
   waitlistEntries(@CurrentPatient() patient: PortalPrincipal) {
     return this.waitlist.list(context(patient));
+  }
+
+  @Get("booking/waitlist-allowance")
+  @ApiOperation({ summary: "Whether the clinic takes waiting-list requests for this visit type and doctor, and how many (its rules decide)" })
+  waitlistAllowance(@CurrentPatient() patient: PortalPrincipal, @Query() query: PatientWaitlistAllowanceDto) {
+    return this.waitlist.allowance(context(patient), query);
+  }
+
+  @Get("booking/offers")
+  @ApiOperation({ summary: "Times the clinic is holding for the patient from the waiting list, to accept or decline" })
+  listOffers(@CurrentPatient() patient: PortalPrincipal) {
+    return this.offers.listForPatient(context(patient));
+  }
+
+  @Post("booking/offers/:offerId/accept")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Accept a held time: it is booked like any online booking (the first acceptance wins)" })
+  acceptOffer(@CurrentPatient() patient: PortalPrincipal, @Param("offerId", ParseUUIDPipe) offerId: string) {
+    return this.offers.acceptByPatient(context(patient), offerId);
+  }
+
+  @Post("booking/offers/:offerId/decline")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Decline a held time; the request stays on the waiting list" })
+  async declineOffer(@CurrentPatient() patient: PortalPrincipal, @Param("offerId", ParseUUIDPipe) offerId: string): Promise<void> {
+    await this.offers.declineByPatient(context(patient), offerId);
   }
 
   @Post("booking/waitlist")

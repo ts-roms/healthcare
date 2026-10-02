@@ -436,6 +436,8 @@ export interface AppointmentItem {
   reason: string | null;
   version: number;
   patient: PatientBrief | null;
+  /** The room, when the booking names one (migration 0096 views). */
+  room?: { id: string; name: string } | null;
 }
 
 export interface Practitioner {
@@ -3897,6 +3899,49 @@ export interface BookingRules {
   onlineCheckIn: boolean;
   checkInOpensMinutes: number;
   checkInClosesMinutes: number;
+  /** When a time opens for the waiting list: a content-free notice, or an offer of the exact time to accept (migration 0096). */
+  waitlistMode: "notice" | "offer";
+  offerHoldMinutes: number;
+  offerBatch: number;
+}
+
+/** `GET /clinic/waitlist-rules` row: a waiting-list rule for one visit type or practitioner at a facility. */
+export interface WaitlistRule {
+  id: string;
+  facilityId: string;
+  scope: "visit_type" | "practitioner";
+  visitTypeId: string | null;
+  visitTypeName: string | null;
+  practitionerId: string | null;
+  practitionerName: string | null;
+  enabled: boolean;
+  maxEntries: number;
+  maxDaysAhead: number | null;
+  version: number;
+  updatedAt: string;
+}
+
+export type WaitlistOfferStatus = "offered" | "accepted" | "declined" | "expired" | "withdrawn" | "taken";
+
+/** `GET /waitlist/offers` row: a time held for a waiting patient. */
+export interface WaitlistOffer {
+  id: string;
+  facilityId: string;
+  entryId: string;
+  patientId: string;
+  patient: { patientNumber: string; displayName: string } | null;
+  practitionerId: string;
+  visitTypeId: string;
+  startsAt: string;
+  endsAt: string;
+  offeredFor: string;
+  expiresAt: string;
+  status: WaitlistOfferStatus;
+  appointmentId: string | null;
+  acceptedByPatient: boolean;
+  withdrawReason: string | null;
+  createdAt: string;
+  closedAt: string | null;
 }
 
 /** `GET /clinic/booking-rules` row. */

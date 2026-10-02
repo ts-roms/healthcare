@@ -279,6 +279,17 @@ online bookings per patient**, **Changes and cancellations close (hours before)*
 day (**Waiting list**, with **Waiting-list requests per patient**). Change the numbers and select **Save rules** (needs `clinic.configure`; the change is
 audited). A clinic that never saved rules shows **Platform defaults** and uses them. Turn the waiting list on only if the front desk will work it.
 
+**When a time opens** decides what the waiting list does with a cancellation: **Tell waiting patients a time may have opened** (they are texted or
+emailed and book it themselves), or **Hold the time and offer it to the next patient**. With offers, set **Hold an offered time for (minutes)** and
+**Offer each time to (patients at once)**. The patient accepts or declines the held time in MyHealth, or you accept it for them after speaking to them
+(see below); the first to accept gets it and the others are told it is taken. A held time that nobody accepts goes to the next patient on the list.
+Nothing is ever booked without someone's acceptance.
+
+**Waiting-list rules per visit type or practitioner.** Below the clinic's rules (with a facility selected in the top bar), set whether patients may
+join the waiting list for one **visit type** or one **practitioner**, how many **Requests per patient** and **Up to (days ahead)**. The clinic's own
+rule applies to everything without a rule here; a practitioner's rule wins over a visit type's. Save with **Add rule** or **Save rule** (needs
+`clinic.configure`; audited).
+
 Two more settings sit with the booking rules, both off until you turn them on:
 
 - **Automatic no-shows** — tick **Mark appointments nobody attended as no-shows at the end of the day** and choose **Mark them after** (clinic time,
@@ -300,6 +311,17 @@ selected facility, most urgent and oldest first, with their days, the visit type
 2. Select **Book** to open the booking screen for that patient with their doctor, visit type and first day filled in.
 3. When the patient no longer needs the entry, select **Remove**, write the reason and confirm. A patient who books a time in the requested days
    through MyHealth is taken off the list by the system.
+
+**Times being held.** Where the clinic holds opened times (**When a time opens** in the booking rules), the list below shows each held time, who it is
+held for, until when, and its state (**Held**, **Accepted**, **Declined**, **Expired**, **Withdrawn**, **Taken by another**). Select **Accept for
+patient** after speaking to the patient: the visit is booked at the front desk and the entry closed. Select **Withdraw** with a reason when the time
+should not go to that patient; it is not handed on by itself.
+
+## How to see the day by room
+
+On the Appointments page choose **Lay out by: Room**. Each active room of the facility is a column with its bookings (and "Free all day" when it has
+none), then **No room** for bookings without one. The calendar's day view has a **By room** tick box that does the same. Rooms are set up under
+**Schedules → Rooms**; a booking names its room on the booking screen, and two bookings in the same room cannot overlap.
 
 ## How to set up practitioners, schedules, rooms and closures
 
