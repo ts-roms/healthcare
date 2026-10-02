@@ -47,6 +47,9 @@ import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
 import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
+import { ManagementReportController } from "./management-dashboard/management-report.controller";
+import { ManagementReportRuns } from "./management-dashboard/management-report-runs";
+import { ManagementReportService } from "./management-dashboard/management-report.service";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
@@ -226,6 +229,7 @@ export class AppModule implements NestModule {
         PatientTimelineController,
         PatientWorkspaceController,
         ManagementDashboardController,
+        ManagementReportController,
         PortalBillingController,
         PortalBookingController,
         PortalPushController,
@@ -245,6 +249,8 @@ export class AppModule implements NestModule {
         PatientTimelineService,
         PatientWorkspaceService,
         ManagementDashboardService,
+        ManagementReportService,
+        ManagementReportRuns,
         RecordCopyService,
         RealtimeGateway,
         LaboratoryNotifications,

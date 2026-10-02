@@ -179,7 +179,15 @@ and service revenue (JSON sections and the `services`, `categories`, `revenue` a
 **every** facility in scope — otherwise `billing` is `null`, listed in `withheld`,
 billing is not queried, and a revenue export is refused (403) and audited as a
 denial. Audited `management.dashboard.view` (range, facilities, withheld) and
-`management.dashboard.export` (table, range, facilities, withheld, rows). Counts
+`management.dashboard.export` (table, range, facilities, withheld, rows). Scheduled
+reports (migration 0093): `management.report.manage` (org_admin) creates, changes,
+pauses and resumes schedules; the caller becomes the owner and must hold what the
+schedule needs (dashboard read for the scope, `billing.report.read` for revenue
+tables), and every recipient must be an active member with dashboard read for the
+scope; reports are produced with the owner's permissions re-resolved at each run,
+and a download (`management.dashboard.read`) re-checks billing reporting for
+revenue tables (403, audited as a denial); audited `management.report.produce`
+(system actor) and `management.report.download`. Counts
 and amounts only; patient counts 1–4 shown as "<5"; CSV cells are formula-safe.
 Integration exchange review (migration 0025): `integration.exchange.manage`
 (org_admin); audited `integration.exchange.list`, `.requeue`, `.resolve` (with

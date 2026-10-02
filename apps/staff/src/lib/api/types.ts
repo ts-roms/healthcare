@@ -3131,6 +3131,40 @@ export interface PatientTimelinePage {
   timeZone: string;
 }
 
+// ---- Scheduled management reports (GET|POST /management/report-schedules, GET /management/reports) ------------------
+
+export type ManagementReportTable = string;
+
+export interface ManagementReportSchedule {
+  id: string;
+  name: string;
+  cadence: "weekly" | "monthly";
+  tables: ManagementReportTable[];
+  /** One facility, or null for every facility the owner may report on. */
+  facilityId: string | null;
+  recipientUserIds: string[];
+  /** Whose permissions produce the report: whoever last created or changed the schedule. */
+  ownerUserId: string;
+  status: "active" | "paused";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManagementReportRun {
+  id: string;
+  scheduleId: string;
+  periodFrom: string;
+  periodTo: string;
+  facilityId: string | null;
+  status: "producing" | "produced" | "partial" | "failed";
+  withheld: Array<{ table: ManagementReportTable; reason: string }>;
+  error: string | null;
+  startedAt: string;
+  producedAt: string | null;
+  files: Array<{ table: ManagementReportTable; storedAt: string | null }>;
+}
+
 // ---- Management dashboard (GET /management/dashboard, management.dashboard.read; amounts in centavos) ------------
 
 export interface ManagementDashboard {
