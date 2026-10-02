@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { createHash } from "node:crypto";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   type Actor,
@@ -8,6 +9,7 @@ import {
   DATABASE,
   type Database,
   type DbExecutor,
+  DomainEventPublisher,
   NotFoundError,
   isFiledAs,
   PatientMergedError,
@@ -17,13 +19,21 @@ import {
 import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
-import { document, type DocumentCategory, type DocumentManager, type DocumentRecord } from "./document.schema";
+import { document, type DocumentCategory, type DocumentManager, type DocumentRecord, type DocumentScanStatus } from "./document.schema";
+import { MALWARE_SCANNER, type MalwareScanner } from "./malware-scanner";
 import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./object-storage";
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
-export type DocumentView = Omit<DocumentRecord, "storageKey" | "organizationId">;
+export type DocumentView = Omit<DocumentRecord, "storageKey" | "organizationId" | "declaredSha256">;
+
+/** What a completed upload's bytes turned out to be (migration 0098): their hash and the scanner's verdict. */
+interface VerifiedUpload {
+  sha256: string;
+  scanStatus: DocumentScanStatus;
+  scanSignature: string | null;
+}
 
 /** A document the platform generated (e.g. an archived laboratory report). */
 export interface GeneratedDocumentInput {
@@ -47,8 +57,12 @@ export interface DocumentScope {
   managedBy?: DocumentManager | null;
 }
 
-function toView({ storageKey: _key, organizationId: _org, ...rest }: DocumentRecord): DocumentView {
+function toView({ storageKey: _key, organizationId: _org, declaredSha256: _declared, ...rest }: DocumentRecord): DocumentView {
   return rest;
+}
+
+export function sha256Hex(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 /**
@@ -58,11 +72,24 @@ function toView({ storageKey: _key, organizationId: _org, ...rest }: DocumentRec
  */
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+    @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     private readonly audit: AuditService,
+    private readonly events: DomainEventPublisher,
   ) {}
+
+  /** Whether uploads are scanned (readiness probe, start-up warning). */
+  get scannerConfigured(): boolean {
+    return this.scanner.configured;
+  }
+
+  probeScanner(): Promise<"ok" | "unreachable" | "unconfigured"> {
+    return this.scanner.probe();
+  }
 
   /**
    * Readiness probe (docs/architecture/observability.md): a head of a key that never exists, which fails only when
@@ -110,6 +137,7 @@ export class DocumentsService {
             storageKey,
             createdBy: actor.userId,
             managedBy: scope.managedBy ?? null,
+            declaredSha256: input.sha256 ?? null,
           })
           .returning();
         await this.audit.record(tx, actor, {
@@ -182,6 +210,24 @@ export class DocumentsService {
       .where(and(eq(document.organizationId, context.organizationId), eq(document.id, documentId), eq(document.createdByPortalAccount, context.accountId)));
     if (!record) throw new NotFoundError("Document");
     if (record.status !== "pending_upload") throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
+    const verified = await this.verifyUpload(record);
+    return this.finishUpload(record, verified, (tx, updated) =>
+      this.audit.record(tx, context, {
+        action: updated.status === "quarantined" ? "document.quarantine" : "document.upload-complete",
+        resourceType: "document",
+        resourceId: documentId,
+        patientId: record.patientId ?? undefined,
+        metadata: { via: "patient_portal", scanStatus: updated.scanStatus, scanSignature: updated.scanSignature ?? undefined },
+      }),
+    );
+  }
+
+  /**
+   * Reads a completed upload back from storage: size as declared, SHA-256 (refused when it differs from a declared
+   * one), then the scanner's verdict. Without a scanner the file is recorded as not scanned; with one that cannot be
+   * reached, completion is refused (`scan_unavailable`) and the upload stays pending so the client can retry.
+   */
+  private async verifyUpload(record: DocumentRecord): Promise<VerifiedUpload> {
     const stored = await this.storage.head(record.storageKey);
     if (!stored) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
     if (stored.sizeBytes !== record.sizeBytes) {
@@ -190,22 +236,68 @@ export class DocumentsService {
         actual: stored.sizeBytes,
       });
     }
-    return this.db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(document)
-        .set({ status: "available", uploadedAt: new Date() })
-        .where(and(eq(document.id, documentId), eq(document.status, "pending_upload")))
-        .returning();
-      if (!updated) throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
-      await this.audit.record(tx, context, {
-        action: "document.upload-complete",
-        resourceType: "document",
-        resourceId: documentId,
-        patientId: record.patientId ?? undefined,
-        metadata: { via: "patient_portal" },
+    const bytes = await this.storage.get(record.storageKey);
+    if (!bytes) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
+    const sha256 = sha256Hex(bytes);
+    if (record.declaredSha256 && record.declaredSha256 !== sha256) {
+      throw new BusinessRuleError("The uploaded file does not match the declared checksum", "checksum_mismatch", {
+        declared: record.declaredSha256,
+        actual: sha256,
       });
-      return toView(updated);
+    }
+    if (!this.scanner.configured) return { sha256, scanStatus: "not_scanned", scanSignature: null };
+    const result = await this.scanner.scan(bytes);
+    if (result.verdict === "unavailable") {
+      this.logger.warn({ event: "document.scan_unavailable", documentId: record.id, reason: result.reason });
+      throw new BusinessRuleError("The file could not be checked for malware right now; try again later", "scan_unavailable");
+    }
+    if (result.verdict === "infected") return { sha256, scanStatus: "quarantined", scanSignature: result.signature };
+    return { sha256, scanStatus: "clean", scanSignature: null };
+  }
+
+  /**
+   * Records the verdict: available (clean or not scanned) or quarantined — never available, kept in storage for the
+   * organization's incident handling, announced as `DocumentQuarantined` (ids only) and refused to the caller.
+   */
+  private async finishUpload(
+    record: DocumentRecord,
+    verified: VerifiedUpload,
+    auditRow: (tx: DbExecutor, updated: DocumentRecord) => Promise<void>,
+  ): Promise<DocumentView> {
+    const quarantined = verified.scanStatus === "quarantined";
+    const updated = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(document)
+        .set({
+          status: quarantined ? "quarantined" : "available",
+          uploadedAt: new Date(),
+          scanStatus: verified.scanStatus,
+          scanSignature: verified.scanSignature,
+          scannedAt: new Date(),
+          sha256: verified.sha256,
+        })
+        .where(and(eq(document.id, record.id), eq(document.status, "pending_upload")))
+        .returning();
+      if (!row) throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
+      await auditRow(tx, row);
+      if (quarantined) {
+        await this.events.record(tx, {
+          type: "DocumentQuarantined",
+          organizationId: row.organizationId,
+          aggregateType: "document",
+          aggregateId: row.id,
+          facilityId: row.facilityId,
+          patientId: row.patientId,
+          payload: { documentId: row.id, category: row.category, source: row.source, managedBy: row.managedBy },
+        });
+      }
+      return row;
     });
+    if (quarantined) {
+      this.logger.warn({ event: "document.quarantined", documentId: record.id, signature: verified.scanSignature });
+      throw new BusinessRuleError("The file was found to contain malware and cannot be accepted", "upload_quarantined");
+    }
+    return toView(updated);
   }
 
   /** How many documents a patient's account uploaded in the last 24 hours (the calling domain's daily limit). */
@@ -226,29 +318,16 @@ export class DocumentsService {
   async completeUpload(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
     const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "pending_upload") throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
-    const stored = await this.storage.head(record.storageKey);
-    if (!stored) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
-    if (stored.sizeBytes !== record.sizeBytes) {
-      throw new BusinessRuleError("Uploaded file size does not match the declared size", "upload_size_mismatch", {
-        declared: record.sizeBytes,
-        actual: stored.sizeBytes,
-      });
-    }
-    return this.db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(document)
-        .set({ status: "available", uploadedAt: new Date() })
-        .where(and(eq(document.id, documentId), eq(document.status, "pending_upload")))
-        .returning();
-      if (!updated) throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
-      await this.audit.record(tx, actor, {
-        action: "document.upload-complete",
+    const verified = await this.verifyUpload(record);
+    return this.finishUpload(record, verified, (tx, updated) =>
+      this.audit.record(tx, actor, {
+        action: updated.status === "quarantined" ? "document.quarantine" : "document.upload-complete",
         resourceType: "document",
         resourceId: documentId,
         patientId: record.patientId ?? undefined,
-      });
-      return toView(updated);
-    });
+        metadata: { scanStatus: updated.scanStatus, scanSignature: updated.scanSignature ?? undefined },
+      }),
+    );
   }
 
   async get(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
@@ -366,6 +445,10 @@ export class DocumentsService {
           uploadedAt: new Date(),
           createdBy: actorUserId(actor),
           source: "generated",
+          // The platform's own output never came from outside: clean by origin, hashed for integrity checks.
+          scanStatus: "clean",
+          scannedAt: new Date(),
+          sha256: sha256Hex(input.body),
         })
         .returning();
       if (!row) throw new Error("Document insert returned no row");

@@ -59,7 +59,7 @@ also carries `traceId` and `spanId` when telemetry is on.
 **API** — public, unthrottled, not in the access log (`apps/api/src/app/health.controller.ts`):
 
 - `GET /api/v1/health/live` → `200 { status: "ok" }`: the process is up.
-- `GET /api/v1/health/ready` → `{ status, checks: { database, redis, objectStorage } }`, each check `ok`,
+- `GET /api/v1/health/ready` → `{ status, checks: { database, redis, objectStorage, malwareScanner } }`, each check `ok`,
   `unreachable` or `unconfigured`. The **database is required**: unreachable → `503 unavailable`. **Redis and object
   storage degrade**: unreachable → `200 degraded` — the API still serves (rate limits are let through, uploads and
   report archives fail) and stays on routing, so one of them being down does not take the whole API offline. Object

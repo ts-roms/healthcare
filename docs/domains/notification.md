@@ -51,7 +51,9 @@ them at `GET /portal/messages` (audited `portal.messages-view`), sees an unread 
 messages are not notifications and never leave MyHealth. Free text written by staff exists only as `clinic.message`
 (notices) and conversation messages, neither of which can leave the platform. `portal.message-received` (SMS/email, no
 content), `portal.message-new` (in-app to staff) and `portal.message-overdue` (in-app to staff, hourly, once per
-breached response target) announce conversation messages.
+breached response target) announce conversation messages. `document.quarantine-notice` (in-app to the facility's
+records office and the staff uploader) announces a file the malware scanner quarantined — the signature name and
+origin, never the file or its title (`docs/domains/documents.md`).
 
 ## Communication log
 
@@ -76,8 +78,27 @@ to its recipient.
 - Migration `0084`: index `notification_patient_log_idx` (organization, created_at, id for patient recipients); `notification.read` now also for
   receptionists and records officers (the desk handles reminders and "I got nothing").
 - Campaigns and segments are `libs/crm` (`docs/domains/crm.md`): their messages appear here under the kind "Outreach campaign".
-- Not built: resending or cancelling from the log, delivery reports from SMS providers (none is selected), per-facility filtering
-  (notifications carry no facility).
+- **Resend and cancel from the log** (migration `0099`, `notification.manage`: org_admin, receptionist). `POST /communications/:id/cancel`
+  (a reason; `queued` only — `422 notification_not_cancellable` otherwise; audited `notification.cancel`).
+  `POST /communications/:id/resend` (a reason) sends a `failed`, `cancelled` or `suppressed` message to a patient again as a **new**
+  notification through `NotificationService.send`, so consent, preferences and the current contact detail are checked again (a message
+  suppressed for a missing number is suppressed again until a number exists); same template, version and variables; the original never
+  changes and the new row names it in `resent_from` (`resentFrom` / `resentAs` on log rows). Refused (`422 notification_not_resendable`) for
+  security messages and internal templates, messages older than 30 days (`RESEND_WINDOW_DAYS`), and while an earlier resend is queued or
+  was sent (`notification_already_resent`); staff inbox messages are not reachable. Audited `notification.resend` (the new id in metadata).
+  Staff: **Cancel…** / **Send again…** with a reason on both screens.
+- Not built: delivery reports from SMS providers (none is selected; `docs/interoperability/dependencies.md`) or over SMTP, per-facility
+  filtering (notifications carry no facility).
+
+## Module badges
+
+`GET /api/v1/me/badges` (`apps/api/src/app/badges.controller.ts`; any signed-in staff member) returns counts for the staff navigation, each
+from its domain's own count query and only with that domain's permission (`null` otherwise, and for the critical-result count without a
+selected facility): conversations awaiting the clinic and past their response target (`patient.message.read`), critical results at the
+facility not yet acknowledged (`lab.result.read`), open records requests (`patient.records-request.manage`) and DOH case reports awaiting
+review (`doh.report.manage`). Counts only, so nothing is audited; opening the module is. The staff app shows them on **Messages**,
+**Laboratory**, **Records** and **Reporting** (`withBadgeCounts`), read with the page and refreshed every minute through the app's own
+`/badges` route.
 
 ## Ports
 
@@ -96,7 +117,8 @@ min, or stuck in `sending` > 15 min). At-least-once delivery.
 ## Permissions
 
 `notification.send`, `notification.read` (the communication log and a patient's communication history; org_admin, physician, dentist,
-receptionist, records_officer — the last two from migration `0084`); the in-app inbox needs only authentication.
+receptionist, records_officer — the last two from migration `0084`), `notification.manage` (resend or cancel from the log; org_admin,
+receptionist; migration `0099`); the in-app inbox and the navigation counts need only authentication.
 
 ## Dependencies
 

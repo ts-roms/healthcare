@@ -162,9 +162,10 @@ export class InMemoryObjectStorage implements ObjectStorage {
     return this.contents.get(key);
   }
 
-  /** Simulates the client completing the presigned upload. */
-  put(key: string, info: StoredObjectInfo): void {
+  /** Simulates the client completing the presigned upload; without bytes given, the object is `sizeBytes` zero bytes. */
+  put(key: string, info: StoredObjectInfo, body?: Buffer): void {
     this.objects.set(key, info);
+    this.contents.set(key, body ? Buffer.from(body) : Buffer.alloc(info.sizeBytes));
   }
 }
 

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
-import { document, type DocumentCategory } from "./document.schema";
+import { document, type DocumentCategory, type DocumentSource } from "./document.schema";
 
 export interface PatientDocumentRecord {
   id: string;
@@ -23,6 +23,16 @@ export interface PatientDocumentRecord {
 @Injectable()
 export class DocumentRecordQueries {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
+
+  /** A quarantined document's signature and origin (for the notice to the records office); null unless quarantined. */
+  async quarantine(organizationId: string, documentId: string): Promise<{ signature: string; source: DocumentSource; createdBy: string | null } | null> {
+    const [row] = await this.db
+      .select({ signature: document.scanSignature, source: document.source, createdBy: document.createdBy, status: document.status })
+      .from(document)
+      .where(and(eq(document.organizationId, organizationId), eq(document.id, documentId)));
+    if (!row || row.status !== "quarantined" || !row.signature) return null;
+    return { signature: row.signature, source: row.source, createdBy: row.createdBy };
+  }
 
   async patientRecord(organizationId: string, patientId: string): Promise<PatientDocumentRecord[]> {
     const rows = await this.db

@@ -387,6 +387,25 @@ export const TEMPLATES = [
     },
   }),
   defineTemplate({
+    key: "document.quarantine-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to the facility's records office (and the staff member who uploaded it). The scanner's signature name and
+    // where the file came from; never the file, its title or clinical content.
+    channels: ["in_app"],
+    variables: z.object({
+      documentId: z.uuid(),
+      signature: shortText,
+      origin: z.enum(["patient_portal", "staff"]),
+      patientId: z.uuid().nullable(),
+    }),
+    render: (v) => ({
+      subject: "A file was quarantined",
+      text: `A file ${v.origin === "patient_portal" ? "sent by a patient in MyHealth" : "uploaded by a staff member"} was found to contain malware (${v.signature}). It was not accepted and is kept in quarantine for review.`,
+      href: v.patientId ? `/patients/${v.patientId}` : "/records",
+    }),
+  }),
+  defineTemplate({
     key: "records.request-new",
     version: 1,
     category: "administrative",
@@ -634,6 +653,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "dental.record-update": "Dental record update in MyHealth",
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
+  "document.quarantine-notice": "File quarantined (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
   "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",

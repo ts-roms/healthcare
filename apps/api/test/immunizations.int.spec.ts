@@ -270,8 +270,8 @@ describe("immunizations", () => {
       [ids.otherScan, otherPatientId],
     ] as const) {
       await ctx.pool.query(
-        `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, created_by)
-         SELECT $1, $2, $3, $4, 'clinical_attachment', 'Vaccination card', 'card.jpg', 'image/jpeg', 1000, $5, 'available', now(), id FROM app_user LIMIT 1`,
+        `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, created_by, scan_status, scanned_at)
+         SELECT $1, $2, $3, $4, 'clinical_attachment', 'Vaccination card', 'card.jpg', 'image/jpeg', 1000, $5, 'available', now(), id, 'not_scanned', now() FROM app_user LIMIT 1`,
         [id, tenant.organizationId, tenant.facilityId, patient, `org/${tenant.organizationId}/documents/${id}`],
       );
     }

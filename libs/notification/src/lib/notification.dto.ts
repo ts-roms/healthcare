@@ -48,3 +48,7 @@ export const communicationSummarySchema = z
   .refine((v) => v.from <= v.to, { message: "The period ends before it starts", path: ["to"] })
   .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 < 92, { message: "Choose at most 92 days", path: ["to"] });
 export class CommunicationSummaryDto extends createZodDto(communicationSummarySchema) {}
+
+/** Why a message is cancelled or sent again from the communication log (migration 0099). */
+export const communicationReasonSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+export class CommunicationReasonDto extends createZodDto(communicationReasonSchema) {}

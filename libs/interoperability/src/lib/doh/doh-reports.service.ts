@@ -100,6 +100,15 @@ export class DohReportsService {
     });
   }
 
+  /** Case reports awaiting review in the organization (a count for the navigation badge; not audited). */
+  async countPendingReview(actor: Actor): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dohCaseReport)
+      .where(and(eq(dohCaseReport.organizationId, actor.organizationId), eq(dohCaseReport.status, "pending_review")));
+    return row?.count ?? 0;
+  }
+
   async list(actor: Actor, status?: CaseReportStatus) {
     const conditions = [eq(dohCaseReport.organizationId, actor.organizationId)];
     if (status) conditions.push(eq(dohCaseReport.status, status));

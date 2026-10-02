@@ -44,6 +44,7 @@ import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
 import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
+import { DocumentNotifications } from "./document-notifications";
 import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
@@ -56,6 +57,7 @@ import { PatientTimelineController } from "./patient-timeline/patient-timeline.c
 import { PatientTimelineService } from "./patient-timeline/patient-timeline.service";
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
+import { BadgesController } from "./badges.controller";
 import { CommunicationsController } from "./communications/communications.controller";
 import { ControlledRegisterController } from "./controlled-register/controlled-register.controller";
 import { RecordCopyController } from "./record-copy/record-copy.controller";
@@ -85,6 +87,8 @@ import { AppRecipientDirectory } from "./recipient-directory";
 export interface AppModuleOverrides {
   /** Replaces S3 object storage (tests). */
   objectStorage?: Provider;
+  /** Override the malware scanner (tests). */
+  malwareScanner?: Provider;
   /** Replaces the BullMQ notification queue (tests). */
   notificationQueue?: Provider;
   /** Replaces the PhilHealth eClaims adapter (tests; the default transmits nothing). */
@@ -169,7 +173,7 @@ export class AppModule implements NestModule {
         PasswordScreeningModule.forRoot(overrides.breachedPasswordChecker),
         AuthModule,
         PatientModule,
-        DocumentsModule.forRoot({ storage: overrides.objectStorage }),
+        DocumentsModule.forRoot({ storage: overrides.objectStorage, scanner: overrides.malwareScanner }),
         NotificationModule.forRoot({
           imports: [PatientModule, AuthModule],
           recipientDirectory: AppRecipientDirectory,
@@ -247,6 +251,7 @@ export class AppModule implements NestModule {
         PortalTeleconsultController,
         RecordCopyController,
         CommunicationsController,
+        BadgesController,
         ControlledRegisterController,
       ],
       providers: [
@@ -260,6 +265,7 @@ export class AppModule implements NestModule {
         RealtimeGateway,
         LaboratoryNotifications,
         LaboratoryQualityNotifications,
+        DocumentNotifications,
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,

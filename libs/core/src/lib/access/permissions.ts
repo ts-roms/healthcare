@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   "document.archive",
   "notification.send",
   "notification.read",
+  // Resend or cancel from the communication log (migration 0099)
+  "notification.manage",
   "audit.read",
   // Phase 2 — clinic (migration 0012)
   "clinic.configure",

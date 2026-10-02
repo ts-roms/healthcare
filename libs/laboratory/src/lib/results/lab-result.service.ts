@@ -358,6 +358,22 @@ export class LabResultService {
 
   // ---- Critical results -----------------------------------------------------------------
 
+  /** Critical results at the actor's facility not yet acknowledged by the care team (a count for the navigation badge; not audited). */
+  async countUnacknowledgedCritical(actor: Actor): Promise<number | null> {
+    if (!actor.facilityId) return null;
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(labCriticalAlert)
+      .where(
+        and(
+          eq(labCriticalAlert.organizationId, actor.organizationId),
+          eq(labCriticalAlert.facilityId, actor.facilityId),
+          notInArray(labCriticalAlert.status, ["acknowledged"]),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
   async criticalAlerts(actor: Actor, status: "open" | "communicated" | "acknowledged" | "unacknowledged") {
     const facilityId = requireFacilityId(actor);
     const rows = await this.db

@@ -19,6 +19,13 @@ export const createDocumentSchema = z.object({
   contentType: z.enum(ALLOWED_CONTENT_TYPES),
   sizeBytes: z.number().int().positive().max(MAX_DOCUMENT_BYTES, "File is larger than 50 MB"),
   patientId: z.string().uuid().optional(),
+  /** Optional SHA-256 (hex) of the file; completion refuses an upload whose stored bytes differ (migration 0098). */
+  sha256: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[0-9a-f]{64}$/, "sha256 must be 64 hexadecimal characters")
+    .optional(),
 });
 export class CreateDocumentDto extends createZodDto(createDocumentSchema) {}
 
