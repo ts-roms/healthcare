@@ -57,6 +57,18 @@ services:
     command: --dev --bind 0.0.0.0
     ports: ["7880:7880", "7881:7881", "7882:7882/udp"]
 
+  # Malware scanning of uploaded documents (clamd on :3310; docs/domains/documents.md). Signatures download on first
+  # start (a few minutes). Set CLAMAV_HOST=localhost in .env to use it; unset, uploads are recorded as "not scanned".
+  clamav:
+    image: clamav/clamav:1.4
+    ports: ["3310:3310"]
+    volumes: [clamav-data:/var/lib/clamav]
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      retries: 20
+
 volumes:
   postgres-data:
   object-storage-data:
+  clamav-data:

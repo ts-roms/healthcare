@@ -59,6 +59,10 @@ export function conversationMessage(code: string | undefined, fallback: string):
       return "Messages cannot be sent from this record. Please call the clinic.";
     case "upload_rate_limited":
       return "You have sent many files today. Try again tomorrow, or call the clinic.";
+    case "upload_quarantined":
+      return "One of the files could not be accepted because it may be unsafe. Remove it and try again, or call the clinic.";
+    case "scan_unavailable":
+      return "Files cannot be checked right now. Try again in a few minutes, or send your message without the file.";
     case "attachment_not_allowed":
       return "One of the files could not be attached. Remove it and try again.";
     case "storage_upload_failed":

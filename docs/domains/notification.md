@@ -51,7 +51,9 @@ them at `GET /portal/messages` (audited `portal.messages-view`), sees an unread 
 messages are not notifications and never leave MyHealth. Free text written by staff exists only as `clinic.message`
 (notices) and conversation messages, neither of which can leave the platform. `portal.message-received` (SMS/email, no
 content), `portal.message-new` (in-app to staff) and `portal.message-overdue` (in-app to staff, hourly, once per
-breached response target) announce conversation messages.
+breached response target) announce conversation messages. `document.quarantine-notice` (in-app to the facility's
+records office and the staff uploader) announces a file the malware scanner quarantined — the signature name and
+origin, never the file or its title (`docs/domains/documents.md`).
 
 ## Communication log
 

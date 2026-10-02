@@ -15,7 +15,7 @@ describe("health", () => {
   it("is live, and ready with the database and Redis reachable and no object storage credentials", async () => {
     await ctx.http().get("/api/v1/health/live").expect(200, { status: "ok" });
     const { body, headers } = await ctx.http().get("/api/v1/health/ready").expect(200);
-    expect(body).toEqual({ status: "ok", checks: { database: "ok", redis: "ok", objectStorage: "unconfigured" } });
+    expect(body).toEqual({ status: "ok", checks: { database: "ok", redis: "ok", objectStorage: "unconfigured", malwareScanner: "unconfigured" } });
     expect(headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
   });
 
@@ -23,7 +23,10 @@ describe("health", () => {
     const offline = await createTestApp({ rateLimitStorage: { redisUrl: "redis://127.0.0.1:1", keyPrefix: "health-test:" } });
     try {
       const { body } = await offline.http().get("/api/v1/health/ready").expect(200);
-      expect(body).toEqual({ status: "degraded", checks: { database: "ok", redis: "unreachable", objectStorage: "unconfigured" } });
+      expect(body).toEqual({
+        status: "degraded",
+        checks: { database: "ok", redis: "unreachable", objectStorage: "unconfigured", malwareScanner: "unconfigured" },
+      });
     } finally {
       await offline.close();
     }

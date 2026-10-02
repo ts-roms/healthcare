@@ -51,6 +51,12 @@ async function bootstrap(): Promise<void> {
   // Renders released laboratory reports and archives them in object storage (BullMQ, see printable-documents.md).
   app.get(LabReportArchiveWorker).start();
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");
+  if (config.NODE_ENV === "production" && !config.CLAMAV_HOST) {
+    Logger.warn(
+      { event: "documents.scanner_unconfigured", message: "CLAMAV_HOST is unset: uploaded documents are recorded as not scanned (docs/domains/documents.md)" },
+      "Bootstrap",
+    );
+  }
   Logger.log(telemetryStartupEvent(telemetry), "Telemetry");
 }
 
