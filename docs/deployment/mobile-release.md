@@ -103,7 +103,8 @@ No CI workflow builds or submits the app; builds are started by a person with ac
 
 1. Checked through the app on an iPhone and an Android phone (D14; manual until an on-device automation tool is chosen). Required: sign-in
    with and without the two-step code; the results list and a result's history read correctly; push turned on, a test notice arrives and
-   tapping it opens the results; push turned off; sign-out. Also worth checking: closing and reopening keeps the patient signed in; the
+   tapping it opens the results; push turned off; open the app switcher — the cover, not the results, is shown — and return; a screenshot
+   of a result is refused (D11); sign-out. Also worth checking: closing and reopening keeps the patient signed in; the
    clinic disabling MyHealth access signs the phone out.
 2. `version` in `app.json` raised; `pnpm nx run-many -t lint typecheck test -p mobile` passes.
 3. A `preview` build installed and checked against the organization's test API.
