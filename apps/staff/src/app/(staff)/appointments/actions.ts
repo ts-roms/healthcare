@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { AppointmentItem, Availability, FacilityBookingRules, Visit, VisitType } from "@/lib/api/types";
+import type { AppointmentItem, Availability, FacilityBookingRules, Visit, VisitType, WaitlistOffer, WaitlistRule } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const idVersion = { appointmentId: z.uuid(), version: z.number().int().positive() };
@@ -92,6 +92,9 @@ const bookingRulesSchema = z.object({
   onlineCheckIn: z.boolean(),
   checkInOpensMinutes: z.number().int().min(0).max(240, "Online check-in can open at most 4 hours before"),
   checkInClosesMinutes: z.number().int().min(0).max(120, "Online check-in can stay open at most 2 hours after the start"),
+  waitlistMode: z.enum(["notice", "offer"]),
+  offerHoldMinutes: z.number().int().min(15, "Hold a time for at least 15 minutes").max(1440, "Hold a time for at most a day"),
+  offerBatch: z.number().int().min(1).max(5, "Offer a time to at most 5 patients at once"),
   version: z.number().int().positive().nullable(),
 });
 /** Sets one facility's online booking rules (needs clinic.configure; audited with before and after). */
@@ -138,5 +141,54 @@ export async function rescheduleAppointment(input: z.input<typeof rescheduleSche
   const { appointmentId, ...body } = parsed.data;
   const result = await actionResult(() => api<AppointmentItem>(`/appointments/${appointmentId}/reschedule`, { method: "POST", body }));
   if (result.ok) revalidatePath("/appointments");
+  return result;
+}
+
+// ---- waiting-list rules per visit type or practitioner, and offers (migration 0096) ----------------------------
+
+const waitlistRuleSchema = z
+  .object({
+    facilityId: z.uuid(),
+    scope: z.enum(["visit_type", "practitioner"]),
+    visitTypeId: z.uuid().optional(),
+    practitionerId: z.uuid().optional(),
+    enabled: z.boolean(),
+    maxEntries: z.number().int().min(1).max(10),
+    maxDaysAhead: z.number().int().min(1).max(365).nullable(),
+    version: z.number().int().positive().nullable(),
+  })
+  .refine((v) => (v.scope === "visit_type" ? Boolean(v.visitTypeId) : Boolean(v.practitionerId)), {
+    message: "Choose the visit type or the practitioner.",
+    path: ["scope"],
+  });
+/** Sets the waiting-list rule for one visit type or practitioner at a facility (clinic.configure; audited). */
+export async function saveWaitlistRule(input: z.input<typeof waitlistRuleSchema>): Promise<ActionResult<WaitlistRule>> {
+  const parsed = waitlistRuleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the rule." };
+  const { version, ...body } = parsed.data;
+  const result = await actionResult(() => api<WaitlistRule>("/clinic/waitlist-rules", { method: "PUT", body: { ...body, version: version ?? undefined } }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
+/** Accepts a held time for the patient (after speaking to them): booked at the front desk. */
+export async function acceptWaitlistOffer(offerId: string): Promise<ActionResult<AppointmentItem>> {
+  if (!z.uuid().safeParse(offerId).success) return { ok: false, message: "Invalid request." };
+  const result = await actionResult(() => api<AppointmentItem>(`/waitlist/offers/${offerId}/accept`, { method: "POST" }));
+  if (result.ok) {
+    revalidatePath("/appointments/waitlist");
+    revalidatePath("/appointments");
+  }
+  return result;
+}
+
+const withdrawOfferSchema = z.object({ offerId: z.uuid(), reason: z.string().trim().min(3, "Say why.").max(500) });
+/** Withdraws a held time with a reason. */
+export async function withdrawWaitlistOffer(input: z.input<typeof withdrawOfferSchema>): Promise<ActionResult<WaitlistOffer>> {
+  const parsed = withdrawOfferSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { offerId, reason } = parsed.data;
+  const result = await actionResult(() => api<WaitlistOffer>(`/waitlist/offers/${offerId}/withdraw`, { method: "POST", body: { reason } }));
+  if (result.ok) revalidatePath("/appointments/waitlist");
   return result;
 }

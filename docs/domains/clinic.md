@@ -292,7 +292,10 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 
 ## Open questions / assumptions
 
-- Room scheduling views are not built. Automatic no-shows and online check-in: see below.
+- Room views (migration `0096`): `GET /appointments` takes `roomId` and each row carries `room { id, name }` when the booking names one;
+  the staff day schedule (`/appointments?view=room`) and the calendar's day view (**By room**) lay the day out one column per active room
+  of the facility, then "No room". Read-only: booking, rescheduling and the `appointment_room_no_overlap` constraint are unchanged;
+  room equipment, turnover time and room bookings without a patient are not built. Automatic no-shows and online check-in: see below.
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
   are part of the [patient history](patient-history.md).
@@ -352,5 +355,26 @@ Migration `0077`.
   SMS is not possible, that a time may have opened and to sign in and book it (`appointment.waitlist-opened`: the clinic and the
   day only), once per entry per day, never to the patient who freed the time, and only while the facility's waiting list is on and the
   time is still bookable. Nothing is booked automatically: first come, first served.
-- Not built: rules per visit type or per practitioner, automatic offers or booking from the waiting list, waiting lists for online
-  consultations' pre-consult, a fee or deposit rule.
+- **Rules per visit type or practitioner** (migration `0096`, `waitlist_rule`, `WaitlistRulesService`; `GET /clinic/waitlist-rules?facilityId=`
+  with `appointment.read`, `PUT /clinic/waitlist-rules` with `clinic.configure`, versioned and audited `facility.waitlist-rule-update`): whether
+  patients may join, how many requests and how far ahead (never beyond the facility's horizon) for one visit type or one practitioner at a
+  facility. The facility's own rule stays the default; a practitioner's rule wins over a visit type's (`resolveWaitlistRule`). A request the
+  rule refuses answers `waitlist_not_offered`; a rule's limit counts the patient's requests under that rule. MyHealth asks
+  `GET /portal/booking/waitlist-allowance?facilityId&visitTypeId&practitionerId` before offering the button. Staff: **Waiting-list rules per
+  visit type or practitioner** on `/appointments/visit-types` (selected facility).
+- **Offers from the waiting list** (migration `0096`, `waitlist_offer`, `WaitlistOffersService`): a facility chooses `waitlist_mode` `notice`
+  (above, the default) or `offer`, with `offer_hold_minutes` (15–1440, default 120) and `offer_batch` (1–5, default 1). In `offer` mode an opened
+  time (a cancellation, or a visit moved away; the visit type's length) is **held** for the first matching patient-made entries — urgent first,
+  then oldest; never the patient who freed it; one offer per entry per day (`offerCandidates`) — until the hold runs out or the online lead time
+  before the start, whichever is first (`offerExpiry`). The patient is texted or emailed that a time is being held (`appointment.waitlist-offer`:
+  the clinic, the day and the hold; the time is shown after sign-in) and in MyHealth accepts it (`POST /portal/booking/offers/:id/accept`:
+  booked through the ordinary patient booking, so lead time, limits and the exclusion constraints apply; the first acceptance wins, the other
+  offers of that time become `taken`) or declines it (`…/decline`: the entry stays on the list and the time goes to the next entries at once).
+  Staff (`/appointments/waitlist`, **Times being held**) accept it for the patient after speaking to them (`POST /waitlist/offers/:id/accept`,
+  `appointment.manage`: booked at the front desk, the entry closed as booked) or withdraw it with a reason (`…/withdraw`; not handed on).
+  `GET /waitlist/offers?facilityId=&includeClosed=` lists them (audited `waitlist.offers.view`). The hourly `WaitlistOffersService.expire`
+  (started in `main.ts`) expires offers whose hold ran out and hands each time on while it is still free. Audit `waitlist.offer.accept |
+decline | withdraw`; events `WaitlistOfferMade | Accepted | Expired` (ids only). **Fully automatic booking without the patient's or staff's
+  acceptance is deliberately not built**: it would create appointments nobody agreed to, which the reminder and no-show rules then act on.
+- Not built: waiting lists for online consultations' pre-consult, a fee or deposit rule, offers to entries staff added (they have no MyHealth
+  side; staff book those by phone as before).

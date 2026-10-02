@@ -1,3 +1,4 @@
+import { WaitlistOffersService } from "@healthcare/clinic";
 import {
   as,
   auditRows,
@@ -52,6 +53,9 @@ describe("online booking rules, another doctor, and the waiting list", () => {
     onlineCheckIn: false,
     checkInOpensMinutes: 60,
     checkInClosesMinutes: 15,
+    waitlistMode: "notice",
+    offerHoldMinutes: 120,
+    offerBatch: 1,
     ...over,
   });
   async function setRules(over: Partial<Record<string, unknown>>) {
@@ -431,6 +435,294 @@ describe("online booking rules, another doctor, and the waiting list", () => {
       await portal(canceller.token).post(`/appointments/${made.body.id}/cancel`, { version: made.body.version }).expect(200);
       await drainEvents(ctx);
       expect((await ctx.pool.query("SELECT 1 FROM notification WHERE template_key = 'appointment.waitlist-opened'")).rowCount).toBe(before);
+    });
+  });
+
+  describe("waiting-list rules per visit type or practitioner, offers, and room views (migration 0096)", () => {
+    let patient: { patientId: string; token: string };
+    let second: { patientId: string; token: string };
+    let canceller: { patientId: string; token: string };
+    const closedDay = manilaDate(12);
+    const offerDay = manilaDate(6);
+    const join = (token: string, over: Record<string, unknown> = {}) =>
+      portal(token).post("/booking/waitlist", {
+        facilityId: tenant.facilityId,
+        visitTypeId: visitType,
+        earliestDate: closedDay,
+        latestDate: closedDay,
+        ...over,
+      });
+    const offersOf = async (token: string) =>
+      (await portal(token).get("/booking/offers").expect(200)).body as Array<{ id: string; startsAt: string; practitionerName: string }>;
+
+    beforeAll(async () => {
+      patient = await portalPatient("Liza", "liza@rules.ph");
+      second = await portalPatient("Mara", "mara@rules.ph");
+      canceller = await portalPatient("Nilo", "nilo@rules.ph");
+      await staff(admin)
+        .post("/clinic/schedule-exceptions", {
+          facilityId: tenant.facilityId,
+          startsAt: `${closedDay}T00:00:00+08:00`,
+          endsAt: `${closedDay}T23:59:00+08:00`,
+          reason: "Clinic closed",
+        })
+        .expect(201);
+      await setRules({ waitlistEnabled: true, maxWaitlistEntries: 3 });
+    });
+
+    it("lets a rule for a visit type or practitioner override the clinic's own, the practitioner's winning (clinic.configure, audited)", async () => {
+      await staff(receptionist)
+        .put("/clinic/waitlist-rules", { facilityId: tenant.facilityId, scope: "visit_type", visitTypeId: visitType, enabled: false, maxEntries: 1 })
+        .expect(403);
+      await staff(admin).put("/clinic/waitlist-rules", { facilityId: tenant.facilityId, scope: "visit_type", enabled: false, maxEntries: 1 }).expect(400);
+      const typeRule = await staff(admin)
+        .put("/clinic/waitlist-rules", { facilityId: tenant.facilityId, scope: "visit_type", visitTypeId: visitType, enabled: false, maxEntries: 1 })
+        .expect(200);
+      expect(typeRule.body).toMatchObject({
+        scope: "visit_type",
+        visitTypeName: "Consultation",
+        enabled: false,
+        maxEntries: 1,
+        maxDaysAhead: null,
+        version: 1,
+      });
+      // Not for this visit type any more…
+      expect(
+        (await portal(patient.token).get(`/booking/waitlist-allowance?facilityId=${tenant.facilityId}&visitTypeId=${visitType}`).expect(200)).body,
+      ).toEqual({
+        enabled: false,
+        maxEntries: 1,
+        maxDaysAhead: 60,
+      });
+      await join(patient.token)
+        .expect(422)
+        .expect((r) => expect(r.body.error.code).toBe("waitlist_not_offered"));
+      // …unless asked for Dr Cruz, whose rule allows it and wins.
+      await staff(admin)
+        .put("/clinic/waitlist-rules", {
+          facilityId: tenant.facilityId,
+          scope: "practitioner",
+          practitionerId: cruz,
+          enabled: true,
+          maxEntries: 2,
+          maxDaysAhead: 30,
+        })
+        .expect(200);
+      expect(
+        (
+          await portal(patient.token)
+            .get(`/booking/waitlist-allowance?facilityId=${tenant.facilityId}&visitTypeId=${visitType}&practitionerId=${cruz}`)
+            .expect(200)
+        ).body,
+      ).toEqual({ enabled: true, maxEntries: 2, maxDaysAhead: 30 });
+      await join(patient.token, { practitionerId: cruz }).expect(201);
+      // A rule changes only with the version read.
+      await staff(admin)
+        .put("/clinic/waitlist-rules", { facilityId: tenant.facilityId, scope: "visit_type", visitTypeId: visitType, enabled: true, maxEntries: 3, version: 7 })
+        .expect(409);
+      await staff(admin)
+        .put("/clinic/waitlist-rules", { facilityId: tenant.facilityId, scope: "visit_type", visitTypeId: visitType, enabled: true, maxEntries: 3, version: 1 })
+        .expect(200);
+      const listed = (await staff(receptionist).get(`/clinic/waitlist-rules?facilityId=${tenant.facilityId}`).expect(200)).body as Array<{
+        scope: string;
+        version: number;
+      }>;
+      expect(listed.map((r) => [r.scope, r.version])).toEqual([
+        ["practitioner", 1],
+        ["visit_type", 2],
+      ]);
+      expect((await auditRows(ctx.pool, "action = 'facility.waitlist-rule-update'")).length).toBe(3);
+    });
+
+    it("in offer mode holds an opened time for the next waiting patient, who accepts it in MyHealth; the others learn it is taken", async () => {
+      await setRules({ waitlistEnabled: true, maxWaitlistEntries: 3, waitlistMode: "offer", offerHoldMinutes: 60, offerBatch: 2 });
+      // Two patients wait for Dr Cruz on a day; a third books a time that day and cancels it.
+      await ctx.pool.query(
+        `INSERT INTO appointment_waitlist_entry (organization_id, facility_id, patient_id, practitioner_id, visit_type_id, earliest_date, latest_date, created_by, created_by_patient, priority)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, NULL, true, 'routine'), ($1, $2, $7, $4, $5, $6, $6, NULL, true, 'soon')`,
+        [tenant.organizationId, tenant.facilityId, patient.patientId, cruz, visitType, offerDay, second.patientId],
+      );
+      const times = await slots(canceller.token, offerDay, cruz);
+      const made = await book(canceller.token, cruz, times[2]!.startsAt).expect(201);
+      await drainEvents(ctx);
+      await portal(canceller.token).post(`/appointments/${made.body.id}/cancel`, { version: made.body.version }).expect(200);
+      await drainEvents(ctx);
+
+      const first = await offersOf(patient.token);
+      const urgent = await offersOf(second.token);
+      expect(first).toHaveLength(1);
+      expect(urgent).toHaveLength(1);
+      expect(first[0]).toMatchObject({ startsAt: times[2]!.startsAt, practitionerName: "Dr. cruz" });
+      expect(await offersOf(canceller.token)).toEqual([]);
+      const notices = (
+        await ctx.pool.query<{ variables: Record<string, string> }>(
+          "SELECT variables FROM notification WHERE recipient_patient_id = $1 AND template_key = 'appointment.waitlist-offer'",
+          [second.patientId],
+        )
+      ).rows;
+      expect(notices).toHaveLength(1);
+      expect(JSON.stringify(notices)).not.toMatch(/Cruz|0[0-9]:[0-9]{2}|Consultation/);
+      expect(notices[0]!.variables).toMatchObject({ holdText: "1 hour" });
+      // Staff see the held times.
+      const held = (await staff(receptionist).get(`/waitlist/offers?facilityId=${tenant.facilityId}`).expect(200)).body as Array<{
+        status: string;
+        patientId: string;
+      }>;
+      expect(
+        held
+          .filter((o) => o.status === "offered")
+          .map((o) => o.patientId)
+          .sort(),
+      ).toEqual([patient.patientId, second.patientId].sort());
+
+      // The urgent patient accepts: booked as an online booking; the other offer is taken; the entry is closed as booked.
+      const booked = await portal(second.token).post(`/booking/offers/${urgent[0]!.id}/accept`).expect(200);
+      expect(booked.body).toMatchObject({ practitionerId: cruz, startsAt: times[2]!.startsAt, status: "booked" });
+      await portal(patient.token)
+        .post(`/booking/offers/${first[0]!.id}/accept`)
+        .expect(422)
+        .expect((r) => expect(r.body.error.code).toBe("offer_taken"));
+      expect(await offersOf(patient.token)).toEqual([]);
+      const entry = (
+        await ctx.pool.query<{ status: string }>("SELECT status FROM appointment_waitlist_entry WHERE patient_id = $1 AND earliest_date = $2", [
+          second.patientId,
+          offerDay,
+        ])
+      ).rows[0];
+      expect(entry).toMatchObject({ status: "booked" });
+      const audit = await auditRows(ctx.pool, "action = 'waitlist.offer.accept' AND actor_type = 'patient'");
+      expect(audit).toHaveLength(1);
+    });
+
+    it("hands a declined or expired time to the next entries, lets staff accept for the patient, and withdraws with a reason", async () => {
+      // Another cancellation on the same day: only the patient still waiting is offered it (batch 2, one candidate).
+      const times = await slots(canceller.token, offerDay, cruz);
+      const made = await book(canceller.token, cruz, times[0]!.startsAt).expect(201);
+      await drainEvents(ctx);
+      await portal(canceller.token).post(`/appointments/${made.body.id}/cancel`, { version: made.body.version }).expect(200);
+      await drainEvents(ctx);
+      // One offer per entry per day: the earlier (taken) offer that day blocks a new one for this entry.
+      expect(await offersOf(patient.token)).toEqual([]);
+
+      // A new day: the patient waits again, a time opens, and the patient declines it.
+      const nextDay = manilaDate(7);
+      const waiting = await portalPatient("Ofelia", "ofelia@rules.ph");
+      // Liza asked first (an earlier entry), Ofelia later.
+      await ctx.pool.query(
+        `INSERT INTO appointment_waitlist_entry (organization_id, facility_id, patient_id, practitioner_id, visit_type_id, earliest_date, latest_date, created_by, created_by_patient, created_at)
+         VALUES ($1, $2, $7, $4, $5, $6, $6, NULL, true, now() - interval '1 hour'), ($1, $2, $3, $4, $5, $6, $6, NULL, true, now())`,
+        [tenant.organizationId, tenant.facilityId, waiting.patientId, cruz, visitType, nextDay, patient.patientId],
+      );
+      await setRules({ waitlistEnabled: true, maxWaitlistEntries: 3, waitlistMode: "offer", offerHoldMinutes: 60, offerBatch: 1 });
+      const later = await slots(canceller.token, nextDay, cruz);
+      const freed = await book(canceller.token, cruz, later[1]!.startsAt).expect(201);
+      await drainEvents(ctx);
+      await portal(canceller.token).post(`/appointments/${freed.body.id}/cancel`, { version: freed.body.version }).expect(200);
+      await drainEvents(ctx);
+      // The oldest waiting entry (Liza's) gets the only offer.
+      const mine = await offersOf(patient.token);
+      expect(mine).toHaveLength(1);
+      expect(await offersOf(waiting.token)).toEqual([]);
+      await portal(patient.token).post(`/booking/offers/${mine[0]!.id}/decline`).expect(204);
+      // Declining hands the time to the next entry at once.
+      const next = await offersOf(waiting.token);
+      expect(next).toHaveLength(1);
+      expect(next[0]!.startsAt).toBe(later[1]!.startsAt);
+
+      // Staff withdraw it with a reason, then accept the next one on the patient's behalf after an expiry hands it on.
+      await staff(receptionist).post(`/waitlist/offers/${next[0]!.id}/withdraw`, { reason: "x" }).expect(400);
+      const withdrawn = await staff(receptionist).post(`/waitlist/offers/${next[0]!.id}/withdraw`, { reason: "Patient called: no longer needed" }).expect(200);
+      expect(withdrawn.body).toMatchObject({ status: "withdrawn", withdrawReason: "Patient called: no longer needed" });
+      await portal(waiting.token)
+        .post(`/booking/offers/${next[0]!.id}/accept`)
+        .expect(422)
+        .expect((r) => expect(r.body.error.code).toBe("offer_withdrawn"));
+
+      // Expiry: the same time opens again. Liza declined and Ofelia was already offered that day (one offer per entry per
+      // day), so it goes to a newcomer; when her hold runs out the offer expires and nobody else is left to offer it to.
+      const newcomer = await portalPatient("Pia", "pia@rules.ph");
+      await ctx.pool.query(
+        `INSERT INTO appointment_waitlist_entry (organization_id, facility_id, patient_id, practitioner_id, visit_type_id, earliest_date, latest_date, created_by, created_by_patient)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, NULL, true)`,
+        [tenant.organizationId, tenant.facilityId, newcomer.patientId, cruz, visitType, nextDay],
+      );
+      const again = await book(canceller.token, cruz, later[1]!.startsAt).expect(201);
+      await drainEvents(ctx);
+      await portal(canceller.token).post(`/appointments/${again.body.id}/cancel`, { version: again.body.version }).expect(200);
+      await drainEvents(ctx);
+      const reoffered = await offersOf(newcomer.token);
+      expect(reoffered).toHaveLength(1);
+      expect(await offersOf(waiting.token)).toEqual([]);
+      await ctx.pool.query("UPDATE waitlist_offer SET expires_at = now() - interval '1 minute' WHERE id = $1", [reoffered[0]!.id]);
+      const offers = ctx.app.get(WaitlistOffersService);
+      expect((await offers.expire()).expired).toBe(1);
+      expect(await offersOf(newcomer.token)).toEqual([]);
+      const open = (await staff(receptionist).get(`/waitlist/offers?facilityId=${tenant.facilityId}`).expect(200)).body as Array<{
+        id: string;
+        patientId: string;
+        status: string;
+      }>;
+      expect(open.filter((o) => o.status === "offered")).toEqual([]);
+      expect((await ctx.pool.query("SELECT status FROM waitlist_offer WHERE id = $1", [reoffered[0]!.id])).rows[0]).toEqual({ status: "expired" });
+      // Staff acceptance: a fresh offer for Ofelia on yet another day.
+      const thirdDay = manilaDate(13);
+      await ctx.pool.query(
+        `INSERT INTO appointment_waitlist_entry (organization_id, facility_id, patient_id, practitioner_id, visit_type_id, earliest_date, latest_date, created_by, created_by_patient)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, NULL, true)`,
+        [tenant.organizationId, tenant.facilityId, waiting.patientId, cruz, visitType, thirdDay],
+      );
+      const third = await slots(canceller.token, thirdDay, cruz);
+      const last = await book(canceller.token, cruz, third[0]!.startsAt).expect(201);
+      await drainEvents(ctx);
+      await portal(canceller.token).post(`/appointments/${last.body.id}/cancel`, { version: last.body.version }).expect(200);
+      await drainEvents(ctx);
+      const forStaff = (await staff(receptionist).get(`/waitlist/offers?facilityId=${tenant.facilityId}`).expect(200)).body as Array<{
+        id: string;
+        patientId: string;
+      }>;
+      const offer = forStaff.find((o) => o.patientId === waiting.patientId)!;
+      const accepted = await staff(receptionist).post(`/waitlist/offers/${offer.id}/accept`).expect(200);
+      expect(accepted.body).toMatchObject({ patientId: waiting.patientId, practitionerId: cruz, bookingChannel: "front_desk" });
+      expect((await ctx.pool.query("SELECT status, accepted_by_patient FROM waitlist_offer WHERE id = $1", [offer.id])).rows[0]).toMatchObject({
+        status: "accepted",
+        accepted_by_patient: false,
+      });
+    });
+
+    it("lists the day's appointments by room", async () => {
+      const room = (
+        await staff(admin).post("/clinic/rooms", { facilityId: tenant.facilityId, code: "r1", name: "Room 1", roomType: "consultation" }).expect(201)
+      ).body;
+      const roomDay = manilaDate(14);
+      const times = await slots(canceller.token, roomDay, reyes);
+      const inRoom = await staff(receptionist)
+        .post("/appointments", {
+          patientId: canceller.patientId,
+          practitionerId: reyes,
+          facilityId: tenant.facilityId,
+          visitTypeId: visitType,
+          startsAt: times[0]!.startsAt,
+          roomId: room.id,
+        })
+        .expect(201);
+      await staff(receptionist)
+        .post("/appointments", {
+          patientId: patient.patientId,
+          practitionerId: reyes,
+          facilityId: tenant.facilityId,
+          visitTypeId: visitType,
+          startsAt: times[1]!.startsAt,
+        })
+        .expect(201);
+      const all = (await staff(receptionist).get(`/appointments?facilityId=${tenant.facilityId}&date=${roomDay}`).expect(200)).body.items as Array<{
+        id: string;
+        room: { name: string } | null;
+      }>;
+      expect(all.find((a) => a.id === inRoom.body[0].id)?.room).toEqual({ id: room.id, name: "Room 1" });
+      expect(all.filter((a) => a.room === null)).toHaveLength(1);
+      const only = (await staff(receptionist).get(`/appointments?facilityId=${tenant.facilityId}&date=${roomDay}&roomId=${room.id}`).expect(200)).body
+        .items as Array<{ id: string }>;
+      expect(only.map((a) => a.id)).toEqual([inRoom.body[0].id]);
     });
   });
 });

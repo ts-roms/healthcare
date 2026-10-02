@@ -156,6 +156,34 @@ export function groupByPractitioner<T extends { practitionerId: string; startsAt
     .sort((x, y) => (x.practitioner?.displayName ?? "").localeCompare(y.practitioner?.displayName ?? ""));
 }
 
+/**
+ * The day's appointments laid out by room (migration 0096 views): one column per active room of the facility, in
+ * name order, then "No room" for bookings without one. Rooms with nothing booked are kept so an empty room shows as such.
+ */
+export function groupByRoom<T extends { room?: { id: string; name: string } | null; startsAt: string }>(
+  items: T[],
+  rooms: ReadonlyArray<{ id: string; name: string; status?: "active" | "inactive" }>,
+): Array<{ roomId: string | null; name: string; items: T[] }> {
+  const byRoom = new Map<string | null, T[]>();
+  for (const item of items) {
+    const key = item.room?.id ?? null;
+    byRoom.set(key, [...(byRoom.get(key) ?? []), item]);
+  }
+  const sortByStart = (rows: T[]) => rows.sort((x, y) => x.startsAt.localeCompare(y.startsAt));
+  const known = new Set(rooms.map((r) => r.id));
+  const columns: Array<{ roomId: string | null; name: string; items: T[] }> = rooms
+    .filter((r) => r.status !== "inactive" || byRoom.has(r.id))
+    .map((r) => ({ roomId: r.id, name: r.name, items: sortByStart(byRoom.get(r.id) ?? []) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  // A room the list does not know (retired, or another facility's) still gets its column.
+  for (const [key, rows] of byRoom) {
+    if (key && !known.has(key)) columns.push({ roomId: key, name: rows[0]?.room?.name ?? "Room", items: sortByStart(rows) });
+  }
+  const none = byRoom.get(null);
+  if (none?.length) columns.push({ roomId: null, name: "No room", items: sortByStart(none) });
+  return columns;
+}
+
 /** YYYY-MM-DD shifted by whole days (calendar arithmetic, no time zone). */
 export function shiftDate(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];

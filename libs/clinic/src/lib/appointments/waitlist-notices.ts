@@ -3,9 +3,10 @@ import { DATABASE, type Database, DomainEventHandlers, type DomainEventRecord, l
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, gte, lte } from "drizzle-orm";
-import { waitlistEntry } from "../clinic.schema";
+import { visitType, waitlistEntry } from "../clinic.schema";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { patientMayChange, waitlistMatches } from "../domain/patient-booking";
+import { WaitlistOffersService } from "./waitlist-offers.service";
 
 /**
  * When a time opens (an appointment is cancelled, or moved away), patients on the facility's waiting list for those days
@@ -22,6 +23,7 @@ export class WaitlistNotices implements OnModuleInit {
     private readonly notifications: NotificationService,
     private readonly organizations: OrganizationService,
     private readonly rules: BookingRulesService,
+    private readonly offers: WaitlistOffersService,
   ) {}
 
   onModuleInit(): void {
@@ -43,6 +45,20 @@ export class WaitlistNotices implements OnModuleInit {
     if (!patientMayChange(freedAt, now, { ...rules, changeCutoffMinutes: rules.minLeadMinutes })) return;
     const date = localDate(freedAt, site.timezone);
     const visitTypeId = typeof event.payload["visitTypeId"] === "string" ? event.payload["visitTypeId"] : null;
+    if (rules.waitlistMode === "offer") {
+      // The exact time is held for the next entries; its length is the visit type's.
+      const [type] = visitTypeId
+        ? await this.db.select({ minutes: visitType.defaultDurationMinutes }).from(visitType).where(eq(visitType.id, visitTypeId))
+        : [];
+      const endsAt = new Date(freedAt.getTime() + (type?.minutes ?? 30) * 60_000);
+      await this.offers.offerSlot(
+        event.organizationId,
+        event.facilityId,
+        { startsAt: freedAt, endsAt, practitionerId, visitTypeId, freedByPatientId: event.patientId ?? null },
+        now,
+      );
+      return;
+    }
     const entries = await this.db
       .select()
       .from(waitlistEntry)

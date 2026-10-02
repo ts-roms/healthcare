@@ -412,6 +412,18 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "appointment.waitlist-offer",
+    version: 1,
+    category: "administrative",
+    // Leaves the platform (SMS/email): the clinic and the day only — the offered time is shown after sign-in (0096).
+    channels: ["sms", "email"],
+    variables: z.object({ facilityName: shortText, date: shortText, holdText: shortText }),
+    render: (v) => ({
+      subject: "A time is being held for you",
+      text: `${v.facilityName}: a time on ${v.date} is being held for you for ${v.holdText}. Sign in to MyHealth to accept or decline it.`,
+    }),
+  }),
+  defineTemplate({
     key: "portal.push-test",
     version: 1,
     category: "administrative",
@@ -610,6 +622,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
+  "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",
   "portal.message-received": "A MyHealth message is waiting",
   "portal.message-new": "New MyHealth message (staff)",

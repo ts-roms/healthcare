@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { WaitlistEntry } from "@/lib/api/types";
+import type { WaitlistEntry, WaitlistOffer } from "@/lib/api/types";
+import { OffersTable } from "./offers-table";
 import { WaitlistTable } from "./waitlist-table";
 
 export const metadata = { title: "Waiting list" };
@@ -23,11 +24,17 @@ export default async function WaitlistPage() {
       </>
     );
   }
-  const [entries, practitioners, visitTypes] = await Promise.all([
+  const [entries, offers, practitioners, visitTypes] = await Promise.all([
     api<WaitlistEntry[]>("/waitlist", { query: { facilityId: facility.id } }),
+    api<WaitlistOffer[]>("/waitlist/offers", { query: { facilityId: facility.id, includeClosed: "true" } }),
     getPractitioners(),
     getVisitTypes(),
   ]);
+  const offerRows = offers.slice(0, 50).map((o) => ({
+    ...o,
+    practitionerName: practitioners.find((p) => p.id === o.practitionerId)?.displayName ?? null,
+    visitTypeName: visitTypes.find((v) => v.id === o.visitTypeId)?.name ?? null,
+  }));
   const rows = entries.map((e) => ({
     ...e,
     practitionerName: practitioners.find((p) => p.id === e.practitionerId)?.displayName ?? null,
@@ -49,6 +56,7 @@ export default async function WaitlistPage() {
         }
       />
       <WaitlistTable rows={rows} canManage={can(session, "appointment.manage")} />
+      <OffersTable rows={offerRows} canManage={can(session, "appointment.manage")} />
     </>
   );
 }

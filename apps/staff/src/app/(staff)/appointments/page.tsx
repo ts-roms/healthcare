@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { AppointmentItem, Page } from "@/lib/api/types";
+import type { AppointmentItem, ClinicRoom, Page } from "@/lib/api/types";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
 import { AppointmentsDay } from "./appointments-day";
 
@@ -16,7 +16,7 @@ export const metadata = { title: "Appointments" };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string; practitionerId?: string }> }) {
+export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string; practitionerId?: string; view?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "appointment.read")) redirect("/");
   if (!facility) {
@@ -31,8 +31,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const date = params.date && DATE.test(params.date) ? params.date : today;
   const [practitioners, visitTypes] = await Promise.all([getPractitioners(), getVisitTypes()]);
   const practitionerId = practitioners.some((p) => p.id === params.practitionerId) ? params.practitionerId : undefined;
-  const page = await api<Page<AppointmentItem>>("/appointments", { query: { facilityId: facility.id, date, practitionerId, pageSize: 100 } });
-  const href = (d: string) => `/appointments?date=${d}${practitionerId ? `&practitionerId=${practitionerId}` : ""}`;
+  const byRoom = params.view === "room";
+  const [page, rooms] = await Promise.all([
+    api<Page<AppointmentItem>>("/appointments", { query: { facilityId: facility.id, date, practitionerId, pageSize: 100 } }),
+    api<ClinicRoom[]>("/clinic/rooms", { query: { facilityId: facility.id } }).catch(() => [] as ClinicRoom[]),
+  ]);
+  const href = (d: string) => `/appointments?date=${d}${practitionerId ? `&practitionerId=${practitionerId}` : ""}${byRoom ? "&view=room" : ""}`;
 
   return (
     <>
@@ -90,6 +94,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         canOpenRecord={can(session, "patient.read")}
         facilityId={facility.id}
         timeZone={facility.timezone}
+        rooms={rooms}
+        byRoom={byRoom}
       />
     </>
   );

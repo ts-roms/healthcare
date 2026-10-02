@@ -98,6 +98,44 @@ function RulesForm({ facility, canConfigure }: { facility: FacilityBookingRules;
             />
           </div>
           <div className={field}>
+            <Label htmlFor={`mode-${facility.facilityId}`}>When a time opens</Label>
+            <NativeSelect
+              id={`mode-${facility.facilityId}`}
+              value={rules.waitlistMode}
+              disabled={!canConfigure || !rules.waitlistEnabled}
+              onChange={(e) => setRules((r) => ({ ...r, waitlistMode: e.target.value as "notice" | "offer" }))}
+            >
+              <option value="notice">Tell waiting patients a time may have opened</option>
+              <option value="offer">Hold the time and offer it to the next patient</option>
+            </NativeSelect>
+            <p className="text-meta text-muted-foreground">
+              An offer is accepted by the patient in MyHealth, or by you for them. Nothing is ever booked without someone&apos;s acceptance.
+            </p>
+          </div>
+          <div className={field}>
+            <Label htmlFor={`hold-${facility.facilityId}`}>Hold an offered time for (minutes)</Label>
+            <Input
+              id={`hold-${facility.facilityId}`}
+              type="number"
+              min={15}
+              max={1440}
+              disabled={!canConfigure || !rules.waitlistEnabled || rules.waitlistMode !== "offer"}
+              {...num("offerHoldMinutes")}
+            />
+          </div>
+          <div className={field}>
+            <Label htmlFor={`batch-${facility.facilityId}`}>Offer each time to (patients at once)</Label>
+            <Input
+              id={`batch-${facility.facilityId}`}
+              type="number"
+              min={1}
+              max={5}
+              disabled={!canConfigure || !rules.waitlistEnabled || rules.waitlistMode !== "offer"}
+              {...num("offerBatch")}
+            />
+            <p className="text-meta text-muted-foreground">The first to accept gets it; the others are told it is taken.</p>
+          </div>
+          <div className={field}>
             <span className="text-table font-medium">Automatic no-shows</span>
             <label className="flex items-center gap-2 text-body">
               <Checkbox

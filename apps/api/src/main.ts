@@ -6,7 +6,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { CrmCampaignRuns } from "@healthcare/crm";
-import { AutomaticNoShows } from "@healthcare/clinic";
+import { AutomaticNoShows, WaitlistOffersService } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
@@ -33,6 +33,8 @@ async function bootstrap(): Promise<void> {
   app.get(CarePlanRecallReminders).start();
   // Hourly: unattended appointments marked as no-shows after each clinic's hour, where the clinic turned it on.
   app.get(AutomaticNoShows).start();
+  // Hourly: waiting-list offers whose hold ran out expire and the time goes to the next entries (docs/domains/clinic.md).
+  app.get(WaitlistOffersService).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
   // Hourly: scheduled management reports whose period has ended (CSV files stored, recipients told).

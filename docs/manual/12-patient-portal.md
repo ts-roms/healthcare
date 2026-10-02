@@ -176,6 +176,12 @@ You see "Your visit was moved." Your visit stays at the same clinic and is the s
 **If the day you want is full**, and your clinic has a waiting list, you see "This day is full." Choose **Tell me if a time opens**. If a time opens on
 that day you get a text or an email saying so (it never names the doctor or the time); sign in and book it yourself, because times go to whoever books
 first. Your requests are listed under **Waiting list** on **Visits**, where you can **Remove** one. Booking a time on those days removes the request.
+Some clinics take waiting-list requests only for some kinds of visit or some doctors; the screen tells you when yours is not taken online.
+
+**A time is being held for you.** Some clinics hold an opened time for the next person on the list instead of telling everyone. You get a text or an
+email that a time is being held (it never names the doctor or the time), and on **Visits** you see the time with **Accept and book** and **Decline**.
+Accept to book it — the first to accept gets it, so a held time can turn out to be taken — or decline to stay on the list. A held time you do not
+answer in time goes to the next person.
 
 **To cancel it:**
 

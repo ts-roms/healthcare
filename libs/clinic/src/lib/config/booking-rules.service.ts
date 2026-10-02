@@ -21,6 +21,9 @@ const FIELDS = [
   "onlineCheckIn",
   "checkInOpensMinutes",
   "checkInClosesMinutes",
+  "waitlistMode",
+  "offerHoldMinutes",
+  "offerBatch",
 ] as const;
 
 export interface FacilityBookingRules {
@@ -45,6 +48,9 @@ const toRules = (row: typeof facilityBookingRule.$inferSelect): BookingRules => 
   onlineCheckIn: row.onlineCheckIn,
   checkInOpensMinutes: row.checkInOpensMinutes,
   checkInClosesMinutes: row.checkInClosesMinutes,
+  waitlistMode: row.waitlistMode,
+  offerHoldMinutes: row.offerHoldMinutes,
+  offerBatch: row.offerBatch,
 });
 
 /**
