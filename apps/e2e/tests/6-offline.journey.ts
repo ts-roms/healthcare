@@ -48,7 +48,9 @@ test("the desk captures a registration, a walk-in and vital signs offline and th
   await expect(admin.getByText("3 waiting")).toBeVisible();
 
   await context.setOffline(false);
-  await admin.getByRole("button", { name: "Send now" }).click();
+  // The outbox sends on its own when the connection returns; Send now is for when it has not started yet.
+  const send = admin.getByRole("button", { name: "Send now" });
+  if (await send.isEnabled()) await send.click();
   await toast(admin, "Sent: OFFLINE, Oscar");
   await toast(admin, "Sent: Walk-in · OFFLINE, Oscar");
   await toast(admin, "Sent: Vitals · Walk-in · OFFLINE, Oscar");
