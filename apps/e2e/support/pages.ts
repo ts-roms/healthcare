@@ -15,9 +15,25 @@ export async function staffPage(browser: Browser, email: string, errors: string[
   const page = await context.newPage();
   watchErrors(page, email, errors);
   await page.goto("/login");
-  await page.locator("#email").fill(email);
-  await page.locator("#password").fill(STAFF_PASSWORD);
-  await Promise.all([page.waitForURL((url) => !url.pathname.startsWith("/login")), page.getByRole("button", { name: /sign in/i }).click()]);
+  // The API allows 10 credential attempts a minute per client; a run of several journeys can hit that at a later
+  // sign-in. A refused attempt shows an alert on the form: wait out the window once and try again.
+  for (let attempt = 1; ; attempt += 1) {
+    await page.locator("#email").fill(email);
+    await page.locator("#password").fill(STAFF_PASSWORD);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    const outcome = await Promise.race([
+      page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 }).then(() => "signed-in" as const),
+      page
+        .getByRole("alert")
+        .waitFor({ timeout: 20_000 })
+        .then(() => "refused" as const),
+    ]).catch(() => "timeout" as const);
+    if (outcome === "signed-in") break;
+    const message = outcome === "refused" ? await page.getByRole("alert").innerText() : "no answer";
+    if (attempt >= 2 || !/too many|rate|limit|try again/i.test(message)) throw new Error(`Sign-in as ${email} failed: ${message}`);
+    await page.waitForTimeout(61_000);
+    await page.goto("/login");
+  }
   const facility = page.getByLabel("Facility");
   if ((await facility.count()) && (await facility.inputValue()) === "") {
     await facility.selectOption({ label: "E2E Main Clinic" });
