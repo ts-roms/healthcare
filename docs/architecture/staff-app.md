@@ -244,7 +244,10 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
   (only roles whose every permission the administrator holds are offered — the API refuses the others), revoke with a reason, suspend or reactivate
   with a reason (not oneself); with `user.mfa.manage`, exempt from the two-step verification requirement (reason) or reset two-step verification
-  (reason; ends their sessions). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from `admin/users/directory.ts`.
+  (reason; ends their sessions); with `user.manage`, give a temporary password (with a reason) that must be replaced at the next sign-in
+  (`POST /users/:userId/password-reset`; ends their sessions, audited `user.password-reset`; not oneself; an account shared with another
+  organization needs a platform administrator). Server actions in `app/(staff)/admin/users/actions.ts`; scope names from
+  `admin/users/directory.ts`.
 - `/admin/security` (`user.read`; changes `user.mfa.manage`): the staff two-step verification requirement (on only once the administrator's own is on),
   member figures, who still lacks it, exempt accounts. Actions and controls in `app/(staff)/admin/security/`. While `GET /auth/me` says
   `mfaPolicy.enrollmentRequired`, the `(staff)` layout renders `MfaEnrollmentGate` (set-up only) instead of the page: the API refuses everything else.
@@ -259,7 +262,7 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   recovery code; not while the organization requires it); recovery codes left and **New recovery codes…** (password and an app code). Sign-in takes
   an app code or a recovery code (`lib/second-factor.ts`).
 
-Not built: resetting another person's password (no API), editing roles, coding systems.
+Not built: editing roles, coding systems.
 
 ## Integrations (administration)
 

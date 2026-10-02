@@ -236,9 +236,8 @@ administrator's own MFA first (`422 own_mfa_required`).
 
 - No breached-password screening.
 - Rate-limit counters are per instance (move to Redis before scaling out).
-- Refresh tokens are returned in JSON; the web app should use an HttpOnly
-  cookie / BFF pattern.
-- Patient-portal identities (`app_user.kind = 'patient'`) are modeled but not used yet.
+- `app_user.kind = 'patient'` (migration `0004`) is unused: patients sign in with their own accounts
+  (`patient_portal_account`, migration `0013`; `PatientAccessGuard`), not as `app_user` rows.
 - Data retention periods and deletion/anonymization procedures must be defined
   with the organization's Data Protection Officer against current NPC guidance.
 
