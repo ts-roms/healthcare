@@ -161,8 +161,12 @@ Record the answer (and who decided) here before building the part it governs.
   permission requested, until a verified workflow needs one.
 - **D10 — offline and caching.** Nothing about the patient is kept on the device beyond the refresh token in the Keychain/Keystore
   (D5); no results, documents or bills are cached.
-- **D11 — screen protection.** The app's screens are hidden in the app switcher (blurred or covered when the app goes to the background);
-  to be built as its own change. Clipboard handling and crash-report scrubbing are not built (no crash reporting exists).
+- **D11 — screen protection.** Built: while the app is not in the foreground every screen is covered (`components/privacy-cover.tsx`,
+  `AppState`; iOS snapshots the switcher after `inactive`, so it shows the cover), and `expo-screen-capture` adds the platform's own
+  capture protection at start-up (`lib/native-screen-capture.ts`, loaded on first use: as the module states, FLAG_SECURE on Android —
+  blank recents preview, screenshots and recording refused — and screenshot/recording prevention on iOS 13+/11+). Screen sharing and
+  casting of the app are refused with it. Checked on a device per release (D14), not here. Clipboard handling and crash-report scrubbing
+  are not built (no crash reporting exists).
 - **D14 — testing.** Two journeys must be checked through the app itself before each release: sign-in with two-step verification, and
   opening a released result and its history (with push on and off, and sign-out); manually, per the release runbook, until an on-device
   automation tool is chosen. The e2e project still covers the web apps only.

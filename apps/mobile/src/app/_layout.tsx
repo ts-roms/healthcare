@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { PrivacyCover } from "@/components/privacy-cover";
 import { ErrorState, Loading } from "@/components/screen-states";
 import { SessionProvider, useSession } from "@/components/session-provider";
 import { colors } from "@/components/theme";
@@ -15,6 +16,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      <PrivacyCover />
       {configured ? (
         <SessionProvider>
           <Screens />
