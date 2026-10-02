@@ -118,7 +118,39 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
   `clinic.procedure-supplies.issue|return`; events `ClinicProcedureSuppliesIssued|Returned` (ids and counts). The pure
   rules are shared with dentistry (`libs/core`, `supplies/supply-use.ts`). No default stock location per facility (staff
   choose each time) and supplies are not charged automatically.
-- **Not built**: consent forms for procedures, templates of procedure notes, and procedures outside a consultation.
+- **Consent** (migration `0095`): each catalogue entry may carry the organization's own consent wording, versioned
+  and append-only (`clinic_procedure_consent_wording`; `GET|POST /clinic/procedure-definitions/:id/consent-wordings`,
+  `clinic.configure`, audited `clinic.procedure-consent-wording.publish`; the platform ships none), and may require
+  consent (`consent_required`). A printable form for one patient — letterhead, identification, the procedure, the current
+  wording and its version, signature lines — comes from `GET /clinic/procedure-definitions/:id/consent-form.pdf?patientId=`
+  (`encounter.read` + `patient.read`, audited `clinic.procedure-consent-form.print`, not stored; the signed form is
+  uploaded as a `consent_form` document). The consent is recorded against the procedure (`clinic_procedure_consent`, one
+  per procedure, append-only): captured on paper, electronically (the wording version shown is required) or verbally;
+  by the patient or a representative named as written with the relationship; who obtained it (the performer by default)
+  and when (the performed time by default; never after it, `consent_after_procedure`); an optional scan (a `consent_form`
+  document of the same patient, `document_not_consent_form`); notes. Given with the procedure (`consent` in the record
+  body; `procedure_consent_required` when the entry requires it) or added once later (`POST /procedures/:id/consent`,
+  `encounter.write` or `procedure.record`; `consent_already_recorded`). Audited `clinic.procedure-consent.record` (ids,
+  how captured, wording version, whether a scan is linked — never names or notes). Refusals are not recorded: a procedure
+  not performed has no record. What a valid informed consent must say and who may consent for a minor or an
+  incapacitated patient are compliance dependencies; nothing here decides them.
+- **Note template** (migration `0095`): the organization's own text per catalogue entry (`note_template`, ≤ 2000) that
+  prefills the notes when the entry is chosen; the stored note is what the clinician submitted (an untouched template is
+  replaced when another entry is chosen; typed text stays). No placeholders, no clinical rule.
+- **Outside a consultation** (migration `0095`): a catalogue entry the organization allows
+  (`allowed_outside_consultation`, off by default — which procedures a nurse carries out without a physician's
+  consultation is the organization's clinical governance) may be recorded under an open, in-person **queue visit**
+  instead of a consultation: `encounter_id` is nullable, `visit_id` names the visit, and a database CHECK keeps a
+  procedure filed under one or the other, never free-floating. `POST /visits/:id/procedures` needs the new permission
+  `procedure.record` (org_admin, physician, nurse) and the selected facility; the visit must be open
+  (`visit_closed`), in person (`visit_online`) and the entry allowed (`procedure_requires_consultation`); performed not
+  before check-in (`performed_before_visit`); no late entry (nothing is signed). `GET /visits/:id/procedures`
+  (`encounter.read`). Billing, supplies, entered in error and consent work unchanged. Reads show it: the patient's list
+  (`visitId`), timeline (`… · outside a consultation`, linked to the patient record), Patient 360, FHIR `Procedure`
+  without `encounter`, and the copy of the record under "Procedures outside a consultation". Staff: **Procedures** on the
+  queue ticket → `/queue/visits/[id]/procedures`; **Procedures done here** on the patient record → `/patients/[id]/procedures`.
+- **Not built**: procedure-specific consent for the patient to give online, consent for a series of procedures, and
+  recording a refusal of consent.
 
 ## Patient history
 

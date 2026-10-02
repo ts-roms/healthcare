@@ -47,6 +47,7 @@ export default async function QueuePage() {
         canOpenRecord={can(session, "patient.read")}
         canConsult={can(session, "encounter.write")}
         canOpenEncounter={can(session, "encounter.read")}
+        canRecordProcedure={can(session, "procedure.record")}
       />
     </>
   );

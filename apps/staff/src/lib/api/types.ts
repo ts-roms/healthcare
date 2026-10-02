@@ -4732,17 +4732,53 @@ export interface ProcedureDefinition {
   codeSystem: string | null;
   externalCode: string | null;
   requiresBodySite: boolean;
+  /** Recording a procedure of this entry needs a recorded consent (migration 0095). */
+  consentRequired: boolean;
+  /** May be recorded under a queue visit without a consultation (procedure.record). */
+  allowedOutsideConsultation: boolean;
+  /** The organization's own text that prefills the notes. */
+  noteTemplate: string | null;
+  /** The current (latest) version of the organization's consent wording for this entry, if any. */
+  consentWording: ProcedureConsentWording | null;
   status: "active" | "inactive";
   version: number;
 }
 
-/** A procedure recorded in a consultation (GET /encounters/:id/procedures, /patients/:id/procedures). */
+/** One version of the organization's consent wording for a catalogue entry (append-only). */
+export interface ProcedureConsentWording {
+  id: string;
+  definitionId: string;
+  version: number;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+/** The consent recorded against a procedure (one per procedure). */
+export interface ProcedureConsent {
+  id: string;
+  capturedVia: "paper" | "electronic" | "verbal";
+  givenBy: "patient" | "representative";
+  representativeName: string | null;
+  representativeRelationship: string | null;
+  wording: { id: string; version: number } | null;
+  obtainedBy: { id: string; name: string };
+  obtainedAt: string;
+  documentId: string | null;
+  notes: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** A procedure recorded in a consultation or under a queue visit (GET /encounters/:id/procedures, /visits/:id/procedures, /patients/:id/procedures). */
 export interface ClinicProcedure {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */
   patientId: string;
   facility: { id: string; name: string };
-  encounterId: string;
+  /** The consultation, or null when performed under a queue visit without one. */
+  encounterId: string | null;
+  visitId: string | null;
   definitionId: string;
   code: string;
   name: string;
@@ -4756,6 +4792,8 @@ export interface ClinicProcedure {
   quantity: number;
   notes: string | null;
   lateEntryReason: string | null;
+  /** The consent recorded against it, if any. */
+  consent: ProcedureConsent | null;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
   recordedAt: string;
   recordedBy: string;
@@ -4766,7 +4804,9 @@ export interface ClinicProcedure {
 export interface WorkspaceProcedure {
   id: string;
   filedUnder: string | null;
-  encounterId: string;
+  /** The consultation, or null when performed under a queue visit without one. */
+  encounterId: string | null;
+  visitId: string | null;
   description: string;
   performedAt: string;
   performerName: string | null;

@@ -5,7 +5,7 @@
  */
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-const ROUTES: Array<[RegExp, (id: string) => string]> = [
+const ROUTES: Array<[RegExp, (id: string, second: string) => string]> = [
   [new RegExp(`^lab-reports/(${UUID})$`, "i"), (id) => `/laboratory/orders/${id}/report.pdf`],
   [new RegExp(`^invoices/(${UUID})$`, "i"), (id) => `/billing/invoices/${id}/pdf`],
   [new RegExp(`^receipts/(${UUID})$`, "i"), (id) => `/billing/payments/${id}/receipt.pdf`],
@@ -18,6 +18,11 @@ const ROUTES: Array<[RegExp, (id: string) => string]> = [
   [new RegExp(`^dental-estimates/(${UUID})$`, "i"), (id) => `/dental/treatment-plans/${id}/estimate.pdf`],
   [new RegExp(`^medical-certificates/(${UUID})$`, "i"), (id) => `/medical-certificates/${id}/certificate.pdf`],
   [new RegExp(`^referral-letters/(${UUID})$`, "i"), (id) => `/referrals/${id}/letter.pdf`],
+  // A procedure consent form for one patient: the catalogue entry, then the patient.
+  [
+    new RegExp(`^procedure-consent-forms/(${UUID})/(${UUID})$`, "i"),
+    (id, patientId) => `/clinic/procedure-definitions/${id}/consent-form.pdf?patientId=${patientId}`,
+  ],
 ];
 
 /** The API path for a /files/... path, or null when it is not a known document. */
@@ -25,7 +30,7 @@ export function fileApiPath(segments: string[]): string | null {
   const path = segments.join("/");
   for (const [pattern, api] of ROUTES) {
     const match = pattern.exec(path);
-    if (match?.[1]) return api(match[1]);
+    if (match?.[1]) return api(match[1], match[2] ?? "");
   }
   return null;
 }
@@ -43,4 +48,5 @@ export const fileHref = {
   dentalEstimate: (planId: string) => `/files/dental-estimates/${planId}`,
   medicalCertificate: (certificateId: string) => `/files/medical-certificates/${certificateId}`,
   referralLetter: (referralId: string) => `/files/referral-letters/${referralId}`,
+  procedureConsentForm: (definitionId: string, patientId: string) => `/files/procedure-consent-forms/${definitionId}/${patientId}`,
 };

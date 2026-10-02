@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, MegaphoneIcon, RefreshCwIcon, StethoscopeIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, HandIcon, MegaphoneIcon, RefreshCwIcon, StethoscopeIcon, XIcon } from "lucide-react";
 import { clinicalTime, QueueBoard, sexLabel } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
@@ -31,6 +31,7 @@ export function QueueWorkspace({
   canOpenRecord,
   canConsult,
   canOpenEncounter,
+  canRecordProcedure = false,
 }: {
   visits: QueueVisit[];
   canManage: boolean;
@@ -40,6 +41,8 @@ export function QueueWorkspace({
   canConsult: boolean;
   /** encounter.read: may open a consultation. */
   canOpenEncounter: boolean;
+  /** procedure.record: may record a procedure under the visit without a consultation. */
+  canRecordProcedure?: boolean;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -100,6 +103,7 @@ export function QueueWorkspace({
           canOpenRecord={canOpenRecord}
           canConsult={canConsult}
           canOpenEncounter={canOpenEncounter}
+          canRecordProcedure={canRecordProcedure}
           pending={pending}
           onClose={() => setSelectedId(null)}
           onMove={(move, reason) =>
@@ -123,6 +127,7 @@ function VisitPanel({
   canOpenRecord,
   canConsult,
   canOpenEncounter,
+  canRecordProcedure,
   pending,
   onClose,
   onMove,
@@ -134,6 +139,7 @@ function VisitPanel({
   canOpenRecord: boolean;
   canConsult: boolean;
   canOpenEncounter: boolean;
+  canRecordProcedure: boolean;
   pending: boolean;
   onClose: () => void;
   onMove: (move: QueueMove, reason?: string) => void;
@@ -215,6 +221,13 @@ function VisitPanel({
           <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>
             <Link href={`/queue/visits/${visit.id}/triage`}>
               <StethoscopeIcon /> {visit.status === "awaiting_consultation" ? "Update triage" : "Triage & vitals"}
+            </Link>
+          </Button>
+        ) : null}
+        {canRecordProcedure && !["completed", "cancelled", "left_without_being_seen"].includes(visit.status) && visit.modality === "in_person" ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/queue/visits/${visit.id}/procedures`}>
+              <HandIcon /> Procedures
             </Link>
           </Button>
         ) : null}

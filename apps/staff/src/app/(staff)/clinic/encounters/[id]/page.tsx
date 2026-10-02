@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { loadImmunizationData } from "@/lib/api/immunizations";
+import { loadConsentFormDocuments } from "@/lib/api/procedures";
 import { loadPatientHistory } from "@/lib/api/history";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -92,6 +93,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     medicalHistory,
     procedures,
     procedureDefinitions,
+    consentDocuments,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -112,7 +114,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     optional<Referral[]>(`/encounters/${encounter.id}/referrals`),
     loadPatientHistory(encounter.patientId),
     optional<ClinicProcedure[]>(`/encounters/${encounter.id}/procedures`),
-    can(session, "encounter.write") ? optional<ProcedureDefinition[]>("/clinic/procedure-definitions") : Promise.resolve([] as ProcedureDefinition[]),
+    optional<ProcedureDefinition[]>("/clinic/procedure-definitions"),
+    loadConsentFormDocuments(encounter.patientId),
   ]);
   // Supplies used by the procedures (from inventory): only once a procedure is recorded.
   const [supplyUses, supplyOptions] = procedures?.length
@@ -200,6 +203,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
               currentUserId: session.user.id,
               supplyUses: supplyUses ?? [],
               supplyOptions,
+              consentDocuments,
             }
           : null
       }

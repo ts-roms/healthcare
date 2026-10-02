@@ -4,6 +4,7 @@ import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { ProcedureDefinition, ProcedureSupplyOptions } from "@/lib/api/types";
 import { ProcedureCatalog } from "./procedure-catalog";
+import { ProcedureConsentWording } from "./procedure-consent-wording";
 import { ProcedureSupplyTemplates } from "./procedure-supply-templates";
 
 export const metadata = { title: "Procedures" };
@@ -24,9 +25,10 @@ export default async function ProceduresPage() {
     <>
       <PageHeader
         title="Procedures"
-        description="The procedures your clinic performs in consultations (not dental work or vaccinations), with your own codes. Billing charges a procedure when a service is mapped to its code (Billing → Settings)."
+        description="The procedures your clinic performs (not dental work or vaccinations), with your own codes, consent wording and note templates. Billing charges a procedure when a service is mapped to its code (Billing → Settings)."
       />
       <ProcedureCatalog definitions={definitions} canConfigure={can(session, "clinic.configure")} />
+      <ProcedureConsentWording definitions={definitions.filter((d) => d.status === "active")} canConfigure={can(session, "clinic.configure")} />
       <ProcedureSupplyTemplates options={supplyOptions} definitions={definitions} canConfigure={can(session, "clinic.configure")} />
     </>
   );

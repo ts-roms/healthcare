@@ -35,6 +35,43 @@ export function recordingProblem(
   return null;
 }
 
+export type VisitRecordingProblem = "visit_closed" | "visit_online" | "procedure_requires_consultation";
+
+/**
+ * Whether a procedure may be recorded under a queue visit without a consultation: the visit is open (not cancelled,
+ * left without being seen or completed), in person, and the catalogue entry allows it.
+ */
+export function visitRecordingProblem(
+  visit: {
+    status: "waiting" | "in_triage" | "awaiting_consultation" | "in_consultation" | "completed" | "cancelled" | "left_without_being_seen";
+    modality: string;
+  },
+  definition: { allowedOutsideConsultation: boolean },
+): VisitRecordingProblem | null {
+  if (visit.status === "completed" || visit.status === "cancelled" || visit.status === "left_without_being_seen") return "visit_closed";
+  if (visit.modality !== "in_person") return "visit_online";
+  if (!definition.allowedOutsideConsultation) return "procedure_requires_consultation";
+  return null;
+}
+
+export type ConsentProblem = "procedure_consent_required" | "consent_after_procedure" | "consent_wording_required";
+
+/**
+ * Whether the consent given with a procedure is acceptable: required by the catalogue entry when it says so, obtained
+ * not after the procedure was performed (5 minutes of clock tolerance), and the organization's published wording named
+ * when the patient was shown one electronically.
+ */
+export function consentProblem(
+  definition: { consentRequired: boolean },
+  consent: { capturedVia: "paper" | "electronic" | "verbal"; obtainedAt: Date; wordingId: string | null } | null,
+  performedAt: Date,
+): ConsentProblem | null {
+  if (!consent) return definition.consentRequired ? "procedure_consent_required" : null;
+  if (consent.obtainedAt.getTime() > performedAt.getTime() + PERFORMED_AT_TOLERANCE_MS) return "consent_after_procedure";
+  if (consent.capturedVia === "electronic" && !consent.wordingId) return "consent_wording_required";
+  return null;
+}
+
 /** "Suture repair of laceration × 2 (left forearm)". */
 export function procedureText(p: { name: string; quantity: number; bodySite: string | null }): string {
   return `${p.name}${p.quantity > 1 ? ` × ${p.quantity}` : ""}${p.bodySite ? ` (${p.bodySite})` : ""}`;

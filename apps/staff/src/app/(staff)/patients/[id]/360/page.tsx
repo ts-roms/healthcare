@@ -471,11 +471,16 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               <ul className="flex flex-col gap-1.5 text-body">
                 {workspace.procedures.map((p) => (
                   <li key={p.id} className="flex flex-col gap-0.5">
-                    <Link href={`/clinic/encounters/${p.encounterId}`} className="font-medium text-primary hover:underline">
+                    <Link
+                      href={p.encounterId ? `/clinic/encounters/${p.encounterId}` : `/patients/${patient.id}/procedures`}
+                      className="font-medium text-primary hover:underline"
+                    >
                       {p.description}
                     </Link>
                     <span className="text-meta text-muted-foreground">
-                      {[clinicalDateTime(p.performedAt), p.performerName, filedUnderText(p.filedUnder)].filter(Boolean).join(" · ")}
+                      {[clinicalDateTime(p.performedAt), p.performerName, p.encounterId ? null : "outside a consultation", filedUnderText(p.filedUnder)]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </li>
                 ))}

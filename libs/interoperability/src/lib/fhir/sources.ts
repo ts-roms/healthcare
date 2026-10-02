@@ -644,7 +644,8 @@ export interface PatientHistorySource {
 /** A procedure performed at the clinic (not dental): the organization's own code, who performed it and when. */
 export interface ClinicProcedureSource {
   id: string;
-  encounterId: string;
+  /** The consultation, or null when performed under a queue visit without one. */
+  encounterId: string | null;
   facilityId: string;
   /** The organization's own code and the name as recorded. */
   code: string;
