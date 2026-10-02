@@ -227,3 +227,33 @@ leaving `node_modules` external (it does; a build that bundled `pg`, `ioredis`, 
 silently stop it, which the `telemetry.started` line makes visible). Choosing a backend adds its endpoint, credentials
 and alert rules to the deployment, not code. Revisit if the organization adopts an error-tracking service (scrubbing
 rules and a DPA first) or if OTLP logs become the preferred log path.
+
+## ADR-0013 Offline: capture and replay through the live routes, human-reviewed, never merged
+
+**Status:** accepted (2026-10-02). **Context:** `CLAUDE.md` §30 asks for eventual offline support (registration,
+queue, vitals, selected documentation, printing, local encrypted temporary storage, sync after reconnect) and forbids
+unsafe synchronization. The staff app calls the API only from its server, tokens never reach browser JavaScript, and
+nothing is cached in the browser; the API already makes unsafe requests retry-safe with an `Idempotency-Key`
+(`IdempotencyInterceptor`: the stored response replays for 24 hours, the same key with another body is refused).
+
+**Decision.** Offline is a **queue of captured actions**, not a copy of the record. Phase 1 captures three actions on
+one page (`/offline`): register a patient, check a walk-in into the queue, record triage with vital signs. Nothing
+with server-side decision support or immutability rules is captured offline: prescribing, signing notes, results,
+billing, consents. Replay goes through the **same server actions the live screens use**, in capture order, each
+action carrying its own idempotency key (the action id), so the session cookie, permissions, audit, duplicate
+detection and every validation apply unchanged and a dropped connection mid-replay is safe to retry. Chaining: a
+walk-in for a patient registered offline waits for that registration's replay to return the id; vital signs for an
+offline walk-in wait for its visit id. Whatever the API refuses — a possible duplicate, an unknown patient number,
+a closed visit, a validation error — is **parked** with the reason for a person to resolve on the live screen; the
+app never merges, overrides or retries a refusal on its own, and anything that waited on a parked action is parked
+with it. Server state always wins. Captured actions live in IndexedDB encrypted with a key that exists for the
+browser session only (sessionStorage), so a closed tab discards what was not sent, and the page says so; no patient
+list, clinical data or credential is stored. A service worker keeps the Offline page and the app's static files
+reachable without a connection; the page shows the queue, visit types and practitioners **as of its last load with a
+connection**, labelled with that time. Everything else in the app stays online-only.
+
+**Consequences.** The feature is only as current as the last online load of the Offline page and only as durable as
+the browser tab; both are deliberate for phase 1 and documented in the manual. Later decisions, each its own: a
+staff-chosen offline PIN so the outbox survives a closed tab; more captured actions (appointments, documentation);
+the mobile app (D10 stays as is). Printing stays online (every PDF is rendered by the API). Patient data held
+briefly in a browser on a shared computer is a data-protection matter recorded in the compliance register.

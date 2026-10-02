@@ -215,6 +215,33 @@ label vital signs normal or abnormal.
 | Height           | cm    | 20–260         |                                      |
 | Blood glucose    | mg/dL | 10–1500        | Whole number                         |
 
+## When the internet is down (Offline page)
+
+**Who:** reception and nurses. The forms you see depend on your permissions (registration, walk-in check-in, triage).
+
+1. **Before an outage**, open **Offline** once while connected (the yellow banner links to it whenever the connection drops or something
+   waits; the address is `/offline`). The page keeps a copy of itself with today's queue and the visit types as of that moment; open it again
+   now and then so the copy stays fresh.
+2. When the connection is gone, the banner says **No connection**. Open the Offline page. Capture what you need:
+   - **Register a patient** (name, sex, birth date, mobile, city).
+   - **Check in a walk-in** — a patient you registered here, or a patient number from the patient's card.
+   - **Triage and vital signs** — for a visit on the queue copy, or for a walk-in you captured here.
+     Each capture appears in the **Outbox** as _Waiting_. Nothing is sent yet.
+3. When the connection returns, the outbox sends everything **in the order you captured it** (or select **Send now**). Each item becomes _Sent_,
+   with the patient number or ticket the system gave it.
+4. An item the system refuses becomes **Needs attention** with the reason — for example _possible duplicates_ with the records to compare, or
+   a patient number that matches no one. Do that work on the live screen (register with the duplicate review, or check the number), then
+   **Remove** the item. Anything that waited on it (a walk-in for that registration, vitals for that walk-in) needs attention too.
+
+**Things to know:**
+
+- Captured items stay **in this browser tab only**, encrypted. Closing the tab discards what was not sent — send before you close, and do not
+  capture on a computer someone else may close.
+- The queue copy on the page is as old as the last time it loaded with a connection; it does not update while offline.
+- Only these three actions work offline. Consultations, prescriptions, results, billing and printing need the connection.
+- Duplicate checking, permissions and every validation happen when an item is sent, exactly as if you had typed it live; nothing is merged or
+  overridden automatically.
+
 ## How to choose which visit types patients may book online
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
