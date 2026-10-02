@@ -3,24 +3,32 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Label, Textarea } from "@healthcare/ui/primitives";
-import { BODY_MAX, charactersLeft, conversationMessage } from "@/lib/conversations";
+import { attachmentProblem, BODY_MAX, charactersLeft, conversationMessage } from "@/lib/conversations";
+import { AttachmentPicker } from "../attachment-picker";
 import { replyInConversation } from "../conversation-actions";
 
 /** Writes in an open conversation; the page refreshes to show it. */
 export function ReplyForm({ threadId }: { threadId: string }) {
   const router = useRouter();
   const [body, setBody] = React.useState("");
+  const [files, setFiles] = React.useState<File[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   const left = charactersLeft(body);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const problem = attachmentProblem(files);
+    if (problem) return setError(problem);
+    const form = new FormData(event.currentTarget);
+    const element = event.currentTarget;
     startTransition(async () => {
       setError(null);
-      const result = await replyInConversation(threadId, body);
+      const result = await replyInConversation(threadId, body, form);
       if (result.ok) {
         setBody("");
+        setFiles([]);
+        element.reset();
         router.refresh();
       } else setError(conversationMessage(result.code, result.message));
     });
@@ -33,6 +41,7 @@ export function ReplyForm({ threadId }: { threadId: string }) {
       <p id="reply-left" className={`text-meta ${left < 0 ? "text-destructive" : "text-muted-foreground"}`}>
         {left < 0 ? `${-left} characters too many` : `${left.toLocaleString("en")} of ${BODY_MAX.toLocaleString("en")} characters left`}
       </p>
+      <AttachmentPicker id="reply-files" files={files} onChange={setFiles} />
       {error ? (
         <p role="alert" className="text-body text-destructive">
           {error}

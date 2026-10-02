@@ -103,6 +103,31 @@ export class UsersService {
       .orderBy(asc(appUser.displayName));
   }
 
+  /** Active members holding a role (by key) in the organization, at a facility or everywhere (for routing notices). */
+  async holdersOfRole(organizationId: string, roleKey: string, facilityId: string | null): Promise<Array<{ id: string; displayName: string }>> {
+    return this.db
+      .selectDistinct({ id: appUser.id, displayName: appUser.displayName })
+      .from(roleAssignment)
+      .innerJoin(role, eq(role.id, roleAssignment.roleId))
+      .innerJoin(appUser, eq(appUser.id, roleAssignment.userId))
+      .innerJoin(
+        organizationMembership,
+        and(eq(organizationMembership.userId, roleAssignment.userId), eq(organizationMembership.organizationId, roleAssignment.organizationId)),
+      )
+      .where(
+        and(
+          eq(roleAssignment.organizationId, organizationId),
+          isNull(roleAssignment.revokedAt),
+          eq(role.key, roleKey),
+          or(isNull(role.organizationId), eq(role.organizationId, organizationId)),
+          eq(organizationMembership.status, "active"),
+          eq(appUser.status, "active"),
+          facilityId === null ? undefined : or(isNull(roleAssignment.facilityId), eq(roleAssignment.facilityId, facilityId)),
+        ),
+      )
+      .orderBy(asc(appUser.displayName));
+  }
+
   async list(organizationId: string): Promise<StaffUserView[]> {
     const members = await this.db
       .select({

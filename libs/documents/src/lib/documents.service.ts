@@ -14,7 +14,7 @@ import {
   PgErrorCode,
   filedAsPatient,
 } from "@healthcare/core";
-import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
 import { document, type DocumentCategory, type DocumentManager, type DocumentRecord } from "./document.schema";
@@ -129,6 +129,98 @@ export class DocumentsService {
     if (!created) throw new Error("Document insert returned no row");
     const upload = await this.storage.presignUpload(storageKey, input.contentType, input.sizeBytes, UPLOAD_URL_TTL_SECONDS);
     return { document: toView(created), upload };
+  }
+
+  /**
+   * A patient's own upload in MyHealth (migration 0097): a `clinical_attachment` of their record created by their
+   * portal account (never a staff user), with the calling domain's own limits applied before. Same two-step flow.
+   */
+  async createForPatient(
+    context: PatientAuditContext,
+    input: { title: string; fileName: string; contentType: (typeof ALLOWED_CONTENT_TYPES)[number]; sizeBytes: number },
+  ): Promise<{ document: DocumentView; upload: PresignedUpload }> {
+    const id = crypto.randomUUID();
+    const storageKey = `org/${context.organizationId}/documents/${id}`;
+    const created = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(document)
+        .values({
+          id,
+          organizationId: context.organizationId,
+          facilityId: null,
+          patientId: context.patientId,
+          category: "clinical_attachment",
+          title: input.title,
+          fileName: input.fileName,
+          contentType: input.contentType,
+          sizeBytes: input.sizeBytes,
+          storageKey,
+          createdBy: null,
+          createdByPortalAccount: context.accountId,
+          source: "patient_upload",
+        })
+        .returning();
+      await this.audit.record(tx, context, {
+        action: "document.create",
+        resourceType: "document",
+        resourceId: id,
+        patientId: context.patientId,
+        metadata: { category: "clinical_attachment", contentType: input.contentType, sizeBytes: input.sizeBytes, via: "patient_portal" },
+      });
+      return row;
+    });
+    if (!created) throw new Error("Document insert returned no row");
+    const upload = await this.storage.presignUpload(storageKey, input.contentType, input.sizeBytes, UPLOAD_URL_TTL_SECONDS);
+    return { document: toView(created), upload };
+  }
+
+  /** Completes a patient's own upload (their account's pending document of their record). */
+  async completeUploadForPatient(context: PatientAuditContext, documentId: string): Promise<DocumentView> {
+    const [record] = await this.db
+      .select()
+      .from(document)
+      .where(and(eq(document.organizationId, context.organizationId), eq(document.id, documentId), eq(document.createdByPortalAccount, context.accountId)));
+    if (!record) throw new NotFoundError("Document");
+    if (record.status !== "pending_upload") throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
+    const stored = await this.storage.head(record.storageKey);
+    if (!stored) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
+    if (stored.sizeBytes !== record.sizeBytes) {
+      throw new BusinessRuleError("Uploaded file size does not match the declared size", "upload_size_mismatch", {
+        declared: record.sizeBytes,
+        actual: stored.sizeBytes,
+      });
+    }
+    return this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(document)
+        .set({ status: "available", uploadedAt: new Date() })
+        .where(and(eq(document.id, documentId), eq(document.status, "pending_upload")))
+        .returning();
+      if (!updated) throw new BusinessRuleError("Upload was already completed", "upload_already_completed");
+      await this.audit.record(tx, context, {
+        action: "document.upload-complete",
+        resourceType: "document",
+        resourceId: documentId,
+        patientId: record.patientId ?? undefined,
+        metadata: { via: "patient_portal" },
+      });
+      return toView(updated);
+    });
+  }
+
+  /** How many documents a patient's account uploaded in the last 24 hours (the calling domain's daily limit). */
+  async patientUploadsToday(context: PatientAuditContext): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(document)
+      .where(
+        and(
+          eq(document.organizationId, context.organizationId),
+          eq(document.createdByPortalAccount, context.accountId),
+          gt(document.createdAt, new Date(Date.now() - 86_400_000)),
+        ),
+      );
+    return row?.count ?? 0;
   }
 
   async completeUpload(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {

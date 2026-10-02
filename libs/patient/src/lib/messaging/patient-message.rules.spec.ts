@@ -1,4 +1,13 @@
-import { awaitingClinic, compareForQueue, shouldNotifyClinic, unreadByPatient } from "./patient-message.rules";
+import {
+  awaitingClinic,
+  compareForQueue,
+  initialAssignee,
+  isOverdue,
+  overdueReminderDue,
+  responseDueAt,
+  shouldNotifyClinic,
+  unreadByPatient,
+} from "./patient-message.rules";
 
 const at = (h: number) => new Date(Date.UTC(2026, 0, 1, h));
 
@@ -30,5 +39,34 @@ describe("patient message rules", () => {
       { id: "replied-old", status: "open" as const, lastMessageFrom: "staff" as const, lastMessageAt: at(4) },
     ];
     expect([...rows].sort(compareForQueue).map((r) => r.id)).toEqual(["waiting-old", "waiting-new", "replied-new", "replied-old"]);
+  });
+
+  it("assigns on arrival only when the topic is routed to a person who takes them", () => {
+    expect(initialAssignee(null)).toBeNull();
+    expect(initialAssignee({ routeUserId: "u1", autoAssign: false })).toBeNull();
+    expect(initialAssignee({ routeUserId: null, autoAssign: true })).toBeNull();
+    expect(initialAssignee({ routeUserId: "u1", autoAssign: true })).toBe("u1");
+  });
+
+  it("sets the response target in calendar hours from the patient's message, or none", () => {
+    expect(responseDueAt(null, at(1))).toBeNull();
+    expect(responseDueAt({ responseTargetHours: null }, at(1))).toBeNull();
+    expect(responseDueAt({ responseTargetHours: 24 }, at(1))).toEqual(new Date(Date.UTC(2026, 0, 2, 1)));
+  });
+
+  it("marks a conversation overdue only while it waits for the clinic past its target", () => {
+    expect(isOverdue({ status: "open", lastMessageFrom: "patient", responseDueAt: at(2) }, at(3))).toBe(true);
+    expect(isOverdue({ status: "open", lastMessageFrom: "patient", responseDueAt: at(4) }, at(3))).toBe(false);
+    expect(isOverdue({ status: "open", lastMessageFrom: "staff", responseDueAt: at(2) }, at(3))).toBe(false);
+    expect(isOverdue({ status: "closed", lastMessageFrom: "patient", responseDueAt: at(2) }, at(3))).toBe(false);
+    expect(isOverdue({ status: "open", lastMessageFrom: "patient", responseDueAt: null }, at(3))).toBe(false);
+  });
+
+  it("reminds of a breach once, and again only for a later target", () => {
+    expect(overdueReminderDue({ responseDueAt: null, overdueNotifiedAt: null }, at(5))).toBe(false);
+    expect(overdueReminderDue({ responseDueAt: at(6), overdueNotifiedAt: null }, at(5))).toBe(false);
+    expect(overdueReminderDue({ responseDueAt: at(2), overdueNotifiedAt: null }, at(5))).toBe(true);
+    expect(overdueReminderDue({ responseDueAt: at(2), overdueNotifiedAt: at(3) }, at(5))).toBe(false);
+    expect(overdueReminderDue({ responseDueAt: at(4), overdueNotifiedAt: at(3) }, at(5))).toBe(true);
   });
 });

@@ -310,11 +310,12 @@ Questions about a bill? Ask the clinic's cashier and bring your invoice number.
 
 1. Choose **Messages**, then **New message**.
 2. Choose **What is it about?** (a general question, your appointment, test results, medicines, a bill, or something else), write a **Subject** and your
-   message (up to 2,000 characters). Please do not send photos or documents here. Choose **Send message**.
+   message (up to 2,000 characters). You may **add a photo or PDF** — for example a picture of a rash or a referral letter — up to 3 files of 10 MB or less
+   with one message, and up to 10 files a day; the clinic keeps them in your record. Choose **Send message**.
 3. The clinic's reply appears in the same conversation. You get a text or an email saying **a message is waiting** (it never says what it is);
    sign in to read it. New replies are marked and counted next to **Messages**.
-4. Open a conversation to read it and write back. When the clinic closes a conversation you can still read it, but to write again choose
-   **Start a new message**.
+4. Open a conversation to read it and write back. Files sent with a message open in a new tab when you select them (the clinic records each
+   opening). When the clinic closes a conversation you can still read it, but to write again choose **Start a new message**.
 
 You can have up to 5 open conversations, and send up to 10 messages an hour. The clinic can also start a conversation with you.
 
@@ -488,7 +489,8 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - For an online consultation, you must answer the questions before you can enter the waiting room, and the video opens only when the doctor starts.
 - Only released results the clinic allows patients to see are shown; results far outside the usual range appear only after your care team has seen
   them.
-- You can write to the clinic in conversations: at most 5 open at a time and 10 messages an hour, text only. A closed conversation takes no more messages.
+- You can write to the clinic in conversations: at most 5 open at a time, 10 messages an hour, 3 files (photos or PDFs, 10 MB each) with a message and
+  10 files a day. A closed conversation takes no more messages.
 - You choose text message and email for each kind of message; MyHealth messages cannot be switched off (withdrawing MyHealth is done under Privacy and consents).
 - You can act for someone else only through access the clinic recorded, for at most 10 people, and only where the clinic could see the person's own MyHealth consent. It stops when the access ends, its end date passes or the consent is withdrawn. "Can only look" access never makes changes.
 - You cannot edit your record, prescriptions or bills in MyHealth.

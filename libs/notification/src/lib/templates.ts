@@ -450,6 +450,19 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "portal.message-overdue",
+    version: 1,
+    category: "administrative",
+    // In-app to the clinic's staff when a conversation waits past the response target. No name and no text.
+    channels: ["in_app"],
+    variables: z.object({ threadId: z.uuid() }),
+    render: (v) => ({
+      subject: "A patient's message is waiting past its target",
+      text: "A MyHealth conversation has waited longer than the clinic means to take. Open it to reply.",
+      href: `/messages/${v.threadId}`,
+    }),
+  }),
+  defineTemplate({
     key: "portal.message-new",
     version: 1,
     category: "administrative",
@@ -626,6 +639,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "portal.push-test": "Push notification test",
   "portal.message-received": "A MyHealth message is waiting",
   "portal.message-new": "New MyHealth message (staff)",
+  "portal.message-overdue": "MyHealth message past its target (staff)",
   "clinic.referral-notice": "Referral notice (staff)",
   "lab.result-notice": "Laboratory result notice (staff)",
   "lab.quality-notice": "Laboratory quality notice (staff)",

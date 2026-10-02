@@ -3850,8 +3850,22 @@ export interface PatientThread {
   assignedTo: { id: string; displayName: string } | null;
   /** Open, and the patient wrote last. */
   awaitingClinic: boolean;
+  /** When the clinic means to have answered (null without a target, or once answered), and whether that has passed. */
+  responseDueAt: string | null;
+  overdue: boolean;
+  /** Staff-only notes on the conversation (never shown to the patient). */
+  noteCount: number;
   closedAt: string | null;
   version: number;
+}
+
+/** A document of the patient's record carried with a message (migration 0097); opened behind a short-lived link. */
+export interface PatientThreadAttachment {
+  documentId: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 export interface PatientThreadMessage {
@@ -3862,10 +3876,37 @@ export interface PatientThreadMessage {
   /** Written by a parent or guardian acting for the patient. */
   viaGuardian: boolean;
   createdAt: string;
+  attachments: PatientThreadAttachment[];
+}
+
+/** A staff-only note on a conversation. */
+export interface PatientThreadNote {
+  id: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
 }
 
 export interface PatientThreadDetail extends PatientThread {
   messages: PatientThreadMessage[];
+  notes: PatientThreadNote[];
+}
+
+/** `GET /patient-messages/settings?facilityId=`: where a topic's conversations go and how soon the clinic means to answer. */
+export interface PatientMessageSetting {
+  id: string;
+  facilityId: string;
+  topic: MessageTopic;
+  /** A role of the organization (its key), or one person; neither = everyone who can reply at the facility. */
+  routeRoleKey: string | null;
+  routeUserId: string | null;
+  routeUserName: string | null;
+  /** New conversations are assigned to the routed person on arrival. */
+  autoAssign: boolean;
+  /** Calendar hours after a patient's message by which the clinic means to answer (1–168); null = no target. */
+  responseTargetHours: number | null;
+  version: number;
+  updatedAt: string;
 }
 
 /** `GET /waitlist?facilityId=` row: a patient waiting for a time. */

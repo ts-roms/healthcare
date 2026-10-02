@@ -57,6 +57,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/records/imports": ["interop.fhir.import.review"],
   "/records/retention": ["document.retention.manage"],
   "/records/requests": ["patient.records-request.manage"],
+  "/messages/settings": ["patient.message.read"],
   "/admin/organization": ["organization.read"],
   "/admin/users": ["user.read"],
   "/admin/security": ["user.read"],
