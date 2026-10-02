@@ -5,6 +5,7 @@ import { ConsoleLogger, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { CarePlanRecallReminders } from "@healthcare/care-plan";
+import { CrmCampaignRuns } from "@healthcare/crm";
 import { AutomaticNoShows } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
@@ -36,6 +37,8 @@ async function bootstrap(): Promise<void> {
   app.get(LaboratoryQualityReminders).start();
   // Hourly: scheduled management reports whose period has ended (CSV files stored, recipients told).
   app.get(ManagementReportRuns).start();
+  // Every minute: approved outreach campaigns whose time has come (docs/domains/crm.md).
+  app.get(CrmCampaignRuns).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
   app.get(DohRescans).start();
   // Hourly: deletes the sealed content of FHIR imports rejected more than 30 days ago (docs/interoperability/fhir.md).

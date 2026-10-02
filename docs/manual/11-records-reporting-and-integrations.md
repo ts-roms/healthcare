@@ -400,6 +400,29 @@ billing report access (`billing.report.read`) for every facility shown.
 - Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
 - These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
 
+## How to send an outreach campaign
+
+**Who:** organization administrators (`crm.segment.manage`, `crm.campaign.manage`; approval needs `crm.campaign.approve` and a second person).
+Records officers can read segments and campaigns.
+
+1. Open **Outreach** in the menu (`/outreach`).
+2. Under **Segments**, select **New segment** and choose who matches: age range, sex, city or province, when they registered, when they last
+   visited (or no visit for a number of months), a care-plan activity due soon, or an opt-in to a channel. Every filled criterion must hold.
+   **Preview** shows how many patients match today and a short work list; every preview is recorded in the audit trail.
+3. Under **Campaigns**, select **New campaign**: the segment, the channels, a subject (for email and MyHealth), the message in plain text, and
+   optionally when to send. The screen shows the length allowed for the chosen channels. Save the draft and select **Submit for approval**.
+4. **Someone else** opens the campaign and selects **Approve**. The system refuses an approval by the person who wrote or submitted it.
+5. The campaign is sent at its time, or within a minute. Open it to see the **Result**: how many patients were in the segment, and per channel
+   how many messages were queued, delivered, not sent or failed, with the reasons (for example "No outreach opt-in on this channel").
+
+**Things to know:**
+
+- A message goes out only on a channel the patient has **opted in to for outreach** (MyHealth → Notification settings, or recorded at the
+  clinic). Deceased, merged and inactive records are never contacted. Messages about care, appointments and bills are not affected.
+- Segments cannot use diagnoses, results or medications. Do not put anything about a person's health in a campaign message.
+- Every outreach email carries a link the patient can use to stop outreach on that channel; it is recorded on their record.
+- A campaign cannot change once approved: cancel it with a reason and draft a new one. Who received what appears in **Communications**.
+
 ## How to schedule a weekly or monthly report
 
 **Who:** organization administrators (`management.report.manage`); anyone with `management.dashboard.read` can open the produced reports.

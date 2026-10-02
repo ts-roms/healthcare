@@ -4,6 +4,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@healthcare/audit";
 import { AuthModule, PasswordScreeningModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
+import { CrmModule } from "@healthcare/crm";
 import { ClinicModule } from "@healthcare/clinic";
 import { DentalModule } from "@healthcare/dental";
 import { accessLogMiddleware, type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
@@ -20,6 +21,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
+import { AppCrmPreferenceWriter, AppCrmSegmentSource } from "./adapters/crm-adapters";
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
@@ -146,6 +148,8 @@ export class AppModule implements NestModule {
       dispensingStock: AppDispensingStock,
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
+    // Outreach: who matches a segment is read here (patient, clinic, care plans); opt-outs go to the patient domain.
+    const crm = CrmModule.forRoot({ imports: [PatientModule], segmentSource: AppCrmSegmentSource, preferenceWriter: AppCrmPreferenceWriter });
     const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
     const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {
@@ -181,6 +185,7 @@ export class AppModule implements NestModule {
         }),
         prescriptions,
         carePlans,
+        crm,
         // Phase 3 — laboratory.
         laboratory,
         // Phase 5 — telemedicine.

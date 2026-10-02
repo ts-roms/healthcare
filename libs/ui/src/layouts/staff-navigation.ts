@@ -10,6 +10,7 @@ import {
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListOrderedIcon,
+  MegaphoneIcon,
   MessageSquareIcon,
   MonitorIcon,
   PackageIcon,
@@ -99,6 +100,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Inventory", href: "/inventory", icon: PackageIcon, roles: ["nurse", "lab-tech", "admin"] },
   { label: "Patient messages", href: "/messages", icon: InboxIcon },
   { label: "Communications", href: "/communications", icon: MessageSquareIcon },
+  { label: "Outreach", href: "/outreach", icon: MegaphoneIcon, roles: ["admin"] },
   {
     label: "Management",
     href: "/management",

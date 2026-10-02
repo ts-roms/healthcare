@@ -74,9 +74,9 @@ to its recipient.
   `/patients/[id]/communications` (the patient's history with their preferences; linked from **Consent & communication** on the record).
 - Migration `0084`: index `notification_patient_log_idx` (organization, created_at, id for patient recipients); `notification.read` now also for
   receptionists and records officers (the desk handles reminders and "I got nothing").
-- Not built: campaigns and patient segmentation, resending or cancelling from the log, delivery reports from SMS providers (none is selected),
-  per-facility filtering (notifications carry no facility). Campaigns wait on the organization's own rules for outreach consent and content
-  (Data Privacy Act; compliance register).
+- Campaigns and segments are `libs/crm` (`docs/domains/crm.md`): their messages appear here under the kind "Outreach campaign".
+- Not built: resending or cancelling from the log, delivery reports from SMS providers (none is selected), per-facility filtering
+  (notifications carry no facility).
 
 ## Ports
 

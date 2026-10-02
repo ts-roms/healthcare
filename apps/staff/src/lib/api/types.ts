@@ -3131,6 +3131,78 @@ export interface PatientTimelinePage {
   timeZone: string;
 }
 
+// ---- Outreach (GET /outreach/segments, /outreach/campaigns; crm.read) ---------------------------------------------
+
+export type OutreachChannel = "sms" | "email" | "push" | "in_app";
+
+export interface OutreachSegmentCriteria {
+  ageMin?: number;
+  ageMax?: number;
+  sex?: "male" | "female";
+  cityMunicipality?: string;
+  province?: string;
+  registeredFrom?: string;
+  registeredTo?: string;
+  lastVisitBefore?: string;
+  noVisitForMonths?: number;
+  carePlanActivityDueWithinDays?: number;
+  optedInChannel?: OutreachChannel;
+}
+
+export interface OutreachSegment {
+  id: string;
+  name: string;
+  description: string | null;
+  criteria: OutreachSegmentCriteria;
+  status: "active" | "archived";
+  version: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachSegmentPreview {
+  total: number;
+  members: Array<{ patientId: string; patientNumber: string; displayName: string; sex: string; age: number }>;
+  truncated: boolean;
+}
+
+export type OutreachCampaignStatus = "draft" | "submitted" | "approved" | "sending" | "completed" | "cancelled";
+
+export interface OutreachCampaignSummary {
+  patients: number;
+  byChannel: Array<{ channel: OutreachChannel; queued: number; delivered: number; suppressed: number; failed: number }>;
+  suppressedByReason: Array<{ reason: string; total: number }>;
+}
+
+export interface OutreachCampaign {
+  id: string;
+  segmentId: string;
+  segmentName: string;
+  name: string;
+  channels: OutreachChannel[];
+  subject: string | null;
+  body: string;
+  status: OutreachCampaignStatus;
+  sendAt: string | null;
+  createdBy: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Counts once sending started; null before. */
+  summary: OutreachCampaignSummary | null;
+}
+
 // ---- Scheduled management reports (GET|POST /management/report-schedules, GET /management/reports) ------------------
 
 export type ManagementReportTable = string;

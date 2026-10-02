@@ -15,6 +15,7 @@ import {
   NotFoundError,
   PatientMergedError,
   PgErrorCode,
+  systemActor,
   todayInPhilippines,
   VersionConflictError,
 } from "@healthcare/core";
@@ -444,6 +445,46 @@ export class PatientRecordService {
   }
 
   /** Minimal identification for many patients at once (queue boards, lists). Not audited here. */
+  /**
+   * The opt-out behind the link in an outreach email (libs/crm): outreach off on that channel, recorded by the platform
+   * (neither a staff member nor the MyHealth account) and audited with the campaign it came from. Merged, deceased and
+   * inactive records are left as they are: they are never contacted anyway.
+   */
+  async recordOutreachOptOut(organizationId: string, patientId: string, channel: CommunicationChannel, campaignId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [record] = await tx
+        .select({ id: patient.id, status: patient.status })
+        .from(patient)
+        .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
+      if (!record || record.status !== "active") return;
+      const [before] = await tx
+        .select({ optedIn: patientCommunicationPreference.optedIn })
+        .from(patientCommunicationPreference)
+        .where(
+          and(
+            eq(patientCommunicationPreference.patientId, patientId),
+            eq(patientCommunicationPreference.channel, channel),
+            eq(patientCommunicationPreference.category, "outreach"),
+          ),
+        );
+      await tx
+        .insert(patientCommunicationPreference)
+        .values({ organizationId, patientId, channel, category: "outreach", optedIn: false, updatedBy: null, updatedByPortalAccount: null })
+        .onConflictDoUpdate({
+          target: [patientCommunicationPreference.patientId, patientCommunicationPreference.channel, patientCommunicationPreference.category],
+          set: { optedIn: false, updatedAt: new Date(), updatedBy: null, updatedByPortalAccount: null },
+        });
+      await this.audit.record(tx, systemActor(organizationId, null, "outreach-opt-out-link"), {
+        action: "patient.communication-preferences",
+        resourceType: "patient",
+        resourceId: patientId,
+        patientId,
+        changes: { [`${channel}.outreach`]: { from: before?.optedIn ?? null, to: false } },
+        metadata: { source: "outreach_opt_out_link", campaignId },
+      });
+    });
+  }
+
   async briefs(organizationId: string, patientIds: string[]) {
     const result = new Map<string, { patientNumber: string; displayName: string; sex: string; age: number }>();
     if (patientIds.length === 0) return result;
