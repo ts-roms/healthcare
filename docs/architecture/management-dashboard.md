@@ -152,7 +152,48 @@ only when not withheld) through the `/management/export` route handler, which pa
 filters to the API with the user's session (the token never reaches the browser). Without billing reporting a note
 replaces the revenue figures.
 
+## Scheduled reports
+
+A schedule (`management_report_schedule`, migration `0093`) names a weekly (Monday to Sunday) or monthly (calendar
+month) cadence, the dashboard tables wanted (from `EXPORT_TABLES`), a facility or every facility the owner may report
+on, and named recipients. The hourly `ManagementReportRuns` job in the API process (`pg_try_advisory_xact_lock`, so one
+instance at a time) takes every active schedule, works out which periods have ended in the schedule's facility time
+zone (else Asia/Manila) and are not yet produced (at most three missed periods are caught up, oldest first), claims
+each period as a `management_report` row (unique per schedule and period start, so two instances never produce it
+twice) and produces it through the very same `ManagementDashboardService.export` the screen uses — with the **owner's**
+permissions, re-resolved at each run (the owner is whoever last created or changed the schedule). Each table is stored
+once as a `management_report` document (`DocumentsService.storeGenerated`, `text/csv` with a byte-order mark;
+`management_report_file`). A table the owner may no longer export (a refusal) is listed in `withheld` and the run is
+`partial`; any other failure marks the run `failed` with the error text. A run left `producing` for more than ten
+minutes (a crashed instance) is resumed on the next tick, file by file, and a `failed` run is tried again every hour
+for seven days from its start (files already stored are kept), then left for someone to look at. Every produced run is audited
+(`management.report.produce`, system actor, with the schedule, period, tables and `withheld`) and each recipient gets
+an in-app and email notice (`management.report-ready`: the schedule name, the period and a link to the reports page —
+never a figure; idempotent per run, recipient and channel).
+
+- **Who may schedule:** `management.report.manage` (org_admin; migration `0093`). A schedule is refused when the
+  caller's own grants do not cover the scope (`scope_not_reportable`), when revenue tables are wanted without
+  `billing.report.read` on every facility in scope (`revenue_not_reportable`), or when a recipient is not an active
+  member holding `management.dashboard.read` for the scope (`recipient_not_member` / `recipient_not_permitted`), so a
+  schedule that could only produce an empty or unreadable report is never created. Changing a schedule (optimistic
+  `version`) makes the caller its owner, under the same checks; pause and resume keep the owner.
+- **Who may read:** `management.dashboard.read` lists schedules and runs and downloads files; a revenue table is
+  refused at download (403, audited as a denial) without `billing.report.read` on every facility of the run — the
+  file exists, but the reader's permissions decide, exactly as on the screen. Downloads are audited
+  (`management.report.download`).
+- **What is in a file:** exactly what the export gives for that range and scope (same suppression, same formula
+  safety). Nothing names a patient. The notice names no figure.
+- **API:** `GET|POST /api/v1/management/report-schedules`, `PUT /management/report-schedules/:id`,
+  `POST /management/report-schedules/:id/status`, `GET /management/reports?scheduleId=`,
+  `GET /management/reports/:id/files/:table` (`text/csv`).
+- **Staff app:** `/management/reports` (navigation _Management → Scheduled reports_): schedules with pause, resume and
+  change (recipients chosen from the staff list, which needs `user.read`), the produced reports with a link per stored
+  table through the `/management/reports/[id]/files/[table]` route handler, and what was withheld or failed.
+- **Not built:** a PDF or a spreadsheet with several sheets, attachments in the email (the file stays behind the
+  signed-in download), daily or custom cadences, a report for a range chosen by hand (the dashboard export does that),
+  and sending to addresses outside the organization.
+
 ## Not yet
 
 A PDF export, comparisons with the same period last year, per-department laboratory figures, median/percentile waiting and turnaround times, inventory and dispensing
-figures, telemedicine waiting times, and scheduled management reports.
+figures, telemedicine waiting times, and scheduled reports as PDF or by email attachment.

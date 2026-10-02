@@ -130,6 +130,10 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {t.label}
             </a>
           ))}
+          <span>·</span>
+          <Link href="/management/reports" className="text-primary hover:underline">
+            Scheduled reports
+          </Link>
         </p>
         <p className="text-meta text-muted-foreground">
           Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.

@@ -173,12 +173,14 @@ the management dashboard is its only consumer and one place avoids a second copy
 (billing daily report, communication log and export, controlled-items register, laboratory quality summary) stay
 with their domains or their API composition the same way.
 
-**When `libs/reporting` is created.** The moment a **second process** must apply the same rules — in practice
-_scheduled management reports_ produced by the notification worker, which cannot import `apps/api` — the pure rules
-and definitions move from the API into `libs/reporting` (`scope:shared`, `type:util`: no database access, no domain
-imports; it takes figures and returns tables), and the API and the worker both depend on it. Until then the library
-stays planned, so that a report sent by email can never disagree with the screen about what "<5" or "net revenue"
-means. Dashboard features that stay in the API do not trigger it: same period last year, median and percentile
+**When `libs/reporting` is created.** The moment a **second process** must apply the same rules — a worker or another
+application that cannot import `apps/api` — the pure rules and definitions move from the API into `libs/reporting`
+(`scope:shared`, `type:util`: no database access, no domain imports; it takes figures and returns tables), and both
+depend on it. Until then the library stays planned, so that a report sent by email can never disagree with the screen
+about what "<5" or "net revenue" means. _Scheduled management reports_ did **not** trigger it: they run in the API
+process (`ManagementReportRuns`, like the other scheduled jobs) and call the same `ManagementDashboardService.export`
+the screen calls, so there is still one copy of the rules and one consumer
+(`docs/architecture/management-dashboard.md`, "Scheduled reports"); the notification worker only delivers the notices. Dashboard features that stay in the API do not trigger it: same period last year, median and percentile
 waiting and turnaround times, per-department laboratory figures, inventory and dispensing figures, telemedicine
 waiting times, a PDF export.
 

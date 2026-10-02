@@ -165,6 +165,26 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "management.report-ready",
+    version: 1,
+    category: "administrative",
+    // To the recipients of a scheduled management report: the schedule's name and period only, never a figure.
+    channels: ["in_app", "email"],
+    internal: true,
+    variables: z.object({
+      scheduleName: z.string().min(1).max(120),
+      periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      link: z.url().max(500).optional(),
+    }),
+    render: (v) => ({
+      subject: `Management report ready: ${v.scheduleName}`,
+      text:
+        `The scheduled management report "${v.scheduleName}" for ${v.periodFrom} to ${v.periodTo} is ready. ` +
+        `Open Management → Scheduled reports in the staff app to download its tables.${v.link ? `\n\n${v.link}/management/reports` : ""}`,
+    }),
+  }),
+  defineTemplate({
     key: "staff.password-changed",
     version: 1,
     category: "security",

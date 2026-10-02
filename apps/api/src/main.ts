@@ -10,6 +10,7 @@ import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
 import { LaboratoryQualityReminders } from "./app/laboratory-quality-reminders";
+import { ManagementReportRuns } from "./app/management-dashboard/management-report-runs";
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
@@ -30,6 +31,8 @@ async function bootstrap(): Promise<void> {
   app.get(AutomaticNoShows).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
+  // Hourly: scheduled management reports whose period has ended (CSV files stored, recipients told).
+  app.get(ManagementReportRuns).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
   app.get(DohRescans).start();
   // Hourly: deletes the sealed content of FHIR imports rejected more than 30 days ago (docs/interoperability/fhir.md).

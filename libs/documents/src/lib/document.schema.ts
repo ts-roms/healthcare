@@ -13,6 +13,7 @@ export const DOCUMENT_CATEGORIES = [
   "other",
   /** A compiled copy of the patient's record, prepared for a records request. */
   "record_copy",
+  "management_report",
 ] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 export type DocumentStatus = "pending_upload" | "available" | "archived";

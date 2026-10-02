@@ -34,7 +34,8 @@ export interface GeneratedDocumentInput {
   category: DocumentCategory;
   title: string;
   fileName: string;
-  contentType: (typeof ALLOWED_CONTENT_TYPES)[number];
+  /** Upload types, plus CSV for server-generated tables (management reports); uploads keep their own list. */
+  contentType: (typeof ALLOWED_CONTENT_TYPES)[number] | "text/csv";
   body: Buffer;
 }
 

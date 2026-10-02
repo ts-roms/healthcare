@@ -31,6 +31,8 @@ MyHealth: "new results" or "a result was updated", naming no test and no value),
 (SMS + in-app: the patient booked, moved or cancelled in MyHealth), `appointment.no-show` (SMS + in-app: "we missed
 you", facility and date only), `care-plan.follow-up-due` (SMS + in-app, category `clinical`: a care-plan follow-up is
 due or overdue, naming no condition, test or plan), `clinic.message` (in-app only: subject and text written by staff).
+`management.report-ready` (in-app and email to the named recipients of a scheduled management report: the schedule
+name, the period and a link to the reports page — never a figure; `docs/architecture/management-dashboard.md`).
 
 ## Staff in-app messages (staff inbox)
 

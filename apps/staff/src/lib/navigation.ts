@@ -52,6 +52,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/laboratory/eqa": ["lab.qc.read"],
   "/laboratory/competency": ["lab.qc.read"],
   "/laboratory/licence": ["lab.qc.read"],
+  "/management/reports": ["management.dashboard.read"],
   "/records/imports": ["interop.fhir.import.review"],
   "/records/retention": ["document.retention.manage"],
   "/records/requests": ["patient.records-request.manage"],

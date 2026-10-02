@@ -220,6 +220,7 @@ advises.
 | `interop.fhir.import.review`  | Review FHIR imports: view received content, match the patient, accept or reject entries (audited)                   | Medical records officer                            |
 | `interop.fhir.read`           | Read patient records through the FHIR R4 interface (whole-record export; audited)                                   | —                                                  |
 | `management.dashboard.read`   | View the management dashboard and download its tables (aggregate figures; revenue also needs `billing.report.read`) | —                                                  |
+| `management.report.manage`    | Schedule weekly or monthly management reports for named recipients (produced with the scheduler's own permissions)  | —                                                  |
 
 **Things to notice in the defaults:**
 

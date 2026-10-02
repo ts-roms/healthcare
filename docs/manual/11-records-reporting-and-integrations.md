@@ -400,6 +400,26 @@ billing report access (`billing.report.read`) for every facility shown.
 - Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
 - These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
 
+## How to schedule a weekly or monthly report
+
+**Who:** organization administrators (`management.report.manage`); anyone with `management.dashboard.read` can open the produced reports.
+
+1. Open **Management → Scheduled reports** (`/management/reports`), or **Scheduled reports** next to the CSV downloads on the dashboard.
+2. Select **New schedule**. Give it a name, choose **Weekly** (Monday to Sunday) or **Monthly** (calendar month), a **Facility** or all the
+   facilities you may report on, the **Tables** wanted and the **Recipients**.
+3. Select **Schedule**. After the end of each week or month the tables are produced as CSV files and every recipient gets a message in the app
+   and by email saying the report is ready — the message never contains figures.
+4. Under **Produced reports**, select a table's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
+
+**Things to know:**
+
+- Reports are produced with the permissions of the person who set the schedule up (or last changed it). The system refuses a schedule for
+  facilities you may not report on, revenue tables without billing report access, and recipients who may not view the dashboard for that scope.
+- A revenue table opens only for a reader with billing report access for every facility of the report, even when it was produced.
+- If a permission is taken away later, the affected table shows as **withheld** on that run (status **Partly withheld**); a report that could not
+  be produced shows **Failed** with the reason and is tried again every hour for a week.
+- Choosing recipients needs access to the staff list (`user.read`). Each download is recorded in the audit trail.
+
 ## Rules the system enforces
 
 - A merge needs a reason, the versions you reviewed, every flagged difference acknowledged, and no work in progress under the record to retire. Both
