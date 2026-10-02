@@ -297,8 +297,8 @@ describe("compliance configuration", () => {
         [recent, "now()"],
       ] as const) {
         await ctx.pool.query(
-          `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source)
-           VALUES ($1, $2, $3, $4, 'consent_form', 'Consent', 'consent.pdf', 'application/pdf', 1000, $5, 'available', ${uploaded}, 'generated')`,
+          `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source, scan_status, scanned_at)
+           VALUES ($1, $2, $3, $4, 'consent_form', 'Consent', 'consent.pdf', 'application/pdf', 1000, $5, 'available', ${uploaded}, 'generated', 'clean', ${uploaded})`,
           [id, tenant.organizationId, tenant.facilityId, patientId, `org/${tenant.organizationId}/documents/${id}`],
         );
       }
@@ -368,8 +368,8 @@ describe("compliance configuration", () => {
 
       const doc = randomUUID();
       await ctx.pool.query(
-        `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source)
-         VALUES ($1, $2, $3, $4, 'other', 'Copy', 'copy.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated')`,
+        `INSERT INTO document (id, organization_id, facility_id, patient_id, category, title, file_name, content_type, size_bytes, storage_key, status, uploaded_at, source, scan_status, scanned_at)
+         VALUES ($1, $2, $3, $4, 'other', 'Copy', 'copy.pdf', 'application/pdf', 1000, $5, 'available', now(), 'generated', 'clean', now())`,
         [doc, tenant.organizationId, tenant.facilityId, patientId, `org/${tenant.organizationId}/documents/${doc}`],
       );
       await api(records)

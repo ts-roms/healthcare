@@ -17,7 +17,7 @@ import {
   timelineRange,
   type TimelineWindow,
 } from "@healthcare/core";
-import { and, count, desc, eq, gte, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { CommunicationLogQuery, sendNotificationSchema } from "./notification.dto";
 import {
@@ -32,6 +32,11 @@ import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type R
 import { findTemplate, templateLabel, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
+
+/** How long after its creation a message that was not sent may be sent again (a stale reminder should not go out). */
+export const RESEND_WINDOW_DAYS = 30;
+/** Statuses a message can be sent again from. */
+export const RESENDABLE: readonly NotificationStatus[] = ["failed", "cancelled", "suppressed"];
 
 export type NotificationView = Omit<NotificationRecord, "variables" | "destination"> & { destinationMasked: string | null; templateLabel: string };
 
@@ -61,6 +66,9 @@ export interface CommunicationLogEntry {
   failedAt: Date | null;
   cancelledAt: Date | null;
   readAt: Date | null;
+  /** The message this one was resent from, and the latest message sent again from this one (migration 0099). */
+  resentFrom: string | null;
+  resentAs: string | null;
 }
 
 export interface CommunicationSummary {
@@ -108,7 +116,7 @@ export class NotificationService {
    * a notice to the address an account just left): it is honoured for internal security templates and ignored otherwise.
    * The public send endpoint never passes it.
    */
-  async send(actor: Actor, input: SendNotificationInput, options: { securityDestination?: string } = {}): Promise<NotificationView> {
+  async send(actor: Actor, input: SendNotificationInput, options: { securityDestination?: string; resentFrom?: string } = {}): Promise<NotificationView> {
     const template = findTemplate(input.templateKey);
     if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, "unknown_template");
     if (!template.channels.includes(input.channel)) {
@@ -164,6 +172,7 @@ export class NotificationService {
           scheduledFor,
           createdBy: actorUserId(actor),
           deliveredAt: status === "delivered" ? new Date() : null,
+          resentFrom: options.resentFrom ?? null,
         })
         .onConflictDoNothing()
         .returning();
@@ -175,7 +184,7 @@ export class NotificationService {
         patientId: row.recipientPatientId ?? undefined,
         outcome: status === "suppressed" ? "denied" : "success",
         reason: row.suppressionReason ?? undefined,
-        metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category },
+        metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category, resentFrom: options.resentFrom },
       });
       return row;
     });
@@ -224,6 +233,82 @@ export class NotificationService {
   }
 
   /**
+   * Cancels a queued message to a patient from the communication log (`notification.manage`), with a reason. Only a
+   * message not yet picked up by the worker can be cancelled: sending, sent and delivered ones cannot.
+   */
+  async cancel(actor: Actor, notificationId: string, reason: string): Promise<NotificationView> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(notification)
+        .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.id, notificationId), eq(notification.recipientType, "patient")))
+        .for("update");
+      if (!row) throw new NotFoundError("Notification");
+      if (row.status !== "queued")
+        throw new BusinessRuleError("Only a message not yet sent can be cancelled", "notification_not_cancellable", { status: row.status });
+      const [cancelled] = await tx
+        .update(notification)
+        .set({ status: "cancelled", cancelledAt: new Date(), lastError: reason, updatedAt: new Date() })
+        .where(eq(notification.id, row.id))
+        .returning();
+      await this.audit.record(tx, actor, {
+        action: "notification.cancel",
+        resourceType: "notification",
+        resourceId: row.id,
+        patientId: row.recipientPatientId ?? undefined,
+        reason,
+        metadata: { channel: row.channel, templateKey: row.templateKey },
+      });
+      return toNotificationView(cancelled!);
+    });
+  }
+
+  /**
+   * Sends again a message to a patient that was not sent (failed, cancelled or suppressed; `notification.manage`):
+   * a NEW notification through the ordinary path, so consent, preferences and the current contact detail are checked
+   * again — a message suppressed for a missing number goes out only once a number exists. Same template, version and
+   * variables; the original never changes. Refused for security messages, internal templates, messages older than
+   * {@link RESEND_WINDOW_DAYS} days, and while an earlier resend of the same message is still queued or was sent.
+   */
+  async resend(actor: Actor, notificationId: string, reason: string): Promise<NotificationView> {
+    const [row] = await this.db
+      .select()
+      .from(notification)
+      .where(and(eq(notification.organizationId, actor.organizationId), eq(notification.id, notificationId), eq(notification.recipientType, "patient")));
+    if (!row || !row.recipientPatientId) throw new NotFoundError("Notification");
+    if (!RESENDABLE.includes(row.status)) {
+      throw new BusinessRuleError("Only a message that was not sent can be sent again", "notification_not_resendable", { status: row.status });
+    }
+    const template = findTemplate(row.templateKey);
+    if (!template || template.internal || template.category === "security" || row.category === "security") {
+      throw new BusinessRuleError("This kind of message cannot be sent again from the log", "notification_not_resendable", { reason: "template" });
+    }
+    if (row.createdAt.getTime() < Date.now() - RESEND_WINDOW_DAYS * 86_400_000) {
+      throw new BusinessRuleError(`A message older than ${RESEND_WINDOW_DAYS} days cannot be sent again`, "notification_not_resendable", { reason: "too_old" });
+    }
+    const [earlier] = await this.db
+      .select({ id: notification.id, status: notification.status })
+      .from(notification)
+      .where(and(eq(notification.resentFrom, row.id), notInArray(notification.status, [...RESENDABLE])))
+      .limit(1);
+    if (earlier) throw new BusinessRuleError("This message was already sent again", "notification_already_resent", { notificationId: earlier.id });
+    const sent = await this.send(
+      actor,
+      { recipient: { type: "patient", patientId: row.recipientPatientId }, channel: row.channel, templateKey: row.templateKey, variables: row.variables },
+      { resentFrom: row.id },
+    );
+    await this.audit.recordStandalone(actor, {
+      action: "notification.resend",
+      resourceType: "notification",
+      resourceId: row.id,
+      patientId: row.recipientPatientId,
+      reason,
+      metadata: { channel: row.channel, templateKey: row.templateKey, resentAs: sent.id, outcome: sent.status },
+    });
+    return sent;
+  }
+
+  /**
    * The communication log: messages to patients (never staff inbox messages) created in a period, newest first, with
    * their delivery status — never the message, its variables or the full destination. Includes records merged into a
    * patient when filtered by one. Not audited here: the caller (apps/api) audits the view.
@@ -250,8 +335,10 @@ export class NotificationService {
       .limit(query.pageSize + 1)
       .offset((query.page - 1) * query.pageSize);
     const hasMore = rows.length > query.pageSize;
+    const shown = rows.slice(0, query.pageSize);
+    const resentAs = await this.latestResends(shown.map((r) => r.id));
     return {
-      items: rows.slice(0, query.pageSize).map((r) => ({
+      items: shown.map((r) => ({
         id: r.id,
         patientId: r.recipientPatientId!,
         channel: r.channel,
@@ -270,11 +357,26 @@ export class NotificationService {
         failedAt: r.failedAt,
         cancelledAt: r.cancelledAt,
         readAt: r.readAt,
+        resentFrom: r.resentFrom,
+        resentAs: resentAs.get(r.id) ?? null,
       })),
       page: query.page,
       pageSize: query.pageSize,
       hasMore,
     };
+  }
+
+  /** The newest message sent again from each of the given ones. */
+  private async latestResends(ids: string[]): Promise<Map<string, string>> {
+    if (!ids.length) return new Map();
+    const rows = await this.db
+      .select({ id: notification.id, resentFrom: notification.resentFrom })
+      .from(notification)
+      .where(inArray(notification.resentFrom, ids))
+      .orderBy(desc(notification.createdAt));
+    const latest = new Map<string, string>();
+    for (const r of rows) if (r.resentFrom && !latest.has(r.resentFrom)) latest.set(r.resentFrom, r.id);
+    return latest;
   }
 
   /** Counts of messages to patients in a period by status, channel, reason not sent and kind. Not audited here. */

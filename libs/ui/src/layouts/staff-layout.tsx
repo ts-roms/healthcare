@@ -174,6 +174,18 @@ function Brand({ name, collapsed = false }: { name: string; collapsed?: boolean 
 }
 
 /** A group in the collapsed rail: its icon opens a pop-out beside the rail listing the sub-pages. */
+/** Items waiting in a module, as a number with an accessible label (never colour alone). */
+function NavCount({ count, label, className }: { count: number; label: string; className?: string }) {
+  return (
+    <span
+      className={cn("ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold text-primary-foreground tabular-nums", className)}
+      aria-label={`${count} waiting in ${label}`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 function CollapsedGroup({
   item,
   pathname,
@@ -286,6 +298,7 @@ function SidebarNav({
                         {item.badge}
                       </span>
                     ) : null}
+                    {item.count && !collapsed ? <NavCount count={item.count} label={item.label} /> : null}
                   </Link>
                 );
                 if (item.children && !collapsed) {
@@ -301,6 +314,7 @@ function SidebarNav({
                     >
                       {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
                       {item.label}
+                      {item.count ? <NavCount count={item.count} label={item.label} className="ml-auto" /> : null}
                       <ChevronDownIcon
                         className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")}
                         aria-hidden

@@ -36,6 +36,8 @@ export const notification = pgTable("notification", {
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   readAt: timestamp("read_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The notification this one is a resend of (migration 0099); the original row never changes. */
+  resentFrom: uuid("resent_from"),
 });
 
 export const notificationAttempt = pgTable("notification_attempt", {

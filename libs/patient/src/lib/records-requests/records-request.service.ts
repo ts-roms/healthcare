@@ -203,6 +203,15 @@ export class RecordsRequestService {
 
   // ---- the records office ------------------------------------------------------------------
 
+  /** Open requests of the organization (a count for the navigation badge; not audited). */
+  async countOpen(actor: Actor): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(recordsRequest)
+      .where(and(eq(recordsRequest.organizationId, actor.organizationId), inArray(recordsRequest.status, [...OPEN])));
+    return row?.count ?? 0;
+  }
+
   async list(actor: Actor, status: "open" | "closed" | "all") {
     const filters = [eq(recordsRequest.organizationId, actor.organizationId)];
     if (status === "open") filters.push(inArray(recordsRequest.status, [...OPEN]));

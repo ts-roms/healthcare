@@ -383,6 +383,13 @@ patients across the organization, newest first. Messages to staff (the bell) are
    hidden, the status (colour, icon and words; the reason when not sent; the attempts when failed) and who asked for it (**Automatic** when the
    platform sent it on its own).
 4. **Download CSV** saves the same list (up to 5,000 messages; narrow the filters for more). Keep the file as confidential as the patient record.
+5. **Send again** (needs `notification.manage`: administrators and reception): a message that failed, was cancelled or was not sent because of a
+   missing number or a preference can be sent again with a reason — as a new message, so the patient's current consent, preferences and contact
+   details decide once more. A message older than 30 days, a security message, or one already sent again cannot be. **Cancel** stops a message
+   that is still waiting to go out (a scheduled reminder); one already sending or sent cannot be cancelled. Both are recorded in the audit trail.
+6. The menu shows a number next to **Messages** (conversations waiting for a reply), **Laboratory** (critical results not yet acknowledged at the
+   selected facility), **Records** (open records requests) and **Reporting** (case reports awaiting review) — only for modules you may open; the
+   numbers refresh about once a minute.
 
 Showing the list and downloading it are recorded in the audit log. Staff without `patient.read` see only the figures, not the patients.
 

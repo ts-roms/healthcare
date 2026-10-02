@@ -32,7 +32,7 @@ export class DohReportingModule {
         options.gateway ?? dohGatewayProvider,
         { provide: DOH_CASE_SOURCES, useClass: options.sources },
       ],
-      exports: [DohRescans, DohRecordQueries],
+      exports: [DohRescans, DohRecordQueries, DohReportsService],
     };
   }
 }

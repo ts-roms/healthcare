@@ -7,6 +7,7 @@ import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
 import { COOKIES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
+import type { StaffBadges } from "@/lib/api/types";
 import { setRequestTimeZone } from "@/lib/time-zone";
 import { PasswordForm } from "./account/account-forms";
 
@@ -20,9 +21,19 @@ async function unreadNotices(): Promise<number> {
   }
 }
 
+/** Counts for the navigation; a failure here never takes the page down. */
+async function navigationBadges(): Promise<StaffBadges | null> {
+  try {
+    return await api<StaffBadges>("/me/badges");
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
+}
+
 /** Every staff page renders inside the signed-in shell; the session and permissions come from the API. */
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
-  const [session, facilities, jar, unread] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices()]);
+  const [session, facilities, jar, unread, badges] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
@@ -35,6 +46,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       facilityId={facilityId}
       timeZone={timeZone}
       unreadNotices={unread}
+      badges={badges}
     >
       {/* Until the member replaces a temporary password, or sets up the two-step verification their organization requires, the API opens nothing else. */}
       {session.user.passwordChangeRequired ? (

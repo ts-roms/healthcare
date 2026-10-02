@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDemoPath, navigationForPermissions } from "./navigation";
+import { isDemoPath, navigationForPermissions, withBadgeCounts } from "./navigation";
 
 const hrefs = (permissions: string[]) => navigationForPermissions(permissions).map((i) => i.href);
 
@@ -96,5 +96,24 @@ describe("isDemoPath", () => {
   it("shows billing to users with billing permission", () => {
     expect(hrefs(["patient.read"])).not.toContain("/billing");
     expect(navigationForPermissions(["billing.charge.read"]).find((i) => i.href === "/billing")?.badge).toBeUndefined();
+  });
+});
+
+describe("withBadgeCounts", () => {
+  const items = [
+    { label: "Messages", href: "/messages" },
+    { label: "Laboratory", href: "/laboratory" },
+    { label: "Records", href: "/records" },
+    { label: "Reporting", href: "/reporting" },
+    { label: "Billing", href: "/billing" },
+  ];
+
+  it("adds a count only where there is something waiting the user may see", () => {
+    const counted = withBadgeCounts(items, { messagesAwaiting: 3, messagesOverdue: 1, criticalResults: 0, recordsRequests: null, caseReports: 2 });
+    expect(counted.map((i) => i.count ?? null)).toEqual([3, null, null, 2, null]);
+  });
+
+  it("leaves the navigation alone without counts", () => {
+    expect(withBadgeCounts(items, null)).toBe(items);
   });
 });
