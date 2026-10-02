@@ -22,8 +22,8 @@ test("the desk captures a registration, a walk-in and vital signs offline and th
 
   await context.setOffline(true);
   await admin.reload();
-  await expect(admin.getByText(/No connection\./)).toBeVisible();
-  await expect(admin.getByRole("status").filter({ hasText: "No connection" }).first()).toBeVisible();
+  // Both the banner and the page itself say so.
+  await expect(admin.getByRole("status").filter({ hasText: "No connection" })).toHaveCount(2);
 
   await admin.getByLabel("Family name *").fill("Offline");
   await admin.getByLabel("Given name *").fill("Oscar");
