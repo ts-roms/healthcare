@@ -1,13 +1,17 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, type StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
+  ConsentFormQueryDto,
   CreateProcedureDefinitionDto,
+  ProcedureConsentDto,
   ProcedureDefinitionListQueryDto,
   ProcedureInErrorDto,
   ProcedureSupplyTemplateDto,
+  PublishConsentWordingDto,
   RecordProcedureDto,
   RecordProcedureSuppliesDto,
+  RecordVisitProcedureDto,
   ReturnProcedureSuppliesDto,
   UpdateProcedureDefinitionDto,
 } from "./procedure.dto";
@@ -43,6 +47,35 @@ export class ClinicProcedureController {
     return this.procedures.updateDefinition(actor, id, body);
   }
 
+  // ---- consent wording and forms (migration 0095) -----------------------------------------------------------------
+
+  @Get("clinic/procedure-definitions/:definitionId/consent-wordings")
+  @RequirePermissions("encounter.read")
+  @ApiOperation({ summary: "Every version of the organization's consent wording for a procedure, latest first" })
+  consentWordings(@CurrentActor() actor: Actor, @Param("definitionId", ParseUUIDPipe) id: string) {
+    return this.procedures.consentWordings(actor, id);
+  }
+
+  @Post("clinic/procedure-definitions/:definitionId/consent-wordings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Publish the next version of the organization's own consent wording for a procedure (append-only; none is shipped)" })
+  publishConsentWording(@CurrentActor() actor: Actor, @Param("definitionId", ParseUUIDPipe) id: string, @Body() body: PublishConsentWordingDto) {
+    return this.procedures.publishConsentWording(actor, id, body);
+  }
+
+  @Get("clinic/procedure-definitions/:definitionId/consent-form.pdf")
+  @RequirePermissions("encounter.read", "patient.read")
+  @RequireFacility()
+  @ApiOperation({ summary: "Printable consent form for a patient to sign: the current wording with its version and signature lines (audited; not stored)" })
+  async consentForm(
+    @CurrentActor() actor: Actor,
+    @Param("definitionId", ParseUUIDPipe) id: string,
+    @Query() query: ConsentFormQueryDto,
+  ): Promise<StreamableFile> {
+    const { filename, pdf } = await this.procedures.consentFormPdf(actor, id, query.patientId);
+    return pdfFile(pdf, filename);
+  }
+
   @Get("encounters/:encounterId/procedures")
   @RequirePermissions("encounter.read")
   forEncounter(@CurrentActor() actor: Actor, @Param("encounterId", ParseUUIDPipe) encounterId: string) {
@@ -55,6 +88,30 @@ export class ClinicProcedureController {
   @ApiOperation({ summary: "Record a procedure performed in an in-person consultation (a signed one needs encounter.amend and a reason)" })
   record(@CurrentActor() actor: Actor, @Param("encounterId", ParseUUIDPipe) encounterId: string, @Body() body: RecordProcedureDto) {
     return this.procedures.record(actor, encounterId, body);
+  }
+
+  @Get("visits/:visitId/procedures")
+  @RequirePermissions("encounter.read")
+  @ApiOperation({ summary: "Procedures recorded under a queue visit without a consultation" })
+  forVisit(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) visitId: string) {
+    return this.procedures.listForVisit(actor, visitId);
+  }
+
+  @Post("visits/:visitId/procedures")
+  @RequirePermissions("procedure.record")
+  @RequireFacility()
+  @ApiOperation({
+    summary: "Record a procedure performed under an open in-person queue visit without a consultation (catalogue entries the organization allows)",
+  })
+  recordForVisit(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) visitId: string, @Body() body: RecordVisitProcedureDto) {
+    return this.procedures.recordForVisit(actor, visitId, body);
+  }
+
+  @Post("procedures/:procedureId/consent")
+  @RequirePermissions("encounter.read")
+  @ApiOperation({ summary: "Record the consent obtained for a procedure recorded without one (once; needs encounter.write or procedure.record)" })
+  addConsent(@CurrentActor() actor: Actor, @Param("procedureId", ParseUUIDPipe) id: string, @Body() body: ProcedureConsentDto) {
+    return this.procedures.addConsent(actor, id, body);
   }
 
   @Get("patients/:patientId/procedures")

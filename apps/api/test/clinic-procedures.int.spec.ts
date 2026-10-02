@@ -1,6 +1,8 @@
+import { extractPdfText } from "@healthcare/pdf";
 import {
   as,
   auditRows,
+  binary,
   createClinician,
   createStaff,
   createTenant,
@@ -16,7 +18,9 @@ import {
 interface Procedure {
   id: string;
   patientId: string;
-  encounterId: string;
+  encounterId: string | null;
+  visitId: string | null;
+  consent: { capturedVia: string; givenBy: string; representativeName: string | null; wording: { version: number } | null; documentId: string | null } | null;
   code: string;
   name: string;
   description: string;
@@ -222,5 +226,187 @@ describe("clinic procedures", () => {
     expect(suture).toMatchObject({ status: "entered-in-error", category: { coding: [{ code: "clinic-procedure" }] } });
     expect(suture?.code.coding.map((c) => c.code)).toEqual(["SUT-S", "12001"]);
     expect(JSON.stringify(procedures)).not.toMatch(/4 sutures/);
+  });
+
+  // ---- consent, note templates and procedures outside a consultation (migration 0095) ---------------------------
+
+  it("keeps the organization's own consent wording per procedure, versioned, and prints a form for a patient", async () => {
+    const wording = { title: "Consent to suture repair", body: "I understand the procedure, its risks and alternatives, and I agree to it being performed." };
+    await staff(doctor).post(`/clinic/procedure-definitions/${ids.suture}/consent-wordings`, wording).expect(403);
+    await staff(admin).post(`/clinic/procedure-definitions/${ids.suture}/consent-wordings`, { title: "x", body: "short" }).expect(400);
+    const v1 = await staff(admin).post(`/clinic/procedure-definitions/${ids.suture}/consent-wordings`, wording).expect(201);
+    expect(v1.body).toMatchObject({ definitionId: ids.suture, version: 1, title: wording.title });
+    const v2 = await staff(admin)
+      .post(`/clinic/procedure-definitions/${ids.suture}/consent-wordings`, { ...wording, body: `${wording.body} Questions were answered.` })
+      .expect(201);
+    expect(v2.body.version).toBe(2);
+    ids.wordingV1 = v1.body.id;
+    ids.wordingV2 = v2.body.id;
+    expect(
+      (await staff(nurse).get(`/clinic/procedure-definitions/${ids.suture}/consent-wordings`).expect(200)).body.map((w: { version: number }) => w.version),
+    ).toEqual([2, 1]);
+    const catalogue = (await staff(nurse).get("/clinic/procedure-definitions").expect(200)).body as Array<{
+      code: string;
+      consentWording: { version: number } | null;
+    }>;
+    expect(catalogue.find((d) => d.code === "SUT-S")?.consentWording).toMatchObject({ version: 2 });
+    expect(catalogue.find((d) => d.code === "NEB")?.consentWording).toBeNull();
+    await expect(ctx.pool.query(`UPDATE clinic_procedure_consent_wording SET body = 'changed' WHERE id = $1`, [ids.wordingV1])).rejects.toThrow();
+
+    // The printable form: letterhead, the patient, the procedure, the current wording and its version. Audited.
+    await staff(nurse)
+      .get(`/clinic/procedure-definitions/${ids.neb}/consent-form.pdf?patientId=${patientId}`)
+      .expect(code(422, "consent_wording_not_published"));
+    const pdf = await staff(nurse)
+      .get(`/clinic/procedure-definitions/${ids.suture}/consent-form.pdf?patientId=${patientId}`)
+      .buffer()
+      .parse(binary)
+      .expect(200);
+    expect(pdf.headers["content-type"]).toBe("application/pdf");
+    const text = extractPdfText(pdf.body as Buffer);
+    expect(text).toContain("Consent to suture repair");
+    expect(text).toContain("Questions were answered");
+    expect(text).toContain("DELA CRUZ, Juan");
+    expect(text).toContain("Consent to suture repair, version 2");
+    await staff(cashier).get(`/clinic/procedure-definitions/${ids.suture}/consent-form.pdf?patientId=${patientId}`).expect(403);
+    expect(await auditRows(ctx.pool, "action = 'clinic.procedure-consent-form.print' AND patient_id = $1", [patientId])).toHaveLength(1);
+  });
+
+  it("requires consent with a procedure when the catalogue says so, and records how it was obtained", async () => {
+    const current = (await staff(admin).get("/clinic/procedure-definitions?includeInactive=true").expect(200)).body as Array<{ id: string; version: number }>;
+    const version = (id: string) => current.find((d) => d.id === id)!.version;
+    const updated = await staff(admin)
+      .patch(`/clinic/procedure-definitions/${ids.suture}`, { consentRequired: true, noteTemplate: "Anaesthetic:\nSutures:", version: version(ids.suture) })
+      .expect(200);
+    expect(updated.body).toMatchObject({ consentRequired: true, noteTemplate: "Anaesthetic:\nSutures:", allowedOutsideConsultation: false });
+
+    const encounterId = (await staff(doctor).post("/encounters", { patientId, chiefComplaint: "Laceration, right hand" }).expect(201)).body.id;
+    ids.encounter2 = encounterId;
+    const record = (body: object) => staff(doctor).post(`/encounters/${encounterId}/procedures`, body);
+    const suture = { definitionId: ids.suture, bodySite: "right hand", notes: "Anaesthetic: lidocaine 2%\nSutures: 3" };
+    await record(suture).expect(code(422, "procedure_consent_required"));
+    await record({ ...suture, consent: { capturedVia: "paper", givenBy: "representative" } }).expect(400);
+    await record({ ...suture, consent: { capturedVia: "electronic", wordingId: ids.neb } }).expect(code(422, "consent_wording_unknown"));
+    await record({ ...suture, consent: { capturedVia: "paper", obtainedAt: new Date(Date.now() + 3_600_000).toISOString() } }).expect(
+      code(422, "consent_after_procedure"),
+    );
+    // A scan must be a consent form of this patient.
+    const other = await staff(admin)
+      .post("/documents", {
+        category: "clinical_attachment",
+        title: "Not a consent",
+        fileName: "x.pdf",
+        contentType: "application/pdf",
+        sizeBytes: 100,
+        patientId,
+      })
+      .expect(201);
+    await record({ ...suture, consent: { capturedVia: "paper", documentId: other.body.document.id } }).expect(code(422, "document_not_consent_form"));
+    const form = await staff(admin)
+      .post("/documents", {
+        category: "consent_form",
+        title: "Signed consent",
+        fileName: "consent.pdf",
+        contentType: "application/pdf",
+        sizeBytes: 100,
+        patientId,
+      })
+      .expect(201);
+    const formId = form.body.document.id as string;
+    const { rows } = await ctx.pool.query<{ storage_key: string }>("SELECT storage_key FROM document WHERE id = $1", [formId]);
+    ctx.storage.put(rows[0]!.storage_key, { sizeBytes: 100, contentType: "application/pdf" });
+    await staff(admin).post(`/documents/${formId}/complete`).expect(200);
+
+    const recorded = await record({
+      ...suture,
+      consent: {
+        capturedVia: "electronic",
+        givenBy: "representative",
+        representativeName: "Maria Dela Cruz",
+        representativeRelationship: "mother",
+        documentId: formId,
+        notes: "Explained in Filipino",
+      },
+    }).expect(201);
+    expect(recorded.body.consent).toMatchObject({
+      capturedVia: "electronic",
+      givenBy: "representative",
+      representativeName: "Maria Dela Cruz",
+      wording: { version: 2 },
+      documentId: formId,
+      obtainedBy: { name: "Dr. doctor" },
+    });
+    expect(recorded.body.encounterId).toBe(encounterId);
+    ids.consented = recorded.body.id;
+    const audit = await auditRows(ctx.pool, "action = 'clinic.procedure-consent.record' AND patient_id = $1", [patientId]);
+    expect(audit[0]).toMatchObject({ metadata: { procedureId: ids.consented, wordingVersion: 2, documentLinked: true } });
+    expect(JSON.stringify(audit)).not.toMatch(/Maria|Filipino/);
+    await expect(ctx.pool.query(`UPDATE clinic_procedure_consent SET notes = 'x' WHERE procedure_id = $1`, [ids.consented])).rejects.toThrow();
+
+    // Consent added once to a procedure recorded without one (the nurse may: procedure.record).
+    const neb = (await record({ definitionId: ids.neb })).body as Procedure;
+    expect(neb.consent).toBeNull();
+    await staff(cashier).post(`/procedures/${neb.id}/consent`, { capturedVia: "verbal" }).expect(403);
+    const added = await staff(nurse).post(`/procedures/${neb.id}/consent`, { capturedVia: "verbal" }).expect(201);
+    expect(added.body.consent).toMatchObject({ capturedVia: "verbal", givenBy: "patient", wording: null, obtainedBy: { name: "Dr. doctor" } });
+    await staff(nurse).post(`/procedures/${neb.id}/consent`, { capturedVia: "verbal" }).expect(code(422, "consent_already_recorded"));
+  });
+
+  it("records a procedure under a queue visit without a consultation when the catalogue allows it (procedure.record)", async () => {
+    const visitTypeId = (
+      await staff(admin).post("/clinic/visit-types", { code: "nurse", name: "Nursing visit", defaultDurationMinutes: 10, requiresTriage: false }).expect(201)
+    ).body.id;
+    const visitId = (await staff(nurse).post("/queue/walk-ins", { patientId, visitTypeId, chiefComplaint: "Wound check" }).expect(201)).body.id as string;
+    ids.visit = visitId;
+    const record = (t: string, body: object) => staff(t).post(`/visits/${visitId}/procedures`, body);
+    const dressing = { definitionId: ids.suture, bodySite: "right hand", consent: { capturedVia: "verbal" } };
+    await record(cashier, dressing).expect(403);
+    await record(nurse, dressing).expect(code(422, "procedure_requires_consultation"));
+    const current = (await staff(admin).get("/clinic/procedure-definitions").expect(200)).body as Array<{ id: string; version: number }>;
+    await staff(admin)
+      .patch(`/clinic/procedure-definitions/${ids.suture}`, { allowedOutsideConsultation: true, version: current.find((d) => d.id === ids.suture)!.version })
+      .expect(200);
+    await record(nurse, { ...dressing, performedAt: "2020-01-01T00:00:00+08:00" }).expect(code(422, "performed_before_visit"));
+
+    const done = await record(nurse, dressing).expect(201);
+    expect(done.body).toMatchObject({
+      encounterId: null,
+      visitId,
+      patientId,
+      performer: { name: "Dr. nurse" },
+      consent: { capturedVia: "verbal" },
+      lateEntryReason: null,
+    });
+    ids.onVisit = done.body.id;
+    expect((await staff(doctor).get(`/visits/${visitId}/procedures`).expect(200)).body.map((p: Procedure) => p.id)).toEqual([ids.onVisit]);
+    await staff(cashier).get(`/visits/${visitId}/procedures`).expect(403);
+
+    // Billed like any other, without a consultation.
+    await drainEvents(ctx);
+    const charges = (await staff(cashier).get(`/billing/charges?patientId=${patientId}`).expect(200)).body as Array<Record<string, unknown>>;
+    expect(charges.find((c) => c.sourceId === ids.onVisit)).toMatchObject({ sourceType: "clinic_procedure", quantity: 1, status: "pending" });
+
+    // Never free-floating, and not once the visit is closed.
+    await expect(ctx.pool.query(`UPDATE clinic_procedure SET visit_id = NULL WHERE id = $1`, [ids.onVisit])).rejects.toThrow();
+    await ctx.pool.query(`UPDATE visit SET status = 'completed', completed_at = now() WHERE id = $1`, [visitId]);
+    await record(nurse, dressing).expect(code(422, "visit_closed"));
+  });
+
+  it("shows procedures outside a consultation in the patient's list, the timeline, Patient 360, FHIR and the copy of the record", async () => {
+    const listed = (await staff(doctor).get(`/patients/${patientId}/procedures`).expect(200)).body as Procedure[];
+    expect(listed.find((p) => p.id === ids.onVisit)).toMatchObject({ encounterId: null, visitId: ids.visit });
+    const timeline = await staff(doctor).get(`/patients/${patientId}/timeline?kinds=procedure`).expect(200);
+    const row = (timeline.body.items as Array<{ detail: string; link: { type: string; id: string }; sourceIds: Record<string, unknown> }>).find(
+      (r) => r.sourceIds.procedureId === ids.onVisit,
+    );
+    expect(row).toMatchObject({ detail: "SUT-S · outside a consultation", link: { type: "patient_record", id: patientId }, sourceIds: { visitId: ids.visit } });
+    const workspace = await staff(doctor).get(`/patients/${patientId}/workspace`).expect(200);
+    expect(workspace.body.procedures.find((p: { id: string }) => p.id === ids.onVisit)).toMatchObject({ encounterId: null, visitId: ids.visit });
+    const fhir = await ctx.http().get(`/api/v1/fhir/r4/Procedure?patient=${patientId}`).set(as(admin, tenant.facilityId)).expect(200);
+    const resource = (fhir.body.entry as Array<{ resource: { id: string; encounter?: unknown; status: string } }>)
+      .map((e) => e.resource)
+      .find((r) => r.id === ids.onVisit);
+    expect(resource).toMatchObject({ status: "completed" });
+    expect(resource).not.toHaveProperty("encounter");
   });
 });

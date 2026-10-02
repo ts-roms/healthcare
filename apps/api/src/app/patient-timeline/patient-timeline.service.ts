@@ -415,10 +415,10 @@ export class PatientTimelineService {
         return (await this.procedures.timeline(organizationId, patientId, window)).map((p) =>
           row("clinic_procedure", p, {
             title: `Procedure: ${procedureText(p)}`,
-            detail: p.code,
+            detail: p.encounterId ? p.code : `${p.code} · outside a consultation`,
             status: p.enteredInErrorAt ? "entered_in_error" : "completed",
-            link: { type: "encounter", id: p.encounterId },
-            sourceIds: { procedureId: p.id, encounterId: p.encounterId },
+            link: p.encounterId ? { type: "encounter", id: p.encounterId } : { type: "patient_record", id: patientId },
+            sourceIds: { procedureId: p.id, ...(p.encounterId ? { encounterId: p.encounterId } : {}), ...(p.visitId ? { visitId: p.visitId } : {}) },
           }),
         );
       case "immunization":

@@ -71,4 +71,11 @@ describe("clinic procedures (FHIR)", () => {
     expect(resource).not.toHaveProperty("note");
     expect(resource).not.toHaveProperty("bodySite");
   });
+
+  it("leaves out the encounter for a procedure performed under a queue visit without a consultation", () => {
+    const resource = toClinicProcedure(ctx, P, { ...suture, encounterId: null });
+    expect(validateProcedure(resource) ? [] : validateProcedure.errors).toEqual([]);
+    expect(resource).not.toHaveProperty("encounter");
+    expect(resource.performer).toHaveLength(1);
+  });
 });

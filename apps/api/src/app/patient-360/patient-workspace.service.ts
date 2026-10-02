@@ -113,7 +113,9 @@ export interface PatientWorkspace {
   procedures: Array<{
     id: string;
     filedUnder: string | null;
-    encounterId: string;
+    /** The consultation, or null when performed under a queue visit without one (`visitId`). */
+    encounterId: string | null;
+    visitId: string | null;
     description: string;
     performedAt: string;
     performerName: string | null;

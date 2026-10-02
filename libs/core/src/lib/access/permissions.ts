@@ -149,6 +149,8 @@ export const PERMISSIONS = [
   // sexual history also need encounter.write.
   "history.read",
   "history.record",
+  // Clinic procedures outside a consultation (migration 0095)
+  "procedure.record",
   // Staff calendar: meetings, events and blocked time beside appointments (migration 0087).
   "calendar.read",
   "calendar.manage",

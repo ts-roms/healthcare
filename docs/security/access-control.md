@@ -165,6 +165,14 @@ permissions plus dental) and `dental_assistant` (a nurse's plus the dental
 record and imaging); recording also requires a practitioner with profession
 `dentist`. Audited `dental.*` (views, examinations, plans, procedures, images,
 corrections with the reason); image links are audited as `document.download`.
+Clinic procedures outside a consultation (migration 0095): `procedure.record`
+(org_admin, physician, nurse) records a procedure under an open in-person queue
+visit for catalogue entries the organization allows outside a consultation, and
+adds consent to a procedure recorded without one (also `encounter.write`);
+consent wording is clinic configuration (`clinic.configure`). Audited
+`clinic.procedure-consent-wording.publish`, `clinic.procedure-consent-form.print`
+(with the patient), `clinic.procedure-consent.record` (ids, how captured, the
+wording version — never the representative's name or notes).
 Laboratory quality control (migration 0050): `lab.qc.read`, `lab.qc.enter`
 (org_admin, medical_technologist, pathologist), `lab.qc.manage` (org_admin,
 pathologist); audited `lab.instrument.*`, `lab.qc.*`; QC runs, corrective actions

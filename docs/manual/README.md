@@ -38,6 +38,7 @@ Developers and system operators should read the technical documentation instead:
 | Send a message to a group of patients      | [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign)                        |
 | Book an appointment or check a patient in  | [Appointments and queue](03-appointments-and-queue.md)                                                       |
 | Take vital signs at triage                 | [Appointments and queue → triage](03-appointments-and-queue.md)                                              |
+| Record a nurse procedure without a doctor  | [Appointments and queue → procedures](03-appointments-and-queue.md)                                          |
 | Write and sign a consultation note         | [Consultations](04-consultations-and-care-plans.md)                                                          |
 | Prescribe, or order laboratory tests       | [Consultations](04-consultations-and-care-plans.md)                                                          |
 | Collect a specimen and print its label     | [Laboratory](06-laboratory.md)                                                                               |

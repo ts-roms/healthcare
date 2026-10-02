@@ -242,6 +242,26 @@ label vital signs normal or abnormal.
 - Duplicate checking, permissions and every validation happen when an item is sent, exactly as if you had typed it live; nothing is merged or
   overridden automatically.
 
+## How to record a procedure done without a consultation
+
+Some procedures — a wound dressing, an injection, a nebulization — are done by a nurse during a visit without the doctor seeing the patient.
+Your clinic decides which procedures these are: an administrator ticks **May be recorded under a visit without a consultation** for the entry
+under **Clinic → Procedures**. Staff who may record procedures (physicians and nurses) see **Procedures** on the queue ticket.
+
+1. On the queue board, select the ticket and then **Procedures**. The page lists what was recorded in this visit outside a consultation.
+2. Select **Record procedure** and choose the **Procedure** (only entries your clinic allows outside a consultation are offered), who
+   **Performed by**, **When** (leave empty for now), the **Body site** if asked, **How many** and the **Notes** (prefilled from your clinic's
+   template when there is one — write what applies).
+3. If the entry requires consent, the **Consent** part is open: how it was **Obtained** (signed on paper, electronically with the wording shown,
+   or in words), **Given by** the patient or a representative (name and relationship), **When obtained** (leave empty for the time of the
+   procedure; never after it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and notes.
+   **Print consent form** opens the form with your clinic's current wording for this patient to sign.
+4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
+
+The visit must be open and in person. If the patient is seen by a doctor in the same visit, procedures done in the consultation are recorded in
+the encounter workspace instead (see [Consultations](04-consultations-and-care-plans.md)). A mistake is marked **Entered in error…** with a reason.
+All of a patient's procedures, in and outside consultations, are listed under **Procedures done here** on the patient record.
+
 ## How to choose which visit types patients may book online
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
@@ -335,6 +355,8 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 | Triage is not possible while the visit is in consultation (or completed…)  | The consultation has started or the visit is closed     | Record findings in the encounter instead                               |
 | … was modified by someone else (expected version …). Reload and try again. | Another user changed it first                           | The screen refreshes; check and try again                              |
 | No in-person visit types are configured.                                   | Walk-ins need an in-person visit type                   | Ask your administrator to set one up                                   |
+| This procedure is recorded in a consultation (the catalogue does not…)     | The entry is not allowed outside a consultation         | Record it in the encounter workspace, or ask an administrator          |
+| Record the patient's consent with this procedure                           | The entry requires consent                              | Fill in the **Consent** part of the form                               |
 
 ## Related chapters
 

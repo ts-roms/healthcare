@@ -26,6 +26,7 @@ import {
   WaypointsIcon,
   SyringeIcon,
   PencilIcon,
+  HandIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
@@ -66,7 +67,7 @@ import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { MergedRecords } from "./merged-records";
 import { ImmunizationHistory } from "@/components/immunizations/immunization-panel";
-import type { ImmunizationRecord } from "@/lib/api/types";
+import type { ClinicProcedure, ImmunizationRecord } from "@/lib/api/types";
 import { HistorySummary } from "@/components/history/history-panels";
 import { loadPatientHistory } from "@/lib/api/history";
 
@@ -76,6 +77,18 @@ async function loadImmunizations(id: string): Promise<ImmunizationRecord[] | nul
   if (!can(session, "immunization.read")) return null;
   try {
     return await api<ImmunizationRecord[]>(`/patients/${id}/immunizations`);
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
+    throw e;
+  }
+}
+
+/** Procedures performed at the clinic (audited by the API); null without encounter.read. */
+async function loadProcedures(id: string): Promise<ClinicProcedure[] | null> {
+  const session = await getSession();
+  if (!can(session, "encounter.read")) return null;
+  try {
+    return await api<ClinicProcedure[]>(`/patients/${id}/procedures`);
   } catch (e) {
     if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return null;
     throw e;
@@ -244,10 +257,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getSession(),
   ]);
   const merged = p.status === "merged";
-  const [mergeHistory, immunizations, medicalHistory] = await Promise.all([
+  const [mergeHistory, immunizations, medicalHistory, procedures] = await Promise.all([
     loadMergeHistory(p),
     merged ? Promise.resolve(null) : loadImmunizations(id),
     merged ? Promise.resolve(null) : loadPatientHistory(id).then((h) => h.history),
+    merged ? Promise.resolve(null) : loadProcedures(id),
   ]);
   const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
@@ -602,6 +616,38 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <HistorySummary history={medicalHistory} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {procedures ? (
+          <Card className="lg:col-span-2" id="procedures">
+            <CardHeader>
+              <HandIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Procedures done here</CardTitle>
+              <Button asChild size="sm" variant="ghost" className="ml-auto">
+                <Link href={`/patients/${p.id}/procedures`}>Open all</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {procedures.length ? (
+                <ul className="flex flex-col gap-1 text-table">
+                  {procedures.slice(0, 5).map((pr) => (
+                    <li key={pr.id} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className={pr.enteredInError ? "line-through" : "font-medium"}>{pr.description}</span>
+                      <span className="text-meta text-muted-foreground">
+                        {clinicalDateTime(pr.performedAt)} · {pr.performer.name}
+                        {pr.encounterId ? "" : " · outside a consultation"}
+                        {pr.consent ? " · consent recorded" : ""}
+                        {pr.patientId !== p.id ? ` · ${filedUnderText(filedUnderLookup(p.mergedRecords)(pr.patientId)) ?? ""}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-table text-muted-foreground">No procedure recorded.</p>
+              )}
+              {procedures.length > 5 ? <p className="text-meta text-muted-foreground">{procedures.length - 5} more in the full list.</p> : null}
             </CardContent>
           </Card>
         ) : null}

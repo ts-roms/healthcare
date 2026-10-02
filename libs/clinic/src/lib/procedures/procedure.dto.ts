@@ -23,6 +23,12 @@ export const createProcedureDefinitionSchema = z
     codeSystem: codeSystemKey.optional(),
     externalCode: text(40).optional(),
     requiresBodySite: z.boolean().default(false),
+    /** Recording a procedure of this entry needs a recorded consent. */
+    consentRequired: z.boolean().default(false),
+    /** May be recorded under a queue visit without a consultation (procedure.record). */
+    allowedOutsideConsultation: z.boolean().default(false),
+    /** The organization's own text that prefills the notes (never a clinical rule). */
+    noteTemplate: text(2000).optional(),
   })
   .refine((v) => Boolean(v.codeSystem) === Boolean(v.externalCode), { message: "Give the code with its code system", path: ["externalCode"] });
 export class CreateProcedureDefinitionDto extends createZodDto(createProcedureDefinitionSchema) {}
@@ -33,6 +39,10 @@ export const updateProcedureDefinitionSchema = z.object({
   codeSystem: codeSystemKey.nullable().optional(),
   externalCode: text(40).nullable().optional(),
   requiresBodySite: z.boolean().optional(),
+  consentRequired: z.boolean().optional(),
+  allowedOutsideConsultation: z.boolean().optional(),
+  /** null clears the template. */
+  noteTemplate: text(2000).nullable().optional(),
   status: z.enum(["active", "inactive"]).optional(),
   version: z.number().int().positive(),
 });
@@ -40,6 +50,43 @@ export class UpdateProcedureDefinitionDto extends createZodDto(updateProcedureDe
 
 export const procedureDefinitionListQuery = z.object({ includeInactive: z.enum(["true", "false"]).optional() });
 export class ProcedureDefinitionListQueryDto extends createZodDto(procedureDefinitionListQuery) {}
+
+/** A new version of the organization's consent wording for a catalogue entry (append-only; the platform ships none). */
+export const publishConsentWordingSchema = z.object({
+  title: z.string().trim().min(2, "Give the wording a title").max(200),
+  body: z.string().trim().min(20, "Write the wording the patient is shown (at least 20 characters)").max(8000),
+});
+export class PublishConsentWordingDto extends createZodDto(publishConsentWordingSchema) {}
+
+export const consentFormQuery = z.object({ patientId: z.uuid() });
+export class ConsentFormQueryDto extends createZodDto(consentFormQuery) {}
+
+// ---- consent recorded against a procedure (0095) ----------------------------------------------------------------
+
+export const procedureConsentSchema = z
+  .object({
+    capturedVia: z.enum(["paper", "electronic", "verbal"]),
+    givenBy: z.enum(["patient", "representative"]).default("patient"),
+    /** The representative as written (who may consent for whom is the organization's own rule). */
+    representativeName: text(200).optional(),
+    representativeRelationship: text(100).optional(),
+    /** The wording version the patient was shown; the current one when left out and one is published. */
+    wordingId: z.uuid().optional(),
+    /** Who obtained it (an active practitioner); the performer when left out. */
+    obtainedByPractitionerId: z.uuid().optional(),
+    /** When it was obtained; the performed time when left out. Not after the procedure. */
+    obtainedAt: z.iso.datetime({ offset: true }).optional(),
+    /** A scan of the signed form: a `consent_form` document of this patient. */
+    documentId: z.uuid().optional(),
+    notes: text(1000).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.givenBy === "representative" && !v.representativeName)
+      ctx.addIssue({ code: "custom", message: "Name the person who consented for the patient", path: ["representativeName"] });
+    if (v.givenBy === "patient" && (v.representativeName || v.representativeRelationship))
+      ctx.addIssue({ code: "custom", message: "A representative is named only when one consented", path: ["representativeName"] });
+  });
+export class ProcedureConsentDto extends createZodDto(procedureConsentSchema) {}
 
 // ---- procedures performed -------------------------------------------------------------------------------------
 
@@ -56,8 +103,14 @@ export const recordProcedureSchema = z.object({
   notes: text(2000).optional(),
   /** Required once the consultation is signed (with encounter.amend). */
   lateEntryReason: z.string().trim().min(3, "Say why it is recorded after signing").max(500).optional(),
+  /** The consent obtained for it, recorded in the same transaction (required when the catalogue entry says so). */
+  consent: procedureConsentSchema.optional(),
 });
 export class RecordProcedureDto extends createZodDto(recordProcedureSchema) {}
+
+/** A procedure performed under a queue visit, without a consultation (catalogue entries that allow it). */
+export const recordVisitProcedureSchema = recordProcedureSchema.omit({ lateEntryReason: true });
+export class RecordVisitProcedureDto extends createZodDto(recordVisitProcedureSchema) {}
 
 export const procedureInErrorSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
 export class ProcedureInErrorDto extends createZodDto(procedureInErrorSchema) {}
