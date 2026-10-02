@@ -25,11 +25,13 @@ export async function staffPage(browser: Browser, email: string, errors: string[
       page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 }).then(() => "signed-in" as const),
       page
         .getByRole("alert")
+        .filter({ hasText: /\S/ })
+        .first()
         .waitFor({ timeout: 20_000 })
         .then(() => "refused" as const),
     ]).catch(() => "timeout" as const);
     if (outcome === "signed-in") break;
-    const message = outcome === "refused" ? await page.getByRole("alert").innerText() : "no answer";
+    const message = outcome === "refused" ? await page.getByRole("alert").filter({ hasText: /\S/ }).first().innerText() : "no answer";
     if (attempt >= 2 || !/too many|rate|limit|try again/i.test(message)) throw new Error(`Sign-in as ${email} failed: ${message}`);
     await page.waitForTimeout(61_000);
     await page.goto("/login");
