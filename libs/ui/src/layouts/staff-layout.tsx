@@ -5,7 +5,7 @@ import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIc
 import type { StaffRole } from "@healthcare/domain";
 import { Kbd } from "../primitives/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../primitives/popover";
-import { Sheet,SheetContent, SheetTitle, SheetTrigger } from "../primitives/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "../primitives/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../primitives/tooltip";
 import { cn } from "../lib/utils";
 import { DefaultLink, isActive, type LinkComponent } from "./link";
