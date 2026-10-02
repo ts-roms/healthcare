@@ -153,11 +153,12 @@ restore on the hosting provider, restore time for a production-sized database.
 
 ## Decisions still open
 
-| Decision                                                          | Owner                                     |
-| ----------------------------------------------------------------- | ----------------------------------------- |
-| Backup schedule and how long dumps and object copies are kept     | Operations lead, data protection officer  |
-| Recovery point and recovery time objectives                       | Organization management, operations lead  |
-| Encryption tool and where encrypted backups are stored (off-site) | Operations lead, data protection officer  |
-| Point-in-time recovery and bucket versioning on the provider      | Operations lead, hosting provider terms   |
-| How often restore drills run and who signs them off               | Operations lead                           |
-| Re-sending notifications and exchanges after a restore            | Organization (clinical and records leads) |
+| Decision                                                                                                                                       | Owner                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Backup schedule and how long dumps and object copies are kept                                                                                  | Operations lead, data protection officer  |
+| Recovery point and recovery time objectives                                                                                                    | Organization management, operations lead  |
+| Encryption tool and where encrypted backups are stored (off-site)                                                                              | Operations lead, data protection officer  |
+| Point-in-time recovery and bucket versioning on the provider                                                                                   | Operations lead, hosting provider terms   |
+| How often restore drills run and who signs them off                                                                                            | Operations lead                           |
+| Re-sending notifications and exchanges after a restore                                                                                         | Organization (clinical and records leads) |
+| Rebuilding the hosting environment itself: the checklist in [railway.md](../deployment/railway.md#what-is-codified-and-what-is-not) (ADR-0010) | Operations lead                           |

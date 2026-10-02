@@ -115,6 +115,25 @@ unset, so a variable left empty in the dashboard does not stop start-up. Require
    `railway ssh --service api`, then `pnpm db:seed`. The seed is idempotent.
 5. Deploy the workers, `staff` and `portal`. Sign in to the staff app with the seeded administrator and enrol MFA.
 
+## What is codified and what is not
+
+The checklist for rebuilding this environment or creating another (ADR-0010). Tick each row when setting one up; the
+"by hand" rows are the candidates for Terraform once a provider for Railway has been verified.
+
+| Item                                                                                       | Where it is defined                                                   |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Build command, watch patterns, pre-deploy migration, start command, health check, restarts | `railway.json` next to each app (config-as-code), root `railway.json` |
+| Project, environment                                                                       | By hand (dashboard)                                                   |
+| Postgres and Redis services                                                                | By hand (Railway templates)                                           |
+| The five app services, bound to this repository and its branch                             | By hand                                                               |
+| Each service's config-as-code path (**Settings → Config-as-code**)                         | By hand                                                               |
+| Deploy-on-push turned off per service (**Settings → Source**)                              | By hand                                                               |
+| Shared and per-service variables (tables above); secrets generated per environment         | By hand; secrets never in the repository                              |
+| Public domains for `api`, `staff`, `portal`; `CORS_ORIGINS` and `REALTIME_URL` follow them | By hand                                                               |
+| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                   | By hand, steps above                                                  |
+| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                    | Not set up (observability.md)                                         |
+| Local development dependencies                                                             | `infrastructure/docker/docker-compose.yml`                            |
+
 In production the API does not serve Swagger (`/api/docs`).
 
 Deploying on Railway does not make the platform compliant with the Data Privacy Act or NPC guidance. Hosting region,
