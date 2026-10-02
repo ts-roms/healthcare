@@ -40,6 +40,8 @@ const appConfigSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().positive().default(3333),
+    // Workers have no HTTP server; with a port set they answer GET /live and /ready for the platform's health probes.
+    HEALTH_PORT: z.coerce.number().int().positive().optional(),
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
     DATABASE_URL: z.string().url(),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
@@ -246,6 +248,7 @@ export function integrationPayloadKeyring(config: IntegrationKeyConfig): Keyring
  * secrets and keys that are required or change security behaviour, so a blank one still fails at start-up.
  */
 const BLANK_MEANS_UNSET = [
+  "HEALTH_PORT",
   "S3_ENDPOINT",
   "S3_REGION",
   "S3_BUCKET",
@@ -287,4 +290,10 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid configuration:\n${problems.join("\n")}`);
   }
   return result.data;
+}
+
+/** The Nest log levels enabled by `LOG_LEVEL` (that level and every more severe one). */
+export function levelsFrom(level: AppConfig["LOG_LEVEL"]): Array<"error" | "warn" | "log" | "debug" | "verbose"> {
+  const order = ["error", "warn", "log", "debug", "verbose"] as const;
+  return order.slice(0, order.indexOf(level) + 1);
 }

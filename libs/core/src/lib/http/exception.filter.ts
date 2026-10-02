@@ -32,7 +32,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     body.error.requestId = request.requestId;
     if (status >= 500) {
       this.logger.error(
-        `Unhandled error on ${request.method} ${request.route?.path ?? request.path} [${request.requestId}]`,
+        { event: "http.unhandled_error", method: request.method, route: request.route?.path ?? request.path, requestId: request.requestId },
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
