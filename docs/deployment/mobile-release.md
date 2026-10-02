@@ -22,15 +22,15 @@ Nothing here has been run against Expo's or the stores' services yet: no EAS bui
 
 ### Per-organization settings (not secrets)
 
-| Variable                        | Example                                | Notes                                                                                                                                        |
-| ------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MYHEALTH_IOS_BUNDLE_ID`        | `ph.example.myhealth`                  | iOS bundle identifier. **Cannot be changed after the first release.** Without it builds refuse to run (`expo prebuild` exits with an error). |
-| `MYHEALTH_ANDROID_PACKAGE`      | `ph.example.myhealth`                  | Android package name. Same rule.                                                                                                             |
-| `MYHEALTH_APP_NAME`             | `MyHealth`                             | Name under the icon. Defaults to `MyHealth`.                                                                                                 |
-| `MYHEALTH_EXPO_OWNER`           | the organization's Expo account        | Which Expo account owns the EAS project.                                                                                                     |
-| `EAS_PROJECT_ID`                | from `eas init`                        | Links builds to the organization's EAS project; push needs it (§8 of mobile-app.md).                                                         |
-| `EXPO_PUBLIC_API_BASE_URL`      | `https://api.example.ph/api/v1`        | The API the app talks to. Built into the app.                                                                                                |
-| `EXPO_PUBLIC_ORGANIZATION_CODE` | the organization's `organization.code` | Sent with every sign-in. Built into the app.                                                                                                 |
+| Variable                        | Example                                | Notes                                                                                                                                                          |
+| ------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MYHEALTH_IOS_BUNDLE_ID`        | `ph.example.myhealth`                  | iOS bundle identifier. **Cannot be changed after the first release.** Without it builds refuse to run (`expo prebuild` exits with an error).                   |
+| `MYHEALTH_ANDROID_PACKAGE`      | `ph.example.myhealth`                  | Android package name. Same rule.                                                                                                                               |
+| `MYHEALTH_APP_NAME`             | `MyHealth`                             | Name under the icon. Defaults to `MyHealth`.                                                                                                                   |
+| `MYHEALTH_EXPO_OWNER`           | the platform operator's Expo account   | Which Expo account owns the EAS project: one account for every organization's project (decision in mobile-app.md), so one `EXPO_ACCESS_TOKEN` serves them all. |
+| `EAS_PROJECT_ID`                | from `eas init`                        | Links builds to the organization's EAS project; push needs it (§8 of mobile-app.md).                                                                           |
+| `EXPO_PUBLIC_API_BASE_URL`      | `https://api.example.ph/api/v1`        | The API the app talks to. Built into the app.                                                                                                                  |
+| `EXPO_PUBLIC_ORGANIZATION_CODE` | the organization's `organization.code` | Sent with every sign-in. Built into the app.                                                                                                                   |
 
 `EXPO_PUBLIC_*` values are readable in the app binary; nothing secret belongs in any of these.
 
@@ -66,7 +66,8 @@ Each step is the organization's (or done with its accounts); none is automated h
 1. **Choose the identifiers and name** (bundle identifier, package name, app name). Identifiers are permanent once released.
 2. **Store accounts**: the organization enrolls in the Apple Developer Program and creates a Google Play Console developer account in its own
    name, then creates the app records (App Store Connect, Play Console) with the chosen identifiers.
-3. **Expo**: an Expo account for the organization (or one it controls). From `apps/mobile`, with the variables above set in the shell:
+3. **Expo**: the platform operator's Expo account — one account holds every organization's EAS project (the organization's own accounts are
+   the store ones, step 2). From `apps/mobile`, with the variables above set in the shell:
    `npx eas-cli@24 init` creates the EAS project; put its id in `EAS_PROJECT_ID` (with `app.config.ts` it cannot write the id itself).
 4. **EAS environment variables**: set the variables above in the project's `development`, `preview` and `production` environments (on
    expo.dev or with `eas env:create`). The ones that identify the project (`EAS_PROJECT_ID`, `MYHEALTH_EXPO_OWNER`, the identifiers) must also be
@@ -76,8 +77,9 @@ Each step is the organization's (or done with its accounts); none is automated h
    secret store — losing the Android upload key needs Google's key reset process.
 6. **Push** (§8 of mobile-app.md): APNs key (iOS) and the organization's Firebase credentials (Android) added to the Expo project;
    `EXPO_PUSH_ENABLED=true` on the API and notification worker.
-   - Open point: `EXPO_ACCESS_TOKEN` is one value for the whole platform deployment. It is needed only for Expo projects with "enhanced push
-     security"; if organizations turn that on under different Expo accounts, one token cannot serve them all. Not handled yet.
+   - `EXPO_ACCESS_TOKEN` is one value for the whole platform deployment, needed only for projects with "enhanced push security". Because
+     every project is under the one Expo account above, one token serves them all; a project created under another account would not be
+     served.
 
 ## Building and submitting
 
@@ -99,9 +101,11 @@ No CI workflow builds or submits the app; builds are started by a person with ac
 
 ## Before each release
 
-1. The app has been tried on an iPhone and an Android phone (D14 decides which journeys become automated): sign-in with and without the
-   two-step code; the results list and a result's history read correctly; closing and reopening keeps the patient signed in; sign-out;
-   the clinic disabling MyHealth access signs the phone out; a push notice arrives and tapping it opens the results.
+1. Checked through the app on an iPhone and an Android phone (D14; manual until an on-device automation tool is chosen). Required: sign-in
+   with and without the two-step code; the results list and a result's history read correctly; push turned on, a test notice arrives and
+   tapping it opens the results; push turned off; open the app switcher — the cover, not the results, is shown — and return; a screenshot
+   of a result is refused (D11); sign-out. Also worth checking: closing and reopening keeps the patient signed in; the
+   clinic disabling MyHealth access signs the phone out.
 2. `version` in `app.json` raised; `pnpm nx run-many -t lint typecheck test -p mobile` passes.
 3. A `preview` build installed and checked against the organization's test API.
 4. `production` build, submit, store review.

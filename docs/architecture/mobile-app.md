@@ -75,11 +75,12 @@ sign-in, reads, refresh, logout or two-step verification. What the web portal's 
 
 Open points found by the trace, for the decisions below (not changes made):
 
-- **Shared IP rate limit (INFERRED risk).** Phones reach the API directly, not through the portal server, so the throttle keys on the phone's
-  public IP — which on mobile networks is often shared by many subscribers (carrier-grade NAT). Ten sign-ins or refreshes a minute per IP could
-  then be exhausted by unrelated patients. Not measured; decide with D5 whether the limit needs a different key for app traffic.
+- **Shared IP rate limit.** Phones reach the API directly, not through the portal server, so the throttle keys on the phone's public IP —
+  on mobile networks often shared by many subscribers (carrier-grade NAT). Ten sign-ins or refreshes a minute per IP could then be exhausted
+  by unrelated patients. Now measured: refusals are counted by route and day for platform administrators (`/admin/security`;
+  `docs/security/access-control.md`, "Shared addresses"); a higher allowance for the MyHealth credential routes is decided on that evidence.
 - **Absolute session length.** A refresh never extends `refreshTokenExpiresAt`, so the app signs the patient out after
-  `REFRESH_TOKEN_TTL_DAYS` (14) whatever their activity — part of D5.
+  `REFRESH_TOKEN_TTL_DAYS` (14) whatever their activity — kept (decision recorded below).
 - **Password reset** links open `PORTAL_BASE_URL/reset-password#token=…` in the browser (D7); the reset itself works from any client.
 
 ### Patient data endpoints (VERIFIED, [portal-app.md](portal-app.md#data))
@@ -151,7 +152,30 @@ Record the answer (and who decided) here before building the part it governs.
   [mobile-release.md](../deployment/mobile-release.md). Still open within D13: automated builds in CI, and how the API stays compatible
   with app versions already installed (no minimum-version check exists).
 
-Every other decision below is still **UNKNOWN**.
+**Recorded (2026-10-02, product owner):**
+
+- **D7 — links.** Password-reset and notice links keep opening MyHealth on the web (`PORTAL_BASE_URL`); push notices open the app as
+  built (§8). No universal or app links.
+- **D8 — teleconsultation.** Not in the app: the patient is handed to MyHealth in the browser. No LiveKit SDK, camera or microphone.
+- **D9 — device capabilities.** None: no camera, file upload (no patient upload endpoint exists), calendar or location, and no
+  permission requested, until a verified workflow needs one.
+- **D10 — offline and caching.** Nothing about the patient is kept on the device beyond the refresh token in the Keychain/Keystore
+  (D5); no results, documents or bills are cached.
+- **D11 — screen protection.** Built: while the app is not in the foreground every screen is covered (`components/privacy-cover.tsx`,
+  `AppState`; iOS snapshots the switcher after `inactive`, so it shows the cover), and `expo-screen-capture` adds the platform's own
+  capture protection at start-up (`lib/native-screen-capture.ts`, loaded on first use: as the module states, FLAG_SECURE on Android —
+  blank recents preview, screenshots and recording refused — and screenshot/recording prevention on iOS 13+/11+). Screen sharing and
+  casting of the app are refused with it. Checked on a device per release (D14), not here. Clipboard handling and crash-report scrubbing
+  are not built (no crash reporting exists).
+- **D14 — testing.** Two journeys must be checked through the app itself before each release: sign-in with two-step verification, and
+  opening a released result and its history (with push on and off, and sign-out); manually, per the release runbook, until an on-device
+  automation tool is chosen. The e2e project still covers the web apps only.
+- **Session length.** The absolute 14-day session (`REFRESH_TOKEN_TTL_DAYS`, never extended by a refresh) is kept for the app, as on the
+  web; revisited only on evidence that patients are signed out too often.
+- **Expo account.** Every organization's EAS project lives under **one Expo account the platform operator controls**, so the single
+  `EXPO_ACCESS_TOKEN` of the notification worker serves every app; store accounts stay each organization's own (D13).
+
+The table below lists every decision as it was asked; all are now recorded above (D4, D5 and D12 as provisional).
 
 | #   | Decision                                                                                                                                                                                                                                                              | Why it matters                                                                                                                                                                                                                                                           |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -174,8 +198,9 @@ Every other decision below is still **UNKNOWN**.
 
 1. ~~Record D1–D5 and D12.~~ D1, D2, D3 recorded; D4, D5, D12 accepted as provisional; D6 recorded (§8).
 2. ~~Scaffold `apps/mobile` with sign-in and one read-only area from D2.~~ Done (§7).
-3. Add the remaining D2 areas, then links (D7) if chosen, each with its own API change, documentation and tests. Push (D6) is built (§8).
-4. Teleconsultation (D8) last, as it carries the most native dependencies.
+3. Screen protection (D11) as its own change, then the remaining D2 areas, each with its own API change, documentation and tests. Push (D6)
+   is built (§8); links stay on the web (D7).
+4. Teleconsultation stays in the browser (D8).
 
 ## 6. Out of scope for this note
 

@@ -1,18 +1,42 @@
 import type { AddressInfo } from "node:net";
 import { io, type Socket } from "socket.io-client";
-import { as, createClinician, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import { randomBytes } from "node:crypto";
+import {
+  as,
+  createClinician,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  juan,
+  login,
+  type Tenant,
+  TEST_REDIS_URL,
+  type TestContext,
+} from "./harness";
 
 describe("realtime queue and laboratory updates", () => {
   let ctx: TestContext;
+  let second: TestContext;
   let tenant: Tenant;
   let desk: string;
   let url: string;
+  let secondUrl: string;
   const sockets: Socket[] = [];
+  const realtime = { redisUrl: TEST_REDIS_URL, keyPrefix: `realtime-test-${randomBytes(4).toString("hex")}` };
+  const realtimeUrl = (app: TestContext) => `http://127.0.0.1:${(app.app.getHttpServer().address() as AddressInfo).port}/realtime`;
 
   beforeAll(async () => {
-    ctx = await createTestApp();
+    // Two instances over one database and one Redis, as two replicas would be (each createTestApp resets the schema,
+    // so the data is set up once both exist).
+    // One signing secret for both, as replicas share it: a token issued by one is accepted by the other.
+    const shared = { JWT_ACCESS_SECRET: randomBytes(32).toString("hex") };
+    ctx = await createTestApp({ realtime }, shared);
+    second = await createTestApp({ realtime }, shared);
     await ctx.app.listen(0, "127.0.0.1");
-    url = `http://127.0.0.1:${(ctx.app.getHttpServer().address() as AddressInfo).port}/realtime`;
+    await second.app.listen(0, "127.0.0.1");
+    url = realtimeUrl(ctx);
+    secondUrl = realtimeUrl(second);
     tenant = await createTenant(ctx.pool, "realtime-org");
     await createStaff(ctx.pool, tenant, "admin@example.ph", ["org_admin"]);
     await createStaff(ctx.pool, tenant, "desk@example.ph", [{ role: "receptionist", facilityId: tenant.facilityId }]);
@@ -22,11 +46,12 @@ describe("realtime queue and laboratory updates", () => {
 
   afterAll(async () => {
     sockets.forEach((socket) => socket.close());
+    await second.close();
     await ctx.close();
   });
 
-  function connect(auth: Record<string, unknown>): Socket {
-    const socket = io(url, { auth, transports: ["websocket"], reconnection: false });
+  function connect(auth: Record<string, unknown>, at = url): Socket {
+    const socket = io(at, { auth, transports: ["websocket"], reconnection: false });
     sockets.push(socket);
     return socket;
   }
@@ -178,5 +203,66 @@ describe("realtime queue and laboratory updates", () => {
       const socket = connect({ ticket: auditorTicket.body.ticket });
       await expect(next(socket, "unauthorized")).resolves.toMatchObject({ message: "Not permitted" });
     });
+  });
+
+  it("reaches a browser connected to another instance (rooms shared through Redis)", async () => {
+    const elsewhere = connect({ token: desk, facilityId: tenant.facilityId }, secondUrl);
+    await expect(next(elsewhere, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue"] });
+    const admin = (await login(ctx, "admin@example.ph")).accessToken;
+    const visitType = await ctx
+      .http()
+      .post("/api/v1/clinic/visit-types")
+      .set(as(admin))
+      .send({ code: "replica", name: "Replica check", defaultDurationMinutes: 15 })
+      .expect(201);
+    const patient = await ctx
+      .http()
+      .post("/api/v1/patients")
+      .set(as(desk, tenant.facilityId))
+      .send({ familyName: "Reyes", givenName: "Maria", sex: "female", birthDate: "1990-07-15", contacts: [{ system: "mobile", value: "0918 765 4321" }] })
+      .expect(201);
+    const update = next<Record<string, unknown>>(elsewhere, "queue.updated");
+    const visit = await ctx
+      .http()
+      .post("/api/v1/queue/walk-ins")
+      .set(as(desk, tenant.facilityId))
+      .send({ patientId: patient.body.id, visitTypeId: visitType.body.id })
+      .expect(201);
+    // The event is processed by the first instance only; the socket listens on the second.
+    await drainEvents(ctx);
+    await expect(update).resolves.toMatchObject({ visitId: visit.body.id, status: "waiting" });
+  });
+
+  it("still delivers to its own sockets while Redis is unreachable", async () => {
+    // A fresh instance (the schema is reset) with the adapter pointed at a closed port.
+    const offline = await createTestApp({ realtime: { redisUrl: "redis://127.0.0.1:1", keyPrefix: realtime.keyPrefix } });
+    try {
+      await offline.app.listen(0, "127.0.0.1");
+      const again = await createTenant(offline.pool, "realtime-org");
+      await createStaff(offline.pool, again, "admin@example.ph", ["org_admin"]);
+      await createStaff(offline.pool, again, "desk@example.ph", [{ role: "receptionist", facilityId: again.facilityId }]);
+      const token = (await login(offline, "desk@example.ph")).accessToken;
+      const admin = (await login(offline, "admin@example.ph")).accessToken;
+      const local = connect({ token, facilityId: again.facilityId }, realtimeUrl(offline));
+      await expect(next(local, "ready")).resolves.toMatchObject({ channels: ["queue"] });
+      const visitType = await offline
+        .http()
+        .post("/api/v1/clinic/visit-types")
+        .set(as(admin))
+        .send({ code: "offline", name: "Offline check", defaultDurationMinutes: 15 })
+        .expect(201);
+      const patient = await offline.http().post("/api/v1/patients").set(as(token, again.facilityId)).send(juan).expect(201);
+      const update = next<Record<string, unknown>>(local, "queue.updated");
+      await offline
+        .http()
+        .post("/api/v1/queue/walk-ins")
+        .set(as(token, again.facilityId))
+        .send({ patientId: patient.body.id, visitTypeId: visitType.body.id })
+        .expect(201);
+      await drainEvents(offline);
+      await expect(update).resolves.toMatchObject({ status: "waiting" });
+    } finally {
+      await offline.close();
+    }
   });
 });

@@ -1,12 +1,12 @@
-import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider } from "@nestjs/common";
+import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider, Logger } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@healthcare/audit";
 import { AuthModule, PasswordScreeningModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
 import { ClinicModule } from "@healthcare/clinic";
 import { DentalModule } from "@healthcare/dental";
-import { type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
+import { accessLogMiddleware, type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
 import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
@@ -24,6 +24,9 @@ import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
 import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immunization-adapters";
+import { RedisThrottlerStorage } from "./redis-throttler-storage";
+import { RateLimitGuard } from "./rate-limit.guard";
+import { RateLimitsController } from "./rate-limits.controller";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -99,6 +102,8 @@ export interface AppModuleOverrides {
   breachedPasswordChecker?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
   disableRateLimit?: boolean;
+  /** Where the shared rate-limit counters live (tests: their own Redis address and a key prefix of their own). */
+  rateLimitStorage?: { redisUrl: string; keyPrefix?: string };
 }
 
 /**
@@ -138,14 +143,17 @@ export class AppModule implements NestModule {
       dispensingStock: AppDispensingStock,
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
+    const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
+    const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {
       module: AppModule,
       imports: [
         CoreModule.forRoot(config),
-        // In-memory limits are per instance; move storage to Redis before scaling out.
+        // Counters are shared by every instance through Redis; while Redis is unreachable requests are let through.
         ThrottlerModule.forRoot({
           throttlers: [{ name: "default", ttl: 60_000, limit: 300 }],
           skipIf: () => overrides.disableRateLimit === true,
+          storage: rateLimits,
         }),
         AuditModule,
         OrganizationModule,
@@ -210,6 +218,7 @@ export class AppModule implements NestModule {
         IntegrationModule.forRoot({ imports: [PatientModule], patients: AppExchangePatients, queue: overrides.integrationQueue }),
       ],
       controllers: [
+        RateLimitsController,
         FhirController,
         FhirImportReceiveController,
         HealthController,
@@ -251,8 +260,10 @@ export class AppModule implements NestModule {
         StaffSecurityNotices,
         PatientMessageNoticeSource,
         PatientMessageNotices,
-        // Rate limiting applies to every route, including the public login endpoints.
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
+        // its Redis connection closes with the application.
+        { provide: RedisThrottlerStorage, useValue: rateLimits },
+        { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_PIPE, useClass: ZodValidationPipe },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
@@ -261,6 +272,7 @@ export class AppModule implements NestModule {
   }
 
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(requestIdMiddleware).forRoutes("*path");
+    // The request id first, so the access log line (one per finished request, health probes excluded) carries it.
+    consumer.apply(requestIdMiddleware, accessLogMiddleware(new Logger("Http"))).forRoutes("*path");
   }
 }

@@ -102,7 +102,7 @@ export class OutboxRelay implements OnApplicationShutdown {
     try {
       await this.drain();
     } catch (error) {
-      this.logger.error(`Outbox relay failed: ${String(error)}`);
+      this.logger.error({ event: "outbox.relay_failed", message: String(error) });
     } finally {
       this.running = false;
     }
@@ -129,7 +129,7 @@ export class OutboxRelay implements OnApplicationShutdown {
           .update(domainEvent)
           .set({ attempts, lastError: error.slice(0, 2000), failedAt: attempts >= OUTBOX_MAX_ATTEMPTS ? new Date() : null })
           .where(sql`${domainEvent.id} = ${event.id}`);
-        this.logger.warn(`Event ${event.eventType} ${event.id} attempt ${attempts} failed: ${error}`);
+        this.logger.warn({ event: "event.handler_failed", eventType: event.eventType, eventId: event.id, attempt: attempts, message: String(error) });
       }
       if (published.length) await tx.update(domainEvent).set({ publishedAt: new Date() }).where(inArray(domainEvent.id, published));
       return events.length;

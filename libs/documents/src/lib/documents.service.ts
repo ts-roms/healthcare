@@ -63,6 +63,19 @@ export class DocumentsService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Readiness probe (docs/architecture/observability.md): a head of a key that never exists, which fails only when
+   * object storage cannot be reached or refuses the credentials. Not audited; no document is read.
+   */
+  async probeStorage(): Promise<"ok" | "unreachable"> {
+    try {
+      await this.storage.head("healthcheck/probe");
+      return "ok";
+    } catch {
+      return "unreachable";
+    }
+  }
+
   async create(
     actor: Actor,
     input: z.infer<typeof createDocumentSchema>,

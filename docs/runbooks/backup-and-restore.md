@@ -18,7 +18,7 @@ restore has been tested in the real environment.
 | PostgreSQL (`DATABASE_URL`)  | Every record: patients, clinical history, results, billing, audit trail (`audit_event`), outbox events, queued notifications and exchanges, `schema_migration` (applied migrations with checksums). Document **metadata** (`document.storage_key`), not the files. | **Yes** — the system of record.             |
 | Object storage (`S3_BUCKET`) | Document files under `org/<organization>/documents/<id>`: uploads, archived lab reports, certificates, referral letters, record copies, dental images. Generated documents are written with a conditional put (`If-None-Match: *`) and never replaced.             | **Yes** — files exist only here.            |
 | Secrets store                | `MFA_ENCRYPTION_KEY` (staff and patient TOTP secrets), `INTEGRATION_PAYLOAD_KEY(S)` (sealed integration payloads and FHIR import content), `JWT_ACCESS_SECRET`, provider credentials.                                                                              | **Yes, separately** — never next to a dump. |
-| Redis (`REDIS_URL`)          | BullMQ queues only: `notifications`, `lab-report-archive`, `integrations`. Finished jobs are removed; the database is the record. Rate-limit counters are in memory, not in Redis.                                                                                 | No — rebuilt from the database (see below). |
+| Redis (`REDIS_URL`)          | BullMQ queues (`notifications`, `lab-report-archive`, `integrations`; finished jobs are removed, the database is the record) and the API's rate-limit counters (`throttle:*`, expire within minutes).                                                              | No — rebuilt from the database (see below). |
 
 A database dump without the matching `MFA_ENCRYPTION_KEY` restores, but enrolled two-step verification secrets cannot
 be read (those users need an administrator reset); without the payload keys, sealed payloads and kept FHIR import
@@ -153,11 +153,12 @@ restore on the hosting provider, restore time for a production-sized database.
 
 ## Decisions still open
 
-| Decision                                                          | Owner                                     |
-| ----------------------------------------------------------------- | ----------------------------------------- |
-| Backup schedule and how long dumps and object copies are kept     | Operations lead, data protection officer  |
-| Recovery point and recovery time objectives                       | Organization management, operations lead  |
-| Encryption tool and where encrypted backups are stored (off-site) | Operations lead, data protection officer  |
-| Point-in-time recovery and bucket versioning on the provider      | Operations lead, hosting provider terms   |
-| How often restore drills run and who signs them off               | Operations lead                           |
-| Re-sending notifications and exchanges after a restore            | Organization (clinical and records leads) |
+| Decision                                                                                                                                       | Owner                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Backup schedule and how long dumps and object copies are kept                                                                                  | Operations lead, data protection officer  |
+| Recovery point and recovery time objectives                                                                                                    | Organization management, operations lead  |
+| Encryption tool and where encrypted backups are stored (off-site)                                                                              | Operations lead, data protection officer  |
+| Point-in-time recovery and bucket versioning on the provider                                                                                   | Operations lead, hosting provider terms   |
+| How often restore drills run and who signs them off                                                                                            | Operations lead                           |
+| Re-sending notifications and exchanges after a restore                                                                                         | Organization (clinical and records leads) |
+| Rebuilding the hosting environment itself: the checklist in [railway.md](../deployment/railway.md#what-is-codified-and-what-is-not) (ADR-0010) | Operations lead                           |

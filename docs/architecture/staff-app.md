@@ -262,7 +262,11 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   recovery code; not while the organization requires it); recovery codes left and **New recovery codes…** (password and an app code). Sign-in takes
   an app code or a recovery code (`lib/second-factor.ts`).
 
-Not built: editing roles, coding systems.
+Platform administrators also see **Rate-limit refusals, last 30 days** on `/admin/security` (`GET /rate-limits/refusals`; route templates and
+counts per Philippine day, MyHealth routes first; `docs/security/access-control.md`, "Shared addresses").
+
+Not built: editing roles. Registering a diagnosis coding system has no screen: it is API-only (`POST /coding-systems`, `clinic.configure`,
+audited `coding-system.create`); the encounter workspace reads the systems registered (`GET /coding-systems`).
 
 ## Integrations (administration)
 

@@ -15,6 +15,7 @@ import { AppModule, type AppModuleOverrides } from "../src/app/app.module";
 import { configureApp } from "../src/app/configure-app";
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_test";
+export const TEST_REDIS_URL = process.env.TEST_REDIS_URL ?? "redis://localhost:6379";
 export const PASSWORD = "Correct-Horse-Battery-9";
 
 export class RecordingQueue implements NotificationQueue {
@@ -84,11 +85,17 @@ export async function createTestApp(
     | "referenceLabGateway"
     | "paymentGateway"
     | "breachedPasswordChecker"
-  > = {},
+    | "disableRateLimit"
+    | "rateLimitStorage"
+  > & {
+    /** Live-update sharing: a Redis prefix shared by the instances of one test, `null` for none; default its own prefix. */
+    realtime?: { redisUrl: string; keyPrefix: string } | null;
+  } = {},
   env: Record<string, string> = {},
 ): Promise<TestContext> {
   const integrations = new RecordingIntegrationQueue();
   const archives = new RecordingArchiveQueue();
+  const { realtime, ...moduleOverrides } = overrides;
   const config = testConfig(env);
   const pool = new Pool({ connectionString: TEST_DATABASE_URL, max: 4 });
   await resetDatabase(pool);
@@ -102,12 +109,14 @@ export async function createTestApp(
         disableRateLimit: true,
         integrationQueue: { provide: INTEGRATION_QUEUE, useValue: integrations },
         labReportArchiveQueue: { provide: LAB_REPORT_ARCHIVE_QUEUE, useValue: archives },
-        ...overrides,
+        ...moduleOverrides,
       }),
     ],
   }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, rawBody: true });
-  configureApp(app, config);
+  configureApp(app, config, {
+    realtime: realtime === undefined ? { redisUrl: TEST_REDIS_URL, keyPrefix: `realtime-test-${randomBytes(4).toString("hex")}` } : realtime,
+  });
   await app.init();
   return {
     app,
