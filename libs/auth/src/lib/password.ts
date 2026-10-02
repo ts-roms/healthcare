@@ -3,7 +3,7 @@ import { z } from "zod";
 
 /**
  * Password policy: length over complexity (NIST SP 800-63B style).
- * Rejects obviously weak values; breached-password screening is a follow-up.
+ * Rejects obviously weak values; new passwords are also screened against breached ones (breached-passwords.ts).
  */
 export const passwordSchema = z
   .string()

@@ -2,7 +2,7 @@ import { DynamicModule, MiddlewareConsumer, Module, NestModule, type Provider } 
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@healthcare/audit";
-import { AuthModule } from "@healthcare/auth";
+import { AuthModule, PasswordScreeningModule } from "@healthcare/auth";
 import { CarePlanModule } from "@healthcare/care-plan";
 import { ClinicModule } from "@healthcare/clinic";
 import { DentalModule } from "@healthcare/dental";
@@ -95,6 +95,8 @@ export interface AppModuleOverrides {
   labReportArchiveQueue?: Provider;
   /** Replaces the BullMQ integration queue (tests). */
   integrationQueue?: Provider;
+  /** Replaces the breached-password checker (tests; the default follows PASSWORD_BREACH_CHECK). */
+  breachedPasswordChecker?: Provider;
   /** Disables rate limiting (tests exercise many logins from one address). */
   disableRateLimit?: boolean;
 }
@@ -149,6 +151,7 @@ export class AppModule implements NestModule {
         OrganizationModule,
         // AuthModule registers the global AccessGuard: every route requires
         // authentication unless explicitly marked @Public().
+        PasswordScreeningModule.forRoot(overrides.breachedPasswordChecker),
         AuthModule,
         PatientModule,
         DocumentsModule.forRoot({ storage: overrides.objectStorage }),

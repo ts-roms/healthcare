@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
@@ -16,6 +16,7 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { appUser, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
+import { assertPasswordAccepted, BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker } from "./breached-passwords";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
 import type { createRoleSchema, createUserSchema, grantRoleSchema, resetPasswordSchema, updateMembershipSchema } from "./users.dto";
@@ -51,11 +52,14 @@ export interface RoleView {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly organizations: OrganizationService,
     private readonly sessions: SessionService,
+    @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
 
   /** Display names of this organization's staff (for "entered by" / "verified by" labels). Not audited. */
@@ -149,6 +153,11 @@ export class UsersService {
    * platform account is added as a member without touching its credentials.
    */
   async create(actor: Actor, input: z.infer<typeof createUserSchema>): Promise<StaffUserView> {
+    if (input.initialPassword) {
+      // Screened only when it will be used: an email that already has an account keeps its own password.
+      const [known] = await this.db.select({ id: appUser.id }).from(appUser).where(eq(appUser.email, input.email));
+      if (!known) await assertPasswordAccepted(this.breachedPasswords, input.initialPassword, this.logger);
+    }
     const passwordHash = input.initialPassword ? await hashPassword(input.initialPassword) : undefined;
     const userId = await this.db.transaction(async (tx) => {
       const [existing] = await tx.select().from(appUser).where(eq(appUser.email, input.email));
@@ -209,6 +218,7 @@ export class UsersService {
    * but their own account routes (migration 0090). Audited with the reason.
    */
   async resetPassword(actor: Actor, userId: string, input: z.infer<typeof resetPasswordSchema>): Promise<StaffUserView> {
+    await assertPasswordAccepted(this.breachedPasswords, input.temporaryPassword, this.logger);
     const passwordHash = await hashPassword(input.temporaryPassword);
     await this.db.transaction(async (tx) => {
       await this.lockResettable(tx, actor, userId);

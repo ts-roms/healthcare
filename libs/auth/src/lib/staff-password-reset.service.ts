@@ -16,6 +16,7 @@ import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { appUser, organizationMembership, staffPasswordReset } from "./auth.schema";
 import type { staffPasswordResetRequestSchema, staffPasswordResetSchema } from "./auth.dto";
+import { BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker, passwordRefusal, screenPassword } from "./breached-passwords";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
 import { StaffSecurityMailers } from "./staff-security-mailer";
@@ -51,6 +52,7 @@ export class StaffPasswordResetService {
     private readonly audit: AuditService,
     private readonly sessions: SessionService,
     private readonly mailer: StaffSecurityMailers,
+    @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
 
   async request(input: z.infer<typeof staffPasswordResetRequestSchema>, request: RequestMetadata): Promise<void> {
@@ -119,6 +121,34 @@ export class StaffPasswordResetService {
 
   async confirm(input: z.infer<typeof staffPasswordResetSchema>, request: RequestMetadata): Promise<void> {
     const hash = sha256Hex(input.token);
+    // The new password is screened only for a link that can still be used (a made-up link causes no outside request),
+    // outside the transaction; a refusal leaves the link and its attempts as they were.
+    const [pending] = await this.db
+      .select({
+        id: staffPasswordReset.id,
+        userId: staffPasswordReset.userId,
+        consumedAt: staffPasswordReset.consumedAt,
+        expiresAt: staffPasswordReset.expiresAt,
+      })
+      .from(staffPasswordReset)
+      .where(eq(staffPasswordReset.tokenHash, hash));
+    if (pending && !pending.consumedAt && pending.expiresAt > new Date()) {
+      const screening = await screenPassword(this.breachedPasswords, input.password, this.logger);
+      if (screening !== "accepted") {
+        await this.audit.recordStandalone(
+          { kind: "anonymous", userId: pending.userId, request },
+          {
+            action: "auth.password-reset",
+            resourceType: "app_user",
+            resourceId: pending.userId,
+            outcome: "failure",
+            reason: screening,
+            metadata: { resetId: pending.id },
+          },
+        );
+        throw passwordRefusal(screening);
+      }
+    }
     const passwordHash = await hashPassword(input.password);
     // Refusals are committed (attempt counts, burned links) before the caller is rejected: throwing inside would roll them back.
     const outcome = await this.db.transaction(async (tx): Promise<Outcome> => {

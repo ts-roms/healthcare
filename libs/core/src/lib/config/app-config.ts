@@ -58,6 +58,9 @@ const appConfigSchema = z
           .filter(Boolean),
       ),
     TRUST_PROXY: booleanString.default(false),
+    // Screens new passwords against the Pwned Passwords range API (docs/security/access-control.md); when on, a password
+    // that cannot be checked is refused. Unset: on in production, off elsewhere (development, tests and CI may be offline).
+    PASSWORD_BREACH_CHECK: booleanString.optional(),
     S3_ENDPOINT: z.string().url().optional(),
     S3_REGION: z.string().default("ap-southeast-1"),
     S3_BUCKET: z.string().default("healthcare-documents"),
@@ -163,6 +166,11 @@ const appConfigSchema = z
   });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
+
+/** Whether new passwords are screened against breached passwords: `PASSWORD_BREACH_CHECK`, else only in production. */
+export function passwordBreachCheckEnabled(config: Pick<AppConfig, "NODE_ENV" | "PASSWORD_BREACH_CHECK">): boolean {
+  return config.PASSWORD_BREACH_CHECK ?? config.NODE_ENV === "production";
+}
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
 

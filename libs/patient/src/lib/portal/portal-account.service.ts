@@ -1,6 +1,16 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { type AuditActor, AuditService, type PatientAuditContext } from "@healthcare/audit";
-import { burnPasswordVerification, hashPassword, LOCKOUT_MINUTES, MAX_FAILED_LOGINS, verifyPassword } from "@healthcare/auth";
+import {
+  BREACHED_PASSWORD_CHECKER,
+  type BreachedPasswordChecker,
+  burnPasswordVerification,
+  hashPassword,
+  LOCKOUT_MINUTES,
+  MAX_FAILED_LOGINS,
+  passwordRefusal,
+  screenPassword,
+  verifyPassword,
+} from "@healthcare/auth";
 import {
   type Actor,
   APP_CONFIG,
@@ -89,6 +99,7 @@ export class PortalAccountService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly tokens: PortalTokenService,
     private readonly audit: AuditService,
+    @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
 
   // ---- staff side ------------------------------------------------------------------
@@ -280,6 +291,20 @@ export class PortalAccountService {
     if (account.activationExpiresAt <= new Date()) return failed("expired");
     if (row.birthDate !== input.birthDate) return failed("birth_date_mismatch");
     if (hashActivationCode(input.activationCode) !== account.activationCodeHash) return failed("code_mismatch");
+    // The code is right: screen the new password before anything is written (a refusal keeps the code usable and
+    // counts no attempt against it).
+    const screening = await screenPassword(this.breachedPasswords, input.password, this.logger);
+    if (screening !== "accepted") {
+      await this.audit.recordStandalone(anonymous, {
+        action: "portal.activate",
+        resourceType: "patient_portal_account",
+        resourceId: account.id,
+        patientId: account.patientId,
+        outcome: "failure",
+        reason: screening,
+      });
+      throw passwordRefusal(screening);
+    }
 
     return this.db.transaction(async (tx) => {
       if (!(await this.hasPortalConsent(tx, org.id, account.patientId))) {

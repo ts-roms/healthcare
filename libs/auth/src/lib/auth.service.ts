@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService, type AnonymousAuditContext } from "@healthcare/audit";
 import {
   type Actor,
@@ -20,6 +20,7 @@ import { and, count, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { appUser, type AppUserRecord, organizationMembership, staffRecoveryCode } from "./auth.schema";
 import type { changePasswordSchema, loginSchema, MfaRequiredResponse, TokenResponse } from "./auth.dto";
+import { BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker, passwordRefusal, screenPassword } from "./breached-passwords";
 import { burnPasswordVerification, hashPassword, verifyPassword } from "./password";
 import { clearStaffMfa, type SecondFactorResult, spendSecondFactor } from "./mfa-store";
 import { MfaPolicyService } from "./mfa-policy.service";
@@ -35,6 +36,8 @@ const invalidCredentials = () => new UnauthenticatedError("Invalid email or pass
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -42,6 +45,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly tokens: TokenService,
     private readonly mfaPolicy: MfaPolicyService,
+    @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
 
   async login(input: z.infer<typeof loginSchema>, request: RequestMetadata): Promise<TokenResponse | MfaRequiredResponse> {
@@ -174,6 +178,17 @@ export class AuthService {
         reason: "wrong_password",
       });
       throw new BusinessRuleError("Current password is incorrect", "invalid_current_password");
+    }
+    const screening = await screenPassword(this.breachedPasswords, input.newPassword, this.logger);
+    if (screening !== "accepted") {
+      await this.audit.recordStandalone(actor, {
+        action: "auth.password.change",
+        resourceType: "app_user",
+        resourceId: user.id,
+        outcome: "failure",
+        reason: screening,
+      });
+      throw passwordRefusal(screening);
     }
     const passwordHash = await hashPassword(input.newPassword);
     await this.db.transaction(async (tx) => {
