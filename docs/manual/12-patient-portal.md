@@ -22,7 +22,9 @@ give you a code of 10 letters and numbers (for example `ABCDE-23456`). The code 
    - **Date of birth**.
    - **Activation code** — dashes and spaces do not matter.
 3. Under **2. Choose how you'll sign in**, enter your **Email**, a **New password** and **Type the password again**. The password must have at least
-   12 characters and not be too repetitive. A short phrase is easy to remember.
+   12 characters and not be too repetitive. A short phrase is easy to remember. Passwords known from data breaches elsewhere are not accepted:
+   if you see "This password has appeared in a data breach elsewhere", choose another. If you see "We couldn't check this password right now",
+   your code still works — try again in a few minutes.
 4. Choose **Set up and sign in**.
 
 You arrive on the Home page with the message "Your account is ready. Next time, sign in with …" and your email.
@@ -82,7 +84,8 @@ are signed out everywhere; sign in with your password and set it up again.
 2. You always see "Check your email", whether or not that email belongs to an account. If it does, you get an email within a few minutes with a link. The
    link works **once** and expires after **30 minutes**. Nothing arrived? Check your spam folder, wait a few minutes and ask again. You can be sent at
    most 3 links an hour.
-3. Open the link. Enter your **Date of birth** and a new password (at least 12 characters), twice, then choose **Save new password**.
+3. Open the link. Enter your **Date of birth** and a new password (at least 12 characters), twice, then choose **Save new password**. The same
+   breached-password check applies as when you set up MyHealth; if the password is refused, the link still works for another try.
 4. You are signed out everywhere and taken to **Sign in**. Sign in with your new password. You also get an email saying your password was changed; if
    that was not you, contact the clinic right away.
 

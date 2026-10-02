@@ -77,7 +77,13 @@ export async function resetDatabase(pool: Pool): Promise<void> {
 export async function createTestApp(
   overrides: Pick<
     AppModuleOverrides,
-    "philhealthGateway" | "philhealthEligibilityGateway" | "philhealthYakapGateway" | "dohGateway" | "referenceLabGateway" | "paymentGateway"
+    | "philhealthGateway"
+    | "philhealthEligibilityGateway"
+    | "philhealthYakapGateway"
+    | "dohGateway"
+    | "referenceLabGateway"
+    | "paymentGateway"
+    | "breachedPasswordChecker"
   > = {},
   env: Record<string, string> = {},
 ): Promise<TestContext> {
