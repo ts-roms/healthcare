@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { type AuditActor, AuditService } from "@healthcare/audit";
-import { hashPassword } from "@healthcare/auth";
+import { BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker, hashPassword, passwordRefusal, screenPassword } from "@healthcare/auth";
 import { DATABASE, type Database, randomToken, type RequestMetadata, sha256Hex, UnauthenticatedError } from "@healthcare/core";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -36,6 +36,7 @@ export class PortalPasswordResetService {
     private readonly mailer: PortalSecurityMailers,
     private readonly accounts: PortalAccountService,
     private readonly audit: AuditService,
+    @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
 
   async request(input: z.infer<typeof portalPasswordResetRequestSchema>, request: RequestMetadata): Promise<void> {
@@ -106,7 +107,13 @@ export class PortalPasswordResetService {
     const hash = sha256Hex(input.token);
     const anonymous: AuditActor = { kind: "anonymous", request };
     const [found] = await this.db
-      .select({ accountId: patientPortalPasswordReset.accountId, organizationId: patientPortalPasswordReset.organizationId })
+      .select({
+        id: patientPortalPasswordReset.id,
+        accountId: patientPortalPasswordReset.accountId,
+        organizationId: patientPortalPasswordReset.organizationId,
+        consumedAt: patientPortalPasswordReset.consumedAt,
+        expiresAt: patientPortalPasswordReset.expiresAt,
+      })
       .from(patientPortalPasswordReset)
       .where(eq(patientPortalPasswordReset.tokenHash, hash));
     if (!found) {
@@ -117,6 +124,25 @@ export class PortalPasswordResetService {
         reason: "unknown_token",
       });
       throw new UnauthenticatedError(INVALID_RESET, "invalid_reset");
+    }
+    // Screened only for a link that can still be used, outside the transaction; a refusal leaves the link and its
+    // attempts as they were.
+    if (!found.consumedAt && found.expiresAt > new Date()) {
+      const screening = await screenPassword(this.breachedPasswords, input.password, this.logger);
+      if (screening !== "accepted") {
+        await this.audit.recordStandalone(
+          { kind: "anonymous", organizationId: found.organizationId, request },
+          {
+            action: "portal.password-reset",
+            resourceType: "patient_portal_account",
+            resourceId: found.accountId,
+            outcome: "failure",
+            reason: screening,
+            metadata: { resetId: found.id },
+          },
+        );
+        throw passwordRefusal(screening);
+      }
     }
     const passwordHash = await hashPassword(input.password);
 

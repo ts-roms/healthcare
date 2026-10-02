@@ -413,6 +413,9 @@ entries.
 - A role granted for a facility applies only while that facility is selected.
 - Users and patients of one organization are never visible to another organization.
 - Accounts lock for 15 minutes after 5 failed sign-in attempts; passwords need at least 12 characters.
+- Every new password — including a first or temporary password you set for someone — is checked against passwords known from data breaches
+  elsewhere. One that is found is refused ("This password has appeared in a data breach elsewhere"); when the check cannot be done, the
+  password is refused too ("We couldn't check this password right now") and you try again in a few minutes.
 - When two-step verification is required, a member without it (and not exempt) can only set it up, and nobody can turn theirs off.
 - Audit entries cannot be updated or deleted.
 

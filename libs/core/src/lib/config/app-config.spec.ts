@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { integrationPayloadKeyring, loadAppConfig } from "./app-config";
+import { integrationPayloadKeyring, loadAppConfig, passwordBreachCheckEnabled } from "./app-config";
 
 const key = () => randomBytes(32).toString("base64");
 const mfa = key();
@@ -95,5 +95,22 @@ describe("blank optional settings", () => {
     expect(() => loadAppConfig({ ...base, REDIS_URL: "" })).toThrow("REDIS_URL");
     expect(() => loadAppConfig({ ...base, NODE_ENV: "" })).toThrow("NODE_ENV");
     expect(() => loadAppConfig({ ...base, S3_ENDPOINT: "not-a-url" })).toThrow("S3_ENDPOINT");
+  });
+});
+
+describe("breached-password screening", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("is on in production and off elsewhere unless PASSWORD_BREACH_CHECK says otherwise", () => {
+    expect(passwordBreachCheckEnabled(loadAppConfig(production))).toBe(true);
+    expect(passwordBreachCheckEnabled(loadAppConfig({ ...base, NODE_ENV: "development" }))).toBe(false);
+    expect(passwordBreachCheckEnabled(loadAppConfig({ ...base, NODE_ENV: "test" }))).toBe(false);
+    expect(passwordBreachCheckEnabled(loadAppConfig({ ...production, PASSWORD_BREACH_CHECK: "false" }))).toBe(false);
+    expect(passwordBreachCheckEnabled(loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "true" }))).toBe(true);
+  });
+
+  it("rejects a blank or malformed PASSWORD_BREACH_CHECK", () => {
+    expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "" })).toThrow("PASSWORD_BREACH_CHECK");
+    expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "yes" })).toThrow("PASSWORD_BREACH_CHECK");
   });
 });

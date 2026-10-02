@@ -2,7 +2,8 @@
 
 ## Authentication
 
-- Email + password (argon2id, OWASP parameters); minimum 12 characters.
+- Email + password (argon2id, OWASP parameters); 12–128 characters, not too repetitive, and not a breached password
+  (below).
 - Lockout: 5 consecutive failures lock the account for 15 minutes (MFA failures count too).
 - Login responses do not reveal whether an email exists; unknown emails still
   run a password verification for similar timing.
@@ -23,6 +24,26 @@
 - Sessions: see ADR-0004. Logout, password change (other sessions) and
   membership suspension end access immediately.
 - Credential endpoints are rate limited to 10/min per client; the API default is 300/min.
+
+### Breached-password screening
+
+Every new password — a staff member's own change, a staff or MyHealth reset link, MyHealth activation, and the first or
+temporary password an administrator sets — is looked up in the [Pwned Passwords](https://haveibeenpwned.com/Passwords)
+range API before it is saved (`libs/auth/src/lib/breached-passwords.ts`, `BREACHED_PASSWORD_CHECKER`). Only the first
+five characters of the password's SHA-1 hash are sent, with `Add-Padding: true`, from the API server (never the
+browser); the rest of the hash is matched on the server. A password found there is refused with
+`422 password_breached`; when the service cannot be reached within 5 seconds or answers unexpectedly, the password is
+refused too (`422 password_check_unavailable`, "try again in a few minutes"). The check runs after the caller is verified
+(current password, a usable reset link, a correct activation code) and outside the database transaction: a refusal
+does not use up the link or the code and counts no failed attempt. Refusals are audited with their reason where the
+route already audits failures (`auth.password.change`, `auth.password-reset`, `portal.activate`,
+`portal.password-reset`). Passwords are not re-checked at sign-in, and the seed's administrator password is not
+screened.
+
+`PASSWORD_BREACH_CHECK` turns it on or off; unset, it is on in production and off elsewhere (development, tests and CI may
+have no internet access). A production API with it off logs a warning at start-up. The API needs outbound HTTPS to
+`api.pwnedpasswords.com`; Node's `fetch` does not use `HTTPS_PROXY`, so a host that reaches the internet only through a
+proxy refuses every new password until that is arranged.
 
 ### Password reset by email
 
@@ -234,11 +255,9 @@ administrator's own MFA first (`422 own_mfa_required`).
 
 ## Known gaps (tracked for later phases)
 
-- No breached-password screening.
 - Rate-limit counters are per instance (move to Redis before scaling out).
-- Refresh tokens are returned in JSON; the web app should use an HttpOnly
-  cookie / BFF pattern.
-- Patient-portal identities (`app_user.kind = 'patient'`) are modeled but not used yet.
+- `app_user.kind = 'patient'` (migration `0004`) is unused: patients sign in with their own accounts
+  (`patient_portal_account`, migration `0013`; `PatientAccessGuard`), not as `app_user` rows.
 - Data retention periods and deletion/anonymization procedures must be defined
   with the organization's Data Protection Officer against current NPC guidance.
 

@@ -41,4 +41,5 @@ PostgreSQL 16. Schema source of truth: `database/migrations/*.sql`.
   and `patient_consent` (the triggers are a second line of defense).
 - Consider row-level security keyed on `organization_id` as defense in depth.
 - Partition `audit_event` by month once volume warrants it; define retention.
-- Encrypted backups and point-in-time recovery; test restores (see runbooks).
+- Encrypted backups and point-in-time recovery; test restores on the hosting provider. The procedure and the checks
+  tested locally are in the [backup and restore runbook](../runbooks/backup-and-restore.md).

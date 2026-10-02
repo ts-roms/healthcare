@@ -44,8 +44,8 @@ open it with the menu button (**Open navigation**) at the top left.
 - **Dashboard** is always shown.
 - Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
   reach is not shown at all.
-- A few menu entries lead to a page that says "This module is part of the platform roadmap and is not built yet." These are **Clinic → Prescriptions** and
-  **Communications**. Nothing is lost. The work is done elsewhere (for example, prescribing is in the encounter workspace).
+- A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
+  yet." No entry in the current menu leads there.
 
 What each default role usually sees in the sidebar, besides **Dashboard**:
 
@@ -171,6 +171,9 @@ Always sign out of a shared workstation. The staff app does not sign you out aft
 ## Rules the system enforces
 
 - Passwords must have at least 12 characters.
+- A new password is checked against passwords known from data breaches elsewhere. If it is one of them you see "This password has appeared
+  in a data breach elsewhere" — choose a different one. If the check cannot be done right now you see "We couldn't check this password right
+  now" — nothing was changed; try again in a few minutes.
 - After 5 wrong attempts in a row (wrong password or wrong verification code), the account is locked for 15 minutes.
 - Sign-in and other credential requests are rate limited (about 10 a minute from one device).
 - The sign-in page never tells you whether an email exists, so a typo in your email gives the same message as a wrong password.
