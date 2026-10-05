@@ -22,6 +22,9 @@ export async function portalApi<T>(path: string, { method = "GET", body }: { met
     authorization: `Bearer ${accessToken}`,
     ...acting,
   };
+  // Only the devices list needs to know which remembered browser this is.
+  const deviceToken = path.startsWith("/portal/mfa/devices") ? jar.get(COOKIES.device)?.value : undefined;
+  if (deviceToken) headers["x-device-token"] = deviceToken;
   if (body !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
@@ -34,6 +37,8 @@ export async function portalApi<T>(path: string, { method = "GET", body }: { met
     const error = await toApiError(response);
     // The grant ended (or the person's consent changed) while acting: go back to the person's own account.
     if (acting["x-acting-for"] && error.code === "proxy_not_allowed") redirect("/people/stop?ended=1");
+    // The clinic requires two-step verification this account has not set up: only Sign-in security (and the profile) open.
+    if (response.status === 403 && error.code === "mfa_enrollment_required") redirect("/security?required=1");
     throw error;
   }
   if (response.status === 204) return undefined as T;

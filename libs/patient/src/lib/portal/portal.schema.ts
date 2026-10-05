@@ -1,4 +1,4 @@
-import { bigint, boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const PORTAL_ACCOUNT_STATUSES = ["invited", "active", "disabled"] as const;
 export type PortalAccountStatus = (typeof PORTAL_ACCOUNT_STATUSES)[number];
@@ -102,3 +102,35 @@ export const patientPortalRecoveryCode = pgTable("patient_portal_recovery_code",
   createdAt: ts("created_at").notNull().defaultNow(),
   usedAt: ts("used_at"),
 });
+
+/**
+ * The organization's two-step verification requirement for patients (0100_patient_mfa_policy_trusted_devices.sql):
+ * from `required_from` (null = at once) a patient without it can only set it up; nobody is locked out.
+ */
+export const patientMfaPolicy = pgTable("patient_mfa_policy", {
+  organizationId: uuid("organization_id").primaryKey(),
+  required: boolean("required").notNull(),
+  requiredFrom: date("required_from"),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type PatientMfaPolicyRecord = typeof patientMfaPolicy.$inferSelect;
+
+export const TRUSTED_DEVICE_REVOKE_REASONS = ["forgotten_by_patient", "forgotten_all", "replaced", "mfa_disabled", "mfa_reset", "sessions_ended"] as const;
+export type TrustedDeviceRevokeReason = (typeof TRUSTED_DEVICE_REVOKE_REASONS)[number];
+
+/** A browser the patient asked not to be asked for a code on again (migration 0100): only the token's hash is kept. */
+export const patientTrustedDevice = pgTable("patient_trusted_device", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  label: text("label").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  lastUsedAt: ts("last_used_at").notNull().defaultNow(),
+  expiresAt: ts("expires_at").notNull(),
+  revokedAt: ts("revoked_at"),
+  revokedReason: text("revoked_reason").$type<TrustedDeviceRevokeReason>(),
+});
+export type PatientTrustedDeviceRecord = typeof patientTrustedDevice.$inferSelect;

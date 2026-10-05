@@ -76,7 +76,7 @@ export function TwoStepSettings({ enabled, required = false }: { enabled: boolea
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
-  const [setup, setSetup] = React.useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [setup, setSetup] = React.useState<{ secret: string; otpauthUri: string; qrSvg?: string } | null>(null);
   const [turningOff, setTurningOff] = React.useState(false);
   const [code, setCode] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -185,7 +185,17 @@ export function TwoStepSettings({ enabled, required = false }: { enabled: boolea
     >
       <ol className="list-decimal pl-5">
         <li>
-          In an authenticator app (for example Google Authenticator or Microsoft Authenticator), add an account with this setup key:
+          In an authenticator app (for example Google Authenticator or Microsoft Authenticator), scan this code
+          {setup.qrSvg ? (
+            // Drawn by this app's server from the otpauth link; only the code's squares, no text.
+            <span
+              role="img"
+              aria-label="QR code for your authenticator app; the setup key below is the same thing as text"
+              className="my-2 block size-40 rounded-md border bg-white p-2 [&>svg]:size-full"
+              dangerouslySetInnerHTML={{ __html: setup.qrSvg }}
+            />
+          ) : null}
+          or add an account with this setup key:
           <p className="my-1 rounded bg-muted/60 p-2 font-mono break-all select-all">{setup.secret}</p>
           On a phone,{" "}
           <a href={setup.otpauthUri} className="font-medium text-primary underline-offset-4 hover:underline">

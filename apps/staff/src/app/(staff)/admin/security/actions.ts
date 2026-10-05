@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { MfaPolicy } from "@/lib/api/types";
+import type { MfaPolicy, PatientMfaPolicy } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API authorizes (user.mfa.manage), audits and refuses what the policy
 // does not allow (requiring it before your own is on, exempting or resetting yourself).
@@ -20,6 +20,27 @@ export async function setMfaRequired(required: boolean, version: number, why: st
   const parsed = reason.optional().safeParse(why.trim() || undefined);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Give a reason." };
   const result = await actionResult(() => api<MfaPolicy>("/security/mfa-policy", { method: "PUT", body: { required, version, reason: parsed.data } }));
+  if (result.ok) refresh();
+  return result;
+}
+
+/** Patients: require it from a date (the API wants at least a week's notice), or stop requiring it. */
+export async function setPatientMfaPolicy(input: {
+  required: boolean;
+  requiredFrom: string;
+  version: number;
+  reason: string;
+}): Promise<ActionResult<PatientMfaPolicy>> {
+  const parsed = reason.optional().safeParse(input.reason.trim() || undefined);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Give a reason." };
+  const requiredFrom = input.requiredFrom.trim();
+  if (input.required && !/^\d{4}-\d{2}-\d{2}$/.test(requiredFrom)) return { ok: false, message: "Choose the date from which it is required." };
+  const result = await actionResult(() =>
+    api<PatientMfaPolicy>("/security/patient-mfa-policy", {
+      method: "PUT",
+      body: { required: input.required, requiredFrom: input.required ? requiredFrom : null, version: input.version, reason: parsed.data },
+    }),
+  );
   if (result.ok) refresh();
   return result;
 }

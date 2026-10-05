@@ -24,6 +24,7 @@ import { type PatientPortalAccountRecord, patientPortalAccount, patientPortalRec
 import { PortalAccountService, type PortalPrincipal } from "../portal/portal-account.service";
 import { PortalSecurityMailers, type SecurityAlertEvent } from "../portal/portal-security-mailer";
 import { PortalTokenService } from "../portal/portal-tokens";
+import { PortalTrustedDeviceService } from "./portal-trusted-device.service";
 import { generateRecoveryCode, groupSetupKey, hashRecoveryCode, RECOVERY_CODE_COUNT, type SecondFactorKind, secondFactorKind } from "./portal-security.rules";
 
 export interface PortalMfaStatusView {
@@ -60,6 +61,7 @@ export class PortalMfaService {
     private readonly tokens: PortalTokenService,
     private readonly mailer: PortalSecurityMailers,
     private readonly audit: AuditService,
+    private readonly devices: PortalTrustedDeviceService,
   ) {}
 
   async status(principal: PortalPrincipal): Promise<PortalMfaStatusView> {
@@ -142,7 +144,7 @@ export class PortalMfaService {
     if (!account.mfaEnabled) throw new BusinessRuleError("Two-step verification is not on", "mfa_not_enabled");
     await this.requireSecondFactor(principal, input.code, true);
     await this.db.transaction(async (tx) => {
-      await this.clearMfa(tx, account.id);
+      await this.clearMfa(tx, account.id, "mfa_disabled");
       await this.audit.record(tx, this.accounts.principalContext(principal), {
         action: "portal.mfa-disable",
         resourceType: "patient_portal_account",
@@ -172,8 +174,11 @@ export class PortalMfaService {
     return { recoveryCodes: codes };
   }
 
-  /** The second step of signing in: the challenge from the password step plus the app's code or a recovery code. */
-  async verifyLogin(challengeToken: string, code: string, request: RequestMetadata): Promise<PortalTokenResponse> {
+  /**
+   * The second step of signing in: the challenge from the password step plus the app's code or a recovery code. With
+   * `rememberDevice` the browser is trusted for a while (migration 0100) and the response carries its token.
+   */
+  async verifyLogin(challengeToken: string, code: string, request: RequestMetadata, rememberDevice = false): Promise<PortalTokenResponse> {
     const claims = await this.tokens.verifyMfaChallenge(challengeToken);
     const [account] = await this.db
       .select()
@@ -202,6 +207,10 @@ export class PortalMfaService {
         const result = fresh ? await this.checkSecondFactor(tx, fresh, code, true) : ({ ok: false } as const);
         if (!result.ok) return { kind: "bad" };
         const tokens = await this.accounts.completeLogin(tx, account, request, result.kind === "totp" ? "password+totp" : "password+recovery_code");
+        if (rememberDevice) {
+          const device = await this.devices.trust(tx, account, context);
+          return { kind: "ok", tokens: { ...tokens, deviceToken: device.deviceToken, deviceTokenExpiresAt: device.expiresAt.toISOString() }, result };
+        }
         return { kind: "ok", tokens, result };
       },
     );
@@ -223,7 +232,7 @@ export class PortalMfaService {
         .for("update");
       if (!row) throw new NotFoundError("Portal account");
       if (!row.mfaEnabled) throw new BusinessRuleError("Two-step verification is not on for this patient", "mfa_not_enabled");
-      await this.clearMfa(tx, row.id);
+      await this.clearMfa(tx, row.id, "mfa_reset");
       await this.accounts.revokeAll(tx, row.id, "mfa_reset");
       await this.audit.record(tx, actor, {
         action: "patient.portal-mfa-reset",
@@ -308,7 +317,9 @@ export class PortalMfaService {
     return codes;
   }
 
-  private async clearMfa(tx: DbExecutor, accountId: string): Promise<void> {
+  /** Ends two-step verification: secret, recovery codes and every trusted device go together. */
+  private async clearMfa(tx: DbExecutor, accountId: string, reason: "mfa_disabled" | "mfa_reset"): Promise<void> {
+    await this.devices.revokeAll(tx, accountId, reason);
     await tx
       .update(patientPortalAccount)
       .set({

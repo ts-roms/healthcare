@@ -37,6 +37,8 @@ import type { PortalMfaRequiredResponse, PortalTokenResponse, portalActivateSche
 import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
 import { PortalTokenService } from "./portal-tokens";
 import type { ProxyContext } from "../proxy/proxy.rules";
+import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
+import { PortalTrustedDeviceService } from "../security/portal-trusted-device.service";
 
 /** The authenticated patient on a portal request. */
 export interface PortalPrincipal {
@@ -44,6 +46,8 @@ export interface PortalPrincipal {
   patientId: string;
   organizationId: string;
   sessionId: string;
+  /** The account holder has two-step verification on (the guard reads the organization's policy against it). */
+  mfaEnabled: boolean;
   /** Set when the request acts for another person's record (guardian access); `patientId` is then that person's. */
   proxy?: ProxyContext;
   request: RequestMetadata;
@@ -100,6 +104,8 @@ export class PortalAccountService {
     private readonly tokens: PortalTokenService,
     private readonly audit: AuditService,
     @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
+    private readonly devices: PortalTrustedDeviceService,
+    private readonly mfaPolicy: PortalMfaPolicyService,
   ) {}
 
   // ---- staff side ------------------------------------------------------------------
@@ -391,6 +397,13 @@ export class PortalAccountService {
       });
       throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
     }
+    if (account.mfaEnabled && input.deviceToken) {
+      // A browser the patient asked to be remembered on (migration 0100) stands in for the second step, with the right password.
+      const device = await this.devices.recognise(account.id, input.deviceToken);
+      if (device) {
+        return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password+trusted_device", { deviceId: device.id }));
+      }
+    }
     if (account.mfaEnabled) {
       // The password was right; the second step decides. Nothing is counted or opened yet.
       await this.audit.recordStandalone(this.patientContext(account, request), {
@@ -408,7 +421,8 @@ export class PortalAccountService {
     tx: DbExecutor,
     account: PatientPortalAccountRecord,
     request: RequestMetadata,
-    method: "password" | "password+totp" | "password+recovery_code",
+    method: "password" | "password+totp" | "password+recovery_code" | "password+trusted_device",
+    metadata: Record<string, unknown> = {},
   ): Promise<PortalTokenResponse> {
     await tx.update(patientPortalAccount).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() }).where(eq(patientPortalAccount.id, account.id));
     const tokens = await this.startSession(tx, account, request);
@@ -416,7 +430,7 @@ export class PortalAccountService {
       action: "portal.login",
       resourceType: "patient_portal_account",
       resourceId: account.id,
-      metadata: { method },
+      metadata: { method, ...metadata },
     });
     return tokens;
   }
@@ -541,7 +555,14 @@ export class PortalAccountService {
     if (!(await this.hasPortalConsent(this.db, row.account.organizationId, row.account.patientId))) {
       throw new UnauthenticatedError("Portal access has ended", "session_ended");
     }
-    return { accountId: row.account.id, patientId: row.account.patientId, organizationId: row.account.organizationId, sessionId: row.session.id, request };
+    return {
+      accountId: row.account.id,
+      patientId: row.account.patientId,
+      organizationId: row.account.organizationId,
+      sessionId: row.session.id,
+      mfaEnabled: row.account.mfaEnabled,
+      request,
+    };
   }
 
   /** The MyHealth account of a patient who can sign in now (active, with portal consent); undefined otherwise. For push; not audited. */
@@ -610,6 +631,8 @@ export class PortalAccountService {
       },
       organization: { name: row.organizationName },
       account: { email: row.email, emailVerified: Boolean(row.emailVerifiedAt), mfaEnabled: row.mfaEnabled },
+      /** The organization's two-step verification requirement for patients and what it means for this account (migration 0100). */
+      mfaPolicy: await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled),
       /** The patient's clinic (where they were registered): MyHealth shows dates and times in its zone; a visit uses its own facility's. */
       timeZone: row.timeZone,
       /** Set when the request acts for another person: the patient above is that person, the account is the guardian's own. */
@@ -712,11 +735,13 @@ export class PortalAccountService {
     };
   }
 
+  /** Ends every session of the account; the browsers it trusted for the second step are forgotten with them. */
   async revokeAll(executor: DbExecutor, accountId: string, reason: string): Promise<void> {
     await executor
       .update(patientPortalSession)
       .set({ revokedAt: new Date(), revokedReason: reason })
       .where(and(eq(patientPortalSession.accountId, accountId), isNull(patientPortalSession.revokedAt)));
+    await this.devices.revokeAll(executor, accountId, "sessions_ended");
   }
 
   patientContext(account: PatientPortalAccountRecord, request: RequestMetadata): PatientAuditContext {

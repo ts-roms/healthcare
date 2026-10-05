@@ -46,14 +46,22 @@ async function verifyPassword(form: FormData): Promise<AuthFormState> {
   const parsed = parseForm(loginFormSchema, form, ["email", "password"]);
   if (!parsed.ok) return { fieldErrors: parsed.errors, values };
 
+  const jar = await cookies();
+  // A browser remembered after an earlier second step skips the code (the API decides whether the token still counts).
+  const deviceToken = jar.get(COOKIES.device)?.value;
   let result: PortalTokenResponse | PortalMfaRequired;
   try {
-    result = await post<PortalTokenResponse | PortalMfaRequired>("/portal/auth/login", { organizationCode: PORTAL_ORGANIZATION_CODE, ...parsed.data });
+    result = await post<PortalTokenResponse | PortalMfaRequired>("/portal/auth/login", {
+      organizationCode: PORTAL_ORGANIZATION_CODE,
+      ...parsed.data,
+      ...(deviceToken ? { deviceToken } : {}),
+    });
   } catch (error) {
     return { error: patientMessage(error), values };
   }
-  const jar = await cookies();
   if (result.status === "mfa_required") {
+    // Whatever the browser remembered no longer counts (expired, forgotten, two-step verification set up anew).
+    if (deviceToken) jar.delete(COOKIES.device);
     // The challenge stays on the server side of the browser (httpOnly), like the session itself.
     jar.set(COOKIES.mfaChallenge, result.challengeToken, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "strict", path: "/", maxAge: 300 });
     return { step: "mfa", values };
@@ -67,14 +75,19 @@ async function verifyCode(form: FormData): Promise<AuthFormState> {
   const challengeToken = (await cookies()).get(COOKIES.mfaChallenge)?.value;
   if (!challengeToken) return { error: "Your sign-in took too long. Enter your password again." };
   if (code.length < 6) return { step: "mfa", fieldErrors: { code: "Enter the 6-digit code from your authenticator app, or a recovery code." } };
+  const rememberDevice = form.get("rememberDevice") === "on";
   let tokens: PortalTokenResponse;
   try {
-    tokens = await post("/portal/auth/mfa/verify", { challengeToken, code });
+    tokens = await post("/portal/auth/mfa/verify", { challengeToken, code, rememberDevice });
   } catch (error) {
     return { step: "mfa", error: patientMessage(error) };
   }
   const jar = await cookies();
   jar.delete(COOKIES.mfaChallenge);
+  if (tokens.deviceToken && tokens.deviceTokenExpiresAt) {
+    const maxAge = Math.max(0, Math.floor((new Date(tokens.deviceTokenExpiresAt).getTime() - Date.now()) / 1000));
+    jar.set(COOKIES.device, tokens.deviceToken, { httpOnly: true, secure: SECURE_COOKIES, sameSite: "strict", path: "/", maxAge });
+  }
   writeTokenCookies(jar, tokens);
   redirect(safeNextPath(form.get("next"), "/", AUTH_PATHS));
 }

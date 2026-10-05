@@ -65,8 +65,8 @@ confirmed, you are signed out of your other devices and the old address gets a n
 **Turn on two-step verification** (needs a confirmed email)
 
 1. Under **Two-step verification** choose **Turn on** and enter your password.
-2. In an authenticator app (for example Google Authenticator or Microsoft Authenticator) add an account with the **setup key** shown, or on a phone choose
-   **open it in your authenticator app**.
+2. In an authenticator app (for example Google Authenticator or Microsoft Authenticator) scan the **QR code** shown, add an account with the **setup
+   key** under it, or on a phone choose **open it in your authenticator app**.
 3. Type the 6-digit code the app shows and choose **Turn on**.
 4. Save the **10 recovery codes** shown. They appear only once. Keep them safe and private, not only on your phone. Each works once if you lose your
    phone. Choose **I saved them**.
@@ -77,6 +77,16 @@ two-step verification off. Both need your password and a current code. We email 
 
 **Lost your phone and your recovery codes?** Ask the clinic front desk. After checking who you are, staff turn two-step verification off for you and you
 are signed out everywhere; sign in with your password and set it up again.
+
+**Remembered browsers.** When you enter a code at sign-in you can tick **Don't ask for a code on this browser for 30 days**. Do this only on a device that
+is yours: that browser then signs in with your password alone until the 30 days are over, or until you forget it. **Sign-in security** lists your
+remembered browsers (the one you are using is marked **This browser**) with **Forget**; turning two-step verification off, or the clinic resetting it,
+forgets them all, and so does a password reset. You can remember at most five; the one used least recently makes room.
+
+**When your clinic requires two-step verification.** Some clinics require it for everyone. MyHealth tells you the date from which it applies, on Home
+and under **Sign-in security**, so you have time to set it up. From that date you can still sign in, but only **Profile** and **Sign-in security** open
+until it is on; everything else says to set it up first. Nobody can turn it on for you, and nobody is locked out. If you have no smartphone or cannot use
+an authenticator app, tell the clinic.
 
 ## How to reset your password
 

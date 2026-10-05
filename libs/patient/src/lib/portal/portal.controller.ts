@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
 import type { Request } from "express";
-import { CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
+import { AllowDuringPortalMfaEnrollment, CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
 import {
   DisablePortalAccountDto,
   PortalActivateDto,
@@ -75,6 +75,7 @@ export class PortalController {
   @Post("auth/logout")
   @Public()
   @UseGuards(PatientAccessGuard)
+  @AllowDuringPortalMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentPatient() patient: PortalPrincipal): Promise<void> {
@@ -84,6 +85,7 @@ export class PortalController {
   @Get("me")
   @Public()
   @UseGuards(PatientAccessGuard)
+  @AllowDuringPortalMfaEnrollment()
   @ProxyAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: "The signed-in patient's profile" })

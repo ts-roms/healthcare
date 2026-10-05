@@ -43,6 +43,8 @@ export function patientMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "We couldn't reach MyHealth. Check your connection and try again.";
   const ref = error.requestId ? ` (ref ${error.requestId.slice(0, 8)})` : "";
   if (error.status === 429) return "Too many attempts. Wait a minute, then try again.";
+  if (error.code === "mfa_enrollment_required")
+    return "Your clinic requires two-step verification. Set it up in MyHealth on the web (Profile → Sign-in security), then sign in again.";
   if (error.code === "validation_failed") return `Some details were not accepted. Check them and try again.${ref}`;
   if (error.status >= 500) return `Something went wrong on our side. Try again in a few minutes.${ref}`;
   return `${error.message}${ref}`;

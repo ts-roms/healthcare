@@ -188,7 +188,17 @@ export function MfaSection({ status, timeZone }: { status: PortalMfaStatus; time
             >
               <ol className="list-decimal pl-5 text-body">
                 <li>
-                  Open an authenticator app (for example Google Authenticator or Microsoft Authenticator) and add an account with this setup key:
+                  Open an authenticator app (for example Google Authenticator or Microsoft Authenticator) and scan this code
+                  {setup.qrSvg ? (
+                    // The SVG is drawn by this app's server from the otpauth link; it holds no text, only the code's squares.
+                    <span
+                      role="img"
+                      aria-label="QR code for your authenticator app; the setup key below is the same thing as text"
+                      className="my-2 block size-44 rounded-lg border bg-white p-2 [&>svg]:size-full"
+                      dangerouslySetInnerHTML={{ __html: setup.qrSvg }}
+                    />
+                  ) : null}
+                  or add an account with this setup key:
                   <p className="my-1 rounded bg-muted/60 p-2 font-mono text-body break-all select-all">{setup.setupKey}</p>
                   On a phone,{" "}
                   <a href={setup.otpauthUri} className="font-medium text-primary underline-offset-4 hover:underline">

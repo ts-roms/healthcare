@@ -6,6 +6,9 @@ import {
   hashVerificationCode,
   looksLikeRecoveryCode,
   secondFactorKind,
+  deviceLabel,
+  patientMfaEnrollmentRequired,
+  TRUSTED_DEVICE_DAYS,
 } from "./portal-security.rules";
 
 describe("portal security rules", () => {
@@ -37,5 +40,33 @@ describe("portal security rules", () => {
 
   it("groups the setup key", () => {
     expect(groupSetupKey("ABCDEFGHIJ")).toBe("ABCD EFGH IJ");
+  });
+});
+
+describe("patient two-step verification policy and trusted devices (migration 0100)", () => {
+  it("requires enrollment only once the policy is on and its start date has arrived, never for an account that has it", () => {
+    expect(patientMfaEnrollmentRequired(null, false, "2026-10-05")).toBe(false);
+    expect(patientMfaEnrollmentRequired({ required: false, requiredFrom: null }, false, "2026-10-05")).toBe(false);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: null }, false, "2026-10-05")).toBe(true);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-10-06" }, false, "2026-10-05")).toBe(false);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-10-05" }, false, "2026-10-05")).toBe(true);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-09-01" }, false, "2026-10-05")).toBe(true);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: null }, true, "2026-10-05")).toBe(false);
+  });
+
+  it("labels a browser without keeping the user agent", () => {
+    expect(deviceLabel("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36")).toBe(
+      "Chrome on Android",
+    );
+    expect(
+      deviceLabel("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"),
+    ).toBe("Safari on iOS");
+    expect(deviceLabel("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0")).toBe("Firefox on Windows");
+    expect(deviceLabel("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0")).toBe(
+      "Edge on Windows",
+    );
+    expect(deviceLabel("curl/8.0")).toBe("Browser");
+    expect(deviceLabel(null)).toBe("Browser");
+    expect(TRUSTED_DEVICE_DAYS).toBe(30);
   });
 });

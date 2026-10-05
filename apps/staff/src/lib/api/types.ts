@@ -4645,6 +4645,17 @@ export interface MfaPolicy {
   exemptions: Array<{ userId: string; displayName: string; email: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
 }
 
+/** `GET|PUT /security/patient-mfa-policy`: whether patients must use two-step verification in MyHealth (migration 0100). */
+export interface PatientMfaPolicy {
+  required: boolean;
+  /** The local (Asia/Manila) date from which patients without it can only set it up; null = at once. */
+  requiredFrom: string | null;
+  version: number;
+  updatedAt: string | null;
+  updatedBy: { id: string; displayName: string } | null;
+  accounts: { active: number; withMfa: number; withoutMfa: number };
+}
+
 export interface StaffRoleDefinition {
   id: string;
   key: string;

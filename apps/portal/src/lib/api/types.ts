@@ -4,6 +4,9 @@ import type { SessionTokens } from "@healthcare/web-session";
 export interface PortalTokenResponse extends SessionTokens {
   status: "authenticated";
   tokenType: "Bearer";
+  /** Set when the patient asked to remember this browser after the second step: kept in a cookie, sent with the next sign-in. */
+  deviceToken?: string;
+  deviceTokenExpiresAt?: string;
 }
 
 /** `GET /portal/me`: the signed-in patient's identity (no clinical data). */
@@ -18,6 +21,8 @@ export interface PortalMe {
   };
   organization: { name: string };
   account: { email: string; emailVerified: boolean; mfaEnabled: boolean };
+  /** The clinic's two-step verification requirement for patients and what it means for this account (the signed-in person's own). */
+  mfaPolicy: PortalMfaPolicy;
   /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
   timeZone: string;
   /** Set when the signed-in person is acting for someone else: `patient` is then that person, `account` the signed-in person's own. */
@@ -529,6 +534,24 @@ export interface PortalEmailStatus {
   pending: { emailMasked: string; isChange: boolean; expiresAt: string } | null;
 }
 
+/** On `GET /portal/me`: whether the clinic requires two-step verification, from which local date, and whether this account may only set it up now. */
+export interface PortalMfaPolicy {
+  required: boolean;
+  requiredFrom: string | null;
+  enrollmentRequired: boolean;
+}
+
+/** `GET /portal/mfa/devices` row: a browser remembered after the second step. */
+export interface PortalTrustedDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  /** The browser this page is open in. */
+  current: boolean;
+}
+
 /** `GET /portal/mfa` */
 export interface PortalMfaStatus {
   enabled: boolean;
@@ -537,8 +560,9 @@ export interface PortalMfaStatus {
   emailVerified: boolean;
 }
 
-/** `POST /portal/mfa/setup` */
+/** `POST /portal/mfa/setup` (`qrSvg` is drawn by the portal's own server from `otpauthUri`) */
 export interface PortalMfaSetup {
+  qrSvg?: string;
   setupKey: string;
   secret: string;
   otpauthUri: string;

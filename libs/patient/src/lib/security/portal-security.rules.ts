@@ -47,3 +47,51 @@ export function secondFactorKind(input: string): SecondFactorKind | null {
 export function groupSetupKey(secret: string): string {
   return secret.replace(/(.{4})/g, "$1 ").trim();
 }
+
+/** Trusted devices (migration 0100): how long a browser is remembered, and how many per account. */
+export const TRUSTED_DEVICE_DAYS = 30;
+export const TRUSTED_DEVICE_LIMIT = 5;
+
+/** Days' notice an organization must give before requiring two-step verification of patients. */
+export const PATIENT_MFA_MIN_NOTICE_DAYS = 7;
+
+/**
+ * Whether a patient without two-step verification may only set it up now: the policy requires it and its start date
+ * (a local date, compared as a calendar day) has arrived. `today` is the local date "YYYY-MM-DD".
+ */
+export function patientMfaEnrollmentRequired(policy: { required: boolean; requiredFrom: string | null } | null, mfaEnabled: boolean, today: string): boolean {
+  if (!policy?.required || mfaEnabled) return false;
+  return policy.requiredFrom === null || policy.requiredFrom <= today;
+}
+
+/** A short, non-identifying description of a browser for the trusted-devices list ("Chrome on Android"). */
+export function deviceLabel(userAgent: string | null | undefined): string {
+  const ua = userAgent ?? "";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /OPR\/|Opera/.test(ua)
+      ? "Opera"
+      : /SamsungBrowser/.test(ua)
+        ? "Samsung Internet"
+        : /Firefox\//.test(ua)
+          ? "Firefox"
+          : /Chrome\/|CriOS\//.test(ua)
+            ? "Chrome"
+            : /Safari\//.test(ua)
+              ? "Safari"
+              : "Browser";
+  const os = /Android/.test(ua)
+    ? "Android"
+    : /iPhone|iPad|iPod/.test(ua)
+      ? "iOS"
+      : /Windows/.test(ua)
+        ? "Windows"
+        : /Mac OS X|Macintosh/.test(ua)
+          ? "macOS"
+          : /CrOS/.test(ua)
+            ? "ChromeOS"
+            : /Linux/.test(ua)
+              ? "Linux"
+              : null;
+  return os ? `${browser} on ${os}` : browser;
+}
