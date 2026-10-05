@@ -52,7 +52,9 @@ The top bar's bell shows the signed-in user's unread in-app messages (`GET /me/n
 `(staff)` layout on each navigation; a failure shows no badge rather than an error). `/notifications` lists them with
 **Open** (marks read and goes to the page the message links to, e.g. a nonconformance) and **Mark read**. Messages:
 critical and corrected results to the ordering practitioner, laboratory quality notices to quality managers, staff
-messages. See `docs/domains/notification.md`.
+messages. **Notifications in this browser** on the same page (`GET /me/push`, shown only when the platform has its VAPID key pair) turns
+Web Push on for this browser, lists the member's browsers with **Remove**, and sends a test; a push mirrors an in-app notice with
+content-free wording and opens its page (`public/sw.js`; `apps/staff/src/lib/push.ts`). See `docs/domains/notification.md`.
 
 ## Communications
 

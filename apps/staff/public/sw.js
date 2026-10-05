@@ -63,3 +63,37 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/* Push notifications for staff (docs/domains/notification.md, "Push"): a message carries only a title, one line and the
+ * page it is about — the content-free push wording of an in-app notice — and tapping it opens that page. */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title = typeof data.title === "string" && data.title ? data.title : "Notification";
+  const options = {
+    body: typeof data.body === "string" ? data.body : "You have a notification in the staff app.",
+    tag: "healthcare-staff",
+    data: { url: typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/notifications" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/notifications";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if ("focus" in client) {
+          client.navigate(url).catch(() => undefined);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

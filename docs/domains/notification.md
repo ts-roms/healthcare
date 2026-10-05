@@ -152,4 +152,18 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
   one worker at a time). `ok` → the notification becomes `delivered` (`delivered_at`: handed to Apple/Google, not read by the patient);
   `DeviceNotRegistered` → the device is dropped at once; `InvalidCredentials` / `MismatchSenderId` → logged as a setup problem, never held
   against the device; other errors count toward the 5-failure limit; no receipt within a day → `expired`. Answered tickets are kept 30 days.
-- Not built: push for staff, topics or badges, delivery receipts from the browser (Web Push gives none).
+- **Staff** (migration `0101`): a row of `push_subscription` belongs to exactly one owner — a MyHealth account (`portal_account_id`) or a
+  staff account (`user_id`; `push_subscription_one_owner`). Every signed-in member may register their own browser (`GET /me/push`,
+  `POST /me/push/subscriptions`, `POST /me/push/subscriptions/:id/remove`, `POST /me/push/test` with the internal `staff.push-test`;
+  `apps/api/src/app/staff-push.controller.ts`; same 5-device limit and failure handling; `removed_by_user`; audited `auth.push-register`,
+  `auth.push-remove`, `auth.push-test`). The recipient directory resolves push for a user with an active membership, an active account and
+  at least one browser (destination: the user id; else `no_push_device` / `user_disabled`). **Mirror:** `NotificationService.send` sends one
+  push row beside every staff in-app notice whose template lists `push` (`records.request-new`, `portal.message-new`, `portal.message-overdue`,
+  `clinic.referral-notice`, `lab.result-notice`, `lab.quality-notice`, `document.quarantine-notice`, `management.report-ready`), with the
+  idempotency key suffixed `:push`, only when the member has a browser (no suppressed rows otherwise), and never fails the in-app notice.
+  Each of those templates has a `renderPush` the dispatcher uses for the push channel (`renderForChannel`): the push names no patient,
+  order, request or file — only what kind of thing is waiting and the staff page to open. Free-text notices (`staff.message`,
+  `clinic.message`) never push. Removing every browser is the opt-out; a suspended or disabled member receives nothing (their browsers
+  stay registered for their return). Staff `/notifications`, "Notifications in this browser"; `apps/staff/public/sw.js` shows the
+  notification and opens the page.
+- Not built: per-kind staff preferences, topics or badges in the push itself, delivery receipts from the browser (Web Push gives none).

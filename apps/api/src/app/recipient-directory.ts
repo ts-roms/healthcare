@@ -38,9 +38,12 @@ export class AppRecipientDirectory implements RecipientDirectory {
     }
     if (!(await this.auth.hasActiveMembership(recipient.userId, organizationId))) return { allowed: false, reason: "user_not_member" };
     if (channel === "in_app") return { allowed: true, destination: null };
-    if (channel === "email") {
+    if (channel === "email" || channel === "push") {
       const user = await this.auth.getUser(recipient.userId);
-      return user.status === "active" ? { allowed: true, destination: user.email } : { allowed: false, reason: "user_disabled" };
+      if (user.status !== "active") return { allowed: false, reason: "user_disabled" };
+      if (channel === "email") return { allowed: true, destination: user.email };
+      // Push goes to the browsers the staff member allowed (migration 0101); the destination is the user id.
+      return (await this.push.hasDevice(recipient.userId)) ? { allowed: true, destination: recipient.userId } : { allowed: false, reason: "no_push_device" };
     }
     return { allowed: false, reason: `staff_${channel}_not_supported` };
   }
