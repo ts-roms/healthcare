@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Button } from "@healthcare/ui/primitives";
+import { Button, Checkbox, Label } from "@healthcare/ui/primitives";
 import { type AuthFormState, signIn } from "../actions";
 import { Field, FormError } from "../form-parts";
 
@@ -33,6 +33,12 @@ function LoginSteps({ next, notice, onRestart }: { next: string; notice?: string
           hint="Lost your phone? Enter a recovery code instead, like K7M2P-X9QRT."
           error={state.fieldErrors?.code}
         />
+        <div className="flex items-start gap-2">
+          <Checkbox id="remember-device" name="rememberDevice" className="mt-0.5" />
+          <Label htmlFor="remember-device" className="text-body leading-snug font-normal">
+            Don&apos;t ask for a code on this browser for 30 days. Only on a device that is yours.
+          </Label>
+        </div>
         <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Checking…" : "Sign in"}
         </Button>

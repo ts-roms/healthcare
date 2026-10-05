@@ -6,9 +6,9 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, Tabl
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { MfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
+import type { MfaPolicy, PatientMfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
 import { RateLimitRefusals } from "./rate-limit-refusals";
-import { MfaExemptionControl, MfaPolicyToggle } from "./security-controls";
+import { MfaExemptionControl, MfaPolicyToggle, PatientMfaPolicyControl } from "./security-controls";
 
 export const metadata = { title: "Sign-in security" };
 
@@ -16,15 +16,16 @@ export const metadata = { title: "Sign-in security" };
 export default async function SignInSecurityPage() {
   const session = await getSession();
   if (!can(session, "user.read")) redirect("/");
-  const [policy, refusals] = await Promise.all([
+  const [policy, patients, refusals] = await Promise.all([
     api<MfaPolicy>("/security/mfa-policy"),
+    api<PatientMfaPolicy>("/security/patient-mfa-policy"),
     // Platform-wide refusal counts: platform administrators only (the API refuses everyone else).
     session.user.isPlatformAdmin ? api<RateLimitRefusalsView>("/rate-limits/refusals?days=30").catch(() => null) : Promise.resolve(null),
   ]);
   const manage = can(session, "user.mfa.manage");
   return (
     <>
-      <PageHeader title="Sign-in security" description="Two-step verification for staff" />
+      <PageHeader title="Sign-in security" description="Two-step verification for staff and patients" />
       <div className="grid gap-4 p-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -100,6 +101,37 @@ export default async function SignInSecurityPage() {
                 </TableBody>
               </Table>
             )}
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Two-step verification for patients (MyHealth)</CardTitle>
+            {patients.required ? (
+              <Badge variant="success" className="ml-auto">
+                <ShieldCheckIcon aria-hidden /> Required{patients.requiredFrom ? ` from ${patients.requiredFrom}` : ""}
+              </Badge>
+            ) : (
+              <Badge variant="neutral" className="ml-auto">
+                <ShieldOffIcon aria-hidden /> Optional
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-table">
+            <p className="text-muted-foreground">
+              Patients can always add an authenticator app in MyHealth. When required, the date is announced in MyHealth first (at least a week); from it a
+              patient without it signs in only to set it up. Patients may remember a browser for 30 days after a code. The clinic turns it off for a patient who
+              lost the phone and the recovery codes, from the patient record.
+            </p>
+            <p>
+              {patients.accounts.active} active MyHealth account{patients.accounts.active === 1 ? "" : "s"}: {patients.accounts.withMfa} with it on,{" "}
+              {patients.accounts.withoutMfa} without it.
+            </p>
+            {patients.updatedBy && patients.updatedAt ? (
+              <p className="text-meta text-muted-foreground">
+                Last changed by {patients.updatedBy.displayName}, {clinicalDateTime(patients.updatedAt)}.
+              </p>
+            ) : null}
+            {manage ? <PatientMfaPolicyControl required={patients.required} requiredFrom={patients.requiredFrom} version={patients.version} /> : null}
           </CardContent>
         </Card>
         <Card className="lg:col-span-2">

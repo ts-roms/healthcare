@@ -15,7 +15,13 @@ export const portalActivateSchema = z.object({
 });
 export class PortalActivateDto extends createZodDto(portalActivateSchema) {}
 
-export const portalLoginSchema = z.object({ organizationCode, email, password: z.string().min(1).max(128) });
+export const portalLoginSchema = z.object({
+  organizationCode,
+  email,
+  password: z.string().min(1).max(128),
+  /** A trusted device's token (migration 0100): with the right password, the second step is skipped on that browser. */
+  deviceToken: z.string().min(20).max(200).optional(),
+});
 export class PortalLoginDto extends createZodDto(portalLoginSchema) {}
 
 export const portalRefreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
@@ -37,6 +43,9 @@ export interface PortalTokenResponse {
   expiresIn: number;
   refreshToken: string;
   refreshTokenExpiresAt: string;
+  /** Set when the patient asked to remember this browser after the second step (migration 0100): keep it, send it with the next sign-in. */
+  deviceToken?: string;
+  deviceTokenExpiresAt?: string;
 }
 
 export const portalPasswordResetRequestSchema = z.object({ organizationCode, email });
@@ -48,3 +57,18 @@ export const portalPasswordResetConfirmSchema = z.object({
   password: passwordSchema,
 });
 export class PortalPasswordResetConfirmDto extends createZodDto(portalPasswordResetConfirmSchema) {}
+
+/** The organization's two-step verification requirement for patients (migration 0100). */
+export const patientMfaPolicySchema = z.object({
+  required: z.boolean(),
+  /** Local date (YYYY-MM-DD) from which patients without it can only set it up; needed when turning it on. */
+  requiredFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  /** The version last read (0 before the policy was ever set). */
+  version: z.number().int().min(0),
+  reason: z.string().trim().min(3).max(500).optional(),
+});
+export class PatientMfaPolicyDto extends createZodDto(patientMfaPolicySchema) {}

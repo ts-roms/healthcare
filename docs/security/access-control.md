@@ -287,6 +287,17 @@ administrator's own MFA first (`422 own_mfa_required`).
 - Audited: `auth.mfa-policy.update` (from/to, reason),
   `auth.mfa-exemption.grant|revoke`, `auth.mfa.reset`.
 
+**Patients (MyHealth).** The same idea for portal accounts, with notice:
+`patient_mfa_policy` (migration `0100`), `GET|PUT /security/patient-mfa-policy`
+(`user.read` / `user.mfa.manage`), a start date at least 7 days ahead
+(`422 notice_required`), `PatientAccessGuard` answering
+`403 mfa_enrollment_required` from that date on every portal route not marked
+`@AllowDuringPortalMfaEnrollment()`, and browsers a patient may remember for
+30 days after a code (`patient_trusted_device`, hashed token, 5 per account,
+forgotten with the account's MFA or sessions). Audited
+`portal.mfa-policy.update`, `portal.device-trust`, `portal.device-forget`.
+Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
+
 ## Known gaps (tracked for later phases)
 
 - Per-address rate limits may refuse several patients at once on a shared address (carrier NAT, the mobile app); the

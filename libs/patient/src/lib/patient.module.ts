@@ -5,6 +5,9 @@ import { PatientMessagesController, PortalMessageThreadsController } from "./mes
 import { PatientMessageService } from "./messaging/patient-message.service";
 import { PortalEmailService } from "./security/portal-email.service";
 import { PortalMfaService } from "./security/portal-mfa.service";
+import { PatientMfaPolicyController } from "./security/portal-mfa-policy.controller";
+import { PortalMfaPolicyService } from "./security/portal-mfa-policy.service";
+import { PortalTrustedDeviceService } from "./security/portal-trusted-device.service";
 import { PortalMfaLoginController, PortalSecurityController } from "./security/portal-security.controller";
 import { PushDeviceCounts } from "./preferences/push-device-counts";
 import { PortalPreferencesController } from "./preferences/portal-preferences.controller";
@@ -45,6 +48,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientMessagesController,
     ConsentTextController,
     PortalMfaLoginController,
+    PatientMfaPolicyController,
     PortalProxyController,
     PatientPortalProxyController,
   ],
@@ -56,6 +60,8 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientSearchService,
     PortalAccountService,
     PortalTokenService,
+    PortalTrustedDeviceService,
+    PortalMfaPolicyService,
     PatientAccessGuard,
     RecordsRequestService,
     PortalConsentService,
@@ -81,6 +87,8 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientMessageService,
     PushDeviceCounts,
     PortalProxyService,
+    // The guard is used by portal controllers in the API too (dependencies of a guard resolve in the using module).
+    PortalMfaPolicyService,
   ],
 })
 export class PatientModule {}

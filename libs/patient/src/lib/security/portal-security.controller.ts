@@ -1,14 +1,15 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { createZodDto } from "nestjs-zod";
 import { Public, requestMetadataFrom } from "@healthcare/core";
 import type { Request } from "express";
 import { z } from "zod";
-import { CurrentPatient, PatientAccessGuard } from "../portal/patient-access.guard";
-import type { PortalPrincipal } from "../portal/portal-account.service";
+import { AllowDuringPortalMfaEnrollment, CurrentPatient, PatientAccessGuard } from "../portal/patient-access.guard";
+import { patientAuditContext, type PortalPrincipal } from "../portal/portal-account.service";
 import { PortalEmailService } from "./portal-email.service";
 import { PortalMfaService } from "./portal-mfa.service";
+import { PortalTrustedDeviceService } from "./portal-trusted-device.service";
 
 const CREDENTIAL_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
 const password = z.string().min(1).max(128);
@@ -19,7 +20,13 @@ class ChangeEmailDto extends createZodDto(z.object({ newEmail: z.string().trim()
 class MfaBeginDto extends createZodDto(z.object({ password })) {}
 class MfaEnableDto extends createZodDto(z.object({ code })) {}
 class MfaPasswordAndCodeDto extends createZodDto(z.object({ password, code })) {}
-class MfaVerifyDto extends createZodDto(z.object({ challengeToken: z.string().min(20).max(2000), code })) {}
+class MfaVerifyDto extends createZodDto(
+  z.object({
+    challengeToken: z.string().min(20).max(2000),
+    code,
+    /** Remember this browser for 30 days (migration 0100). */ rememberDevice: z.boolean().optional(),
+  }),
+) {}
 
 /**
  * Sign-in security of the patient's account in MyHealth: the sign-in email (verify, change) and two-step verification.
@@ -30,11 +37,13 @@ class MfaVerifyDto extends createZodDto(z.object({ challengeToken: z.string().mi
 @ApiBearerAuth()
 @Public()
 @UseGuards(PatientAccessGuard)
+@AllowDuringPortalMfaEnrollment()
 @Controller({ path: "portal", version: "1" })
 export class PortalSecurityController {
   constructor(
     private readonly email: PortalEmailService,
     private readonly mfa: PortalMfaService,
+    private readonly devices: PortalTrustedDeviceService,
   ) {}
 
   @Get("email")
@@ -106,6 +115,26 @@ export class PortalSecurityController {
   renewRecoveryCodes(@CurrentPatient() patient: PortalPrincipal, @Body() body: MfaPasswordAndCodeDto) {
     return this.mfa.renewRecoveryCodes(patient, body);
   }
+
+  @Get("mfa/devices")
+  @ApiOperation({ summary: "Browsers remembered for the second step (the one asking is marked when it sends X-Device-Token)" })
+  devicesList(@CurrentPatient() patient: PortalPrincipal, @Headers("x-device-token") deviceToken?: string) {
+    return this.devices.list(patient.accountId, deviceToken?.trim() || undefined);
+  }
+
+  @Post("mfa/devices/:deviceId/forget")
+  @HttpCode(204)
+  @ApiOperation({ summary: "Forget one remembered browser: it asks for the code again" })
+  async forgetDevice(@CurrentPatient() patient: PortalPrincipal, @Param("deviceId", ParseUUIDPipe) deviceId: string) {
+    await this.devices.forget(patientAuditContext(patient), deviceId);
+  }
+
+  @Post("mfa/devices/forget-all")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Forget every remembered browser" })
+  async forgetAllDevices(@CurrentPatient() patient: PortalPrincipal) {
+    return { forgotten: await this.devices.forgetAll(patientAuditContext(patient)) };
+  }
 }
 
 /** The second step of sign-in: public (the challenge from the password step is the credential). */
@@ -120,6 +149,6 @@ export class PortalMfaLoginController {
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Finish signing in with the challenge from the password step and the app's code or a recovery code" })
   verify(@Body() body: MfaVerifyDto, @Req() request: Request) {
-    return this.mfa.verifyLogin(body.challengeToken, body.code, requestMetadataFrom(request));
+    return this.mfa.verifyLogin(body.challengeToken, body.code, requestMetadataFrom(request), body.rememberDevice === true);
   }
 }

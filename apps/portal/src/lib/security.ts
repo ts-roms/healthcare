@@ -28,9 +28,23 @@ export function securityMessage(code: string | undefined, fallback: string): str
       return "Two-step verification is already on.";
     case "mfa_setup_not_started":
       return "Start again from the beginning: ask for a new setup key.";
+    case "mfa_enrollment_required":
+      return "Your clinic requires two-step verification. Set it up here to continue.";
     default:
       return fallback;
   }
+}
+
+/**
+ * What the clinic's two-step verification requirement means for this account, in the patient's words; null when there is
+ * nothing to say (not required, or already on). `requiredFrom` is the clinic's local date, shown as given.
+ */
+export function mfaPolicyNotice(policy: { required: boolean; requiredFrom: string | null; enrollmentRequired: boolean }, mfaEnabled: boolean): string | null {
+  if (!policy.required || mfaEnabled) return null;
+  if (policy.enrollmentRequired) return "Your clinic now requires two-step verification. Set it up to use MyHealth.";
+  return policy.requiredFrom
+    ? `From ${policy.requiredFrom}, your clinic requires two-step verification. Set it up now so nothing waits.`
+    : "Your clinic requires two-step verification. Set it up now so nothing waits.";
 }
 
 /** Recovery codes stay in the browser's memory only until the patient says they saved them. */
