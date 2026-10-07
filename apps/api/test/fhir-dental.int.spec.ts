@@ -316,10 +316,12 @@ describe("FHIR R4 export of the dental record", () => {
     // The procedure in error changed when it was marked: both were updated today (Manila); none after.
     expect(((await get(`/Procedure?patient=${patientId}&_lastUpdated=ge${manilaDate(0)}`).expect(200)).body as Bundle).total).toBe(2);
     expect(((await get(`/Procedure?patient=${patientId}&_lastUpdated=ge${manilaDate(1)}`).expect(200)).body as Bundle).total).toBe(0);
-    expect((await get(`/Observation?patient=${patientId}&_lastUpdated=ge${manilaDate(0)}`).expect(400)).body.issue[0].code).toBe("not-supported");
 
     const observations = (await get(`/Observation?patient=${patientId}`).expect(200)).body as Bundle;
     expect(observations.total).toBe(1 + 3 + 3); // examination + chart (16, 26, 36) + perio panel and two teeth
+    // Observation carries _lastUpdated since D9: every dental observation was recorded today (Manila), none before.
+    expect(((await get(`/Observation?patient=${patientId}&_lastUpdated=ge${manilaDate(0)}`).expect(200)).body as Bundle).total).toBe(observations.total);
+    expect(((await get(`/Observation?patient=${patientId}&_lastUpdated=le${manilaDate(-1)}`).expect(200)).body as Bundle).total).toBe(0);
     const carePlans = (await get(`/CarePlan?patient=${patientId}`).expect(200)).body as Bundle;
     expect(matches(carePlans).map((r) => r.id)).toEqual([ids.plan]);
     const documents = (await get(`/DocumentReference?patient=${patientId}`).expect(200)).body as Bundle;

@@ -11,7 +11,18 @@ import type {
   ServiceRequest,
 } from "fhir/r4";
 import { capabilityStatement, type CompartmentType, operationOutcome, patientEverything, searchByPatient } from "./bundle";
-import { DEFAULT_PAGING, FhirSearchError, PAGE_SIZE, parseLastUpdated, parsePaging, parseSearchParameters, type SearchParameters } from "./search";
+import {
+  decodeCursor,
+  DEFAULT_PAGING,
+  encodeCursor,
+  FhirSearchError,
+  PAGE_SIZE,
+  parseEverythingParameters,
+  parseLastUpdated,
+  parsePaging,
+  parseSearchParameters,
+  type SearchParameters,
+} from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
 
 // The official FHIR R4 (4.0) JSON schema, bundled by this validator (dev dependency). Each resource is checked against
@@ -160,6 +171,8 @@ const source: PatientRecordSource = {
       id: "77777777-7777-4777-8777-777777777777",
       encounterId: ENC,
       measuredAt: "2026-09-27T01:05:00.000Z",
+      recordedAt: "2026-09-27T01:05:00.000Z",
+      enteredInErrorAt: null,
       status: "final",
       systolicMmhg: 150,
       diastolicMmhg: 95,
@@ -710,6 +723,7 @@ describe("FHIR R4 mapping", () => {
       "Immunization",
       "MedicationRequest",
       "MedicationStatement",
+      "Observation",
       "Procedure",
     ]);
   });
@@ -721,7 +735,7 @@ describe("FHIR paging", () => {
 
   it("pages $everything in a stable order with self/next/previous links and the full total", () => {
     const seen: Array<string | undefined> = [];
-    let paging = { count: 7, offset: 0 };
+    let paging = parsePaging({ _count: "7" });
     for (let guard = 0; guard < 20; guard++) {
       const page = patientEverything(ctx, source, paging);
       expect(errors(page)).toEqual([]);
@@ -737,15 +751,21 @@ describe("FHIR paging", () => {
       expect(included.filter((r) => !shared.includes(r))).toEqual([]);
 
       const link = (relation: string) => page.link?.find((l) => l.relation === relation)?.url;
-      expect(link("self")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=${paging.offset}`);
-      if (paging.offset === 0) expect(link("previous")).toBeUndefined();
-      else expect(link("previous")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=${paging.offset - 7}`);
+      // The first page is reached by offset; every next link carries a cursor, and a cursor page has no previous link.
+      if (paging.cursor) expect(link("self")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_cursor=${encodeCursor(paging.cursor)}`);
+      else expect(link("self")).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=0`);
+      expect(link("previous")).toBeUndefined();
       const next = link("next");
       if (!next) break;
-      paging = { count: 7, offset: Number(new URL(next).searchParams.get("_offset")) };
+      expect(next).toContain("_cursor=");
+      paging = parsePaging(Object.fromEntries(new URL(next).searchParams));
     }
     expect(seen).toEqual(allMatches);
     expect(seen[0]).toBe(`${ctx.baseUrl}/Patient/${P}`);
+    // Offset paging still gives previous links (random access), and walks the same order.
+    const third = patientEverything(ctx, source, { count: 7, offset: 14 });
+    expect(third.link?.find((l) => l.relation === "previous")?.url).toBe(`${ctx.baseUrl}/Patient/${P}/$everything?_count=7&_offset=7`);
+    expect((third.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.fullUrl)).toEqual(allMatches.slice(14, 21));
   });
 
   it("orders deterministically whatever order the source rows come in", () => {
@@ -776,6 +796,90 @@ describe("FHIR paging", () => {
     for (const query of [{ _count: "-1" }, { _count: "ten" }, { _offset: "1.5" }, { _count: ["1", "2"] }]) {
       expect(() => parsePaging(query)).toThrow(FhirSearchError);
     }
+  });
+
+  it("follows next links by cursor: pages never overlap or skip when a resource is added or removed in between", () => {
+    const code = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        return (e as FhirSearchError).code;
+      }
+      return undefined;
+    };
+    // The cursor names the last match of the page; it is opaque to clients and refused when it is not ours.
+    const cursor = { resourceType: "Observation", id: "77777777-7777-4777-8777-777777777777-bp" };
+    expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
+    expect(parsePaging({ _cursor: encodeCursor(cursor) })).toEqual({ count: PAGE_SIZE.default, offset: 0, cursor });
+    expect(code(() => parsePaging({ _cursor: "not-a-cursor!" }))).toBe("invalid");
+    expect(code(() => parsePaging({ _cursor: encodeCursor(cursor), _offset: "3" }))).toBe("invalid");
+
+    // Walk the record three at a time while a vital-sign set disappears and a diagnosis appears between pages.
+    const first = patientEverything(ctx, source, { count: 3, offset: 0 });
+    const firstUrls = (first.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.fullUrl);
+    const next1 = first.link?.find((l) => l.relation === "next")?.url;
+    expect(next1).toContain("_cursor=");
+    expect(next1).not.toContain("_offset=");
+    expect(first.link?.some((l) => l.relation === "previous")).toBe(false);
+    const changed = {
+      ...source,
+      vitals: [],
+      diagnoses: [...source.diagnoses, { ...source.diagnoses[0]!, id: "00000000-0000-4000-8000-000000000001", code: "A00", display: "Added later" }],
+    };
+    const second = patientEverything(ctx, changed, parsePaging(Object.fromEntries(new URL(next1!).searchParams)));
+    const secondUrls = (second.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.fullUrl);
+    // Nothing from the first page repeats, and nothing after the cursor is skipped.
+    expect(secondUrls.some((u) => firstUrls.includes(u))).toBe(false);
+    const changedAll = (patientEverything(ctx, changed, { count: PAGE_SIZE.max, offset: 0 }).entry ?? [])
+      .filter((e) => e.search?.mode === "match")
+      .map((e) => e.fullUrl);
+    const afterCursor = changedAll.slice(changedAll.findIndex((u) => u === firstUrls[firstUrls.length - 1]) + 1);
+    expect(secondUrls).toEqual(afterCursor.slice(0, 3));
+    // A cursor page has no previous link; the total is the whole changed result.
+    expect(second.link?.some((l) => l.relation === "previous")).toBe(false);
+    expect(second.total).toBe(changedAll.length);
+    // A cursor whose resource is gone starts where it would have been.
+    const gone = patientEverything(ctx, changed, { count: 3, offset: 0, cursor: { resourceType: "Observation", id: "zzz" } });
+    expect((gone.entry ?? []).filter((e) => e.search?.mode === "match")[0]?.resource?.resourceType).not.toBe("Observation");
+  });
+
+  it("parses _type and _since for $everything: _since only with _type naming reliable types", () => {
+    const options = { compartmentTypes: ["Encounter", "Observation", "MedicationRequest"], reliableTypes: ["Observation", "MedicationRequest"] };
+    const code = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        return (e as FhirSearchError).code;
+      }
+      return undefined;
+    };
+    expect(parseEverythingParameters({ _type: "Observation, MedicationRequest", _since: "2026-09-01T00:00:00+08:00" }, options)).toEqual({
+      paging: DEFAULT_PAGING,
+      types: ["Observation", "MedicationRequest"],
+      since: "2026-09-01T00:00:00+08:00",
+    });
+    expect(parseEverythingParameters({ _type: "Encounter" }, options).types).toEqual(["Encounter"]);
+    expect(code(() => parseEverythingParameters({ _since: "2026-09-01T00:00:00Z" }, options))).toBe("not-supported");
+    expect(code(() => parseEverythingParameters({ _type: "Encounter,Observation", _since: "2026-09-01T00:00:00Z" }, options))).toBe("not-supported");
+    expect(code(() => parseEverythingParameters({ _type: "Observation", _since: "2026-09-01" }, options))).toBe("invalid");
+    expect(code(() => parseEverythingParameters({ _type: "Nonsense" }, options))).toBe("invalid");
+    expect(code(() => parseEverythingParameters({ start: "2026-01-01" }, options))).toBe("not-supported");
+    expect(code(() => parseEverythingParameters({ _lastUpdated: "ge2026-01-01" }, options))).toBe("not-supported");
+  });
+
+  it("limits $everything to _type and to resources changed since an instant", () => {
+    const typed = patientEverything(ctx, source, { paging: { count: PAGE_SIZE.max, offset: 0 }, types: ["Observation"] });
+    const types = new Set((typed.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.resource?.resourceType));
+    expect([...types].sort()).toEqual(["Observation", "Patient"]);
+    expect(typed.link?.find((l) => l.relation === "self")?.url).toContain("_type=Observation");
+    // Vital signs recorded 27 Sep; a since after that leaves only what changed later (and the Patient only if it did).
+    const since = patientEverything(ctx, source, { paging: { count: PAGE_SIZE.max, offset: 0 }, types: ["Observation"], since: "2026-09-27T12:00:00Z" });
+    const left = (since.entry ?? []).filter((e) => e.search?.mode === "match").map((e) => e.resource);
+    expect(left.every((r) => r?.resourceType !== "Patient" || Date.parse(r.meta?.lastUpdated ?? "") >= Date.parse("2026-09-27T12:00:00Z"))).toBe(true);
+    expect(
+      left.filter((r) => r?.resourceType === "Observation").every((r) => Date.parse(r?.meta?.lastUpdated ?? "") >= Date.parse("2026-09-27T12:00:00Z")),
+    ).toBe(true);
+    expect(since.total).toBeLessThan(typed.total ?? 0);
   });
 });
 
@@ -808,9 +912,12 @@ describe("FHIR _lastUpdated", () => {
     expect(search({ ge: "2026-09-27T01:28:00Z", le: "2026-09-27T01:28:00Z" })).toHaveLength(2);
     expect(search({ ge: "2026-09-28T16:30:00.001Z" })).toEqual([]);
     const bundle = searchByPatient(ctx, later, "MedicationRequest", { paging: { count: 1, offset: 0 }, lastUpdated: { ge: "2026-09-01" } });
-    expect(bundle.link?.find((l) => l.relation === "next")?.url).toBe(
-      `${ctx.baseUrl}/MedicationRequest?patient=${P}&_lastUpdated=ge2026-09-01&_count=1&_offset=1`,
-    );
+    const next = bundle.link?.find((l) => l.relation === "next")?.url ?? "";
+    expect(next.startsWith(`${ctx.baseUrl}/MedicationRequest?patient=${P}&_lastUpdated=ge2026-09-01&_count=1&_cursor=`)).toBe(true);
+    expect(decodeCursor(new URL(next).searchParams.get("_cursor")!)).toEqual({
+      resourceType: "MedicationRequest",
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa-1",
+    });
     expect(errors(bundle)).toEqual([]);
   });
 
@@ -837,6 +944,15 @@ describe("FHIR _lastUpdated", () => {
     expect(code(() => parseLastUpdated("ge2026-02-30"))).toBe("invalid");
     expect(code(() => parseLastUpdated("ge2026-09-01T10:00:00"))).toBe("invalid"); // an instant needs its time zone
     expect(code(() => parseSearchParameters({ _lastUpdated: "ge2026-09-01" }, { type: "Encounter", lastUpdated: false }))).toBe("not-supported");
+    // Observations carry a reliable last-updated time: vital signs record when marked entered in error (migration 0104).
+    const inError = {
+      ...source,
+      vitals: source.vitals.map((v) => ({ ...v, status: "entered_in_error" as const, enteredInErrorAt: "2026-10-01T00:00:00.000Z" })),
+    };
+    const vitalsSince = searchByPatient(ctx, inError, "Observation", { paging: DEFAULT_PAGING, lastUpdated: { ge: "2026-10-01" } });
+    expect((vitalsSince.entry ?? []).filter((e) => e.search?.mode === "match").every((e) => e.resource?.resourceType === "Observation")).toBe(true);
+    expect(vitalsSince.total).toBeGreaterThan(0);
+    expect(searchByPatient(ctx, source, "Observation", { paging: DEFAULT_PAGING, lastUpdated: { ge: "2026-10-01" } }).total).toBe(0);
     expect(parseSearchParameters({ _count: "5" }, { type: "Encounter", lastUpdated: false })).toEqual({ paging: { count: 5, offset: 0 }, lastUpdated: {} });
   });
 });
@@ -1458,7 +1574,7 @@ describe("FHIR export of the dental record", () => {
     expect(search("Observation").total).toBe(10 + 2 + 3 + 2); // vital signs and results + examinations + chart + perio panel and tooth
     const paged = searchByPatient(ctx, dental, "Procedure", { paging: { count: 2, offset: 0 }, lastUpdated: {} });
     expect(paged.entry).toHaveLength(2);
-    expect(paged.link?.find((l) => l.relation === "next")?.url).toBe(`${ctx.baseUrl}/Procedure?patient=${P}&_count=2&_offset=2`);
+    expect(paged.link?.find((l) => l.relation === "next")?.url).toMatch(new RegExp(`^${ctx.baseUrl}/Procedure\\?patient=${P}&_count=2&_cursor=`));
     expect(errors(search("Procedure"))).toEqual([]);
   });
 

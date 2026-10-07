@@ -330,7 +330,7 @@ describe("FHIR R4 export: reference laboratories and records from other systems"
     expect(resources(documents).map((r) => r.id)).toEqual([external.document]);
     const observations = await search(`/Observation?patient=${patientId}`);
     expect(observations.total).toBe(3); // TSH, FBS and the external HbA1c
-    expect((await get(`/Observation?patient=${patientId}&_lastUpdated=ge${manilaDate(-1)}`).expect(400)).body.issue[0].code).toBe("not-supported");
+    expect((await search(`/Observation?patient=${patientId}&_lastUpdated=ge${manilaDate(-1)}`)).total).toBe(3); // released results and the import all changed recently
 
     // Document descriptions are withheld with the documents from an account without document.read.
     const withheld = await search(`/Patient/${patientId}/$everything`, integration);

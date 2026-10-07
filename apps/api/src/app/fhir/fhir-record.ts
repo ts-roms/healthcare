@@ -189,7 +189,12 @@ export class FhirRecordComposer {
       allergyReview: clinic.allergyReview
         ? { noKnownAllergies: clinic.allergyReview.noKnownAllergies, reviewedAt: clinic.allergyReview.reviewedAt.toISOString() }
         : null,
-      vitals: clinic.vitals.map((v) => ({ ...v, measuredAt: v.measuredAt.toISOString() })),
+      vitals: clinic.vitals.map((v) => ({
+        ...v,
+        measuredAt: v.measuredAt.toISOString(),
+        recordedAt: v.recordedAt.toISOString(),
+        enteredInErrorAt: iso(v.enteredInErrorAt),
+      })),
       appointments: clinic.appointments.map((a) => ({
         id: a.id,
         facilityId: a.facilityId,

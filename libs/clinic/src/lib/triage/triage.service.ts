@@ -129,7 +129,7 @@ export class TriageService {
     return this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(vitalSignSet)
-        .set({ status: "entered_in_error", enteredInErrorReason: reason, enteredInErrorBy: actor.userId })
+        .set({ status: "entered_in_error", enteredInErrorReason: reason, enteredInErrorBy: actor.userId, enteredInErrorAt: new Date() })
         .where(and(eq(vitalSignSet.organizationId, actor.organizationId), eq(vitalSignSet.id, vitalsId), eq(vitalSignSet.status, "final")))
         .returning();
       if (!updated) throw new NotFoundError("Vital signs");

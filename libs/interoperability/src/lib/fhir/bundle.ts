@@ -10,7 +10,17 @@ import { toImmunization } from "./immunization";
 import { toCarePlan, toDiagnosticReport, toLabObservation, toMedicationRequests, toServiceRequests } from "./orders";
 import { toReferralServiceRequest } from "./referrals";
 import { compact } from "./support";
-import { DEFAULT_PAGING, matchesLastUpdated, PAGE_SIZE, type Paging, type SearchParameters } from "./search";
+import {
+  type Cursor,
+  DEFAULT_PAGING,
+  encodeCursor,
+  type EverythingParameters,
+  matchesLastUpdated,
+  matchesSince,
+  PAGE_SIZE,
+  type Paging,
+  type SearchParameters,
+} from "./search";
 import type { FhirContext, PatientRecordSource } from "./sources";
 import { FHIR_VERSION } from "./terminology";
 
@@ -40,11 +50,15 @@ export type CompartmentType = (typeof PATIENT_COMPARTMENT_TYPES)[number];
  * MedicationStatements and document descriptions), medications taken (the other MedicationStatements: also when
  * marked stopped, which their lastUpdated includes), clinic, dental and past procedures (the Procedures)
  * and family history entries change only when marked entered in error (database triggers), and immunizations only
- * when marked entered in error or when a reaction is added (database trigger). The other records are updated in place without a trustworthy
+ * when marked entered in error or when a reaction is added (database trigger). Observations: vital signs change only
+ * when marked entered in error (migration 0104 records when), a released laboratory result version never changes
+ * (a correction is a new version with its own release), and dental, external and social-history observations are
+ * immutable except entered in error. The other records are updated in place without a trustworthy
  * change time for everything their resource shows (see docs/interoperability/fhir.md), so `_lastUpdated` is refused for
  * them rather than answered approximately.
  */
 export const LAST_UPDATED_TYPES: readonly CompartmentType[] = [
+  "Observation",
   "MedicationRequest",
   "MedicationStatement",
   "DocumentReference",
@@ -131,21 +145,47 @@ function notice(diagnostics: string): BundleEntry {
   return { resource: outcome, search: { mode: "outcome" } };
 }
 
-/** The page's link URL: the request's own parameters plus `_count` and `_offset`. */
+/** The page's link URL: the request's own parameters plus `_count` and `_offset`, or `_count` and `_cursor`. */
 function pageUrl(path: string, params: Array<[string, string]>, paging: Paging): string {
-  const query = new URLSearchParams([...params, ["_count", String(paging.count)], ["_offset", String(paging.offset)]]);
+  const where: Array<[string, string]> = paging.cursor ? [["_cursor", encodeCursor(paging.cursor)]] : [["_offset", String(paging.offset)]];
+  const query = new URLSearchParams([...params, ["_count", String(paging.count)], ...where]);
   return `${path}?${query.toString()}`;
 }
 
-function links(path: string, params: Array<[string, string]>, paging: Paging, total: number): BundleLink[] {
+/**
+ * Links of a page. A page reached by offset keeps offset links (with `previous`); its `next` link carries a cursor —
+ * the last match of this page — so that following `next` never overlaps or skips while the record changes in between.
+ * A page reached by cursor has no `previous` (keyset paging is forward-only).
+ */
+function links(path: string, params: Array<[string, string]>, paging: Paging, total: number, page: FhirResource[], after: number): BundleLink[] {
   const out: BundleLink[] = [{ relation: "self", url: pageUrl(path, params, paging) }];
-  if (paging.count > 0 && paging.offset + paging.count < total) {
-    out.push({ relation: "next", url: pageUrl(path, params, { count: paging.count, offset: paging.offset + paging.count }) });
+  const last = page[page.length - 1];
+  if (paging.count > 0 && last && after + page.length < total) {
+    out.push({
+      relation: "next",
+      url: pageUrl(path, params, { count: paging.count, offset: 0, cursor: { resourceType: last.resourceType, id: last.id ?? "" } }),
+    });
   }
-  if (paging.count > 0 && paging.offset > 0) {
+  if (paging.count > 0 && !paging.cursor && paging.offset > 0) {
     out.push({ relation: "previous", url: pageUrl(path, params, { count: paging.count, offset: Math.max(0, Math.min(paging.offset, total) - paging.count) }) });
   }
   return out;
+}
+
+/** The position in the stable order just after the cursor's resource (or where it would be, when it is gone). */
+function positionAfter(matches: FhirResource[], cursor: Cursor): number {
+  const rank = (type: string) => TYPE_RANK.get(type) ?? TYPE_RANK.size;
+  const patientFirst = (r: FhirResource) => (r.resourceType === "Patient" ? -1 : rank(r.resourceType));
+  const key = (type: string, id: string): [number, string] => [type === "Patient" ? -1 : rank(type), id];
+  const target = key(cursor.resourceType, cursor.id);
+  let i = 0;
+  while (i < matches.length) {
+    const r = matches[i]!;
+    const here: [number, string] = [patientFirst(r), r.id ?? ""];
+    if (here[0] > target[0] || (here[0] === target[0] && here[1] > target[1])) break;
+    i++;
+  }
+  return i;
 }
 
 /**
@@ -157,11 +197,14 @@ function searchset(
   matches: FhirResource[],
   supporting: FhirResource[],
   paging: Paging,
-  link: BundleLink[],
+  path: string,
+  params: Array<[string, string]>,
   now: Date,
   notices: BundleEntry[],
 ): Bundle {
-  const page = matches.slice(paging.offset, paging.offset + paging.count);
+  const after = paging.cursor ? positionAfter(matches, paging.cursor) : paging.offset;
+  const page = matches.slice(after, after + paging.count);
+  const link = links(path, params, paging, matches.length, page, after);
   const referenced = referencesIn(page);
   const includes = supporting.filter((r) => referenced.has(`${r.resourceType}/${r.id}`));
   const entries = [...page.map((r) => entry(ctx, r, "match")), ...includes.map((r) => entry(ctx, r, "include")), ...notices];
@@ -183,17 +226,34 @@ function sensitiveWithheld(src: PatientRecordSource): boolean {
   return !src.history.sensitiveIncluded && src.history.social.length > 0;
 }
 
-/** Patient/$everything: the patient's whole record as a searchset Bundle, paged (the Patient comes first). */
-export function patientEverything(ctx: FhirContext, src: PatientRecordSource, paging: Paging = DEFAULT_PAGING, now = new Date()): Bundle {
+/**
+ * Patient/$everything: the patient's whole record as a searchset Bundle, paged (the Patient comes first); `_type`
+ * limits it to the types named, `_since` (only with `_type` naming reliable types, checked by the parser) to resources
+ * changed at or after an instant — the Patient itself is then included only when its own record changed since.
+ */
+export function patientEverything(
+  ctx: FhirContext,
+  src: PatientRecordSource,
+  params: Paging | EverythingParameters = DEFAULT_PAGING,
+  now = new Date(),
+): Bundle {
+  const p: EverythingParameters = "paging" in params ? params : { paging: params };
   const { patient, clinical, supporting } = patientResources(ctx, src);
-  const matches = [patient, ...clinical];
+  const wanted = p.types ? new Set(p.types) : null;
+  const matches = [
+    ...(p.since === undefined || matchesSince(p.since, patient.meta?.lastUpdated) ? [patient] : []),
+    ...clinical.filter((r) => (!wanted || wanted.has(r.resourceType)) && matchesSince(p.since, r.meta?.lastUpdated)),
+  ];
   const path = `${ctx.baseUrl}/Patient/${src.patient.id}/$everything`;
+  const query: Array<[string, string]> = [];
+  if (p.types) query.push(["_type", p.types.join(",")]);
+  if (p.since !== undefined) query.push(["_since", p.since]);
   const notices = [
     ...(src.documents === null ? [notice(DOCUMENTS_WITHHELD)] : []),
     ...(src.dental === null ? [notice(DENTAL_WITHHELD)] : []),
     ...(sensitiveWithheld(src) ? [notice(SENSITIVE_WITHHELD)] : []),
   ];
-  return searchset(ctx, matches, supporting, paging, links(path, [], paging, matches.length), now, notices);
+  return searchset(ctx, matches, supporting, p.paging, path, query, now, notices);
 }
 
 /** A search by patient for one resource type (e.g. Observation?patient=…), paged and optionally filtered by `_lastUpdated`. */
@@ -213,7 +273,7 @@ export function searchByPatient(
     ...(src.dental === null && DENTAL_TYPES.includes(type) ? [notice(DENTAL_WITHHELD)] : []),
     ...(type === "Observation" && sensitiveWithheld(src) ? [notice(SENSITIVE_WITHHELD)] : []),
   ];
-  return searchset(ctx, matches, [], params.paging, links(`${ctx.baseUrl}/${type}`, query, params.paging, matches.length), now, notices);
+  return searchset(ctx, matches, [], params.paging, `${ctx.baseUrl}/${type}`, query, now, notices);
 }
 
 const IMPORTED = "Resources received from other systems (accepted FHIR imports) carry meta.tag record-source#external-import.";
@@ -254,7 +314,10 @@ export function capabilityStatement(ctx: FhirContext, now = new Date()): Capabil
         },
         documentation:
           `Searches and Patient/$everything are paged: _count (default ${PAGE_SIZE.default}, at most ${PAGE_SIZE.max}; 0 returns only the total) ` +
-          "and _offset, with self/next/previous links; total is the number of matches in the whole result. Matches are ordered by type, then id.",
+          "and _offset, or the opaque _cursor of a next link (keyset paging: following next never overlaps or skips while the record changes; " +
+          "no previous link with a cursor); total is the number of matches in the whole result. Matches are ordered by type, then id. " +
+          `Patient/$everything also takes _type (comma-separated types) and _since (an instant), the latter only with _type naming types ` +
+          `whose resources carry a reliable meta.lastUpdated (${LAST_UPDATED_TYPES.join(", ")}).`,
         resource: [
           {
             type: "Patient",
