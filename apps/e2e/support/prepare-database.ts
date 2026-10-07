@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { hash } from "@node-rs/argon2";
 import { Client } from "pg";
-import { DOCTOR_NAME, E2E_DATABASE_URL, ORGANIZATION_CODE, STAFF, STAFF_PASSWORD, TELE_DOCTOR_NAME } from "./env";
+import { DOCTOR_NAME, E2E_APP_ROLE, E2E_DATABASE_URL, ORGANIZATION_CODE, STAFF, STAFF_PASSWORD, TELE_DOCTOR_NAME } from "./env";
 
 async function recreate(url: string): Promise<void> {
   const target = new URL(url);
@@ -74,10 +74,29 @@ async function seed(url: string): Promise<void> {
   }
 }
 
+/** The restricted login role the API connects as (roles belong to the cluster: created once, kept between runs). */
+async function ensureAppRole(url: string): Promise<void> {
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  try {
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${E2E_APP_ROLE.name}') THEN
+          CREATE ROLE ${E2E_APP_ROLE.name} LOGIN PASSWORD '${E2E_APP_ROLE.password}' IN ROLE healthcare_app;
+        END IF;
+      END
+      $$`);
+  } finally {
+    await client.end();
+  }
+}
+
 async function main(): Promise<void> {
   await recreate(E2E_DATABASE_URL);
   execFileSync(process.execPath, ["-r", "@swc-node/register", join(__dirname, "../../../tools/db/migrate.ts"), E2E_DATABASE_URL], { stdio: "inherit" });
   await seed(E2E_DATABASE_URL);
+  await ensureAppRole(E2E_DATABASE_URL);
   console.log(`e2e database ready: ${new URL(E2E_DATABASE_URL).pathname.slice(1)}`);
 }
 

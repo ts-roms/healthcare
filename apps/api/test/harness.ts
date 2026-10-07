@@ -15,6 +15,21 @@ import { AppModule, type AppModuleOverrides } from "../src/app/app.module";
 import { configureApp } from "../src/app/configure-app";
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_test";
+/**
+ * The application under test connects as a restricted login role, a member of `healthcare_app`
+ * (0109_app_role.sql), exactly as production should (docs/runbooks/database-roles.md); setup and assertions use the
+ * owner (TEST_DATABASE_URL). A suite that needs something the role may not do fails here first.
+ */
+const TEST_APP_ROLE = { name: "healthcare_test_app", password: "test-only-app-role" };
+export const TEST_APP_DATABASE_URL = process.env.TEST_APP_DATABASE_URL ?? appRoleUrl(TEST_DATABASE_URL);
+
+function appRoleUrl(ownerUrl: string): string {
+  const url = new URL(ownerUrl);
+  url.username = TEST_APP_ROLE.name;
+  url.password = TEST_APP_ROLE.password;
+  return url.toString();
+}
+
 export const TEST_REDIS_URL = process.env.TEST_REDIS_URL ?? "redis://localhost:6379";
 export const PASSWORD = "Correct-Horse-Battery-9";
 
@@ -57,7 +72,7 @@ export interface TestContext {
 export function testConfig(env: Record<string, string> = {}): AppConfig {
   return loadAppConfig({
     NODE_ENV: "test",
-    DATABASE_URL: TEST_DATABASE_URL,
+    DATABASE_URL: TEST_APP_DATABASE_URL,
     JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
     LOG_LEVEL: "error",
@@ -73,6 +88,15 @@ export function testConfig(env: Record<string, string> = {}): AppConfig {
 export async function resetDatabase(pool: Pool): Promise<void> {
   await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
   await runMigrations(pool, join(__dirname, "../../../database/migrations"));
+  // Roles belong to the cluster: created once, kept between runs.
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${TEST_APP_ROLE.name}') THEN
+        CREATE ROLE ${TEST_APP_ROLE.name} LOGIN PASSWORD '${TEST_APP_ROLE.password}' IN ROLE healthcare_app;
+      END IF;
+    END
+    $$`);
 }
 
 export async function createTestApp(

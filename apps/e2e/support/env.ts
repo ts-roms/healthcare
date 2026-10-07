@@ -3,6 +3,20 @@
  * servers. Override with E2E_* variables (e.g. in CI).
  */
 export const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? "postgres://healthcare:healthcare@localhost:5432/healthcare_e2e";
+/**
+ * The API connects as a restricted login role, a member of `healthcare_app` (0109_app_role.sql), as production should
+ * (docs/runbooks/database-roles.md); the database is prepared, migrated and seeded as the owner above.
+ */
+export const E2E_APP_ROLE = { name: "healthcare_e2e_app", password: "e2e-only-app-role" };
+export const E2E_APP_DATABASE_URL = process.env.E2E_APP_DATABASE_URL ?? withRole(E2E_DATABASE_URL, E2E_APP_ROLE);
+
+function withRole(ownerUrl: string, role: { name: string; password: string }): string {
+  const url = new URL(ownerUrl);
+  url.username = role.name;
+  url.password = role.password;
+  return url.toString();
+}
+
 export const REDIS_URL = process.env.E2E_REDIS_URL ?? "redis://localhost:6379";
 
 export const API_PORT = Number(process.env.E2E_API_PORT ?? 3433);

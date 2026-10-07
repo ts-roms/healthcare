@@ -35,10 +35,16 @@ PostgreSQL 16. Schema source of truth: `database/migrations/*.sql`.
 | Documents         | `document`                                                                                                                                                                                          |
 | Notifications     | `notification`, `notification_attempt`                                                                                                                                                              |
 
+## Least-privilege application role
+
+Migration `0109` creates `healthcare_app`, the role the API and workers connect as through a login role created by the
+operator: read and write, but no `UPDATE`/`DELETE` where an append-only trigger forbids it, no `TRUNCATE`, no writes
+to `schema_migration` and no DDL. `apply_app_privileges()` derives this from the triggers and `pnpm db:migrate` runs
+it after every migration; tests and E2E journeys run the application as such a role. Set-up and rollback:
+[database roles runbook](../runbooks/database-roles.md).
+
 ## Production hardening (not yet done)
 
-- Run the API as a role without `UPDATE`/`DELETE`/`TRUNCATE` on `audit_event`
-  and `patient_consent` (the triggers are a second line of defense).
 - Consider row-level security keyed on `organization_id` as defense in depth.
 - Partition `audit_event` by month once volume warrants it; define retention.
 - Encrypted backups and point-in-time recovery; test restores on the hosting provider. The procedure and the checks
