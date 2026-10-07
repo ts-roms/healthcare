@@ -85,8 +85,9 @@ forgets them all, and so does a password reset. You can remember at most five; t
 
 **When your clinic requires two-step verification.** Some clinics require it for everyone. MyHealth tells you the date from which it applies, on Home
 and under **Sign-in security**, so you have time to set it up. From that date you can still sign in, but only **Profile** and **Sign-in security** open
-until it is on; everything else says to set it up first. Nobody can turn it on for you, and nobody is locked out. If you have no smartphone or cannot use
-an authenticator app, tell the clinic.
+until it is on; everything else says to set it up first. Nobody can turn it on for you, and nobody is locked out. We also email you when the clinic sets
+the date, and again if it moves, until you have set it up. If you have no smartphone or cannot use an authenticator app, tell the clinic: they can exempt
+your account, and we email you when they do.
 
 ## How to reset your password
 

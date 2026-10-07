@@ -491,6 +491,8 @@ export interface PortalAccountStatus {
   emailVerified: boolean;
   /** The patient uses two-step verification; the clinic can turn it off after checking identity. */
   mfaEnabled: boolean;
+  /** The clinic exempted the patient from its two-step verification requirement (migration 0107), and why. */
+  mfaExemption: { reason: string; exemptedAt: string } | null;
 }
 
 /** `POST /patients/:id/portal-account/invitations`: the code is returned once and never stored in plain text. */
@@ -4823,7 +4825,9 @@ export interface PatientMfaPolicy {
   version: number;
   updatedAt: string | null;
   updatedBy: { id: string; displayName: string } | null;
-  accounts: { active: number; withMfa: number; withoutMfa: number };
+  /** `withoutMfa` leaves out the exempt accounts (migration 0107). */
+  accounts: { active: number; withMfa: number; withoutMfa: number; exempt: number };
+  exemptions: Array<{ patientId: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
 }
 
 export interface StaffRoleDefinition {

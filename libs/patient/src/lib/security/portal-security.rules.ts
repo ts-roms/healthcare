@@ -59,8 +59,14 @@ export const PATIENT_MFA_MIN_NOTICE_DAYS = 7;
  * Whether a patient without two-step verification may only set it up now: the policy requires it and its start date
  * (a local date, compared as a calendar day) has arrived. `today` is the local date "YYYY-MM-DD".
  */
-export function patientMfaEnrollmentRequired(policy: { required: boolean; requiredFrom: string | null } | null, mfaEnabled: boolean, today: string): boolean {
-  if (!policy?.required || mfaEnabled) return false;
+export function patientMfaEnrollmentRequired(
+  policy: { required: boolean; requiredFrom: string | null } | null,
+  mfaEnabled: boolean,
+  today: string,
+  /** The clinic exempted the account (migration 0107): never held at the set-up. */
+  exempt = false,
+): boolean {
+  if (!policy?.required || mfaEnabled || exempt) return false;
   return policy.requiredFrom === null || policy.requiredFrom <= today;
 }
 

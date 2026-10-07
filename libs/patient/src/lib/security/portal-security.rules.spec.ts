@@ -49,6 +49,9 @@ describe("patient two-step verification policy and trusted devices (migration 01
     expect(patientMfaEnrollmentRequired({ required: false, requiredFrom: null }, false, "2026-10-05")).toBe(false);
     expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: null }, false, "2026-10-05")).toBe(true);
     expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-10-06" }, false, "2026-10-05")).toBe(false);
+    // An account the clinic exempted is never held at the set-up (migration 0107).
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: null }, false, "2026-10-05", true)).toBe(false);
+    expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-10-01" }, false, "2026-10-05", false)).toBe(true);
     expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-10-05" }, false, "2026-10-05")).toBe(true);
     expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: "2026-09-01" }, false, "2026-10-05")).toBe(true);
     expect(patientMfaEnrollmentRequired({ required: true, requiredFrom: null }, true, "2026-10-05")).toBe(false);

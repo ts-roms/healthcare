@@ -66,6 +66,7 @@ import { ReferralNotices } from "./referral-notices";
 import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
+import { PortalMfaPolicyNotices } from "./portal/portal-mfa-policy-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
@@ -276,6 +277,7 @@ export class AppModule implements NestModule {
         PatientRecordsNotices,
         ReferralNotices,
         PortalSecurityNotices,
+        PortalMfaPolicyNotices,
         StaffSecurityNotices,
         PatientMessageNotices,
         PatientMessageReminders,

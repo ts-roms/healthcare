@@ -134,7 +134,7 @@ describe("patient two-step verification policy and trusted devices", () => {
       await portalPost("/mfa/enable", { code: authenticator.generate(secret) }, session).expect(200);
       expect((await portalGet("/me", session).expect(200)).body.mfaPolicy.enrollmentRequired).toBe(false);
       await portalGet("/consents", session).expect(200);
-      expect((await staff(admin).get("/security/patient-mfa-policy").expect(200)).body.accounts).toEqual({ active: 1, withMfa: 1, withoutMfa: 0 });
+      expect((await staff(admin).get("/security/patient-mfa-policy").expect(200)).body.accounts).toEqual({ active: 1, withMfa: 1, withoutMfa: 0, exempt: 0 });
     });
   });
 

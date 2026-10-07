@@ -253,6 +253,28 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    // The clinic requires two-step verification of MyHealth patients from a date (D6 phase 2): sent to each active
+    // account still to set it up when the requirement is turned on or its date moves. Nothing clinical.
+    key: "portal.mfa-required-notice",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    variables: z.object({ organizationName: shortText, requiredFrom: z.iso.date().nullable(), link: z.url().max(500).nullable() }),
+    render: (v) => {
+      const when = v.requiredFrom
+        ? `from ${new Intl.DateTimeFormat("en-PH", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${v.requiredFrom}T00:00:00Z`))}`
+        : "now";
+      return {
+        subject: `${v.organizationName} will ask for two-step verification in MyHealth`,
+        text:
+          `${v.organizationName} requires two-step verification for MyHealth ${when}. ` +
+          `Set it up before then with an authenticator app, under Profile → Sign-in security${v.link ? `:\n\n${v.link}\n\n` : ". "}` +
+          `If you cannot use an authenticator app, contact the clinic.`,
+      };
+    },
+  }),
+  defineTemplate({
     key: "portal.password-changed",
     version: 1,
     category: "security",
@@ -296,6 +318,8 @@ export const TEMPLATES = [
         "email_changed",
         "proxy_access_granted",
         "proxy_access_ended",
+        "mfa_exempted",
+        "mfa_exemption_ended",
       ]),
       /** For "recovery_code_used": how many are left; for "email_changed": the new address, partly hidden. */
       detail: shortText.optional(),
@@ -311,6 +335,10 @@ export const TEMPLATES = [
         proxy_access_granted:
           "The clinic allowed another person, who has their own MyHealth account, to see and act on your records in MyHealth. You can end this in MyHealth under People.",
         proxy_access_ended: "Another person's access to your records in MyHealth was ended.",
+        mfa_exempted:
+          "The clinic exempted your MyHealth account from its two-step verification requirement. You can still turn two-step verification on under Sign-in security.",
+        mfa_exemption_ended:
+          "The clinic ended your exemption from its two-step verification requirement. If the clinic requires it, you will be asked to set it up when you sign in.",
         email_changed: `The sign-in email of your MyHealth account was changed${v.detail ? ` to ${v.detail}` : ""}.`,
       }[v.event];
       return {
@@ -757,6 +785,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "portal.password-changed": "MyHealth password changed",
   "portal.email-verification": "MyHealth email verification code",
   "portal.security-alert": "MyHealth security alert",
+  "portal.mfa-required-notice": "MyHealth two-step verification required",
   "staff.message": "Staff message",
   "lab.results-available": "Results ready in MyHealth",
   "dental.record-update": "Dental record update in MyHealth",

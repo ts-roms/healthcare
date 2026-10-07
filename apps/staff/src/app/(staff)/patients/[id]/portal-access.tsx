@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangleIcon, BanIcon, KeyRoundIcon, ShieldOffIcon } from "lucide-react";
+import { AlertTriangleIcon, BanIcon, KeyRoundIcon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Label, Textarea } from "@healthcare/ui/primitives";
 import type { PortalAccountStatus, PortalInvitation } from "@/lib/api/types";
-import { disablePortal, invitePortal, resetPortalMfa } from "./portal-actions";
+import { disablePortal, invitePortal, resetPortalMfa, setPortalMfaExemption } from "./portal-actions";
 
 interface PortalAccessProps {
   patientId: string;
@@ -24,6 +24,8 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
   const [invitation, setInvitation] = React.useState<PortalInvitation | null>(null);
   const [disabling, setDisabling] = React.useState(false);
   const [resettingMfa, setResettingMfa] = React.useState(false);
+  /** Exempting from the clinic's two-step verification requirement, or ending the exemption (migration 0107). */
+  const [exemption, setExemption] = React.useState<"exempt" | "end" | null>(null);
   const [reason, setReason] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -46,6 +48,19 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
       const result = await resetPortalMfa(patientId, reason);
       if (result.ok) {
         setResettingMfa(false);
+        setReason("");
+      } else setError(result.message);
+    });
+  };
+
+  const changeExemption = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!exemption) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await setPortalMfaExemption(patientId, exemption === "exempt", reason);
+      if (result.ok) {
+        setExemption(null);
         setReason("");
       } else setError(result.message);
     });
@@ -125,6 +140,34 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
         </form>
       ) : null}
 
+      {exemption ? (
+        <form onSubmit={changeExemption} className="flex flex-col gap-2 rounded-md border p-3">
+          <Label htmlFor="portal-exempt-reason">{exemption === "exempt" ? "Reason for the exemption" : "Reason for ending the exemption"}</Label>
+          <Textarea
+            id="portal-exempt-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            minLength={5}
+            maxLength={500}
+            required
+            placeholder={exemption === "exempt" ? "e.g. No smartphone; checked with the patient in person" : "e.g. The patient now has a phone"}
+          />
+          <p className="text-meta text-muted-foreground">
+            {exemption === "exempt"
+              ? "The patient is not asked to set up two-step verification while your clinic requires it. Any they already have stays on. Who may be exempted is your organization's decision. The reason is kept in the audit trail and the patient is told by email."
+              : "If your clinic requires two-step verification, the patient is asked to set it up at their next request. The reason is kept in the audit trail and the patient is told by email."}
+          </p>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={pending || reason.trim().length < 5}>
+              <ShieldCheckIcon aria-hidden /> {pending ? "Saving…" : exemption === "exempt" ? "Exempt the patient" : "End the exemption"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setExemption(null)} disabled={pending}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
       {disabling ? (
         <form onSubmit={disable} className="flex flex-col gap-2 rounded-md border p-3">
           <Label htmlFor="portal-disable-reason">Reason for disabling</Label>
@@ -157,6 +200,11 @@ export function PortalAccess({ patientId, patientNumber, account, canManage, pat
           {canManage && account.status === "active" && account.mfaEnabled ? (
             <Button variant="outline" size="sm" onClick={() => setResettingMfa(true)} disabled={pending}>
               <ShieldOffIcon aria-hidden /> Turn off two-step verification
+            </Button>
+          ) : null}
+          {canManage && (account.status === "active" || account.status === "invited") && !account.mfaEnabled ? (
+            <Button variant="outline" size="sm" onClick={() => setExemption(account.mfaExemption ? "end" : "exempt")} disabled={pending}>
+              <ShieldCheckIcon aria-hidden /> {account.mfaExemption ? "End two-step verification exemption…" : "Exempt from required two-step verification…"}
             </Button>
           ) : null}
           {canDisable ? (
@@ -195,6 +243,11 @@ function StatusLine({ account }: { account: PortalAccountStatus }) {
           <span>{account.email}</span>
           <Badge variant={account.emailVerified ? "success" : "warning"}>{account.emailVerified ? "Email verified" : "Email not verified"}</Badge>
           {account.mfaEnabled ? <Badge variant="info">Two-step verification on</Badge> : null}
+          {account.mfaExemption ? (
+            <Badge variant="neutral" title={account.mfaExemption.reason}>
+              Exempt from required two-step verification
+            </Badge>
+          ) : null}
           <span className="text-muted-foreground">· last sign-in {account.lastLoginAt ? clinicalDateTime(account.lastLoginAt) : "never"}</span>
         </p>
       );

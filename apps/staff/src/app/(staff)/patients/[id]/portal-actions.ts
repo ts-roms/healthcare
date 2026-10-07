@@ -41,6 +41,23 @@ export async function disablePortal(patientId: string, reason: string): Promise<
   }
 }
 
+/**
+ * Exempts the patient from the clinic's two-step verification requirement, or ends the exemption (migration 0107); the
+ * reason is audited and the patient is told by email.
+ */
+export async function setPortalMfaExemption(patientId: string, exempt: boolean, reason: string): Promise<PortalActionResult> {
+  if (!UUID.test(patientId)) return { ok: false, message: "Unknown patient." };
+  const trimmed = reason.trim();
+  if (trimmed.length < 5) return { ok: false, message: "Give a reason of at least 5 characters." };
+  try {
+    await api(`/patients/${patientId}/portal-account/mfa-exemption${exempt ? "" : "/end"}`, { method: "POST", body: { reason: trimmed } });
+    revalidatePath(`/patients/${patientId}`);
+    return { ok: true, value: undefined };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 /** Turns off the patient's two-step verification (lost phone and recovery codes) and ends their sessions; the reason is audited. */
 export async function resetPortalMfa(patientId: string, reason: string): Promise<PortalActionResult> {
   if (!UUID.test(patientId)) return { ok: false, message: "Unknown patient." };
