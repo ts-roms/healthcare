@@ -13,6 +13,7 @@ import {
   NotFoundError,
   type Page,
   PH_TIMEZONE,
+  timelineFacility,
   timelineInstant,
   timelineRange,
   type TimelineWindow,
@@ -29,6 +30,7 @@ import {
   type NotificationStatus,
 } from "./notification.schema";
 import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
+import { StaffPushPreferenceService } from "./push/staff-push-preference.service";
 import { findTemplate, type NotificationTemplate, templateLabel, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
@@ -48,6 +50,8 @@ export function toNotificationView({ variables: _v, destination, ...rest }: Noti
 export interface CommunicationLogEntry {
   id: string;
   patientId: string;
+  /** The facility the message was sent from (migration 0106); null for messages before it or sent outside any facility. */
+  facilityId: string | null;
   channel: NotificationChannel;
   category: NotificationCategory;
   templateKey: string;
@@ -70,6 +74,12 @@ export interface CommunicationLogEntry {
   resentFrom: string | null;
   resentAs: string | null;
 }
+
+/**
+ * Which facilities' messages a reader may see (migration 0106): every one for an organization-wide grant (`null`),
+ * else the facilities of their scoped grants — messages with no recorded facility are then left out.
+ */
+export type FacilityScope = readonly string[] | null;
 
 export interface CommunicationSummary {
   from: string;
@@ -95,6 +105,14 @@ function mask(destination: string): string {
   return destination.includes("@") ? maskEmail(destination) : maskPhone(destination);
 }
 
+/** The facility conditions of a log query: the reader's scope (none for an organization-wide reader), then one facility. */
+function facilityFilters(scope: FacilityScope, facilityId: string | undefined): SQL[] {
+  const filters: SQL[] = [];
+  if (scope) filters.push(scope.length ? inArray(notification.facilityId, [...scope]) : sql`false`);
+  if (facilityId) filters.push(eq(notification.facilityId, facilityId));
+  return filters;
+}
+
 /**
  * The single entry point for outbound communication (CLAUDE.md §27).
  * Every request is stored — including ones suppressed by preferences — so the
@@ -109,6 +127,7 @@ export class NotificationService {
     @Inject(RECIPIENT_DIRECTORY) private readonly recipients: RecipientDirectory,
     @Inject(NOTIFICATION_QUEUE) private readonly queue: NotificationQueue,
     private readonly audit: AuditService,
+    private readonly pushPreferences: StaffPushPreferenceService,
   ) {}
 
   /**
@@ -116,7 +135,11 @@ export class NotificationService {
    * a notice to the address an account just left): it is honoured for internal security templates and ignored otherwise.
    * The public send endpoint never passes it.
    */
-  async send(actor: Actor, input: SendNotificationInput, options: { securityDestination?: string; resentFrom?: string } = {}): Promise<NotificationView> {
+  async send(
+    actor: Actor,
+    input: SendNotificationInput,
+    options: { securityDestination?: string; resentFrom?: string; facilityId?: string | null } = {},
+  ): Promise<NotificationView> {
     const template = findTemplate(input.templateKey);
     if (!template) throw new BusinessRuleError(`Unknown template "${input.templateKey}"`, "unknown_template");
     if (!template.channels.includes(input.channel)) {
@@ -173,6 +196,8 @@ export class NotificationService {
           createdBy: actorUserId(actor),
           deliveredAt: status === "delivered" ? new Date() : null,
           resentFrom: options.resentFrom ?? null,
+          // The facility the request acts in (a resend keeps the original's).
+          facilityId: options.facilityId !== undefined ? options.facilityId : (actor.facilityId ?? null),
         })
         .onConflictDoNothing()
         .returning();
@@ -184,7 +209,7 @@ export class NotificationService {
         patientId: row.recipientPatientId ?? undefined,
         outcome: status === "suppressed" ? "denied" : "success",
         reason: row.suppressionReason ?? undefined,
-        metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category, resentFrom: options.resentFrom },
+        metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category, resentFrom: options.resentFrom, facilityId: row.facilityId },
       });
       return row;
     });
@@ -209,11 +234,13 @@ export class NotificationService {
 
   /**
    * A staff in-app notice is also pushed to the browsers the member allowed (migration 0101): one push row per in-app row,
-   * with the template's content-free push wording, only when a device exists (no suppressed rows otherwise). A push
-   * problem never fails the in-app notice.
+   * with the template's content-free push wording, only when a device exists and the member has not turned that kind
+   * of notice off (migration 0106; no suppressed rows otherwise). A push problem never fails the in-app notice.
    */
   private async mirrorToStaffPush(actor: Actor, input: SendNotificationInput, template: NotificationTemplate): Promise<void> {
     try {
+      if (input.recipient.type !== "user") return;
+      if (template.pushKind && !(await this.pushPreferences.isEnabled(actor.organizationId, input.recipient.userId, template.pushKind))) return;
       const push = await this.recipients.resolve(actor.organizationId, input.recipient, "push", template.category);
       if (!push.allowed) return;
       await this.send(actor, { ...input, channel: "push", idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:push` : undefined });
@@ -311,7 +338,7 @@ export class NotificationService {
     const sent = await this.send(
       actor,
       { recipient: { type: "patient", patientId: row.recipientPatientId }, channel: row.channel, templateKey: row.templateKey, variables: row.variables },
-      { resentFrom: row.id },
+      { resentFrom: row.id, facilityId: row.facilityId },
     );
     await this.audit.recordStandalone(actor, {
       action: "notification.resend",
@@ -327,15 +354,17 @@ export class NotificationService {
   /**
    * The communication log: messages to patients (never staff inbox messages) created in a period, newest first, with
    * their delivery status — never the message, its variables or the full destination. Includes records merged into a
-   * patient when filtered by one. Not audited here: the caller (apps/api) audits the view.
+   * patient when filtered by one. `scope` limits the rows to the reader's facilities (migration 0106); `facilityId`
+   * narrows to one (the caller has checked it is in scope). Not audited here: the caller (apps/api) audits the view.
    */
-  async communicationLog(organizationId: string, query: CommunicationLogQuery): Promise<Page<CommunicationLogEntry>> {
+  async communicationLog(organizationId: string, query: CommunicationLogQuery, scope: FacilityScope = null): Promise<Page<CommunicationLogEntry>> {
     const { start, end } = logWindow(query.from, query.to);
     const filters: SQL[] = [
       eq(notification.organizationId, organizationId),
       eq(notification.recipientType, "patient"),
       gte(notification.createdAt, start),
       lt(notification.createdAt, end),
+      ...facilityFilters(scope, query.facilityId),
     ];
     if (query.channel) filters.push(eq(notification.channel, query.channel));
     if (query.category) filters.push(eq(notification.category, query.category));
@@ -357,6 +386,7 @@ export class NotificationService {
       items: shown.map((r) => ({
         id: r.id,
         patientId: r.recipientPatientId!,
+        facilityId: r.facilityId,
         channel: r.channel,
         category: r.category,
         templateKey: r.templateKey,
@@ -395,8 +425,14 @@ export class NotificationService {
     return latest;
   }
 
-  /** Counts of messages to patients in a period by status, channel, reason not sent and kind. Not audited here. */
-  async communicationSummary(organizationId: string, from: string, to: string): Promise<CommunicationSummary> {
+  /** Counts of messages to patients in a period by status, channel, reason not sent and kind, within the reader's facilities. Not audited here. */
+  async communicationSummary(
+    organizationId: string,
+    from: string,
+    to: string,
+    scope: FacilityScope = null,
+    facilityId?: string,
+  ): Promise<CommunicationSummary> {
     const { start, end } = logWindow(from, to);
     const groups = await this.db
       .select({
@@ -413,6 +449,7 @@ export class NotificationService {
           eq(notification.recipientType, "patient"),
           gte(notification.createdAt, start),
           lt(notification.createdAt, end),
+          ...facilityFilters(scope, facilityId),
         ),
       )
       .groupBy(notification.channel, notification.status, notification.templateKey, notification.suppressionReason);
@@ -461,11 +498,10 @@ export class NotificationService {
   /**
    * The patient's communications for the patient timeline (composed in apps/api), when requested: channel, category,
    * template and delivery status only — never the message, its variables or the destination. Suppressed requests
-   * (preferences, consent) are included with their status. Notifications have no facility, so a facility filter
-   * leaves them out. Not audited here: the caller audits.
+   * (preferences, consent) are included with their status. A facility filter matches the facility the message was
+   * sent from (migration 0106); messages before it carry none and are left out. Not audited here: the caller audits.
    */
   timelineForPatient(organizationId: string, patientId: string, window: TimelineWindow) {
-    if (window.facilityIds) return Promise.resolve([]);
     const at = notification.createdAt;
     return this.db
       .select({
@@ -482,6 +518,7 @@ export class NotificationService {
         and(
           eq(notification.organizationId, organizationId),
           filedAsPatient(notification.recipientPatientId, patientId),
+          timelineFacility(notification.facilityId, window),
           timelineRange("communication", at, notification.id, window),
         ),
       )

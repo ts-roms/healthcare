@@ -395,8 +395,10 @@ Technical details are in `docs/interoperability/fhir.md`.
 patients across the organization, newest first. Messages to staff (the bell) are not part of it. The content of messages is never shown.
 
 1. Choose the period (**From** / **To**, days in the Philippines; up to 92 days — a longer period is shortened to its last 92 days, with a note)
-   and, if you like, a **Status**, **Channel**, **Kind** (care; appointments and admin; reminders and outreach; account security) and **Message**,
-   then **Show**. The period starts as the last 7 days.
+   and, if you like, a **Facility**, a **Status**, **Channel**, **Kind** (care; appointments and admin; reminders and outreach; account security)
+   and **Message**, then **Show**. The period starts as the last 7 days. Each message shows the facility it was sent from; messages sent before
+   facilities were recorded, or outside any facility, show "Not recorded". If your role is limited to certain facilities, the log shows only
+   those facilities' messages (the figures say "your facilities only") and none without a recorded facility.
 2. The figures show how many messages there were, how many were sent or delivered, how many were **not sent, failed or cancelled**, and how many are
    waiting. Below them: counts by channel, **Why messages were not sent** (for example "No mobile number on record", "The patient turned this
    off") and the most frequent messages — select one to list only those.

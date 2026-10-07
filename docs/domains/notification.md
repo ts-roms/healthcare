@@ -61,19 +61,28 @@ What the platform sent, or did not send, to patients across the organization (CL
 including those suppressed by consent or preferences, so the log is complete. Staff in-app messages are not part of it: the staff inbox is private
 to its recipient.
 
-- `NotificationService.communicationLog(organizationId, query)` — messages to patients created over local days in the Philippines (`from`..`to`,
-  at most 92 days; notifications belong to no facility), newest first, filtered by channel, category, status (`not_sent` = failed, suppressed or
-  cancelled), template and patient (records merged into the patient included), paged (`page`, `pageSize` ≤ 100). Each row: kind of message
-  (`templateKey` and a staff-facing `templateLabel` from `TEMPLATE_LABEL`), channel, category, status, the reason when suppressed, the destination
-  masked, attempts, who asked for it (`createdBy`; null when the platform sent it on its own) and the delivery times. **Never** the rendered
-  message, its variables or the full destination.
-- `communicationSummary(organizationId, from, to)` — counts by status, by channel (sent / not sent), suppressed by reason and by template. No patients.
-- API (`apps/api/src/app/communications`, which adds the patient's number and name and the requester's name):
-  `GET /api/v1/communications` and `GET /communications/export` (CSV, formula-safe, at most 5,000 rows, a note when cut) need `notification.read`
-  **and** `patient.read` and are audited (`notification.log.view`, `notification.log.export`, with the filters and row counts);
-  `GET /communications/summary` needs `notification.read` only and names no patient.
+- `NotificationService.communicationLog(organizationId, query, scope)` — messages to patients created over local days in the Philippines
+  (`from`..`to`, at most 92 days), newest first, filtered by channel, category, status (`not_sent` = failed, suppressed or cancelled), template,
+  patient (records merged into the patient included) and facility, within the reader's `scope`, paged (`page`, `pageSize` ≤ 100). Each row: kind
+  of message (`templateKey` and a staff-facing `templateLabel` from `TEMPLATE_LABEL`), channel, category, status, the reason when suppressed, the
+  destination masked, attempts, who asked for it (`createdBy`; null when the platform sent it on its own), the facility it was sent from and the
+  delivery times. **Never** the rendered message, its variables or the full destination.
+- `communicationSummary(organizationId, from, to, scope, facilityId?)` — counts by status, by channel (sent / not sent), suppressed by reason and
+  by template, within the scope. No patients.
+- **Facility** (migration `0106`): `notification.facility_id` is the facility the requesting actor was acting in (`X-Facility-Id`, or the
+  facility of the system job; a resend keeps the original's); null for messages before the migration or sent outside any facility ("Facility
+  not recorded"; nothing is backfilled, since the facility of a past send cannot be known). The patient timeline's facility filter now matches it
+  (unrecorded messages are left out under a facility filter).
+- **Scope** (the management dashboard's rule): a member whose `notification.read` is organization-wide sees everything (`scope: null`); one whose
+  grants are facility-scoped sees only those facilities' messages and never unrecorded ones (`scope: [...]`); `facilityId` narrows to one facility,
+  and a facility outside the scope is refused (`403`) and audited as a denial (`facility_out_of_scope`).
+- API (`apps/api/src/app/communications`, which adds the patient's number and name, the facility's name and the requester's name):
+  `GET /api/v1/communications` and `GET /communications/export` (CSV with a Facility column, formula-safe, at most 5,000 rows, a note when cut)
+  need `notification.read` **and** `patient.read` and are audited (`notification.log.view`, `notification.log.export`, with the filters, the
+  scope and row counts); `GET /communications/summary` needs `notification.read` only and names no patient.
 - A patient's own history stays `GET /notifications?patientId=` (latest 200, audited `notification.list`), now with `templateLabel`.
-- Staff: **Communications** (`/communications`: period, status, channel, kind and message filters; figures; breakdowns; list; CSV) and
+- Staff: **Communications** (`/communications`: period, facility, status, channel, kind and message filters; figures; breakdowns; list with
+  the facility; CSV) and
   `/patients/[id]/communications` (the patient's history with their preferences; linked from **Consent & communication** on the record).
 - Migration `0084`: index `notification_patient_log_idx` (organization, created_at, id for patient recipients); `notification.read` now also for
   receptionists and records officers (the desk handles reminders and "I got nothing").
@@ -87,8 +96,9 @@ to its recipient.
   security messages and internal templates, messages older than 30 days (`RESEND_WINDOW_DAYS`), and while an earlier resend is queued or
   was sent (`notification_already_resent`); staff inbox messages are not reachable. Audited `notification.resend` (the new id in metadata).
   Staff: **Cancel…** / **Send again…** with a reason on both screens.
-- Not built: delivery reports from SMS providers (none is selected; `docs/interoperability/dependencies.md`) or over SMTP, per-facility
-  filtering (notifications carry no facility).
+- Not built, with reasons (D4 leftovers): delivery reports from SMS providers (no provider is selected and the callback format is the
+  provider's — `docs/interoperability/dependencies.md`) and from email (SMTP reports acceptance by the relay only; bounces need the email
+  provider's own feed — dependency). Both would mean inventing a contract.
 
 ## Module badges
 
@@ -166,4 +176,11 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
   `clinic.message`) never push. Removing every browser is the opt-out; a suspended or disabled member receives nothing (their browsers
   stay registered for their return). Staff `/notifications`, "Notifications in this browser"; `apps/staff/public/sw.js` shows the
   notification and opens the page.
-- Not built: per-kind staff preferences, topics or badges in the push itself, delivery receipts from the browser (Web Push gives none).
+- **Preferences** (migration `0106`, `staff_push_preference`, `StaffPushPreferenceService`): each staff template that pushes names a
+  `pushKind` (records requests, MyHealth messages, referrals, laboratory results, laboratory quality, documents, management reports;
+  `STAFF_PUSH_KIND_LABEL`), and a member may turn a kind off in their browsers: the mirror then writes no push row (as for a member without a
+  browser; nothing suppressed, so the log and badges do not change) while the in-app notice arrives as always. The test push has no kind and
+  ignores preferences. `GET /me/push` carries `preferences`; `PUT /me/push/preferences` sets the kinds named (audited `auth.push-preferences`).
+  Staff `/notifications`, switches under the browser list.
+- Closed, not built: topics or badges in the push itself (they would carry what the push policy leaves out) and delivery receipts from the
+  browser (Web Push gives none).

@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const NOTIFICATION_CHANNELS = ["sms", "email", "push", "in_app"] as const;
 export const NOTIFICATION_CATEGORIES = ["clinical", "administrative", "outreach", "security"] as const;
@@ -38,7 +38,34 @@ export const notification = pgTable("notification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   /** The notification this one is a resend of (migration 0099); the original row never changes. */
   resentFrom: uuid("resent_from"),
+  /** The facility the requesting actor was acting in (migration 0106); null before it, or outside any facility. */
+  facilityId: uuid("facility_id"),
 });
+
+/** What a staff in-app notice is about, for the member's own push preferences (migration 0106). */
+export const STAFF_PUSH_KINDS = [
+  "records_requests",
+  "patient_messages",
+  "referrals",
+  "laboratory_results",
+  "laboratory_quality",
+  "documents",
+  "management_reports",
+] as const;
+export type StaffPushKind = (typeof STAFF_PUSH_KINDS)[number];
+
+/** A kind of notice a member turned off (or on again) in their browsers; absent means on. */
+export const staffPushPreference = pgTable(
+  "staff_push_preference",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    kind: text("kind").$type<StaffPushKind>().notNull(),
+    enabled: boolean("enabled").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.kind] })],
+);
 
 export const notificationAttempt = pgTable("notification_attempt", {
   id: uuid("id").primaryKey().defaultRandom(),
