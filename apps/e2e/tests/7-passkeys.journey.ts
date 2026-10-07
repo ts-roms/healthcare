@@ -55,8 +55,10 @@ test("a patient adds a passkey and signs in with it instead of a code", async ({
   const setupKey = (await page.locator("p.select-all").innerText()).replace(/\s+/g, "");
   await page.getByLabel("Code from the app").fill(authenticator.generate(setupKey));
   await page.getByRole("button", { name: "Turn on" }).click();
-  const recoveryCodes = await page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem").allInnerTexts();
-  expect(recoveryCodes).toHaveLength(10);
+  // The codes appear once the app's code is accepted; wait for them before reading.
+  const codeItems = page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem");
+  await expect(codeItems).toHaveCount(10);
+  const recoveryCodes = await codeItems.allInnerTexts();
   await page.getByRole("button", { name: "I saved them" }).click();
 
   // The passkey: the password and a recovery code (the app's code was just used), then the device's own lock.
