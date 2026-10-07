@@ -102,6 +102,10 @@ SELECT (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal) AS triggers,
 pnpm db:migrate "postgres://<app role>@<host>/healthcare_restored"   # expect "0 applied" for a dump of the current release
 ```
 
+The run also puts back the application role's privileges (`apply_app_privileges()`), which `--no-acl` leaves out; the
+login role itself belongs to the server, not the dump, and is created again on a new server
+([database roles runbook](database-roles.md)).
+
 The append-only triggers are in place when a change to the audit trail is refused:
 
 ```sql

@@ -54,6 +54,10 @@ export async function runMigrations(pool: Pool, directory: string): Promise<Migr
         throw new Error(`Migration ${file} failed: ${(error as Error).message}`, { cause: error });
       }
     }
+    // The application role's privileges (0109_app_role.sql) follow every run, so tables and append-only triggers added
+    // by later migrations, and a database restored without its grants, are covered.
+    const { rows: privileges } = await client.query<{ present: boolean }>("SELECT to_regprocedure('apply_app_privileges()') IS NOT NULL AS present");
+    if (privileges[0]?.present) await client.query("SELECT apply_app_privileges()");
     return result;
   } finally {
     await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]).catch(() => undefined);

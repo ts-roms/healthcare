@@ -23,11 +23,15 @@ locals {
     name => try(railway_custom_domain.public[name].domain, railway_service_domain.public[name].domain)
   }
 
+  # With secrets.app_database_url the API and workers connect as the restricted application role and only the API's
+  # pre-deploy migration uses the owner (docs/runbooks/database-roles.md); without it everything uses the owner.
+  restricted_database = nonsensitive(var.secrets.app_database_url != null)
+  owner_database_url  = "$${{Postgres.DATABASE_URL}}"
+
   shared_settings = merge(
     {
       NODE_ENV        = "production"
       LOG_LEVEL       = var.log_level
-      DATABASE_URL    = "$${{Postgres.DATABASE_URL}}"
       REDIS_URL       = "$${{Redis.REDIS_URL}}?family=0"
       PORTAL_BASE_URL = "https://${local.public_host.portal}"
       STAFF_BASE_URL  = "https://${local.public_host.staff}"
@@ -41,6 +45,7 @@ locals {
       TRUST_PROXY  = "true"
       CORS_ORIGINS = "https://${local.public_host.staff},https://${local.public_host.portal}"
     },
+    { for name, value in { MIGRATION_DATABASE_URL = local.owner_database_url } : name => value if local.restricted_database },
     var.api_settings,
   )
 
@@ -132,6 +137,31 @@ resource "railway_variable" "shared_secret" {
   value          = var.secrets[each.value.field]
   environment_id = railway_project.this.default_environment.id
   service_id     = railway_service.app[each.value.service].id
+}
+
+# DATABASE_URL of the API and workers: the restricted role's URL when given, else the owner's. One resource per service,
+# so switching between them is an update in place (never a delete and a create of the same variable name).
+resource "railway_variable" "database_url" {
+  for_each = toset(local.backend_services)
+
+  name           = "DATABASE_URL"
+  value          = local.restricted_database ? var.secrets.app_database_url : local.owner_database_url
+  environment_id = railway_project.this.default_environment.id
+  service_id     = railway_service.app[each.key].id
+}
+
+# DATABASE_URL was one of the shared plain variables before the restricted role (0109): keep the existing variables.
+moved {
+  from = railway_variable.plain["api/DATABASE_URL"]
+  to   = railway_variable.database_url["api"]
+}
+moved {
+  from = railway_variable.plain["notification-worker/DATABASE_URL"]
+  to   = railway_variable.database_url["notification-worker"]
+}
+moved {
+  from = railway_variable.plain["integration-worker/DATABASE_URL"]
+  to   = railway_variable.database_url["integration-worker"]
 }
 
 resource "railway_variable" "api_secret" {

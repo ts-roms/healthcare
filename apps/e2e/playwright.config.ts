@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
-import { API_PORT, API_URL, E2E_DATABASE_URL, ORGANIZATION_CODE, PORTAL_PORT, PORTAL_URL, REDIS_URL, STAFF_PORT, STAFF_URL } from "./support/env";
+import { API_PORT, API_URL, E2E_APP_DATABASE_URL, ORGANIZATION_CODE, PORTAL_PORT, PORTAL_URL, REDIS_URL, STAFF_PORT, STAFF_URL } from "./support/env";
 
 /**
  * Critical journeys (CLAUDE.md §31) against the built applications: the API (apps/api/dist), the staff app and the
@@ -16,7 +16,8 @@ const apiEnv = {
   NODE_ENV: "development",
   PORT: String(API_PORT),
   LOG_LEVEL: "warn",
-  DATABASE_URL: E2E_DATABASE_URL,
+  // The restricted application role (support/prepare-database.ts creates it after migrating as the owner).
+  DATABASE_URL: E2E_APP_DATABASE_URL,
   REDIS_URL,
   JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
   MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
