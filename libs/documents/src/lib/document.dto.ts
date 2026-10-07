@@ -49,3 +49,13 @@ export class RetentionPolicyDto extends createZodDto(retentionPolicySchema) {}
 
 export const retentionReviewQuerySchema = z.object({ category: z.enum(DOCUMENT_CATEGORIES) });
 export class RetentionReviewQueryDto extends createZodDto(retentionReviewQuerySchema) {}
+
+export const integrityRunSchema = z.object({ category: z.enum(DOCUMENT_CATEGORIES).optional() });
+export class IntegrityRunDto extends createZodDto(integrityRunSchema) {}
+
+export const integrityFindingsQuerySchema = z.object({ status: z.enum(["open", "resolved"]).default("open") });
+export class IntegrityFindingsQueryDto extends createZodDto(integrityFindingsQuerySchema) {}
+
+/** What the records office decided about a finding (the document itself is not changed). */
+export const resolveIntegrityFindingSchema = z.object({ note: z.string().trim().min(5).max(500) });
+export class ResolveIntegrityFindingDto extends createZodDto(resolveIntegrityFindingSchema) {}

@@ -10,7 +10,9 @@ const DOCUMENT_MANAGER_PERMISSION = "document.archive";
 /**
  * Tells the facility's records office, in the app, when an upload is quarantined by the malware scanner
  * (docs/domains/documents.md): the signature name and whether it came from MyHealth or a staff upload, never the file
- * or its title. The staff member who uploaded it is told as well. Idempotent per event and recipient.
+ * or its title. The staff member who uploaded it is told as well. Likewise when an integrity review finds a stored
+ * document whose bytes no longer match their checksum, or whose file is missing (migration 0105). Idempotent per
+ * event and recipient.
  */
 @Injectable()
 export class DocumentNotifications implements OnModuleInit {
@@ -23,6 +25,24 @@ export class DocumentNotifications implements OnModuleInit {
 
   onModuleInit(): void {
     this.handlers.on("DocumentQuarantined", "documents.notify-quarantine", (event) => this.quarantined(event));
+    this.handlers.on("DocumentIntegrityFailed", "documents.notify-integrity", (event) => this.integrityFailed(event));
+  }
+
+  private async integrityFailed(event: DomainEventRecord): Promise<void> {
+    const payload = event.payload as { findingId?: string; outcome?: string };
+    if (!payload.findingId || (payload.outcome !== "mismatch" && payload.outcome !== "missing")) return;
+    const facilityId = event.facilityId ?? null;
+    const managers = await this.users.holdersOf(event.organizationId, DOCUMENT_MANAGER_PERMISSION, facilityId);
+    const actor = systemActor(event.organizationId, facilityId, "document-integrity-notice");
+    for (const { id: userId } of managers) {
+      await this.notifications.send(actor, {
+        recipient: { type: "user", userId },
+        channel: "in_app",
+        templateKey: "document.integrity-notice",
+        variables: { documentId: event.aggregateId, findingId: payload.findingId, outcome: payload.outcome, patientId: event.patientId ?? null },
+        idempotencyKey: `document-integrity:${event.id}:${userId}`,
+      });
+    }
   }
 
   private async quarantined(event: DomainEventRecord): Promise<void> {

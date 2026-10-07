@@ -159,6 +159,27 @@ Open **Records → Retention** (`/records/retention`; records officers and admin
 3. Nothing is deleted. To take a document out of use, archive it from the patient record with a reason. Disposal of the stored file follows
    your organization's own procedure.
 
+## How to check that stored documents are intact (integrity review)
+
+Open **Records → Integrity** (`/records/integrity`; records officers and administrators).
+
+Every document gets a checksum when it is stored. A review reads each available document back from storage and compares it with that checksum, so
+a file that was corrupted, replaced, or lost (for example after a failed restore) is found.
+
+1. Under **Reviews**, choose **All categories** or one category and click **Start review**. The review runs in the background; refresh the page to
+   follow its counts. Only one review runs at a time; **Stop** halts it where it is (what was checked stays recorded).
+2. The row shows how many documents were **Checked**, **Verified**, **Baselined** (stored before checksums existed: their current checksum was
+   recorded, and they are verified from the next review on), **Changed**, **Missing** and **Not read** (storage did not answer — run the review
+   again later).
+3. **Open findings** lists each document whose file changed or is missing. Such a document is withheld from everyone — staff, MyHealth, other
+   systems — until you resolve the finding. The people who manage documents at the facility are told in the app.
+4. Look into it with your IT and data protection officer: restore the file from a backup if you have one, or archive the document from the patient
+   record with a reason. Then click **Resolve…**, write what was found and decided, and **Record decision**. The document is served again from then
+   on (archive it first if it must stay out of use). A resolved finding is kept under **Show resolved** and never changes.
+
+The platform never repairs, replaces or deletes a file. How often to run a review, and what to do about a finding, is your organization's own
+procedure; record it under **Admin → Compliance**.
+
 ## How to review records sent by another provider (FHIR imports)
 
 Other systems can send a patient's records to the platform in the FHIR format. **Nothing is added to a patient's record automatically.** Every

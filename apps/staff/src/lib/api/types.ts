@@ -4218,6 +4218,63 @@ export interface RetentionReview {
   more: boolean;
 }
 
+export type IntegrityRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type IntegrityFindingOutcome = "mismatch" | "missing" | "unreadable";
+
+/** GET /document-integrity/runs (rows), POST /document-integrity/runs */
+export interface IntegrityRun {
+  id: string;
+  category: string | null;
+  status: IntegrityRunStatus;
+  checked: number;
+  verified: number;
+  baselined: number;
+  mismatched: number;
+  missing: number;
+  unreadable: number;
+  lastError: string | null;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledBy: string | null;
+}
+
+/** GET /document-integrity/runs */
+export interface IntegrityRunList {
+  runs: IntegrityRun[];
+  openFindings: number;
+}
+
+/** GET /document-integrity/findings */
+export interface IntegrityFinding {
+  id: string;
+  runId: string;
+  outcome: IntegrityFindingOutcome;
+  recordedSha256: string | null;
+  computedSha256: string | null;
+  foundAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
+  document: {
+    id: string;
+    patientId: string | null;
+    facilityId: string | null;
+    category: string;
+    title: string;
+    fileName: string;
+    status: string;
+    source: string;
+    managedBy: string | null;
+  };
+}
+
+export interface IntegrityFindings {
+  findings: IntegrityFinding[];
+  more: boolean;
+}
+
 /** GET /records-requests/setting */
 export interface RecordsRequestSetting {
   responseDays: number | null;

@@ -22,7 +22,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/outreach": ["crm.read"],
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
-  "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage"],
+  "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage", "document.integrity.manage"],
   "/messages": ["patient.message.read"],
   "/admin": [
     "user.read",
@@ -58,6 +58,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/management/reports": ["management.dashboard.read"],
   "/records/imports": ["interop.fhir.import.review"],
   "/records/retention": ["document.retention.manage"],
+  "/records/integrity": ["document.integrity.manage"],
   "/records/requests": ["patient.records-request.manage"],
   "/messages/settings": ["patient.message.read"],
   "/admin/organization": ["organization.read"],

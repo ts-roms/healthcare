@@ -124,6 +124,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Requests", href: "/records/requests" },
       { label: "Imports", href: "/records/imports" },
       { label: "Retention", href: "/records/retention" },
+      { label: "Integrity", href: "/records/integrity" },
     ],
   },
   {
