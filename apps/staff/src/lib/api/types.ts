@@ -3029,6 +3029,16 @@ export interface DentalRecordSupplies {
 
 // ---- Staff in-app inbox (GET /me/notifications, GET /me/notifications/unread-count) ----------------------------
 
+/** `GET /me/push`: the browsers the signed-in member allowed to receive notifications (migration 0101). */
+export interface StaffPushStatus {
+  /** The platform can send push (it has its key pair). */
+  configured: boolean;
+  vapidPublicKey: string | null;
+  devices: Array<{ id: string; label: string; createdAt: string; lastSuccessAt: string | null }>;
+  /** The browser asking (by its push address), when registered. */
+  thisDeviceId: string | null;
+}
+
 export interface StaffNotice {
   id: string;
   templateKey: string;

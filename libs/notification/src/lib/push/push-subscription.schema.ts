@@ -1,16 +1,18 @@
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const PUSH_REVOKED_REASONS = ["removed_by_patient", "gone", "failing", "moved_to_another_account"] as const;
+export const PUSH_REVOKED_REASONS = ["removed_by_patient", "removed_by_user", "gone", "failing", "moved_to_another_account"] as const;
 export const PUSH_DEVICE_KINDS = ["web", "expo"] as const;
 export type PushDeviceKind = (typeof PUSH_DEVICE_KINDS)[number];
 
 export type PushRevokedReason = (typeof PUSH_REVOKED_REASONS)[number];
 
-/** Mirrors database/migrations/0079_push_subscriptions.sql and 0081_mobile_push_devices.sql (the migrations are the source of truth). */
+/** Mirrors database/migrations/0079_push_subscriptions.sql, 0081_mobile_push_devices.sql and 0101_staff_push_devices.sql (the migrations are the source of truth). */
 export const pushSubscription = pgTable("push_subscription", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull(),
-  portalAccountId: uuid("portal_account_id").notNull(),
+  /** Exactly one owner: a MyHealth account or a staff account (migration 0101). */
+  portalAccountId: uuid("portal_account_id"),
+  userId: uuid("user_id"),
   /** A browser's push address, or (kind "expo") the app's Expo push token. */
   endpoint: text("endpoint").notNull(),
   kind: text("kind").$type<PushDeviceKind>().notNull().default("web"),

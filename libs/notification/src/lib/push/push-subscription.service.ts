@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { BusinessRuleError, DATABASE, type Database, NotFoundError } from "@healthcare/core";
-import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import { type PushDeviceKind, type PushRevokedReason, pushSubscription, type PushSubscriptionRecord, pushTicket } from "./push-subscription.schema";
 
-/** A patient's devices that may receive push, at most this many at once. */
+/** An owner's devices that may receive push, at most this many at once. */
 export const MAX_PUSH_DEVICES = 5;
 /** A device that fails this many times in a row is dropped (the patient can turn it on again). */
 export const MAX_PUSH_FAILURES = 5;
@@ -30,31 +30,48 @@ export interface BrowserSubscription {
   keys: { p256dh: string; auth: string };
 }
 
+/** Who a device belongs to: a MyHealth account or a staff account (migration 0101). */
+export type PushOwner = { portalAccountId: string; userId?: undefined } | { userId: string; portalAccountId?: undefined };
+
+/** Rows of either kind of owner; ids are UUIDs, so one id never names both. */
+const ownedBy = (ownerId: string) => or(eq(pushSubscription.portalAccountId, ownerId), eq(pushSubscription.userId, ownerId));
+
 /**
- * The devices a MyHealth account has allowed to receive push (docs/domains/notification.md, "Push"). One row per browser
- * address; a device that signs in as another account moves to that account, so the previous person stops receiving there.
- * A device the push service reports gone, or that keeps failing, is dropped.
+ * The devices a MyHealth account — or, since migration 0101, a staff account — has allowed to receive push
+ * (docs/domains/notification.md, "Push"). One row per browser address; a device that signs in as another owner moves to
+ * that owner, so the previous person stops receiving there. A device the push service reports gone, or that keeps
+ * failing, is dropped. Every method takes the owner's id (the account's or the user's); the notification's destination
+ * is that id.
  */
 @Injectable()
 export class PushSubscriptionService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async list(accountId: string): Promise<PushDeviceView[]> {
-    const rows = await this.active(accountId);
+  async list(ownerId: string): Promise<PushDeviceView[]> {
+    const rows = await this.active(ownerId);
     return rows.map(toDeviceView);
   }
 
-  /** The id of the account's device with this browser address, if it is registered and active. */
-  async idOfEndpoint(accountId: string, endpoint: string): Promise<string | null> {
+  /** The id of the owner's device with this browser address, if it is registered and active. */
+  async idOfEndpoint(ownerId: string, endpoint: string): Promise<string | null> {
     const [row] = await this.db
       .select({ id: pushSubscription.id })
       .from(pushSubscription)
-      .where(and(eq(pushSubscription.portalAccountId, accountId), eq(pushSubscription.endpoint, endpoint), isNull(pushSubscription.revokedAt)));
+      .where(and(ownedBy(ownerId), eq(pushSubscription.endpoint, endpoint), isNull(pushSubscription.revokedAt)));
     return row?.id ?? null;
   }
 
   async register(organizationId: string, accountId: string, subscription: BrowserSubscription, userAgent: string | undefined): Promise<PushDeviceView> {
-    return this.save(organizationId, accountId, {
+    return this.registerBrowser(organizationId, { portalAccountId: accountId }, subscription, userAgent);
+  }
+
+  /** A staff member's browser (same limits and rules; the owner is the user). */
+  async registerForUser(organizationId: string, userId: string, subscription: BrowserSubscription, userAgent: string | undefined): Promise<PushDeviceView> {
+    return this.registerBrowser(organizationId, { userId }, subscription, userAgent);
+  }
+
+  private registerBrowser(organizationId: string, owner: PushOwner, subscription: BrowserSubscription, userAgent: string | undefined): Promise<PushDeviceView> {
+    return this.save(organizationId, owner, {
       kind: "web",
       endpoint: subscription.endpoint,
       p256dh: subscription.keys.p256dh,
@@ -68,33 +85,46 @@ export class PushSubscriptionService {
   async registerMobile(organizationId: string, accountId: string, device: MobileDevice): Promise<PushDeviceView> {
     const system = device.platform === "ios" ? "iPhone" : "Android";
     const name = device.deviceName?.trim().slice(0, 60);
-    return this.save(organizationId, accountId, {
-      kind: "expo",
-      endpoint: device.token,
-      p256dh: null,
-      auth: null,
-      userAgent: null,
-      deviceLabel: name ? `MyHealth app on ${name}` : `MyHealth app on ${system}`,
-    });
+    return this.save(
+      organizationId,
+      { portalAccountId: accountId },
+      {
+        kind: "expo",
+        endpoint: device.token,
+        p256dh: null,
+        auth: null,
+        userAgent: null,
+        deviceLabel: name ? `MyHealth app on ${name}` : `MyHealth app on ${system}`,
+      },
+    );
   }
 
   private async save(
     organizationId: string,
-    accountId: string,
+    owner: PushOwner,
     device: { kind: PushDeviceKind; endpoint: string; p256dh: string | null; auth: string | null; userAgent: string | null; deviceLabel: string | null },
   ): Promise<PushDeviceView> {
+    const ownerId = owner.portalAccountId ?? owner.userId;
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`push:${accountId}`}, 0))`);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`push:${ownerId}`}, 0))`);
       const [existing] = await tx.select().from(pushSubscription).where(eq(pushSubscription.endpoint, device.endpoint)).for("update");
       const [active] = await tx
         .select({ n: count() })
         .from(pushSubscription)
-        .where(and(eq(pushSubscription.portalAccountId, accountId), isNull(pushSubscription.revokedAt)));
-      const alreadyMine = existing && existing.portalAccountId === accountId && !existing.revokedAt;
+        .where(and(ownedBy(ownerId), isNull(pushSubscription.revokedAt)));
+      const alreadyMine = existing && (existing.portalAccountId ?? existing.userId) === ownerId && !existing.revokedAt;
       if (!alreadyMine && (active?.n ?? 0) >= MAX_PUSH_DEVICES) {
         throw new BusinessRuleError(`You can receive notifications on up to ${MAX_PUSH_DEVICES} devices. Remove one first.`, "too_many_push_devices");
       }
-      const values = { organizationId, portalAccountId: accountId, ...device, revokedAt: null, revokedReason: null, failureCount: 0 };
+      const values = {
+        organizationId,
+        portalAccountId: owner.portalAccountId ?? null,
+        userId: owner.userId ?? null,
+        ...device,
+        revokedAt: null,
+        revokedReason: null,
+        failureCount: 0,
+      };
       const [row] = existing
         ? await tx.update(pushSubscription).set(values).where(eq(pushSubscription.id, existing.id)).returning()
         : await tx.insert(pushSubscription).values(values).returning();
@@ -102,32 +132,33 @@ export class PushSubscriptionService {
     });
   }
 
-  async remove(accountId: string, id: string): Promise<void> {
+  /** The owner removes one of their devices (`removed_by_patient` for a MyHealth account, `removed_by_user` for staff). */
+  async remove(ownerId: string, id: string, reason: "removed_by_patient" | "removed_by_user" = "removed_by_patient"): Promise<void> {
     const [row] = await this.db
       .update(pushSubscription)
-      .set({ revokedAt: new Date(), revokedReason: "removed_by_patient" })
-      .where(and(eq(pushSubscription.id, id), eq(pushSubscription.portalAccountId, accountId), isNull(pushSubscription.revokedAt)))
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(and(eq(pushSubscription.id, id), ownedBy(ownerId), isNull(pushSubscription.revokedAt)))
       .returning({ id: pushSubscription.id });
     if (!row) throw new NotFoundError("Device");
   }
 
-  /** Every device of an account stops receiving push. */
-  async revokeAll(accountId: string, reason: PushRevokedReason): Promise<void> {
+  /** Every device of an owner stops receiving push. */
+  async revokeAll(ownerId: string, reason: PushRevokedReason): Promise<void> {
     await this.db
       .update(pushSubscription)
       .set({ revokedAt: new Date(), revokedReason: reason })
-      .where(and(eq(pushSubscription.portalAccountId, accountId), isNull(pushSubscription.revokedAt)));
+      .where(and(ownedBy(ownerId), isNull(pushSubscription.revokedAt)));
   }
 
-  async hasDevice(accountId: string): Promise<boolean> {
-    return (await this.active(accountId)).length > 0;
+  async hasDevice(ownerId: string): Promise<boolean> {
+    return (await this.active(ownerId)).length > 0;
   }
 
-  async active(accountId: string): Promise<PushSubscriptionRecord[]> {
+  async active(ownerId: string): Promise<PushSubscriptionRecord[]> {
     return this.db
       .select()
       .from(pushSubscription)
-      .where(and(eq(pushSubscription.portalAccountId, accountId), isNull(pushSubscription.revokedAt)))
+      .where(and(ownedBy(ownerId), isNull(pushSubscription.revokedAt)))
       .orderBy(asc(pushSubscription.createdAt));
   }
 

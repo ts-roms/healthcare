@@ -29,7 +29,7 @@ import {
   type NotificationStatus,
 } from "./notification.schema";
 import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
-import { findTemplate, templateLabel, withoutSecrets } from "./templates";
+import { findTemplate, type NotificationTemplate, templateLabel, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
 
@@ -203,7 +203,23 @@ export class NotificationService {
       // The row is committed; if enqueueing fails the worker's reconciler picks it up.
       await this.queue.enqueue(created.id, delay).catch((error: unknown) => this.logger.warn(`Enqueue failed for ${created.id}: ${String(error)}`));
     }
+    if (inApp && input.recipient.type === "user" && template.channels.includes("push")) await this.mirrorToStaffPush(actor, input, template);
     return toNotificationView(created);
+  }
+
+  /**
+   * A staff in-app notice is also pushed to the browsers the member allowed (migration 0101): one push row per in-app row,
+   * with the template's content-free push wording, only when a device exists (no suppressed rows otherwise). A push
+   * problem never fails the in-app notice.
+   */
+  private async mirrorToStaffPush(actor: Actor, input: SendNotificationInput, template: NotificationTemplate): Promise<void> {
+    try {
+      const push = await this.recipients.resolve(actor.organizationId, input.recipient, "push", template.category);
+      if (!push.allowed) return;
+      await this.send(actor, { ...input, channel: "push", idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:push` : undefined });
+    } catch (error) {
+      this.logger.warn(`Push mirror failed for ${template.key}: ${String(error)}`);
+    }
   }
 
   /**
