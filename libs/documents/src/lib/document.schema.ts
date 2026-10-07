@@ -24,6 +24,8 @@ export type DocumentScanStatus = "not_scanned" | "clean" | "quarantined";
 export type DocumentSource = "upload" | "generated" | "patient_upload";
 /** A domain that serves its documents itself (with its own visibility rules); the generic documents API leaves them alone. */
 export type DocumentManager = "laboratory";
+/** The latest outcome of an integrity review of the stored bytes (migration 0105); null while never reviewed. */
+export type DocumentIntegrityStatus = "verified" | "baselined" | "mismatch" | "missing" | "unreadable";
 
 export const document = pgTable("document", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -58,6 +60,8 @@ export const document = pgTable("document", {
   sha256: text("sha256"),
   /** The checksum the uploader declared at registration, if any; completion refuses a mismatch. */
   declaredSha256: text("declared_sha256"),
+  integrityStatus: text("integrity_status").$type<DocumentIntegrityStatus>(),
+  integrityCheckedAt: timestamp("integrity_checked_at", { withTimezone: true }),
 });
 
 export type DocumentRecord = typeof document.$inferSelect;
@@ -79,3 +83,51 @@ export const documentRetentionPolicy = pgTable("document_retention_policy", {
   endedAt: timestamp("ended_at", { withTimezone: true }),
 });
 export type DocumentRetentionPolicyRecord = typeof documentRetentionPolicy.$inferSelect;
+
+export type IntegrityRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+/** A finding's outcome: the bytes differ from the recorded hash, the object is gone, or storage did not answer. */
+export type IntegrityFindingOutcome = "mismatch" | "missing" | "unreadable";
+
+/**
+ * An integrity review run (migration 0105): the records office asks for every completed document of the
+ * organization (or of one category) to be read back from storage and compared with its recorded hash. One run at a
+ * time per organization; resumable from its cursor; cancellable.
+ */
+export const documentIntegrityRun = pgTable("document_integrity_run", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  category: text("category").$type<DocumentCategory>(),
+  status: text("status").$type<IntegrityRunStatus>().notNull().default("queued"),
+  checked: integer("checked").notNull().default(0),
+  verified: integer("verified").notNull().default(0),
+  baselined: integer("baselined").notNull().default(0),
+  mismatched: integer("mismatched").notNull().default(0),
+  missing: integer("missing").notNull().default(0),
+  unreadable: integer("unreadable").notNull().default(0),
+  cursorDocumentId: uuid("cursor_document_id"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  requestedBy: uuid("requested_by").notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledBy: uuid("cancelled_by"),
+});
+export type DocumentIntegrityRunRecord = typeof documentIntegrityRun.$inferSelect;
+
+/** A document whose bytes did not verify; resolved once with a note (the trigger refuses anything else). */
+export const documentIntegrityFinding = pgTable("document_integrity_finding", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  runId: uuid("run_id").notNull(),
+  documentId: uuid("document_id").notNull(),
+  outcome: text("outcome").$type<IntegrityFindingOutcome>().notNull(),
+  recordedSha256: text("recorded_sha256"),
+  computedSha256: text("computed_sha256"),
+  foundAt: timestamp("found_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: uuid("resolved_by"),
+  resolutionNote: text("resolution_note"),
+});
+export type DocumentIntegrityFindingRecord = typeof documentIntegrityFinding.$inferSelect;

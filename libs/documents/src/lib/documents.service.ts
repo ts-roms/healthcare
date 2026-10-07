@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
@@ -15,11 +14,20 @@ import {
   PatientMergedError,
   PgErrorCode,
   filedAsPatient,
+  sha256Hex,
 } from "@healthcare/core";
 import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
-import { document, type DocumentCategory, type DocumentManager, type DocumentRecord, type DocumentScanStatus } from "./document.schema";
+import { blocksServing } from "./document-integrity.rules";
+import {
+  document,
+  type DocumentCategory,
+  documentIntegrityFinding,
+  type DocumentManager,
+  type DocumentRecord,
+  type DocumentScanStatus,
+} from "./document.schema";
 import { MALWARE_SCANNER, type MalwareScanner } from "./malware-scanner";
 import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./object-storage";
 
@@ -59,10 +67,6 @@ export interface DocumentScope {
 
 function toView({ storageKey: _key, organizationId: _org, declaredSha256: _declared, ...rest }: DocumentRecord): DocumentView {
   return rest;
-}
-
-export function sha256Hex(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
 }
 
 /**
@@ -377,6 +381,7 @@ export class DocumentsService {
   async downloadUrl(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ url: string; expiresAt: string }> {
     const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
+    await this.assertIntegrity(record);
     const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
     await this.audit.recordStandalone(actor, {
       action: "document.download",
@@ -395,6 +400,7 @@ export class DocumentsService {
     const record = await this.find(context.organizationId, documentId, {});
     if (!(await isFiledAs(this.db, record.patientId, context.patientId))) throw new NotFoundError("Document");
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
+    await this.assertIntegrity(record);
     const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
     await this.audit.recordStandalone(context, {
       action: "document.download",
@@ -472,6 +478,7 @@ export class DocumentsService {
   async content(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ document: DocumentView; body: Buffer }> {
     const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
+    await this.assertIntegrity(record);
     const body = await this.storage.get(record.storageKey);
     if (!body) throw new NotFoundError("Stored document");
     await this.audit.recordStandalone(actor, {
@@ -501,6 +508,32 @@ export class DocumentsService {
       });
       return toView(updated);
     });
+  }
+
+  /**
+   * A document whose stored bytes did not match their recorded hash, or whose object is gone, is refused to every
+   * reader until the records office resolves the finding (migration 0105, docs/domains/documents.md). Storage that
+   * merely did not answer during a review never blocks.
+   */
+  private async assertIntegrity(record: DocumentRecord): Promise<void> {
+    if (!blocksServing(record.integrityStatus)) return;
+    const [open] = await this.db
+      .select({ id: documentIntegrityFinding.id })
+      .from(documentIntegrityFinding)
+      .where(
+        and(
+          eq(documentIntegrityFinding.documentId, record.id),
+          isNull(documentIntegrityFinding.resolvedAt),
+          inArray(documentIntegrityFinding.outcome, ["mismatch", "missing"]),
+        ),
+      )
+      .limit(1);
+    if (open) {
+      throw new BusinessRuleError(
+        "This document's stored file did not pass its integrity check and is withheld until the records office resolves the finding",
+        "document_integrity_failed",
+      );
+    }
   }
 
   private async find(organizationId: string, documentId: string, scope: DocumentScope = {}): Promise<DocumentRecord> {

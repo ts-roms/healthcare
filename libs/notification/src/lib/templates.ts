@@ -424,6 +424,33 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "document.integrity-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to the facility's records office: an integrity review found a stored document whose bytes no longer match
+    // their recorded checksum, or whose file is gone; it is withheld until resolved. Never the file, its title or content.
+    channels: ["in_app", "push"],
+    variables: z.object({
+      documentId: z.uuid(),
+      findingId: z.uuid(),
+      outcome: z.enum(["mismatch", "missing"]),
+      patientId: z.uuid().nullable(),
+    }),
+    render: (v) => ({
+      subject: v.outcome === "missing" ? "A stored document is missing" : "A stored document failed its integrity check",
+      text:
+        v.outcome === "missing"
+          ? "The integrity review could not find a document's file in storage. The document is withheld from everyone until the records office resolves the finding."
+          : "The integrity review found a document whose stored file no longer matches the checksum recorded when it was stored. The document is withheld from everyone until the records office resolves the finding.",
+      href: "/records/integrity",
+    }),
+    renderPush: () => ({
+      subject: "A stored document needs review",
+      text: "The integrity review of stored documents found something to resolve. Open the notice for details.",
+      href: "/notifications",
+    }),
+  }),
+  defineTemplate({
     key: "records.request-new",
     version: 1,
     category: "administrative",
@@ -722,6 +749,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
+  "document.integrity-notice": "Document integrity finding (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
   "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",

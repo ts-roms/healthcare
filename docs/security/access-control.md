@@ -154,7 +154,10 @@ Compliance configuration (migration 0074; docs/architecture/compliance-configura
 `compliance.review.manage` (org_admin) records who validated each area; `inventory.controlled-register.read`
 (org_admin, pharmacist, inventory_officer) reads and exports the register of controlled items (audited
 `inventory.controlled-register.view | export`); `document.retention.manage` (org_admin, records_officer) sets retention
-periods and reviews documents past them (audited `document.retention.*`; nothing is deleted). Withholding codes and
+periods and reviews documents past them (audited `document.retention.*`; nothing is deleted); `document.integrity.manage`
+(org_admin, records_officer) runs the integrity review of stored documents against their checksums and resolves its
+findings (audited `document.integrity.*`; a mismatched or missing file is withheld from every reader until resolved;
+nothing is repaired or deleted). Withholding codes and
 procurement methods need `inventory.procurement.approve`; the laboratory licence `lab.qc.manage`; the records-request
 procedure `patient.records-request.manage` and `organization.manage`; audited `compliance.review.record`,
 `inventory.withholding-code.*`, `inventory.procurement-method.*`, `inventory.controlled-register.setting`,

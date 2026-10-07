@@ -97,5 +97,6 @@ Compliance) links each area to its settings.
 ## Permissions
 
 `compliance.review.manage` (org_admin), `inventory.controlled-register.read` (org_admin, pharmacist,
-inventory_officer), `document.retention.manage` (org_admin, records_officer); everything else reuses existing
+inventory_officer), `document.retention.manage` (org_admin, records_officer), `document.integrity.manage` (org_admin,
+records_officer; the integrity review of stored documents, `docs/domains/documents.md`); everything else reuses existing
 permissions (see each section).

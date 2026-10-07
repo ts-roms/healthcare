@@ -62,7 +62,7 @@ with a reason as usual. See `docs/architecture/compliance-configuration.md`.
 
 ## Permissions
 
-`document.upload`, `document.read`, `document.archive`.
+`document.upload`, `document.read`, `document.archive`, `document.retention.manage`, `document.integrity.manage`.
 
 ## Ports
 
@@ -100,13 +100,50 @@ third-party dependency); `UnconfiguredMalwareScanner` is the default when `CLAMA
   `not_scanned` (uploads) or `clean` (generated); their `sha256` is null ("not recorded").
 - **Generated documents** (`storeGenerated`) are clean by origin and hashed at storage time.
 - `sha256` (optional, hex) may be declared at `POST /documents`; `declared_sha256` is kept on the row and never
-  returned. Verification of stored documents against their hash (an integrity review) is not built.
+  returned. Stored documents are verified against their hash by the integrity review (below).
 
 Running clamd: `clamav` in the development compose file (`CLAMAV_HOST=localhost`); on Railway a private service from
 the `clamav/clamav` image (`docs/deployment/railway.md`). clamd's `StreamMaxLength` must cover `MAX_DOCUMENT_BYTES`
 (50 MB). Scanning is a safeguard, not a guarantee: signature updates, engine choice and incident handling are the
 organization's (compliance register).
 
+## Integrity review (migration `0105`, D7 phase 2)
+
+The records office (`document.integrity.manage`: org_admin, records_officer; staff `/records/integrity`) starts a
+review of the organization's **available** documents — every category or one — and `DocumentIntegrityService`
+runs it in the background in the API process (a poller like the DOH rescan: one review at a time per organization,
+claimed with `SKIP LOCKED`, resumable from its cursor after a restart, three attempts, cancellable). Each document is
+read back from object storage (`ObjectStorage.get`, four at a time, pages of 50) and compared with its `sha256`
+(`checkIntegrity`, `document-integrity.rules.ts`):
+
+- **verified** — the bytes match; `document.integrity_status = 'verified'`, `integrity_checked_at`.
+- **baselined** — the document has no recorded hash (stored before `0098`): the current hash is recorded as its
+  baseline (audited `document.integrity.baseline`), reported separately and never counted as verified; the next
+  review verifies it.
+- **mismatch** — the bytes differ from the recorded hash (corruption, a failed restore, tampering); **missing** — no
+  object at the key; **unreadable** — storage did not answer. Each becomes a `document_integrity_finding` (one open
+  per document, so a repeated review adds nothing; recorded and computed hash; audited `document.integrity.finding`).
+- A **mismatch or missing** finding withholds the document from every reader until it is resolved: `downloadUrl`,
+  `downloadUrlForPatient` and `content` answer `422 document_integrity_failed`, so staff links, MyHealth, FHIR
+  `Binary` and the laboratory's archived reports are all refused; `DocumentIntegrityFailed` (ids and outcome) →
+  in-app `document.integrity-notice` to the facility's `document.archive` holders. **Unreadable never blocks.**
+  Attaching a withheld document elsewhere (a consent, a referral, a message) is not refused by this phase: those
+  checks look at `status` only, and the document view carries `integrityStatus` so screens can show it.
+- **Resolving** a finding (`POST /document-integrity/findings/:id/resolve`, a note of 5–500 characters, once; the
+  trigger refuses any other change and every delete; audited `document.integrity.resolve` with the note as reason)
+  records the records office's decision and serves the document again. The platform never repairs, replaces or
+  deletes a file: restoring from a backup or archiving the document with a reason is the organization's procedure.
+
+`GET|POST /document-integrity/runs`, `GET /document-integrity/runs/:id`, `POST …/cancel`,
+`GET /document-integrity/findings?status=open|resolved` (at most 200, metadata only; audited `document.integrity.view`).
+Runs record `checked = verified + baselined + mismatched + missing + unreadable` and are audited
+`document.integrity.run | cancel | completed | failed`. Archived and quarantined documents are outside the review (an
+archived document's file may have been disposed of under the organization's procedure). No schedule is built: how
+often to run a review, and what to do about a finding, are the organization's (compliance register).
+
 ## Not yet
 
-Integrity review of stored documents against their checksums, retention schedules, thumbnails, DICOM viewing.
+Thumbnails and DICOM viewing (deferred with reasons: no screen shows an image inline today — every image opens behind
+a signed link —, a thumbnail needs a native image dependency in the API and a second object per document, and would
+still leave HEIC, PDF and DICOM without one; DICOM viewing needs a browser viewer and a decision on which modalities
+the practice produces). Retention schedules beyond the per-category periods.
