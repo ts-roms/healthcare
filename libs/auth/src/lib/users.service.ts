@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
+  asPlatform,
   BusinessRuleError,
   ConflictError,
   DATABASE,
@@ -287,11 +288,15 @@ export class UsersService {
       .where(and(eq(organizationMembership.organizationId, actor.organizationId), eq(organizationMembership.userId, userId)));
     if (!user || !member) throw new NotFoundError("User");
     if (!actor.isPlatformAdmin) {
-      const [elsewhere] = await tx
-        .select({ organizationId: organizationMembership.organizationId })
-        .from(organizationMembership)
-        .where(and(eq(organizationMembership.userId, userId), ne(organizationMembership.organizationId, actor.organizationId)))
-        .limit(1);
+      // Memberships in other organizations are outside this request's row-level security context (0111): read them
+      // on their own connection under the platform scope, or this check would never find one.
+      const [elsewhere] = await asPlatform("check whether an account is shared with other organizations", async () =>
+        this.db
+          .select({ organizationId: organizationMembership.organizationId })
+          .from(organizationMembership)
+          .where(and(eq(organizationMembership.userId, userId), ne(organizationMembership.organizationId, actor.organizationId)))
+          .limit(1),
+      );
       if (elsewhere || user.isPlatformAdmin) {
         throw new BusinessRuleError("This account is also used outside your organization; a platform administrator resets it", "account_shared");
       }

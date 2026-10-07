@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, ForbiddenError, NotFoundError } from "@healthcare/core";
+import { type Actor, asPlatform, BusinessRuleError, ConflictError, DATABASE, type Database, ForbiddenError, NotFoundError } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -210,17 +210,20 @@ export class MfaPolicyService {
       if (!member) throw new NotFoundError("User");
       if (!member.mfaEnabled) throw new BusinessRuleError("This person has not set up two-step verification", "mfa_not_enabled");
       if (!actor.isPlatformAdmin) {
-        const [elsewhere] = await tx
-          .select({ id: organizationMembership.id })
-          .from(organizationMembership)
-          .where(
-            and(
-              eq(organizationMembership.userId, userId),
-              ne(organizationMembership.organizationId, actor.organizationId),
-              eq(organizationMembership.status, "active"),
-            ),
-          )
-          .limit(1);
+        // Outside this request's row-level security context (0111): read on its own connection under the platform scope.
+        const [elsewhere] = await asPlatform("check whether an account belongs to other organizations", async () =>
+          this.db
+            .select({ id: organizationMembership.id })
+            .from(organizationMembership)
+            .where(
+              and(
+                eq(organizationMembership.userId, userId),
+                ne(organizationMembership.organizationId, actor.organizationId),
+                eq(organizationMembership.status, "active"),
+              ),
+            )
+            .limit(1),
+        );
         if (elsewhere) {
           throw new ForbiddenError(
             "This account also belongs to another organization; ask a platform administrator to reset it",
