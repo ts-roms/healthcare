@@ -583,6 +583,30 @@ export interface PortalImmunization {
 }
 
 /** `GET /portal/health-history`: the patient's history as the clinic recorded it (no staff notes, entries in error left out). */
+/** Recorded by the clinic, or reported by the patient (or someone acting for them) in MyHealth. */
+export type HistoryRecordedVia = "staff" | "patient_portal";
+export type HistoryUseStatus = "never" | "former" | "current" | "unknown";
+export type FamilyRelationship =
+  | "mother"
+  | "father"
+  | "sister"
+  | "brother"
+  | "sibling"
+  | "half_sibling"
+  | "daughter"
+  | "son"
+  | "child"
+  | "maternal_grandmother"
+  | "maternal_grandfather"
+  | "paternal_grandmother"
+  | "paternal_grandfather"
+  | "maternal_aunt"
+  | "maternal_uncle"
+  | "paternal_aunt"
+  | "paternal_uncle"
+  | "cousin"
+  | "other";
+
 export interface PortalHealthHistory {
   procedures: Array<{
     id: string;
@@ -592,18 +616,30 @@ export interface PortalHealthHistory {
     performer: string | null;
     bodySite: string | null;
     source: "reported" | "recorded_here" | "external_import";
+    recordedVia: HistoryRecordedVia;
   }>;
-  conditions: Array<{ id: string; description: string; onset: string | null; status: "active" | "resolved" | "unknown"; source: "reported" | "recorded_here" }>;
+  conditions: Array<{
+    id: string;
+    description: string;
+    onset: string | null;
+    status: "active" | "resolved" | "unknown";
+    source: "reported" | "recorded_here";
+    recordedVia: HistoryRecordedVia;
+  }>;
   /** Medicines taken that the clinic did not prescribe (prescribed elsewhere, over the counter, supplements), as told to it. */
   medications: Array<{
     id: string;
     medication: string;
     dose: string | null;
     reason: string | null;
+    prescribedBy: string | null;
     started: string | null;
     status: "taking" | "stopped" | "unknown";
     stopped: string | null;
     source: "reported" | "recorded_here";
+    recordedVia: HistoryRecordedVia;
+    /** The patient may mark it stopped here: reported in MyHealth and not stopped yet. */
+    canStop: boolean;
   }>;
   family: {
     state: "not_recorded" | "recorded" | "none_known" | "unknown";
@@ -617,12 +653,22 @@ export interface PortalHealthHistory {
       deceased: boolean | null;
       causeOfDeath: string | null;
       source: "reported" | "external_import";
+      recordedVia: HistoryRecordedVia;
     }>;
   };
+  /** Questionnaires completed in MyHealth, newest first. */
+  submissions: Array<{ id: string; submittedAt: string; sections: Array<"procedure" | "condition" | "medication" | "family" | "social">; byProxy: boolean }>;
   social: {
     effectiveDate: string;
+    recordedVia: HistoryRecordedVia;
     tobacco: string | null;
+    tobaccoStatus: HistoryUseStatus | null;
+    tobaccoType: string | null;
+    tobaccoAmount: string | null;
+    tobaccoQuitYear: number | null;
     alcohol: string | null;
+    alcoholStatus: HistoryUseStatus | null;
+    alcoholFrequency: string | null;
     occupation: string | null;
     occupationalExposures: string | null;
     livingSituation: string | null;
@@ -633,6 +679,52 @@ export interface PortalHealthHistory {
     substanceUse: string | null;
     sexualHistory: string | null;
   } | null;
+}
+
+/** `POST /portal/health-history/submissions` body: the questionnaire answered in one go (no codes, no sensitive parts). */
+export interface PortalHistorySubmission {
+  medications?: Array<{
+    medication: string;
+    dose?: string;
+    reason?: string;
+    prescribedBy?: string;
+    started?: string;
+    status: "taking" | "stopped" | "unknown";
+    stopped?: string;
+  }>;
+  conditions?: Array<{ description: string; onset?: string; status: "active" | "resolved" | "unknown"; diagnosedBy?: string }>;
+  procedures?: Array<{ description: string; performed?: string; performer?: string; bodySite?: string }>;
+  family?: Array<{
+    relationship: FamilyRelationship;
+    relationshipText?: string;
+    condition: string;
+    onsetAge?: number;
+    deceased?: boolean;
+    causeOfDeath?: string;
+  }>;
+  social?: {
+    tobaccoStatus?: HistoryUseStatus | null;
+    tobaccoType?: string | null;
+    tobaccoAmount?: string | null;
+    tobaccoQuitYear?: number | null;
+    alcoholStatus?: HistoryUseStatus | null;
+    alcoholFrequency?: string | null;
+    occupation?: string | null;
+    occupationalExposures?: string | null;
+    livingSituation?: string | null;
+    physicalActivity?: string | null;
+    diet?: string | null;
+  };
+}
+
+/** `POST /portal/health-history/submissions` → the submission recorded (or the first one, on a retry with the same key). */
+export interface PortalHistorySubmissionResult {
+  id: string;
+  submittedAt: string;
+  sections: PortalHealthHistory["submissions"][number]["sections"];
+  entryIds: string[];
+  byProxy: boolean;
+  replayed: boolean;
 }
 
 export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";

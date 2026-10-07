@@ -36,6 +36,7 @@ import { ImmunizationController } from "./immunizations/immunization.controller"
 import { ImmunizationService } from "./immunizations/immunization.service";
 import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
 import { PatientHistoryController } from "./history/history.controller";
+import { PatientHistoryPortalService } from "./history/history-portal.service";
 import { PatientHistoryService } from "./history/history.service";
 import { PROCEDURE_STAFF_NAMES, PROCEDURE_SUPPLIES, type ProcedureSupplies } from "./procedures/ports";
 import { ProcedureSuppliesService } from "./procedures/procedure-supplies.service";
@@ -108,6 +109,7 @@ export class ClinicModule {
         ImmunizationService,
         { provide: IMMUNIZATION_CONTEXT, useClass: options.immunizationContext },
         PatientHistoryService,
+        PatientHistoryPortalService,
         // The history reads staff names through the same adapter (it answers from the auth domain).
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ClinicProcedureService,
@@ -130,6 +132,7 @@ export class ClinicModule {
         BookingRulesService,
         ImmunizationService,
         PatientHistoryService,
+        PatientHistoryPortalService,
         ClinicProcedureService,
       ],
     };

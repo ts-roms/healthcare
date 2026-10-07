@@ -1,6 +1,7 @@
 import { boolean, date, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0082_patient_history.sql and 0083_reported_medications.sql (the migrations are the source of truth).
+// Mirrors database/migrations/0082_patient_history.sql, 0083_reported_medications.sql and 0103_patient_history_portal.sql
+// (the migrations are the source of truth).
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -62,10 +63,23 @@ export type FamilyUnknownReason = (typeof FAMILY_UNKNOWN_REASONS)[number];
 export const USE_STATUSES = ["never", "former", "current", "unknown"] as const;
 export type UseStatus = (typeof USE_STATUSES)[number];
 
+/** Who recorded an entry: a staff user (`recordedBy`), or a MyHealth account (`portalAccountId`, with the guardian's grant when acting). */
+export const HISTORY_RECORDED_VIA = ["staff", "patient_portal"] as const;
+export type HistoryRecordedVia = (typeof HISTORY_RECORDED_VIA)[number];
+
 const enteredInError = {
   enteredInErrorReason: text("entered_in_error_reason"),
   enteredInErrorBy: uuid("entered_in_error_by"),
   enteredInErrorAt: ts("entered_in_error_at"),
+};
+
+/** `recorded_by` is null for an entry recorded through MyHealth (migration 0103). */
+const recordedBy = {
+  recordedBy: uuid("recorded_by"),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  recordedVia: text("recorded_via").$type<HistoryRecordedVia>().notNull().default("staff"),
+  portalAccountId: uuid("portal_account_id"),
+  proxyGrantId: uuid("proxy_grant_id"),
 };
 
 export const pastProcedure = pgTable("past_procedure", {
@@ -88,8 +102,7 @@ export const pastProcedure = pgTable("past_procedure", {
   declaredSource: text("declared_source"),
   recorderPractitionerId: uuid("recorder_practitioner_id"),
   ...enteredInError,
-  recordedBy: uuid("recorded_by").notNull(),
-  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  ...recordedBy,
 });
 
 export const pastCondition = pgTable("past_condition", {
@@ -110,8 +123,7 @@ export const pastCondition = pgTable("past_condition", {
   sourceDescription: text("source_description"),
   recorderPractitionerId: uuid("recorder_practitioner_id"),
   ...enteredInError,
-  recordedBy: uuid("recorded_by").notNull(),
-  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  ...recordedBy,
 });
 
 /** A medicine the patient takes that was not prescribed here (prescribed elsewhere, over the counter, supplements). */
@@ -138,10 +150,11 @@ export const reportedMedication = pgTable("reported_medication", {
   recorderPractitionerId: uuid("recorder_practitioner_id"),
   stopRecordedAt: ts("stop_recorded_at"),
   stopRecordedBy: uuid("stop_recorded_by"),
+  /** The MyHealth account that marked it stopped (instead of a staff user). */
+  stopPortalAccountId: uuid("stop_portal_account_id"),
   stopNote: text("stop_note"),
   ...enteredInError,
-  recordedBy: uuid("recorded_by").notNull(),
-  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  ...recordedBy,
 });
 
 export const familyHistoryEntry = pgTable("family_history_entry", {
@@ -163,8 +176,7 @@ export const familyHistoryEntry = pgTable("family_history_entry", {
   sourceReference: text("source_reference"),
   declaredSource: text("declared_source"),
   ...enteredInError,
-  recordedBy: uuid("recorded_by").notNull(),
-  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  ...recordedBy,
 });
 
 export const familyHistoryReview = pgTable("family_history_review", {
@@ -201,8 +213,20 @@ export const socialHistory = pgTable("social_history", {
   sexualHistory: text("sexual_history"),
   notes: text("notes"),
   ...enteredInError,
-  recordedBy: uuid("recorded_by").notNull(),
-  recordedAt: ts("recorded_at").notNull().defaultNow(),
+  ...recordedBy,
+});
+
+/** A questionnaire completed in MyHealth: which sections were answered and the entries it wrote (migration 0103). */
+export const patientHistorySubmission = pgTable("patient_history_submission", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  portalAccountId: uuid("portal_account_id").notNull(),
+  proxyGrantId: uuid("proxy_grant_id"),
+  sections: text("sections").array().$type<Array<Exclude<HistorySection, "family_review">>>().notNull(),
+  entryIds: uuid("entry_ids").array().notNull().default([]),
+  idempotencyKey: text("idempotency_key"),
+  submittedAt: ts("submitted_at").notNull().defaultNow(),
 });
 
 export type PastProcedureRecord = typeof pastProcedure.$inferSelect;
@@ -211,3 +235,4 @@ export type ReportedMedicationRecord = typeof reportedMedication.$inferSelect;
 export type FamilyHistoryRecord = typeof familyHistoryEntry.$inferSelect;
 export type FamilyReviewRecord = typeof familyHistoryReview.$inferSelect;
 export type SocialHistoryRecord = typeof socialHistory.$inferSelect;
+export type PatientHistorySubmissionRecord = typeof patientHistorySubmission.$inferSelect;

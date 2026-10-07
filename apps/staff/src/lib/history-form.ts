@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import type {
   FamilyHistoryState,
   FamilyRelationship,
@@ -6,6 +7,7 @@ import type {
   FamilyUnknownReason,
   HistoryDatePrecision,
   HistoryInformant,
+  HistoryRecordedVia,
   ReportedMedicationStatus,
   SocialHistoryFields,
   SocialHistoryVersion,
@@ -62,6 +64,12 @@ export const UNKNOWN_REASON_LABEL: Record<FamilyUnknownReason, string> = {
   not_known: "Not known to the patient",
   declined_to_answer: "Declined to answer",
 };
+
+/** "recorded 12 May 2026, 10:05 by Dr. Reyes", or "reported in MyHealth 12 May 2026, 10:05" for the patient's own entry. */
+export function recordedText(entry: { recordedAt: string; recordedByName: string | null; recordedVia: HistoryRecordedVia }): string {
+  if (entry.recordedVia === "patient_portal") return `reported in MyHealth ${clinicalDateTime(entry.recordedAt)}`;
+  return `recorded ${clinicalDateTime(entry.recordedAt)}${entry.recordedByName ? ` by ${entry.recordedByName}` : ""}`;
+}
 
 /** Where an entry comes from, as a short label. */
 export function sourceLabel(e: { source: string; reportedBy?: HistoryInformant | null }): string {

@@ -4526,13 +4526,18 @@ export type FamilyReviewOutcome = "reviewed" | "none_known" | "unknown";
 export type FamilyUnknownReason = "adopted" | "not_known" | "declined_to_answer";
 export type UseStatus = "never" | "former" | "current" | "unknown";
 
+/** Recorded by a staff user, or by the patient (or a guardian acting for them) in MyHealth (migration 0103). */
+export type HistoryRecordedVia = "staff" | "patient_portal";
+
 interface HistoryEntryMeta {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */
   patientId: string;
   encounterId: string | null;
   recordedAt: string;
+  /** Null for an entry recorded through MyHealth. */
   recordedByName: string | null;
+  recordedVia: HistoryRecordedVia;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
 }
 
@@ -4585,7 +4590,7 @@ export interface ReportedMedication extends HistoryEntryMeta {
   stopped: string | null;
   stoppedPrecision: HistoryDatePrecision | null;
   /** Marked stopped after it was recorded. */
-  stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+  stopRecorded: { at: string; byName: string | null; via: HistoryRecordedVia; note: string | null } | null;
   notes: string | null;
   source: "reported" | "recorded_here";
   reportedBy: HistoryInformant | null;
@@ -4663,7 +4668,14 @@ export interface WorkspaceHistory {
   conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
   conditionsTotal: number;
   /** Taken and not stopped (not prescribed here). */
-  medications: Array<{ id: string; filedUnder: string | null; medication: string; dose: string | null; status: ReportedMedicationStatus }>;
+  medications: Array<{
+    id: string;
+    filedUnder: string | null;
+    medication: string;
+    dose: string | null;
+    status: ReportedMedicationStatus;
+    recordedVia: HistoryRecordedVia;
+  }>;
   medicationsTotal: number;
   family: {
     state: FamilyHistoryState;

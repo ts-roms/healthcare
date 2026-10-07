@@ -57,6 +57,7 @@ import {
   socialFormFrom,
   type SocialForm,
   socialPayload,
+  recordedText,
   sourceLabel,
   tobaccoText,
   UNKNOWN_REASON_LABEL,
@@ -95,12 +96,16 @@ function InErrorBadge() {
   );
 }
 
-function Recorded({ entry, filedUnder }: { entry: Pick<PastProcedure, "recordedAt" | "recordedByName" | "enteredInError">; filedUnder: string | null }) {
+function Recorded({
+  entry,
+  filedUnder,
+}: {
+  entry: Pick<PastProcedure, "recordedAt" | "recordedByName" | "recordedVia" | "enteredInError">;
+  filedUnder: string | null;
+}) {
   return (
     <>
-      <p className="text-meta text-muted-foreground">
-        {[`recorded ${clinicalDateTime(entry.recordedAt)}${entry.recordedByName ? ` by ${entry.recordedByName}` : ""}`, filedUnder].filter(Boolean).join(" · ")}
-      </p>
+      <p className="text-meta text-muted-foreground">{[recordedText(entry), filedUnder].filter(Boolean).join(" · ")}</p>
       {entry.enteredInError ? (
         <p className="text-meta">
           Entered in error: {entry.enteredInError.reason}
@@ -1117,7 +1122,7 @@ function MedicationRow({
       {m.stopRecorded ? (
         <p className="text-meta">
           Marked stopped {clinicalDateTime(m.stopRecorded.at)}
-          {m.stopRecorded.byName ? ` by ${m.stopRecorded.byName}` : ""}
+          {m.stopRecorded.via === "patient_portal" ? " by the patient in MyHealth" : m.stopRecorded.byName ? ` by ${m.stopRecorded.byName}` : ""}
           {m.stopRecorded.note ? ` — ${m.stopRecorded.note}` : ""}
         </p>
       ) : null}
