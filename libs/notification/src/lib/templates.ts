@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { NotificationCategory, NotificationChannel } from "./notification.schema";
+import type { NotificationCategory, NotificationChannel, StaffPushKind } from "./notification.schema";
 
 /**
  * Message templates are code-reviewed, versioned and variable-validated.
@@ -27,6 +27,11 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
    * it push the same text as the in-app notice.
    */
   renderPush?(variables: z.infer<V>): RenderedMessage;
+  /**
+   * What a staff notice is about, for the member's push preferences (migration 0106): a member may turn the push of
+   * a kind off. A staff template that lists `push` without a kind (the test push) ignores preferences.
+   */
+  pushKind?: StaffPushKind;
 }
 
 /** The message for a channel: push uses the template's content-free push wording where it has one. */
@@ -198,6 +203,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "management.report-ready",
+    pushKind: "management_reports",
     version: 1,
     category: "administrative",
     // To the recipients of a scheduled management report: the schedule's name and period only, never a figure.
@@ -401,6 +407,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "document.quarantine-notice",
+    pushKind: "documents",
     version: 1,
     category: "administrative",
     // In-app to the facility's records office (and the staff member who uploaded it). The scanner's signature name and
@@ -425,6 +432,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "document.integrity-notice",
+    pushKind: "documents",
     version: 1,
     category: "administrative",
     // In-app to the facility's records office: an integrity review found a stored document whose bytes no longer match
@@ -452,6 +460,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "records.request-new",
+    pushKind: "records_requests",
     version: 1,
     category: "administrative",
     // In-app to the records office. The request number only: what was asked is read in the request, behind access control.
@@ -534,6 +543,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "portal.message-overdue",
+    pushKind: "patient_messages",
     version: 1,
     category: "administrative",
     // In-app to the clinic's staff when a conversation waits past the response target. No name and no text.
@@ -547,6 +557,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "portal.message-new",
+    pushKind: "patient_messages",
     version: 1,
     category: "administrative",
     // In-app to the clinic's staff. No name and no text: the conversation is read behind access control.
@@ -560,6 +571,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "clinic.referral-notice",
+    pushKind: "referrals",
     version: 1,
     category: "clinical",
     // In-app between practitioners. The referral number only: the patient and the reason are read in the referral.
@@ -595,6 +607,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "lab.result-notice",
+    pushKind: "laboratory_results",
     version: 1,
     category: "clinical",
     // In-app to the ordering practitioner. Identifiers only: the value is read in the order, behind access control.
@@ -626,6 +639,7 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "lab.quality-notice",
+    pushKind: "laboratory_quality",
     version: 1,
     category: "administrative",
     // In-app to the facility's quality managers. No patient, specimen or control values — the record is read behind access control.
@@ -769,3 +783,14 @@ export function templateLabel(key: string): string {
 export function findTemplate(key: string): NotificationTemplate | undefined {
   return (TEMPLATES as readonly NotificationTemplate[]).find((t) => t.key === key);
 }
+
+/** The kinds of staff notice a member may turn off in their browsers, in the order the screen shows them. */
+export const STAFF_PUSH_KIND_LABEL: Record<StaffPushKind, string> = {
+  records_requests: "Records requests from patients",
+  patient_messages: "MyHealth messages (new and overdue)",
+  referrals: "Referrals to you or answered",
+  laboratory_results: "Laboratory results (critical and awaiting review)",
+  laboratory_quality: "Laboratory quality events",
+  documents: "Document safety (quarantined and integrity findings)",
+  management_reports: "Scheduled management reports",
+};

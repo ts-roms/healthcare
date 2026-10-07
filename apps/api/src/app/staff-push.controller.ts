@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Put, Query, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, APP_CONFIG, type AppConfig, BusinessRuleError, CurrentActor, systemActor } from "@healthcare/core";
-import { NotificationService, PushSubscriptionService } from "@healthcare/notification";
+import { NotificationService, PushSubscriptionService, StaffPushPreferencesDto, StaffPushPreferenceService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { createZodDto } from "nestjs-zod";
 import type { Request } from "express";
@@ -29,6 +29,7 @@ export class StaffPushController {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly devices: PushSubscriptionService,
+    private readonly preferences: StaffPushPreferenceService,
     private readonly notifications: NotificationService,
     private readonly audit: AuditService,
     private readonly organizations: OrganizationService,
@@ -45,7 +46,21 @@ export class StaffPushController {
       vapidPublicKey: configured ? (this.config.VAPID_PUBLIC_KEY ?? null) : null,
       devices: await this.devices.list(actor.userId),
       thisDeviceId: query.endpoint ? await this.devices.idOfEndpoint(actor.userId, query.endpoint) : null,
+      preferences: await this.preferences.list(actor.organizationId, actor.userId),
     };
+  }
+
+  @Put("preferences")
+  @ApiOperation({ summary: "Turn the push of kinds of notice off or on for this member's browsers (the in-app notice is unaffected)" })
+  async setPreferences(@CurrentActor() actor: Actor, @Body() body: StaffPushPreferencesDto) {
+    const preferences = await this.preferences.set(actor.organizationId, actor.userId, body.preferences);
+    await this.audit.recordStandalone(actor, {
+      action: "auth.push-preferences",
+      resourceType: "staff_push_preference",
+      resourceId: actor.userId,
+      metadata: { set: body.preferences },
+    });
+    return { preferences };
   }
 
   @Post("subscriptions")

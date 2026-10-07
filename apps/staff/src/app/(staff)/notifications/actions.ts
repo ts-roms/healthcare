@@ -31,6 +31,22 @@ export async function removePushDevice(id: string): Promise<ActionResult<null>> 
   return result;
 }
 
+/** Turns kinds of notice off or on in the member's browsers (the in-app notice is unaffected). */
+export async function savePushPreferences(
+  preferences: Array<{ kind: string; enabled: boolean }>,
+): Promise<ActionResult<{ preferences: StaffPushStatus["preferences"] }>> {
+  const parsed = z
+    .array(z.object({ kind: z.string().regex(/^[a-z_]{1,40}$/), enabled: z.boolean() }))
+    .min(1)
+    .safeParse(preferences);
+  if (!parsed.success) return { ok: false, message: "Invalid preferences." };
+  const result = await actionResult(() =>
+    api<{ preferences: StaffPushStatus["preferences"] }>("/me/push/preferences", { method: "PUT", body: { preferences: parsed.data } }),
+  );
+  if (result.ok) revalidatePath("/notifications");
+  return result;
+}
+
 export async function sendTestPush(): Promise<ActionResult<{ status: string }>> {
   return actionResult(() => api<{ status: string }>("/me/push/test", { method: "POST" }));
 }

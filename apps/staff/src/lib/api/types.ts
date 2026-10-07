@@ -3037,6 +3037,14 @@ export interface StaffPushStatus {
   devices: Array<{ id: string; label: string; createdAt: string; lastSuccessAt: string | null }>;
   /** The browser asking (by its push address), when registered. */
   thisDeviceId: string | null;
+  /** Which kinds of notice also push to the member's browsers (migration 0106); every kind is on until turned off. */
+  preferences: StaffPushPreference[];
+}
+
+export interface StaffPushPreference {
+  kind: string;
+  label: string;
+  enabled: boolean;
 }
 
 export interface StaffNotice {
@@ -4930,6 +4938,9 @@ export interface CommunicationLogEntry {
   id: string;
   patientId: string;
   patient: { id: string; patientNumber: string; displayName: string } | null;
+  /** The facility the message was sent from (migration 0106); null before it or outside any facility. */
+  facilityId: string | null;
+  facilityName: string | null;
   channel: NotificationChannel;
   category: NotificationCategory;
   templateKey: string;
@@ -4952,11 +4963,12 @@ export interface CommunicationLogEntry {
   resentAs: string | null;
 }
 
-/** GET /communications/summary. */
+/** GET /communications/summary. `scope`: the facilities the reader may see (null: every one). */
 export interface CommunicationSummary {
   from: string;
   to: string;
   total: number;
+  scope: string[] | null;
   byStatus: Record<NotificationStatus, number>;
   byChannel: Array<{ channel: NotificationChannel; total: number; sent: number; notSent: number }>;
   suppressedByReason: Array<{ reason: string; total: number }>;

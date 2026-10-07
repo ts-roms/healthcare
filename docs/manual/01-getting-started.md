@@ -118,7 +118,9 @@ notification even with the app in another tab: select **Turn on notifications in
 says only what kind of thing is waiting (a critical result, a referral, a records request, a quality notice) and opens the page; it never names a
 patient, a number or a result. Free-text messages from colleagues stay in the app. You can have up to five browsers, remove any with **Remove**,
 and check with **Send me a test**. If notifications are blocked for this site, allow them in your browser's settings first. Removing every browser
-turns them off.
+turns them off. Under **Which notices reach your browsers**, untick a kind of notice (records requests, MyHealth messages, referrals, laboratory
+results, laboratory quality events, document safety, scheduled reports) to stop it showing in your browsers; it still arrives in the app. Tick it
+again to turn it back on. The test notice is always sent.
 
 ## How to use the dashboard
 

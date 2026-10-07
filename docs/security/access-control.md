@@ -153,7 +153,9 @@ patient until shared); audited `patient.records-request.view | review | fulfil |
 Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md):
 `compliance.review.manage` (org_admin) records who validated each area; `inventory.controlled-register.read`
 (org_admin, pharmacist, inventory_officer) reads and exports the register of controlled items (audited
-`inventory.controlled-register.view | export`); `document.retention.manage` (org_admin, records_officer) sets retention
+`inventory.controlled-register.view | export`); `notification.read` reads the communication log within the facilities of its grants (an organization-wide grant: every
+facility; a facility-scoped grant: those facilities only, never messages with no recorded facility; a facility outside
+the scope is refused and audited `facility_out_of_scope`, migration `0106`); `document.retention.manage` (org_admin, records_officer) sets retention
 periods and reviews documents past them (audited `document.retention.*`; nothing is deleted); `document.integrity.manage`
 (org_admin, records_officer) runs the integrity review of stored documents against their checksums and resolves its
 findings (audited `document.integrity.*`; a mismatched or missing file is withheld from every reader until resolved;

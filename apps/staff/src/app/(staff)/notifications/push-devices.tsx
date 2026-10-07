@@ -6,6 +6,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui
 import type { StaffPushStatus } from "@/lib/api/types";
 import { bytesToBase64Url, pushMessage, pushSupport, type PushSupport, urlBase64ToUint8Array } from "@/lib/push";
 import { pushStatus, registerPushDevice, removePushDevice, sendTestPush } from "./actions";
+import { PushPreferences } from "./push-preferences";
 
 /**
  * Notifications in this browser (Web Push). Turning them on asks the browser for permission, then registers it with the
@@ -135,6 +136,7 @@ export function PushDevices({ initial }: { initial: StaffPushStatus }) {
             <Button type="button" variant="outline" size="sm" className="self-start" onClick={test} disabled={pending}>
               <SendIcon /> Send me a test
             </Button>
+            <PushPreferences initial={status.preferences} />
           </>
         ) : null}
         {message ? (

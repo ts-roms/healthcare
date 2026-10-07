@@ -48,6 +48,7 @@ describe("staff push notifications", () => {
   const me = (token: string) => ({
     get: (url: string) => ctx.http().get(`/api/v1/me/push${url}`).set(as(token, tenant.facilityId)),
     post: (url: string, body: object = {}) => ctx.http().post(`/api/v1/me/push${url}`).set(as(token, tenant.facilityId)).send(body),
+    put: (url: string, body: object = {}) => ctx.http().put(`/api/v1/me/push${url}`).set(as(token, tenant.facilityId)).send(body),
   });
   const register = (token: string, n: number, userAgent = WINDOWS) =>
     ctx
@@ -95,7 +96,9 @@ describe("staff push notifications", () => {
   });
 
   it("is offered to every signed-in member with the platform's key, and lists no browser to begin with", async () => {
-    expect((await me(nurse).get("").expect(200)).body).toEqual({ configured: true, vapidPublicKey: vapid.publicKey, devices: [], thisDeviceId: null });
+    const status = (await me(nurse).get("").expect(200)).body;
+    expect(status).toMatchObject({ configured: true, vapidPublicKey: vapid.publicKey, devices: [], thisDeviceId: null });
+    expect(status.preferences).toHaveLength(7);
     await ctx.http().get("/api/v1/me/push").expect(401);
     await me(nurse)
       .post("/test")
@@ -240,6 +243,57 @@ describe("staff push notifications", () => {
       n: 4,
     });
     await ctx.pool.query("UPDATE organization_membership SET status = 'active' WHERE user_id = $1 AND organization_id = $2", [nurseId, tenant.organizationId]);
+  });
+
+  it("lets a member turn a kind of notice off in their browsers: the in-app notice still arrives, no push row is written, and on again pushes", async () => {
+    const status = (await me(nurse).get("").expect(200)).body as { preferences: Array<{ kind: string; label: string; enabled: boolean }> };
+    expect(status.preferences.map((p) => p.kind)).toEqual([
+      "records_requests",
+      "patient_messages",
+      "referrals",
+      "laboratory_results",
+      "laboratory_quality",
+      "documents",
+      "management_reports",
+    ]);
+    expect(status.preferences.every((p) => p.enabled)).toBe(true);
+    await me(nurse)
+      .put("/preferences", { preferences: [{ kind: "not-a-kind", enabled: false }] })
+      .expect(400);
+    const set = (
+      await me(nurse)
+        .put("/preferences", { preferences: [{ kind: "laboratory_quality", enabled: false }] })
+        .expect(200)
+    ).body;
+    expect(set.preferences.find((p: { kind: string }) => p.kind === "laboratory_quality")).toMatchObject({ enabled: false });
+    expect(set.preferences.find((p: { kind: string }) => p.kind === "laboratory_results")).toMatchObject({ enabled: true });
+    expect(await auditRows(ctx.pool, "action = 'auth.push-preferences'")).toHaveLength(1);
+
+    const actor = systemActor(tenant.organizationId, tenant.facilityId, "test");
+    const quality = () =>
+      notifications.send(actor, {
+        recipient: { type: "user", userId: nurseId },
+        channel: "in_app",
+        templateKey: "lab.quality-notice",
+        variables: { kind: "nonconformance", nonconformanceId: REQUEST_ID, number: "NC00000001", category: "equipment", severity: "major" },
+      });
+    await quality();
+    expect((await rows(nurseId, "lab.quality-notice")).map((r) => r.channel)).toEqual(["in_app"]);
+    // Other kinds are unaffected, and so is the test push.
+    await notifications.send(actor, {
+      recipient: { type: "user", userId: nurseId },
+      channel: "in_app",
+      templateKey: "clinic.referral-notice",
+      variables: { kind: "new", referralId: REQUEST_ID, referralNumber: "RF00000001" },
+    });
+    expect((await rows(nurseId, "clinic.referral-notice")).map((r) => r.channel)).toEqual(["in_app", "push"]);
+    expect((await me(nurse).post("/test").expect(202)).body.status).toBe("queued");
+
+    await me(nurse)
+      .put("/preferences", { preferences: [{ kind: "laboratory_quality", enabled: true }] })
+      .expect(200);
+    await quality();
+    expect((await rows(nurseId, "lab.quality-notice")).map((r) => r.channel)).toEqual(["in_app", "in_app", "push"]);
   });
 
   it("holds every row to exactly one owner", async () => {
