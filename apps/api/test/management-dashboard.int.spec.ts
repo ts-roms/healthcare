@@ -130,13 +130,34 @@ describe("management dashboard", () => {
     // Patient counts under five are suppressed, and the rate built on them withheld (the extras spec has larger numbers).
     expect(body.patients).toEqual({ registered: "<5", seen: "<5", returning: "<5", firstTime: "<5", returningRate: null, returningRateSuppressed: true });
     expect(body.clinic.appointments).toEqual({ booked: 2, completed: 1, noShow: 1, cancelled: 1, selfBooked: 0, noShowRate: 0.5 });
-    expect(body.clinic.visits).toEqual({ checkedIn: 1, walkIns: 1, leftWithoutBeingSeen: 0, averageWaitMinutes: 30 });
+    expect(body.clinic.visits).toEqual({
+      checkedIn: 1,
+      walkIns: 1,
+      leftWithoutBeingSeen: 0,
+      averageWaitMinutes: 30,
+      medianWaitMinutes: 30,
+      p90WaitMinutes: 30,
+    });
     expect(body.clinic.encounters).toEqual({ completed: 2, telemedicine: 1, patientsSeen: "<5", returningPatients: "<5" });
     expect(body.clinic.providers).toEqual([
       expect.objectContaining({ displayName: "Dr. reyes", encounters: 2, patients: "<5", appointments: 2, noShows: 1, bookedMinutes: 30 }),
     ]);
     expect(body.laboratory).toMatchObject({ orders: { orders: 1, stat: 0, cancelled: 0 }, testsOrdered: 1, released: 1, corrections: 0, specimensRejected: 0 });
     expect(body.laboratory.topTests).toEqual([expect.objectContaining({ name: "FBS", ordered: 1 })]);
+    // One release: the median and 90th percentile equal the average; one department carries it.
+    expect(body.laboratory.medianTurnaroundMinutes).toBe(body.laboratory.averageTurnaroundMinutes);
+    expect(body.laboratory.p90TurnaroundMinutes).toBe(body.laboratory.averageTurnaroundMinutes);
+    expect(body.laboratory.byDepartment).toEqual([
+      {
+        departmentId: expect.any(String),
+        name: "Chemistry",
+        released: 1,
+        averageTurnaroundMinutes: expect.any(Number),
+        medianTurnaroundMinutes: expect.any(Number),
+        withinTargetRate: null,
+      },
+    ]);
+    expect(body.telemedicine).toMatchObject({ started: 0, averageWaitMinutes: null, medianWaitMinutes: null, p90WaitMinutes: null, joinedNotSeen: 0 });
     expect(body.dental).toEqual({
       procedures: 1,
       patients: "<5",
@@ -171,10 +192,12 @@ describe("management dashboard", () => {
       consultations: 2,
       noShowRate: 0.5,
       averageWaitMinutes: 30,
+      medianWaitMinutes: 30,
       netInvoiced: 50_000,
       netCollected: 20_000,
       labTestsReleased: 1,
       labTurnaroundMinutes: expect.any(Number),
+      medianLabTurnaroundMinutes: expect.any(Number),
       dentalProcedures: 1,
       specimenRejectionRate: 0,
       retentionRate: null,
@@ -183,6 +206,7 @@ describe("management dashboard", () => {
     expect(body.previous).toMatchObject({
       from: manilaDate(-59),
       to: manilaDate(-30),
+      mode: "previous",
       keyFigures: { patientsSeen: "<5", consultations: 1, newPatients: 0, netInvoiced: 0, noShowRate: null },
     });
     // Each change with its direction of improvement; none for suppressed or missing values.
@@ -193,6 +217,20 @@ describe("management dashboard", () => {
     });
     expect(body.previous.changes.patientsSeen).toEqual({ unit: "patients", better: "up", change: null });
     expect(body.previous.changes.noShowRate).toEqual({ unit: "rate", better: "down", change: null });
+  });
+
+  it("can compare with the same dates one year earlier instead", async () => {
+    const body = await dashboard(admin, "?comparison=last-year");
+    const yearAgo = (days: number) => {
+      const [y, m, d] = manilaDate(days).split("-").map(Number) as [number, number, number];
+      const lastDay = new Date(Date.UTC(y - 1, m, 0)).getUTCDate();
+      return new Date(Date.UTC(y - 1, m - 1, Math.min(d, lastDay))).toISOString().slice(0, 10);
+    };
+    expect(body.previous).toMatchObject({ from: yearAgo(-29), to: yearAgo(0), mode: "last-year", keyFigures: { consultations: 0, patientsSeen: 0 } });
+    expect(body.previous.changes.consultations.change).toMatchObject({ absolute: 2, relative: null, assessment: "better" });
+    const summary = await api(admin).get("/management/dashboard/export?table=summary&comparison=last-year").expect(200);
+    expect(summary.text).toContain(`${yearAgo(-29)} to ${yearAgo(0)},Change`);
+    await api(admin).get("/management/dashboard?comparison=decade").expect(400);
   });
 
   it("exports each table as CSV (pesos, formula-safe) and audits the export", async () => {
@@ -220,7 +258,8 @@ describe("management dashboard", () => {
     await api(annexManager, tenant.otherFacilityId).get(`/management/dashboard/export?table=summary&facilityId=${tenant.facilityId}`).expect(403);
 
     const audits = await auditRows(ctx.pool, "action = 'management.dashboard.export' AND organization_id = $1", [tenant.organizationId]);
-    expect(audits.map((a) => (a.metadata as { table: string }).table).sort()).toEqual(["daily", "providers", "services", "summary"]);
+    // The last-year comparison test above exported a summary too.
+    expect(audits.map((a) => (a.metadata as { table: string }).table).sort()).toEqual(["daily", "providers", "services", "summary", "summary"]);
     expect(JSON.stringify([summary.text, services.text, daily.text, providers.text])).not.toMatch(/Dela Cruz|Juan|Garcia/);
   });
 

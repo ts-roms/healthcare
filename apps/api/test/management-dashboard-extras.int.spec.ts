@@ -321,7 +321,18 @@ describe("management dashboard extras", () => {
 
   it("counts online consultations, laboratory rejections and results per instrument", async () => {
     const body = await dashboard(admin);
-    expect(body.telemedicine).toEqual({ started: 4, ended: 2, escalated: 1, inProgress: 1, escalationRate: 0.333 });
+    // Every patient joined at the moment the consultation started (the fixture), so the waits are zero.
+    expect(body.telemedicine).toEqual({
+      started: 4,
+      ended: 2,
+      escalated: 1,
+      inProgress: 1,
+      escalationRate: 0.333,
+      averageWaitMinutes: 0,
+      medianWaitMinutes: 0,
+      p90WaitMinutes: 0,
+      joinedNotSeen: 0,
+    });
     expect(body.laboratory.specimens).toEqual({ collected: 2, rejected: 1, rejectionRate: 0.5 });
     expect(body.laboratory.specimensRejected).toBe(1);
     expect(body.laboratory.byInstrument).toEqual([{ instrumentId: expect.any(String), name: "=Analyzer One", results: 1 }]);
@@ -373,7 +384,10 @@ describe("management dashboard extras", () => {
     expect((await csv(admin, "table=laboratory")).text).toContain("\r\nSpecimen rejection rate,0.5\r\n");
     expect((await csv(admin, "table=lab-tests")).text).toContain("\r\nFBS,2\r\n");
     expect((await csv(admin, "table=dental-procedures")).text).toContain("\r\nprophylaxis,Oral prophylaxis,1,<5\r\n");
-    expect((await csv(admin, "table=telemedicine")).text).toContain("\r\n4,2,1,1,0.333\r\n");
+    expect((await csv(admin, "table=telemedicine")).text).toContain("\r\n4,2,1,1,0.333,0,0,0,0\r\n");
+    expect((await csv(admin, "table=lab-departments")).text).toContain(
+      "Department,Tests released,Average turnaround (minutes),Median turnaround (minutes),Released within target\r\n",
+    );
     expect((await csv(admin, "table=retention")).text).toContain("\r\n8,7,0.875,0,0,\r\n");
     expect((await csv(admin, "table=services")).text).toContain("\r\nconsult-fee,Consultation,consultation,1,500.00,<5\r\n");
     expect((await csv(admin, "table=collections")).text).toContain("\r\ncash,1,200.00,0.00\r\n");

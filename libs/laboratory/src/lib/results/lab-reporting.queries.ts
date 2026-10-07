@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, reportingDay, reportingFacility, reportingRange, type ReportingWindow } from "@healthcare/core";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
-import { labInstrument, labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
+import { labDepartment, labInstrument, labOrder, labOrderItem, labResult, labSpecimen, labTest } from "../laboratory.schema";
 
 /**
  * Laboratory figures for management reporting over a window: orders and tests ordered, first releases with the
@@ -24,7 +24,8 @@ export class LabReportingQueries {
       reportingRange(labResult.releasedAt, window),
       reportingFacility(labResult.facilityId, window),
     );
-    const [orders, tests, releases, rejected, topTests, daily, collected, instruments] = await Promise.all([
+    const turnaroundMinutes = sql`extract(epoch from ${labResult.releasedAt} - ${labSpecimen.collectedAt}) / 60`;
+    const [orders, tests, releases, rejected, topTests, daily, collected, instruments, departments] = await Promise.all([
       this.db
         .select({
           orders: sql<number>`count(*)::int`,
@@ -43,8 +44,13 @@ export class LabReportingQueries {
           // A result's first version released is the test's release; later versions are corrections.
           released: sql<number>`count(*) filter (where ${labResult.versionNumber} = 1)::int`,
           corrections: sql<number>`count(*) filter (where ${labResult.versionNumber} > 1)::int`,
-          averageTurnaroundMinutes: sql<number | null>`round(avg(extract(epoch from ${labResult.releasedAt} - ${labSpecimen.collectedAt}) / 60)
-            filter (where ${labResult.versionNumber} = 1))::int`,
+          averageTurnaroundMinutes: sql<number | null>`round(avg(${turnaroundMinutes}) filter (where ${labResult.versionNumber} = 1))::int`,
+          medianTurnaroundMinutes: sql<
+            number | null
+          >`round(percentile_cont(0.5) within group (order by ${turnaroundMinutes}) filter (where ${labResult.versionNumber} = 1))::int`,
+          p90TurnaroundMinutes: sql<
+            number | null
+          >`round(percentile_cont(0.9) within group (order by ${turnaroundMinutes}) filter (where ${labResult.versionNumber} = 1))::int`,
           withTarget: sql<number>`count(*) filter (where ${labResult.versionNumber} = 1 and ${labTest.turnaroundMinutes} is not null and ${labSpecimen.collectedAt} is not null)::int`,
           withinTarget: sql<number>`count(*) filter (where ${labResult.versionNumber} = 1 and ${labTest.turnaroundMinutes} is not null
             and ${labResult.releasedAt} <= ${labSpecimen.collectedAt} + make_interval(mins => ${labTest.turnaroundMinutes}))::int`,
@@ -109,15 +115,44 @@ export class LabReportingQueries {
           ),
         )
         .groupBy(labResult.instrumentId),
+      // First releases per department (the department of each test's catalog entry), with the same turnaround figures.
+      this.db
+        .select({
+          departmentId: labDepartment.id,
+          name: sql<string>`max(${labDepartment.name})`,
+          released: sql<number>`count(*)::int`,
+          averageTurnaroundMinutes: sql<number | null>`round(avg(${turnaroundMinutes}))::int`,
+          medianTurnaroundMinutes: sql<number | null>`round(percentile_cont(0.5) within group (order by ${turnaroundMinutes}))::int`,
+          withTarget: sql<number>`count(*) filter (where ${labTest.turnaroundMinutes} is not null and ${labSpecimen.collectedAt} is not null)::int`,
+          withinTarget: sql<number>`count(*) filter (where ${labTest.turnaroundMinutes} is not null
+            and ${labResult.releasedAt} <= ${labSpecimen.collectedAt} + make_interval(mins => ${labTest.turnaroundMinutes}))::int`,
+        })
+        .from(labResult)
+        .innerJoin(labOrderItem, eq(labOrderItem.id, labResult.orderItemId))
+        .innerJoin(labTest, eq(labTest.id, labResult.testId))
+        .innerJoin(labDepartment, eq(labDepartment.id, labTest.departmentId))
+        .leftJoin(labSpecimen, eq(labSpecimen.id, labOrderItem.specimenId))
+        .where(and(releasedWhere, eq(labResult.versionNumber, 1)))
+        .groupBy(labDepartment.id),
     ]);
     const specimens = collected[0] ?? { collected: 0, rejected: 0 };
-    const r = releases[0] ?? { released: 0, corrections: 0, averageTurnaroundMinutes: null, withTarget: 0, withinTarget: 0 };
+    const r = releases[0] ?? {
+      released: 0,
+      corrections: 0,
+      averageTurnaroundMinutes: null,
+      medianTurnaroundMinutes: null,
+      p90TurnaroundMinutes: null,
+      withTarget: 0,
+      withinTarget: 0,
+    };
     return {
       orders: orders[0] ?? { orders: 0, stat: 0, cancelled: 0 },
       testsOrdered: tests[0]?.ordered ?? 0,
       released: r.released,
       corrections: r.corrections,
       averageTurnaroundMinutes: r.averageTurnaroundMinutes,
+      medianTurnaroundMinutes: r.medianTurnaroundMinutes,
+      p90TurnaroundMinutes: r.p90TurnaroundMinutes,
       /** Share of first releases with a turnaround target that met it (null when none had a target). */
       withinTargetRate: r.withTarget ? Math.round((r.withinTarget / r.withTarget) * 1000) / 1000 : null,
       specimensRejected: rejected[0]?.count ?? 0,
@@ -130,6 +165,13 @@ export class LabReportingQueries {
       /** First result versions entered in the window per instrument (instrumentId null: no instrument recorded); most first. */
       byInstrument: instruments.sort((a, b) => b.results - a.results || (a.name ?? "~").localeCompare(b.name ?? "~")),
       topTests: topTests,
+      /** First releases per department, most first. */
+      byDepartment: departments
+        .map(({ withTarget, withinTarget, ...dpt }) => ({
+          ...dpt,
+          withinTargetRate: withTarget ? Math.round((withinTarget / withTarget) * 1000) / 1000 : null,
+        }))
+        .sort((a, b) => b.released - a.released || a.name.localeCompare(b.name)),
       daily: daily.sort((a, b) => a.date.localeCompare(b.date)),
     };
   }

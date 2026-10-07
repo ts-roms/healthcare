@@ -44,7 +44,9 @@ Every figure covers the chosen local days at the facilities in scope. The API re
 - **No-show rate** — no-shows ÷ appointments booked (appointments starting in the period; cancelled ones excluded from
   both).
 - **Average wait** — average minutes from check-in to the start of the consultation, for visits checked in during the
-  period whose consultation started.
+  period whose consultation started. **Median** and **90th percentile** of the same waits (`percentile_cont`) sit beside
+  it: the wait half, and nine in ten, of those visits beat, which one very long wait does not sway. The median is a key
+  figure and compared; the 90th percentile is shown under it.
 - **Schedule utilization** (per practitioner and overall) — booked minutes (appointments starting in the period, not
   cancelled, no-shows included) ÷ available minutes: the practitioner's weekly schedules at the facilities in scope valid
   on each day (a retired schedule until it was retired), less leave and facility closures (a multirange difference, so
@@ -54,8 +56,10 @@ Every figure covers the chosen local days at the facilities in scope. The API re
   notes shown separately). **Collected** — payments recorded in the period less refunds recorded in the period
   (deposits and account credit not included).
 - **Lab tests released** — tests whose result was first released in the period (a result's first version); later
-  versions count as corrections. **Turnaround** — average minutes from collection to that first release.
-  **Within target** — of those whose catalog entry has a turnaround target, the share released within it.
+  versions count as corrections. **Turnaround** — average minutes from collection to that first release, with the
+  **median** (a key figure, compared) and **90th percentile** beside it. **Within target** — of those whose catalog
+  entry has a turnaround target, the share released within it. **By department** — the same release, average and
+  median turnaround and within-target figures per `lab_department` (the department of each test's catalog entry).
 - **Specimen rejection rate** — specimens rejected ÷ specimens collected, for specimens collected in the period
   (whenever they were rejected). The older "specimens rejected" figure (rejected in the period) is kept.
 - **Results per instrument** — first versions of results entered in the period, by the instrument recorded on them
@@ -63,7 +67,10 @@ Every figure covers the chosen local days at the facilities in scope. The API re
 - **Dental procedures** — performed in the period, excluding entered in error; patients = distinct patients treated.
 - **Online consultations** — telemedicine sessions whose video consultation started in the period: ended, escalated to
   in-person care, still in consultation. **Escalation rate** = escalated ÷ finished (ended + escalated). Not a quality
-  target.
+  target. **Waiting room** — for consultations started in the period, the average, median and 90th percentile minutes
+  from the patient joining the waiting room to the consultation starting; **joined, never seen** counts sessions whose
+  patient joined the waiting room in the period and whose consultation never started (one patient each, so suppressed
+  like a patient count).
 - **Retention** — of the patients seen in the period at the facilities in scope, the share who also had a completed
   consultation there in the **12 months** before the period started.
 - **Returned within 90 days** — cohort: patients seen in the period whose first completed consultation in the period
@@ -75,10 +82,13 @@ patients seen.
 
 ## Previous-period comparison
 
-The same queries also run for the period of the same length just before the range (30 days before the last 30 days;
-the day before a single day). The API returns the headline figures for both — `keyFigures` and `previous.keyFigures`:
-patients seen, new patients, consultations, no-show rate, average wait, net invoiced, net collected, laboratory tests
-released, laboratory turnaround, dental procedures, specimen rejection rate and retention rate — and, per figure,
+The same queries also run for the comparison period: by default the period of the same length just before the range
+(30 days before the last 30 days; the day before a single day), or, with `comparison=last-year`, the same calendar
+dates one year earlier (`comparisonRange`; 29 February falls back to 28 February, so a leap-year range compares with
+one day less). `previous.mode` says which. The API returns the headline figures for both — `keyFigures` and
+`previous.keyFigures`: patients seen, new patients, consultations, no-show rate, average and median wait, net invoiced,
+net collected, laboratory tests released, average and median laboratory turnaround, dental procedures, specimen
+rejection rate and retention rate — and, per figure,
 `previous.changes[key]`: its `unit`, which direction is `better` (up for volumes, revenue and retention; down for
 no-shows, waiting, turnaround and rejections) and the `change` (absolute — a fraction for rates: 0.05 = 5 percentage
 points —, relative (not for rates, nor from zero), direction, and the assessment `better` / `worse` / `unchanged` /
@@ -127,24 +137,28 @@ true`). Consultation, test and procedure counts and money are not patient counts
 
 ## API
 
-- `GET /api/v1/management/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&facilityId=` → figures, `daily`, `keyFigures`,
-  `previous` (`from`, `to`, `keyFigures`, `changes`), `retention`, `telemedicine`, `suppressionThreshold`, `withheld`,
+- `GET /api/v1/management/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD&facilityId=&comparison=previous|last-year` → figures,
+  `daily`, `keyFigures`, `previous` (`from`, `to`, `mode`, `keyFigures`, `changes`), `retention`, `telemedicine` (with
+  waiting-room figures), `laboratory.byDepartment`, `suppressionThreshold`, `withheld`,
   `definitions`, the facilities the caller may choose (`facilities`) and whether the whole organization is available
   (`wholeOrganization`). 400 for an unusable range, 403 outside the caller's facilities, 404 for an unknown facility.
-- `GET /api/v1/management/dashboard/export?table=…&from=&to=&facilityId=` → one table as `text/csv` (attachment
+- `GET /api/v1/management/dashboard/export?table=…&from=&to=&facilityId=&comparison=` → one table as `text/csv` (attachment
   `management-{table}-{from}-to-{to}.csv`), RFC 4180 with a UTF-8 byte-order mark, amounts in pesos with two decimals,
   rates as fractions. Tables: `summary` (each key figure for the range and the previous period, the change, which way is
-  better and the assessment), `daily`, `providers` (with booked and available minutes and utilization), `laboratory`,
-  `lab-tests`, `lab-instruments`, `dental-procedures`, `telemedicine`, `retention`, and — with billing reporting —
+  better and the assessment), `daily`, `providers` (with booked and available minutes and utilization), `laboratory`
+  (with median and 90th-percentile turnaround), `lab-tests`, `lab-instruments`, `lab-departments`, `dental-procedures`,
+  `telemedicine` (with the waiting-room figures), `retention`, and — with billing reporting —
   `services` (with patients), `categories`, `revenue`, `collections`. Suppression applies. A cell starting with `=`, `+`,
   `-`, `@`, a tab or a carriage return is prefixed with an apostrophe, so spreadsheets never run staff-entered names as
   formulas. The same scope rules apply.
 
 ## Staff app
 
-`/management` (navigation _Management_, shown with `management.dashboard.read`): range and facility filters with quick
-ranges; key figures, each with its previous-period change (arrow, words and colour — never colour alone) and "How is
-this calculated?"; two daily charts — activity (consultations and lab releases) and revenue (pesos, only when not
+`/management` (navigation _Management_, shown with `management.dashboard.read`): range, facility and comparison
+filters (the period just before, or the same dates last year) with quick ranges; key figures, each with its comparison
+change (arrow, words and colour — never colour alone), the median and 90th percentile under the wait and turnaround
+figures, and "How is this calculated?"; a laboratory-by-department table and the waiting-room figures of online
+consultations; two daily charts — activity (consultations and lab releases) and revenue (pesos, only when not
 withheld), never on one axis — each with a legend and a table view (`DailySeriesChart` in `@healthcare/ui/healthcare`);
 tables of top services, revenue by category and payment method, providers with utilization, laboratory tests and
 instruments, dental procedure codes, online consultations and retention; CSV downloads of each table (revenue tables
@@ -195,5 +209,5 @@ never a figure; idempotent per run, recipient and channel).
 
 ## Not yet
 
-A PDF export, comparisons with the same period last year, per-department laboratory figures, median/percentile waiting and turnaround times, inventory and dispensing
-figures, telemedicine waiting times, and scheduled reports as PDF or by email attachment.
+A PDF export, inventory and dispensing figures, scheduled reports as PDF or by email attachment (D8 phase 2), and a
+comparison that aligns weekdays rather than calendar dates.

@@ -1,4 +1,4 @@
-import type { ManagementFigureChange, ManagementPatientCount } from "./api/types";
+import type { ManagementComparisonMode, ManagementFigureChange, ManagementPatientCount } from "./api/types";
 import { shiftDate } from "./clinic-mapping";
 
 /** Display rules for the management dashboard; the API computes every figure. */
@@ -46,9 +46,21 @@ export function comparison(current: number | "<5" | null, previous: number | "<5
 }
 
 /** "the previous 30 days" / "the previous day". */
-export function previousLabel(from: string, to: string): string {
+export function previousLabel(from: string, to: string, mode: ManagementComparisonMode = "previous"): string {
+  if (mode === "last-year") return "the same dates last year";
   const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
   return days === 1 ? "the previous day" : `the previous ${days} days`;
+}
+
+export const COMPARISON_OPTIONS: Array<{ key: ManagementComparisonMode; label: string }> = [
+  { key: "previous", label: "The period just before" },
+  { key: "last-year", label: "The same dates last year" },
+];
+
+/** "median 25 · 90th pct 40" for a figure's spread; "—" for the parts that have no value. */
+export function spreadLabel(median: number | null, p90: number | null): string {
+  const m = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("en-PH")} min`);
+  return `median ${m(median)} · 90th percentile ${m(p90)}`;
 }
 
 /** Whether the change is an improvement, from the API's direction of improvement for the figure; colour follows. */
@@ -81,6 +93,7 @@ export const EXPORT_TABLES: Array<{ key: string; label: string; revenue?: true }
   { key: "laboratory", label: "Laboratory" },
   { key: "lab-tests", label: "Lab tests" },
   { key: "lab-instruments", label: "Lab instruments" },
+  { key: "lab-departments", label: "Lab departments" },
   { key: "dental-procedures", label: "Dental procedures" },
   { key: "telemedicine", label: "Online consultations" },
   { key: "retention", label: "Retention" },

@@ -403,13 +403,17 @@ administrator).
 billing report access (`billing.report.read`) for every facility shown.
 
 1. Open **Management** in the menu (`/management`).
-2. Choose **From**, **To** and a **Facility** (or **All facilities**), or a quick range such as **Last 30 days**, and select **Apply**.
+2. Choose **From**, **To** and a **Facility** (or **All facilities**), or a quick range such as **Last 30 days**; under **Compare with** choose
+   **The period just before** or **The same dates last year**; select **Apply**.
 3. Read the key figures. Under each one:
-   - the change against the previous period of the same length, with **(better)** or **(worse)** — for example, a lower no-show rate is better, a
-     longer wait is worse;
+   - the change against the comparison period, with **(better)** or **(worse)** — for example, a lower no-show rate is better, a longer wait is
+     worse;
+   - for the waiting time and the laboratory turnaround, the **median** (the time half the visits or tests beat) and the **90th percentile** (the
+     time nine in ten beat) beside the average, which one very long wait can distort;
    - **How is this calculated?** explains exactly what is counted.
 4. Scroll for the daily charts (each has **Show as table**) and the tables: services, revenue by category and payment method, providers with schedule
-   utilization, laboratory tests and instruments, dental procedures, online consultations and patient retention.
+   utilization, laboratory tests, instruments and departments, dental procedures, online consultations (with how long patients waited in the
+   waiting room and how many joined without being seen) and patient retention.
 5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos.
 
 **Things to know:**

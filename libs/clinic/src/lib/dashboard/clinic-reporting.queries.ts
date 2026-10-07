@@ -33,6 +33,15 @@ export class ClinicReportingQueries {
           averageWaitMinutes: sql<
             number | null
           >`round(avg(extract(epoch from ${visit.consultationStartedAt} - ${visit.checkedInAt}) / 60) filter (where ${visit.consultationStartedAt} is not null))::int`,
+          // Percentiles of the same waits: the median and the wait nine in ten visits beat.
+          medianWaitMinutes: sql<
+            number | null
+          >`round(percentile_cont(0.5) within group (order by extract(epoch from ${visit.consultationStartedAt} - ${visit.checkedInAt}) / 60)
+            filter (where ${visit.consultationStartedAt} is not null))::int`,
+          p90WaitMinutes: sql<
+            number | null
+          >`round(percentile_cont(0.9) within group (order by extract(epoch from ${visit.consultationStartedAt} - ${visit.checkedInAt}) / 60)
+            filter (where ${visit.consultationStartedAt} is not null))::int`,
         })
         .from(visit)
         .where(and(eq(visit.organizationId, organizationId), reportingRange(visit.checkedInAt, window), reportingFacility(visit.facilityId, window))),
@@ -71,7 +80,7 @@ export class ClinicReportingQueries {
     const e = encounters[0] ?? { completed: 0, telemedicine: 0, patientsSeen: 0 };
     return {
       appointments: { ...a, noShowRate: a.booked ? Math.round((a.noShow / a.booked) * 1000) / 1000 : null },
-      visits: visits[0] ?? { checkedIn: 0, walkIns: 0, leftWithoutBeingSeen: 0, averageWaitMinutes: null },
+      visits: visits[0] ?? { checkedIn: 0, walkIns: 0, leftWithoutBeingSeen: 0, averageWaitMinutes: null, medianWaitMinutes: null, p90WaitMinutes: null },
       encounters: { ...e, returningPatients: returning[0]?.patients ?? 0 },
       providers,
       daily: daily.sort((x, y) => x.date.localeCompare(y.date)),
