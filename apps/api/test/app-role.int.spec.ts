@@ -24,7 +24,7 @@ describe("application database role", () => {
     const tenant = await createTenant(ctx.pool, "app-role");
     await createStaff(ctx.pool, tenant, "admin@app-role.ph", ["org_admin"]);
     await login(ctx, "admin@app-role.ph");
-    app = new Pool({ connectionString: TEST_APP_DATABASE_URL, max: 1 });
+    app = new Pool({ connectionString: TEST_APP_DATABASE_URL, max: 1, options: "-c app.scope=all" });
   });
   afterAll(async () => {
     await app.end();

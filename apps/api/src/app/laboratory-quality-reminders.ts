@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import { UsersService } from "@healthcare/auth";
-import { DATABASE, type Database, systemActor } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, systemActor } from "@healthcare/core";
 import { LabQualityDue } from "@healthcare/laboratory";
 import { NotificationService } from "@healthcare/notification";
 import { sql } from "drizzle-orm";
@@ -29,7 +29,7 @@ export class LaboratoryQualityReminders implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("laboratory quality reminders", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

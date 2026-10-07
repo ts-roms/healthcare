@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { DATABASE, type Database, systemActor } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, systemActor } from "@healthcare/core";
 import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { fhirImport, fhirImportContent } from "./fhir-import.schema";
 
@@ -28,7 +28,9 @@ export class FhirImportRetention implements OnApplicationShutdown {
   /** Hourly purge. Called once at API start-up. */
   start(intervalMs = INTERVAL_MS): void {
     this.timer ??= setInterval(() => {
-      this.purge().catch((error: unknown) => this.logger.error("FHIR import retention failed", error instanceof Error ? error.stack : String(error)));
+      asPlatform("FHIR import retention", () => this.purge()).catch((error: unknown) =>
+        this.logger.error("FHIR import retention failed", error instanceof Error ? error.stack : String(error)),
+      );
     }, intervalMs);
   }
 

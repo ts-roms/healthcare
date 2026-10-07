@@ -6,6 +6,7 @@ import {
   type Actor,
   APP_CONFIG,
   type AppConfig,
+  asPlatform,
   BusinessRuleError,
   ConflictError,
   DATABASE,
@@ -81,9 +82,9 @@ export class AuditRetentionService implements OnApplicationShutdown {
   /** Keeps partitions ready daily and runs requested archives. Called once at API start-up. */
   start(): void {
     if (this.timers.length > 0) return;
-    void this.ensurePartitions();
-    this.timers.push(setInterval(() => void this.ensurePartitions(), ENSURE_INTERVAL_MS));
-    this.timers.push(setInterval(() => void this.tick(), POLL_INTERVAL_MS));
+    void asPlatform("audit partitions and archives", () => this.ensurePartitions());
+    this.timers.push(setInterval(() => asPlatform("audit partitions and archives", () => void this.ensurePartitions()), ENSURE_INTERVAL_MS));
+    this.timers.push(setInterval(() => asPlatform("audit partitions and archives", () => void this.tick()), POLL_INTERVAL_MS));
   }
 
   onApplicationShutdown(): void {

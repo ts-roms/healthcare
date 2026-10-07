@@ -54,12 +54,14 @@ export async function runMigrations(pool: Pool, directory: string): Promise<Migr
         throw new Error(`Migration ${file} failed: ${(error as Error).message}`, { cause: error });
       }
     }
-    // Audit partitions for the coming months (0110_audit_partitions.sql), then the application role's privileges
+    // Audit partitions for the coming months (0110_audit_partitions.sql), row-level security, then the application role's privileges
     // (0109_app_role.sql): both follow every run, so later migrations and a database restored without its grants are
     // covered.
     const present = async (signature: string) =>
       (await client.query<{ present: boolean }>("SELECT to_regprocedure($1) IS NOT NULL AS present", [signature])).rows[0]?.present === true;
     if (await present("ensure_audit_partitions(integer)")) await client.query("SELECT ensure_audit_partitions(3)");
+    // Row-level security on tables added by later migrations (0111_row_level_security.sql).
+    if (await present("apply_rls_policies()")) await client.query("SELECT apply_rls_policies()");
     if (await present("apply_app_privileges()")) await client.query("SELECT apply_app_privileges()");
     return result;
   } finally {

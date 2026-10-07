@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database, localTime, PH_TIMEZONE, systemActor, todayInPhilippines } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, localTime, PH_TIMEZONE, systemActor, todayInPhilippines } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
@@ -38,7 +38,7 @@ export class CarePlanRecallReminders implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("care-plan recall reminders", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

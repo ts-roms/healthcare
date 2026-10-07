@@ -86,6 +86,13 @@ should confirm the person's identity in person first (the reason records how).
 
 ## Authorization model
 
+**Organization isolation in the database (migration `0111`):** behind the application's own `organization_id` filters,
+PostgreSQL row-level security holds every request to its actor's organization: the access guards stamp the request's
+database context once the actor is resolved, platform administrator routes and background work take the platform
+scope with a stated reason. Applies when the API connects as the restricted application role
+([database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization)); `DATABASE_RLS_MODE`
+`observe` (default) still lets a query without any context through and logs where it came from.
+
 ```
 User ──membership──▶ Organization
   └──role_assignment(role, facility?, department?)──▶ Role ──▶ Permissions

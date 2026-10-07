@@ -7,7 +7,15 @@ import { CarePlanModule } from "@healthcare/care-plan";
 import { CrmModule } from "@healthcare/crm";
 import { ClinicModule } from "@healthcare/clinic";
 import { DentalModule } from "@healthcare/dental";
-import { accessLogMiddleware, type AppConfig, CoreModule, HttpExceptionFilter, IdempotencyInterceptor, requestIdMiddleware } from "@healthcare/core";
+import {
+  accessLogMiddleware,
+  type AppConfig,
+  CoreModule,
+  databaseContextMiddleware,
+  HttpExceptionFilter,
+  IdempotencyInterceptor,
+  requestIdMiddleware,
+} from "@healthcare/core";
 import { DocumentsModule } from "@healthcare/documents";
 import { InventoryModule } from "@healthcare/inventory";
 import { LaboratoryModule } from "@healthcare/laboratory";
@@ -298,6 +306,7 @@ export class AppModule implements NestModule {
 
   configure(consumer: MiddlewareConsumer): void {
     // The request id first, so the access log line (one per finished request, health probes excluded) carries it.
-    consumer.apply(requestIdMiddleware, accessLogMiddleware(new Logger("Http"))).forRoutes("*path");
+    // The row-level security context first: every query of the request runs inside it (database-context.ts).
+    consumer.apply(databaseContextMiddleware, requestIdMiddleware, accessLogMiddleware(new Logger("Http"))).forRoutes("*path");
   }
 }

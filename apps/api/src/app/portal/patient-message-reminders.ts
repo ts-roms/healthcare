@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database, systemActor } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, systemActor } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { PatientMessageService } from "@healthcare/patient";
 import { sql } from "drizzle-orm";
@@ -26,7 +26,7 @@ export class PatientMessageReminders implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("MyHealth message reminders", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

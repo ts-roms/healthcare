@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
+  asPlatform,
   BusinessRuleError,
   ConflictError,
   DATABASE,
@@ -210,7 +211,7 @@ export class DocumentIntegrityService implements OnApplicationShutdown {
 
   /** Polls for queued (and interrupted) reviews. Called once at API start-up. */
   start(intervalMs = POLL_INTERVAL_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("document integrity reviews", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

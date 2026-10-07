@@ -1,6 +1,6 @@
 import { CanActivate, createParamDecorator, ExecutionContext, Injectable, SetMetadata, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { ForbiddenError, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import { asPlatform, ForbiddenError, requestMetadataFrom, setRequestOrganization, UnauthenticatedError } from "@healthcare/core";
 import type { Request } from "express";
 import { ProxyRefusedError } from "../proxy/proxy.errors";
 import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
@@ -51,7 +51,10 @@ export class PatientAccessGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<PortalRequest>();
     const match = /^Bearer (\S+)$/i.exec(request.header("authorization") ?? "");
     if (!match?.[1]) throw new UnauthenticatedError();
-    const principal = await this.accounts.authenticate(match[1], requestMetadataFrom(request));
+    // The session is looked up before the organization is known; then the request is held to the patient's
+    // organization by row-level security (migration 0111). A proxy grant never crosses organizations.
+    const principal = await asPlatform("resolve the signed-in patient", () => this.accounts.authenticate(match[1]!, requestMetadataFrom(request)));
+    setRequestOrganization(principal.organizationId);
     // The account holder's own two-step verification state decides, whoever they act for.
     if (
       !principal.mfaEnabled &&
