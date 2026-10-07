@@ -1,7 +1,18 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuditService } from "@healthcare/audit";
-import { ACCESS_METADATA, BadRequestError, DomainError, ForbiddenError, type Permission, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import {
+  ACCESS_METADATA,
+  asPlatform,
+  BadRequestError,
+  DomainError,
+  ForbiddenError,
+  type Permission,
+  requestMetadataFrom,
+  setRequestOrganization,
+  setRequestPlatformScope,
+  UnauthenticatedError,
+} from "@healthcare/core";
 import type { Request } from "express";
 import { ActorResolver } from "./actor-resolver";
 
@@ -39,12 +50,17 @@ export class AccessGuard implements CanActivate {
     const header = request.header("authorization");
     const match = header ? /^Bearer (\S+)$/i.exec(header) : null;
     if (!match?.[1]) throw new UnauthenticatedError();
-    const actor = await this.actors.resolve(
-      match[1],
-      { facilityId: request.header("x-facility-id"), departmentId: request.header("x-department-id") },
-      requestMetadataFrom(request),
+    // The session and memberships are looked up before the organization is known; from then on every query of the
+    // request is held to the actor's organization by row-level security (migration 0111).
+    const actor = await asPlatform("resolve the signed-in member", () =>
+      this.actors.resolve(
+        match[1]!,
+        { facilityId: request.header("x-facility-id"), departmentId: request.header("x-department-id") },
+        requestMetadataFrom(request),
+      ),
     );
     request.actor = actor;
+    setRequestOrganization(actor.organizationId);
     // Account set-up comes first: a temporary password from an administrator is replaced (0090), and two-step verification
     // the organization requires is set up; until then only the person's own account routes answer.
     if (!this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.mfaEnrollment, targets)) {
@@ -73,6 +89,9 @@ export class AccessGuard implements CanActivate {
       });
       throw new ForbiddenError();
     }
+    // A platform administrator route works across organizations on purpose (organizations, rate limits, audit
+    // retention, payload keys).
+    if (needsPlatformAdmin) setRequestPlatformScope("platform administrator route");
     return true;
   }
 }

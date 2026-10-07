@@ -1,5 +1,5 @@
 import { Logger, type OnApplicationShutdown, type OnModuleDestroy, type Provider } from "@nestjs/common";
-import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, asPlatform } from "@healthcare/core";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { LAB_REPORT_ARCHIVE_QUEUE, LabReportArchive, type LabReportArchiveQueue } from "./lab-report-archive";
@@ -76,14 +76,14 @@ export class LabReportArchiveWorker implements OnApplicationShutdown {
       LAB_REPORT_ARCHIVE_QUEUE_NAME,
       // Throwing hands the retry and backoff schedule to BullMQ; an archive still pending after the job's attempts is
       // re-queued by reconcile until LabReportArchive parks it as failed.
-      (job) => this.archive.process(String(job.data.archiveId)),
+      (job) => asPlatform("laboratory report archive", () => this.archive.process(String(job.data.archiveId))),
       { connection: this.connection, concurrency },
     );
     this.worker.on("failed", (job, error) =>
       this.logger.warn({ event: "queue.job_failed", queue: LAB_REPORT_ARCHIVE_QUEUE_NAME, jobId: job?.id, attempt: job?.attemptsMade, message: error.message }),
     );
     this.worker.on("failed", () => recordJobFailure(LAB_REPORT_ARCHIVE_QUEUE_NAME));
-    this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
+    this.timer = setInterval(() => asPlatform("laboratory report archive reconciliation", () => void this.reconcile()), RECONCILE_INTERVAL_MS);
     this.logger.log(`Laboratory report archive worker started (concurrency ${concurrency})`);
   }
 

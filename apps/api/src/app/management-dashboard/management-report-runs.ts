@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database } from "@healthcare/core";
 import { sql } from "drizzle-orm";
 import { ManagementReportService } from "./management-report.service";
 
@@ -23,7 +23,7 @@ export class ManagementReportRuns implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("scheduled management reports", () => void this.tick()), intervalMs);
     this.timer.unref?.();
     void this.tick();
   }

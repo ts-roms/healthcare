@@ -3,7 +3,7 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { NotificationDispatcher } from "./notification.dispatcher";
 import type { NotificationQueue } from "./ports";
-import { observeQueueDepth, type QueueDepth, recordJobFailure, recordReconcileFailure } from "@healthcare/core";
+import { asPlatform, observeQueueDepth, type QueueDepth, recordJobFailure, recordReconcileFailure } from "@healthcare/core";
 
 export const NOTIFICATION_QUEUE_NAME = "notifications";
 const RECONCILE_INTERVAL_MS = 60_000;
@@ -63,7 +63,8 @@ export class NotificationWorkerRunner {
     this.worker = new Worker(
       NOTIFICATION_QUEUE_NAME,
       async (job) => {
-        const outcome = await this.dispatcher.dispatch(String(job.data.notificationId));
+        // Jobs of every organization: the platform scope (row-level security, migration 0111).
+        const outcome = await asPlatform("notification delivery", () => this.dispatcher.dispatch(String(job.data.notificationId)));
         // Throwing hands the retry and backoff schedule to BullMQ.
         if (outcome === "retry") throw new Error("Delivery failed; will retry");
         return outcome;
@@ -74,7 +75,7 @@ export class NotificationWorkerRunner {
       this.logger.warn({ event: "queue.job_failed", queue: NOTIFICATION_QUEUE_NAME, jobId: job?.id, message: error.message }),
     );
     this.worker.on("failed", () => recordJobFailure(NOTIFICATION_QUEUE_NAME));
-    this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
+    this.timer = setInterval(() => asPlatform("notification queue reconciliation", () => void this.reconcile()), RECONCILE_INTERVAL_MS);
     this.logger.log(`Notification worker started (concurrency ${concurrency})`);
   }
 

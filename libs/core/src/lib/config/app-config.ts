@@ -45,6 +45,10 @@ const appConfigSchema = z
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
     DATABASE_URL: z.string().url(),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+    // Row-level security (migration 0111, docs/runbooks/database-roles.md): what a query without an organization or
+    // platform context may do. observe: everything (its call site is logged); enforce: nothing; off: no organization
+    // rule at all (rollback). Only effective when DATABASE_URL is the restricted application role.
+    DATABASE_RLS_MODE: z.enum(["off", "observe", "enforce"]).default("observe"),
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
+  asPlatform,
   BusinessRuleError,
   ConflictError,
   DATABASE,
@@ -384,7 +385,7 @@ export class WaitlistOffersService implements OnApplicationShutdown {
   // ---- expiry (hourly) ------------------------------------------------------------------------------------------------
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("waiting-list offers", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

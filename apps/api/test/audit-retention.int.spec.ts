@@ -181,7 +181,7 @@ describe("audit trail retention", () => {
   });
 
   it("leaves the application role unable to change, detach or drop a partition, or remove one itself", async () => {
-    const app = new Pool({ connectionString: TEST_APP_DATABASE_URL, max: 1 });
+    const app = new Pool({ connectionString: TEST_APP_DATABASE_URL, max: 1, options: "-c app.scope=all" });
     try {
       await expect(app.query("UPDATE audit_event_history SET action = 'x.y'")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("TRUNCATE audit_event_history")).rejects.toMatchObject({ code: "42501" });

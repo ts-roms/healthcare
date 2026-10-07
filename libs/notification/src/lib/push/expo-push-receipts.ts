@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database } from "@healthcare/core";
 import { and, asc, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { notification } from "../notification.schema";
 import { EXPO_RECEIPTS_BATCH, expoErrorIsConfiguration, type ExpoPushReceipt, type ExpoPushTransport, expoTokenIsGone } from "./expo-push.transport";
@@ -56,7 +56,7 @@ export class ExpoPushReceipts implements OnApplicationShutdown {
   }
 
   start(intervalMs = RECEIPT_DELAY_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("Expo push receipts", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {
