@@ -11,6 +11,8 @@ export const SECURITY_ALERT_EVENTS = [
   "proxy_access_ended",
   "mfa_exempted",
   "mfa_exemption_ended",
+  "passkey_added",
+  "passkey_removed",
 ] as const;
 export type SecurityAlertEvent = (typeof SECURITY_ALERT_EVENTS)[number];
 

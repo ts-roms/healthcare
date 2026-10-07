@@ -30,6 +30,16 @@ export function securityMessage(code: string | undefined, fallback: string): str
       return "Start again from the beginning: ask for a new setup key.";
     case "mfa_enrollment_required":
       return "Your clinic requires two-step verification. Set it up here to continue.";
+    case "passkeys_unavailable":
+      return "Passkeys are not available on this MyHealth address.";
+    case "passkey_limit_reached":
+      return "You already have 5 passkeys. Remove one first.";
+    case "passkey_challenge_invalid":
+      return "Adding the passkey took too long. Start again.";
+    case "passkey_not_verified":
+      return "The passkey could not be checked. Try again.";
+    case "passkey_already_added":
+      return "This passkey is already added.";
     default:
       return fallback;
   }

@@ -82,3 +82,19 @@ export async function renewRecoveryCodes(input: { password: string; code: string
   if (!input.password || !input.code.trim()) return { ok: false, message: "Enter your password and the code from your authenticator app." };
   return done(await run(() => portalApi<{ recoveryCodes: string[] }>("/portal/mfa/recovery-codes", { method: "POST", body: input })));
 }
+
+/** Checks the password and a current code, then returns the options the browser needs to make a passkey. */
+export async function passkeyOptions(input: { password: string; code: string }): Promise<Result<unknown>> {
+  if (!input.password || !input.code.trim()) return { ok: false, message: "Enter your password and a code." };
+  return run(() => portalApi<unknown>("/portal/mfa/passkeys/options", { method: "POST", body: { password: input.password, code: input.code.trim() } }));
+}
+
+/** Stores the passkey the browser made (as @simplewebauthn/browser returned it). */
+export async function addPasskey(input: { response: unknown; label?: string }): Promise<Result<unknown>> {
+  const label = input.label?.trim() || undefined;
+  return done(await run(() => portalApi<unknown>("/portal/mfa/passkeys", { method: "POST", body: { response: input.response, label } })));
+}
+
+export async function removePasskey(passkeyId: string): Promise<Result<undefined>> {
+  return done(await run(() => portalApi<undefined>(`/portal/mfa/passkeys/${encodeURIComponent(passkeyId)}/remove`, { method: "POST" })));
+}

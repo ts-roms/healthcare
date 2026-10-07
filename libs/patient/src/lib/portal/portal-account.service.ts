@@ -28,13 +28,13 @@ import {
   UnauthenticatedError,
 } from "@healthcare/core";
 import { facility, organization } from "@healthcare/organization";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { patient, patientConsent } from "../patient.schema";
 import { displayName } from "../patient.views";
 import { ACTIVATION_TTL_HOURS, generateActivationCode, hashActivationCode, MAX_ACTIVATION_ATTEMPTS } from "./activation-code";
 import type { PortalMfaRequiredResponse, PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
-import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPortalSession } from "./portal.schema";
+import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPasskey, patientPortalSession } from "./portal.schema";
 import { PortalTokenService } from "./portal-tokens";
 import type { ProxyContext } from "../proxy/proxy.rules";
 import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
@@ -417,7 +417,15 @@ export class PortalAccountService {
         resourceType: "patient_portal_account",
         resourceId: account.id,
       });
-      return { status: "mfa_required", challengeToken: await this.tokens.signMfaChallenge({ sub: account.id, org: account.organizationId }) };
+      const [passkeys] = await this.db
+        .select({ n: count() })
+        .from(patientPasskey)
+        .where(and(eq(patientPasskey.accountId, account.id), isNull(patientPasskey.revokedAt)));
+      return {
+        status: "mfa_required",
+        challengeToken: await this.tokens.signMfaChallenge({ sub: account.id, org: account.organizationId }),
+        passkeys: (passkeys?.n ?? 0) > 0,
+      };
     }
     return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password"));
   }
@@ -427,7 +435,7 @@ export class PortalAccountService {
     tx: DbExecutor,
     account: PatientPortalAccountRecord,
     request: RequestMetadata,
-    method: "password" | "password+totp" | "password+recovery_code" | "password+trusted_device",
+    method: "password" | "password+totp" | "password+recovery_code" | "password+passkey" | "password+trusted_device",
     metadata: Record<string, unknown> = {},
   ): Promise<PortalTokenResponse> {
     await tx.update(patientPortalAccount).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() }).where(eq(patientPortalAccount.id, account.id));
@@ -687,7 +695,7 @@ export class PortalAccountService {
   async recordFailedLogin(
     account: PatientPortalAccountRecord,
     context: AuditActor,
-    reason: "invalid_password" | "invalid_mfa_code" = "invalid_password",
+    reason: "invalid_password" | "invalid_mfa_code" | "invalid_passkey" = "invalid_password",
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       // Atomic increment so concurrent attempts cannot bypass the limit.

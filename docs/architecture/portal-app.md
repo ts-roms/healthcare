@@ -71,10 +71,37 @@ Patients can add an authenticator app (TOTP, RFC 6238: 6 digits, 30 s, one step 
   security, email only: the organization's name, the date and a link to `/security` when `PORTAL_BASE_URL` is set; nothing clinical), keyed
   per policy version and account, so a repeated event sends nothing twice. The recipient directory sends only to an account that can sign in.
   Turning the requirement off sends nothing.
+- **Passkeys** (migration `0108`, D6 phase 3; `libs/patient/src/lib/security/portal-passkey.service.ts`; WebAuthn through
+  `@simplewebauthn/server` and, in MyHealth, `@simplewebauthn/browser`, both MIT). The three decisions were taken as follows: a passkey
+  answers **the second step only** (the password is still asked first); it belongs to **MyHealth's own address** — the relying-party ID is the
+  host of `PORTAL_BASE_URL` and its origin the only one accepted (`passkeyRelyingParty`; https, or `http://localhost` in development);
+  without `PORTAL_BASE_URL` every passkey route answers `422 passkeys_unavailable` and `GET /portal/mfa/passkeys` says `available: false`;
+  and **the web comes first** (the mobile app keeps the code). Rules:
+  - Added only **on top of two-step verification with the app**, which stays the fallback with the recovery codes; `mfa_enabled`, the
+    clinic's requirement, its exemptions and remembered browsers keep their meaning. Adding one (`POST /portal/mfa/passkeys/options` with the
+    password and a current code — the app's or a recovery code —, then `POST /portal/mfa/passkeys` with the browser's answer and an optional
+    name) needs both; wrong ones count toward the lockout as elsewhere. Sensitive changes (turning two-step verification off, new recovery
+    codes, changing the email) still ask for a code, never a passkey.
+  - **User verification is required** (the device's PIN, fingerprint or face); attestation `none`; only the credential id, the public key
+    (base64url), the signature counter, transports, whether it is synced and a label are stored (`patient_passkey`) — the label the patient's
+    or one derived from the browser. At most **5** per account (`PASSKEY_LIMIT`). Each challenge (`patient_passkey_challenge`) is random,
+    stored as the SHA-256 of its base64url form, single-use and valid **5 minutes**, spent whatever the outcome.
+  - **Signing in:** the password step's answer carries `passkeys: true` when the account has one; `POST /portal/auth/mfa/passkey/options`
+    with the challenge token returns the options (the account's passkeys as allowed credentials), and `POST /portal/auth/mfa/verify` takes
+    `passkey` instead of `code` (exactly one of them). A refused answer — unknown or another account's passkey, a spent or expired challenge,
+    no user verification, a bad signature — counts toward the lockout (`invalid_passkey`); **a counter that went backwards or stood still**
+    (`passkeyCounterRolledBack`, possible copy; authenticators that keep no counter report 0 and are accepted) is refused and audited
+    `portal.passkey-refused` (`counter_rollback`). A right one opens the session (audited `portal.login` with `method: "password+passkey"`
+    and the passkey id), records the counter and last use, and may remember the browser like a code.
+  - `GET /portal/mfa/passkeys` lists them; `POST /portal/mfa/passkeys/:id/remove` removes one (`removed_by_patient`). Turning two-step
+    verification off (`mfa_disabled`) or the clinic resetting it (`mfa_reset`) removes them all; rows are kept as history. Audited
+    `portal.passkey-add`, `portal.passkey-remove`; the patient is emailed (`portal.security-alert`, events `passkey_added`, `passkey_removed`,
+    with the passkey's name).
+  - MyHealth: a **Passkeys** section on `/security` (shown with two-step verification on) and **Use a passkey** on the second step of
+    sign-in. No new permission; staff see nothing new.
 - Not built: SMS codes (no SMS provider is selected — `docs/interoperability/dependencies.md` — and text codes are weaker than an app because of
-  SIM swapping) and WebAuthn/passkeys, deferred until three decisions are made: whether a passkey replaces the app as the second step or the
-  password too, which domain they belong to if organizations run MyHealth on their own domains, and whether the mobile app gets them at the same
-  time (a native module and a store build).
+  SIM swapping); passkeys in the mobile app (a native module and a store build), for staff, and passkeys that replace the password
+  (passwordless sign-in); passkeys for organizations running MyHealth on several addresses (one relying party per deployment).
 
 ## Session
 

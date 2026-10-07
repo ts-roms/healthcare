@@ -524,6 +524,8 @@ export interface PortalPreferences {
 export interface PortalMfaRequired {
   status: "mfa_required";
   challengeToken: string;
+  /** The account has a passkey for the second step (migration 0108). */
+  passkeys?: boolean;
 }
 
 /** `GET /portal/email` */
@@ -542,6 +544,23 @@ export interface PortalMfaPolicy {
 }
 
 /** `GET /portal/mfa/devices` row: a browser remembered after the second step. */
+/** A passkey of the account (migration 0108); the second step of signing in may use it instead of a code. */
+export interface PortalPasskey {
+  id: string;
+  label: string;
+  /** The passkey may be synced to the patient's other devices. */
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface PortalPasskeyList {
+  /** This MyHealth address offers passkeys. */
+  available: boolean;
+  limit: number;
+  passkeys: PortalPasskey[];
+}
+
 export interface PortalTrustedDevice {
   id: string;
   label: string;

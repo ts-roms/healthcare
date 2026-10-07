@@ -41,7 +41,7 @@ working and you need a new one.
 To sign out, choose **Sign out** at the top of the page. You see "You have signed out."
 
 If your account uses **two-step verification**, after your password you are asked for a code: the 6 digits from your authenticator app, or one of your
-recovery codes (see [How to make your sign-in more secure](#how-to-make-your-sign-in-more-secure)).
+recovery codes — or, if you added one, you can choose **Use a passkey** (see [How to make your sign-in more secure](#how-to-make-your-sign-in-more-secure)).
 
 If you have been away for a while, or the clinic ended your access, you may be sent back to the sign-in page with "You were signed out. Sign in again to
 continue."
@@ -82,6 +82,13 @@ are signed out everywhere; sign in with your password and set it up again.
 is yours: that browser then signs in with your password alone until the 30 days are over, or until you forget it. **Sign-in security** lists your
 remembered browsers (the one you are using is marked **This browser**) with **Forget**; turning two-step verification off, or the clinic resetting it,
 forgets them all, and so does a password reset. You can remember at most five; the one used least recently makes room.
+
+**Passkeys.** With two-step verification on, you can let your phone or computer unlock the second step with its own PIN, fingerprint or face instead of
+typing a code. Under **Passkeys** choose **Add a passkey**, enter your password and a code (from the app, or a recovery code), give it a name if you like,
+choose **Continue** and follow what your device asks. Next time, after your password, choose **Use a passkey**. Your password is still needed, and the app
+and recovery codes keep working if you lose the device. You can have up to five passkeys and **Remove** any of them; turning two-step verification off,
+or the clinic resetting it, removes them all. We email you when a passkey is added or removed. Passkeys work in MyHealth on the web; the mobile app still
+asks for the code.
 
 **When your clinic requires two-step verification.** Some clinics require it for everyone. MyHealth tells you the date from which it applies, on Home
 and under **Sign-in security**, so you have time to set it up. From that date you can still sign in, but only **Profile** and **Sign-in security** open
@@ -507,8 +514,10 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - After 5 wrong passwords in a row, sign-in is locked for about 15 minutes. Resetting your password ends the lock.
 - Your email must be confirmed before you can turn on two-step verification. A code sent to confirm an email works for 15 minutes, allows 5 tries, and
   at most 5 are sent an hour.
-- With two-step verification on, every sign-in needs a code from the app (or a recovery code), and every code works once. Wrong codes count toward the
-  same lock as wrong passwords. Resetting your password does not turn it off.
+- With two-step verification on, every sign-in needs a code from the app (or a recovery code, or a passkey you added), and every code works once. Wrong
+  codes and refused passkeys count toward the same lock as wrong passwords. Resetting your password does not turn it off.
+- Adding a passkey needs your password and a code; you can have at most 5. Turning off two-step verification or making new recovery codes still needs
+  a code, not a passkey.
 - A password-reset link works once, for 30 minutes, needs your date of birth, and at most 3 are sent per hour. Choosing a new password signs you out
   everywhere.
 - You can book only kinds of visit the clinic opened for online booking, only in open times of the doctor's schedule.
@@ -536,6 +545,7 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 | This link or date of birth is not correct, or the link has expired. Ask for a new link.      | The reset link was used, replaced, expired, or the date of birth was wrong | Ask for a new link and enter your date of birth as on your record |
 | That code is not correct, or it has expired. Ask for a new code.                             | The email code was wrong, expired, or used up its 5 tries                  | Ask for a new code under Sign-in security                         |
 | That code is not correct. Use the newest code in your authenticator app, or a recovery code. | The app's code was wrong, or already used                                  | Wait for the next code in the app, or use a recovery code         |
+| The passkey could not be checked. Try again, or use a code.                                  | The passkey was refused or cancelled, or the request took too long         | Try **Use a passkey** again, or enter a code from the app         |
 | Invalid email or password                                                                    | Email or password is wrong                                                 | Try again carefully                                               |
 | Too many failed attempts. Try again later.                                                   | Sign-in is locked after repeated wrong passwords                           | Wait about 15 minutes                                             |
 | Too many attempts. Wait a minute, then try again.                                            | Too many tries in a short time                                             | Wait a minute                                                     |
