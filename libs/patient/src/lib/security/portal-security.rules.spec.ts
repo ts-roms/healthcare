@@ -9,6 +9,9 @@ import {
   deviceLabel,
   patientMfaEnrollmentRequired,
   TRUSTED_DEVICE_DAYS,
+  PASSKEY_LIMIT,
+  passkeyCounterRolledBack,
+  passkeyRelyingParty,
 } from "./portal-security.rules";
 
 describe("portal security rules", () => {
@@ -71,5 +74,24 @@ describe("patient two-step verification policy and trusted devices (migration 01
     expect(deviceLabel("curl/8.0")).toBe("Browser");
     expect(deviceLabel(null)).toBe("Browser");
     expect(TRUSTED_DEVICE_DAYS).toBe(30);
+  });
+
+  it("takes the passkey relying party from MyHealth's address, and offers none without one", () => {
+    expect(passkeyRelyingParty("https://myhealth.example.ph")).toEqual({ rpID: "myhealth.example.ph", origin: "https://myhealth.example.ph" });
+    expect(passkeyRelyingParty("https://myhealth.example.ph:8443/app")).toEqual({ rpID: "myhealth.example.ph", origin: "https://myhealth.example.ph:8443" });
+    expect(passkeyRelyingParty("http://localhost:3001")).toEqual({ rpID: "localhost", origin: "http://localhost:3001" });
+    expect(passkeyRelyingParty("http://myhealth.example.ph")).toBeNull();
+    expect(passkeyRelyingParty(undefined)).toBeNull();
+    expect(passkeyRelyingParty("not a url")).toBeNull();
+    expect(PASSKEY_LIMIT).toBe(5);
+  });
+
+  it("refuses a passkey counter that went backwards or stood still, unless the authenticator keeps none", () => {
+    expect(passkeyCounterRolledBack(0, 0)).toBe(false);
+    expect(passkeyCounterRolledBack(0, 1)).toBe(false);
+    expect(passkeyCounterRolledBack(5, 6)).toBe(false);
+    expect(passkeyCounterRolledBack(5, 5)).toBe(true);
+    expect(passkeyCounterRolledBack(5, 2)).toBe(true);
+    expect(passkeyCounterRolledBack(5, 0)).toBe(true);
   });
 });

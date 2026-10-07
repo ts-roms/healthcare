@@ -34,6 +34,8 @@ export class DisablePortalAccountDto extends createZodDto(disablePortalAccountSc
 export interface PortalMfaRequiredResponse {
   status: "mfa_required";
   challengeToken: string;
+  /** The account has at least one passkey (migration 0108): the second step may use one instead of a code. */
+  passkeys: boolean;
 }
 
 export interface PortalTokenResponse {

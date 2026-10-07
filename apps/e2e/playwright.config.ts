@@ -21,6 +21,8 @@ const apiEnv = {
   JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
   MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
   CORS_ORIGINS: `${STAFF_URL},${PORTAL_URL}`,
+  // MyHealth's address: the relying party of its passkeys (journey 7) and the links in its emails.
+  PORTAL_BASE_URL: PORTAL_URL,
   TRUST_PROXY: "true",
 };
 // No video server: online consultations run without video (the clinician can call the patient's number). Nx loads a

@@ -320,6 +320,8 @@ export const TEMPLATES = [
         "proxy_access_ended",
         "mfa_exempted",
         "mfa_exemption_ended",
+        "passkey_added",
+        "passkey_removed",
       ]),
       /** For "recovery_code_used": how many are left; for "email_changed": the new address, partly hidden. */
       detail: shortText.optional(),
@@ -339,6 +341,8 @@ export const TEMPLATES = [
           "The clinic exempted your MyHealth account from its two-step verification requirement. You can still turn two-step verification on under Sign-in security.",
         mfa_exemption_ended:
           "The clinic ended your exemption from its two-step verification requirement. If the clinic requires it, you will be asked to set it up when you sign in.",
+        passkey_added: `A passkey${v.detail ? ` (${v.detail})` : ""} was added to your MyHealth account. It can now be used for the second step of signing in.`,
+        passkey_removed: `A passkey${v.detail ? ` (${v.detail})` : ""} was removed from your MyHealth account.`,
         email_changed: `The sign-in email of your MyHealth account was changed${v.detail ? ` to ${v.detail}` : ""}.`,
       }[v.event];
       return {

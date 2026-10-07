@@ -5,6 +5,7 @@ import { PatientMessagesController, PortalMessageThreadsController } from "./mes
 import { PatientMessageService } from "./messaging/patient-message.service";
 import { PortalEmailService } from "./security/portal-email.service";
 import { PortalMfaService } from "./security/portal-mfa.service";
+import { PortalPasskeyService } from "./security/portal-passkey.service";
 import { PatientMfaPolicyController } from "./security/portal-mfa-policy.controller";
 import { PortalMfaPolicyService } from "./security/portal-mfa-policy.service";
 import { PortalTrustedDeviceService } from "./security/portal-trusted-device.service";
@@ -69,6 +70,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PortalPasswordResetService,
     PortalEmailService,
     PortalMfaService,
+    PortalPasskeyService,
     PatientMessageService,
     PortalSecurityMailers,
     ConsentTextService,

@@ -1,19 +1,21 @@
 import { ShieldAlertIcon } from "lucide-react";
 import { portalApi } from "@/lib/api/client";
-import type { PortalEmailStatus, PortalMfaStatus, PortalTrustedDevice } from "@/lib/api/types";
+import type { PortalEmailStatus, PortalMfaStatus, PortalPasskeyList, PortalTrustedDevice } from "@/lib/api/types";
 import { getMe } from "@/lib/api/session";
 import { mfaPolicyNotice } from "@/lib/security";
 import { DevicesSection } from "./devices-section";
 import { EmailSection } from "./email-section";
 import { MfaSection } from "./mfa-section";
+import { PasskeysSection } from "./passkeys-section";
 
 export const metadata = { title: "Sign-in security" };
 
 export default async function SecurityPage() {
-  const [email, mfa, devices, me] = await Promise.all([
+  const [email, mfa, devices, passkeys, me] = await Promise.all([
     portalApi<PortalEmailStatus>("/portal/email"),
     portalApi<PortalMfaStatus>("/portal/mfa"),
     portalApi<PortalTrustedDevice[]>("/portal/mfa/devices"),
+    portalApi<PortalPasskeyList>("/portal/mfa/passkeys"),
     getMe(),
   ]);
   const notice = mfaPolicyNotice(me.mfaPolicy, me.account.mfaEnabled);
@@ -30,6 +32,7 @@ export default async function SecurityPage() {
       ) : null}
       <EmailSection status={email} mfaEnabled={mfa.enabled} />
       <MfaSection status={mfa} timeZone={me.timeZone} />
+      {mfa.enabled ? <PasskeysSection list={passkeys} timeZone={me.timeZone} /> : null}
       {mfa.enabled ? <DevicesSection devices={devices} timeZone={me.timeZone} /> : null}
     </div>
   );

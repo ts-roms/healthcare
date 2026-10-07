@@ -138,3 +138,39 @@ export const patientTrustedDevice = pgTable("patient_trusted_device", {
   revokedReason: text("revoked_reason").$type<TrustedDeviceRevokeReason>(),
 });
 export type PatientTrustedDeviceRecord = typeof patientTrustedDevice.$inferSelect;
+
+/** Why a passkey stopped working (0108_patient_passkeys.sql). */
+export type PasskeyRevokeReason = "removed_by_patient" | "mfa_disabled" | "mfa_reset";
+
+/**
+ * A passkey (WebAuthn credential) of a MyHealth account, added on top of two-step verification with the app
+ * (0108_patient_passkeys.sql). Only the public key is kept; ids and keys are base64url text.
+ */
+export const patientPasskey = pgTable("patient_passkey", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  credentialId: text("credential_id").notNull(),
+  publicKey: text("public_key").notNull(),
+  signCount: bigint("sign_count", { mode: "number" }).notNull().default(0),
+  transports: text("transports").array().notNull().default([]),
+  backedUp: boolean("backed_up").notNull().default(false),
+  label: text("label").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  lastUsedAt: ts("last_used_at"),
+  revokedAt: ts("revoked_at"),
+  revokedReason: text("revoked_reason").$type<PasskeyRevokeReason>(),
+});
+export type PatientPasskeyRecord = typeof patientPasskey.$inferSelect;
+
+/** A one-time WebAuthn challenge (stored only as its SHA-256), for adding a passkey or signing in with one. */
+export const patientPasskeyChallenge = pgTable("patient_passkey_challenge", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  purpose: text("purpose").$type<"register" | "sign_in">().notNull(),
+  challengeHash: text("challenge_hash").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+});

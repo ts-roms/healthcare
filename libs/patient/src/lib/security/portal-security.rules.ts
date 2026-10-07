@@ -34,10 +34,11 @@ export function hashRecoveryCode(accountId: string, code: string): string {
   return sha256Hex(`${accountId}:${normalizeActivationCode(code)}`);
 }
 
-export type SecondFactorKind = "totp" | "recovery_code";
+/** "passkey" is never typed: it is a WebAuthn answer (migration 0108). */
+export type SecondFactorKind = "totp" | "recovery_code" | "passkey";
 
 /** What the patient typed as their second step: the six digits of the app, or a recovery code; anything else is neither. */
-export function secondFactorKind(input: string): SecondFactorKind | null {
+export function secondFactorKind(input: string): Exclude<SecondFactorKind, "passkey"> | null {
   const trimmed = input.trim();
   if (/^\d{6}$/.test(trimmed.replace(/\s+/g, ""))) return "totp";
   return looksLikeRecoveryCode(trimmed) ? "recovery_code" : null;
@@ -100,4 +101,31 @@ export function deviceLabel(userAgent: string | null | undefined): string {
               ? "Linux"
               : null;
   return os ? `${browser} on ${os}` : browser;
+}
+
+/** Passkeys (migration 0108): how many an account may hold, and how long a challenge works. */
+export const PASSKEY_LIMIT = 5;
+export const PASSKEY_CHALLENGE_MINUTES = 5;
+
+/**
+ * The relying party of MyHealth's passkeys: the host of PORTAL_BASE_URL is its ID and the URL's origin the only
+ * origin accepted. Without the address there is none, and passkeys are unavailable.
+ */
+export function passkeyRelyingParty(portalBaseUrl: string | undefined): { rpID: string; origin: string } | null {
+  if (!portalBaseUrl) return null;
+  try {
+    const url = new URL(portalBaseUrl);
+    if (url.protocol !== "https:" && url.hostname !== "localhost") return null;
+    return { rpID: url.hostname, origin: url.origin };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether an authenticator's signature counter went backwards (or stood still) since the last use, which may mean the
+ * passkey was copied. Authenticators that keep no counter report 0 every time, which is accepted.
+ */
+export function passkeyCounterRolledBack(stored: number, received: number): boolean {
+  return (stored > 0 || received > 0) && received <= stored;
 }

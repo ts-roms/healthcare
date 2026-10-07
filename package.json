@@ -54,6 +54,7 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@simplewebauthn/server": "^14.0.3",
     "@socket.io/redis-adapter": "8.3.0",
     "bullmq": "^5.81.5",
     "drizzle-orm": "^0.45.3",

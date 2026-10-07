@@ -24,6 +24,8 @@ import { type PatientPortalAccountRecord, patientPortalAccount, patientPortalRec
 import { PortalAccountService, type PortalPrincipal } from "../portal/portal-account.service";
 import { PortalSecurityMailers, type SecurityAlertEvent } from "../portal/portal-security-mailer";
 import { PortalTokenService } from "../portal/portal-tokens";
+import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
+import { PortalPasskeyService } from "./portal-passkey.service";
 import { PortalTrustedDeviceService } from "./portal-trusted-device.service";
 import { generateRecoveryCode, groupSetupKey, hashRecoveryCode, RECOVERY_CODE_COUNT, type SecondFactorKind, secondFactorKind } from "./portal-security.rules";
 
@@ -62,6 +64,7 @@ export class PortalMfaService {
     private readonly mailer: PortalSecurityMailers,
     private readonly audit: AuditService,
     private readonly devices: PortalTrustedDeviceService,
+    private readonly passkeys: PortalPasskeyService,
   ) {}
 
   async status(principal: PortalPrincipal): Promise<PortalMfaStatusView> {
@@ -155,6 +158,13 @@ export class PortalMfaService {
     await this.alert(account, "mfa_disabled");
   }
 
+  /** The password and a current code (the app's or a recovery code) of a patient with two-step verification, e.g. before adding a passkey. */
+  async confirmPasswordAndSecondFactor(principal: PortalPrincipal, input: { password: string; code: string }): Promise<void> {
+    const account = await this.accounts.confirmPassword(principal, input.password);
+    if (!account.mfaEnabled) throw new BusinessRuleError("Turn on two-step verification with an authenticator app first", "mfa_not_enabled");
+    await this.requireSecondFactor(principal, input.code, true);
+  }
+
   /** Makes a new set of recovery codes; the old ones stop working. Needs the password and a current app code. */
   async renewRecoveryCodes(principal: PortalPrincipal, input: { password: string; code: string }): Promise<{ recoveryCodes: string[] }> {
     const account = await this.accounts.confirmPassword(principal, input.password);
@@ -175,10 +185,16 @@ export class PortalMfaService {
   }
 
   /**
-   * The second step of signing in: the challenge from the password step plus the app's code or a recovery code. With
-   * `rememberDevice` the browser is trusted for a while (migration 0100) and the response carries its token.
+   * The second step of signing in: the challenge from the password step plus the app's code, a recovery code, or a
+   * passkey's answer (migration 0108). With `rememberDevice` the browser is trusted for a while (migration 0100) and the
+   * response carries its token.
    */
-  async verifyLogin(challengeToken: string, code: string, request: RequestMetadata, rememberDevice = false): Promise<PortalTokenResponse> {
+  async verifyLogin(
+    challengeToken: string,
+    answer: { code: string } | { passkey: AuthenticationResponseJSON },
+    request: RequestMetadata,
+    rememberDevice = false,
+  ): Promise<PortalTokenResponse> {
     const claims = await this.tokens.verifyMfaChallenge(challengeToken);
     const [account] = await this.db
       .select()
@@ -199,14 +215,31 @@ export class PortalMfaService {
     if (!(await this.accounts.hasPortalConsent(this.db, account.organizationId, account.patientId))) {
       throw new UnauthenticatedError("Portal access has ended", "session_ended");
     }
-    // The code is spent and the session opened together; a wrong code is counted after the attempt is rolled back.
+    // The code is spent and the session opened together; a wrong code is counted after the attempt is rolled back. A
+    // passkey's challenge is spent whatever the outcome (a refusal returns, it does not throw).
     const outcome = await this.db.transaction(
-      async (tx): Promise<{ kind: "ok"; tokens: PortalTokenResponse; result: SecondFactorResult & { ok: true } } | { kind: "bad" }> => {
+      async (
+        tx,
+      ): Promise<
+        { kind: "ok"; tokens: PortalTokenResponse; result: SecondFactorResult & { ok: true } } | { kind: "bad"; passkeyRefusal?: "counter_rollback" }
+      > => {
         await tx.select({ id: patientPortalAccount.id }).from(patientPortalAccount).where(eq(patientPortalAccount.id, account.id)).for("update");
         const [fresh] = await tx.select().from(patientPortalAccount).where(eq(patientPortalAccount.id, account.id));
-        const result = fresh ? await this.checkSecondFactor(tx, fresh, code, true) : ({ ok: false } as const);
-        if (!result.ok) return { kind: "bad" };
-        const tokens = await this.accounts.completeLogin(tx, account, request, result.kind === "totp" ? "password+totp" : "password+recovery_code");
+        if (!fresh) return { kind: "bad" };
+        let result: SecondFactorResult & { ok: true };
+        let metadata: Record<string, unknown> = {};
+        if ("passkey" in answer) {
+          const checked = await this.passkeys.checkAssertion(tx, fresh, answer.passkey);
+          if (!checked.ok) return { kind: "bad", passkeyRefusal: checked.reason === "counter_rollback" ? "counter_rollback" : undefined };
+          result = { ok: true, kind: "passkey" };
+          metadata = { passkeyId: checked.passkeyId };
+        } else {
+          const checked = await this.checkSecondFactor(tx, fresh, answer.code, true);
+          if (!checked.ok) return { kind: "bad" };
+          result = checked;
+        }
+        const method = result.kind === "passkey" ? "password+passkey" : result.kind === "totp" ? "password+totp" : "password+recovery_code";
+        const tokens = await this.accounts.completeLogin(tx, account, request, method, metadata);
         if (rememberDevice) {
           const device = await this.devices.trust(tx, account, context);
           return { kind: "ok", tokens: { ...tokens, deviceToken: device.deviceToken, deviceTokenExpiresAt: device.expiresAt.toISOString() }, result };
@@ -215,6 +248,11 @@ export class PortalMfaService {
       },
     );
     if (outcome.kind === "bad") {
+      if ("passkey" in answer) {
+        if (outcome.passkeyRefusal) await this.passkeys.recordRefusal(context, account, answer.passkey.id, outcome.passkeyRefusal);
+        await this.accounts.recordFailedLogin(account, context, "invalid_passkey");
+        throw new UnauthenticatedError("The passkey could not be checked. Try again, or use a code.", "invalid_passkey");
+      }
       await this.accounts.recordFailedLogin(account, context, "invalid_mfa_code");
       throw new UnauthenticatedError("That code is not correct", "invalid_mfa_code");
     }
@@ -374,9 +412,10 @@ export class PortalMfaService {
     return codes;
   }
 
-  /** Ends two-step verification: secret, recovery codes and every trusted device go together. */
+  /** Ends two-step verification: secret, recovery codes, passkeys and every trusted device go together. */
   private async clearMfa(tx: DbExecutor, accountId: string, reason: "mfa_disabled" | "mfa_reset"): Promise<void> {
     await this.devices.revokeAll(tx, accountId, reason);
+    await this.passkeys.revokeAll(tx, accountId, reason);
     await tx
       .update(patientPortalAccount)
       .set({
