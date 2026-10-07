@@ -239,7 +239,7 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
 **Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
-reports, guardian access (D2), screen protection (D11), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
+reports, guardian access (D2), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
 ## 8. Push to the app (D6)
