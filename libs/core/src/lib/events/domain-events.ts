@@ -3,6 +3,7 @@ import { and, asc, inArray, isNull, sql } from "drizzle-orm";
 import { DATABASE, type Database, type DbExecutor } from "../database/database";
 import { domainEvent, type DomainEventRecord } from "./domain-event.schema";
 import { recordHandlerFailure, recordOutboxBatch } from "../telemetry/metrics";
+import { asPlatform } from "../database/database-context";
 
 /**
  * A fact that happened in a domain (CLAUDE.md §26). Payloads carry
@@ -79,7 +80,7 @@ export class OutboxRelay implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = 500): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("outbox relay", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

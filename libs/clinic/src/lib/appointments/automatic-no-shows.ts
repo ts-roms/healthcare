@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, localDate, localDayBounds } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { appointment } from "../clinic.schema";
@@ -31,7 +31,7 @@ export class AutomaticNoShows implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = HOUR_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("automatic no-shows", () => void this.tick()), intervalMs);
   }
 
   onApplicationShutdown(): void {

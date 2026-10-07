@@ -2,6 +2,7 @@ export * from "./lib/actor";
 export * from "./lib/config/app-config";
 export * from "./lib/core.module";
 export * from "./lib/database/database";
+export * from "./lib/database/database-context";
 export * from "./lib/database/migrator";
 export * from "./lib/database/reporting";
 export * from "./lib/database/timeline";

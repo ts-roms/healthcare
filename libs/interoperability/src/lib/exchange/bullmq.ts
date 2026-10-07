@@ -1,5 +1,5 @@
 import { Logger, type OnModuleDestroy, type Provider } from "@nestjs/common";
-import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, asPlatform } from "@healthcare/core";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { IntegrationExchangeProcessor } from "./exchange-processor";
@@ -71,14 +71,17 @@ export class IntegrationWorkerRunner {
     this.worker = new Worker(
       INTEGRATION_QUEUE_NAME,
       // A RetryableExchangeError thrown by the processor hands the retry to BullMQ.
-      (job) => this.processor.process(String(job.data.exchangeId), { finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1) }),
+      (job) =>
+        asPlatform("integration exchange", () =>
+          this.processor.process(String(job.data.exchangeId), { finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1) }),
+        ),
       { connection: this.connection, concurrency },
     );
     this.worker.on("failed", (job, error) =>
       this.logger.warn({ event: "queue.job_failed", queue: INTEGRATION_QUEUE_NAME, jobId: job?.id, attempt: job?.attemptsMade, message: error.message }),
     );
     this.worker.on("failed", () => recordJobFailure(INTEGRATION_QUEUE_NAME));
-    this.timer = setInterval(() => void this.reconcile(), RECONCILE_INTERVAL_MS);
+    this.timer = setInterval(() => asPlatform("integration exchange reconciliation", () => void this.reconcile()), RECONCILE_INTERVAL_MS);
     this.logger.log(`Integration worker started (concurrency ${concurrency})`);
   }
 

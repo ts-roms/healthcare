@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database } from "@healthcare/core";
 import { sql } from "drizzle-orm";
 import { CrmService } from "./crm.service";
 
@@ -21,7 +21,7 @@ export class CrmCampaignRuns implements OnApplicationShutdown {
   ) {}
 
   start(intervalMs = MINUTE_MS): void {
-    this.timer ??= setInterval(() => void this.tick(), intervalMs);
+    this.timer ??= setInterval(() => asPlatform("outreach campaign runs", () => void this.tick()), intervalMs);
     this.timer.unref?.();
   }
 

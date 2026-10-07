@@ -52,8 +52,16 @@ platform administrator archives a closed month to object storage (`audit_archive
 count) and may remove an archived month past `AUDIT_RETENTION_MONTHS` through `remove_audit_partition()`; unset,
 nothing is removed. See the [audit retention runbook](../runbooks/audit-retention.md).
 
+## Row-level security per organization
+
+Migration `0111` enables row-level security with one `organization_isolation` policy on every table with an
+`organization_id` (`apply_rls_policies()` covers later tables after every migration run). The application role sees and
+writes only the organization its connection is stamped with (`app.organization_id`) or everything under
+`app.scope = 'all'`; the API stamps each connection from the request or from `asOrganization` / `asPlatform`
+(`libs/core` `database-context.ts`, `ContextPool`). `DATABASE_RLS_MODE` decides what a query without a context may do
+(`observe` by default). See the [database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization).
+
 ## Production hardening (not yet done)
 
-- Consider row-level security keyed on `organization_id` as defense in depth.
 - Encrypted backups and point-in-time recovery; test restores on the hosting provider. The procedure and the checks
   tested locally are in the [backup and restore runbook](../runbooks/backup-and-restore.md).
