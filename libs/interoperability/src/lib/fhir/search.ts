@@ -1,6 +1,7 @@
 /**
- * Search result parameters of the read-only FHIR interface: paging (`_count`, `_offset`) and `_lastUpdated`
- * (`ge`/`le`). Parsed here, as pure functions, so the rules are the same wherever they apply.
+ * Search result parameters of the read-only FHIR interface: paging (`_count`, `_offset` or a `_cursor` from a `next`
+ * link), `_lastUpdated` (`ge`/`le`), and `_type` and `_since` on `Patient/$everything`. Parsed here, as pure
+ * functions, so the rules are the same wherever they apply.
  */
 
 /** Page size when `_count` is absent, and the most one page returns (a larger `_count` is reduced to it). */
@@ -17,6 +18,17 @@ export interface Paging {
   count: number;
   /** Matches skipped before this page. */
   offset: number;
+  /**
+   * The last match of the previous page (from a `next` link): the page starts after it in the stable order, so pages
+   * never overlap or skip while records are added or removed in between. With a cursor, `offset` is 0.
+   */
+  cursor?: Cursor;
+}
+
+/** Where a page starts: the last match of the page before, in the stable order (type, then id). */
+export interface Cursor {
+  resourceType: string;
+  id: string;
 }
 
 export interface LastUpdatedFilter {
@@ -28,6 +40,15 @@ export interface LastUpdatedFilter {
 export interface SearchParameters {
   paging: Paging;
   lastUpdated: LastUpdatedFilter;
+}
+
+/** Parameters of `Patient/$everything`: paging, the types wanted, and resources changed since an instant. */
+export interface EverythingParameters {
+  paging: Paging;
+  /** Compartment types to return (the Patient always comes first); undefined: every type. */
+  types?: string[];
+  /** An instant with a time zone: only resources whose `meta.lastUpdated` is at or after it. */
+  since?: string;
 }
 
 export const DEFAULT_PAGING: Paging = { count: PAGE_SIZE.default, offset: 0 };
@@ -58,10 +79,37 @@ function nonNegativeInteger(name: string, value: QueryValue): number | undefined
   return Number(raw);
 }
 
-/** `_count` and `_offset`; a `_count` above the maximum is reduced to it (FHIR lets a server return fewer). */
-export function parsePaging(query: { _count?: QueryValue; _offset?: QueryValue }): Paging {
+/**
+ * `_count` and `_offset`, or `_count` and a `_cursor` taken from a `next` link (never both); a `_count` above the
+ * maximum is reduced to it (FHIR lets a server return fewer).
+ */
+export function parsePaging(query: { _count?: QueryValue; _offset?: QueryValue; _cursor?: QueryValue }): Paging {
   const count = nonNegativeInteger("_count", query._count) ?? PAGE_SIZE.default;
-  return { count: Math.min(count, PAGE_SIZE.max), offset: nonNegativeInteger("_offset", query._offset) ?? 0 };
+  const offset = nonNegativeInteger("_offset", query._offset);
+  const cursor = single("_cursor", query._cursor);
+  if (cursor !== undefined && offset !== undefined) throw new FhirSearchError("Give _cursor or _offset, not both", "invalid");
+  return { count: Math.min(count, PAGE_SIZE.max), offset: offset ?? 0, ...(cursor !== undefined ? { cursor: decodeCursor(cursor) } : {}) };
+}
+
+const CURSOR = /^[A-Za-z]+\/[A-Za-z0-9.-]{1,64}$/;
+
+/** The opaque `_cursor` value of a `next` link: the last match's type and id, base64url. */
+export function encodeCursor(cursor: Cursor): string {
+  return Buffer.from(`${cursor.resourceType}/${cursor.id}`, "utf8").toString("base64url");
+}
+
+export function decodeCursor(value: string): Cursor {
+  let decoded: string;
+  try {
+    decoded = Buffer.from(value, "base64url").toString("utf8");
+  } catch {
+    decoded = "";
+  }
+  if (!CURSOR.test(decoded) || Buffer.from(decoded, "utf8").toString("base64url") !== value) {
+    throw new FhirSearchError("_cursor is not a cursor from a next link of this server", "invalid");
+  }
+  const [resourceType, id] = decoded.split("/") as [string, string];
+  return { resourceType, id };
 }
 
 /**
@@ -96,6 +144,56 @@ export function parseSearchParameters(
   return { paging: parsePaging(query), lastUpdated: parseLastUpdated(query._lastUpdated) };
 }
 
+/**
+ * `Patient/$everything` parameters: paging, `_type` (comma-separated compartment types; unknown ones are invalid) and
+ * `_since` (an instant with a time zone). `_since` is honoured only when `_type` names only types whose resources
+ * carry a reliable `meta.lastUpdated` (`reliableTypes`): answering it for the other types would silently miss
+ * changes, so it is refused as not supported, naming the types allowed. `start` and `end` stay not supported.
+ */
+export function parseEverythingParameters(
+  query: { _count?: QueryValue; _offset?: QueryValue; _cursor?: QueryValue; _type?: QueryValue; _since?: QueryValue; [k: string]: QueryValue },
+  options: { compartmentTypes: readonly string[]; reliableTypes: readonly string[] },
+): EverythingParameters {
+  for (const name of ["_lastUpdated", "start", "end"]) {
+    if (query[name] !== undefined) throw new FhirSearchError(`Patient/$everything does not support ${name}`, "not-supported");
+  }
+  const paging = parsePaging(query);
+  const typeValue = single("_type", query._type);
+  let types: string[] | undefined;
+  if (typeValue !== undefined) {
+    types = [
+      ...new Set(
+        typeValue
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      ),
+    ];
+    const unknown = types.filter((t) => !options.compartmentTypes.includes(t));
+    if (types.length === 0 || unknown.length > 0) {
+      throw new FhirSearchError(
+        `_type: unknown resource type(s) ${unknown.join(", ") || "(none given)"}; choose from ${options.compartmentTypes.join(", ")}`,
+        "invalid",
+      );
+    }
+  }
+  const since = single("_since", query._since);
+  if (since !== undefined) {
+    if (!INSTANT.test(since) || Number.isNaN(Date.parse(since))) {
+      throw new FhirSearchError(`_since: give an instant with a time zone (e.g. 2026-09-01T08:00:00+08:00), not ${since}`, "invalid");
+    }
+    const unreliable = (types ?? options.compartmentTypes).filter((t) => !options.reliableTypes.includes(t));
+    if (!types || unreliable.length > 0) {
+      throw new FhirSearchError(
+        `_since needs _type naming only types with a reliable last-updated time (${options.reliableTypes.join(", ")}); ` +
+          (types ? `not ${unreliable.join(", ")}` : "without _type every type would be included"),
+        "not-supported",
+      );
+    }
+  }
+  return { paging, ...(types ? { types } : {}), ...(since !== undefined ? { since } : {}) };
+}
+
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -114,6 +212,13 @@ function bounds(value: string): { start: number; end: number } {
   const at = INSTANT.test(value) ? Date.parse(value) : Number.NaN;
   if (Number.isNaN(at)) throw new FhirSearchError(`_lastUpdated: give a date (YYYY-MM-DD) or an instant with a time zone, not ${value}`, "invalid");
   return { start: at, end: at + 1 };
+}
+
+/** Whether a resource's `meta.lastUpdated` is at or after `_since` (a resource without one never matches). */
+export function matchesSince(since: string | undefined, lastUpdated: string | undefined): boolean {
+  if (since === undefined) return true;
+  const at = lastUpdated ? Date.parse(lastUpdated) : Number.NaN;
+  return !Number.isNaN(at) && at >= Date.parse(since);
 }
 
 /** Whether a resource's `meta.lastUpdated` satisfies the filter (a resource without one never matches a filter). */

@@ -140,7 +140,11 @@ export interface VitalsSource {
   id: string;
   encounterId: string | null;
   measuredAt: string;
+  /** When the set was recorded (its last update unless marked entered in error). */
+  recordedAt: string;
   status: "final" | "entered_in_error";
+  /** When it was marked entered in error (migration 0104): its last update then. */
+  enteredInErrorAt: string | null;
   systolicMmhg: number | null;
   diastolicMmhg: number | null;
   heartRateBpm: number | null;

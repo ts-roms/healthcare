@@ -312,6 +312,8 @@ export const vitalSignSet = pgTable("vital_sign_set", {
   status: text("status").$type<"final" | "entered_in_error">().notNull().default("final"),
   enteredInErrorReason: text("entered_in_error_reason"),
   enteredInErrorBy: uuid("entered_in_error_by"),
+  /** When the set was marked entered in error (migration 0104): the only change after recording. */
+  enteredInErrorAt: ts("entered_in_error_at"),
 });
 
 export const allergyIntolerance = pgTable("allergy_intolerance", {

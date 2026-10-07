@@ -105,6 +105,7 @@ export function toVitalSignObservations(patientId: string, v: VitalsSource): Obs
     compact<Observation>({
       resourceType: "Observation",
       id: `${v.id}-${suffix}`,
+      meta: { lastUpdated: v.enteredInErrorAt ?? v.recordedAt },
       status: v.status === "entered_in_error" ? "entered-in-error" : "final",
       category: [concept({ system: SYSTEMS.observationCategory, code: "vital-signs", display: "Vital Signs" })],
       code: concept({ system: SYSTEMS.loinc, code: code.code, display: code.display }, code.display),
