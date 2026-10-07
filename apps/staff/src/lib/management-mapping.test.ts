@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparison, countLabel, patientRateLabel, percentOf, previousLabel, rangePresets, verdict } from "./management-mapping";
+import { comparison, countLabel, patientRateLabel, percentOf, previousLabel, rangePresets, spreadLabel, verdict } from "./management-mapping";
 
 describe("rangePresets", () => {
   it("offers ranges ending today, and last month across a year boundary", () => {
@@ -37,6 +37,12 @@ describe("comparison", () => {
   it("names the previous period", () => {
     expect(previousLabel("2026-09-01", "2026-09-30")).toBe("the previous 30 days");
     expect(previousLabel("2026-09-29", "2026-09-29")).toBe("the previous day");
+    expect(previousLabel("2026-09-01", "2026-09-30", "last-year")).toBe("the same dates last year");
+  });
+
+  it("describes a figure's spread", () => {
+    expect(spreadLabel(25, 40)).toBe("median 25 min · 90th percentile 40 min");
+    expect(spreadLabel(null, null)).toBe("median — · 90th percentile —");
   });
 });
 

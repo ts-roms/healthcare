@@ -105,6 +105,19 @@ export function previousRange(from: string, to: string): { from: string; to: str
   return { from: shiftDate(from, -days), to: shiftDate(from, -1) };
 }
 
+/** What the range is compared with: the period just before it, or the same local dates one year earlier. */
+export const COMPARISON_MODES = ["previous", "last-year"] as const;
+export type ComparisonMode = (typeof COMPARISON_MODES)[number];
+
+/**
+ * The comparison period for a range. `last-year` keeps the calendar dates and moves the year back (29 February falls
+ * back to 28 February, so a leap-year range compares with one day less).
+ */
+export function comparisonRange(from: string, to: string, mode: ComparisonMode): { from: string; to: string } {
+  if (mode === "previous") return previousRange(from, to);
+  return { from: shiftMonths(from, -12), to: shiftMonths(to, -12) };
+}
+
 /**
  * The headline figures, the same for the range and the period before it. Amounts in centavos (null when billing is
  * withheld); patient counts suppressed under five; rates built on suppressed patient counts null.
@@ -115,10 +128,13 @@ export interface KeyFigures {
   consultations: number;
   noShowRate: number | null;
   averageWaitMinutes: number | null;
+  /** The wait half of the visits beat (less swayed by one long wait than the average). */
+  medianWaitMinutes: number | null;
   netInvoiced: number | null;
   netCollected: number | null;
   labTestsReleased: number;
   labTurnaroundMinutes: number | null;
+  medianLabTurnaroundMinutes: number | null;
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;
@@ -128,10 +144,15 @@ export function keyFigures(parts: {
   patients: { registered: number };
   clinic: {
     appointments: { noShowRate: number | null };
-    visits: { averageWaitMinutes: number | null };
+    visits: { averageWaitMinutes: number | null; medianWaitMinutes: number | null };
     encounters: { completed: number; patientsSeen: number };
   };
-  laboratory: { released: number; averageTurnaroundMinutes: number | null; specimens: { rejectionRate: number | null } };
+  laboratory: {
+    released: number;
+    averageTurnaroundMinutes: number | null;
+    medianTurnaroundMinutes: number | null;
+    specimens: { rejectionRate: number | null };
+  };
   dental: { procedures: number };
   retention: { seen: number; retained: number };
   billing: { invoices: { netTotal: number }; netCollected: number } | null;
@@ -142,10 +163,12 @@ export function keyFigures(parts: {
     consultations: parts.clinic.encounters.completed,
     noShowRate: parts.clinic.appointments.noShowRate,
     averageWaitMinutes: parts.clinic.visits.averageWaitMinutes,
+    medianWaitMinutes: parts.clinic.visits.medianWaitMinutes,
     netInvoiced: parts.billing ? parts.billing.invoices.netTotal : null,
     netCollected: parts.billing ? parts.billing.netCollected : null,
     labTestsReleased: parts.laboratory.released,
     labTurnaroundMinutes: parts.laboratory.averageTurnaroundMinutes,
+    medianLabTurnaroundMinutes: parts.laboratory.medianTurnaroundMinutes,
     dentalProcedures: parts.dental.procedures,
     specimenRejectionRate: parts.laboratory.specimens.rejectionRate,
     retentionRate: patientRate(parts.retention.retained, parts.retention.seen).rate,
@@ -164,10 +187,12 @@ export const KEY_FIGURE_DIRECTIONS: Record<keyof KeyFigures, { unit: FigureUnit;
   consultations: { unit: "count", better: "up" },
   noShowRate: { unit: "rate", better: "down" },
   averageWaitMinutes: { unit: "minutes", better: "down" },
+  medianWaitMinutes: { unit: "minutes", better: "down" },
   netInvoiced: { unit: "centavos", better: "up" },
   netCollected: { unit: "centavos", better: "up" },
   labTestsReleased: { unit: "count", better: "up" },
   labTurnaroundMinutes: { unit: "minutes", better: "down" },
+  medianLabTurnaroundMinutes: { unit: "minutes", better: "down" },
   dentalProcedures: { unit: "count", better: "up" },
   specimenRejectionRate: { unit: "rate", better: "down" },
   retentionRate: { unit: "rate", better: "up" },
@@ -269,6 +294,7 @@ export const EXPORT_TABLES = [
   "laboratory",
   "lab-tests",
   "lab-instruments",
+  "lab-departments",
   "dental-procedures",
   "telemedicine",
   "retention",
@@ -291,10 +317,12 @@ const SUMMARY_ROWS: Array<[keyof KeyFigures, string]> = [
   ["consultations", "Consultations completed"],
   ["noShowRate", "No-show rate"],
   ["averageWaitMinutes", "Average wait, check-in to consultation (minutes)"],
+  ["medianWaitMinutes", "Median wait, check-in to consultation (minutes)"],
   ["netInvoiced", "Invoiced, net (PHP)"],
   ["netCollected", "Collected less refunds (PHP)"],
   ["labTestsReleased", "Laboratory tests released"],
   ["labTurnaroundMinutes", "Laboratory turnaround, collection to release (minutes)"],
+  ["medianLabTurnaroundMinutes", "Median laboratory turnaround, collection to release (minutes)"],
   ["dentalProcedures", "Dental procedures"],
   ["specimenRejectionRate", "Specimen rejection rate"],
   ["retentionRate", "Retention rate (seen in the 12 months before)"],

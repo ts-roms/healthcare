@@ -11,6 +11,8 @@ import { PatientReportingQueries } from "@healthcare/patient";
 import { TelemedicineReportingQueries } from "@healthcare/telemedicine";
 import { METRIC_DEFINITIONS } from "./management-dashboard.definitions";
 import {
+  type ComparisonMode,
+  comparisonRange,
   coversAll,
   dailySeries,
   daysBetween,
@@ -19,7 +21,6 @@ import {
   keyFigures,
   patientRate,
   pesos,
-  previousRange,
   rate,
   reportableFacilities,
   resolveRange,
@@ -38,7 +39,7 @@ export const MANAGEMENT_PERMISSION = "management.dashboard.read";
 /** Revenue, collections and revenue breakdowns also need the billing report permission on every facility in scope. */
 export const REVENUE_PERMISSION = "billing.report.read";
 
-type DashboardQuery = { from?: string; to?: string; facilityId?: string };
+type DashboardQuery = { from?: string; to?: string; facilityId?: string; comparison?: ComparisonMode };
 
 /**
  * The management dashboard (CLAUDE.md §28): patient volume and retention, appointments and no-shows, waiting time,
@@ -129,7 +130,8 @@ export class ManagementDashboardService {
     const today = localDate(now, timeZone);
     const range = resolveRange(query, today);
     if ("error" in range) throw new BadRequestError(range.error);
-    const previous = previousRange(range.from, range.to);
+    const comparison: ComparisonMode = query.comparison ?? "previous";
+    const previous = comparisonRange(range.from, range.to, comparison);
     const windowOf = (r: { from: string; to: string }): ReportingWindow => ({
       from: localDayBounds(r.from, timeZone).start,
       to: localDayBounds(r.to, timeZone).end,
@@ -171,9 +173,9 @@ export class ManagementDashboardService {
       suppressionThreshold: SMALL_CELL_THRESHOLD,
       /** Sections left out for lack of permission (billing: needs billing.report.read on every facility in scope). */
       withheld,
-      /** Headline figures for the range, and for the period of the same length just before it. */
+      /** Headline figures for the range, and for the comparison period (the same length just before, or a year earlier). */
       keyFigures: currentFigures,
-      previous: { ...previous, keyFigures: previousFigures, changes: keyFigureChanges(currentFigures, previousFigures) },
+      previous: { ...previous, mode: comparison, keyFigures: previousFigures, changes: keyFigureChanges(currentFigures, previousFigures) },
       patients: {
         registered: suppressCount(registered),
         seen: suppressCount(seen),
@@ -203,6 +205,8 @@ export class ManagementDashboardService {
       },
       telemedicine: {
         ...current.telemedicine,
+        /** Patients who joined the waiting room in the period and whose consultation never started (one per session). */
+        joinedNotSeen: suppressCount(current.telemedicine.joinedNotSeen),
         /** Escalated ÷ finished (ended + escalated). */
         escalationRate: rate(current.telemedicine.escalated, current.telemedicine.ended + current.telemedicine.escalated),
       },
@@ -344,6 +348,8 @@ function exportRows(d: Dashboard, table: ExportTable): Row[] {
         ["Tests released (first release)", l.released],
         ["Corrections released", l.corrections],
         ["Average turnaround, collection to release (minutes)", l.averageTurnaroundMinutes],
+        ["Median turnaround (minutes)", l.medianTurnaroundMinutes],
+        ["90th percentile turnaround (minutes)", l.p90TurnaroundMinutes],
         ["Released within target", l.withinTargetRate],
         ["Specimens collected", l.specimens.collected],
         ["Of those rejected", l.specimens.rejected],
@@ -355,13 +361,28 @@ function exportRows(d: Dashboard, table: ExportTable): Row[] {
       return [["Test", "Ordered"], ...d.laboratory.topTests.map((t): Row => [t.name, t.ordered])];
     case "lab-instruments":
       return [["Instrument", "First results entered"], ...d.laboratory.byInstrument.map((i): Row => [i.name ?? "No instrument recorded", i.results])];
+    case "lab-departments":
+      return [
+        ["Department", "Tests released", "Average turnaround (minutes)", "Median turnaround (minutes)", "Released within target"],
+        ...d.laboratory.byDepartment.map((x): Row => [x.name, x.released, x.averageTurnaroundMinutes, x.medianTurnaroundMinutes, x.withinTargetRate]),
+      ];
     case "dental-procedures":
       return [["Code", "Procedure", "Procedures", "Patients"], ...d.dental.byProcedure.map((p): Row => [p.code, p.name, p.procedures, p.patients])];
     case "telemedicine": {
       const t = d.telemedicine;
       return [
-        ["Started", "Ended", "Escalated", "In progress", "Escalation rate"],
-        [t.started, t.ended, t.escalated, t.inProgress, t.escalationRate],
+        [
+          "Started",
+          "Ended",
+          "Escalated",
+          "In progress",
+          "Escalation rate",
+          "Average wait, joined to started (minutes)",
+          "Median wait (minutes)",
+          "90th percentile wait (minutes)",
+          "Joined, never seen",
+        ],
+        [t.started, t.ended, t.escalated, t.inProgress, t.escalationRate, t.averageWaitMinutes, t.medianWaitMinutes, t.p90WaitMinutes, t.joinedNotSeen],
       ];
     }
     case "retention": {

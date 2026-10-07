@@ -1,5 +1,6 @@
 import {
   compareFigure,
+  comparisonRange,
   coversAll,
   dailySeries,
   daysBetween,
@@ -71,6 +72,13 @@ describe("management dashboard comparison and export", () => {
     expect(previousRange("2026-03-01", "2026-03-01")).toEqual({ from: "2026-02-28", to: "2026-02-28" });
   });
 
+  it("or with the same calendar dates one year earlier, 29 February falling back to 28 February", () => {
+    expect(comparisonRange("2026-09-01", "2026-09-30", "previous")).toEqual({ from: "2026-08-02", to: "2026-08-31" });
+    expect(comparisonRange("2026-09-01", "2026-09-30", "last-year")).toEqual({ from: "2025-09-01", to: "2025-09-30" });
+    expect(comparisonRange("2028-02-01", "2028-02-29", "last-year")).toEqual({ from: "2027-02-01", to: "2027-02-28" });
+    expect(comparisonRange("2027-12-31", "2028-01-01", "last-year")).toEqual({ from: "2026-12-31", to: "2027-01-01" });
+  });
+
   it("writes RFC 4180 CSV and never lets a cell run as a formula", () => {
     expect(
       toCsv([
@@ -85,8 +93,12 @@ describe("management dashboard comparison and export", () => {
 
   const parts = {
     patients: { registered: 2 },
-    clinic: { appointments: { noShowRate: 0.25 }, visits: { averageWaitMinutes: null }, encounters: { completed: 5, patientsSeen: 6 } },
-    laboratory: { released: 3, averageTurnaroundMinutes: 95, specimens: { rejectionRate: 0.1 } },
+    clinic: {
+      appointments: { noShowRate: 0.25 },
+      visits: { averageWaitMinutes: null, medianWaitMinutes: null },
+      encounters: { completed: 5, patientsSeen: 6 },
+    },
+    laboratory: { released: 3, averageTurnaroundMinutes: 95, medianTurnaroundMinutes: 80, specimens: { rejectionRate: 0.1 } },
     dental: { procedures: 1 },
     retention: { seen: 6, retained: 5 },
     billing: { invoices: { netTotal: 123_456 }, netCollected: 100_000 },
@@ -104,6 +116,7 @@ describe("management dashboard comparison and export", () => {
     expect(rows[0]).toEqual(["Figure", "2026-09-01 to 2026-09-30", "2026-08-02 to 2026-08-31", "Change", "Better when", "Assessment"]);
     expect(rows).toContainEqual(["Invoiced, net (PHP)", "1234.56", "0.00", "1234.56", "higher", "better"]);
     expect(rows).toContainEqual(["Average wait, check-in to consultation (minutes)", null, null, null, "lower", null]);
+    expect(rows).toContainEqual(["Median laboratory turnaround, collection to release (minutes)", 80, 80, 0, "lower", "unchanged"]);
     expect(rows).toContainEqual(["No-show rate", 0.25, 0.2, 0.05, "lower", "worse"]);
     expect(rows).toContainEqual(["New patients registered", "<5", "<5", null, "higher", null]);
   });

@@ -3265,7 +3265,14 @@ export interface ManagementDashboard {
   withheld: Array<"billing">;
   keyFigures: ManagementKeyFigures;
   /** The period of the same length just before the range, with each key figure's change. */
-  previous: { from: string; to: string; keyFigures: ManagementKeyFigures; changes: Record<keyof ManagementKeyFigures, ManagementFigureChange> };
+  /** The comparison period: the same length just before the range, or the same dates one year earlier (`mode`). */
+  previous: {
+    from: string;
+    to: string;
+    mode: ManagementComparisonMode;
+    keyFigures: ManagementKeyFigures;
+    changes: Record<keyof ManagementKeyFigures, ManagementFigureChange>;
+  };
   patients: {
     registered: ManagementPatientCount;
     seen: ManagementPatientCount;
@@ -3276,7 +3283,14 @@ export interface ManagementDashboard {
   };
   clinic: {
     appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
-    visits: { checkedIn: number; walkIns: number; leftWithoutBeingSeen: number; averageWaitMinutes: number | null };
+    visits: {
+      checkedIn: number;
+      walkIns: number;
+      leftWithoutBeingSeen: number;
+      averageWaitMinutes: number | null;
+      medianWaitMinutes: number | null;
+      p90WaitMinutes: number | null;
+    };
     encounters: { completed: number; telemedicine: number; patientsSeen: ManagementPatientCount; returningPatients: ManagementPatientCount };
     providers: Array<{
       practitionerId: string;
@@ -3298,18 +3312,40 @@ export interface ManagementDashboard {
     released: number;
     corrections: number;
     averageTurnaroundMinutes: number | null;
+    medianTurnaroundMinutes: number | null;
+    p90TurnaroundMinutes: number | null;
     withinTargetRate: number | null;
     specimensRejected: number;
     specimens: { collected: number; rejected: number; rejectionRate: number | null };
     byInstrument: Array<{ instrumentId: string | null; name: string | null; results: number }>;
     topTests: Array<{ testId: string; name: string; ordered: number }>;
+    byDepartment: Array<{
+      departmentId: string;
+      name: string;
+      released: number;
+      averageTurnaroundMinutes: number | null;
+      medianTurnaroundMinutes: number | null;
+      withinTargetRate: number | null;
+    }>;
   };
   dental: {
     procedures: number;
     patients: ManagementPatientCount;
     byProcedure: Array<{ code: string; name: string; procedures: number; patients: ManagementPatientCount }>;
   };
-  telemedicine: { started: number; ended: number; escalated: number; inProgress: number; escalationRate: number | null };
+  telemedicine: {
+    started: number;
+    ended: number;
+    escalated: number;
+    inProgress: number;
+    escalationRate: number | null;
+    /** Minutes from the patient joining the waiting room to the consultation starting. */
+    averageWaitMinutes: number | null;
+    medianWaitMinutes: number | null;
+    p90WaitMinutes: number | null;
+    /** Joined the waiting room in the period and never seen (a patient count). */
+    joinedNotSeen: ManagementPatientCount;
+  };
   retention: {
     lookbackMonths: number;
     returnWindowDays: number;
@@ -3361,6 +3397,8 @@ export interface ManagementDashboard {
 /** A patient count as disclosed: exact from 5 up (and 0), otherwise "<5". */
 export type ManagementPatientCount = number | "<5";
 
+export type ManagementComparisonMode = "previous" | "last-year";
+
 export type ManagementMetricKey =
   | "patientsSeen"
   | "newPatients"
@@ -3373,11 +3411,13 @@ export type ManagementMetricKey =
   | "collected"
   | "labReleased"
   | "labTurnaround"
+  | "labDepartments"
   | "labWithinTarget"
   | "specimenRejectionRate"
   | "resultsPerInstrument"
   | "dentalProcedures"
   | "telemedicine"
+  | "telemedicineWait"
   | "retentionRate"
   | "returnRate"
   | "comparison"
@@ -3404,10 +3444,12 @@ export interface ManagementKeyFigures {
   consultations: number;
   noShowRate: number | null;
   averageWaitMinutes: number | null;
+  medianWaitMinutes: number | null;
   netInvoiced: number | null;
   netCollected: number | null;
   labTestsReleased: number;
   labTurnaroundMinutes: number | null;
+  medianLabTurnaroundMinutes: number | null;
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;

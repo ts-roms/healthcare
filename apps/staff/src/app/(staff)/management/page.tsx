@@ -26,7 +26,18 @@ import type { ManagementDashboard } from "@/lib/api/types";
 import { CATEGORY_LABEL, METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import { minutesLabel } from "@/lib/dashboard-mapping";
-import { comparison, countLabel, EXPORT_TABLES, patientRateLabel, percentOf, previousLabel, rangePresets, verdict } from "@/lib/management-mapping";
+import {
+  COMPARISON_OPTIONS,
+  comparison,
+  countLabel,
+  EXPORT_TABLES,
+  patientRateLabel,
+  percentOf,
+  previousLabel,
+  rangePresets,
+  spreadLabel,
+  verdict,
+} from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
 
 export const metadata = { title: "Management dashboard" };
@@ -35,13 +46,18 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
 
 /** Operational figures across the organization's domains for a range of days (CLAUDE.md §28, management). */
-export default async function ManagementPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; facilityId?: string }> }) {
+export default async function ManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; facilityId?: string; comparison?: string }>;
+}) {
   const [params, session, selected] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "management.dashboard.read")) redirect("/");
   const query = {
     from: params.from && DATE.test(params.from) ? params.from : undefined,
     to: params.to && DATE.test(params.to) ? params.to : undefined,
     facilityId: params.facilityId && UUID.test(params.facilityId) ? params.facilityId : undefined,
+    comparison: params.comparison === "last-year" ? ("last-year" as const) : undefined,
   };
   let data: ManagementDashboard;
   try {
@@ -66,10 +82,10 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
       ? "All facilities"
       : data.facilityIds.map((id) => data.facilities.find((f) => f.id === id)?.name ?? "Facility").join(", ") || "No facilities";
   const today = todayIn(data.timeZone);
-  const facilityParam = query.facilityId ? `&facilityId=${query.facilityId}` : "";
+  const facilityParam = `${query.facilityId ? `&facilityId=${query.facilityId}` : ""}${query.comparison ? `&comparison=${query.comparison}` : ""}`;
   const k = data.keyFigures;
   const prev = data.previous.keyFigures;
-  const versus = `vs ${previousLabel(data.previous.from, data.previous.to)}`;
+  const versus = `vs ${previousLabel(data.previous.from, data.previous.to, data.previous.mode)}`;
   const exportQuery = `from=${data.from}&to=${data.to}${facilityParam}`;
   const changes = data.previous.changes;
   const d = data.definitions;
@@ -102,6 +118,16 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {data.facilities.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="mgmt-comparison">Compare with</Label>
+            <NativeSelect id="mgmt-comparison" name="comparison" defaultValue={data.previous.mode}>
+              {COMPARISON_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
                 </option>
               ))}
             </NativeSelect>
@@ -184,7 +210,8 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
             versus={versus}
             definition={d.averageWait}
           >
-            check-in to consultation · {c.visits.checkedIn} checked in, {c.visits.leftWithoutBeingSeen} left unseen
+            check-in to consultation · {spreadLabel(c.visits.medianWaitMinutes, c.visits.p90WaitMinutes)} · {c.visits.checkedIn} checked in,{" "}
+            {c.visits.leftWithoutBeingSeen} left unseen
           </Figure>
           {b ? (
             <>
@@ -228,7 +255,8 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
             versus={versus}
             definition={d.labTurnaround}
           >
-            collection to release · {percentOf(l.withinTargetRate)} within the test&apos;s target
+            collection to release · {spreadLabel(l.medianTurnaroundMinutes, l.p90TurnaroundMinutes)} · {percentOf(l.withinTargetRate)} within the test&apos;s
+            target
           </Figure>
           <Figure
             label="Specimen rejection"
@@ -253,8 +281,9 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
             {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
           </Figure>
-          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={d.telemedicine}>
-            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress
+          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={`${d.telemedicine} ${d.telemedicineWait}`}>
+            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress · waiting room {minutesLabel(t.averageWaitMinutes)}{" "}
+            on average, {spreadLabel(t.medianWaitMinutes, t.p90WaitMinutes)} · {countLabel(t.joinedNotSeen)} joined but never seen
           </Figure>
         </section>
 
@@ -324,6 +353,19 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
             </p>
           </Section>
+          <Section title="Laboratory by department" definition={d.labDepartments}>
+            <SimpleTable
+              empty="No results released."
+              head={["Department", "Released", "Average turnaround", "Median", "Within target"]}
+              rows={l.byDepartment.map((x) => [
+                x.name,
+                x.released.toLocaleString("en-PH"),
+                minutesLabel(x.averageTurnaroundMinutes),
+                minutesLabel(x.medianTurnaroundMinutes),
+                percentOf(x.withinTargetRate),
+              ])}
+            />
+          </Section>
           <Section title="Dental procedures" definition={d.dentalProcedures}>
             <SimpleTable
               empty="No dental procedures."
@@ -334,11 +376,27 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
             </p>
           </Section>
-          <Section title="Online consultations" definition={d.telemedicine}>
+          <Section title="Online consultations" definition={`${d.telemedicine} ${d.telemedicineWait}`}>
             <SimpleTable
               empty="No online consultations."
-              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate"]}
-              rows={t.started ? [[t.started, t.ended, t.escalated, t.inProgress, percentOf(t.escalationRate)].map(String)] : []}
+              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate", "Wait (avg)", "Wait (median)", "Wait (90th pct)", "Never seen"]}
+              rows={
+                t.started || t.joinedNotSeen
+                  ? [
+                      [
+                        String(t.started),
+                        String(t.ended),
+                        String(t.escalated),
+                        String(t.inProgress),
+                        percentOf(t.escalationRate),
+                        minutesLabel(t.averageWaitMinutes),
+                        minutesLabel(t.medianWaitMinutes),
+                        minutesLabel(t.p90WaitMinutes),
+                        countLabel(t.joinedNotSeen),
+                      ],
+                    ]
+                  : []
+              }
             />
           </Section>
           <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>

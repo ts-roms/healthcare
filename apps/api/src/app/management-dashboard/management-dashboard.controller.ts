@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { EXPORT_TABLES } from "./management-dashboard.rules";
+import { COMPARISON_MODES, EXPORT_TABLES } from "./management-dashboard.rules";
 import { ManagementDashboardService } from "./management-dashboard.service";
 
 const localDate = z
@@ -17,6 +17,8 @@ export const managementDashboardQuerySchema = z.object({
   to: localDate.optional(),
   /** One facility; every facility the caller may report on when omitted. */
   facilityId: z.uuid().optional(),
+  /** What to compare with: the period of the same length just before (default) or the same dates one year earlier. */
+  comparison: z.enum(COMPARISON_MODES).optional(),
 });
 export class ManagementDashboardQueryDto extends createZodDto(managementDashboardQuerySchema) {}
 
