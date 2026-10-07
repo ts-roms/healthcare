@@ -419,6 +419,12 @@ first, 50 a page (**Older** / **Newer**). Filter by day range (local days), acti
 member and patient id, then click **Search**; **Clear** removes the filters. **Show** opens an entry's record id, before/after values, details and where the
 request came from; **Open patient** goes to the patient concerned. Each search is itself recorded in the audit trail.
 
+**Keeping and archiving the audit trail (platform administrators).** The audit trail is stored in monthly parts for the whole platform. Under
+**Administration → Sign-in security → Audit trail retention**, **Archive** saves a month that has ended to private storage; it shows as **Archived, N
+events** once it has been read back and checked, and **Download** gets the file. If your deployment has a retention period
+(`AUDIT_RETENTION_MONTHS`), an archived month older than that period can be removed from the database with **Remove from database…** and a reason; the
+archive stays. Without a retention period nothing is ever removed. How long audit records must be kept is your organization's decision.
+
 When staff see "(ref xxxxxxxx)" at the end of an error message, that is the start of the request reference. It helps IT find the matching log and audit
 entries.
 

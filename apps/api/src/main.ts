@@ -10,6 +10,7 @@ import { AutomaticNoShows, WaitlistOffersService } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
 import { DocumentIntegrityService } from "@healthcare/documents";
+import { AuditRetentionService } from "./app/audit-retention/audit-retention.service";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
@@ -47,6 +48,9 @@ async function bootstrap(): Promise<void> {
   app.get(CrmCampaignRuns).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
   app.get(DohRescans).start();
+  // Daily: audit partitions for the coming months; archives of closed months requested by platform administrators
+  // (docs/runbooks/audit-retention.md).
+  app.get(AuditRetentionService).start();
   // Integrity reviews of stored documents against their checksums, requested by the records office (docs/domains/documents.md).
   app.get(DocumentIntegrityService).start();
   // Hourly: deletes the sealed content of FHIR imports rejected more than 30 days ago (docs/interoperability/fhir.md).

@@ -73,6 +73,10 @@ const appConfigSchema = z
     EMAIL_FROM: z.string().default("Healthcare Platform <no-reply@localhost>"),
     // Public address of the patient portal (MyHealth), e.g. https://myhealth.example.ph. Password-reset emails link to it;
     // without it no reset email is sent.
+    // Audit trail retention (docs/runbooks/audit-retention.md): whole months an archived audit partition must be past
+    // before a platform administrator may remove it. Unset: nothing is ever removed. The period is the organization's
+    // compliance decision; the platform sets none.
+    AUDIT_RETENTION_MONTHS: z.coerce.number().int().min(1).max(1200).optional(),
     PORTAL_BASE_URL: z
       .string()
       .url()

@@ -39,7 +39,8 @@ export class DocumentsModule {
       global: true,
       controllers: [DocumentsController, DocumentRetentionController, DocumentIntegrityController],
       providers: [DocumentsService, DocumentRecordQueries, DocumentRetentionService, DocumentIntegrityService, storage, scanner],
-      exports: [DocumentsService, DocumentRecordQueries, DocumentIntegrityService],
+      // Object storage too: the API archives audit months there (apps/api/src/app/audit-retention), outside any document.
+      exports: [DocumentsService, DocumentRecordQueries, DocumentIntegrityService, OBJECT_STORAGE],
     };
   }
 }

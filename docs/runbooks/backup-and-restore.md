@@ -13,12 +13,12 @@ restore has been tested in the real environment.
 
 ## What holds the data
 
-| Store                        | What is in it                                                                                                                                                                                                                                                      | Back up?                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| PostgreSQL (`DATABASE_URL`)  | Every record: patients, clinical history, results, billing, audit trail (`audit_event`), outbox events, queued notifications and exchanges, `schema_migration` (applied migrations with checksums). Document **metadata** (`document.storage_key`), not the files. | **Yes** — the system of record.             |
-| Object storage (`S3_BUCKET`) | Document files under `org/<organization>/documents/<id>`: uploads, archived lab reports, certificates, referral letters, record copies, dental images. Generated documents are written with a conditional put (`If-None-Match: *`) and never replaced.             | **Yes** — files exist only here.            |
-| Secrets store                | `MFA_ENCRYPTION_KEY` (staff and patient TOTP secrets), `INTEGRATION_PAYLOAD_KEY(S)` (sealed integration payloads and FHIR import content), `JWT_ACCESS_SECRET`, provider credentials.                                                                              | **Yes, separately** — never next to a dump. |
-| Redis (`REDIS_URL`)          | BullMQ queues (`notifications`, `lab-report-archive`, `integrations`; finished jobs are removed, the database is the record) and the API's rate-limit counters (`throttle:*`, expire within minutes).                                                              | No — rebuilt from the database (see below). |
+| Store                        | What is in it                                                                                                                                                                                                                                                                                                                                        | Back up?                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| PostgreSQL (`DATABASE_URL`)  | Every record: patients, clinical history, results, billing, audit trail (`audit_event`, monthly partitions; `audit_archive` records archived months), outbox events, queued notifications and exchanges, `schema_migration` (applied migrations with checksums). Document **metadata** (`document.storage_key`), not the files.                      | **Yes** — the system of record.             |
+| Object storage (`S3_BUCKET`) | Archived audit months under `audit-archive/` ([audit retention runbook](audit-retention.md)); document files under `org/<organization>/documents/<id>`: uploads, archived lab reports, certificates, referral letters, record copies, dental images. Generated documents are written with a conditional put (`If-None-Match: *`) and never replaced. | **Yes** — files exist only here.            |
+| Secrets store                | `MFA_ENCRYPTION_KEY` (staff and patient TOTP secrets), `INTEGRATION_PAYLOAD_KEY(S)` (sealed integration payloads and FHIR import content), `JWT_ACCESS_SECRET`, provider credentials.                                                                                                                                                                | **Yes, separately** — never next to a dump. |
+| Redis (`REDIS_URL`)          | BullMQ queues (`notifications`, `lab-report-archive`, `integrations`; finished jobs are removed, the database is the record) and the API's rate-limit counters (`throttle:*`, expire within minutes).                                                                                                                                                | No — rebuilt from the database (see below). |
 
 A database dump without the matching `MFA_ENCRYPTION_KEY` restores, but enrolled two-step verification secrets cannot
 be read (those users need an administrator reset); without the payload keys, sealed payloads and kept FHIR import
@@ -101,6 +101,10 @@ SELECT (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal) AS triggers,
 ```sh
 pnpm db:migrate "postgres://<app role>@<host>/healthcare_restored"   # expect "0 applied" for a dump of the current release
 ```
+
+The run also puts back the application role's privileges (`apply_app_privileges()`), which `--no-acl` leaves out; the
+login role itself belongs to the server, not the dump, and is created again on a new server
+([database roles runbook](database-roles.md)).
 
 The append-only triggers are in place when a change to the audit trail is refused:
 

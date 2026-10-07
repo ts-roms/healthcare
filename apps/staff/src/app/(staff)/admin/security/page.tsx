@@ -6,7 +6,8 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, Tabl
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { MfaPolicy, PatientMfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
+import type { AuditRetention as AuditRetentionView, MfaPolicy, PatientMfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
+import { AuditRetention } from "./audit-retention";
 import { RateLimitRefusals } from "./rate-limit-refusals";
 import { MfaExemptionControl, MfaPolicyToggle, PatientMfaPolicyControl } from "./security-controls";
 
@@ -16,11 +17,13 @@ export const metadata = { title: "Sign-in security" };
 export default async function SignInSecurityPage() {
   const session = await getSession();
   if (!can(session, "user.read")) redirect("/");
-  const [policy, patients, refusals] = await Promise.all([
+  const [policy, patients, refusals, retention] = await Promise.all([
     api<MfaPolicy>("/security/mfa-policy"),
     api<PatientMfaPolicy>("/security/patient-mfa-policy"),
     // Platform-wide refusal counts: platform administrators only (the API refuses everyone else).
     session.user.isPlatformAdmin ? api<RateLimitRefusalsView>("/rate-limits/refusals?days=30").catch(() => null) : Promise.resolve(null),
+    // Audit trail retention: platform administrators only (a month holds every organization's events).
+    session.user.isPlatformAdmin ? api<AuditRetentionView>("/audit/retention/partitions").catch(() => null) : Promise.resolve(null),
   ]);
   const manage = can(session, "user.mfa.manage");
   return (
@@ -181,6 +184,7 @@ export default async function SignInSecurityPage() {
           </CardContent>
         </Card>
         {refusals ? <RateLimitRefusals view={refusals} /> : null}
+        {retention ? <AuditRetention view={retention} /> : null}
       </div>
     </>
   );

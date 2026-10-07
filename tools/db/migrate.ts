@@ -1,6 +1,7 @@
 /**
  * Applies database migrations: `pnpm db:migrate`.
- * Uses DATABASE_URL (or the URL given as the first argument).
+ * Uses the URL given as the first argument, else MIGRATION_DATABASE_URL (the owner, when the application connects as a
+ * restricted role — docs/runbooks/database-roles.md), else DATABASE_URL.
  */
 import "dotenv/config";
 import { join } from "node:path";
@@ -9,7 +10,7 @@ import { runMigrations } from "../../libs/core/src/lib/database/migrator";
 import { describeError } from "./describe-error";
 
 async function main(): Promise<void> {
-  const url = process.argv[2] ?? process.env.DATABASE_URL;
+  const url = process.argv[2] ?? (process.env.MIGRATION_DATABASE_URL || undefined) ?? process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
   const pool = new Pool({ connectionString: url, max: 1 });
   try {

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { MfaPolicy, PatientMfaPolicy } from "@/lib/api/types";
+import type { AuditArchive, MfaPolicy, PatientMfaPolicy } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API authorizes (user.mfa.manage), audits and refuses what the policy
 // does not allow (requiring it before your own is on, exempting or resetting yourself).
@@ -65,4 +65,26 @@ export async function resetMemberMfa(userId: string, why: string): Promise<Actio
   const result = await actionResult(() => api<void>(`/users/${userId}/mfa-reset`, { method: "POST", body: { reason: parsed.data } }));
   if (result.ok) refresh(userId);
   return result.ok ? { ok: true, data: null } : result;
+}
+
+const PARTITION = /^audit_event_(history|\d{4}_\d{2})$/;
+
+/** Platform administrators: archive a closed month of the audit trail (written and verified in the background). */
+export async function archiveAuditMonth(partition: string): Promise<ActionResult<AuditArchive>> {
+  if (!PARTITION.test(partition)) return { ok: false, message: "Not an audit month." };
+  const result = await actionResult(() => api<AuditArchive>(`/audit/retention/partitions/${partition}/archive`, { method: "POST" }));
+  if (result.ok) refresh();
+  return result;
+}
+
+/** Platform administrators: remove an archived month past the retention period, with a reason. */
+export async function removeAuditMonth(partition: string, why: string): Promise<ActionResult<{ removedEvents: number }>> {
+  if (!PARTITION.test(partition)) return { ok: false, message: "Not an audit month." };
+  const parsed = z.string().trim().min(5, "Give a reason (at least 5 characters).").max(500).safeParse(why);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Give a reason." };
+  const result = await actionResult(() =>
+    api<{ removedEvents: number }>(`/audit/retention/partitions/${partition}/remove`, { method: "POST", body: { reason: parsed.data } }),
+  );
+  if (result.ok) refresh();
+  return result;
 }

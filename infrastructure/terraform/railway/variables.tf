@@ -111,6 +111,9 @@ variable "secrets" {
     livekit_api_key            = optional(string)
     livekit_api_secret         = optional(string)
     otel_exporter_otlp_headers = optional(string)
+    # The restricted application role's connection URL (docs/runbooks/database-roles.md). When set it becomes
+    # DATABASE_URL of the API and workers, and the API's pre-deploy migration uses the owner (MIGRATION_DATABASE_URL).
+    app_database_url = optional(string)
   })
   sensitive = true
 
