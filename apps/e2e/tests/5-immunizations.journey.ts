@@ -66,7 +66,7 @@ test("a dose given and a reported dose reach the patient's immunization history 
   await expect(me.getByRole("region", { name: "Measles-containing vaccine" })).toContainText("2015");
   await expect(me.getByText("FLU-E2E-1")).toHaveCount(0);
   await me.goto("/health-history");
-  await expect(me.getByRole("heading", { name: "Your health history" })).toBeVisible();
+  await expect(me.getByRole("heading", { name: "Your health history", exact: true })).toBeVisible();
   await expect(me.getByRole("region", { name: "Operations and procedures" })).toContainText("Appendectomy");
   await expect(me.getByRole("region", { name: "Family history" })).toContainText("No known illness");
   await expect(me.getByRole("region", { name: "Daily life" })).toContainText("Teacher");
