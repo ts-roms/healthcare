@@ -93,6 +93,23 @@ const roleSchema = z.object({
   permissions: z.array(z.string()).min(1, "Choose at least one permission."),
 });
 
+const roleEditSchema = roleSchema.omit({ key: true }).extend({ reason: z.string().trim().max(500).optional() });
+
+/** Edits one of the organization's own roles: name, description and the whole permission set (the API checks what the editor may hand out or take away). */
+export async function updateRole(roleId: string, input: z.input<typeof roleEditSchema>, version: number): Promise<ActionResult<StaffRoleDefinition>> {
+  if (!z.uuid().safeParse(roleId).success) return { ok: false, message: "Unknown role." };
+  const parsed = roleEditSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the role." };
+  const result = await actionResult(() =>
+    api<StaffRoleDefinition>(`/roles/${roleId}`, {
+      method: "PUT",
+      body: { ...parsed.data, description: parsed.data.description || null, reason: parsed.data.reason || undefined, version },
+    }),
+  );
+  if (result.ok) revalidatePath("/admin/roles");
+  return result;
+}
+
 export async function createRole(input: z.input<typeof roleSchema>): Promise<ActionResult<StaffRoleDefinition>> {
   const parsed = roleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the role." };

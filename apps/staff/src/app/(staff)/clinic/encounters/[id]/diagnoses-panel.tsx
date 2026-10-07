@@ -155,7 +155,9 @@ export function DiagnosesPanel({
               </div>
             </>
           ) : (
-            <p className="text-meta text-muted-foreground sm:col-span-6">No code system is configured; the diagnosis is recorded as text.</p>
+            <p className="text-meta text-muted-foreground sm:col-span-6">
+              No code system is in use; the diagnosis is recorded as text. A clinic administrator registers one under Clinic → Coding systems.
+            </p>
           )}
           <div className="grid gap-1 sm:col-span-2">
             <Label htmlFor="dx-rank">Rank</Label>

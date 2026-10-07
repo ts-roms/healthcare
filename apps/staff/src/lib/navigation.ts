@@ -44,6 +44,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/clinic/care-plans": ["care-plan.read"],
   "/clinic/vaccines": ["immunization.read"],
   "/clinic/procedures": ["encounter.read"],
+  "/clinic/coding-systems": ["encounter.read"],
   "/laboratory/critical": ["lab.result.read"],
   "/laboratory/instrument-results": ["lab.result.read"],
   "/laboratory/qc": ["lab.qc.read"],

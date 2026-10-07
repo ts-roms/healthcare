@@ -78,6 +78,11 @@ Select **N revisions** at the top of the note to open **Note history**: every dr
 3. If your organization has configured a code system, choose the **Code system** and enter the **Code** (for example an ICD-10 code). Codes are
    stored as you type them; the platform does not check them against a code list. If no code system is configured, the diagnosis is recorded as
    text.
+
+   Code systems are registered under **Clinic → Coding systems** (`/clinic/coding-systems`; changes need `clinic.configure`): a key (how diagnoses
+   name it, never changed), a name and an optional edition. **Stop offering** takes a system off the list for new diagnoses; diagnoses already
+   recorded keep their code and system. No code list is built in.
+
 4. Choose the **Rank** — **Primary** (only one per encounter) or **Secondary** — and the **Certainty** — **Provisional** or **Confirmed**.
 5. Tick **Chronic condition** if it applies. Active chronic diagnoses stay in the patient's **Problems** list; other active diagnoses appear there
    for 90 days after they were recorded.
@@ -366,24 +371,24 @@ plan. The patient's communication preferences apply.
 
 ## Troubleshooting / common messages
 
-| Message                                                                                  | Meaning                                  | What to do                                                     |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------- |
-| Your account is not linked to a practitioner who can conduct encounters                  | Your user has no practitioner record     | Ask your administrator to link you                             |
-| This visit already has an encounter                                                      | Someone already started it               | Open the existing consultation                                 |
-| Document at least an assessment or plan before signing                                   | Both sections are empty                  | Fill in the Assessment or Plan                                 |
-| Only the responsible practitioner can sign this encounter                                | Another practitioner started it          | Ask that practitioner to sign                                  |
-| The encounter changed; reload before signing                                             | Someone changed it while you had it open | The page reloads; check and sign again                         |
-| The note was changed by someone else; reload to see the latest revision                  | Another save happened first              | Use the yellow box to choose which text to keep                |
-| The encounter is signed; add an amendment instead                                        | You tried to save a draft after signing  | Use **Amend note**                                             |
-| The encounter already has a primary diagnosis                                            | A second primary was chosen              | Choose **Secondary**                                           |
-| Coding system "…" is not configured                                                      | The code system is not set up            | Record the diagnosis without a code; ask your administrator    |
-| Prescriptions are issued during an open encounter; replace an existing one to correct it | The encounter is signed                  | Use **Replace…** on the prescription, or start a new encounter |
-| Your account is not linked to a practitioner who may prescribe                           | No practitioner record                   | Ask your administrator                                         |
-| The prescription is superseded (or cancelled)                                            | It is no longer active                   | Work on the current prescription                               |
-| Laboratory tests are ordered during an open encounter                                    | The encounter is signed                  | Order in an open encounter                                     |
-| Some tests already have results; cancel the remaining tests one by one                   | The order has started in the laboratory  | Ask the laboratory to cancel individual tests                  |
-| Cannot change a completed care plan to …                                                 | Closed plans are final                   | Create a new plan if needed                                    |
-| The care plan is completed (or cancelled)                                                | You tried to change a closed plan        | Create a new plan if needed                                    |
+| Message                                                                                  | Meaning                                            | What to do                                                                            |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Your account is not linked to a practitioner who can conduct encounters                  | Your user has no practitioner record               | Ask your administrator to link you                                                    |
+| This visit already has an encounter                                                      | Someone already started it                         | Open the existing consultation                                                        |
+| Document at least an assessment or plan before signing                                   | Both sections are empty                            | Fill in the Assessment or Plan                                                        |
+| Only the responsible practitioner can sign this encounter                                | Another practitioner started it                    | Ask that practitioner to sign                                                         |
+| The encounter changed; reload before signing                                             | Someone changed it while you had it open           | The page reloads; check and sign again                                                |
+| The note was changed by someone else; reload to see the latest revision                  | Another save happened first                        | Use the yellow box to choose which text to keep                                       |
+| The encounter is signed; add an amendment instead                                        | You tried to save a draft after signing            | Use **Amend note**                                                                    |
+| The encounter already has a primary diagnosis                                            | A second primary was chosen                        | Choose **Secondary**                                                                  |
+| Coding system "…" is not configured                                                      | The code system is not set up or no longer offered | Record the diagnosis without a code; ask your administrator (Clinic → Coding systems) |
+| Prescriptions are issued during an open encounter; replace an existing one to correct it | The encounter is signed                            | Use **Replace…** on the prescription, or start a new encounter                        |
+| Your account is not linked to a practitioner who may prescribe                           | No practitioner record                             | Ask your administrator                                                                |
+| The prescription is superseded (or cancelled)                                            | It is no longer active                             | Work on the current prescription                                                      |
+| Laboratory tests are ordered during an open encounter                                    | The encounter is signed                            | Order in an open encounter                                                            |
+| Some tests already have results; cancel the remaining tests one by one                   | The order has started in the laboratory            | Ask the laboratory to cancel individual tests                                         |
+| Cannot change a completed care plan to …                                                 | Closed plans are final                             | Create a new plan if needed                                                           |
+| The care plan is completed (or cancelled)                                                | You tried to change a closed plan                  | Create a new plan if needed                                                           |
 
 ## Related chapters
 

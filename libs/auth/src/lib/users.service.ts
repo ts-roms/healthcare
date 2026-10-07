@@ -19,7 +19,7 @@ import { appUser, organizationMembership, role, roleAssignment, rolePermission }
 import { assertPasswordAccepted, BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker } from "./breached-passwords";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
-import type { createRoleSchema, createUserSchema, grantRoleSchema, resetPasswordSchema, updateMembershipSchema } from "./users.dto";
+import type { createRoleSchema, createUserSchema, grantRoleSchema, resetPasswordSchema, updateMembershipSchema, updateRoleSchema } from "./users.dto";
 
 export interface StaffUserView {
   id: string;
@@ -48,6 +48,8 @@ export interface RoleView {
   description: string | null;
   isSystem: boolean;
   permissions: string[];
+  /** Optimistic lock for edits (migration 0102); built-in roles carry it too but cannot be edited. */
+  version: number;
 }
 
 @Injectable()
@@ -385,6 +387,7 @@ export class UsersService {
       name: r.name,
       description: r.description,
       isSystem: r.isSystem,
+      version: r.version,
       permissions: grants
         .filter((g) => g.roleId === r.id)
         .map((g) => g.permissionKey)
@@ -426,6 +429,51 @@ export class UsersService {
   }
 
   /** Prevents privilege escalation: you can only hand out permissions you hold. */
+  /**
+   * Edits an organization's own role (migration 0102): name, description and the whole permission set, together. A
+   * built-in role is refused; the editor must hold every permission they add and every one they take away (the rule
+   * for granting, applied to the change); a stale version is refused. Holders see the change at their next request.
+   */
+  async updateRole(actor: Actor, roleId: string, input: z.infer<typeof updateRoleSchema>): Promise<RoleView> {
+    const [current] = await this.db
+      .select()
+      .from(role)
+      .where(and(eq(role.id, roleId), or(isNull(role.organizationId), eq(role.organizationId, actor.organizationId))));
+    if (!current) throw new NotFoundError("Role");
+    if (current.isSystem) throw new BusinessRuleError("Built-in roles cannot be changed", "system_role");
+    const before = (await this.db.select().from(rolePermission).where(eq(rolePermission.roleId, roleId))).map((g) => g.permissionKey).sort();
+    const after: string[] = [...new Set<string>(input.permissions)].sort();
+    const added = after.filter((p) => !before.includes(p));
+    const removed = before.filter((p) => !after.includes(p));
+    await this.assertCanDelegate(actor, [...added, ...removed]);
+    await this.db.transaction(async (tx) => {
+      const [locked] = await tx.select({ version: role.version }).from(role).where(eq(role.id, roleId)).for("update");
+      if (locked?.version !== input.version)
+        throw new ConflictError("The role was changed by someone else; reload and try again", undefined, "version_conflict");
+      await tx
+        .update(role)
+        .set({ name: input.name, description: input.description ?? null, updatedAt: new Date(), version: sql`${role.version} + 1` })
+        .where(eq(role.id, roleId));
+      if (removed.length) await tx.delete(rolePermission).where(and(eq(rolePermission.roleId, roleId), inArray(rolePermission.permissionKey, removed)));
+      if (added.length) await tx.insert(rolePermission).values(added.map((permissionKey) => ({ roleId, permissionKey })));
+      await this.audit.record(tx, actor, {
+        action: "role.update",
+        resourceType: "role",
+        resourceId: roleId,
+        reason: input.reason,
+        changes: {
+          name: { from: current.name, to: input.name },
+          description: { from: current.description, to: input.description ?? null },
+          permissions: { from: before, to: after },
+        },
+        metadata: { added, removed },
+      });
+    });
+    const updated = (await this.listRoles(actor.organizationId)).find((r) => r.id === roleId);
+    if (!updated) throw new NotFoundError("Role");
+    return updated;
+  }
+
   private async assertCanDelegate(actor: Actor, permissions: readonly string[]): Promise<void> {
     const beyond = permissions.filter((p) => !actor.permissions.has(p));
     if (beyond.length > 0 && !actor.isPlatformAdmin) {

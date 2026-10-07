@@ -20,6 +20,7 @@ import {
   WithdrawOfferDto,
   CreateAllergyDto,
   CreateCodingSystemDto,
+  UpdateCodingSystemDto,
   CreateExceptionDto,
   CreatePractitionerDto,
   CreateRoomDto,
@@ -166,6 +167,13 @@ export class ClinicConfigController {
   @ApiOperation({ summary: "Register a diagnosis coding system (e.g. the ICD-10 edition in use)" })
   createCodingSystem(@CurrentActor() actor: Actor, @Body() body: CreateCodingSystemDto) {
     return this.config.createCodingSystem(actor, body);
+  }
+
+  @Patch("coding-systems/:codingSystemId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Rename a coding system, change its edition, or deactivate it (recorded diagnoses keep it)" })
+  updateCodingSystem(@CurrentActor() actor: Actor, @Param("codingSystemId", ParseUUIDPipe) id: string, @Body() body: UpdateCodingSystemDto) {
+    return this.config.updateCodingSystem(actor, id, body);
   }
 
   @Get("schedules")

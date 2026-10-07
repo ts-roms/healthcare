@@ -66,6 +66,14 @@ export class UpdateVisitTypeDto extends createZodDto(updateVisitTypeSchema) {}
 export const createCodingSystemSchema = z.object({ key: code, name: text(120), version: text(40).optional() });
 export class CreateCodingSystemDto extends createZodDto(createCodingSystemSchema) {}
 
+/** Rename, change the edition text, or deactivate a coding system; the key never changes (recorded diagnoses name it). */
+export const updateCodingSystemSchema = z.object({
+  name: text(120).optional(),
+  version: z.string().trim().max(40).nullable().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+export class UpdateCodingSystemDto extends createZodDto(updateCodingSystemSchema) {}
+
 export const createScheduleSchema = z
   .object({
     practitionerId: z.string().uuid(),

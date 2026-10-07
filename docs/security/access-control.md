@@ -95,7 +95,15 @@ User ──membership──▶ Organization
   only when the request carries that `X-Facility-Id`; a department grant only
   with that `X-Department-Id`.
 - System roles (`org_admin`, `physician`, `nurse`, `receptionist`,
-  `records_officer`, `auditor`) are templates; organizations can define custom roles.
+  `records_officer`, `auditor`) are templates; organizations can define custom roles
+  (`POST /roles`) and edit them (`PUT /roles/:id`, `role.manage`, migration `0102`):
+  name, description and the whole permission set replaced together under an
+  optimistic `version` (`409 version_conflict`); the key never changes; system
+  roles are refused (`422 system_role`); the editor must hold every permission
+  added **and** every one removed (the delegation rule, `403` and an
+  `access.deny` audit otherwise); audited `role.update` with from/to and reason.
+  Permissions are resolved on every request, so holders see a change at their
+  next request. No delete: a role is retired by revoking its assignments.
   Clinic permissions (migration 0012): physicians document, sign, amend and
   prescribe; nurses triage, record allergies and manage care plans;
   receptionists manage appointments and the queue; records officers read.
