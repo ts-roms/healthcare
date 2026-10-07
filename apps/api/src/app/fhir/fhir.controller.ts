@@ -9,10 +9,9 @@ import {
   capabilityStatement,
   type CompartmentType,
   type FhirResource,
-  FhirSearchError,
   LAST_UPDATED_TYPES,
   PATIENT_COMPARTMENT_TYPES,
-  parsePaging,
+  parseEverythingParameters,
   parseSearchParameters,
   patientEverything,
   patientResources,
@@ -69,20 +68,23 @@ export class FhirController {
 
   @Get("Patient/:id/$everything")
   @Header("Content-Type", FHIR_JSON)
-  @ApiOperation({ summary: "Patient/$everything: the patient's whole record as a searchset Bundle, paged with _count and _offset" })
+  @ApiOperation({
+    summary:
+      "Patient/$everything: the patient's whole record as a searchset Bundle, paged with _count and _offset or a next link's _cursor; _type limits the types, _since (with _type naming types that carry a reliable meta.lastUpdated) the resources changed since an instant",
+  })
   async everything(
     @CurrentActor() actor: Actor,
     @Req() request: Request,
     @Param("id", ParseUUIDPipe) patientId: string,
     @Query() query: Record<string, unknown>,
   ): Promise<Bundle> {
-    for (const name of ["_since", "_lastUpdated", "_type", "start", "end"]) {
-      if (query[name] !== undefined) throw new FhirSearchError(`Patient/$everything does not support ${name}`, "not-supported");
-    }
-    const paging = parsePaging(query);
+    const params = parseEverythingParameters(query, { compartmentTypes: PATIENT_COMPARTMENT_TYPES, reliableTypes: LAST_UPDATED_TYPES });
     const ctx = await this.composer.context(actor.organizationId, baseUrl(request));
-    const bundle = patientEverything(ctx, await this.composer.record(actor, patientId), paging);
-    await this.audited(actor, "fhir.patient-everything", patientId, bundle, paging);
+    const bundle = patientEverything(ctx, await this.composer.record(actor, patientId), params);
+    await this.audited(actor, "fhir.patient-everything", patientId, bundle, params.paging, {
+      ...(params.types ? { types: params.types } : {}),
+      ...(params.since !== undefined ? { since: params.since } : {}),
+    });
     return bundle;
   }
 
@@ -114,12 +116,26 @@ export class FhirController {
     // Dental procedures (and dental items in other types) are withheld with a notice; past procedures of the history stay.
     const ctx = await this.composer.context(actor.organizationId, baseUrl(request));
     const bundle = searchByPatient(ctx, await this.composer.record(actor, patientId), compartmentType, params);
-    await this.audited(actor, "fhir.search", patientId, bundle, params.paging, params.lastUpdated);
+    await this.audited(
+      actor,
+      "fhir.search",
+      patientId,
+      bundle,
+      params.paging,
+      Object.keys(params.lastUpdated).length ? { lastUpdated: params.lastUpdated } : undefined,
+    );
     return bundle;
   }
 
   /** Audits what was disclosed: the page's resource types and matches, with the full total and the page asked for. */
-  private audited(actor: Actor, action: string, patientId: string, bundle: Bundle, paging: { count: number; offset: number }, lastUpdated?: object) {
+  private audited(
+    actor: Actor,
+    action: string,
+    patientId: string,
+    bundle: Bundle,
+    paging: { count: number; offset: number; cursor?: { resourceType: string; id: string } },
+    filters?: object,
+  ) {
     const matches = (bundle.entry ?? []).filter((e) => e.search?.mode === "match");
     const metadata = {
       resourceTypes: [...new Set(matches.map((e) => e.resource?.resourceType ?? ""))],
@@ -127,7 +143,8 @@ export class FhirController {
       total: bundle.total ?? 0,
       count: paging.count,
       offset: paging.offset,
-      ...(lastUpdated && Object.keys(lastUpdated).length > 0 ? { lastUpdated } : {}),
+      ...(paging.cursor ? { cursor: `${paging.cursor.resourceType}/${paging.cursor.id}` } : {}),
+      ...(filters && Object.keys(filters).length > 0 ? filters : {}),
     };
     return this.audit.recordStandalone(actor, { action, resourceType: "patient", resourceId: patientId, patientId, metadata });
   }

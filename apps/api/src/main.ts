@@ -9,6 +9,7 @@ import { CrmCampaignRuns } from "@healthcare/crm";
 import { AutomaticNoShows, WaitlistOffersService } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
 import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
+import { DocumentIntegrityService } from "@healthcare/documents";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
@@ -46,6 +47,8 @@ async function bootstrap(): Promise<void> {
   app.get(CrmCampaignRuns).start();
   // Checks of earlier diagnoses against DOH reportable-condition rules, requested by staff.
   app.get(DohRescans).start();
+  // Integrity reviews of stored documents against their checksums, requested by the records office (docs/domains/documents.md).
+  app.get(DocumentIntegrityService).start();
   // Hourly: deletes the sealed content of FHIR imports rejected more than 30 days ago (docs/interoperability/fhir.md).
   app.get(FhirImportRetention).start();
   // Renders released laboratory reports and archives them in object storage (BullMQ, see printable-documents.md).

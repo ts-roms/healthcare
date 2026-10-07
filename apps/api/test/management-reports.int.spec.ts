@@ -1,3 +1,4 @@
+import { extractPdfText } from "@healthcare/pdf";
 import { ManagementReportRuns } from "../src/app/management-dashboard/management-report-runs";
 import { as, auditRows, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext } from "./harness";
 
@@ -152,6 +153,50 @@ describe("scheduled management reports", () => {
     });
     expect(taken.status).toBe(200);
     expect(taken.body).toMatchObject({ ownerUserId: opsId, tables: ["summary"], version: paused.version + 1 });
+  });
+
+  it("produces the whole dashboard as a PDF beside the tables, opened only with every permission the owner had", async () => {
+    const schedule = (
+      await api(admin)
+        .post("/management/report-schedules", { name: "Weekly PDF", cadence: "weekly", tables: ["summary", "pdf"], recipientUserIds: [opsId] })
+        .expect(201)
+    ).body;
+    // The manager may schedule the PDF too: it prints what its owner may see and marks the rest.
+    await api(ops)
+      .post("/management/report-schedules", { name: "Manager PDF", cadence: "weekly", tables: ["pdf"], recipientUserIds: [opsId] })
+      .expect(201);
+    await runs.tick(MONDAY);
+    const [run] = (await api(admin).get(`/management/reports?scheduleId=${schedule.id}`).expect(200)).body;
+    expect(run).toMatchObject({ status: "produced", withheld: [] });
+    expect(run.files.map((f: { table: string; storedAt: string | null }) => [f.table, f.storedAt !== null])).toEqual([
+      ["pdf", true],
+      ["summary", true],
+    ]);
+    const binary = (res: { on: (e: string, f: (c: Buffer) => void) => void }, cb: (err: null, data: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => cb(null, Buffer.concat(chunks)));
+    };
+    const pdf = await api(admin).get(`/management/reports/${run.id}/files/pdf`).buffer(true).parse(binary).expect(200);
+    expect(pdf.headers["content-type"]).toMatch(/^application\/pdf/);
+    expect(pdf.headers["content-disposition"]).toContain("management-dashboard-2026-09-28-to-2026-10-04.pdf");
+    const text = extractPdfText(pdf.body as Buffer);
+    expect(text).toContain("Management dashboard");
+    expect(text).toContain("2026-09-28 to 2026-10-04");
+    expect(text).toContain("Key figures");
+    // The owner (org_admin) could see revenue, stock and dispensing: a reader without them is refused the whole PDF.
+    const refused = await api(ops).get(`/management/reports/${run.id}/files/pdf`).expect(403);
+    expect(refused.body.error.message).toContain("billing report permission");
+    await api(ops).get(`/management/reports/${run.id}/files/summary`).expect(200);
+
+    // The manager's own PDF left those sections out, so the manager can open it.
+    const [managerRun] = (await api(ops).get("/management/reports").expect(200)).body.filter(
+      (r: { files: Array<{ table: string }>; withheld: Array<{ table: string }> }) => r.files.some((f) => f.table === "pdf") && r.withheld.length > 0,
+    );
+    expect(managerRun).toMatchObject({ status: "partial" });
+    expect(managerRun.withheld.map((w: { table: string }) => w.table).sort()).toEqual(["pdf:billing", "pdf:dispensing", "pdf:inventory"]);
+    const managerPdf = await api(ops).get(`/management/reports/${managerRun.id}/files/pdf`).buffer(true).parse(binary).expect(200);
+    expect(extractPdfText(managerPdf.body as Buffer)).toContain("Not available to you: revenue figures");
   });
 
   it("needs the manage permission to schedule and the dashboard permission to read", async () => {

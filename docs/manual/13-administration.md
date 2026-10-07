@@ -251,7 +251,10 @@ two-step verification, roles (and where each applies) and last sign-in. Every ch
 
 **Administration → Roles** (`/admin/roles`, needs `user.read`) shows every role and its permissions. With `role.manage`, **New role…** creates your
 organization's own role: a name, a key (lower-case letters, digits and underscores), an optional description, and the permissions — only those you hold
-yourself can be ticked. Roles cannot be changed or retired from the screen yet; create a new role and re-grant it instead.
+yourself can be ticked. **Edit…** on one of your organization's own roles changes its name, description and permissions together (with an optional
+reason for the audit trail): permissions you do not hold yourself are greyed out and stay as they are, the key never changes, and everyone holding the
+role gets the new permissions at their next page — nobody needs to sign in again. If someone else saved the same role meanwhile, the screen asks you to
+reload. Built-in roles cannot be edited. There is no delete: to retire a role, revoke it from each person under **Staff users**.
 
 **Rules for granting access:**
 
@@ -271,6 +274,21 @@ password**. Give it to them directly — never by email or chat. They are signed
 password**. When they sign in with it, every page asks them to **Choose your own password** first. It is audited with your reason. You cannot reset your
 own account, and an account also used in another organization can only be reset by a platform administrator ("This account is also used outside your
 organization").
+
+## Two-step verification for patients (MyHealth)
+
+The same page (**Administration → Sign-in security**) has a card **Two-step verification for patients**: how many active MyHealth accounts have it on
+and how many do not. Patients can always turn it on themselves (chapter 12). To require it:
+
+1. Click **Require it for patients…**, choose the date from which it is required — at least a week ahead, so patients see the notice first — give a
+   reason if you like, and click **Require**. Until that date MyHealth shows patients the date; from it a patient without two-step verification can sign
+   in only to set it up (Profile and Sign-in security), and the MyHealth app on a phone tells them to set it up on the web. Nobody is locked out and
+   nothing is turned on for them.
+2. **Stop requiring it…** lifts the requirement; patients may then turn theirs off again.
+
+Expect questions from patients without a smartphone: the clinic decides how to help them (there is no per-patient exemption). A patient who lost the
+phone and the recovery codes is helped from the patient record (**Turn off two-step verification**, chapter 2); they set it up again at the next sign-in.
+Changes are audited.
 
 ## Two-step verification for staff
 
@@ -313,7 +331,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Users, roles, role grants                                                                                                          | Screens: `/admin/users`, `/admin/roles`                                                    | `user.manage`, `role.manage`    | this chapter                                                                                              |
 | Facilities and departments                                                                                                         | Screen: `/admin/facilities`                                                                | `organization.manage`           | this chapter                                                                                              |
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                               | Screen: `/appointments/schedules`                                                          | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
-| Diagnosis coding systems                                                                                                           | API only (`/api/v1/clinic/coding-systems`)                                                 | `clinic.configure`              | this chapter                                                                                              |
+| Diagnosis coding systems                                                                                                           | Screen: `/clinic/coding-systems` (**Clinic → Coding systems**)                             | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
 | Visit types patients may book online                                                                                               | Screen: `/appointments/visit-types`                                                        | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                  | Screen: `/clinic/vaccines` (**Clinic → Vaccines**)                                         | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
 | Procedure catalogue (your own codes and names, another code if you use one, whether the body site is asked, supplies usually used) | Screen: `/clinic/procedures` (**Clinic → Procedures**)                                     | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
@@ -330,6 +348,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Controlled register details (licence reference, responsible person; per facility)                                                  | Screen: `/inventory/controlled-register`                                                   | `inventory.catalog.manage`      | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                    |
 | Laboratory licence (per facility)                                                                                                  | Screen: `/laboratory/licence`                                                              | `lab.qc.manage`                 | [Laboratory quality](07-laboratory-quality.md)                                                            |
 | Document retention periods                                                                                                         | Screen: `/records/retention`                                                               | `document.retention.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
+| Document integrity review                                                                                                          | Screen: `/records/integrity`                                                               | `document.integrity.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Records-request procedure (response time, identity check, notice to patients)                                                      | Screen: `/records/requests/settings`                                                       | `organization.manage`           | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Compliance reviews (who validated each area's configuration)                                                                       | Screen: `/admin/compliance`                                                                | `compliance.review.manage`      | this chapter                                                                                              |
 | Integration payload keys                                                                                                           | Deployment configuration (usage shown on `/admin/integrations` to platform administrators) | IT / platform administrator     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |

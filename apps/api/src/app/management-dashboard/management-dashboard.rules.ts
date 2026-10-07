@@ -105,6 +105,19 @@ export function previousRange(from: string, to: string): { from: string; to: str
   return { from: shiftDate(from, -days), to: shiftDate(from, -1) };
 }
 
+/** What the range is compared with: the period just before it, or the same local dates one year earlier. */
+export const COMPARISON_MODES = ["previous", "last-year"] as const;
+export type ComparisonMode = (typeof COMPARISON_MODES)[number];
+
+/**
+ * The comparison period for a range. `last-year` keeps the calendar dates and moves the year back (29 February falls
+ * back to 28 February, so a leap-year range compares with one day less).
+ */
+export function comparisonRange(from: string, to: string, mode: ComparisonMode): { from: string; to: string } {
+  if (mode === "previous") return previousRange(from, to);
+  return { from: shiftMonths(from, -12), to: shiftMonths(to, -12) };
+}
+
 /**
  * The headline figures, the same for the range and the period before it. Amounts in centavos (null when billing is
  * withheld); patient counts suppressed under five; rates built on suppressed patient counts null.
@@ -115,26 +128,40 @@ export interface KeyFigures {
   consultations: number;
   noShowRate: number | null;
   averageWaitMinutes: number | null;
+  /** The wait half of the visits beat (less swayed by one long wait than the average). */
+  medianWaitMinutes: number | null;
   netInvoiced: number | null;
   netCollected: number | null;
   labTestsReleased: number;
   labTurnaroundMinutes: number | null;
+  medianLabTurnaroundMinutes: number | null;
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;
+  /** Centavos of stock used (issued, dispensed, written off, net of returns); null when inventory is withheld. */
+  stockUsed: number | null;
+  /** Dispense lines recorded from prescriptions; null when dispensing is withheld. */
+  dispenses: number | null;
 }
 
 export function keyFigures(parts: {
   patients: { registered: number };
   clinic: {
     appointments: { noShowRate: number | null };
-    visits: { averageWaitMinutes: number | null };
+    visits: { averageWaitMinutes: number | null; medianWaitMinutes: number | null };
     encounters: { completed: number; patientsSeen: number };
   };
-  laboratory: { released: number; averageTurnaroundMinutes: number | null; specimens: { rejectionRate: number | null } };
+  laboratory: {
+    released: number;
+    averageTurnaroundMinutes: number | null;
+    medianTurnaroundMinutes: number | null;
+    specimens: { rejectionRate: number | null };
+  };
   dental: { procedures: number };
   retention: { seen: number; retained: number };
   billing: { invoices: { netTotal: number }; netCollected: number } | null;
+  inventory: { used: { value: number } } | null;
+  dispensing: { dispenses: number } | null;
 }): KeyFigures {
   return {
     patientsSeen: suppressCount(parts.clinic.encounters.patientsSeen),
@@ -142,13 +169,17 @@ export function keyFigures(parts: {
     consultations: parts.clinic.encounters.completed,
     noShowRate: parts.clinic.appointments.noShowRate,
     averageWaitMinutes: parts.clinic.visits.averageWaitMinutes,
+    medianWaitMinutes: parts.clinic.visits.medianWaitMinutes,
     netInvoiced: parts.billing ? parts.billing.invoices.netTotal : null,
     netCollected: parts.billing ? parts.billing.netCollected : null,
     labTestsReleased: parts.laboratory.released,
     labTurnaroundMinutes: parts.laboratory.averageTurnaroundMinutes,
+    medianLabTurnaroundMinutes: parts.laboratory.medianTurnaroundMinutes,
     dentalProcedures: parts.dental.procedures,
     specimenRejectionRate: parts.laboratory.specimens.rejectionRate,
     retentionRate: patientRate(parts.retention.retained, parts.retention.seen).rate,
+    stockUsed: parts.inventory ? parts.inventory.used.value : null,
+    dispenses: parts.dispensing ? parts.dispensing.dispenses : null,
   };
 }
 
@@ -164,13 +195,17 @@ export const KEY_FIGURE_DIRECTIONS: Record<keyof KeyFigures, { unit: FigureUnit;
   consultations: { unit: "count", better: "up" },
   noShowRate: { unit: "rate", better: "down" },
   averageWaitMinutes: { unit: "minutes", better: "down" },
+  medianWaitMinutes: { unit: "minutes", better: "down" },
   netInvoiced: { unit: "centavos", better: "up" },
   netCollected: { unit: "centavos", better: "up" },
   labTestsReleased: { unit: "count", better: "up" },
   labTurnaroundMinutes: { unit: "minutes", better: "down" },
+  medianLabTurnaroundMinutes: { unit: "minutes", better: "down" },
   dentalProcedures: { unit: "count", better: "up" },
   specimenRejectionRate: { unit: "rate", better: "down" },
   retentionRate: { unit: "rate", better: "up" },
+  stockUsed: { unit: "centavos", better: "neither" },
+  dispenses: { unit: "count", better: "neither" },
 };
 
 type FigureValue = number | typeof SUPPRESSED | null;
@@ -269,14 +304,34 @@ export const EXPORT_TABLES = [
   "laboratory",
   "lab-tests",
   "lab-instruments",
+  "lab-departments",
   "dental-procedures",
   "telemedicine",
   "retention",
+  "inventory",
+  "inventory-items",
+  "dispensing",
+  "dispensing-items",
 ] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
 /** Tables that need the billing report permission on every facility in scope. */
 export const REVENUE_EXPORT_TABLES: readonly ExportTable[] = ["services", "categories", "revenue", "collections"];
+/** Tables that need inventory valuation on every facility in scope. */
+export const INVENTORY_EXPORT_TABLES: readonly ExportTable[] = ["inventory", "inventory-items"];
+/** Tables that need prescription reading. */
+export const DISPENSING_EXPORT_TABLES: readonly ExportTable[] = ["dispensing", "dispensing-items"];
+/** Which section each gated table belongs to; tables not listed are open to every dashboard reader. */
+export const TABLE_SECTIONS: Partial<Record<ExportTable, WithheldSection>> = Object.fromEntries([
+  ...REVENUE_EXPORT_TABLES.map((t) => [t, "billing"]),
+  ...INVENTORY_EXPORT_TABLES.map((t) => [t, "inventory"]),
+  ...DISPENSING_EXPORT_TABLES.map((t) => [t, "dispensing"]),
+]);
+/** The whole dashboard as one PDF, produced like a table by the scheduled reports (`application/pdf`). */
+export const PDF_REPORT = "pdf" as const;
+/** What a schedule may ask for: the CSV tables, or the PDF. */
+export const REPORT_FILES = [...EXPORT_TABLES, PDF_REPORT] as const;
+export type ReportFile = (typeof REPORT_FILES)[number];
 
 /** Formula-safe CSV (moved to libs/core for reuse). */
 export { toCsv } from "@healthcare/core";
@@ -291,32 +346,49 @@ const SUMMARY_ROWS: Array<[keyof KeyFigures, string]> = [
   ["consultations", "Consultations completed"],
   ["noShowRate", "No-show rate"],
   ["averageWaitMinutes", "Average wait, check-in to consultation (minutes)"],
+  ["medianWaitMinutes", "Median wait, check-in to consultation (minutes)"],
   ["netInvoiced", "Invoiced, net (PHP)"],
   ["netCollected", "Collected less refunds (PHP)"],
   ["labTestsReleased", "Laboratory tests released"],
   ["labTurnaroundMinutes", "Laboratory turnaround, collection to release (minutes)"],
+  ["medianLabTurnaroundMinutes", "Median laboratory turnaround, collection to release (minutes)"],
   ["dentalProcedures", "Dental procedures"],
   ["specimenRejectionRate", "Specimen rejection rate"],
   ["retentionRate", "Retention rate (seen in the 12 months before)"],
+  ["stockUsed", "Stock used at cost (PHP)"],
+  ["dispenses", "Dispenses recorded"],
 ];
 
 const BETTER_WHEN: Record<Better, string> = { up: "higher", down: "lower", neither: "neither" };
 
+/** Sections of the dashboard a caller may lack the permission for; each is left out of the response and the exports. */
+export const WITHHELD_SECTIONS = ["billing", "inventory", "dispensing"] as const;
+export type WithheldSection = (typeof WITHHELD_SECTIONS)[number];
+
+/** The key figures each section owns: left out of the summary when the section is withheld. */
+export const SECTION_KEY_FIGURES: Record<WithheldSection, ReadonlyArray<keyof KeyFigures>> = {
+  billing: ["netInvoiced", "netCollected"],
+  inventory: ["stockUsed"],
+  dispensing: ["dispenses"],
+};
+
 /**
  * Summary rows: each key figure for the range and the period before it, the change and whether it is better or worse.
- * Revenue rows are left out when billing is withheld (`includeRevenue` false).
+ * The figures of a withheld section (revenue without billing reporting, stock without inventory valuation, dispensing
+ * without prescription reading) are left out.
  */
 export function summaryRows(
   current: KeyFigures,
   previous: KeyFigures,
   ranges: { from: string; to: string; previousFrom: string; previousTo: string },
-  includeRevenue = true,
+  withheld: readonly WithheldSection[] = [],
 ): Cell[][] {
   const changes = keyFigureChanges(current, previous);
   const value = (unit: FigureUnit, v: FigureValue): Cell => (typeof v === "number" && unit === "centavos" ? pesos(v) : v);
+  const left = new Set(withheld.flatMap((section) => SECTION_KEY_FIGURES[section]));
   return [
     ["Figure", `${ranges.from} to ${ranges.to}`, `${ranges.previousFrom} to ${ranges.previousTo}`, "Change", "Better when", "Assessment"],
-    ...SUMMARY_ROWS.filter(([key]) => includeRevenue || KEY_FIGURE_DIRECTIONS[key].unit !== "centavos").map(([key, label]): Cell[] => {
+    ...SUMMARY_ROWS.filter(([key]) => !left.has(key)).map(([key, label]): Cell[] => {
       const { unit, better, change } = changes[key];
       return [
         label,

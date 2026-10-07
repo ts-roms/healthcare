@@ -1,5 +1,6 @@
 import {
   compareFigure,
+  comparisonRange,
   coversAll,
   dailySeries,
   daysBetween,
@@ -71,6 +72,13 @@ describe("management dashboard comparison and export", () => {
     expect(previousRange("2026-03-01", "2026-03-01")).toEqual({ from: "2026-02-28", to: "2026-02-28" });
   });
 
+  it("or with the same calendar dates one year earlier, 29 February falling back to 28 February", () => {
+    expect(comparisonRange("2026-09-01", "2026-09-30", "previous")).toEqual({ from: "2026-08-02", to: "2026-08-31" });
+    expect(comparisonRange("2026-09-01", "2026-09-30", "last-year")).toEqual({ from: "2025-09-01", to: "2025-09-30" });
+    expect(comparisonRange("2028-02-01", "2028-02-29", "last-year")).toEqual({ from: "2027-02-01", to: "2027-02-28" });
+    expect(comparisonRange("2027-12-31", "2028-01-01", "last-year")).toEqual({ from: "2026-12-31", to: "2027-01-01" });
+  });
+
   it("writes RFC 4180 CSV and never lets a cell run as a formula", () => {
     expect(
       toCsv([
@@ -85,11 +93,17 @@ describe("management dashboard comparison and export", () => {
 
   const parts = {
     patients: { registered: 2 },
-    clinic: { appointments: { noShowRate: 0.25 }, visits: { averageWaitMinutes: null }, encounters: { completed: 5, patientsSeen: 6 } },
-    laboratory: { released: 3, averageTurnaroundMinutes: 95, specimens: { rejectionRate: 0.1 } },
+    clinic: {
+      appointments: { noShowRate: 0.25 },
+      visits: { averageWaitMinutes: null, medianWaitMinutes: null },
+      encounters: { completed: 5, patientsSeen: 6 },
+    },
+    laboratory: { released: 3, averageTurnaroundMinutes: 95, medianTurnaroundMinutes: 80, specimens: { rejectionRate: 0.1 } },
     dental: { procedures: 1 },
     retention: { seen: 6, retained: 5 },
     billing: { invoices: { netTotal: 123_456 }, netCollected: 100_000 },
+    inventory: { used: { value: 250_075 } },
+    dispensing: { dispenses: 12 },
   };
 
   it("lists each key figure for both periods with the change and its assessment, amounts in pesos", () => {
@@ -104,16 +118,28 @@ describe("management dashboard comparison and export", () => {
     expect(rows[0]).toEqual(["Figure", "2026-09-01 to 2026-09-30", "2026-08-02 to 2026-08-31", "Change", "Better when", "Assessment"]);
     expect(rows).toContainEqual(["Invoiced, net (PHP)", "1234.56", "0.00", "1234.56", "higher", "better"]);
     expect(rows).toContainEqual(["Average wait, check-in to consultation (minutes)", null, null, null, "lower", null]);
+    expect(rows).toContainEqual(["Median laboratory turnaround, collection to release (minutes)", 80, 80, 0, "lower", "unchanged"]);
     expect(rows).toContainEqual(["No-show rate", 0.25, 0.2, 0.05, "lower", "worse"]);
     expect(rows).toContainEqual(["New patients registered", "<5", "<5", null, "higher", null]);
+    // Stock spend and dispensing volume are neither good nor bad in themselves.
+    expect(rows).toContainEqual(["Stock used at cost (PHP)", "2500.75", "2500.75", "0.00", "neither", "unchanged"]);
+    expect(rows).toContainEqual(["Dispenses recorded", 12, 12, 0, "neither", "unchanged"]);
   });
 
-  it("leaves revenue out when billing is withheld", () => {
-    const figures = keyFigures({ ...parts, billing: null });
-    expect(figures).toMatchObject({ netInvoiced: null, netCollected: null });
-    const rows = summaryRows(figures, figures, { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, false);
-    expect(rows.map((r) => r[0])).not.toContain("Invoiced, net (PHP)");
+  it("leaves a withheld section's figures out", () => {
+    const figures = keyFigures({ ...parts, billing: null, inventory: null, dispensing: null });
+    expect(figures).toMatchObject({ netInvoiced: null, netCollected: null, stockUsed: null, dispenses: null });
+    const rows = summaryRows(figures, figures, { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, ["billing", "inventory", "dispensing"]);
+    const labels = rows.map((r) => r[0]);
+    expect(labels).not.toContain("Invoiced, net (PHP)");
+    expect(labels).not.toContain("Stock used at cost (PHP)");
+    expect(labels).not.toContain("Dispenses recorded");
+    expect(labels).toContain("Patients seen");
     expect(keyFigureChanges(figures, figures).netInvoiced).toEqual({ unit: "centavos", better: "up", change: null });
+    // Withholding one section keeps the others' rows.
+    expect(
+      summaryRows(keyFigures(parts), keyFigures(parts), { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, ["billing"]).map((r) => r[0]),
+    ).toContain("Dispenses recorded");
   });
 
   describe("small-cell suppression", () => {

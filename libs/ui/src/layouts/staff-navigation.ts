@@ -61,6 +61,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Care Plans", href: "/clinic/care-plans" },
       { label: "Vaccines", href: "/clinic/vaccines" },
       { label: "Procedures", href: "/clinic/procedures" },
+      { label: "Coding systems", href: "/clinic/coding-systems", roles: ["doctor", "admin"] },
       { label: "Prescriptions", href: "/clinic/prescriptions", roles: ["doctor", "admin"] },
       { label: "Referrals", href: "/clinic/referrals", roles: ["doctor", "admin"] },
     ],
@@ -123,6 +124,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Requests", href: "/records/requests" },
       { label: "Imports", href: "/records/imports" },
       { label: "Retention", href: "/records/retention" },
+      { label: "Integrity", href: "/records/integrity" },
     ],
   },
   {

@@ -23,6 +23,7 @@ function schemaErrors(resource: { resourceType: string; fhirVersion?: string }) 
 interface Resource {
   resourceType: string;
   id: string;
+  meta?: { lastUpdated?: string };
   [key: string]: unknown;
 }
 interface Bundle extends Resource {
@@ -47,6 +48,7 @@ describe("FHIR R4 interface", () => {
   let doctorUserId: string;
   let patientId: string;
   let encounterId: string;
+  let vitalsId: string;
   let integration: string;
   let documentId: string;
   let archivedDocumentId: string;
@@ -78,11 +80,13 @@ describe("FHIR R4 interface", () => {
        VALUES ($1, $2, $3, 'icd-10', 'E11.9', 'Type 2 diabetes mellitus without complications', 'primary', 'confirmed', true, $4, $4)`,
       [tenant.organizationId, patientId, encounterId, doctorUserId],
     );
-    await q(
-      `INSERT INTO vital_sign_set (organization_id, facility_id, patient_id, encounter_id, measured_at, measured_by, systolic_mmhg, diastolic_mmhg, heart_rate_bpm, weight_kg, height_cm)
-       VALUES ($1, $2, $3, $4, now(), $5, 130, 85, 82, 82, 168)`,
-      [tenant.organizationId, tenant.facilityId, patientId, encounterId, doctorUserId],
-    );
+    vitalsId = (
+      await q(
+        `INSERT INTO vital_sign_set (organization_id, facility_id, patient_id, encounter_id, measured_at, measured_by, systolic_mmhg, diastolic_mmhg, heart_rate_bpm, weight_kg, height_cm)
+         VALUES ($1, $2, $3, $4, now(), $5, 130, 85, 82, 82, 168) RETURNING id`,
+        [tenant.organizationId, tenant.facilityId, patientId, encounterId, doctorUserId],
+      )
+    ).rows[0].id as string;
     await staff(admin).post(`/api/v1/patients/${patientId}/allergies`).send({ category: "medication", substance: "Penicillin", reaction: "Hives" }).expect(201);
     await staff(doctor)
       .post("/api/v1/prescriptions")
@@ -322,22 +326,88 @@ describe("FHIR R4 interface", () => {
       expect(matchUrls(page).length).toBeLessThanOrEqual(4);
       seen.push(...matchUrls(page));
       const next = page.link.find((l) => l.relation === "next")?.url;
-      if (pages > 0) expect(page.link.some((l) => l.relation === "previous")).toBe(true);
+      if (pages > 0) expect(page.link.some((l) => l.relation === "previous")).toBe(false); // cursor pages carry no previous link
       url = next ? new URL(next).pathname.replace("/api/v1/fhir/r4", "") + new URL(next).search : undefined;
       pages++;
     }
     expect(pages).toBe(Math.ceil(all.total / 4));
     expect(seen).toEqual(matchUrls(all));
+    expect(all.link.some((l) => l.relation === "next")).toBe(false);
+    // One audit per page, with the cursor of every page after the first.
     const audits = await auditRows(ctx.pool, "action = 'fhir.patient-everything' AND patient_id = $1 AND (metadata->>'count')::int = 4", [patientId]);
     expect(audits).toHaveLength(pages);
     expect(audits.map((a) => (a.metadata as { resources: number }).resources).reduce((x, y) => x + y, 0)).toBe(all.total);
+    expect(audits.filter((a) => "cursor" in (a.metadata as object))).toHaveLength(pages - 1);
+    // Every next link carries a cursor, never an offset; a cursor not from this server, or with an offset, is invalid.
+    const firstPage = (await get(`/Patient/${patientId}/$everything?_count=4`).expect(200)).body as Bundle;
+    const next = firstPage.link.find((l) => l.relation === "next")!.url;
+    expect(next).toContain("_cursor=");
+    expect(next).not.toContain("_offset=");
+    expect((await get(`/Patient/${patientId}/$everything?_cursor=nope`).expect(400)).body.issue[0].code).toBe("invalid");
+    expect((await get(`/Patient/${patientId}/$everything?_offset=4&${new URL(next).searchParams.toString()}`).expect(400)).body.issue[0].code).toBe("invalid");
 
     const counted = (await get(`/Observation?patient=${patientId}&_count=0`).expect(200)).body as Bundle;
     expect(counted.total).toBe(6);
     expect(counted).not.toHaveProperty("entry");
     const outcome = (body: { issue: Array<{ code: string }> }) => body.issue[0]!.code;
     expect(outcome((await get(`/Observation?patient=${patientId}&_count=many`).expect(400)).body)).toBe("invalid");
-    expect(outcome((await get(`/Patient/${patientId}/$everything?_since=2026-01-01`).expect(400)).body)).toBe("not-supported");
+    expect(outcome((await get(`/Patient/${patientId}/$everything?_since=2026-01-01T00:00:00Z`).expect(400)).body)).toBe("not-supported");
+  });
+
+  it("keeps cursor pages consistent while the record changes, and limits $everything with _type and _since", async () => {
+    const matchUrls = (b: Bundle) => (b.entry ?? []).filter((e) => e.search.mode === "match").map((e) => new URL(e.fullUrl).pathname);
+    const follow = (url: string) => new URL(url).pathname.replace("/api/v1/fhir/r4", "") + new URL(url).search;
+    const first = (await get(`/Patient/${patientId}/$everything?_count=5`).expect(200)).body as Bundle;
+    const before = (await get(`/Patient/${patientId}/$everything?_count=200`).expect(200)).body as Bundle;
+    // Between two pages the vital signs are marked entered in error (they stay exported, now with a change time)
+    // and a new diagnosis arrives: the walk neither repeats nor skips anything that was after the cursor.
+    await staff(doctor).post(`/api/v1/vital-signs/${vitalsId}/entered-in-error`).send({ reason: "Wrong patient" }).expect(200);
+    await ctx.pool.query(
+      `INSERT INTO diagnosis (organization_id, patient_id, encounter_id, code_system_key, code, display, rank, certainty, is_chronic, recorded_by, updated_by)
+       VALUES ($1, $2, $3, 'icd-10', 'J45.9', 'Asthma, unspecified', 'secondary', 'confirmed', true, $4, $4)`,
+      [tenant.organizationId, patientId, encounterId, doctorUserId],
+    );
+    const seen = matchUrls(first);
+    let url: string | undefined = first.link.find((l) => l.relation === "next")?.url;
+    while (url) {
+      const page = (await get(follow(url)).expect(200)).body as Bundle;
+      expect(schemaErrors(page)).toEqual([]);
+      expect(page.link.some((l) => l.relation === "previous")).toBe(false);
+      seen.push(...matchUrls(page));
+      url = page.link.find((l) => l.relation === "next")?.url;
+    }
+    const after = matchUrls((await get(`/Patient/${patientId}/$everything?_count=200`).expect(200)).body as Bundle);
+    expect(new Set(seen).size).toBe(seen.length);
+    const lastOfFirst = matchUrls(first).at(-1)!;
+    expect(seen.slice(5)).toEqual(after.slice(after.indexOf(lastOfFirst) + 1));
+    expect(after.length).toBe(before.total + 1);
+
+    // _type limits the types (the Patient always first); _since needs _type naming reliable types.
+    const typed = (await get(`/Patient/${patientId}/$everything?_type=Observation,MedicationRequest&_count=200`).expect(200)).body as Bundle;
+    expect(schemaErrors(typed)).toEqual([]);
+    const types = new Set((typed.entry ?? []).filter((e) => e.search.mode === "match").map((e) => e.resource.resourceType));
+    expect([...types].sort()).toEqual(["MedicationRequest", "Observation", "Patient"]);
+    const outcome = (body: { issue: Array<{ code: string }> }) => body.issue[0]!.code;
+    expect(outcome((await get(`/Patient/${patientId}/$everything?_type=Encounter&_since=2026-01-01T00:00:00Z`).expect(400)).body)).toBe("not-supported");
+    expect(outcome((await get(`/Patient/${patientId}/$everything?_type=Nonsense`).expect(400)).body)).toBe("invalid");
+    const inAnHour = encodeURIComponent(new Date(Date.now() + 3600_000).toISOString());
+    const nothing = (await get(`/Patient/${patientId}/$everything?_type=Observation&_since=${inAnHour}`).expect(200)).body as Bundle;
+    expect(nothing.total).toBe(0);
+    const lastHour = encodeURIComponent(new Date(Date.now() - 3600_000).toISOString());
+    const recent = (await get(`/Patient/${patientId}/$everything?_type=Observation&_since=${lastHour}`).expect(200)).body as Bundle;
+    expect(recent.total).toBeGreaterThan(0);
+    expect((recent.entry ?? []).every((e) => e.search.mode !== "match" || e.resource.resourceType !== "Patient" || e.resource.meta?.lastUpdated)).toBe(true);
+    const sinceAudit = await auditRows(ctx.pool, "action = 'fhir.patient-everything' AND patient_id = $1 AND metadata ? 'since'", [patientId]);
+    expect(sinceAudit.length).toBeGreaterThanOrEqual(2);
+
+    // Observation now takes _lastUpdated: the vital signs marked entered in error carry the time of that change.
+    const vitals = (
+      await get(`/Observation?patient=${patientId}&_lastUpdated=ge${encodeURIComponent(new Date(Date.now() - 600_000).toISOString())}`).expect(200)
+    ).body as Bundle;
+    const inError = (vitals.entry ?? []).filter((e) => e.resource.status === "entered-in-error");
+    expect(inError.length).toBeGreaterThan(0);
+    expect(inError.every((e) => Date.parse(e.resource.meta?.lastUpdated ?? "") >= Date.now() - 600_000)).toBe(true);
+    expect(((await get(`/Observation?patient=${patientId}&_lastUpdated=le2000-01-01`).expect(200)).body as Bundle).total).toBe(0);
   });
 
   it("filters by _lastUpdated where records have a reliable last-updated time, and refuses it elsewhere", async () => {

@@ -98,6 +98,9 @@ export function toLabObservation(ctx: FhirContext, patientId: string, order: Lab
   return compact<Observation>({
     resourceType: "Observation",
     id: r.id,
+    // Only the current released version of a result is exported; a released version never changes (a correction is a
+    // new version with its own release), so its release is its last update.
+    meta: r.releasedAt ? { lastUpdated: r.releasedAt } : undefined,
     basedOn: [ref("ServiceRequest", item.id)],
     status: r.versionNumber > 1 ? "corrected" : "final",
     category: [LAB_CATEGORY],

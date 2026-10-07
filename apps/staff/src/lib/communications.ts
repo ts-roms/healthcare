@@ -3,7 +3,7 @@ import type { NotificationCategory, NotificationChannel, NotificationStatus } fr
 /**
  * The communication log page's filters and wording (docs/domains/notification.md, "Communication log"). The API
  * decides and audits; these read the URL, build the API query and put statuses and reasons into words. Dates are local
- * days in the Philippines (notifications belong to no facility); a period is at most 92 days.
+ * days in the Philippines; a period is at most 92 days; a facility narrows to messages sent from it (migration 0106).
  */
 
 export const CHANNEL_LABEL: Record<NotificationChannel, string> = { sms: "Text message", email: "Email", push: "Push", in_app: "MyHealth inbox" };
@@ -76,6 +76,7 @@ export interface CommunicationFilters {
   status: string;
   template: string;
   patient: string;
+  facility: string;
   page: number;
 }
 
@@ -130,6 +131,7 @@ export function readCommunicationFilters(
       status: STATUS_FILTERS.some((s) => s.value === status) ? status : "",
       template: pick("template", TEMPLATE),
       patient: pick("patient", UUID),
+      facility: pick("facility", UUID),
       page: Number.isFinite(page) && page > 0 ? page : 1,
     },
     adjusted,
@@ -146,6 +148,7 @@ export function communicationApiQuery(filters: CommunicationFilters, pageSize = 
     status: filters.status || undefined,
     templateKey: filters.template || undefined,
     patientId: filters.patient || undefined,
+    facilityId: filters.facility || undefined,
     page: filters.page,
     pageSize,
   };

@@ -410,6 +410,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
                         m.medication,
                         m.dose ? `— ${m.dose}` : null,
                         m.status === "unknown" ? "(not known whether still taking)" : null,
+                        m.recordedVia === "patient_portal" ? "(reported in MyHealth)" : null,
                         filedUnderText(m.filedUnder),
                       ]
                         .filter(Boolean)

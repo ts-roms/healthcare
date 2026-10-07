@@ -104,17 +104,19 @@ sensitive personal information under the Data Privacy Act is its own policy (com
 
 ## Commands
 
-| Command                   | Preconditions                                                                                                                         | Result                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Record a past procedure   | `history.record`; reported (who) or documented here; partial date not in the future; encounter (if any) of the patient                | `PatientHistoryRecorded` (section `procedure`); audited `history.record`                                     |
-| Record a past condition   | as above, with the status as reported                                                                                                 | `PatientHistoryRecorded` (`condition`)                                                                       |
-| Record a medication taken | as above, with the status as reported; a stop date only when stopped, not before the start                                            | `PatientHistoryRecorded` (`medication`)                                                                      |
-| Mark a medication stopped | `history.record`; taken or not known, not marked stopped before, not in error; stop date not in the future nor before the start       | `PatientHistoryMedicationStopped`; audited `history.medication-stopped` (status from → `stopped`)            |
-| Record a relative's entry | `history.record`; relative ("other" needs the text); cause of death only when deceased                                                | `PatientHistoryRecorded` (`family`)                                                                          |
-| Review the family history | `history.record`; no contradiction with the list; the reason when not known                                                           | `PatientHistoryRecorded` (`family_review`); audited with the outcome                                         |
-| Record a social history   | `history.record`; `basedOn` is the current version; sensitive parts only with `encounter.write`                                       | `PatientHistoryRecorded` (`social`); audited with the changed field names                                    |
-| Mark entered in error     | `history.record`; not already in error                                                                                                | `PatientHistoryEnteredInError`; audited `history.entered-in-error` with the reason                           |
-| Accept an imported entry  | FHIR import review (`interop.fhir.import.review`), patient matched; Procedure `completed`; FamilyMemberHistory with a named condition | `recordImportedProcedureIn` / `recordImportedFamilyIn` in the review transaction, `source = external_import` |
+| Command                   | Preconditions                                                                                                                              | Result                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Record a past procedure   | `history.record`; reported (who) or documented here; partial date not in the future; encounter (if any) of the patient                     | `PatientHistoryRecorded` (section `procedure`); audited `history.record`                                        |
+| Record a past condition   | as above, with the status as reported                                                                                                      | `PatientHistoryRecorded` (`condition`)                                                                          |
+| Record a medication taken | as above, with the status as reported; a stop date only when stopped, not before the start                                                 | `PatientHistoryRecorded` (`medication`)                                                                         |
+| Mark a medication stopped | `history.record`; taken or not known, not marked stopped before, not in error; stop date not in the future nor before the start            | `PatientHistoryMedicationStopped`; audited `history.medication-stopped` (status from → `stopped`)               |
+| Answer in MyHealth        | A MyHealth session with portal consent (a guardian needs `act`); entries as reported by the patient or a relative, dates not in the future | `PatientHistoryRecorded` per entry; audited `history.record` (`recordedVia`) and `portal.health-history-submit` |
+| Stop a medicine (patient) | The patient's own MyHealth entry, not stopped, not in error; stop date rules as above                                                      | `PatientHistoryMedicationStopped`; audited `history.medication-stopped` as the patient                          |
+| Record a relative's entry | `history.record`; relative ("other" needs the text); cause of death only when deceased                                                     | `PatientHistoryRecorded` (`family`)                                                                             |
+| Review the family history | `history.record`; no contradiction with the list; the reason when not known                                                                | `PatientHistoryRecorded` (`family_review`); audited with the outcome                                            |
+| Record a social history   | `history.record`; `basedOn` is the current version; sensitive parts only with `encounter.write`                                            | `PatientHistoryRecorded` (`social`); audited with the changed field names                                       |
+| Mark entered in error     | `history.record`; not already in error                                                                                                     | `PatientHistoryEnteredInError`; audited `history.entered-in-error` with the reason                              |
+| Accept an imported entry  | FHIR import review (`interop.fhir.import.review`), patient matched; Procedure `completed`; FamilyMemberHistory with a named condition      | `recordImportedProcedureIn` / `recordImportedFamilyIn` in the review transaction, `source = external_import`    |
 
 ## Queries
 
@@ -196,6 +198,40 @@ See Entities. Indexes on `(organization_id, patient_id, recorded_at DESC)` per t
 - **Staff app**: History card on the patient record, `/patients/[id]/history`, encounter workspace panel, Patient 360
   panel ([staff app](../architecture/staff-app.md)).
 
+## Reported by the patient in MyHealth
+
+Patients answer a **history questionnaire** in MyHealth (`/health-history`) and add **medicines they take** that the
+clinic did not prescribe (migration `0103`, `PatientHistoryPortalService` in `libs/clinic/src/lib/history`):
+
+- The answers are written as ordinary history rows — `source = reported`, `reported_by = patient` (or `relative` when a
+  guardian with `act` scope answers for a dependent) — with `recorded_via = patient_portal`, the MyHealth account
+  (`portal_account_id`) and, when acting, the grant (`proxy_grant_id`) instead of a staff user (`recorded_by` is null
+  then; database checks keep the two shapes apart). No code, clinician's notes, recorder or consultation: a portal
+  entry is only ever "as told". Nothing is reviewed into the record automatically, and nothing needs to be: the
+  history was never a clinical judgement of the organization. The clinic corrects a mistake the usual way (entered in
+  error, a new entry) and sees "reported in MyHealth" instead of a recorder on the patient record, the encounter
+  workspace, Patient 360 and in the API (`recordedVia`).
+- **Daily life** (social history) from MyHealth is a new version on top of the current one: the non-sensitive parts
+  the patient answered replace the clinic's, the rest is carried over — **substance use and sexual history are not
+  asked in MyHealth** and a portal version never sets them, nor the clinician's notes. Nothing is written when
+  nothing changed.
+- Each questionnaire sent is an append-only **`patient_history_submission`** (who, when, which sections, the entry
+  ids; `Idempotency-Key` per account, so a retry returns the first submission). MyHealth lists them; the clinic does
+  not get a notice (the entries wait on the record for the next visit).
+- The patient may mark a medicine **they reported in MyHealth** as stopped, once (`stop_portal_account_id`; the same
+  rules as the staff command); what the clinic recorded is changed at the clinic (`recorded_by_clinic`).
+- Dates are read in Asia/Manila (a portal request has no facility). Every write is audited with actor type `patient`
+  (`history.record` with `recordedVia`, `portal.health-history-submit`, `history.medication-stopped`) and raises the
+  same events as a staff record (`PatientHistoryRecorded`, `PatientHistoryMedicationStopped`).
+- API: `POST /portal/health-history/submissions` (≤ 10 an hour; `422 date_in_future`, `stop_before_start`,
+  `history_submission_empty`; `403 proxy_view_only` for a view-only guardian), `POST /portal/health-history/medications/:id/stopped`
+  (≤ 20 an hour); `GET /portal/health-history` now carries `recordedVia`, `canStop`, `prescribedBy`, the parts of the
+  current social history the questionnaire starts from, and `submissions`. FHIR export is unchanged: a portal entry
+  is asserted by the patient (or a relative) like any reported entry.
+- What a patient may be asked online, and the notice given, are the organization's under the Data Privacy Act
+  ([compliance register](../security/compliance-dependencies.md)); the platform asks for no sensitive personal
+  information in MyHealth.
+
 ## Open questions / assumptions
 
 - No national code set for procedures or conditions is assumed; organizations name a code-system key (e.g. `icd-10`)
@@ -203,6 +239,7 @@ See Entities. Indexes on `(organization_id, patient_id, recorded_at DESC)` per t
 - Triage does not have its own history form: nurses record the history from the patient record or the encounter
   workspace.
 - The sensitive-field rule (`encounter.write`) is a platform default; organizations change who sees them through roles.
-- A structured obstetric history and history questionnaires in MyHealth are not built. Medications taken are recorded
-  by staff only (patients cannot add them in MyHealth), are not reconciled against prescriptions issued here, and
-  imported `MedicationStatement`s stay external history.
+- A structured obstetric history is not built (its fields await a clinical review). Medications taken are not
+  reconciled against prescriptions issued here, and imported `MedicationStatement`s stay external history. The clinic
+  is not told when a patient sends a questionnaire; a guardian's answers are recorded as reported by a relative
+  whatever the relationship on the grant.

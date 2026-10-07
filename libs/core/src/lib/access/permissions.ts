@@ -142,6 +142,8 @@ export const PERMISSIONS = [
   "compliance.review.manage",
   "inventory.controlled-register.read",
   "document.retention.manage",
+  // Integrity review of stored documents against their checksums, and its findings (migration 0105).
+  "document.integrity.manage",
   // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).
   "lab.instrument.message.submit",
   // Immunization history (migration 0081); the vaccine catalogue is managed with clinic.configure.

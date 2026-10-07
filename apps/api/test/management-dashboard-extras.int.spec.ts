@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { extractPdfText } from "@healthcare/pdf";
 import { zonedToUtc } from "@healthcare/core";
 import { as, auditRows, createClinician, createStaff, createTenant, createTestApp, login, manilaDate, type Tenant, type TestContext } from "./harness";
 
@@ -13,6 +15,8 @@ describe("management dashboard extras", () => {
   let admin: string;
   let noBilling: string;
   let annexBilling: string;
+  let pharmacist: string;
+  let amoxId: string;
   let otherAdmin: string;
   let otherFacilityId: string;
   const secrets: string[] = [];
@@ -42,6 +46,9 @@ describe("management dashboard extras", () => {
     admin = (await login(ctx, "admin@mgmtx.ph")).accessToken;
     const dentist = (await login(ctx, "lim@mgmtx.ph")).accessToken;
     const medtech = (await login(ctx, "medtech@mgmtx.ph")).accessToken;
+    const doctor = (await login(ctx, "reyes@mgmtx.ph")).accessToken;
+    await createStaff(ctx.pool, tenant, "pharmacist@mgmtx.ph", ["pharmacist"]);
+    pharmacist = (await login(ctx, "pharmacist@mgmtx.ph")).accessToken;
 
     // A manager role with the dashboard but not billing reports: one user organization-wide; another also a cashier
     // (billing.report.read) at the annex only.
@@ -219,6 +226,64 @@ describe("management dashboard extras", () => {
     await api(admin).post(`/billing/invoices/${draft.id}/issue`, { version: draft.version }).expect(200);
     await api(admin).post(`/billing/invoices/${draft.id}/payments`, { amount: 20_000, method: "cash", idempotencyKey: "mgmtx-pay-0001" }).expect(201);
 
+    // Stock and dispensing: amoxicillin received at ₱8.50 a capsule (100) and gloves at ₱120 a box (10) yesterday; P1 is
+    // prescribed 30 capsules and gets 21 of them today, 7 more in a dispense that is reversed; 5 capsules are written off
+    // and 2 gloves issued to the ward. A receipt 45 days ago falls in the previous period.
+    const inv = async (url: string, body: object) => (await api(admin).post(`/inventory${url}`, body).expect(201)).body;
+    const pharmacy = (await inv("/locations", { facilityId: tenant.facilityId, code: "pharmacy", name: "Pharmacy" })).id;
+    amoxId = (await inv("/items", { code: "amox-500", name: "Amoxicillin 500 mg", category: "medicine", stockUnit: "capsule" })).id;
+    const gloves = (await inv("/items", { code: "gloves-m", name: "=Gloves medium", category: "medical_supply", stockUnit: "box" })).id;
+    const receipt = (itemId: string, lotNumber: string, quantity: number, unitCost: number) =>
+      inv("/receipts", { locationId: pharmacy, itemId, lotNumber, expiryDate: manilaDate(400), quantity, unitCost, idempotencyKey: randomUUID() });
+    const amoxReceipt = await receipt(amoxId, "AMX-1", 100, 850);
+    await receipt(gloves, "GLV-1", 10, 12_000);
+    // The ledger is append-only, so the earlier receipt (a lot never used since) is written straight into history.
+    const oldLot = (
+      await q(`INSERT INTO inventory_lot (organization_id, item_id, lot_number, expiry_date) VALUES ($1, $2, 'AMX-0', $3) RETURNING id`, [
+        tenant.organizationId,
+        amoxId,
+        manilaDate(-10),
+      ])
+    ).rows[0].id;
+    await q(
+      `INSERT INTO inventory_movement (organization_id, movement_group_id, kind, location_id, item_id, lot_id, quantity, balance_after, unit_cost, recorded_by, recorded_at)
+       VALUES ($1, gen_random_uuid(), 'receipt', $2, $3, $4, 40, 40, 800, $5, $6)`,
+      [tenant.organizationId, pharmacy, amoxId, oldLot, adminUserId, at(-45, "09:00")],
+    );
+    await api(admin)
+      .post("/inventory/write-offs", {
+        locationId: pharmacy,
+        lotId: amoxReceipt.movements[0].lotId,
+        quantity: 5,
+        reason: "Damaged blister",
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+    await api(admin)
+      .post("/inventory/issues", { locationId: pharmacy, itemId: gloves, quantity: 2, issuedTo: "Ward", idempotencyKey: randomUUID() })
+      .expect(201);
+    const rxEncounter = (await api(doctor).post("/encounters", { patientId: p1 }).expect(201)).body.id;
+    const rx = (
+      await api(doctor)
+        .post("/prescriptions", {
+          encounterId: rxEncounter,
+          items: [
+            { genericName: "Amoxicillin", route: "oral", frequency: "three_times_daily", quantity: 30, quantityUnit: "capsules", instructions: "After meals" },
+          ],
+        })
+        .expect(201)
+    ).body;
+    secrets.push(rx.prescriptionNumber);
+    const dispense = (quantity: number) =>
+      api(pharmacist)
+        .post(`/dispensing/prescriptions/${rx.id}/dispenses`, {
+          lines: [{ prescriptionItemId: rx.items[0].id, inventoryItemId: amoxId, locationId: pharmacy, quantity }],
+        })
+        .expect(201);
+    await dispense(21);
+    const mistaken = (await dispense(7)).body.dispensed[0].id;
+    await api(pharmacist).post(`/dispensing/dispenses/${mistaken}/reverse`, { reason: "Wrong strength handed over" }).expect(200);
+
     // Another organization with a patient seen yesterday.
     const other = await createTenant(ctx.pool, "mgmtx-other");
     await createStaff(ctx.pool, other, "admin@other-mgmtx.ph", ["org_admin"]);
@@ -321,7 +386,18 @@ describe("management dashboard extras", () => {
 
   it("counts online consultations, laboratory rejections and results per instrument", async () => {
     const body = await dashboard(admin);
-    expect(body.telemedicine).toEqual({ started: 4, ended: 2, escalated: 1, inProgress: 1, escalationRate: 0.333 });
+    // Every patient joined at the moment the consultation started (the fixture), so the waits are zero.
+    expect(body.telemedicine).toEqual({
+      started: 4,
+      ended: 2,
+      escalated: 1,
+      inProgress: 1,
+      escalationRate: 0.333,
+      averageWaitMinutes: 0,
+      medianWaitMinutes: 0,
+      p90WaitMinutes: 0,
+      joinedNotSeen: 0,
+    });
     expect(body.laboratory.specimens).toEqual({ collected: 2, rejected: 1, rejectionRate: 0.5 });
     expect(body.laboratory.specimensRejected).toBe(1);
     expect(body.laboratory.byInstrument).toEqual([{ instrumentId: expect.any(String), name: "=Analyzer One", results: 1 }]);
@@ -342,15 +418,16 @@ describe("management dashboard extras", () => {
 
   it("withholds revenue without billing.report.read on every facility in scope, and does not query billing", async () => {
     const body = await dashboard(noBilling);
-    expect(body).toMatchObject({ withheld: ["billing"], billing: null });
+    // The manager holds neither billing reports, inventory valuation nor prescription reading.
+    expect(body).toMatchObject({ withheld: ["billing", "inventory", "dispensing"], billing: null, inventory: null, dispensing: null });
     expect(body.patients.seen).toBe(8);
-    expect(body.daily.at(-1)).toMatchObject({ invoiced: null, collected: null, labReleased: 1 });
-    expect(body.keyFigures).toMatchObject({ netInvoiced: null, netCollected: null });
+    expect(body.daily.at(-1)).toMatchObject({ invoiced: null, collected: null, dispenses: null, labReleased: 1 });
+    expect(body.keyFigures).toMatchObject({ netInvoiced: null, netCollected: null, stockUsed: null, dispenses: null });
     expect(body.previous.changes.netInvoiced.change).toBeNull();
-    // A cashier grant at the annex covers the annex only.
-    expect((await dashboard(annexBilling)).withheld).toEqual(["billing"]);
+    // A cashier grant at the annex covers the annex only (and brings no stock or dispensing access).
+    expect((await dashboard(annexBilling)).withheld).toEqual(["billing", "inventory", "dispensing"]);
     const annex = await dashboard(annexBilling, `?facilityId=${tenant.otherFacilityId}`);
-    expect(annex.withheld).toEqual([]);
+    expect(annex.withheld).toEqual(["inventory", "dispensing"]);
     expect(annex.billing.invoices.issued).toBe(0);
     // The organization administrator (billing.report.read organization-wide) sees revenue.
     expect((await dashboard(admin)).billing.invoices).toMatchObject({ issued: 1, netTotal: 50_000 });
@@ -373,15 +450,24 @@ describe("management dashboard extras", () => {
     expect((await csv(admin, "table=laboratory")).text).toContain("\r\nSpecimen rejection rate,0.5\r\n");
     expect((await csv(admin, "table=lab-tests")).text).toContain("\r\nFBS,2\r\n");
     expect((await csv(admin, "table=dental-procedures")).text).toContain("\r\nprophylaxis,Oral prophylaxis,1,<5\r\n");
-    expect((await csv(admin, "table=telemedicine")).text).toContain("\r\n4,2,1,1,0.333\r\n");
+    expect((await csv(admin, "table=telemedicine")).text).toContain("\r\n4,2,1,1,0.333,0,0,0,0\r\n");
+    expect((await csv(admin, "table=lab-departments")).text).toContain(
+      "Department,Tests released,Average turnaround (minutes),Median turnaround (minutes),Released within target\r\n",
+    );
     expect((await csv(admin, "table=retention")).text).toContain("\r\n8,7,0.875,0,0,\r\n");
     expect((await csv(admin, "table=services")).text).toContain("\r\nconsult-fee,Consultation,consultation,1,500.00,<5\r\n");
     expect((await csv(admin, "table=collections")).text).toContain("\r\ncash,1,200.00,0.00\r\n");
     expect((await csv(admin, "table=revenue")).text).toContain("\r\nNet invoiced (PHP),500.00\r\n");
-    expect((await csv(admin, "table=daily")).text).toContain(`\r\n${manilaDate(0)},<5,0,0,1,500.00,200.00\r\n`);
+    expect((await csv(admin, "table=daily")).text).toContain(`\r\n${manilaDate(0)},<5,0,0,1,500.00,200.00,1\r\n`);
 
-    // Without billing reports: revenue tables refused (and the refusal audited), revenue left out of summary and daily.
-    for (const table of ["revenue", "services", "categories", "collections"]) await csv(noBilling, `table=${table}`, 403);
+    // Without billing reports, inventory valuation or prescription reading: those tables refused (and the refusal audited),
+    // their rows left out of summary and daily.
+    for (const table of ["revenue", "services", "categories", "collections", "inventory", "inventory-items", "dispensing", "dispensing-items"]) {
+      await csv(noBilling, `table=${table}`, 403);
+    }
+    const noBillingSummary = (await csv(noBilling, "table=summary")).text;
+    expect(noBillingSummary).not.toContain("Stock used");
+    expect(noBillingSummary).not.toContain("Dispenses recorded");
     const daily = (await csv(noBilling, "table=daily")).text;
     expect(daily).toContain("Date,New patients,Patients seen,Consultations,Laboratory tests released\r\n");
     expect(daily).not.toContain("Invoiced");
@@ -407,9 +493,92 @@ describe("management dashboard extras", () => {
         "services",
         "categories",
         "collections",
+        "inventory",
+        "inventory-items",
+        "dispensing",
+        "dispensing-items",
       ].map(async (table) => (await csv(admin, `table=${table}`)).text),
     );
     for (const text of [body, ...exports]) for (const secret of secrets) expect(text).not.toContain(secret);
+  });
+
+  it("counts stock received and used at recorded cost, and dispensing from prescriptions", async () => {
+    const body = await dashboard(admin);
+    // Received this period: 100 capsules at ₱8.50 and 10 boxes at ₱120 (the 40 capsules received 45 days ago fall before).
+    expect(body.inventory.received).toEqual({ quantity: 110, value: 205_000, unvaluedQuantity: 0, movements: 2 });
+    // Used: 21 dispensed (7 dispensed and returned net to nothing), 5 written off, 2 gloves issued: 28 units,
+    // 26 capsules at ₱8.50 and 2 boxes at ₱120 = ₱461.00.
+    expect(body.inventory.used).toEqual({ quantity: 28, value: 46_100, unvaluedQuantity: 0 });
+    expect(body.keyFigures.stockUsed).toBe(46_100);
+    expect(body.inventory.writtenOff.quantity).toBe(5);
+    const bySource = Object.fromEntries(
+      body.inventory.usedBySource.map((u: { sourceType: string | null; kind: string; quantity: number }) => [`${u.sourceType}/${u.kind}`, u.quantity]),
+    );
+    expect(bySource).toMatchObject({ "prescription_dispense/issue": 28, "prescription_dispense/return": -7, "null/write_off": 5, "null/issue": 2 });
+    // Most value first: 2 boxes at ₱120 (₱240) before 26 capsules at ₱8.50 (₱221).
+    expect(body.inventory.topItems.map((i: { code: string; quantity: number; value: number }) => [i.code, i.quantity, i.value])).toEqual([
+      ["gloves-m", 2, 24_000],
+      ["amox-500", 26, 22_100],
+    ]);
+    // Previous period: the 40 capsules at ₱8.00.
+    expect(body.previous.keyFigures.stockUsed).toBe(0);
+    expect((await dashboard(admin, `?from=${manilaDate(-59)}&to=${manilaDate(-30)}`)).inventory.received).toMatchObject({ quantity: 40, value: 32_000 });
+
+    expect(body.dispensing).toEqual({
+      prescriptionsIssued: 1,
+      prescriptionsCancelled: 0,
+      dispenses: 2,
+      reversed: 1,
+      prescriptionsDispensed: 1,
+      patients: "<5",
+      topItems: [{ inventoryItemId: amoxId, name: "Amoxicillin 500 mg", stockUnit: "capsule", quantity: 21, dispenses: 1 }],
+    });
+    expect(body.keyFigures.dispenses).toBe(2);
+    expect(body.daily.at(-1)).toMatchObject({ dispenses: 1 });
+
+    const inventory = (await csv(admin, "table=inventory")).text;
+    expect(inventory).toContain("Figure,Quantity,Value at cost (PHP),Quantity without a cost\r\nReceived,110,2050.00,0\r\n");
+    expect(inventory).toContain("\r\nOf which written off,5,");
+    expect(inventory).toContain("\r\nUsed: Dispensed on prescriptions,28,");
+    expect(inventory).toContain("\r\nUsed: Written off,5,");
+    // The item name a spreadsheet would run as a formula is prefixed.
+    expect((await csv(admin, "table=inventory-items")).text).toContain("\r\ngloves-m,'=Gloves medium,medical_supply,box,2,240.00\r\n");
+    expect((await csv(admin, "table=dispensing")).text).toContain(
+      "\r\nDispenses recorded,2\r\nOf which reversed,1\r\nPrescriptions dispensed,1\r\nPatients served,<5\r\n",
+    );
+    expect((await csv(admin, "table=dispensing-items")).text).toContain("\r\nAmoxicillin 500 mg,capsule,21,1\r\n");
+    expect((await csv(admin, "table=summary")).text).toContain("\r\nDispenses recorded,2,0,2,neither,neutral\r\n");
+    expect((await csv(admin, "table=daily")).text).toContain(`\r\n${manilaDate(0)},<5,0,0,1,500.00,200.00,1\r\n`);
+  });
+
+  it("prints the whole dashboard as one PDF, marking withheld sections", async () => {
+    const binary = (res: { on: (e: string, f: (c: Buffer) => void) => void }, cb: (err: null, data: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => cb(null, Buffer.concat(chunks)));
+    };
+    const pdf = async (token: string, query = "") => api(token).get(`/management/dashboard/export.pdf${query}`).buffer(true).parse(binary).expect(200);
+    const full = await pdf(admin);
+    expect(full.headers["content-type"]).toMatch(/^application\/pdf/);
+    expect(full.headers["content-disposition"]).toBe(`attachment; filename="management-dashboard-${manilaDate(-29)}-to-${manilaDate(0)}.pdf"`);
+    const text = extractPdfText(full.body as Buffer);
+    expect(text).toContain("Management dashboard");
+    expect(text).toContain("Key figures");
+    expect(text).toContain("Patients seen");
+    expect(text).toContain("Stock received and used");
+    expect(text).toContain("Dispensing");
+    expect(text).toContain("<5");
+    expect(text).toContain("not official, DOH, PhilHealth or BIR reports");
+    for (const secret of secrets) expect(text).not.toContain(secret);
+
+    const partial = extractPdfText((await pdf(noBilling)).body as Buffer);
+    expect(partial).toContain("Not available to you: revenue figures");
+    expect(partial).toContain("Not available to you: stock figures");
+    expect(partial).toContain("Not available to you: dispensing figures");
+    expect(partial).not.toContain("Dispensed on prescriptions");
+
+    await api(pharmacist).get("/management/dashboard/export.pdf").expect(403);
+    await api(admin).get("/management/dashboard/export.pdf?from=2020-01-01&to=2026-01-01").expect(400);
   });
 
   it("keeps organizations apart", async () => {
@@ -435,8 +604,25 @@ describe("management dashboard extras", () => {
     expect(done.some((m) => m.table === "retention")).toBe(true);
     expect(done.some((m) => m.table === "daily" && m.withheld[0] === "billing")).toBe(true);
     const denied = exports.filter((r) => r.outcome === "denied");
-    expect(denied.map((r) => (r.metadata as { table: string }).table).sort()).toEqual(["categories", "collections", "revenue", "services"]);
-    expect(denied.every((r) => r.reason?.includes("billing.report.read"))).toBe(true);
+    expect(denied.map((r) => (r.metadata as { table: string }).table).sort()).toEqual([
+      "categories",
+      "collections",
+      "dispensing",
+      "dispensing-items",
+      "inventory",
+      "inventory-items",
+      "revenue",
+      "services",
+    ]);
+    expect(denied.filter((r) => /revenue|services/.test((r.metadata as { table: string }).table)).every((r) => r.reason?.includes("billing.report.read"))).toBe(
+      true,
+    );
+    expect(denied.filter((r) => /^inventory/.test((r.metadata as { table: string }).table)).every((r) => r.reason?.includes("inventory.valuation.read"))).toBe(
+      true,
+    );
+    expect(denied.filter((r) => /^dispensing/.test((r.metadata as { table: string }).table)).every((r) => r.reason?.includes("prescription.read"))).toBe(true);
+    // The PDF export is audited like a table.
+    expect(done.some((m) => m.table === "pdf" && m.withheld.length === 3)).toBe(true);
     expect([...views, ...exports].every((r) => r.patient_id === null)).toBe(true);
   });
 });

@@ -16,6 +16,7 @@ import { NotificationService } from "./notification.service";
 import { EXPO_PUSH_TRANSPORT, ExpoPushReceipts } from "./push/expo-push-receipts";
 import { LibraryExpoPushTransport } from "./push/expo-push.transport";
 import { PushSubscriptionService } from "./push/push-subscription.service";
+import { StaffPushPreferenceService } from "./push/staff-push-preference.service";
 import { CHANNEL_SENDERS, NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
 
 const bullMqQueue: Provider = {
@@ -45,10 +46,11 @@ export class NotificationModule {
       providers: [
         NotificationService,
         PushSubscriptionService,
+        StaffPushPreferenceService,
         { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory },
         options.queue ?? bullMqQueue,
       ],
-      exports: [NotificationService, PushSubscriptionService],
+      exports: [NotificationService, PushSubscriptionService, StaffPushPreferenceService],
     };
   }
 }

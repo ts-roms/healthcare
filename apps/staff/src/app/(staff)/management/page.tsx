@@ -26,7 +26,20 @@ import type { ManagementDashboard } from "@/lib/api/types";
 import { CATEGORY_LABEL, METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
 import { minutesLabel } from "@/lib/dashboard-mapping";
-import { comparison, countLabel, EXPORT_TABLES, patientRateLabel, percentOf, previousLabel, rangePresets, verdict } from "@/lib/management-mapping";
+import {
+  COMPARISON_OPTIONS,
+  comparison,
+  countLabel,
+  EXPORT_TABLES,
+  patientRateLabel,
+  percentOf,
+  previousLabel,
+  rangePresets,
+  SECTION_NEEDS,
+  spreadLabel,
+  stockUseLabel,
+  verdict,
+} from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
 
 export const metadata = { title: "Management dashboard" };
@@ -35,13 +48,18 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
 
 /** Operational figures across the organization's domains for a range of days (CLAUDE.md §28, management). */
-export default async function ManagementPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; facilityId?: string }> }) {
+export default async function ManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; facilityId?: string; comparison?: string }>;
+}) {
   const [params, session, selected] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "management.dashboard.read")) redirect("/");
   const query = {
     from: params.from && DATE.test(params.from) ? params.from : undefined,
     to: params.to && DATE.test(params.to) ? params.to : undefined,
     facilityId: params.facilityId && UUID.test(params.facilityId) ? params.facilityId : undefined,
+    comparison: params.comparison === "last-year" ? ("last-year" as const) : undefined,
   };
   let data: ManagementDashboard;
   try {
@@ -66,10 +84,10 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
       ? "All facilities"
       : data.facilityIds.map((id) => data.facilities.find((f) => f.id === id)?.name ?? "Facility").join(", ") || "No facilities";
   const today = todayIn(data.timeZone);
-  const facilityParam = query.facilityId ? `&facilityId=${query.facilityId}` : "";
+  const facilityParam = `${query.facilityId ? `&facilityId=${query.facilityId}` : ""}${query.comparison ? `&comparison=${query.comparison}` : ""}`;
   const k = data.keyFigures;
   const prev = data.previous.keyFigures;
-  const versus = `vs ${previousLabel(data.previous.from, data.previous.to)}`;
+  const versus = `vs ${previousLabel(data.previous.from, data.previous.to, data.previous.mode)}`;
   const exportQuery = `from=${data.from}&to=${data.to}${facilityParam}`;
   const changes = data.previous.changes;
   const d = data.definitions;
@@ -78,6 +96,9 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
   const l = data.laboratory;
   const t = data.telemedicine;
   const r = data.retention;
+  const stock = data.inventory;
+  const rx = data.dispensing;
+  const withheld = data.withheld;
 
   return (
     <>
@@ -106,6 +127,16 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               ))}
             </NativeSelect>
           </div>
+          <div className="grid gap-1">
+            <Label htmlFor="mgmt-comparison">Compare with</Label>
+            <NativeSelect id="mgmt-comparison" name="comparison" defaultValue={data.previous.mode}>
+              {COMPARISON_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
           <Button type="submit" size="sm">
             Apply
           </Button>
@@ -125,11 +156,15 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
 
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
           <span>Download CSV:</span>
-          {EXPORT_TABLES.filter((t) => b !== null || !t.revenue).map((t) => (
+          {EXPORT_TABLES.filter((t) => !t.section || !withheld.includes(t.section)).map((t) => (
             <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
               {t.label}
             </a>
           ))}
+          <span>·</span>
+          <a href={`/management/export.pdf?${exportQuery}`} download className="text-primary hover:underline">
+            Download as PDF
+          </a>
           <span>·</span>
           <Link href="/management/reports" className="text-primary hover:underline">
             Scheduled reports
@@ -139,9 +174,13 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.
         </p>
 
-        {b === null ? (
+        {withheld.length > 0 ? (
           <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
-            Revenue, collections and service revenue are not shown: they need billing report access for every facility in scope.
+            Not shown for lack of access on every facility in scope:{" "}
+            {withheld
+              .map((w) => ({ billing: "revenue, collections and service revenue", inventory: "stock received and used", dispensing: "dispensing" })[w])
+              .join("; ")}
+            . Each {withheld.map((w) => SECTION_NEEDS[w].replace("needs ", "")).join(", ")}.
           </p>
         ) : null}
 
@@ -184,7 +223,8 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
             versus={versus}
             definition={d.averageWait}
           >
-            check-in to consultation · {c.visits.checkedIn} checked in, {c.visits.leftWithoutBeingSeen} left unseen
+            check-in to consultation · {spreadLabel(c.visits.medianWaitMinutes, c.visits.p90WaitMinutes)} · {c.visits.checkedIn} checked in,{" "}
+            {c.visits.leftWithoutBeingSeen} left unseen
           </Figure>
           {b ? (
             <>
@@ -228,7 +268,8 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
             versus={versus}
             definition={d.labTurnaround}
           >
-            collection to release · {percentOf(l.withinTargetRate)} within the test&apos;s target
+            collection to release · {spreadLabel(l.medianTurnaroundMinutes, l.p90TurnaroundMinutes)} · {percentOf(l.withinTargetRate)} within the test&apos;s
+            target
           </Figure>
           <Figure
             label="Specimen rejection"
@@ -250,11 +291,38 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
           >
             seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
           </Figure>
+          {stock ? (
+            <Figure
+              label="Stock used at cost"
+              value={peso(stock.used.value)}
+              change={comparison(k.stockUsed, prev.stockUsed, "count")}
+              assessment={verdict(changes.stockUsed)}
+              versus={versus}
+              definition={d.stock}
+            >
+              {peso(stock.received.value)} received · {peso(stock.writtenOff.value)} written off
+              {stock.used.unvaluedQuantity ? ` · ${stock.used.unvaluedQuantity.toLocaleString("en-PH")} units used without a recorded cost` : ""}
+            </Figure>
+          ) : null}
+          {rx ? (
+            <Figure
+              label="Dispenses"
+              value={rx.dispenses.toLocaleString("en-PH")}
+              change={comparison(k.dispenses, prev.dispenses, "count")}
+              assessment={verdict(changes.dispenses)}
+              versus={versus}
+              definition={d.dispensing}
+            >
+              {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions · {countLabel(rx.patients)} patients · {rx.reversed} reversed ·{" "}
+              {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued
+            </Figure>
+          ) : null}
           <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
             {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
           </Figure>
-          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={d.telemedicine}>
-            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress
+          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={`${d.telemedicine} ${d.telemedicineWait}`}>
+            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress · waiting room {minutesLabel(t.averageWaitMinutes)}{" "}
+            on average, {spreadLabel(t.medianWaitMinutes, t.p90WaitMinutes)} · {countLabel(t.joinedNotSeen)} joined but never seen
           </Figure>
         </section>
 
@@ -324,6 +392,19 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
             </p>
           </Section>
+          <Section title="Laboratory by department" definition={d.labDepartments}>
+            <SimpleTable
+              empty="No results released."
+              head={["Department", "Released", "Average turnaround", "Median", "Within target"]}
+              rows={l.byDepartment.map((x) => [
+                x.name,
+                x.released.toLocaleString("en-PH"),
+                minutesLabel(x.averageTurnaroundMinutes),
+                minutesLabel(x.medianTurnaroundMinutes),
+                percentOf(x.withinTargetRate),
+              ])}
+            />
+          </Section>
           <Section title="Dental procedures" definition={d.dentalProcedures}>
             <SimpleTable
               empty="No dental procedures."
@@ -334,13 +415,71 @@ export default async function ManagementPage({ searchParams }: { searchParams: P
               {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
             </p>
           </Section>
-          <Section title="Online consultations" definition={d.telemedicine}>
+          <Section title="Online consultations" definition={`${d.telemedicine} ${d.telemedicineWait}`}>
             <SimpleTable
               empty="No online consultations."
-              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate"]}
-              rows={t.started ? [[t.started, t.ended, t.escalated, t.inProgress, percentOf(t.escalationRate)].map(String)] : []}
+              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate", "Wait (avg)", "Wait (median)", "Wait (90th pct)", "Never seen"]}
+              rows={
+                t.started || t.joinedNotSeen
+                  ? [
+                      [
+                        String(t.started),
+                        String(t.ended),
+                        String(t.escalated),
+                        String(t.inProgress),
+                        percentOf(t.escalationRate),
+                        minutesLabel(t.averageWaitMinutes),
+                        minutesLabel(t.medianWaitMinutes),
+                        minutesLabel(t.p90WaitMinutes),
+                        countLabel(t.joinedNotSeen),
+                      ],
+                    ]
+                  : []
+              }
             />
           </Section>
+          {stock ? (
+            <Section title="Stock received and used" definition={d.stock}>
+              <SimpleTable
+                empty="No stock moved."
+                head={["Movement", "Quantity", "Value at cost"]}
+                rows={[
+                  ["Received", stock.received.quantity.toLocaleString("en-PH"), peso(stock.received.value)],
+                  ["Used (net of returns)", stock.used.quantity.toLocaleString("en-PH"), peso(stock.used.value)],
+                  ...stock.usedBySource.map((u): [string, string, string] => [
+                    `· ${stockUseLabel(u.sourceType, u.kind)}`,
+                    u.quantity.toLocaleString("en-PH"),
+                    peso(u.value),
+                  ]),
+                ]}
+              />
+              <SimpleTable
+                empty="Nothing used."
+                head={["Items that used the most value", "Qty", "Value"]}
+                rows={stock.topItems.map((i) => [`${i.name} (${i.code})`, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, peso(i.value)])}
+              />
+              <p className="text-meta text-muted-foreground">
+                {peso(stock.writtenOff.value)} written off · transfers between locations are not counted
+                {stock.received.unvaluedQuantity + stock.used.unvaluedQuantity
+                  ? ` · ${(stock.received.unvaluedQuantity + stock.used.unvaluedQuantity).toLocaleString("en-PH")} units moved without a recorded cost`
+                  : ""}
+              </p>
+            </Section>
+          ) : null}
+          {rx ? (
+            <Section title="Dispensing" definition={d.dispensing}>
+              <SimpleTable
+                empty="Nothing dispensed."
+                head={["Items dispensed most", "Quantity", "Dispenses"]}
+                rows={rx.topItems.map((i) => [i.name, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, i.dispenses.toLocaleString("en-PH")])}
+              />
+              <p className="text-meta text-muted-foreground">
+                {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued ({rx.prescriptionsCancelled} cancelled or replaced) ·{" "}
+                {rx.dispenses.toLocaleString("en-PH")} dispenses ({rx.reversed} reversed) · {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions
+                dispensed · {countLabel(rx.patients)} patients served
+              </p>
+            </Section>
+          ) : null}
           <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>
             <SimpleTable
               empty="No patients seen."

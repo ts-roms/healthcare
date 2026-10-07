@@ -1,9 +1,18 @@
-import { findTemplate, TEMPLATES, withoutSecrets } from "./templates";
+import { findTemplate, STAFF_PUSH_KIND_LABEL, TEMPLATES, withoutSecrets } from "./templates";
 
 describe("notification templates", () => {
   it("have unique keys", () => {
     const keys = TEMPLATES.map((t) => t.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("give every staff notice that pushes a kind the member can turn off, except the test push", () => {
+    // Staff notices are the ones with content-free push wording (patient templates push the same text as the in-app row).
+    const pushing = TEMPLATES.filter((t) => t.channels.includes("in_app") && t.channels.includes("push") && t.renderPush);
+    expect(pushing.length).toBeGreaterThanOrEqual(7);
+    for (const t of pushing) expect(t.pushKind && STAFF_PUSH_KIND_LABEL[t.pushKind]).toBeTruthy();
+    expect(findTemplate("staff.push-test")!.pushKind).toBeUndefined();
+    expect(findTemplate("staff.message")!.pushKind).toBeUndefined();
   });
 
   it("validate variables and render", () => {

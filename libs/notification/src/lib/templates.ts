@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { NotificationCategory, NotificationChannel } from "./notification.schema";
+import type { NotificationCategory, NotificationChannel, StaffPushKind } from "./notification.schema";
 
 /**
  * Message templates are code-reviewed, versioned and variable-validated.
@@ -21,6 +21,22 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
   /** Variables that are credentials (e.g. a reset token): blanked in the stored notification once it is sent, suppressed or failed. */
   secretVariables?: readonly string[];
   render(variables: z.infer<V>): RenderedMessage;
+  /**
+   * What a push to a staff browser carries instead of `render` (migration 0101): a push leaves the platform, so a notice
+   * that names a patient, an order or a file in the app says only what kind of thing is waiting here. Templates without
+   * it push the same text as the in-app notice.
+   */
+  renderPush?(variables: z.infer<V>): RenderedMessage;
+  /**
+   * What a staff notice is about, for the member's push preferences (migration 0106): a member may turn the push of
+   * a kind off. A staff template that lists `push` without a kind (the test push) ignores preferences.
+   */
+  pushKind?: StaffPushKind;
+}
+
+/** The message for a channel: push uses the template's content-free push wording where it has one. */
+export function renderForChannel<V extends z.ZodType>(template: NotificationTemplate<V>, channel: NotificationChannel, variables: z.infer<V>): RenderedMessage {
+  return channel === "push" && template.renderPush ? template.renderPush(variables) : template.render(variables);
 }
 
 export interface RenderedMessage {
@@ -187,10 +203,11 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "management.report-ready",
+    pushKind: "management_reports",
     version: 1,
     category: "administrative",
     // To the recipients of a scheduled management report: the schedule's name and period only, never a figure.
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
     internal: true,
     variables: z.object({
       scheduleName: z.string().min(1).max(120),
@@ -203,7 +220,9 @@ export const TEMPLATES = [
       text:
         `The scheduled management report "${v.scheduleName}" for ${v.periodFrom} to ${v.periodTo} is ready. ` +
         `Open Management → Scheduled reports in the staff app to download its tables.${v.link ? `\n\n${v.link}/management/reports` : ""}`,
+      href: "/management/reports",
     }),
+    renderPush: () => ({ subject: "A scheduled report is ready", text: "A scheduled management report is ready to download.", href: "/management/reports" }),
   }),
   defineTemplate({
     key: "staff.password-changed",
@@ -232,6 +251,28 @@ export const TEMPLATES = [
         `To choose a new password, open this link within ${v.validMinutes} minutes and enter your date of birth:\n\n${v.link}\n\n` +
         `The link works once. If you did not ask for this, you can ignore this message: your password stays the same.`,
     }),
+  }),
+  defineTemplate({
+    // The clinic requires two-step verification of MyHealth patients from a date (D6 phase 2): sent to each active
+    // account still to set it up when the requirement is turned on or its date moves. Nothing clinical.
+    key: "portal.mfa-required-notice",
+    version: 1,
+    category: "security",
+    channels: ["email"],
+    internal: true,
+    variables: z.object({ organizationName: shortText, requiredFrom: z.iso.date().nullable(), link: z.url().max(500).nullable() }),
+    render: (v) => {
+      const when = v.requiredFrom
+        ? `from ${new Intl.DateTimeFormat("en-PH", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${v.requiredFrom}T00:00:00Z`))}`
+        : "now";
+      return {
+        subject: `${v.organizationName} will ask for two-step verification in MyHealth`,
+        text:
+          `${v.organizationName} requires two-step verification for MyHealth ${when}. ` +
+          `Set it up before then with an authenticator app, under Profile → Sign-in security${v.link ? `:\n\n${v.link}\n\n` : ". "}` +
+          `If you cannot use an authenticator app, contact the clinic.`,
+      };
+    },
   }),
   defineTemplate({
     key: "portal.password-changed",
@@ -277,6 +318,10 @@ export const TEMPLATES = [
         "email_changed",
         "proxy_access_granted",
         "proxy_access_ended",
+        "mfa_exempted",
+        "mfa_exemption_ended",
+        "passkey_added",
+        "passkey_removed",
       ]),
       /** For "recovery_code_used": how many are left; for "email_changed": the new address, partly hidden. */
       detail: shortText.optional(),
@@ -292,6 +337,12 @@ export const TEMPLATES = [
         proxy_access_granted:
           "The clinic allowed another person, who has their own MyHealth account, to see and act on your records in MyHealth. You can end this in MyHealth under People.",
         proxy_access_ended: "Another person's access to your records in MyHealth was ended.",
+        mfa_exempted:
+          "The clinic exempted your MyHealth account from its two-step verification requirement. You can still turn two-step verification on under Sign-in security.",
+        mfa_exemption_ended:
+          "The clinic ended your exemption from its two-step verification requirement. If the clinic requires it, you will be asked to set it up when you sign in.",
+        passkey_added: `A passkey${v.detail ? ` (${v.detail})` : ""} was added to your MyHealth account. It can now be used for the second step of signing in.`,
+        passkey_removed: `A passkey${v.detail ? ` (${v.detail})` : ""} was removed from your MyHealth account.`,
         email_changed: `The sign-in email of your MyHealth account was changed${v.detail ? ` to ${v.detail}` : ""}.`,
       }[v.event];
       return {
@@ -388,11 +439,12 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "document.quarantine-notice",
+    pushKind: "documents",
     version: 1,
     category: "administrative",
     // In-app to the facility's records office (and the staff member who uploaded it). The scanner's signature name and
     // where the file came from; never the file, its title or clinical content.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({
       documentId: z.uuid(),
       signature: shortText,
@@ -404,17 +456,56 @@ export const TEMPLATES = [
       text: `A file ${v.origin === "patient_portal" ? "sent by a patient in MyHealth" : "uploaded by a staff member"} was found to contain malware (${v.signature}). It was not accepted and is kept in quarantine for review.`,
       href: v.patientId ? `/patients/${v.patientId}` : "/records",
     }),
+    renderPush: () => ({
+      subject: "A file was quarantined",
+      text: "An uploaded file was found to contain malware. Open the notice for details.",
+      href: "/notifications",
+    }),
+  }),
+  defineTemplate({
+    key: "document.integrity-notice",
+    pushKind: "documents",
+    version: 1,
+    category: "administrative",
+    // In-app to the facility's records office: an integrity review found a stored document whose bytes no longer match
+    // their recorded checksum, or whose file is gone; it is withheld until resolved. Never the file, its title or content.
+    channels: ["in_app", "push"],
+    variables: z.object({
+      documentId: z.uuid(),
+      findingId: z.uuid(),
+      outcome: z.enum(["mismatch", "missing"]),
+      patientId: z.uuid().nullable(),
+    }),
+    render: (v) => ({
+      subject: v.outcome === "missing" ? "A stored document is missing" : "A stored document failed its integrity check",
+      text:
+        v.outcome === "missing"
+          ? "The integrity review could not find a document's file in storage. The document is withheld from everyone until the records office resolves the finding."
+          : "The integrity review found a document whose stored file no longer matches the checksum recorded when it was stored. The document is withheld from everyone until the records office resolves the finding.",
+      href: "/records/integrity",
+    }),
+    renderPush: () => ({
+      subject: "A stored document needs review",
+      text: "The integrity review of stored documents found something to resolve. Open the notice for details.",
+      href: "/notifications",
+    }),
   }),
   defineTemplate({
     key: "records.request-new",
+    pushKind: "records_requests",
     version: 1,
     category: "administrative",
     // In-app to the records office. The request number only: what was asked is read in the request, behind access control.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({ requestId: z.uuid(), requestNumber: z.string().regex(/^RR\d{8}$/) }),
     render: (v) => ({
       subject: `New records request ${v.requestNumber}`,
       text: `A patient asked for copies of their records (${v.requestNumber}). Review it and share the documents or decline with a reason.`,
+      href: `/records/requests/${v.requestId}`,
+    }),
+    renderPush: (v) => ({
+      subject: "New records request",
+      text: "A patient asked for copies of their records. Open the request to answer it.",
       href: `/records/requests/${v.requestId}`,
     }),
   }),
@@ -457,6 +548,20 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "staff.push-test",
+    version: 1,
+    category: "administrative",
+    // Sent when a staff member asks "send me a test": to show that notifications reach this browser (migration 0101).
+    channels: ["push"],
+    internal: true,
+    variables: z.object({ organizationName: shortText }),
+    render: (v) => ({
+      subject: "Notifications are on",
+      text: `${v.organizationName}: this is a test. Staff notifications reach this browser.`,
+      href: "/notifications",
+    }),
+  }),
+  defineTemplate({
     key: "portal.message-received",
     version: 1,
     category: "administrative",
@@ -470,10 +575,11 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "portal.message-overdue",
+    pushKind: "patient_messages",
     version: 1,
     category: "administrative",
     // In-app to the clinic's staff when a conversation waits past the response target. No name and no text.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({ threadId: z.uuid() }),
     render: (v) => ({
       subject: "A patient's message is waiting past its target",
@@ -483,10 +589,11 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "portal.message-new",
+    pushKind: "patient_messages",
     version: 1,
     category: "administrative",
     // In-app to the clinic's staff. No name and no text: the conversation is read behind access control.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({ threadId: z.uuid() }),
     render: (v) => ({
       subject: "New message from a patient",
@@ -496,10 +603,11 @@ export const TEMPLATES = [
   }),
   defineTemplate({
     key: "clinic.referral-notice",
+    pushKind: "referrals",
     version: 1,
     category: "clinical",
     // In-app between practitioners. The referral number only: the patient and the reason are read in the referral.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({
       referralId: z.uuid(),
       referralNumber: z.string().regex(/^RF\d{8}$/),
@@ -520,13 +628,22 @@ export const TEMPLATES = [
               : `Your referral ${v.referralNumber} was completed. Read the outcome in the referral.`,
       href: `/clinic/referrals/${v.referralId}`,
     }),
+    renderPush: (v) => ({
+      subject: v.kind === "new" ? "New referral" : "Referral update",
+      text:
+        v.kind === "new"
+          ? "A patient was referred to you. Open the referral to accept or decline it."
+          : "One of your referrals was answered. Open it to read the outcome.",
+      href: `/clinic/referrals/${v.referralId}`,
+    }),
   }),
   defineTemplate({
     key: "lab.result-notice",
+    pushKind: "laboratory_results",
     version: 1,
     category: "clinical",
     // In-app to the ordering practitioner. Identifiers only: the value is read in the order, behind access control.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.object({
       kind: z.enum(["critical", "corrected"]),
       orderNumber: z.string().regex(/^LO\d{8}$/),
@@ -542,13 +659,23 @@ export const TEMPLATES = [
             subject: `Corrected laboratory result — ${v.patientNumber}`,
             text: `A released result on laboratory order ${v.orderNumber} for patient ${v.patientNumber} was corrected. Open the order to see the new version and its reason.`,
           },
+    // The push names no patient or order: it says what kind of result is waiting and where.
+    renderPush: (v) =>
+      v.kind === "critical"
+        ? {
+            subject: "Critical laboratory result",
+            text: "A critical result was verified and needs acknowledgement. Open the critical results list.",
+            href: "/laboratory/critical",
+          }
+        : { subject: "Corrected laboratory result", text: "A released result was corrected. Open your notifications for the order.", href: "/notifications" },
   }),
   defineTemplate({
     key: "lab.quality-notice",
+    pushKind: "laboratory_quality",
     version: 1,
     category: "administrative",
     // In-app to the facility's quality managers. No patient, specimen or control values — the record is read behind access control.
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
     variables: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("nonconformance"),
@@ -620,6 +747,20 @@ export const TEMPLATES = [
           };
       }
     },
+    renderPush: (v) => ({
+      subject: "Laboratory quality notice",
+      text:
+        v.kind === "nonconformance"
+          ? "A nonconformance was opened. Open it to investigate."
+          : v.kind === "qc_rejected"
+            ? "A QC run was rejected. Review it and record a corrective action."
+            : v.kind === "reagent_low"
+              ? "A reagent lot is running low on an instrument."
+              : v.kind === "temperature_due"
+                ? "A storage-unit temperature reading is due."
+                : "A competency reassessment is due.",
+      href: "/notifications",
+    }),
   }),
 ] as const;
 
@@ -648,15 +789,18 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "portal.password-changed": "MyHealth password changed",
   "portal.email-verification": "MyHealth email verification code",
   "portal.security-alert": "MyHealth security alert",
+  "portal.mfa-required-notice": "MyHealth two-step verification required",
   "staff.message": "Staff message",
   "lab.results-available": "Results ready in MyHealth",
   "dental.record-update": "Dental record update in MyHealth",
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
+  "document.integrity-notice": "Document integrity finding (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
   "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",
+  "staff.push-test": "Push notification test (staff)",
   "portal.message-received": "A MyHealth message is waiting",
   "portal.message-new": "New MyHealth message (staff)",
   "portal.message-overdue": "MyHealth message past its target (staff)",
@@ -672,3 +816,14 @@ export function templateLabel(key: string): string {
 export function findTemplate(key: string): NotificationTemplate | undefined {
   return (TEMPLATES as readonly NotificationTemplate[]).find((t) => t.key === key);
 }
+
+/** The kinds of staff notice a member may turn off in their browsers, in the order the screen shows them. */
+export const STAFF_PUSH_KIND_LABEL: Record<StaffPushKind, string> = {
+  records_requests: "Records requests from patients",
+  patient_messages: "MyHealth messages (new and overdue)",
+  referrals: "Referrals to you or answered",
+  laboratory_results: "Laboratory results (critical and awaiting review)",
+  laboratory_quality: "Laboratory quality events",
+  documents: "Document safety (quarantined and integrity findings)",
+  management_reports: "Scheduled management reports",
+};

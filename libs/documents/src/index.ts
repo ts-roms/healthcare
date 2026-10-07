@@ -6,3 +6,5 @@ export * from "./lib/documents.service";
 export * from "./lib/malware-scanner";
 export * from "./lib/object-storage";
 export * from "./lib/document-retention.service";
+export * from "./lib/document-integrity.rules";
+export * from "./lib/document-integrity.service";

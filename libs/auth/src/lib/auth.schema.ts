@@ -38,6 +38,8 @@ export const role = pgTable("role", {
   isSystem: boolean("is_system").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Optimistic lock for edits of an organization's own role (migration 0102). */
+  version: integer("version").notNull().default(1),
 });
 
 export const rolePermission = pgTable(

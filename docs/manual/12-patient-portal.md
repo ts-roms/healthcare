@@ -41,7 +41,7 @@ working and you need a new one.
 To sign out, choose **Sign out** at the top of the page. You see "You have signed out."
 
 If your account uses **two-step verification**, after your password you are asked for a code: the 6 digits from your authenticator app, or one of your
-recovery codes (see [How to make your sign-in more secure](#how-to-make-your-sign-in-more-secure)).
+recovery codes — or, if you added one, you can choose **Use a passkey** (see [How to make your sign-in more secure](#how-to-make-your-sign-in-more-secure)).
 
 If you have been away for a while, or the clinic ended your access, you may be sent back to the sign-in page with "You were signed out. Sign in again to
 continue."
@@ -65,8 +65,8 @@ confirmed, you are signed out of your other devices and the old address gets a n
 **Turn on two-step verification** (needs a confirmed email)
 
 1. Under **Two-step verification** choose **Turn on** and enter your password.
-2. In an authenticator app (for example Google Authenticator or Microsoft Authenticator) add an account with the **setup key** shown, or on a phone choose
-   **open it in your authenticator app**.
+2. In an authenticator app (for example Google Authenticator or Microsoft Authenticator) scan the **QR code** shown, add an account with the **setup
+   key** under it, or on a phone choose **open it in your authenticator app**.
 3. Type the 6-digit code the app shows and choose **Turn on**.
 4. Save the **10 recovery codes** shown. They appear only once. Keep them safe and private, not only on your phone. Each works once if you lose your
    phone. Choose **I saved them**.
@@ -77,6 +77,24 @@ two-step verification off. Both need your password and a current code. We email 
 
 **Lost your phone and your recovery codes?** Ask the clinic front desk. After checking who you are, staff turn two-step verification off for you and you
 are signed out everywhere; sign in with your password and set it up again.
+
+**Remembered browsers.** When you enter a code at sign-in you can tick **Don't ask for a code on this browser for 30 days**. Do this only on a device that
+is yours: that browser then signs in with your password alone until the 30 days are over, or until you forget it. **Sign-in security** lists your
+remembered browsers (the one you are using is marked **This browser**) with **Forget**; turning two-step verification off, or the clinic resetting it,
+forgets them all, and so does a password reset. You can remember at most five; the one used least recently makes room.
+
+**Passkeys.** With two-step verification on, you can let your phone or computer unlock the second step with its own PIN, fingerprint or face instead of
+typing a code. Under **Passkeys** choose **Add a passkey**, enter your password and a code (from the app, or a recovery code), give it a name if you like,
+choose **Continue** and follow what your device asks. Next time, after your password, choose **Use a passkey**. Your password is still needed, and the app
+and recovery codes keep working if you lose the device. You can have up to five passkeys and **Remove** any of them; turning two-step verification off,
+or the clinic resetting it, removes them all. We email you when a passkey is added or removed. Passkeys work in MyHealth on the web; the mobile app still
+asks for the code.
+
+**When your clinic requires two-step verification.** Some clinics require it for everyone. MyHealth tells you the date from which it applies, on Home
+and under **Sign-in security**, so you have time to set it up. From that date you can still sign in, but only **Profile** and **Sign-in security** open
+until it is on; everything else says to set it up first. Nobody can turn it on for you, and nobody is locked out. We also email you when the clinic sets
+the date, and again if it moves, until you have set it up. If you have no smartphone or cannot use an authenticator app, tell the clinic: they can exempt
+your account, and we email you when they do.
 
 ## How to reset your password
 
@@ -283,7 +301,27 @@ the clinic at your next visit — bring your vaccination card.
    provider).
 
 Private details (other substance use, sexual history) are marked with a lock and shown only to you — not to someone who looks after your
-account for you. You cannot change anything here: if something is wrong or missing, tell your clinic at your next visit or send them a message.
+account for you. What you sent from MyHealth says **Reported here in MyHealth**.
+
+## How to tell the clinic about your health history
+
+1. On **Health history**, scroll to **Tell the clinic about your health history**.
+2. Under each heading select **Add one** and fill in what applies: **Medicines you take that the clinic did not prescribe** (name as on the box,
+   how you take it, since when, whether you take it now), **Past illnesses**, **Operations and procedures**, **Illnesses in the family** and
+   **Daily life** (tobacco, alcohol, work, home, activity, diet — what the clinic already has is filled in; change only what is different).
+   Dates can be a year (2019), a month (2019-05) or a day (2019-05-12); leave a date blank if you do not know it.
+3. Tick the confirmation and select **Send to the clinic**. The clinic keeps your answers as what you told it — they are not a diagnosis — and
+   your care team reads them at your next visit; nobody is paged.
+4. For a medicine you reported here that you no longer take, select **I stopped taking this** and give the date if you know it.
+
+**Things to know:**
+
+- Once sent, an entry cannot be changed or removed here: if you made a mistake, tell the clinic at your next visit or send them a message, and
+  they will mark it as entered in error.
+- Other substance use and sexual history are not asked here; they are discussed at the clinic.
+- Someone who looks after your MyHealth with **view-only** access can read your history but cannot answer for you; with full access, their
+  answers are recorded as reported by a relative.
+- You can send up to 10 questionnaires an hour.
 
 ## How to see and pay your bills
 
@@ -476,8 +514,10 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 - After 5 wrong passwords in a row, sign-in is locked for about 15 minutes. Resetting your password ends the lock.
 - Your email must be confirmed before you can turn on two-step verification. A code sent to confirm an email works for 15 minutes, allows 5 tries, and
   at most 5 are sent an hour.
-- With two-step verification on, every sign-in needs a code from the app (or a recovery code), and every code works once. Wrong codes count toward the
-  same lock as wrong passwords. Resetting your password does not turn it off.
+- With two-step verification on, every sign-in needs a code from the app (or a recovery code, or a passkey you added), and every code works once. Wrong
+  codes and refused passkeys count toward the same lock as wrong passwords. Resetting your password does not turn it off.
+- Adding a passkey needs your password and a code; you can have at most 5. Turning off two-step verification or making new recovery codes still needs
+  a code, not a passkey.
 - A password-reset link works once, for 30 minutes, needs your date of birth, and at most 3 are sent per hour. Choosing a new password signs you out
   everywhere.
 - You can book only kinds of visit the clinic opened for online booking, only in open times of the doctor's schedule.
@@ -505,6 +545,7 @@ ask the clinic to correct your record. **Notification settings** and **Privacy a
 | This link or date of birth is not correct, or the link has expired. Ask for a new link.      | The reset link was used, replaced, expired, or the date of birth was wrong | Ask for a new link and enter your date of birth as on your record |
 | That code is not correct, or it has expired. Ask for a new code.                             | The email code was wrong, expired, or used up its 5 tries                  | Ask for a new code under Sign-in security                         |
 | That code is not correct. Use the newest code in your authenticator app, or a recovery code. | The app's code was wrong, or already used                                  | Wait for the next code in the app, or use a recovery code         |
+| The passkey could not be checked. Try again, or use a code.                                  | The passkey was refused or cancelled, or the request took too long         | Try **Use a passkey** again, or enter a code from the app         |
 | Invalid email or password                                                                    | Email or password is wrong                                                 | Try again carefully                                               |
 | Too many failed attempts. Try again later.                                                   | Sign-in is locked after repeated wrong passwords                           | Wait about 15 minutes                                             |
 | Too many attempts. Wait a minute, then try again.                                            | Too many tries in a short time                                             | Wait a minute                                                     |

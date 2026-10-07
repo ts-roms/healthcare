@@ -18,7 +18,13 @@ export async function GET(request: Request) {
   };
   const upstream = await apiFile("/management/dashboard/export", {
     accept: "text/csv",
-    query: { table, from: pick("from", DATE), to: pick("to", DATE), facilityId: pick("facilityId", UUID) },
+    query: {
+      table,
+      from: pick("from", DATE),
+      to: pick("to", DATE),
+      facilityId: pick("facilityId", UUID),
+      comparison: pick("comparison", /^(previous|last-year)$/),
+    },
   });
   if (!upstream.ok) {
     const message =

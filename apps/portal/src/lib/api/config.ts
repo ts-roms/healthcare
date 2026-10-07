@@ -13,6 +13,8 @@ export const COOKIES = {
   refresh: "hp_rt",
   /** The password step of sign-in is done; the code step is next (5 minutes). */
   mfaChallenge: "hp_mfa",
+  /** This browser was remembered after a second-step code (30 days; the API decides). Sent with the password at sign-in. */
+  device: "hp_dev",
 } as const;
 
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";

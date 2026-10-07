@@ -8,6 +8,7 @@ import { InventoryValuationController, ProcurementController, SupplierInvoiceCon
 import { PurchaseOrderService } from "./procurement/purchase-order.service";
 import { SupplierInvoiceService } from "./procurement/supplier-invoice.service";
 import { InventoryQueries } from "./stock/inventory-queries";
+import { InventoryReportingQueries } from "./stock/inventory-reporting.queries";
 import { InventoryStockService } from "./stock/inventory-stock.service";
 import { InventoryValuationService } from "./stock/inventory-valuation.service";
 
@@ -33,7 +34,8 @@ import { InventoryValuationService } from "./stock/inventory-valuation.service";
     SupplierInvoiceService,
     InventoryValuationService,
     InventoryComplianceService,
+    InventoryReportingQueries,
   ],
-  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService],
+  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService, InventoryReportingQueries],
 })
 export class InventoryModule {}

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getFacilities, getSession } from "@/lib/api/session";
 import type { ManagementReportRun, ManagementReportSchedule, StaffUser } from "@/lib/api/types";
-import { EXPORT_TABLES } from "@/lib/management-mapping";
+import { REPORT_FILES } from "@/lib/management-mapping";
 import { ScheduleEditor } from "./schedule-editor";
 
 export const metadata = { title: "Scheduled reports" };
@@ -18,7 +18,12 @@ const RUN_STATUS: Record<ManagementReportRun["status"], { label: string; tone: "
   failed: { label: "Failed", tone: "danger" },
 };
 
-const tableLabel = (key: string) => EXPORT_TABLES.find((t) => t.key === key)?.label ?? key;
+/** "Summary", "Dashboard (PDF)"; a section the PDF had to leave out reads "PDF: revenue not available to the owner". */
+const tableLabel = (key: string) => {
+  if (key.startsWith("pdf:"))
+    return `PDF: ${{ billing: "revenue", inventory: "stock", dispensing: "dispensing" }[key.slice(4)] ?? key.slice(4)} not available to the owner`;
+  return REPORT_FILES.find((t) => t.key === key)?.label ?? key;
+};
 
 /** Weekly and monthly management reports: who gets which dashboard tables, and the reports produced so far. */
 export default async function ScheduledReportsPage() {
@@ -39,7 +44,7 @@ export default async function ScheduledReportsPage() {
     <>
       <PageHeader
         title="Scheduled reports"
-        description="The management dashboard's tables as CSV files, produced once a week or month with the permissions of whoever set the schedule up. Recipients are told without figures."
+        description="The management dashboard's tables as CSV files, or the whole dashboard as a PDF, produced once a week or month with the permissions of whoever set the schedule up. Recipients are told without figures."
         actions={
           <Link href="/management" className="text-table text-primary hover:underline">
             Management dashboard
@@ -118,8 +123,9 @@ export default async function ScheduledReportsPage() {
           </CardContent>
         </Card>
         <p className="text-meta text-muted-foreground">
-          Files keep the dashboard&apos;s rules: patient counts under five show as “&lt;5”, and revenue tables open only for people with billing report access
-          for every facility of the report. Every download is recorded in the audit trail. Operational figures, not official or BIR reports.
+          Files keep the dashboard&apos;s rules: patient counts under five show as “&lt;5”; revenue, stock and dispensing tables open only for people with the
+          matching permission (billing reports, inventory valuation, prescription reading) for every facility of the report, and the PDF needs every permission
+          the owner had when it was produced. Every download is recorded in the audit trail. Operational figures, not official or BIR reports.
         </p>
       </div>
     </>

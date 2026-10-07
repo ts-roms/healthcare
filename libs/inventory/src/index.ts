@@ -3,6 +3,7 @@ export * from "./lib/inventory.module";
 export * from "./lib/inventory.rules";
 export * from "./lib/inventory.schema";
 export * from "./lib/stock/inventory-queries";
+export * from "./lib/stock/inventory-reporting.queries";
 export * from "./lib/stock/inventory-stock.service";
 export * from "./lib/procurement/purchase-order.service";
 export * from "./lib/procurement/supplier-invoice.service";

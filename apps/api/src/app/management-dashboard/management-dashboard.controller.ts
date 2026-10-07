@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { EXPORT_TABLES } from "./management-dashboard.rules";
+import { COMPARISON_MODES, EXPORT_TABLES } from "./management-dashboard.rules";
 import { ManagementDashboardService } from "./management-dashboard.service";
 
 const localDate = z
@@ -17,6 +17,8 @@ export const managementDashboardQuerySchema = z.object({
   to: localDate.optional(),
   /** One facility; every facility the caller may report on when omitted. */
   facilityId: z.uuid().optional(),
+  /** What to compare with: the period of the same length just before (default) or the same dates one year earlier. */
+  comparison: z.enum(COMPARISON_MODES).optional(),
 });
 export class ManagementDashboardQueryDto extends createZodDto(managementDashboardQuerySchema) {}
 
@@ -51,5 +53,16 @@ export class ManagementDashboardController {
     // A byte-order mark so spreadsheet programs read the peso sign and names as UTF-8.
     const body = Buffer.from(`\uFEFF${csv}`, "utf8");
     return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
+  }
+
+  @Get("dashboard/export.pdf")
+  @RequirePermissions("management.dashboard.read")
+  @ApiOperation({
+    summary:
+      "The whole management dashboard as one printable PDF: key figures against the comparison period, then every section's table (withheld sections marked as not available); audited",
+  })
+  async exportPdf(@CurrentActor() actor: Actor, @Query() query: ManagementDashboardQueryDto): Promise<StreamableFile> {
+    const { filename, pdf } = await this.dashboards.exportPdf(actor, query);
+    return new StreamableFile(pdf, { type: "application/pdf", disposition: `attachment; filename="${filename}"`, length: pdf.length });
   }
 }

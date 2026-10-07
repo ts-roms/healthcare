@@ -95,7 +95,15 @@ User ──membership──▶ Organization
   only when the request carries that `X-Facility-Id`; a department grant only
   with that `X-Department-Id`.
 - System roles (`org_admin`, `physician`, `nurse`, `receptionist`,
-  `records_officer`, `auditor`) are templates; organizations can define custom roles.
+  `records_officer`, `auditor`) are templates; organizations can define custom roles
+  (`POST /roles`) and edit them (`PUT /roles/:id`, `role.manage`, migration `0102`):
+  name, description and the whole permission set replaced together under an
+  optimistic `version` (`409 version_conflict`); the key never changes; system
+  roles are refused (`422 system_role`); the editor must hold every permission
+  added **and** every one removed (the delegation rule, `403` and an
+  `access.deny` audit otherwise); audited `role.update` with from/to and reason.
+  Permissions are resolved on every request, so holders see a change at their
+  next request. No delete: a role is retired by revoking its assignments.
   Clinic permissions (migration 0012): physicians document, sign, amend and
   prescribe; nurses triage, record allergies and manage care plans;
   receptionists manage appointments and the queue; records officers read.
@@ -145,8 +153,13 @@ patient until shared); audited `patient.records-request.view | review | fulfil |
 Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md):
 `compliance.review.manage` (org_admin) records who validated each area; `inventory.controlled-register.read`
 (org_admin, pharmacist, inventory_officer) reads and exports the register of controlled items (audited
-`inventory.controlled-register.view | export`); `document.retention.manage` (org_admin, records_officer) sets retention
-periods and reviews documents past them (audited `document.retention.*`; nothing is deleted). Withholding codes and
+`inventory.controlled-register.view | export`); `notification.read` reads the communication log within the facilities of its grants (an organization-wide grant: every
+facility; a facility-scoped grant: those facilities only, never messages with no recorded facility; a facility outside
+the scope is refused and audited `facility_out_of_scope`, migration `0106`); `document.retention.manage` (org_admin, records_officer) sets retention
+periods and reviews documents past them (audited `document.retention.*`; nothing is deleted); `document.integrity.manage`
+(org_admin, records_officer) runs the integrity review of stored documents against their checksums and resolves its
+findings (audited `document.integrity.*`; a mismatched or missing file is withheld from every reader until resolved;
+nothing is repaired or deleted). Withholding codes and
 procurement methods need `inventory.procurement.approve`; the laboratory licence `lab.qc.manage`; the records-request
 procedure `patient.records-request.manage` and `organization.manage`; audited `compliance.review.record`,
 `inventory.withholding-code.*`, `inventory.procurement-method.*`, `inventory.controlled-register.setting`,
@@ -286,6 +299,17 @@ administrator's own MFA first (`422 own_mfa_required`).
   procedure.
 - Audited: `auth.mfa-policy.update` (from/to, reason),
   `auth.mfa-exemption.grant|revoke`, `auth.mfa.reset`.
+
+**Patients (MyHealth).** The same idea for portal accounts, with notice:
+`patient_mfa_policy` (migration `0100`), `GET|PUT /security/patient-mfa-policy`
+(`user.read` / `user.mfa.manage`), a start date at least 7 days ahead
+(`422 notice_required`), `PatientAccessGuard` answering
+`403 mfa_enrollment_required` from that date on every portal route not marked
+`@AllowDuringPortalMfaEnrollment()`, and browsers a patient may remember for
+30 days after a code (`patient_trusted_device`, hashed token, 5 per account,
+forgotten with the account's MFA or sessions). Audited
+`portal.mfa-policy.update`, `portal.device-trust`, `portal.device-forget`.
+Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
 
 ## Known gaps (tracked for later phases)
 

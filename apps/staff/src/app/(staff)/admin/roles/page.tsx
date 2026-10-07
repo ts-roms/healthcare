@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { StaffRoleDefinition } from "@/lib/api/types";
+import { EditRoleForm } from "./edit-role-form";
 import { NewRoleForm } from "./new-role-form";
 import { permissionGroups } from "./permission-groups";
 
@@ -17,7 +18,7 @@ export default async function RolesPage() {
   const held = session.user.isPlatformAdmin ? permissions : permissions.filter((p) => session.permissions.includes(p));
   return (
     <>
-      <PageHeader title="Roles" description="What each role allows. Built-in roles cannot be changed; your organization can add its own." />
+      <PageHeader title="Roles" description="What each role allows. Built-in roles cannot be changed; your organization can add its own and edit them." />
       <div className="flex flex-col gap-4 p-4">
         {can(session, "role.manage") ? <NewRoleForm groups={permissionGroups(permissions)} held={held} /> : null}
         <div className="grid gap-4 lg:grid-cols-2">
@@ -42,6 +43,9 @@ export default async function RolesPage() {
                     </div>
                   ))}
                 </dl>
+                {!role.isSystem && can(session, "role.manage") ? (
+                  <EditRoleForm key={role.version} role={role} groups={permissionGroups(permissions)} held={held} />
+                ) : null}
               </CardContent>
             </Card>
           ))}

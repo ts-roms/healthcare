@@ -173,3 +173,80 @@ export class RecordSocialHistoryDto extends createZodDto(recordSocialHistorySche
 
 export const historyInErrorSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
 export class HistoryInErrorDto extends createZodDto(historyInErrorSchema) {}
+
+// ---- MyHealth: the patient's own answers -----------------------------------------------------------------------------
+
+/**
+ * What a patient (or a guardian acting for a dependent) reports in MyHealth: a history questionnaire answered in one
+ * go. Every entry is recorded as reported by the patient (or a relative), without a code, a clinician's notes or a
+ * consultation. Substance use and sexual history are not asked here. Nothing is a diagnosis or a prescription.
+ */
+const portalMedicationSchema = z
+  .object({
+    medication: text(200),
+    dose: optionalText(200),
+    reason: optionalText(300),
+    prescribedBy: optionalText(300),
+    started: partialDate.optional(),
+    status: z.enum(REPORTED_MEDICATION_STATUSES),
+    stopped: partialDate.optional(),
+  })
+  .refine((v) => !v.stopped || v.status === "stopped", { message: "A stop date is given for a medicine that was stopped", path: ["stopped"] });
+
+const portalConditionSchema = z.object({
+  description: text(300),
+  onset: partialDate.optional(),
+  status: z.enum(PAST_CONDITION_STATUSES),
+  diagnosedBy: optionalText(300),
+});
+
+const portalProcedureSchema = z.object({
+  description: text(300),
+  performed: partialDate.optional(),
+  performer: optionalText(300),
+  bodySite: optionalText(120),
+});
+
+const portalFamilySchema = z
+  .object({
+    relationship: z.enum(FAMILY_RELATIONSHIPS),
+    relationshipText: optionalText(100),
+    condition: text(300),
+    onsetAge: z.number().int().min(0).max(130).optional(),
+    deceased: z.boolean().optional(),
+    causeOfDeath: optionalText(300),
+  })
+  .refine((v) => v.relationship !== "other" || Boolean(v.relationshipText), { message: "Name the relative", path: ["relationshipText"] })
+  .refine((v) => !v.causeOfDeath || v.deceased === true, { message: "A cause of death is recorded for a relative who has died", path: ["causeOfDeath"] });
+
+/** The non-sensitive parts of the social history; a field left out is carried over from the current version, null clears it. */
+const portalSocialSchema = z.object({
+  tobaccoStatus: z.enum(USE_STATUSES).nullable().optional(),
+  tobaccoType: socialText(120),
+  tobaccoAmount: socialText(120),
+  tobaccoQuitYear: z.number().int().min(1900).max(2200).nullable().optional(),
+  alcoholStatus: z.enum(USE_STATUSES).nullable().optional(),
+  alcoholFrequency: socialText(200),
+  occupation: socialText(200),
+  occupationalExposures: socialText(1000),
+  livingSituation: socialText(1000),
+  physicalActivity: socialText(1000),
+  diet: socialText(1000),
+});
+
+export const MAX_PORTAL_ENTRIES = 30;
+
+export const portalHistorySubmissionSchema = z
+  .object({
+    medications: z.array(portalMedicationSchema).max(MAX_PORTAL_ENTRIES).default([]),
+    conditions: z.array(portalConditionSchema).max(MAX_PORTAL_ENTRIES).default([]),
+    procedures: z.array(portalProcedureSchema).max(MAX_PORTAL_ENTRIES).default([]),
+    family: z.array(portalFamilySchema).max(MAX_PORTAL_ENTRIES).default([]),
+    social: portalSocialSchema.optional(),
+  })
+  .refine((v) => v.medications.length + v.conditions.length + v.procedures.length + v.family.length > 0 || v.social !== undefined, {
+    message: "Answer at least one part of the questionnaire",
+    path: ["medications"],
+  });
+export class PortalHistorySubmissionDto extends createZodDto(portalHistorySubmissionSchema) {}
+export type PortalHistorySubmissionInput = z.output<typeof portalHistorySubmissionSchema>;

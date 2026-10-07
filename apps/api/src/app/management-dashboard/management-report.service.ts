@@ -19,8 +19,8 @@ import { DocumentsService } from "@healthcare/documents";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { and, desc, eq, gt, inArray, lt, or } from "drizzle-orm";
-import { coversAll, EXPORT_TABLES, type ExportTable, REVENUE_EXPORT_TABLES } from "./management-dashboard.rules";
-import { ManagementDashboardService } from "./management-dashboard.service";
+import { coversAll, type ExportTable, PDF_REPORT, REPORT_FILES, type ReportFile, TABLE_SECTIONS, type WithheldSection } from "./management-dashboard.rules";
+import { DISPENSING_PERMISSION, INVENTORY_PERMISSION, ManagementDashboardService, REVENUE_PERMISSION } from "./management-dashboard.service";
 import { duePeriods, type ReportPeriod, reportFileName } from "./management-report.rules";
 import {
   managementReport,
@@ -33,7 +33,24 @@ import {
 } from "./management-report.schema";
 
 const MANAGEMENT_PERMISSION = "management.dashboard.read";
-const REVENUE_PERMISSION = "billing.report.read";
+/** The permission each gated section needs on every facility of the scope, and how its refusal is named. */
+const SECTION_PERMISSIONS: Record<WithheldSection, { permission: string; code: string; message: string }> = {
+  billing: {
+    permission: REVENUE_PERMISSION,
+    code: "revenue_not_reportable",
+    message: "Revenue tables need the billing report permission for every facility in scope",
+  },
+  inventory: {
+    permission: INVENTORY_PERMISSION,
+    code: "stock_not_reportable",
+    message: "Stock tables need the inventory valuation permission for every facility in scope",
+  },
+  dispensing: {
+    permission: DISPENSING_PERMISSION,
+    code: "dispensing_not_reportable",
+    message: "Dispensing tables need the prescription reading permission for every facility in scope",
+  },
+};
 /** A run still 'producing' this long after it started was interrupted (an API restart) and is resumed. */
 const STALE_RUN_MS = 10 * 60 * 1000;
 /** A failed run is tried again every hour for this long, then left as it is for someone to look at. */
@@ -42,7 +59,8 @@ const RETRY_FAILED_MS = 7 * 24 * 60 * 60 * 1000;
 export interface ScheduleInput {
   name: string;
   cadence: ReportCadence;
-  tables: ExportTable[];
+  /** CSV tables of the dashboard, and `pdf` for the whole dashboard as one PDF. */
+  tables: ReportFile[];
   facilityId?: string | null;
   recipientUserIds: string[];
 }
@@ -212,7 +230,7 @@ export class ManagementReportService {
    * a schedule is never created that can only produce an empty report.
    */
   private async validate(actor: Actor, input: ScheduleInput): Promise<void> {
-    const unknown = input.tables.filter((t) => !EXPORT_TABLES.includes(t));
+    const unknown = input.tables.filter((t) => !REPORT_FILES.includes(t));
     if (unknown.length > 0) throw new BusinessRuleError(`Unknown table(s): ${unknown.join(", ")}`, "unknown_table");
     const facilities = await this.organizations.listFacilities(actor.organizationId);
     if (input.facilityId && !facilities.some((f) => f.id === input.facilityId)) throw new NotFoundError("Facility");
@@ -227,15 +245,18 @@ export class ManagementReportService {
     ) {
       throw new ForbiddenError("You may not report on every facility in this scope", "scope_not_reportable");
     }
-    const wantsRevenue = input.tables.some((t) => REVENUE_EXPORT_TABLES.includes(t));
-    if (
-      wantsRevenue &&
-      !coversAll(
-        ownerGrants.filter((g) => g.permissionKey === REVENUE_PERMISSION),
-        scope,
-      )
-    ) {
-      throw new ForbiddenError("Revenue tables need the billing report permission for every facility in scope", "revenue_not_reportable");
+    // A gated table can only be promised when the owner holds its permission; the PDF prints withheld sections as such.
+    const sections = new Set(input.tables.flatMap((t) => (t === PDF_REPORT ? [] : [TABLE_SECTIONS[t]])).filter((x): x is WithheldSection => !!x));
+    for (const section of sections) {
+      const { permission, code, message } = SECTION_PERMISSIONS[section];
+      if (
+        !coversAll(
+          ownerGrants.filter((g) => g.permissionKey === permission),
+          scope,
+        )
+      ) {
+        throw new ForbiddenError(message, code);
+      }
     }
 
     for (const userId of new Set(input.recipientUserIds)) {
@@ -319,25 +340,34 @@ export class ManagementReportService {
       .from(managementReportFile)
       .where(and(eq(managementReportFile.reportId, runId), eq(managementReportFile.table, table)));
     if (!file?.documentId) throw new NotFoundError("Report file");
-    if (REVENUE_EXPORT_TABLES.includes(table as ExportTable)) {
+    // A gated table needs its permission on every facility of the run (as the screen's export does). The PDF was
+    // produced with the owner's permissions and may hold every section: it needs every gated permission the owner had.
+    const sections: WithheldSection[] =
+      table === PDF_REPORT
+        ? (Object.keys(SECTION_PERMISSIONS) as WithheldSection[]).filter((s) => !run.withheld.some((w) => w.table === `pdf:${s}`))
+        : [TABLE_SECTIONS[table as ExportTable]].filter((s): s is WithheldSection => !!s);
+    if (sections.length > 0) {
       const facilities = await this.organizations.listFacilities(actor.organizationId);
       const scope = run.facilityId ? [run.facilityId] : facilities.map((f) => f.id);
       const grants = await this.access.grantsFor(actor.userId, actor.organizationId);
-      if (
-        !coversAll(
-          grants.filter((g) => g.permissionKey === REVENUE_PERMISSION),
-          scope,
-        )
-      ) {
-        await this.audit.recordStandalone(actor, {
-          action: "management.report.download",
-          resourceType: "management_report",
-          resourceId: runId,
-          outcome: "denied",
-          reason: "Revenue figures need billing.report.read for every facility in scope",
-          metadata: { table },
-        });
-        throw new ForbiddenError("Revenue figures need the billing report permission for every facility in scope");
+      for (const section of sections) {
+        const { permission } = SECTION_PERMISSIONS[section];
+        if (
+          !coversAll(
+            grants.filter((g) => g.permissionKey === permission),
+            scope,
+          )
+        ) {
+          await this.audit.recordStandalone(actor, {
+            action: "management.report.download",
+            resourceType: "management_report",
+            resourceId: runId,
+            outcome: "denied",
+            reason: `${section === "billing" ? "Revenue" : section === "inventory" ? "Stock" : "Dispensing"} figures need ${permission} for every facility in scope`,
+            metadata: { table, section },
+          });
+          throw new ForbiddenError(SECTION_PERMISSIONS[section].message.replace(" tables ", " figures "));
+        }
       }
     }
     const { body } = await this.documents.content(actor, file.documentId);
@@ -420,17 +450,29 @@ export class ManagementReportService {
     try {
       for (const file of files) {
         if (file.storedAt || withheld.some((w) => w.table === file.table)) continue;
-        let csv: string;
-        try {
-          csv = (
-            await this.dashboards.export(owner, { from: period.from, to: period.to, facilityId: schedule.facilityId ?? undefined }, file.table as ExportTable)
-          ).csv;
-        } catch (error) {
-          if (error instanceof ForbiddenError) {
-            withheld.push({ table: file.table, reason: error.message });
-            continue;
+        const query = { from: period.from, to: period.to, facilityId: schedule.facilityId ?? undefined };
+        let body: Buffer;
+        let contentType: "text/csv" | "application/pdf";
+        if (file.table === PDF_REPORT) {
+          // The PDF prints what the owner may see; the sections it had to leave out are recorded as `pdf:<section>`.
+          const { pdf, withheld: left } = await this.dashboards.exportPdf(owner, query);
+          for (const section of left) {
+            if (!withheld.some((w) => w.table === `pdf:${section}`))
+              withheld.push({ table: `pdf:${section}`, reason: `Not available to the owner: ${section}` });
           }
-          throw error;
+          body = pdf;
+          contentType = "application/pdf";
+        } else {
+          try {
+            body = Buffer.from(`\uFEFF${(await this.dashboards.export(owner, query, file.table as ExportTable)).csv}`, "utf8");
+            contentType = "text/csv";
+          } catch (error) {
+            if (error instanceof ForbiddenError) {
+              withheld.push({ table: file.table, reason: error.message });
+              continue;
+            }
+            throw error;
+          }
         }
         // A fresh document id per attempt: an interrupted attempt leaves no file row pointing at a document.
         const documentId = crypto.randomUUID();
@@ -441,8 +483,8 @@ export class ManagementReportService {
           category: "management_report",
           title: `${schedule.name} — ${file.table} ${period.from} to ${period.to}`,
           fileName: reportFileName(file.table, period),
-          contentType: "text/csv",
-          body: Buffer.from(`\uFEFF${csv}`, "utf8"),
+          contentType,
+          body,
         });
         await this.db
           .update(managementReportFile)

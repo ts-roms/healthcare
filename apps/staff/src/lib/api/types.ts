@@ -491,6 +491,8 @@ export interface PortalAccountStatus {
   emailVerified: boolean;
   /** The patient uses two-step verification; the clinic can turn it off after checking identity. */
   mfaEnabled: boolean;
+  /** The clinic exempted the patient from its two-step verification requirement (migration 0107), and why. */
+  mfaExemption: { reason: string; exemptedAt: string } | null;
 }
 
 /** `POST /patients/:id/portal-account/invitations`: the code is returned once and never stored in plain text. */
@@ -3029,6 +3031,24 @@ export interface DentalRecordSupplies {
 
 // ---- Staff in-app inbox (GET /me/notifications, GET /me/notifications/unread-count) ----------------------------
 
+/** `GET /me/push`: the browsers the signed-in member allowed to receive notifications (migration 0101). */
+export interface StaffPushStatus {
+  /** The platform can send push (it has its key pair). */
+  configured: boolean;
+  vapidPublicKey: string | null;
+  devices: Array<{ id: string; label: string; createdAt: string; lastSuccessAt: string | null }>;
+  /** The browser asking (by its push address), when registered. */
+  thisDeviceId: string | null;
+  /** Which kinds of notice also push to the member's browsers (migration 0106); every kind is on until turned off. */
+  preferences: StaffPushPreference[];
+}
+
+export interface StaffPushPreference {
+  kind: string;
+  label: string;
+  enabled: boolean;
+}
+
 export interface StaffNotice {
   id: string;
   templateKey: string;
@@ -3251,11 +3271,21 @@ export interface ManagementDashboard {
   wholeOrganization: boolean;
   /** Patient counts from 1 to this − 1 are shown as "<5". */
   suppressionThreshold: number;
-  /** Sections left out for lack of permission ("billing": needs billing.report.read on every facility in scope). */
-  withheld: Array<"billing">;
+  /**
+   * Sections left out for lack of permission on every facility in scope: "billing" (billing.report.read), "inventory"
+   * (inventory.valuation.read), "dispensing" (prescription.read).
+   */
+  withheld: ManagementSection[];
   keyFigures: ManagementKeyFigures;
   /** The period of the same length just before the range, with each key figure's change. */
-  previous: { from: string; to: string; keyFigures: ManagementKeyFigures; changes: Record<keyof ManagementKeyFigures, ManagementFigureChange> };
+  /** The comparison period: the same length just before the range, or the same dates one year earlier (`mode`). */
+  previous: {
+    from: string;
+    to: string;
+    mode: ManagementComparisonMode;
+    keyFigures: ManagementKeyFigures;
+    changes: Record<keyof ManagementKeyFigures, ManagementFigureChange>;
+  };
   patients: {
     registered: ManagementPatientCount;
     seen: ManagementPatientCount;
@@ -3266,7 +3296,14 @@ export interface ManagementDashboard {
   };
   clinic: {
     appointments: { booked: number; completed: number; noShow: number; cancelled: number; selfBooked: number; noShowRate: number | null };
-    visits: { checkedIn: number; walkIns: number; leftWithoutBeingSeen: number; averageWaitMinutes: number | null };
+    visits: {
+      checkedIn: number;
+      walkIns: number;
+      leftWithoutBeingSeen: number;
+      averageWaitMinutes: number | null;
+      medianWaitMinutes: number | null;
+      p90WaitMinutes: number | null;
+    };
     encounters: { completed: number; telemedicine: number; patientsSeen: ManagementPatientCount; returningPatients: ManagementPatientCount };
     providers: Array<{
       practitionerId: string;
@@ -3288,18 +3325,40 @@ export interface ManagementDashboard {
     released: number;
     corrections: number;
     averageTurnaroundMinutes: number | null;
+    medianTurnaroundMinutes: number | null;
+    p90TurnaroundMinutes: number | null;
     withinTargetRate: number | null;
     specimensRejected: number;
     specimens: { collected: number; rejected: number; rejectionRate: number | null };
     byInstrument: Array<{ instrumentId: string | null; name: string | null; results: number }>;
     topTests: Array<{ testId: string; name: string; ordered: number }>;
+    byDepartment: Array<{
+      departmentId: string;
+      name: string;
+      released: number;
+      averageTurnaroundMinutes: number | null;
+      medianTurnaroundMinutes: number | null;
+      withinTargetRate: number | null;
+    }>;
   };
   dental: {
     procedures: number;
     patients: ManagementPatientCount;
     byProcedure: Array<{ code: string; name: string; procedures: number; patients: ManagementPatientCount }>;
   };
-  telemedicine: { started: number; ended: number; escalated: number; inProgress: number; escalationRate: number | null };
+  telemedicine: {
+    started: number;
+    ended: number;
+    escalated: number;
+    inProgress: number;
+    escalationRate: number | null;
+    /** Minutes from the patient joining the waiting room to the consultation starting. */
+    averageWaitMinutes: number | null;
+    medianWaitMinutes: number | null;
+    p90WaitMinutes: number | null;
+    /** Joined the waiting room in the period and never seen (a patient count). */
+    joinedNotSeen: ManagementPatientCount;
+  };
   retention: {
     lookbackMonths: number;
     returnWindowDays: number;
@@ -3332,6 +3391,27 @@ export interface ManagementDashboard {
       patients: ManagementPatientCount;
     }>;
   } | null;
+  /** Null when withheld. Centavos at the cost each stock movement recorded; transfers between locations are not use. */
+  inventory: {
+    received: ManagementStockFigure & { movements: number };
+    used: ManagementStockFigure;
+    writtenOff: ManagementStockFigure;
+    /** What left per workflow (`sourceType` null: a plain issue, write-off or count adjustment), most value first. */
+    usedBySource: Array<
+      ManagementStockFigure & { sourceType: InventoryMovementSource | "immunization" | "clinic_procedure" | null; kind: string; movements: number }
+    >;
+    topItems: Array<{ itemId: string; code: string; name: string; category: string; stockUnit: string; quantity: number; value: number }>;
+  } | null;
+  /** Null when withheld. */
+  dispensing: {
+    prescriptionsIssued: number;
+    prescriptionsCancelled: number;
+    dispenses: number;
+    reversed: number;
+    prescriptionsDispensed: number;
+    patients: ManagementPatientCount;
+    topItems: Array<{ inventoryItemId: string; name: string; stockUnit: string; quantity: number; dispenses: number }>;
+  } | null;
   daily: Array<{
     date: string;
     registered: ManagementPatientCount;
@@ -3341,15 +3421,28 @@ export interface ManagementDashboard {
     /** Null when billing is withheld. */
     invoiced: number | null;
     collected: number | null;
+    /** Null when dispensing is withheld. */
+    dispenses: number | null;
   }>;
   /** "How is this calculated?" text per figure. */
   definitions: Record<ManagementMetricKey, string>;
+}
+
+export type ManagementSection = "billing" | "inventory" | "dispensing";
+
+/** A stock quantity with its value at recorded cost (centavos) and the quantity moved before costs were recorded. */
+export interface ManagementStockFigure {
+  quantity: number;
+  value: number;
+  unvaluedQuantity: number;
 }
 
 // ---- Management dashboard extras (suppression, comparison, definitions) ----------------------------------------
 
 /** A patient count as disclosed: exact from 5 up (and 0), otherwise "<5". */
 export type ManagementPatientCount = number | "<5";
+
+export type ManagementComparisonMode = "previous" | "last-year";
 
 export type ManagementMetricKey =
   | "patientsSeen"
@@ -3363,13 +3456,17 @@ export type ManagementMetricKey =
   | "collected"
   | "labReleased"
   | "labTurnaround"
+  | "labDepartments"
   | "labWithinTarget"
   | "specimenRejectionRate"
   | "resultsPerInstrument"
   | "dentalProcedures"
   | "telemedicine"
+  | "telemedicineWait"
   | "retentionRate"
   | "returnRate"
+  | "stock"
+  | "dispensing"
   | "comparison"
   | "suppression";
 
@@ -3394,13 +3491,19 @@ export interface ManagementKeyFigures {
   consultations: number;
   noShowRate: number | null;
   averageWaitMinutes: number | null;
+  medianWaitMinutes: number | null;
   netInvoiced: number | null;
   netCollected: number | null;
   labTestsReleased: number;
   labTurnaroundMinutes: number | null;
+  medianLabTurnaroundMinutes: number | null;
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;
+  /** Centavos; null when inventory is withheld. */
+  stockUsed: number | null;
+  /** Null when dispensing is withheld. */
+  dispenses: number | null;
 }
 
 // ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------
@@ -4125,6 +4228,63 @@ export interface RetentionReview {
   more: boolean;
 }
 
+export type IntegrityRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type IntegrityFindingOutcome = "mismatch" | "missing" | "unreadable";
+
+/** GET /document-integrity/runs (rows), POST /document-integrity/runs */
+export interface IntegrityRun {
+  id: string;
+  category: string | null;
+  status: IntegrityRunStatus;
+  checked: number;
+  verified: number;
+  baselined: number;
+  mismatched: number;
+  missing: number;
+  unreadable: number;
+  lastError: string | null;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledBy: string | null;
+}
+
+/** GET /document-integrity/runs */
+export interface IntegrityRunList {
+  runs: IntegrityRun[];
+  openFindings: number;
+}
+
+/** GET /document-integrity/findings */
+export interface IntegrityFinding {
+  id: string;
+  runId: string;
+  outcome: IntegrityFindingOutcome;
+  recordedSha256: string | null;
+  computedSha256: string | null;
+  foundAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
+  document: {
+    id: string;
+    patientId: string | null;
+    facilityId: string | null;
+    category: string;
+    title: string;
+    fileName: string;
+    status: string;
+    source: string;
+    managedBy: string | null;
+  };
+}
+
+export interface IntegrityFindings {
+  findings: IntegrityFinding[];
+  more: boolean;
+}
+
 /** GET /records-requests/setting */
 export interface RecordsRequestSetting {
   responseDays: number | null;
@@ -4433,13 +4593,18 @@ export type FamilyReviewOutcome = "reviewed" | "none_known" | "unknown";
 export type FamilyUnknownReason = "adopted" | "not_known" | "declined_to_answer";
 export type UseStatus = "never" | "former" | "current" | "unknown";
 
+/** Recorded by a staff user, or by the patient (or a guardian acting for them) in MyHealth (migration 0103). */
+export type HistoryRecordedVia = "staff" | "patient_portal";
+
 interface HistoryEntryMeta {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */
   patientId: string;
   encounterId: string | null;
   recordedAt: string;
+  /** Null for an entry recorded through MyHealth. */
   recordedByName: string | null;
+  recordedVia: HistoryRecordedVia;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
 }
 
@@ -4492,7 +4657,7 @@ export interface ReportedMedication extends HistoryEntryMeta {
   stopped: string | null;
   stoppedPrecision: HistoryDatePrecision | null;
   /** Marked stopped after it was recorded. */
-  stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+  stopRecorded: { at: string; byName: string | null; via: HistoryRecordedVia; note: string | null } | null;
   notes: string | null;
   source: "reported" | "recorded_here";
   reportedBy: HistoryInformant | null;
@@ -4570,7 +4735,14 @@ export interface WorkspaceHistory {
   conditions: Array<{ id: string; filedUnder: string | null; description: string; onset: string | null; status: string }>;
   conditionsTotal: number;
   /** Taken and not stopped (not prescribed here). */
-  medications: Array<{ id: string; filedUnder: string | null; medication: string; dose: string | null; status: ReportedMedicationStatus }>;
+  medications: Array<{
+    id: string;
+    filedUnder: string | null;
+    medication: string;
+    dose: string | null;
+    status: ReportedMedicationStatus;
+    recordedVia: HistoryRecordedVia;
+  }>;
   medicationsTotal: number;
   family: {
     state: FamilyHistoryState;
@@ -4645,6 +4817,19 @@ export interface MfaPolicy {
   exemptions: Array<{ userId: string; displayName: string; email: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
 }
 
+/** `GET|PUT /security/patient-mfa-policy`: whether patients must use two-step verification in MyHealth (migration 0100). */
+export interface PatientMfaPolicy {
+  required: boolean;
+  /** The local (Asia/Manila) date from which patients without it can only set it up; null = at once. */
+  requiredFrom: string | null;
+  version: number;
+  updatedAt: string | null;
+  updatedBy: { id: string; displayName: string } | null;
+  /** `withoutMfa` leaves out the exempt accounts (migration 0107). */
+  accounts: { active: number; withMfa: number; withoutMfa: number; exempt: number };
+  exemptions: Array<{ patientId: string; reason: string; exemptedAt: string; exemptedBy: string | null }>;
+}
+
 export interface StaffRoleDefinition {
   id: string;
   key: string;
@@ -4652,6 +4837,8 @@ export interface StaffRoleDefinition {
   description: string | null;
   isSystem: boolean;
   permissions: string[];
+  /** Optimistic lock for editing an organization's own role (migration 0102). */
+  version: number;
 }
 
 export interface Organization {
@@ -4755,6 +4942,9 @@ export interface CommunicationLogEntry {
   id: string;
   patientId: string;
   patient: { id: string; patientNumber: string; displayName: string } | null;
+  /** The facility the message was sent from (migration 0106); null before it or outside any facility. */
+  facilityId: string | null;
+  facilityName: string | null;
   channel: NotificationChannel;
   category: NotificationCategory;
   templateKey: string;
@@ -4777,11 +4967,12 @@ export interface CommunicationLogEntry {
   resentAs: string | null;
 }
 
-/** GET /communications/summary. */
+/** GET /communications/summary. `scope`: the facilities the reader may see (null: every one). */
 export interface CommunicationSummary {
   from: string;
   to: string;
   total: number;
+  scope: string[] | null;
   byStatus: Record<NotificationStatus, number>;
   byChannel: Array<{ channel: NotificationChannel; total: number; sent: number; notSent: number }>;
   suppressedByReason: Array<{ reason: string; total: number }>;

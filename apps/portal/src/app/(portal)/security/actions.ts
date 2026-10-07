@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import QRCode from "qrcode";
 import { portalApi } from "@/lib/api/client";
+import { COOKIES } from "@/lib/api/config";
 import { type Result, run } from "@/lib/api/result";
 import type { PortalMfaSetup } from "@/lib/api/types";
 
@@ -39,10 +42,29 @@ export async function changeEmail(input: { newEmail: string; password: string; c
   );
 }
 
-/** Asks for a new authenticator secret (needs the password and a verified email). */
+/**
+ * Asks for a new authenticator secret (needs the password and a verified email). The QR code of the `otpauth://` link is
+ * drawn here, on the server, so the secret never goes to a third party; it is shown once and not stored.
+ */
 export async function beginMfa(password: string): Promise<Result<PortalMfaSetup>> {
   if (!password) return { ok: false, message: "Enter your password." };
-  return run(() => portalApi<PortalMfaSetup>("/portal/mfa/setup", { method: "POST", body: { password } }));
+  const result = await run(() => portalApi<PortalMfaSetup>("/portal/mfa/setup", { method: "POST", body: { password } }));
+  if (!result.ok) return result;
+  const qrSvg = await QRCode.toString(result.data.otpauthUri, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+  return { ok: true, data: { ...result.data, qrSvg } };
+}
+
+/** Forgets one remembered browser; when it is this one, its cookie goes too, so the next sign-in asks for the code. */
+export async function forgetDevice(deviceId: string, current: boolean): Promise<Result<undefined>> {
+  const result = done(await run(() => portalApi<undefined>(`/portal/mfa/devices/${encodeURIComponent(deviceId)}/forget`, { method: "POST" })));
+  if (result.ok && current) (await cookies()).delete(COOKIES.device);
+  return result;
+}
+
+export async function forgetAllDevices(): Promise<Result<{ forgotten: number }>> {
+  const result = done(await run(() => portalApi<{ forgotten: number }>("/portal/mfa/devices/forget-all", { method: "POST" })));
+  if (result.ok) (await cookies()).delete(COOKIES.device);
+  return result;
 }
 
 /** Turns two-step verification on with the code the app shows; the recovery codes come back once. */
@@ -59,4 +81,20 @@ export async function disableMfa(input: { password: string; code: string }): Pro
 export async function renewRecoveryCodes(input: { password: string; code: string }): Promise<Result<{ recoveryCodes: string[] }>> {
   if (!input.password || !input.code.trim()) return { ok: false, message: "Enter your password and the code from your authenticator app." };
   return done(await run(() => portalApi<{ recoveryCodes: string[] }>("/portal/mfa/recovery-codes", { method: "POST", body: input })));
+}
+
+/** Checks the password and a current code, then returns the options the browser needs to make a passkey. */
+export async function passkeyOptions(input: { password: string; code: string }): Promise<Result<unknown>> {
+  if (!input.password || !input.code.trim()) return { ok: false, message: "Enter your password and a code." };
+  return run(() => portalApi<unknown>("/portal/mfa/passkeys/options", { method: "POST", body: { password: input.password, code: input.code.trim() } }));
+}
+
+/** Stores the passkey the browser made (as @simplewebauthn/browser returned it). */
+export async function addPasskey(input: { response: unknown; label?: string }): Promise<Result<unknown>> {
+  const label = input.label?.trim() || undefined;
+  return done(await run(() => portalApi<unknown>("/portal/mfa/passkeys", { method: "POST", body: { response: input.response, label } })));
+}
+
+export async function removePasskey(passkeyId: string): Promise<Result<undefined>> {
+  return done(await run(() => portalApi<undefined>(`/portal/mfa/passkeys/${encodeURIComponent(passkeyId)}/remove`, { method: "POST" })));
 }

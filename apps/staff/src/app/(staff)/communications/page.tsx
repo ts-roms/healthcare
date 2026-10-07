@@ -7,7 +7,7 @@ import { DeliveryStatus } from "@/components/communications/delivery-status";
 import { MessageActions } from "@/components/communications/message-actions";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { can, getSession } from "@/lib/api/session";
+import { can, getFacilities, getSession } from "@/lib/api/session";
 import type { CommunicationLogEntry, CommunicationSummary, Page } from "@/lib/api/types";
 import {
   CATEGORY_LABEL,
@@ -39,13 +39,13 @@ function Figure({ label, value, hint }: { label: string; value: string | number;
  * became of it — never the message itself. Viewing it and exporting it are audited.
  */
 export default async function CommunicationsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [params, session] = await Promise.all([searchParams, getSession()]);
+  const [params, session, facilities] = await Promise.all([searchParams, getSession(), getFacilities()]);
   if (!can(session, "notification.read")) redirect("/");
   const canSeePatients = can(session, "patient.read");
   const canManage = can(session, "notification.manage");
   const { filters, adjusted } = readCommunicationFilters(params, todayInManila());
   const [summary, page] = await Promise.all([
-    api<CommunicationSummary>("/communications/summary", { query: { from: filters.from, to: filters.to } }),
+    api<CommunicationSummary>("/communications/summary", { query: { from: filters.from, to: filters.to, facilityId: filters.facility || undefined } }),
     canSeePatients ? api<Page<CommunicationLogEntry>>("/communications", { query: communicationApiQuery(filters) }) : Promise.resolve(null),
   ]);
   const notSent = summary.byStatus.failed + summary.byStatus.suppressed + summary.byStatus.cancelled;
@@ -62,7 +62,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
         description="Messages the clinic sent, or could not send, to patients: reminders, notices and MyHealth alerts. The content of messages is never shown here."
       />
       <div className="flex flex-col gap-4 p-4">
-        <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-6">
+        <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-7">
           <div className="grid gap-1">
             <Label htmlFor="comm-from">From (day)</Label>
             <DateInput id="comm-from" name="from" defaultValue={filters.from} />
@@ -70,6 +70,19 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
           <div className="grid gap-1">
             <Label htmlFor="comm-to">To (day)</Label>
             <DateInput id="comm-to" name="to" defaultValue={filters.to} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="comm-facility">Facility</Label>
+            <NativeSelect id="comm-facility" name="facility" defaultValue={filters.facility} emptyText="No facility">
+              <option value="">{summary.scope ? "Your facilities" : "Any facility"}</option>
+              {facilities
+                .filter((f) => !summary.scope || summary.scope.includes(f.id))
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+            </NativeSelect>
           </div>
           <div className="grid gap-1">
             <Label htmlFor="comm-status">Status</Label>
@@ -115,7 +128,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
             </NativeSelect>
           </div>
           {filters.patient ? <input type="hidden" name="patient" value={filters.patient} /> : null}
-          <div className="flex flex-wrap items-center gap-2 sm:col-span-3 lg:col-span-6">
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-3 lg:col-span-7">
             <Button type="submit" size="sm">
               Show
             </Button>
@@ -139,14 +152,18 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
             ) : null}
           </div>
           {adjusted ? (
-            <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-3 lg:col-span-6">
+            <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-3 lg:col-span-7">
               <InfoIcon className="size-3.5" aria-hidden /> A period is at most {MAX_DAYS} days; showing the last {MAX_DAYS} days to {filters.to}.
             </p>
           ) : null}
         </form>
 
         <section aria-label="Summary" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Figure label="Messages to patients" value={summary.total} hint={`${filters.from} to ${filters.to}`} />
+          <Figure
+            label="Messages to patients"
+            value={summary.total}
+            hint={`${filters.from} to ${filters.to}${summary.scope ? " · your facilities only" : ""}`}
+          />
           <Figure label="Sent or delivered" value={reached} hint={shareText(reached, summary.total)} />
           <Figure label="Not sent, failed or cancelled" value={notSent} hint={shareText(notSent, summary.total)} />
           <Figure label="Waiting to send" value={waiting} />
@@ -210,6 +227,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
             <TableHeader>
               <TableRow>
                 <TableHead>When</TableHead>
+                <TableHead>Facility</TableHead>
                 <TableHead>Patient</TableHead>
                 <TableHead>Message</TableHead>
                 <TableHead>Channel</TableHead>
@@ -225,6 +243,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
                     {clinicalDateTime(m.createdAt)}
                     {m.scheduledFor ? <span className="block text-meta text-muted-foreground">for {clinicalDateTime(m.scheduledFor)}</span> : null}
                   </TableCell>
+                  <TableCell>{m.facilityName ?? <span className="text-muted-foreground">{m.facilityId ? "Facility" : "Not recorded"}</span>}</TableCell>
                   <TableCell>
                     {m.patient ? (
                       <Link className="text-primary hover:underline" href={`/patients/${m.patient.id}/communications`}>

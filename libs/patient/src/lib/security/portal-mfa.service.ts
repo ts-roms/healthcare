@@ -24,6 +24,9 @@ import { type PatientPortalAccountRecord, patientPortalAccount, patientPortalRec
 import { PortalAccountService, type PortalPrincipal } from "../portal/portal-account.service";
 import { PortalSecurityMailers, type SecurityAlertEvent } from "../portal/portal-security-mailer";
 import { PortalTokenService } from "../portal/portal-tokens";
+import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
+import { PortalPasskeyService } from "./portal-passkey.service";
+import { PortalTrustedDeviceService } from "./portal-trusted-device.service";
 import { generateRecoveryCode, groupSetupKey, hashRecoveryCode, RECOVERY_CODE_COUNT, type SecondFactorKind, secondFactorKind } from "./portal-security.rules";
 
 export interface PortalMfaStatusView {
@@ -60,6 +63,8 @@ export class PortalMfaService {
     private readonly tokens: PortalTokenService,
     private readonly mailer: PortalSecurityMailers,
     private readonly audit: AuditService,
+    private readonly devices: PortalTrustedDeviceService,
+    private readonly passkeys: PortalPasskeyService,
   ) {}
 
   async status(principal: PortalPrincipal): Promise<PortalMfaStatusView> {
@@ -142,7 +147,7 @@ export class PortalMfaService {
     if (!account.mfaEnabled) throw new BusinessRuleError("Two-step verification is not on", "mfa_not_enabled");
     await this.requireSecondFactor(principal, input.code, true);
     await this.db.transaction(async (tx) => {
-      await this.clearMfa(tx, account.id);
+      await this.clearMfa(tx, account.id, "mfa_disabled");
       await this.audit.record(tx, this.accounts.principalContext(principal), {
         action: "portal.mfa-disable",
         resourceType: "patient_portal_account",
@@ -151,6 +156,13 @@ export class PortalMfaService {
       });
     });
     await this.alert(account, "mfa_disabled");
+  }
+
+  /** The password and a current code (the app's or a recovery code) of a patient with two-step verification, e.g. before adding a passkey. */
+  async confirmPasswordAndSecondFactor(principal: PortalPrincipal, input: { password: string; code: string }): Promise<void> {
+    const account = await this.accounts.confirmPassword(principal, input.password);
+    if (!account.mfaEnabled) throw new BusinessRuleError("Turn on two-step verification with an authenticator app first", "mfa_not_enabled");
+    await this.requireSecondFactor(principal, input.code, true);
   }
 
   /** Makes a new set of recovery codes; the old ones stop working. Needs the password and a current app code. */
@@ -172,8 +184,17 @@ export class PortalMfaService {
     return { recoveryCodes: codes };
   }
 
-  /** The second step of signing in: the challenge from the password step plus the app's code or a recovery code. */
-  async verifyLogin(challengeToken: string, code: string, request: RequestMetadata): Promise<PortalTokenResponse> {
+  /**
+   * The second step of signing in: the challenge from the password step plus the app's code, a recovery code, or a
+   * passkey's answer (migration 0108). With `rememberDevice` the browser is trusted for a while (migration 0100) and the
+   * response carries its token.
+   */
+  async verifyLogin(
+    challengeToken: string,
+    answer: { code: string } | { passkey: AuthenticationResponseJSON },
+    request: RequestMetadata,
+    rememberDevice = false,
+  ): Promise<PortalTokenResponse> {
     const claims = await this.tokens.verifyMfaChallenge(challengeToken);
     const [account] = await this.db
       .select()
@@ -194,18 +215,44 @@ export class PortalMfaService {
     if (!(await this.accounts.hasPortalConsent(this.db, account.organizationId, account.patientId))) {
       throw new UnauthenticatedError("Portal access has ended", "session_ended");
     }
-    // The code is spent and the session opened together; a wrong code is counted after the attempt is rolled back.
+    // The code is spent and the session opened together; a wrong code is counted after the attempt is rolled back. A
+    // passkey's challenge is spent whatever the outcome (a refusal returns, it does not throw).
     const outcome = await this.db.transaction(
-      async (tx): Promise<{ kind: "ok"; tokens: PortalTokenResponse; result: SecondFactorResult & { ok: true } } | { kind: "bad" }> => {
+      async (
+        tx,
+      ): Promise<
+        { kind: "ok"; tokens: PortalTokenResponse; result: SecondFactorResult & { ok: true } } | { kind: "bad"; passkeyRefusal?: "counter_rollback" }
+      > => {
         await tx.select({ id: patientPortalAccount.id }).from(patientPortalAccount).where(eq(patientPortalAccount.id, account.id)).for("update");
         const [fresh] = await tx.select().from(patientPortalAccount).where(eq(patientPortalAccount.id, account.id));
-        const result = fresh ? await this.checkSecondFactor(tx, fresh, code, true) : ({ ok: false } as const);
-        if (!result.ok) return { kind: "bad" };
-        const tokens = await this.accounts.completeLogin(tx, account, request, result.kind === "totp" ? "password+totp" : "password+recovery_code");
+        if (!fresh) return { kind: "bad" };
+        let result: SecondFactorResult & { ok: true };
+        let metadata: Record<string, unknown> = {};
+        if ("passkey" in answer) {
+          const checked = await this.passkeys.checkAssertion(tx, fresh, answer.passkey);
+          if (!checked.ok) return { kind: "bad", passkeyRefusal: checked.reason === "counter_rollback" ? "counter_rollback" : undefined };
+          result = { ok: true, kind: "passkey" };
+          metadata = { passkeyId: checked.passkeyId };
+        } else {
+          const checked = await this.checkSecondFactor(tx, fresh, answer.code, true);
+          if (!checked.ok) return { kind: "bad" };
+          result = checked;
+        }
+        const method = result.kind === "passkey" ? "password+passkey" : result.kind === "totp" ? "password+totp" : "password+recovery_code";
+        const tokens = await this.accounts.completeLogin(tx, account, request, method, metadata);
+        if (rememberDevice) {
+          const device = await this.devices.trust(tx, account, context);
+          return { kind: "ok", tokens: { ...tokens, deviceToken: device.deviceToken, deviceTokenExpiresAt: device.expiresAt.toISOString() }, result };
+        }
         return { kind: "ok", tokens, result };
       },
     );
     if (outcome.kind === "bad") {
+      if ("passkey" in answer) {
+        if (outcome.passkeyRefusal) await this.passkeys.recordRefusal(context, account, answer.passkey.id, outcome.passkeyRefusal);
+        await this.accounts.recordFailedLogin(account, context, "invalid_passkey");
+        throw new UnauthenticatedError("The passkey could not be checked. Try again, or use a code.", "invalid_passkey");
+      }
       await this.accounts.recordFailedLogin(account, context, "invalid_mfa_code");
       throw new UnauthenticatedError("That code is not correct", "invalid_mfa_code");
     }
@@ -223,7 +270,7 @@ export class PortalMfaService {
         .for("update");
       if (!row) throw new NotFoundError("Portal account");
       if (!row.mfaEnabled) throw new BusinessRuleError("Two-step verification is not on for this patient", "mfa_not_enabled");
-      await this.clearMfa(tx, row.id);
+      await this.clearMfa(tx, row.id, "mfa_reset");
       await this.accounts.revokeAll(tx, row.id, "mfa_reset");
       await this.audit.record(tx, actor, {
         action: "patient.portal-mfa-reset",
@@ -235,6 +282,63 @@ export class PortalMfaService {
       return row;
     });
     await this.alert(account, "mfa_reset_by_clinic");
+  }
+
+  /**
+   * The clinic exempts a patient's account from its two-step verification requirement (migration 0107), with a reason:
+   * the account is never held at the set-up. Two-step verification already on stays on. The patient is told by email.
+   */
+  async exemptByClinic(actor: Actor, patientId: string, reason: string): Promise<void> {
+    const account = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.organizationId, actor.organizationId), eq(patientPortalAccount.patientId, patientId)))
+        .for("update");
+      if (!row) throw new NotFoundError("Portal account");
+      if (row.status === "disabled") throw new BusinessRuleError("MyHealth access is disabled for this patient", "portal_account_disabled");
+      if (row.mfaExemptReason) throw new BusinessRuleError("This patient is already exempt", "mfa_already_exempt");
+      await tx
+        .update(patientPortalAccount)
+        .set({ mfaExemptReason: reason, mfaExemptedBy: actor.userId, mfaExemptedAt: new Date(), updatedAt: new Date() })
+        .where(eq(patientPortalAccount.id, row.id));
+      await this.audit.record(tx, actor, {
+        action: "patient.portal-mfa-exempt",
+        resourceType: "patient_portal_account",
+        resourceId: row.id,
+        patientId,
+        reason,
+      });
+      return row;
+    });
+    if (account.status === "active") await this.alert(account, "mfa_exempted");
+  }
+
+  /** The clinic ends an exemption, with a reason; a requirement in force applies again at the next request. */
+  async endExemptionByClinic(actor: Actor, patientId: string, reason: string): Promise<void> {
+    const account = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.organizationId, actor.organizationId), eq(patientPortalAccount.patientId, patientId)))
+        .for("update");
+      if (!row) throw new NotFoundError("Portal account");
+      if (!row.mfaExemptReason) throw new BusinessRuleError("This patient is not exempt", "mfa_not_exempt");
+      await tx
+        .update(patientPortalAccount)
+        .set({ mfaExemptReason: null, mfaExemptedBy: null, mfaExemptedAt: null, updatedAt: new Date() })
+        .where(eq(patientPortalAccount.id, row.id));
+      await this.audit.record(tx, actor, {
+        action: "patient.portal-mfa-exempt-end",
+        resourceType: "patient_portal_account",
+        resourceId: row.id,
+        patientId,
+        reason,
+        metadata: { exemptedAt: row.mfaExemptedAt?.toISOString(), exemptReason: row.mfaExemptReason },
+      });
+      return row;
+    });
+    if (account.status === "active") await this.alert(account, "mfa_exemption_ended");
   }
 
   /**
@@ -308,7 +412,10 @@ export class PortalMfaService {
     return codes;
   }
 
-  private async clearMfa(tx: DbExecutor, accountId: string): Promise<void> {
+  /** Ends two-step verification: secret, recovery codes, passkeys and every trusted device go together. */
+  private async clearMfa(tx: DbExecutor, accountId: string, reason: "mfa_disabled" | "mfa_reset"): Promise<void> {
+    await this.devices.revokeAll(tx, accountId, reason);
+    await this.passkeys.revokeAll(tx, accountId, reason);
     await tx
       .update(patientPortalAccount)
       .set({

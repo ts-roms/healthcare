@@ -159,6 +159,27 @@ Open **Records → Retention** (`/records/retention`; records officers and admin
 3. Nothing is deleted. To take a document out of use, archive it from the patient record with a reason. Disposal of the stored file follows
    your organization's own procedure.
 
+## How to check that stored documents are intact (integrity review)
+
+Open **Records → Integrity** (`/records/integrity`; records officers and administrators).
+
+Every document gets a checksum when it is stored. A review reads each available document back from storage and compares it with that checksum, so
+a file that was corrupted, replaced, or lost (for example after a failed restore) is found.
+
+1. Under **Reviews**, choose **All categories** or one category and click **Start review**. The review runs in the background; refresh the page to
+   follow its counts. Only one review runs at a time; **Stop** halts it where it is (what was checked stays recorded).
+2. The row shows how many documents were **Checked**, **Verified**, **Baselined** (stored before checksums existed: their current checksum was
+   recorded, and they are verified from the next review on), **Changed**, **Missing** and **Not read** (storage did not answer — run the review
+   again later).
+3. **Open findings** lists each document whose file changed or is missing. Such a document is withheld from everyone — staff, MyHealth, other
+   systems — until you resolve the finding. The people who manage documents at the facility are told in the app.
+4. Look into it with your IT and data protection officer: restore the file from a backup if you have one, or archive the document from the patient
+   record with a reason. Then click **Resolve…**, write what was found and decided, and **Record decision**. The document is served again from then
+   on (archive it first if it must stay out of use). A resolved finding is kept under **Show resolved** and never changes.
+
+The platform never repairs, replaces or deletes a file. How often to run a review, and what to do about a finding, is your organization's own
+procedure; record it under **Admin → Compliance**.
+
 ## How to review records sent by another provider (FHIR imports)
 
 Other systems can send a patient's records to the platform in the FHIR format. **Nothing is added to a patient's record automatically.** Every
@@ -374,8 +395,10 @@ Technical details are in `docs/interoperability/fhir.md`.
 patients across the organization, newest first. Messages to staff (the bell) are not part of it. The content of messages is never shown.
 
 1. Choose the period (**From** / **To**, days in the Philippines; up to 92 days — a longer period is shortened to its last 92 days, with a note)
-   and, if you like, a **Status**, **Channel**, **Kind** (care; appointments and admin; reminders and outreach; account security) and **Message**,
-   then **Show**. The period starts as the last 7 days.
+   and, if you like, a **Facility**, a **Status**, **Channel**, **Kind** (care; appointments and admin; reminders and outreach; account security)
+   and **Message**, then **Show**. The period starts as the last 7 days. Each message shows the facility it was sent from; messages sent before
+   facilities were recorded, or outside any facility, show "Not recorded". If your role is limited to certain facilities, the log shows only
+   those facilities' messages (the figures say "your facilities only") and none without a recorded facility.
 2. The figures show how many messages there were, how many were sent or delivered, how many were **not sent, failed or cancelled**, and how many are
    waiting. Below them: counts by channel, **Why messages were not sent** (for example "No mobile number on record", "The patient turned this
    off") and the most frequent messages — select one to list only those.
@@ -403,20 +426,30 @@ administrator).
 billing report access (`billing.report.read`) for every facility shown.
 
 1. Open **Management** in the menu (`/management`).
-2. Choose **From**, **To** and a **Facility** (or **All facilities**), or a quick range such as **Last 30 days**, and select **Apply**.
+2. Choose **From**, **To** and a **Facility** (or **All facilities**), or a quick range such as **Last 30 days**; under **Compare with** choose
+   **The period just before** or **The same dates last year**; select **Apply**.
 3. Read the key figures. Under each one:
-   - the change against the previous period of the same length, with **(better)** or **(worse)** — for example, a lower no-show rate is better, a
-     longer wait is worse;
+   - the change against the comparison period, with **(better)** or **(worse)** — for example, a lower no-show rate is better, a longer wait is
+     worse;
+   - for the waiting time and the laboratory turnaround, the **median** (the time half the visits or tests beat) and the **90th percentile** (the
+     time nine in ten beat) beside the average, which one very long wait can distort;
    - **How is this calculated?** explains exactly what is counted.
 4. Scroll for the daily charts (each has **Show as table**) and the tables: services, revenue by category and payment method, providers with schedule
-   utilization, laboratory tests and instruments, dental procedures, online consultations and patient retention.
-5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos.
+   utilization, laboratory tests, instruments and departments, dental procedures, online consultations (with how long patients waited in the
+   waiting room and how many joined without being seen), **stock received and used** (what each workflow took, at the cost recorded when the
+   stock moved, and the items that used the most value), **dispensing** (prescriptions issued, dispenses recorded and reversed, the items
+   dispensed most) and patient retention.
+5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos. **Download as PDF** gives
+   the whole dashboard as one printable document, with the same figures and the explanation of each.
 
 **Things to know:**
 
 - **"<5"** means between one and four patients. Small patient counts are hidden so that no one can be recognized, and a percentage built on
   such a count shows as **withheld**.
-- Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
+- Without billing report access, inventory valuation access or prescription reading access, a note names what is not shown (revenue; stock; dispensing)
+  and those downloads are refused. In the PDF such a section reads "Not available to you".
+- Stock figures value each movement at the cost recorded when it happened (a lot's average receipt cost), so they never change afterwards;
+  transfers between locations are not counted as use, and units moved before costs were recorded are shown without a value.
 - These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
 
 ## How to send an outreach campaign
@@ -448,16 +481,19 @@ Records officers can read segments and campaigns.
 
 1. Open **Management → Scheduled reports** (`/management/reports`), or **Scheduled reports** next to the CSV downloads on the dashboard.
 2. Select **New schedule**. Give it a name, choose **Weekly** (Monday to Sunday) or **Monthly** (calendar month), a **Facility** or all the
-   facilities you may report on, the **Tables** wanted and the **Recipients**.
-3. Select **Schedule**. After the end of each week or month the tables are produced as CSV files and every recipient gets a message in the app
+   facilities you may report on, the **Tables and files** wanted — the CSV tables and/or **Dashboard (PDF)**, the whole dashboard as one
+   document — and the **Recipients**.
+3. Select **Schedule**. After the end of each week or month the files are produced and every recipient gets a message in the app
    and by email saying the report is ready — the message never contains figures.
-4. Under **Produced reports**, select a table's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
+4. Under **Produced reports**, select a file's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
 
 **Things to know:**
 
 - Reports are produced with the permissions of the person who set the schedule up (or last changed it). The system refuses a schedule for
   facilities you may not report on, revenue tables without billing report access, and recipients who may not view the dashboard for that scope.
-- A revenue table opens only for a reader with billing report access for every facility of the report, even when it was produced.
+- A revenue, stock or dispensing table opens only for a reader with the matching access (billing reports, inventory valuation, prescription
+  reading) for every facility of the report, even when it was produced. The PDF opens only for a reader who has every access its author had;
+  a section the author lacked is printed as "Not available to you" and listed as withheld on the run.
 - If a permission is taken away later, the affected table shows as **withheld** on that run (status **Partly withheld**); a report that could not
   be produced shows **Failed** with the reason and is tried again every hour for a week.
 - Choosing recipients needs access to the staff list (`user.read`). Each download is recorded in the audit trail.

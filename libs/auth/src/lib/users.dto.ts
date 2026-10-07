@@ -39,3 +39,13 @@ export const createRoleSchema = z.object({
   permissions: z.array(z.enum(PERMISSIONS)).min(1),
 });
 export class CreateRoleDto extends createZodDto(createRoleSchema) {}
+
+/** Edit an organization's own role (migration 0102): the whole permission set is replaced; the key never changes. */
+export const updateRoleSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable().optional(),
+  permissions: z.array(z.enum(PERMISSIONS)).min(1),
+  version: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(500).optional(),
+});
+export class UpdateRoleDto extends createZodDto(updateRoleSchema) {}

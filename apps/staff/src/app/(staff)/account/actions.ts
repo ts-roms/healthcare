@@ -1,5 +1,6 @@
 "use server";
 
+import QRCode from "qrcode";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
@@ -33,8 +34,12 @@ export async function changeOwnPassword(input: z.input<typeof passwordSchema>): 
   return result.ok ? { ok: true, data: null } : result;
 }
 
-export async function beginTwoStep(): Promise<ActionResult<{ secret: string; otpauthUri: string }>> {
-  return actionResult(() => api<{ secret: string; otpauthUri: string }>("/auth/mfa/setup", { method: "POST" }));
+/** Starts set-up; the QR code of the `otpauth://` link is drawn here, on the server, shown once and not stored. */
+export async function beginTwoStep(): Promise<ActionResult<{ secret: string; otpauthUri: string; qrSvg: string }>> {
+  const result = await actionResult(() => api<{ secret: string; otpauthUri: string }>("/auth/mfa/setup", { method: "POST" }));
+  if (!result.ok) return result;
+  const qrSvg = await QRCode.toString(result.data.otpauthUri, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+  return { ok: true, data: { ...result.data, qrSvg } };
 }
 
 /**

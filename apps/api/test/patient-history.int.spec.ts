@@ -697,6 +697,7 @@ describe("patient history", () => {
       performer: "Provincial Hospital",
       bodySite: null,
       source: "reported",
+      recordedVia: "staff",
     });
     expect(mine.family.state).toBe("recorded");
     expect(mine.medications.map((m: { id: string }) => m.id)).not.toContain(ids.lagundi);
@@ -709,6 +710,9 @@ describe("patient history", () => {
       status: "stopped",
       stopped: "2025",
       source: "reported",
+      recordedVia: "staff",
+      canStop: false,
+      prescribedBy: expect.anything(),
     });
     expect(mine.social).toMatchObject({ diet: "Low salt", substanceUse: "Cannabis in college, none since", sensitiveWithheld: false });
     expect(JSON.stringify(mine)).not.toMatch(/recordedBy|Discharge summary the patient brought|Told about another patient/);
@@ -761,5 +765,148 @@ describe("patient history", () => {
     expect(text).not.toContain("Tonsillectomy");
     expect(text).not.toContain("Farmer");
     expect(text).not.toContain("Lagundi");
+  });
+
+  it("lets the patient answer a history questionnaire and report medicines in MyHealth, kept as reported by them", async () => {
+    const login = async (email: string) => {
+      const response = await ctx.http().post("/api/v1/portal/auth/login").send({ organizationCode: ORG, email, password: PASSWORD });
+      if (response.status !== 200) throw new Error(`login ${email}: ${response.status} ${JSON.stringify(response.body)}`);
+      return response.body.accessToken as string;
+    };
+    const juan = await login("juan@hist.ph");
+    const rosa = await login("rosa@hist.ph");
+    const send = (token: string, body: object, key?: string, actingFor?: string) => {
+      let r = ctx.http().post("/api/v1/portal/health-history/submissions").set("Authorization", `Bearer ${token}`);
+      if (key) r = r.set("Idempotency-Key", key);
+      if (actingFor) r = r.set("X-Acting-For", actingFor);
+      return r.send(body);
+    };
+    const questionnaire = {
+      medications: [
+        {
+          medication: "Metformin 500 mg tablet",
+          dose: "1 tablet twice a day",
+          reason: "Sugar",
+          prescribedBy: "Barangay health center",
+          started: "2024-01",
+          status: "taking",
+        },
+      ],
+      conditions: [{ description: "Asthma as a child", status: "resolved", onset: "1990" }],
+      procedures: [{ description: "Circumcision", performed: "1995", performer: "Town clinic" }],
+      family: [{ relationship: "father", condition: "Hypertension", onsetAge: 55 }],
+      social: { tobaccoStatus: "former", tobaccoQuitYear: 2015, occupation: "Tricycle driver" },
+    };
+    const key = `hh-${randomUUID()}`;
+    const first = (await send(juan, questionnaire, key).expect(201)).body;
+    expect(first).toMatchObject({ byProxy: false, replayed: false });
+    expect(first.sections.sort()).toEqual(["condition", "family", "medication", "procedure", "social"]);
+    expect(first.entryIds).toHaveLength(5);
+    // A retry with the same key returns the first submission; nothing is written again.
+    const again = (await send(juan, questionnaire, key).expect(201)).body;
+    expect(again).toMatchObject({ id: first.id, replayed: true, entryIds: first.entryIds });
+    expect(await auditRows(ctx.pool, "action = 'portal.health-history-submit' AND patient_id = $1", [patientId])).toHaveLength(1);
+
+    // Staff see the entries as reported by the patient through MyHealth, with nobody of the clinic as recorder.
+    const history = await read();
+    const metformin = history.medications.find((m) => m.medication === "Metformin 500 mg tablet");
+    expect(metformin).toMatchObject({
+      source: "reported",
+      reportedBy: "patient",
+      recordedVia: "patient_portal",
+      recordedByName: null,
+      status: "taking",
+      started: "2024-01",
+    });
+    expect(history.conditions.find((c) => c.description === "Asthma as a child")).toMatchObject({
+      recordedVia: "patient_portal",
+      status: "resolved",
+      onset: "1990",
+    });
+    expect(history.procedures.find((p) => p.description === "Circumcision")).toMatchObject({ recordedVia: "patient_portal", performer: "Town clinic" });
+    expect(history.family.entries.find((f) => f.condition === "Hypertension")).toMatchObject({
+      relative: "Father",
+      reportedBy: "patient",
+      recordedVia: "patient_portal",
+      onsetAge: 55,
+    });
+    // The social history version from MyHealth builds on the current one: the clinic's sensitive parts are carried over, never set.
+    expect(history.social.current).toMatchObject({
+      recordedVia: "patient_portal",
+      tobaccoStatus: "former",
+      tobaccoQuitYear: 2015,
+      occupation: "Tricycle driver",
+      diet: "Low salt",
+      substanceUse: "Cannabis in college, none since",
+    });
+    const recorded = await auditRows(ctx.pool, "action = 'history.record' AND metadata->>'recordedVia' = 'patient_portal' AND patient_id = $1", [patientId]);
+    expect(recorded).toHaveLength(5);
+    expect(recorded.every((r) => r.actor_type === "patient")).toBe(true);
+    expect((await events("PatientHistoryRecorded")).filter((e) => first.entryIds.includes(e.entryId as string))).toHaveLength(5);
+
+    // The patient sees what they reported, may mark their own medicine stopped, and sees the questionnaires sent.
+    const mine = (await portal(juan).get("/health-history").expect(200)).body;
+    expect(mine.medications.find((m: { id: string }) => m.id === metformin!.id)).toMatchObject({
+      recordedVia: "patient_portal",
+      canStop: true,
+      prescribedBy: "Barangay health center",
+    });
+    expect(mine.submissions).toEqual([{ id: first.id, submittedAt: expect.any(String), sections: expect.any(Array), byProxy: false }]);
+    const stop = (url: string, body: object, token = juan) =>
+      ctx.http().post(`/api/v1/portal/health-history${url}`).set("Authorization", `Bearer ${token}`).send(body);
+    await stop(`/medications/${metformin!.id}/stopped`, { stopped: "2023" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("stop_before_start"));
+    await stop(`/medications/${metformin!.id}/stopped`, { stopped: "2099" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("date_in_future"));
+    expect((await stop(`/medications/${metformin!.id}/stopped`, { stopped: "2026-06" }).expect(201)).body).toMatchObject({
+      id: metformin!.id,
+      status: "stopped",
+    });
+    await stop(`/medications/${metformin!.id}/stopped`, {})
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("already_stopped"));
+    expect((await read()).medications.find((m) => m.id === metformin!.id)).toMatchObject({
+      status: "stopped",
+      stopped: "2026-06",
+      stopRecorded: { via: "patient_portal", byName: null },
+    });
+    // What the clinic recorded is changed at the clinic.
+    const clinicMed = (
+      await staff(doctor)
+        .post(`/patients/${patientId}/history/medications`, { medication: "Vitamin C", status: "taking", source: "reported", reportedBy: "patient" })
+        .expect(201)
+    ).body;
+    await stop(`/medications/${clinicMed.id}/stopped`, {})
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("recorded_by_clinic"));
+    // Dates in the future and an empty questionnaire are refused before anything is written.
+    await send(juan, { medications: [{ medication: "Future pill", status: "taking", started: "2099" }] }).expect(422);
+    await send(juan, {}).expect(400);
+    // The clinic corrects a patient's entry the usual way.
+    await staff(doctor).post(`/history/${metformin!.id}/entered-in-error`, { reason: "Patient meant metformin 850 mg" }).expect(200);
+    expect((await portal(juan).get("/health-history").expect(200)).body.medications.map((m: { id: string }) => m.id)).not.toContain(metformin!.id);
+
+    // A guardian with "act" access answers for the patient: recorded as reported by a relative, marked as by proxy.
+    const byRosa = (await send(rosa, { family: [{ relationship: "mother", condition: "Glaucoma" }] }, undefined, patientId).expect(201)).body;
+    expect(byRosa.byProxy).toBe(true);
+    expect((await read()).family.entries.find((f) => f.id === byRosa.entryIds[0])).toMatchObject({ reportedBy: "relative", recordedVia: "patient_portal" });
+    // View-only access reads but cannot answer.
+    const dependent = await register({ familyName: "Hist", givenName: "Dependent", sex: "male", birthDate: "2015-03-03" });
+    const rosaNumber = (await ctx.pool.query("SELECT patient_number FROM patient WHERE id = $1", [guardianId])).rows[0].patient_number;
+    await staff(admin)
+      .post(`/patients/${dependent}/portal-proxies`, {
+        guardianPatientNumber: rosaNumber,
+        relationship: "caregiver",
+        basis: "authorized_by_patient",
+        scopes: ["view"],
+        verificationNote: "Signed authorization letter and IDs seen",
+      })
+      .expect(201);
+    await portal(rosa, dependent).get("/health-history").expect(200);
+    await send(rosa, { family: [{ relationship: "mother", condition: "Glaucoma" }] }, undefined, dependent)
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("proxy_view_only"));
   });
 });

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
-import { exemptFromMfa, removeMfaExemption, resetMemberMfa, setMfaRequired } from "./actions";
+import { exemptFromMfa, removeMfaExemption, resetMemberMfa, setMfaRequired, setPatientMfaPolicy } from "./actions";
 
 /** Require two-step verification for staff, or stop requiring it; an optional reason goes to the audit trail. */
 export function MfaPolicyToggle({ required, version, ownMfaEnabled }: { required: boolean; version: number; ownMfaEnabled: boolean }) {
@@ -44,6 +44,63 @@ export function MfaPolicyToggle({ required, version, ownMfaEnabled }: { required
       </p>
       <Label htmlFor="policy-reason">Reason (optional)</Label>
       <Input id="policy-reason" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" variant={required ? "destructive" : "default"} disabled={pending}>
+          {pending ? "Saving…" : required ? "Stop requiring" : "Require"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Require two-step verification of patients from a date (the API asks for a week's notice), or stop requiring it. */
+export function PatientMfaPolicyControl({ required, requiredFrom, version }: { required: boolean; requiredFrom: string | null; version: number }) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [date, setDate] = React.useState(requiredFrom ?? "");
+  const [reason, setReason] = React.useState("");
+  const [pending, startTransition] = React.useTransition();
+  if (!open) {
+    return (
+      <Button size="sm" variant={required ? "outline" : "default"} className="self-start" onClick={() => setOpen(true)}>
+        {required ? "Stop requiring it…" : "Require it for patients…"}
+      </Button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-md border p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        startTransition(async () => {
+          const result = await setPatientMfaPolicy({ required: !required, requiredFrom: date, version, reason });
+          if (result.ok) {
+            toast.success(
+              required ? "Two-step verification is no longer required for patients" : `Two-step verification is required for patients from ${date}`,
+            );
+            setOpen(false);
+            setReason("");
+            router.refresh();
+          } else toast.error(result.message);
+        });
+      }}
+    >
+      <p>
+        {required
+          ? "Patients will be able to turn their two-step verification off again, and nobody is asked to set it up."
+          : "Choose a date at least a week ahead. Until then MyHealth shows patients a notice; from that date a patient without it can sign in only to set it up (nobody is locked out). Patients with no smartphone will need help from the clinic."}
+      </p>
+      {!required ? (
+        <>
+          <Label htmlFor="patient-policy-from">Required from</Label>
+          <Input id="patient-policy-from" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-48" />
+        </>
+      ) : null}
+      <Label htmlFor="patient-policy-reason">Reason (optional)</Label>
+      <Input id="patient-policy-reason" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
       <div className="flex gap-2">
         <Button type="submit" size="sm" variant={required ? "destructive" : "default"} disabled={pending}>
           {pending ? "Saving…" : required ? "Stop requiring" : "Require"}

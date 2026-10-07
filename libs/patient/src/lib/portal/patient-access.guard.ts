@@ -1,14 +1,23 @@
 import { CanActivate, createParamDecorator, ExecutionContext, Injectable, SetMetadata, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
+import { ForbiddenError, requestMetadataFrom, UnauthenticatedError } from "@healthcare/core";
 import type { Request } from "express";
 import { ProxyRefusedError } from "../proxy/proxy.errors";
+import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
 import { PortalProxyService } from "../proxy/proxy.service";
 import { type PortalPrincipal, PortalAccountService } from "./portal-account.service";
 
 type PortalRequest = Request & { patientPrincipal?: PortalPrincipal };
 
 const PROXY_ALLOWED = "portal:proxy-allowed";
+const ALLOW_DURING_MFA_ENROLLMENT = "portal:allow-during-mfa-enrollment";
+
+/**
+ * Marks a portal route (or controller) a patient may use while their organization requires two-step verification they
+ * have not set up (migration 0100): the profile, sign-out, and the email and two-step set-up routes. Everything else
+ * answers `403 mfa_enrollment_required` until it is on.
+ */
+export const AllowDuringPortalMfaEnrollment = () => SetMetadata(ALLOW_DURING_MFA_ENROLLMENT, true);
 
 /**
  * Marks a portal route (or a whole controller) as one a guardian may use while acting for a dependent. Routes without it
@@ -34,6 +43,7 @@ export class PatientAccessGuard implements CanActivate {
   constructor(
     private readonly accounts: PortalAccountService,
     private readonly proxies: PortalProxyService,
+    private readonly mfaPolicy: PortalMfaPolicyService,
     private readonly reflector: Reflector,
   ) {}
 
@@ -42,6 +52,16 @@ export class PatientAccessGuard implements CanActivate {
     const match = /^Bearer (\S+)$/i.exec(request.header("authorization") ?? "");
     if (!match?.[1]) throw new UnauthenticatedError();
     const principal = await this.accounts.authenticate(match[1], requestMetadataFrom(request));
+    // The account holder's own two-step verification state decides, whoever they act for.
+    if (
+      !principal.mfaEnabled &&
+      !this.reflector.getAllAndOverride<boolean | undefined>(ALLOW_DURING_MFA_ENROLLMENT, [context.getHandler(), context.getClass()])
+    ) {
+      const policy = await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled, principal.mfaExempt);
+      if (policy.enrollmentRequired) {
+        throw new ForbiddenError("Your clinic requires two-step verification. Set it up under Sign-in security to continue.", "mfa_enrollment_required");
+      }
+    }
     const actingFor = request.header(ACTING_FOR_HEADER)?.trim();
     if (!actingFor || actingFor === principal.patientId) {
       request.patientPrincipal = principal;

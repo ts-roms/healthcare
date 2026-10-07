@@ -20,6 +20,7 @@ import {
   reviewPayload,
   socialFormFrom,
   socialPayload,
+  recordedText,
   sourceLabel,
   tobaccoText,
 } from "./history-form";
@@ -39,6 +40,8 @@ describe("history display", () => {
     expect(sourceLabel({ source: "reported", reportedBy: "relative" })).toBe("Reported by relative");
     expect(sourceLabel({ source: "recorded_here" })).toBe("Documented here");
     expect(sourceLabel({ source: "external_import" })).toBe("Imported");
+    expect(recordedText({ recordedAt: "2026-05-12T02:05:00Z", recordedByName: "Dr. Reyes", recordedVia: "staff" })).toMatch(/^recorded .* by Dr\. Reyes$/);
+    expect(recordedText({ recordedAt: "2026-05-12T02:05:00Z", recordedByName: null, recordedVia: "patient_portal" })).toMatch(/^reported in MyHealth /);
   });
 
   it("words the family history state like allergies: none known only after a review", () => {

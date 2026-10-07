@@ -58,6 +58,7 @@ import { PatientTimelineService } from "./patient-timeline/patient-timeline.serv
 import { PatientWorkspaceController } from "./patient-360/patient-workspace.controller";
 import { PatientWorkspaceService } from "./patient-360/patient-workspace.service";
 import { BadgesController } from "./badges.controller";
+import { StaffPushController } from "./staff-push.controller";
 import { CommunicationsController } from "./communications/communications.controller";
 import { ControlledRegisterController } from "./controlled-register/controlled-register.controller";
 import { RecordCopyController } from "./record-copy/record-copy.controller";
@@ -65,6 +66,7 @@ import { ReferralNotices } from "./referral-notices";
 import { RecordCopyService } from "./record-copy/record-copy.service";
 import { PatientDentalNotices } from "./portal/patient-dental-notices";
 import { PatientRecordsNotices } from "./portal/patient-records-notices";
+import { PortalMfaPolicyNotices } from "./portal/portal-mfa-policy-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
@@ -252,6 +254,7 @@ export class AppModule implements NestModule {
         RecordCopyController,
         CommunicationsController,
         BadgesController,
+        StaffPushController,
         ControlledRegisterController,
       ],
       providers: [
@@ -274,6 +277,7 @@ export class AppModule implements NestModule {
         PatientRecordsNotices,
         ReferralNotices,
         PortalSecurityNotices,
+        PortalMfaPolicyNotices,
         StaffSecurityNotices,
         PatientMessageNotices,
         PatientMessageReminders,

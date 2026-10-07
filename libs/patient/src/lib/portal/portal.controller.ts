@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
 import type { Request } from "express";
-import { CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
+import { AllowDuringPortalMfaEnrollment, CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
 import {
   DisablePortalAccountDto,
   PortalActivateDto,
@@ -75,6 +75,7 @@ export class PortalController {
   @Post("auth/logout")
   @Public()
   @UseGuards(PatientAccessGuard)
+  @AllowDuringPortalMfaEnrollment()
   @HttpCode(204)
   @ApiBearerAuth()
   async logout(@CurrentPatient() patient: PortalPrincipal): Promise<void> {
@@ -84,6 +85,7 @@ export class PortalController {
   @Get("me")
   @Public()
   @UseGuards(PatientAccessGuard)
+  @AllowDuringPortalMfaEnrollment()
   @ProxyAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: "The signed-in patient's profile" })
@@ -121,6 +123,26 @@ export class PatientPortalAccountController {
   @ApiOperation({ summary: "Turn off the patient's two-step verification (lost app and recovery codes) after checking identity in person; ends every session" })
   async resetMfa(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: DisablePortalAccountDto): Promise<void> {
     await this.mfa.resetByClinic(actor, patientId, body.reason);
+  }
+
+  @Post("mfa-exemption")
+  @HttpCode(204)
+  @RequirePermissions("patient.portal.manage")
+  @ApiOperation({ summary: "Exempt the patient from the clinic's two-step verification requirement, with a reason (audited; the patient is told)" })
+  async exemptMfa(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: DisablePortalAccountDto): Promise<void> {
+    await this.mfa.exemptByClinic(actor, patientId, body.reason);
+  }
+
+  @Post("mfa-exemption/end")
+  @HttpCode(204)
+  @RequirePermissions("patient.portal.manage")
+  @ApiOperation({ summary: "End the patient's exemption from the two-step verification requirement, with a reason (audited; the patient is told)" })
+  async endMfaExemption(
+    @CurrentActor() actor: Actor,
+    @Param("patientId", ParseUUIDPipe) patientId: string,
+    @Body() body: DisablePortalAccountDto,
+  ): Promise<void> {
+    await this.mfa.endExemptionByClinic(actor, patientId, body.reason);
   }
 
   @Post("disable")

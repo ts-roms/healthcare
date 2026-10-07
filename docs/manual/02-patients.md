@@ -220,6 +220,12 @@ The card also shows **Email verified** or **Email not verified** (the patient co
 patient uses an authenticator app. If a patient lost their phone and their recovery codes, check their identity in person, select **Turn off two-step
 verification**, write the reason (at least 5 characters) and confirm: the patient is signed out everywhere, told by email, and can set it up again.
 
+If your clinic requires two-step verification and a patient cannot use an authenticator app (no smartphone, for example), select **Exempt from required
+two-step verification…**, write the reason and confirm. The card then shows **Exempt from required two-step verification**, the patient is no longer asked
+to set it up, and they are told by email. **End two-step verification exemption…** reverses it, with a reason; the patient is then asked to set it up at
+their next visit to MyHealth. Who may be exempted is your organization's decision. Exempt patients are listed under **Administration → Sign-in
+security**.
+
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).
 Invitations are only possible for active patients.
 

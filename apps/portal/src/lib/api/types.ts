@@ -4,6 +4,9 @@ import type { SessionTokens } from "@healthcare/web-session";
 export interface PortalTokenResponse extends SessionTokens {
   status: "authenticated";
   tokenType: "Bearer";
+  /** Set when the patient asked to remember this browser after the second step: kept in a cookie, sent with the next sign-in. */
+  deviceToken?: string;
+  deviceTokenExpiresAt?: string;
 }
 
 /** `GET /portal/me`: the signed-in patient's identity (no clinical data). */
@@ -18,6 +21,8 @@ export interface PortalMe {
   };
   organization: { name: string };
   account: { email: string; emailVerified: boolean; mfaEnabled: boolean };
+  /** The clinic's two-step verification requirement for patients and what it means for this account (the signed-in person's own). */
+  mfaPolicy: PortalMfaPolicy;
   /** The patient's clinic's time zone: dates and times in MyHealth are shown in it (a visit uses its own facility's). */
   timeZone: string;
   /** Set when the signed-in person is acting for someone else: `patient` is then that person, `account` the signed-in person's own. */
@@ -519,6 +524,8 @@ export interface PortalPreferences {
 export interface PortalMfaRequired {
   status: "mfa_required";
   challengeToken: string;
+  /** The account has a passkey for the second step (migration 0108). */
+  passkeys?: boolean;
 }
 
 /** `GET /portal/email` */
@@ -529,6 +536,41 @@ export interface PortalEmailStatus {
   pending: { emailMasked: string; isChange: boolean; expiresAt: string } | null;
 }
 
+/** On `GET /portal/me`: whether the clinic requires two-step verification, from which local date, and whether this account may only set it up now. */
+export interface PortalMfaPolicy {
+  required: boolean;
+  requiredFrom: string | null;
+  enrollmentRequired: boolean;
+}
+
+/** `GET /portal/mfa/devices` row: a browser remembered after the second step. */
+/** A passkey of the account (migration 0108); the second step of signing in may use it instead of a code. */
+export interface PortalPasskey {
+  id: string;
+  label: string;
+  /** The passkey may be synced to the patient's other devices. */
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface PortalPasskeyList {
+  /** This MyHealth address offers passkeys. */
+  available: boolean;
+  limit: number;
+  passkeys: PortalPasskey[];
+}
+
+export interface PortalTrustedDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  /** The browser this page is open in. */
+  current: boolean;
+}
+
 /** `GET /portal/mfa` */
 export interface PortalMfaStatus {
   enabled: boolean;
@@ -537,8 +579,9 @@ export interface PortalMfaStatus {
   emailVerified: boolean;
 }
 
-/** `POST /portal/mfa/setup` */
+/** `POST /portal/mfa/setup` (`qrSvg` is drawn by the portal's own server from `otpauthUri`) */
 export interface PortalMfaSetup {
+  qrSvg?: string;
   setupKey: string;
   secret: string;
   otpauthUri: string;
@@ -559,6 +602,30 @@ export interface PortalImmunization {
 }
 
 /** `GET /portal/health-history`: the patient's history as the clinic recorded it (no staff notes, entries in error left out). */
+/** Recorded by the clinic, or reported by the patient (or someone acting for them) in MyHealth. */
+export type HistoryRecordedVia = "staff" | "patient_portal";
+export type HistoryUseStatus = "never" | "former" | "current" | "unknown";
+export type FamilyRelationship =
+  | "mother"
+  | "father"
+  | "sister"
+  | "brother"
+  | "sibling"
+  | "half_sibling"
+  | "daughter"
+  | "son"
+  | "child"
+  | "maternal_grandmother"
+  | "maternal_grandfather"
+  | "paternal_grandmother"
+  | "paternal_grandfather"
+  | "maternal_aunt"
+  | "maternal_uncle"
+  | "paternal_aunt"
+  | "paternal_uncle"
+  | "cousin"
+  | "other";
+
 export interface PortalHealthHistory {
   procedures: Array<{
     id: string;
@@ -568,18 +635,30 @@ export interface PortalHealthHistory {
     performer: string | null;
     bodySite: string | null;
     source: "reported" | "recorded_here" | "external_import";
+    recordedVia: HistoryRecordedVia;
   }>;
-  conditions: Array<{ id: string; description: string; onset: string | null; status: "active" | "resolved" | "unknown"; source: "reported" | "recorded_here" }>;
+  conditions: Array<{
+    id: string;
+    description: string;
+    onset: string | null;
+    status: "active" | "resolved" | "unknown";
+    source: "reported" | "recorded_here";
+    recordedVia: HistoryRecordedVia;
+  }>;
   /** Medicines taken that the clinic did not prescribe (prescribed elsewhere, over the counter, supplements), as told to it. */
   medications: Array<{
     id: string;
     medication: string;
     dose: string | null;
     reason: string | null;
+    prescribedBy: string | null;
     started: string | null;
     status: "taking" | "stopped" | "unknown";
     stopped: string | null;
     source: "reported" | "recorded_here";
+    recordedVia: HistoryRecordedVia;
+    /** The patient may mark it stopped here: reported in MyHealth and not stopped yet. */
+    canStop: boolean;
   }>;
   family: {
     state: "not_recorded" | "recorded" | "none_known" | "unknown";
@@ -593,12 +672,22 @@ export interface PortalHealthHistory {
       deceased: boolean | null;
       causeOfDeath: string | null;
       source: "reported" | "external_import";
+      recordedVia: HistoryRecordedVia;
     }>;
   };
+  /** Questionnaires completed in MyHealth, newest first. */
+  submissions: Array<{ id: string; submittedAt: string; sections: Array<"procedure" | "condition" | "medication" | "family" | "social">; byProxy: boolean }>;
   social: {
     effectiveDate: string;
+    recordedVia: HistoryRecordedVia;
     tobacco: string | null;
+    tobaccoStatus: HistoryUseStatus | null;
+    tobaccoType: string | null;
+    tobaccoAmount: string | null;
+    tobaccoQuitYear: number | null;
     alcohol: string | null;
+    alcoholStatus: HistoryUseStatus | null;
+    alcoholFrequency: string | null;
     occupation: string | null;
     occupationalExposures: string | null;
     livingSituation: string | null;
@@ -609,6 +698,52 @@ export interface PortalHealthHistory {
     substanceUse: string | null;
     sexualHistory: string | null;
   } | null;
+}
+
+/** `POST /portal/health-history/submissions` body: the questionnaire answered in one go (no codes, no sensitive parts). */
+export interface PortalHistorySubmission {
+  medications?: Array<{
+    medication: string;
+    dose?: string;
+    reason?: string;
+    prescribedBy?: string;
+    started?: string;
+    status: "taking" | "stopped" | "unknown";
+    stopped?: string;
+  }>;
+  conditions?: Array<{ description: string; onset?: string; status: "active" | "resolved" | "unknown"; diagnosedBy?: string }>;
+  procedures?: Array<{ description: string; performed?: string; performer?: string; bodySite?: string }>;
+  family?: Array<{
+    relationship: FamilyRelationship;
+    relationshipText?: string;
+    condition: string;
+    onsetAge?: number;
+    deceased?: boolean;
+    causeOfDeath?: string;
+  }>;
+  social?: {
+    tobaccoStatus?: HistoryUseStatus | null;
+    tobaccoType?: string | null;
+    tobaccoAmount?: string | null;
+    tobaccoQuitYear?: number | null;
+    alcoholStatus?: HistoryUseStatus | null;
+    alcoholFrequency?: string | null;
+    occupation?: string | null;
+    occupationalExposures?: string | null;
+    livingSituation?: string | null;
+    physicalActivity?: string | null;
+    diet?: string | null;
+  };
+}
+
+/** `POST /portal/health-history/submissions` → the submission recorded (or the first one, on a retry with the same key). */
+export interface PortalHistorySubmissionResult {
+  id: string;
+  submittedAt: string;
+  sections: PortalHealthHistory["submissions"][number]["sections"];
+  entryIds: string[];
+  byProxy: boolean;
+  replayed: boolean;
 }
 
 export type MessageTopic = "general" | "appointment" | "results" | "medication" | "billing" | "other";
