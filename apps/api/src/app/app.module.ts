@@ -51,6 +51,8 @@ import { PatientSummaryController } from "./patient-360/patient-summary.controll
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
 import { ManagementDashboardService } from "./management-dashboard/management-dashboard.service";
 import { ManagementReportController } from "./management-dashboard/management-report.controller";
+import { AuditRetentionController } from "./audit-retention/audit-retention.controller";
+import { AuditRetentionService } from "./audit-retention/audit-retention.service";
 import { ManagementReportRuns } from "./management-dashboard/management-report-runs";
 import { ManagementReportService } from "./management-dashboard/management-report.service";
 import { PatientTimelineController } from "./patient-timeline/patient-timeline.controller";
@@ -233,6 +235,7 @@ export class AppModule implements NestModule {
       ],
       controllers: [
         RateLimitsController,
+        AuditRetentionController,
         FhirController,
         FhirImportReceiveController,
         HealthController,
@@ -264,6 +267,7 @@ export class AppModule implements NestModule {
         ManagementDashboardService,
         ManagementReportService,
         ManagementReportRuns,
+        AuditRetentionService,
         RecordCopyService,
         RealtimeGateway,
         LaboratoryNotifications,

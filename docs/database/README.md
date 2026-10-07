@@ -43,9 +43,17 @@ to `schema_migration` and no DDL. `apply_app_privileges()` derives this from the
 it after every migration; tests and E2E journeys run the application as such a role. Set-up and rollback:
 [database roles runbook](../runbooks/database-roles.md).
 
+## Audit trail partitions and retention
+
+`audit_event` is partitioned by month in Asia/Manila time (migration `0110`): the earlier table is the
+`audit_event_history` partition, a default partition catches anything outside the months, and
+`ensure_audit_partitions()` keeps the current and next three months ready (after every migration run and daily). A
+platform administrator archives a closed month to object storage (`audit_archive`, verified by checksum and row
+count) and may remove an archived month past `AUDIT_RETENTION_MONTHS` through `remove_audit_partition()`; unset,
+nothing is removed. See the [audit retention runbook](../runbooks/audit-retention.md).
+
 ## Production hardening (not yet done)
 
 - Consider row-level security keyed on `organization_id` as defense in depth.
-- Partition `audit_event` by month once volume warrants it; define retention.
 - Encrypted backups and point-in-time recovery; test restores on the hosting provider. The procedure and the checks
   tested locally are in the [backup and restore runbook](../runbooks/backup-and-restore.md).

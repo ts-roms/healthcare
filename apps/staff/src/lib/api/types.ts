@@ -5144,3 +5144,34 @@ export interface IssuedPrescriptions {
     cancellationReason: string | null;
   }>;
 }
+
+/** Audit trail retention (docs/runbooks/audit-retention.md): platform administrators only. */
+export interface AuditArchive {
+  id: string;
+  status: "pending" | "running" | "verified" | "failed";
+  rowCount: number | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  lastError: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+  removedAt: string | null;
+  removalReason: string | null;
+}
+
+export interface AuditPartition {
+  partitionName: string;
+  rangeFrom: string | null;
+  rangeTo: string | null;
+  isDefault: boolean;
+  estimatedRows: number;
+  archive: AuditArchive | null;
+  archivable: boolean;
+  removable: boolean;
+}
+
+export interface AuditRetention {
+  /** AUDIT_RETENTION_MONTHS; null: nothing is ever removed. */
+  retentionMonths: number | null;
+  partitions: AuditPartition[];
+}
