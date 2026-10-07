@@ -413,14 +413,20 @@ billing report access (`billing.report.read`) for every facility shown.
    - **How is this calculated?** explains exactly what is counted.
 4. Scroll for the daily charts (each has **Show as table**) and the tables: services, revenue by category and payment method, providers with schedule
    utilization, laboratory tests, instruments and departments, dental procedures, online consultations (with how long patients waited in the
-   waiting room and how many joined without being seen) and patient retention.
-5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos.
+   waiting room and how many joined without being seen), **stock received and used** (what each workflow took, at the cost recorded when the
+   stock moved, and the items that used the most value), **dispensing** (prescriptions issued, dispenses recorded and reversed, the items
+   dispensed most) and patient retention.
+5. To download a table, select its name after **Download CSV**. The file opens in a spreadsheet; amounts are in pesos. **Download as PDF** gives
+   the whole dashboard as one printable document, with the same figures and the explanation of each.
 
 **Things to know:**
 
 - **"<5"** means between one and four patients. Small patient counts are hidden so that no one can be recognized, and a percentage built on
   such a count shows as **withheld**.
-- Without billing report access, a note replaces the revenue figures and the revenue downloads are refused.
+- Without billing report access, inventory valuation access or prescription reading access, a note names what is not shown (revenue; stock; dispensing)
+  and those downloads are refused. In the PDF such a section reads "Not available to you".
+- Stock figures value each movement at the cost recorded when it happened (a lot's average receipt cost), so they never change afterwards;
+  transfers between locations are not counted as use, and units moved before costs were recorded are shown without a value.
 - These are operational figures, not DOH, PhilHealth or BIR reports. Every view and download is recorded in the audit trail.
 
 ## How to send an outreach campaign
@@ -452,16 +458,19 @@ Records officers can read segments and campaigns.
 
 1. Open **Management → Scheduled reports** (`/management/reports`), or **Scheduled reports** next to the CSV downloads on the dashboard.
 2. Select **New schedule**. Give it a name, choose **Weekly** (Monday to Sunday) or **Monthly** (calendar month), a **Facility** or all the
-   facilities you may report on, the **Tables** wanted and the **Recipients**.
-3. Select **Schedule**. After the end of each week or month the tables are produced as CSV files and every recipient gets a message in the app
+   facilities you may report on, the **Tables and files** wanted — the CSV tables and/or **Dashboard (PDF)**, the whole dashboard as one
+   document — and the **Recipients**.
+3. Select **Schedule**. After the end of each week or month the files are produced and every recipient gets a message in the app
    and by email saying the report is ready — the message never contains figures.
-4. Under **Produced reports**, select a table's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
+4. Under **Produced reports**, select a file's name to download it. **Pause** stops a schedule without losing it; **Change** edits it.
 
 **Things to know:**
 
 - Reports are produced with the permissions of the person who set the schedule up (or last changed it). The system refuses a schedule for
   facilities you may not report on, revenue tables without billing report access, and recipients who may not view the dashboard for that scope.
-- A revenue table opens only for a reader with billing report access for every facility of the report, even when it was produced.
+- A revenue, stock or dispensing table opens only for a reader with the matching access (billing reports, inventory valuation, prescription
+  reading) for every facility of the report, even when it was produced. The PDF opens only for a reader who has every access its author had;
+  a section the author lacked is printed as "Not available to you" and listed as withheld on the run.
 - If a permission is taken away later, the affected table shows as **withheld** on that run (status **Partly withheld**); a report that could not
   be produced shows **Failed** with the reason and is tried again every hour for a week.
 - Choosing recipients needs access to the staff list (`user.read`). Each download is recorded in the audit trail.

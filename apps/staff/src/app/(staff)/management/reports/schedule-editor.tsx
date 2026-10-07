@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { ManagementReportSchedule } from "@/lib/api/types";
-import { EXPORT_TABLES } from "@/lib/management-mapping";
+import { REPORT_FILES, SECTION_NEEDS } from "@/lib/management-mapping";
 import { saveReportSchedule, setReportScheduleStatus } from "./actions";
 
 interface Option {
@@ -72,7 +72,7 @@ export function ScheduleEditor({
                     {CADENCE_LABEL[s.cadence]} ·{" "}
                     {s.facilityId === null ? "All facilities" : (facilities.find((f) => f.id === s.facilityId)?.name ?? "A facility")}
                   </p>
-                  <p className="text-muted-foreground">Tables: {s.tables.map((t) => EXPORT_TABLES.find((e) => e.key === t)?.label ?? t).join(", ")}</p>
+                  <p className="text-muted-foreground">Files: {s.tables.map((t) => REPORT_FILES.find((e) => e.key === t)?.label ?? t).join(", ")}</p>
                   <p className="text-muted-foreground">
                     To: {s.recipientUserIds.map(userName).join(", ")} · produced with{" "}
                     {s.ownerUserId === currentUserId ? "your" : `${userName(s.ownerUserId)}'s`} permissions
@@ -174,13 +174,13 @@ function ScheduleForm({
         </div>
       </div>
       <fieldset className="grid gap-2">
-        <legend className="text-table font-medium">Tables</legend>
+        <legend className="text-table font-medium">Tables and files</legend>
         <div className="grid gap-1 sm:grid-cols-3">
-          {EXPORT_TABLES.map((t) => (
+          {REPORT_FILES.map((t) => (
             <label key={t.key} className="flex items-center gap-2 text-table">
               <Checkbox checked={tables.includes(t.key)} onCheckedChange={(v) => toggle(tables, setTables, t.key, v === true)} />
               {t.label}
-              {t.revenue ? <span className="text-meta text-muted-foreground">(needs billing reports)</span> : null}
+              {t.section ? <span className="text-meta text-muted-foreground">({SECTION_NEEDS[t.section]})</span> : null}
             </label>
           ))}
         </div>

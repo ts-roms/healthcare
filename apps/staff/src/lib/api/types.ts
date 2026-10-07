@@ -3261,8 +3261,11 @@ export interface ManagementDashboard {
   wholeOrganization: boolean;
   /** Patient counts from 1 to this − 1 are shown as "<5". */
   suppressionThreshold: number;
-  /** Sections left out for lack of permission ("billing": needs billing.report.read on every facility in scope). */
-  withheld: Array<"billing">;
+  /**
+   * Sections left out for lack of permission on every facility in scope: "billing" (billing.report.read), "inventory"
+   * (inventory.valuation.read), "dispensing" (prescription.read).
+   */
+  withheld: ManagementSection[];
   keyFigures: ManagementKeyFigures;
   /** The period of the same length just before the range, with each key figure's change. */
   /** The comparison period: the same length just before the range, or the same dates one year earlier (`mode`). */
@@ -3378,6 +3381,27 @@ export interface ManagementDashboard {
       patients: ManagementPatientCount;
     }>;
   } | null;
+  /** Null when withheld. Centavos at the cost each stock movement recorded; transfers between locations are not use. */
+  inventory: {
+    received: ManagementStockFigure & { movements: number };
+    used: ManagementStockFigure;
+    writtenOff: ManagementStockFigure;
+    /** What left per workflow (`sourceType` null: a plain issue, write-off or count adjustment), most value first. */
+    usedBySource: Array<
+      ManagementStockFigure & { sourceType: InventoryMovementSource | "immunization" | "clinic_procedure" | null; kind: string; movements: number }
+    >;
+    topItems: Array<{ itemId: string; code: string; name: string; category: string; stockUnit: string; quantity: number; value: number }>;
+  } | null;
+  /** Null when withheld. */
+  dispensing: {
+    prescriptionsIssued: number;
+    prescriptionsCancelled: number;
+    dispenses: number;
+    reversed: number;
+    prescriptionsDispensed: number;
+    patients: ManagementPatientCount;
+    topItems: Array<{ inventoryItemId: string; name: string; stockUnit: string; quantity: number; dispenses: number }>;
+  } | null;
   daily: Array<{
     date: string;
     registered: ManagementPatientCount;
@@ -3387,9 +3411,20 @@ export interface ManagementDashboard {
     /** Null when billing is withheld. */
     invoiced: number | null;
     collected: number | null;
+    /** Null when dispensing is withheld. */
+    dispenses: number | null;
   }>;
   /** "How is this calculated?" text per figure. */
   definitions: Record<ManagementMetricKey, string>;
+}
+
+export type ManagementSection = "billing" | "inventory" | "dispensing";
+
+/** A stock quantity with its value at recorded cost (centavos) and the quantity moved before costs were recorded. */
+export interface ManagementStockFigure {
+  quantity: number;
+  value: number;
+  unvaluedQuantity: number;
 }
 
 // ---- Management dashboard extras (suppression, comparison, definitions) ----------------------------------------
@@ -3420,6 +3455,8 @@ export type ManagementMetricKey =
   | "telemedicineWait"
   | "retentionRate"
   | "returnRate"
+  | "stock"
+  | "dispensing"
   | "comparison"
   | "suppression";
 
@@ -3453,6 +3490,10 @@ export interface ManagementKeyFigures {
   dentalProcedures: number;
   specimenRejectionRate: number | null;
   retentionRate: number | null;
+  /** Centavos; null when inventory is withheld. */
+  stockUsed: number | null;
+  /** Null when dispensing is withheld. */
+  dispenses: number | null;
 }
 
 // ---- Inventory valuation and supplier invoices (migration 0061; amounts in centavos) ------------------------------

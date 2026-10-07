@@ -54,4 +54,15 @@ export class ManagementDashboardController {
     const body = Buffer.from(`\uFEFF${csv}`, "utf8");
     return new StreamableFile(body, { type: "text/csv; charset=utf-8", disposition: `attachment; filename="${filename}"`, length: body.length });
   }
+
+  @Get("dashboard/export.pdf")
+  @RequirePermissions("management.dashboard.read")
+  @ApiOperation({
+    summary:
+      "The whole management dashboard as one printable PDF: key figures against the comparison period, then every section's table (withheld sections marked as not available); audited",
+  })
+  async exportPdf(@CurrentActor() actor: Actor, @Query() query: ManagementDashboardQueryDto): Promise<StreamableFile> {
+    const { filename, pdf } = await this.dashboards.exportPdf(actor, query);
+    return new StreamableFile(pdf, { type: "application/pdf", disposition: `attachment; filename="${filename}"`, length: pdf.length });
+  }
 }

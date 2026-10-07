@@ -5,6 +5,7 @@ import { PrescriptionDispenseService } from "./dispensing/prescription-dispense.
 import { DISPENSING_STOCK, type DispensingStock, PRESCRIBING_CONTEXT, type PrescribingContext } from "./ports";
 import { PrescriptionController } from "./prescription.controller";
 import { PrescriptionListService } from "./prescription-list.service";
+import { PrescriptionReportingQueries } from "./prescription-reporting.queries";
 import { PrescriptionService } from "./prescription.service";
 
 export interface PrescriptionModuleOptions {
@@ -25,10 +26,11 @@ export class PrescriptionModule {
         PrescriptionService,
         PrescriptionDispenseService,
         PrescriptionListService,
+        PrescriptionReportingQueries,
         { provide: PRESCRIBING_CONTEXT, useClass: options.prescribingContext },
         { provide: DISPENSING_STOCK, useClass: options.dispensingStock },
       ],
-      exports: [PrescriptionService],
+      exports: [PrescriptionService, PrescriptionReportingQueries],
     };
   }
 }

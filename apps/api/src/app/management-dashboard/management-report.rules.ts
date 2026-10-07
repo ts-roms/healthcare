@@ -54,5 +54,5 @@ export function duePeriods(cadence: ReportCadence, today: string, alreadyProduce
 
 /** A file name for a stored table, like the screen's export. */
 export function reportFileName(table: string, period: ReportPeriod): string {
-  return `management-${table}-${period.from}-to-${period.to}.csv`;
+  return table === "pdf" ? `management-dashboard-${period.from}-to-${period.to}.pdf` : `management-${table}-${period.from}-to-${period.to}.csv`;
 }

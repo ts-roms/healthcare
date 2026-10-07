@@ -5,11 +5,15 @@ import { BillingReportingQueries } from "@healthcare/billing";
 import { ClinicReportingQueries } from "@healthcare/clinic";
 import { type Actor, BadRequestError, ForbiddenError, localDate, localDayBounds, NotFoundError, PH_TIMEZONE, type ReportingWindow } from "@healthcare/core";
 import { DentalReportingQueries } from "@healthcare/dental";
+import { InventoryReportingQueries } from "@healthcare/inventory";
 import { LabReportingQueries } from "@healthcare/laboratory";
 import { OrganizationService } from "@healthcare/organization";
 import { PatientReportingQueries } from "@healthcare/patient";
+import { PrescriptionReportingQueries } from "@healthcare/prescription";
 import { TelemedicineReportingQueries } from "@healthcare/telemedicine";
 import { METRIC_DEFINITIONS } from "./management-dashboard.definitions";
+import { exportRows } from "./management-dashboard.export";
+import { renderDashboardPdf } from "./management-dashboard.pdf";
 import {
   type ComparisonMode,
   comparisonRange,
@@ -20,24 +24,43 @@ import {
   keyFigureChanges,
   keyFigures,
   patientRate,
-  pesos,
   rate,
   reportableFacilities,
   resolveRange,
   RETENTION_LOOKBACK_MONTHS,
   retentionFigures,
   RETURN_WINDOW_DAYS,
-  REVENUE_EXPORT_TABLES,
   shiftMonths,
   SMALL_CELL_THRESHOLD,
-  summaryRows,
   suppressCount,
+  TABLE_SECTIONS,
   toCsv,
+  type WithheldSection,
 } from "./management-dashboard.rules";
 
 export const MANAGEMENT_PERMISSION = "management.dashboard.read";
 /** Revenue, collections and revenue breakdowns also need the billing report permission on every facility in scope. */
 export const REVENUE_PERMISSION = "billing.report.read";
+/** Stock received, used and written off at cost also needs inventory valuation on every facility in scope. */
+export const INVENTORY_PERMISSION = "inventory.valuation.read";
+/** Dispensing figures also need prescription reading on every facility in scope. */
+export const DISPENSING_PERMISSION = "prescription.read";
+
+/** Why a section is withheld, as audited and answered. */
+const SECTION_REFUSALS: Record<WithheldSection, { reason: string; message: string }> = {
+  billing: {
+    reason: "Revenue figures need billing.report.read for every facility in scope",
+    message: "Revenue figures need the billing report permission for every facility in scope",
+  },
+  inventory: {
+    reason: "Stock figures need inventory.valuation.read for every facility in scope",
+    message: "Stock figures need the inventory valuation permission for every facility in scope",
+  },
+  dispensing: {
+    reason: "Dispensing figures need prescription.read for every facility in scope",
+    message: "Dispensing figures need the prescription reading permission for every facility in scope",
+  },
+};
 
 type DashboardQuery = { from?: string; to?: string; facilityId?: string; comparison?: ComparisonMode };
 
@@ -60,6 +83,8 @@ export class ManagementDashboardService {
     private readonly dental: DentalReportingQueries,
     private readonly telemedicine: TelemedicineReportingQueries,
     private readonly billing: BillingReportingQueries,
+    private readonly inventory: InventoryReportingQueries,
+    private readonly dispensing: PrescriptionReportingQueries,
     private readonly audit: AuditService,
   ) {}
 
@@ -77,20 +102,22 @@ export class ManagementDashboardService {
 
   /**
    * One table of the dashboard as CSV (amounts in pesos, small patient counts suppressed), audited as an export.
-   * Revenue tables without billing reporting on every facility in scope are refused, and the refusal is audited.
+   * A table of a withheld section (revenue without billing reporting, stock without inventory valuation, dispensing
+   * without prescription reading, on every facility in scope) is refused, and the refusal is audited.
    */
   async export(actor: Actor, query: DashboardQuery, table: ExportTable, now = new Date()): Promise<{ filename: string; csv: string }> {
     const d = await this.build(actor, query, now);
-    if (REVENUE_EXPORT_TABLES.includes(table) && d.billing === null) {
+    const section = TABLE_SECTIONS[table];
+    if (section && d.withheld.includes(section)) {
       await this.audit.recordStandalone(actor, {
         action: "management.dashboard.export",
         resourceType: "organization",
         resourceId: actor.organizationId,
         outcome: "denied",
-        reason: "Revenue figures need billing.report.read for every facility in scope",
+        reason: SECTION_REFUSALS[section].reason,
         metadata: { table, from: d.from, to: d.to, facilityIds: d.facilityIds, withheld: d.withheld },
       });
-      throw new ForbiddenError("Revenue figures need the billing report permission for every facility in scope");
+      throw new ForbiddenError(SECTION_REFUSALS[section].message);
     }
     const rows = exportRows(d, table);
     await this.audit.recordStandalone(actor, {
@@ -100,6 +127,27 @@ export class ManagementDashboardService {
       metadata: { table, from: d.from, to: d.to, facilityIds: d.facilityIds, withheld: d.withheld, rows: rows.length - 1 },
     });
     return { filename: `management-${table}-${d.from}-to-${d.to}.csv`, csv: toCsv(rows) };
+  }
+
+  /**
+   * The whole dashboard as one printable PDF (`libs/pdf`): the key figures against the comparison period, then each
+   * section's table. Withheld sections are printed as not available to the caller, never silently left out; small
+   * patient counts stay "<5". Audited as an export of table `pdf`.
+   */
+  async exportPdf(actor: Actor, query: DashboardQuery, now = new Date()): Promise<{ filename: string; pdf: Buffer; withheld: WithheldSection[] }> {
+    const d = await this.build(actor, query, now);
+    const [organization, facility] = await Promise.all([
+      this.organizations.getOrganization(actor.organizationId),
+      d.facilityIds?.length === 1 ? this.organizations.getFacility(actor.organizationId, d.facilityIds[0]!) : Promise.resolve(null),
+    ]);
+    const pdf = await renderDashboardPdf(d, { organizationName: organization.name, facility, preparedBy: actor.displayName, now });
+    await this.audit.recordStandalone(actor, {
+      action: "management.dashboard.export",
+      resourceType: "organization",
+      resourceId: actor.organizationId,
+      metadata: { table: "pdf", from: d.from, to: d.to, facilityIds: d.facilityIds, withheld: d.withheld },
+    });
+    return { filename: `management-dashboard-${d.from}-to-${d.to}.pdf`, pdf, withheld: d.withheld };
   }
 
   private async build(actor: Actor, query: DashboardQuery, now: Date) {
@@ -117,12 +165,14 @@ export class ManagementDashboardService {
     } else {
       facilityIds = scope.all ? null : scope.facilityIds;
     }
-    // Revenue only when the billing report permission covers every facility the figures cover.
-    const includeRevenue = coversAll(
-      allGrants.filter((g) => g.permissionKey === REVENUE_PERMISSION),
-      facilityIds ?? facilities.map((f) => f.id),
-    );
-    const withheld: Array<"billing"> = includeRevenue ? [] : ["billing"];
+    // Revenue, stock and dispensing only when their permission covers every facility the figures cover.
+    const covered = (permission: string) =>
+      coversAll(
+        allGrants.filter((g) => g.permissionKey === permission),
+        facilityIds ?? facilities.map((f) => f.id),
+      );
+    const include = { billing: covered(REVENUE_PERMISSION), inventory: covered(INVENTORY_PERMISSION), dispensing: covered(DISPENSING_PERMISSION) };
+    const withheld: WithheldSection[] = (Object.keys(include) as WithheldSection[]).filter((section) => !include[section]);
 
     // Local days are read in the one facility's time zone, else the request's facility's, else Manila's.
     const zoneFacility = facilities.find((f) => f.id === (facilityIds?.length === 1 ? facilityIds[0] : actor.facilityId));
@@ -145,8 +195,8 @@ export class ManagementDashboardService {
     });
 
     const [current, before] = await Promise.all([
-      this.figures(actor.organizationId, windowOf(range), retention(range), includeRevenue),
-      this.figures(actor.organizationId, windowOf(previous), retention(previous), includeRevenue),
+      this.figures(actor.organizationId, windowOf(range), retention(range), include),
+      this.figures(actor.organizationId, windowOf(previous), retention(previous), include),
     ]);
     const { daily: patientsDaily, registered } = current.patients;
     const { daily: clinicDaily, ...clinicTotals } = current.clinic;
@@ -157,6 +207,8 @@ export class ManagementDashboardService {
     const bookedMinutes = clinicTotals.providers.reduce((n, p) => n + p.bookedMinutes, 0);
     const availableMinutes = clinicTotals.providers.reduce((n, p) => n + p.availableMinutes, 0);
     const b = current.billing;
+    const stock = current.inventory;
+    const rx = current.dispensing;
     const currentFigures = keyFigures(current);
     const previousFigures = keyFigures(before);
 
@@ -171,7 +223,10 @@ export class ManagementDashboardService {
       wholeOrganization: scope.all,
       /** Patient counts from 1 to this − 1 are shown as "<5". */
       suppressionThreshold: SMALL_CELL_THRESHOLD,
-      /** Sections left out for lack of permission (billing: needs billing.report.read on every facility in scope). */
+      /**
+       * Sections left out for lack of permission on every facility in scope: billing (billing.report.read), inventory
+       * (inventory.valuation.read), dispensing (prescription.read).
+       */
       withheld,
       /** Headline figures for the range, and for the comparison period (the same length just before, or a year earlier). */
       keyFigures: currentFigures,
@@ -225,6 +280,28 @@ export class ManagementDashboardService {
             topServices: b.topServices.map((s) => ({ ...s, patients: suppressCount(s.patients) })),
           }
         : null,
+      /** Null when withheld. Centavos at the cost each stock movement recorded; transfers between locations are not use. */
+      inventory: stock
+        ? {
+            received: stock.received,
+            used: stock.used,
+            writtenOff: stock.writtenOff,
+            usedBySource: stock.usedBySource,
+            topItems: stock.topItems,
+          }
+        : null,
+      /** Null when withheld. Dispense lines from prescriptions; patients served is a patient count (suppressed). */
+      dispensing: rx
+        ? {
+            prescriptionsIssued: rx.prescriptionsIssued,
+            prescriptionsCancelled: rx.prescriptionsCancelled,
+            dispenses: rx.dispenses,
+            reversed: rx.reversed,
+            prescriptionsDispensed: rx.prescriptionsDispensed,
+            patients: suppressCount(rx.patients),
+            topItems: rx.topItems,
+          }
+        : null,
       daily: dailySeries(daysBetween(range.from, range.to), [
         { key: "registered", rows: patientsDaily, field: "registered" },
         { key: "patientsSeen", rows: clinicDaily, field: "patientsSeen" },
@@ -232,12 +309,15 @@ export class ManagementDashboardService {
         { key: "labReleased", rows: labDaily, field: "released" },
         { key: "invoiced", rows: b?.daily ?? [], field: "invoiced" },
         { key: "collected", rows: b?.daily ?? [], field: "collected" },
+        { key: "dispenses", rows: rx?.daily ?? [], field: "dispenses" },
       ]).map((d) => ({
         ...d,
         registered: suppressCount(d.registered),
         patientsSeen: suppressCount(d.patientsSeen),
         invoiced: b ? d.invoiced : null,
         collected: b ? d.collected : null,
+        /** Null when dispensing is withheld. */
+        dispenses: rx ? d.dispenses : null,
       })),
       /** "How is this calculated?" per figure. */
       definitions: METRIC_DEFINITIONS,
@@ -248,156 +328,19 @@ export class ManagementDashboardService {
     organizationId: string,
     window: ReportingWindow,
     retention: { lookbackStart: Date; returnWindowDays: number; asOfDate: string },
-    includeRevenue: boolean,
+    include: Record<WithheldSection, boolean>,
   ) {
-    const [patients, clinic, laboratory, dental, telemedicine, retained, billing] = await Promise.all([
+    const [patients, clinic, laboratory, dental, telemedicine, retained, billing, inventory, dispensing] = await Promise.all([
       this.patients.registrations(organizationId, window),
       this.clinic.figures(organizationId, window),
       this.laboratory.figures(organizationId, window),
       this.dental.figures(organizationId, window),
       this.telemedicine.figures(organizationId, window),
       this.clinic.retention(organizationId, window, retention),
-      includeRevenue ? this.billing.figures(organizationId, window) : Promise.resolve(null),
+      include.billing ? this.billing.figures(organizationId, window) : Promise.resolve(null),
+      include.inventory ? this.inventory.figures(organizationId, window) : Promise.resolve(null),
+      include.dispensing ? this.dispensing.figures(organizationId, window) : Promise.resolve(null),
     ]);
-    return { patients, clinic, laboratory, dental, telemedicine, retention: retained, billing };
-  }
-}
-
-type Dashboard = Awaited<ReturnType<ManagementDashboardService["dashboard"]>>;
-type Row = Array<string | number | null>;
-
-/** The rows (with a header) of one exported table. Revenue tables are only asked for when billing is not withheld. */
-function exportRows(d: Dashboard, table: ExportTable): Row[] {
-  const b = d.billing;
-  switch (table) {
-    case "summary":
-      return summaryRows(d.keyFigures, d.previous.keyFigures, { from: d.from, to: d.to, previousFrom: d.previous.from, previousTo: d.previous.to }, b !== null);
-    case "daily":
-      return [
-        [
-          "Date",
-          "New patients",
-          "Patients seen",
-          "Consultations",
-          "Laboratory tests released",
-          ...(b ? ["Invoiced, net (PHP)", "Collected less refunds (PHP)"] : []),
-        ],
-        ...d.daily.map((r): Row => [
-          r.date,
-          r.registered,
-          r.patientsSeen,
-          r.encounters,
-          r.labReleased,
-          ...(b ? [pesos(r.invoiced ?? 0), pesos(r.collected ?? 0)] : []),
-        ]),
-      ];
-    case "services":
-      return [
-        ["Code", "Service", "Category", "Quantity", "Net (PHP)", "Patients"],
-        ...(b?.topServices ?? []).map((s): Row => [s.code, s.name, s.category, s.quantity, pesos(s.net), s.patients]),
-      ];
-    case "categories":
-      return [["Category", "Quantity", "Net (PHP)"], ...(b?.byCategory ?? []).map((c): Row => [c.category, c.quantity, pesos(c.net)])];
-    case "collections":
-      return [
-        ["Method", "Payments", "Received (PHP)", "Refunded (PHP)"],
-        ...(b?.collections ?? []).map((c): Row => [c.method, c.payments, pesos(c.collected), pesos(c.refunded)]),
-      ];
-    case "revenue":
-      return [
-        ["Figure", "Value"],
-        ...(b
-          ? ([
-              ["Invoices issued", b.invoices.issued],
-              ["Gross (PHP)", pesos(b.invoices.grossTotal)],
-              ["Discounts (PHP)", pesos(b.invoices.discountTotal)],
-              ["Net invoiced (PHP)", pesos(b.invoices.netTotal)],
-              ["Payer share (PHP)", pesos(b.invoices.payerTotal)],
-              ["Patient share (PHP)", pesos(b.invoices.patientTotal)],
-              ["Invoices voided", b.invoices.voided],
-              ["Credit notes (PHP)", pesos(b.creditNotesTotal)],
-              ["Debit notes (PHP)", pesos(b.debitNotesTotal)],
-              ["Collected (PHP)", pesos(b.collectedTotal)],
-              ["Refunded (PHP)", pesos(b.refundedTotal)],
-              ["Collected less refunds (PHP)", pesos(b.netCollected)],
-            ] as Row[])
-          : []),
-      ];
-    case "providers":
-      return [
-        ["Practitioner", "Consultations", "Patients", "Appointments booked", "No-shows", "Booked minutes", "Available minutes", "Utilization"],
-        ...d.clinic.providers.map((p): Row => [
-          p.displayName,
-          p.encounters,
-          p.patients,
-          p.appointments,
-          p.noShows,
-          p.bookedMinutes,
-          p.availableMinutes,
-          p.utilization,
-        ]),
-      ];
-    case "laboratory": {
-      const l = d.laboratory;
-      return [
-        ["Figure", "Value"],
-        ["Orders", l.orders.orders],
-        ["STAT orders", l.orders.stat],
-        ["Cancelled orders", l.orders.cancelled],
-        ["Tests ordered", l.testsOrdered],
-        ["Tests released (first release)", l.released],
-        ["Corrections released", l.corrections],
-        ["Average turnaround, collection to release (minutes)", l.averageTurnaroundMinutes],
-        ["Median turnaround (minutes)", l.medianTurnaroundMinutes],
-        ["90th percentile turnaround (minutes)", l.p90TurnaroundMinutes],
-        ["Released within target", l.withinTargetRate],
-        ["Specimens collected", l.specimens.collected],
-        ["Of those rejected", l.specimens.rejected],
-        ["Specimen rejection rate", l.specimens.rejectionRate],
-        ["Specimens rejected in the period (any collection date)", l.specimensRejected],
-      ];
-    }
-    case "lab-tests":
-      return [["Test", "Ordered"], ...d.laboratory.topTests.map((t): Row => [t.name, t.ordered])];
-    case "lab-instruments":
-      return [["Instrument", "First results entered"], ...d.laboratory.byInstrument.map((i): Row => [i.name ?? "No instrument recorded", i.results])];
-    case "lab-departments":
-      return [
-        ["Department", "Tests released", "Average turnaround (minutes)", "Median turnaround (minutes)", "Released within target"],
-        ...d.laboratory.byDepartment.map((x): Row => [x.name, x.released, x.averageTurnaroundMinutes, x.medianTurnaroundMinutes, x.withinTargetRate]),
-      ];
-    case "dental-procedures":
-      return [["Code", "Procedure", "Procedures", "Patients"], ...d.dental.byProcedure.map((p): Row => [p.code, p.name, p.procedures, p.patients])];
-    case "telemedicine": {
-      const t = d.telemedicine;
-      return [
-        [
-          "Started",
-          "Ended",
-          "Escalated",
-          "In progress",
-          "Escalation rate",
-          "Average wait, joined to started (minutes)",
-          "Median wait (minutes)",
-          "90th percentile wait (minutes)",
-          "Joined, never seen",
-        ],
-        [t.started, t.ended, t.escalated, t.inProgress, t.escalationRate, t.averageWaitMinutes, t.medianWaitMinutes, t.p90WaitMinutes, t.joinedNotSeen],
-      ];
-    }
-    case "retention": {
-      const r = d.retention;
-      return [
-        [
-          "Patients seen",
-          `Also seen in the ${r.lookbackMonths} months before`,
-          "Retention rate",
-          "Return cohort",
-          `Returned within ${r.returnWindowDays} days`,
-          "Return rate",
-        ],
-        [r.seen, r.retained, r.retentionRate, r.returnCohort, r.returned, r.returnRate],
-      ];
-    }
+    return { patients, clinic, laboratory, dental, telemedicine, retention: retained, billing, inventory, dispensing };
   }
 }
