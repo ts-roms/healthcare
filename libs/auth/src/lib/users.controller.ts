@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
-import { CreateRoleDto, CreateUserDto, GrantRoleDto, ResetPasswordDto, UpdateMembershipDto } from "./users.dto";
+import { CreateRoleDto, CreateUserDto, GrantRoleDto, ResetPasswordDto, UpdateMembershipDto, UpdateRoleDto } from "./users.dto";
 import { UsersService } from "./users.service";
 
 @ApiTags("users")
@@ -74,6 +74,13 @@ export class UsersController {
   @RequirePermissions("role.manage")
   createRole(@CurrentActor() actor: Actor, @Body() body: CreateRoleDto) {
     return this.users.createRole(actor, body);
+  }
+
+  @Put("roles/:roleId")
+  @RequirePermissions("role.manage")
+  @ApiOperation({ summary: "Edit one of the organization's own roles: name, description and its whole permission set (built-in roles are read-only)" })
+  updateRole(@CurrentActor() actor: Actor, @Param("roleId", ParseUUIDPipe) roleId: string, @Body() body: UpdateRoleDto) {
+    return this.users.updateRole(actor, roleId, body);
   }
 
   @Get("permissions")

@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, diffChanges } from "@healthcare/audit";
-import { type Actor, asPgError, ConflictError, DATABASE, type Database, NotFoundError, PgErrorCode } from "@healthcare/core";
+import { type Actor, asPgError, BusinessRuleError, ConflictError, DATABASE, type Database, NotFoundError, PgErrorCode } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type {
   createCodingSystemSchema,
+  updateCodingSystemSchema,
   createExceptionSchema,
   createPractitionerSchema,
   createRoomSchema,
@@ -18,6 +19,7 @@ import { codingSystem, practitioner, practitionerSchedule, room, scheduleExcepti
 import { assertVersion, found, publicView } from "../clinic-support";
 
 const VISIT_TYPE_FIELDS = ["name", "defaultDurationMinutes", "onlineBooking", "status"] as const;
+const CODING_SYSTEM_FIELDS = ["name", "version", "status"] as const;
 const PRACTITIONER_FIELDS = ["displayName", "profession", "specialty", "licenseNumber", "licenseValidUntil", "userId", "status"] as const;
 
 /** Clinic master data: practitioners, rooms, visit types, coding systems, schedules and closures. */
@@ -164,6 +166,32 @@ export class ClinicConfigService {
       if (!created) throw new ConflictError(`Coding system "${input.key}" already exists`);
       await this.audit.record(tx, actor, { action: "coding-system.create", resourceType: "coding_system", resourceId: created.id });
       return publicView(created);
+    });
+  }
+
+  /** Deactivating a system refuses new diagnoses against it; recorded diagnoses keep their code and system. */
+  async updateCodingSystem(actor: Actor, codingSystemId: string, input: z.infer<typeof updateCodingSystemSchema>) {
+    return this.db.transaction(async (tx) => {
+      const [before] = await tx
+        .select()
+        .from(codingSystem)
+        .where(and(eq(codingSystem.organizationId, actor.organizationId), eq(codingSystem.id, codingSystemId)))
+        .for("update");
+      const current = found(before, "Coding system");
+      const changes = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.version !== undefined ? { version: input.version || null } : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+      };
+      if (Object.keys(changes).length === 0) throw new BusinessRuleError("Nothing to change (the key cannot be changed)", "nothing_to_change");
+      const [updated] = await tx.update(codingSystem).set(changes).where(eq(codingSystem.id, codingSystemId)).returning();
+      await this.audit.record(tx, actor, {
+        action: "coding-system.update",
+        resourceType: "coding_system",
+        resourceId: codingSystemId,
+        changes: diffChanges(current, changes, CODING_SYSTEM_FIELDS),
+      });
+      return publicView(found(updated, "Coding system"));
     });
   }
 

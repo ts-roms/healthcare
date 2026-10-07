@@ -4673,6 +4673,8 @@ export interface StaffRoleDefinition {
   description: string | null;
   isSystem: boolean;
   permissions: string[];
+  /** Optimistic lock for editing an organization's own role (migration 0102). */
+  version: number;
 }
 
 export interface Organization {

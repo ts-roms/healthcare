@@ -284,8 +284,11 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 Platform administrators also see **Rate-limit refusals, last 30 days** on `/admin/security` (`GET /rate-limits/refusals`; route templates and
 counts per Philippine day, MyHealth routes first; `docs/security/access-control.md`, "Shared addresses").
 
-Not built: editing roles. Registering a diagnosis coding system has no screen: it is API-only (`POST /coding-systems`, `clinic.configure`,
-audited `coding-system.create`); the encounter workspace reads the systems registered (`GET /coding-systems`).
+`/admin/roles` also edits the organization's own roles (**Edit…**: name, description, the whole permission set and an optional reason, saved with the
+role's `version`; `PUT /roles/:id`, `role.manage`; permissions the editor does not hold are shown disabled and the API refuses adding or removing
+them; built-in roles are read-only; no delete). `/clinic/coding-systems` (**Clinic → Coding systems**; `encounter.read` to see, `clinic.configure`
+to change) registers diagnosis coding systems, renames them, changes the edition and stops offering them (`PATCH /clinic/coding-systems/:id`,
+audited `coding-system.update`); the encounter workspace offers the active ones and points here when none is.
 
 ## Integrations (administration)
 
