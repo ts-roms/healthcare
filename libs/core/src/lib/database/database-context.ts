@@ -48,7 +48,11 @@ export function asOrganization<T>(organizationId: string, fn: () => T): T {
   return storage.run({ organizationId }, fn);
 }
 
-/** Runs `fn` across organizations on purpose (sign-in lookups, schedulers, workers); `reason` is for the logs. */
+/**
+ * Runs `fn` across organizations on purpose (sign-in lookups, schedulers, workers); `reason` is for the logs.
+ * A Drizzle query is lazy: return an `async` function (or call an async method), never the bare builder, or the query
+ * runs after the scope has ended. A transaction already open keeps the context it started with.
+ */
 export function asPlatform<T>(reason: string, fn: () => T): T {
   return storage.run({ platform: { reason } }, fn);
 }
