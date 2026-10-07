@@ -201,6 +201,8 @@ describe("management dashboard", () => {
       dentalProcedures: 1,
       specimenRejectionRate: 0,
       retentionRate: null,
+      stockUsed: 0,
+      dispenses: 0,
     });
     // Juan's visit 40 days ago falls in the 30 days before the range.
     expect(body.previous).toMatchObject({
@@ -251,7 +253,7 @@ describe("management dashboard", () => {
     const daily = await api(admin)
       .get(`/management/dashboard/export?table=daily&from=${manilaDate(0)}&to=${manilaDate(0)}`)
       .expect(200);
-    expect(daily.text.slice(1).split("\r\n")[1]).toBe(`${manilaDate(0)},<5,<5,2,1,500.00,200.00`);
+    expect(daily.text.slice(1).split("\r\n")[1]).toBe(`${manilaDate(0)},<5,<5,2,1,500.00,200.00,0`);
     const providers = await api(admin).get("/management/dashboard/export?table=providers").expect(200);
     expect(providers.text).toContain("Dr. reyes,2,<5,2,1,30,0,");
     // A facility-scoped manager exports only their facility.

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { comparison, countLabel, patientRateLabel, percentOf, previousLabel, rangePresets, spreadLabel, verdict } from "./management-mapping";
+import {
+  comparison,
+  countLabel,
+  patientRateLabel,
+  percentOf,
+  previousLabel,
+  rangePresets,
+  REPORT_FILES,
+  spreadLabel,
+  stockUseLabel,
+  verdict,
+} from "./management-mapping";
 
 describe("rangePresets", () => {
   it("offers ranges ending today, and last month across a year boundary", () => {
@@ -69,5 +80,18 @@ describe("suppressed counts and rates", () => {
     expect(countLabel(0)).toBe("0");
     expect(patientRateLabel(null, true)).toBe("withheld (<5)");
     expect(patientRateLabel(0.875, false)).toBe("87.5%");
+  });
+});
+
+describe("stock and report files", () => {
+  it("names the workflow that took stock, else the movement kind", () => {
+    expect(stockUseLabel("prescription_dispense", "issue")).toBe("Dispensed on prescriptions");
+    expect(stockUseLabel(null, "write_off")).toBe("Written off");
+    expect(stockUseLabel("something_new", "issue")).toBe("something_new");
+  });
+
+  it("offers the PDF beside the CSV tables for scheduled reports", () => {
+    expect(REPORT_FILES.at(-1)).toEqual({ key: "pdf", label: "Dashboard (PDF)" });
+    expect(REPORT_FILES.find((f) => f.key === "inventory")?.section).toBe("inventory");
   });
 });

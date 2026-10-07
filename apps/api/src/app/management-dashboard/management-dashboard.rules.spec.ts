@@ -102,6 +102,8 @@ describe("management dashboard comparison and export", () => {
     dental: { procedures: 1 },
     retention: { seen: 6, retained: 5 },
     billing: { invoices: { netTotal: 123_456 }, netCollected: 100_000 },
+    inventory: { used: { value: 250_075 } },
+    dispensing: { dispenses: 12 },
   };
 
   it("lists each key figure for both periods with the change and its assessment, amounts in pesos", () => {
@@ -119,14 +121,25 @@ describe("management dashboard comparison and export", () => {
     expect(rows).toContainEqual(["Median laboratory turnaround, collection to release (minutes)", 80, 80, 0, "lower", "unchanged"]);
     expect(rows).toContainEqual(["No-show rate", 0.25, 0.2, 0.05, "lower", "worse"]);
     expect(rows).toContainEqual(["New patients registered", "<5", "<5", null, "higher", null]);
+    // Stock spend and dispensing volume are neither good nor bad in themselves.
+    expect(rows).toContainEqual(["Stock used at cost (PHP)", "2500.75", "2500.75", "0.00", "neither", "unchanged"]);
+    expect(rows).toContainEqual(["Dispenses recorded", 12, 12, 0, "neither", "unchanged"]);
   });
 
-  it("leaves revenue out when billing is withheld", () => {
-    const figures = keyFigures({ ...parts, billing: null });
-    expect(figures).toMatchObject({ netInvoiced: null, netCollected: null });
-    const rows = summaryRows(figures, figures, { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, false);
-    expect(rows.map((r) => r[0])).not.toContain("Invoiced, net (PHP)");
+  it("leaves a withheld section's figures out", () => {
+    const figures = keyFigures({ ...parts, billing: null, inventory: null, dispensing: null });
+    expect(figures).toMatchObject({ netInvoiced: null, netCollected: null, stockUsed: null, dispenses: null });
+    const rows = summaryRows(figures, figures, { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, ["billing", "inventory", "dispensing"]);
+    const labels = rows.map((r) => r[0]);
+    expect(labels).not.toContain("Invoiced, net (PHP)");
+    expect(labels).not.toContain("Stock used at cost (PHP)");
+    expect(labels).not.toContain("Dispenses recorded");
+    expect(labels).toContain("Patients seen");
     expect(keyFigureChanges(figures, figures).netInvoiced).toEqual({ unit: "centavos", better: "up", change: null });
+    // Withholding one section keeps the others' rows.
+    expect(
+      summaryRows(keyFigures(parts), keyFigures(parts), { from: "a", to: "b", previousFrom: "c", previousTo: "d" }, ["billing"]).map((r) => r[0]),
+    ).toContain("Dispenses recorded");
   });
 
   describe("small-cell suppression", () => {

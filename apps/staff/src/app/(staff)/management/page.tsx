@@ -35,7 +35,9 @@ import {
   percentOf,
   previousLabel,
   rangePresets,
+  SECTION_NEEDS,
   spreadLabel,
+  stockUseLabel,
   verdict,
 } from "@/lib/management-mapping";
 import { ManagementCharts } from "./management-charts";
@@ -94,6 +96,9 @@ export default async function ManagementPage({
   const l = data.laboratory;
   const t = data.telemedicine;
   const r = data.retention;
+  const stock = data.inventory;
+  const rx = data.dispensing;
+  const withheld = data.withheld;
 
   return (
     <>
@@ -151,11 +156,15 @@ export default async function ManagementPage({
 
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
           <span>Download CSV:</span>
-          {EXPORT_TABLES.filter((t) => b !== null || !t.revenue).map((t) => (
+          {EXPORT_TABLES.filter((t) => !t.section || !withheld.includes(t.section)).map((t) => (
             <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
               {t.label}
             </a>
           ))}
+          <span>·</span>
+          <a href={`/management/export.pdf?${exportQuery}`} download className="text-primary hover:underline">
+            Download as PDF
+          </a>
           <span>·</span>
           <Link href="/management/reports" className="text-primary hover:underline">
             Scheduled reports
@@ -165,9 +174,13 @@ export default async function ManagementPage({
           Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.
         </p>
 
-        {b === null ? (
+        {withheld.length > 0 ? (
           <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
-            Revenue, collections and service revenue are not shown: they need billing report access for every facility in scope.
+            Not shown for lack of access on every facility in scope:{" "}
+            {withheld
+              .map((w) => ({ billing: "revenue, collections and service revenue", inventory: "stock received and used", dispensing: "dispensing" })[w])
+              .join("; ")}
+            . Each {withheld.map((w) => SECTION_NEEDS[w].replace("needs ", "")).join(", ")}.
           </p>
         ) : null}
 
@@ -278,6 +291,32 @@ export default async function ManagementPage({
           >
             seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
           </Figure>
+          {stock ? (
+            <Figure
+              label="Stock used at cost"
+              value={peso(stock.used.value)}
+              change={comparison(k.stockUsed, prev.stockUsed, "count")}
+              assessment={verdict(changes.stockUsed)}
+              versus={versus}
+              definition={d.stock}
+            >
+              {peso(stock.received.value)} received · {peso(stock.writtenOff.value)} written off
+              {stock.used.unvaluedQuantity ? ` · ${stock.used.unvaluedQuantity.toLocaleString("en-PH")} units used without a recorded cost` : ""}
+            </Figure>
+          ) : null}
+          {rx ? (
+            <Figure
+              label="Dispenses"
+              value={rx.dispenses.toLocaleString("en-PH")}
+              change={comparison(k.dispenses, prev.dispenses, "count")}
+              assessment={verdict(changes.dispenses)}
+              versus={versus}
+              definition={d.dispensing}
+            >
+              {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions · {countLabel(rx.patients)} patients · {rx.reversed} reversed ·{" "}
+              {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued
+            </Figure>
+          ) : null}
           <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
             {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
           </Figure>
@@ -399,6 +438,48 @@ export default async function ManagementPage({
               }
             />
           </Section>
+          {stock ? (
+            <Section title="Stock received and used" definition={d.stock}>
+              <SimpleTable
+                empty="No stock moved."
+                head={["Movement", "Quantity", "Value at cost"]}
+                rows={[
+                  ["Received", stock.received.quantity.toLocaleString("en-PH"), peso(stock.received.value)],
+                  ["Used (net of returns)", stock.used.quantity.toLocaleString("en-PH"), peso(stock.used.value)],
+                  ...stock.usedBySource.map((u): [string, string, string] => [
+                    `· ${stockUseLabel(u.sourceType, u.kind)}`,
+                    u.quantity.toLocaleString("en-PH"),
+                    peso(u.value),
+                  ]),
+                ]}
+              />
+              <SimpleTable
+                empty="Nothing used."
+                head={["Items that used the most value", "Qty", "Value"]}
+                rows={stock.topItems.map((i) => [`${i.name} (${i.code})`, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, peso(i.value)])}
+              />
+              <p className="text-meta text-muted-foreground">
+                {peso(stock.writtenOff.value)} written off · transfers between locations are not counted
+                {stock.received.unvaluedQuantity + stock.used.unvaluedQuantity
+                  ? ` · ${(stock.received.unvaluedQuantity + stock.used.unvaluedQuantity).toLocaleString("en-PH")} units moved without a recorded cost`
+                  : ""}
+              </p>
+            </Section>
+          ) : null}
+          {rx ? (
+            <Section title="Dispensing" definition={d.dispensing}>
+              <SimpleTable
+                empty="Nothing dispensed."
+                head={["Items dispensed most", "Quantity", "Dispenses"]}
+                rows={rx.topItems.map((i) => [i.name, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, i.dispenses.toLocaleString("en-PH")])}
+              />
+              <p className="text-meta text-muted-foreground">
+                {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued ({rx.prescriptionsCancelled} cancelled or replaced) ·{" "}
+                {rx.dispenses.toLocaleString("en-PH")} dispenses ({rx.reversed} reversed) · {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions
+                dispensed · {countLabel(rx.patients)} patients served
+              </p>
+            </Section>
+          ) : null}
           <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>
             <SimpleTable
               empty="No patients seen."
