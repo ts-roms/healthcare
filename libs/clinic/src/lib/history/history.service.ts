@@ -61,6 +61,7 @@ import {
   familyHistoryReview,
   type FamilyReviewRecord,
   type HistoryDatePrecision,
+  type HistoryRecordedVia,
   type HistorySection,
   pastCondition,
   type PastConditionRecord,
@@ -68,6 +69,7 @@ import {
   type PastProcedureRecord,
   reportedMedication,
   type ReportedMedicationRecord,
+  patientHistorySubmission,
   socialHistory,
   type SocialHistoryRecord,
 } from "./history.schema";
@@ -79,7 +81,10 @@ interface EntryMeta {
   patientId: string;
   encounterId: string | null;
   recordedAt: string;
+  /** Null for an entry recorded through MyHealth. */
   recordedByName: string | null;
+  /** Recorded by a staff user, or by the patient (or a guardian acting for them) in MyHealth. */
+  recordedVia: HistoryRecordedVia;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
 }
 
@@ -129,8 +134,8 @@ export interface ReportedMedicationView extends EntryMeta {
   status: ReportedMedicationRecord["reportedStatus"];
   stopped: string | null;
   stoppedPrecision: HistoryDatePrecision | null;
-  /** Marked stopped after it was recorded. */
-  stopRecorded: { at: string; byName: string | null; note: string | null } | null;
+  /** Marked stopped after it was recorded (by a staff user, or by the patient in MyHealth). */
+  stopRecorded: { at: string; byName: string | null; via: HistoryRecordedVia; note: string | null } | null;
   notes: string | null;
   source: ReportedMedicationRecord["source"];
   reportedBy: ReportedMedicationRecord["reportedBy"];
@@ -349,7 +354,15 @@ export class PatientHistoryService {
    * themself, not someone acting for them). Not audited here.
    */
   async patientView(organizationId: string, patientId: string, options: { sensitive: boolean }) {
-    const record = await this.patientRecord(organizationId, patientId);
+    const [record, submissions] = await Promise.all([
+      this.patientRecord(organizationId, patientId),
+      this.db
+        .select()
+        .from(patientHistorySubmission)
+        .where(and(eq(patientHistorySubmission.organizationId, organizationId), filedAsPatient(patientHistorySubmission.patientId, patientId)))
+        .orderBy(desc(patientHistorySubmission.submittedAt))
+        .limit(20),
+    ]);
     const procedures = record.procedures.filter((r) => !r.enteredInErrorAt);
     const conditions = record.conditions.filter((r) => !r.enteredInErrorAt);
     const medications = record.medications.filter((r) => !r.enteredInErrorAt);
@@ -364,6 +377,7 @@ export class PatientHistoryService {
         performer: r.performer,
         bodySite: r.bodySite,
         source: r.source,
+        recordedVia: r.recordedVia,
       })),
       conditions: conditions.map((r) => ({
         id: r.id,
@@ -371,16 +385,21 @@ export class PatientHistoryService {
         onset: partialDateText(r.onsetDate, r.onsetPrecision),
         status: r.reportedStatus,
         source: r.source,
+        recordedVia: r.recordedVia,
       })),
       medications: medications.map((r) => ({
         id: r.id,
         medication: r.medication,
         dose: r.doseText,
         reason: r.reason,
+        prescribedBy: r.prescribedBy,
         started: partialDateText(r.startedDate, r.startedPrecision),
         status: medicationState(r),
         stopped: partialDateText(r.stoppedDate, r.stoppedPrecision),
         source: r.source,
+        recordedVia: r.recordedVia,
+        /** The patient may mark it stopped in MyHealth: reported there and not stopped yet. */
+        canStop: r.recordedVia === "patient_portal" && medicationState(r) !== "stopped",
       })),
       family: {
         state: familyHistoryState(family.length, latestReview),
@@ -394,13 +413,23 @@ export class PatientHistoryService {
           deceased: r.deceased,
           causeOfDeath: r.causeOfDeath,
           source: r.source,
+          recordedVia: r.recordedVia,
         })),
       },
+      /** Questionnaires completed in MyHealth, newest first. */
+      submissions: submissions.map((s) => ({ id: s.id, submittedAt: iso(s.submittedAt), sections: s.sections, byProxy: s.proxyGrantId !== null })),
       social: current
         ? {
             effectiveDate: current.effectiveDate,
+            recordedVia: current.recordedVia,
             tobacco: tobaccoText(current),
+            tobaccoStatus: current.tobaccoStatus,
+            tobaccoType: current.tobaccoType,
+            tobaccoAmount: current.tobaccoAmount,
+            tobaccoQuitYear: current.tobaccoQuitYear,
             alcohol: alcoholText(current),
+            alcoholStatus: current.alcoholStatus,
+            alcoholFrequency: current.alcoholFrequency,
             occupation: current.occupation,
             occupationalExposures: current.occupationalExposures,
             livingSituation: current.livingSituation,
@@ -446,6 +475,7 @@ export class PatientHistoryService {
         medication: r.medication,
         dose: r.doseText,
         status: medicationState(r),
+        recordedVia: r.recordedVia,
       })),
       medicationsTotal: medications.length,
       family: {
@@ -1085,7 +1115,7 @@ export class PatientHistoryService {
 }
 
 function meta(
-  r: { id: string; patientId: string; encounterId: string | null; recordedAt: Date; recordedBy: string } & {
+  r: { id: string; patientId: string; encounterId: string | null; recordedAt: Date; recordedBy: string | null; recordedVia: HistoryRecordedVia } & {
     enteredInErrorAt: Date | null;
     enteredInErrorReason: string | null;
     enteredInErrorBy: string | null;
@@ -1097,7 +1127,8 @@ function meta(
     patientId: r.patientId,
     encounterId: r.encounterId,
     recordedAt: iso(r.recordedAt),
-    recordedByName: names.get(r.recordedBy) ?? null,
+    recordedByName: r.recordedBy ? (names.get(r.recordedBy) ?? null) : null,
+    recordedVia: r.recordedVia,
     enteredInError:
       r.enteredInErrorAt && r.enteredInErrorReason
         ? { at: iso(r.enteredInErrorAt), reason: r.enteredInErrorReason, byName: r.enteredInErrorBy ? (names.get(r.enteredInErrorBy) ?? null) : null }
@@ -1157,7 +1188,12 @@ function medicationView(r: ReportedMedicationRecord, names: Map<string, string>)
     stopped: partialDateText(r.stoppedDate, r.stoppedPrecision),
     stoppedPrecision: r.stoppedPrecision,
     stopRecorded: r.stopRecordedAt
-      ? { at: iso(r.stopRecordedAt), byName: r.stopRecordedBy ? (names.get(r.stopRecordedBy) ?? null) : null, note: r.stopNote }
+      ? {
+          at: iso(r.stopRecordedAt),
+          byName: r.stopRecordedBy ? (names.get(r.stopRecordedBy) ?? null) : null,
+          via: r.stopPortalAccountId ? "patient_portal" : "staff",
+          note: r.stopNote,
+        }
       : null,
     notes: r.notes,
     source: r.source,

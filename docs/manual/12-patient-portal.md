@@ -293,7 +293,27 @@ the clinic at your next visit — bring your vaccination card.
    provider).
 
 Private details (other substance use, sexual history) are marked with a lock and shown only to you — not to someone who looks after your
-account for you. You cannot change anything here: if something is wrong or missing, tell your clinic at your next visit or send them a message.
+account for you. What you sent from MyHealth says **Reported here in MyHealth**.
+
+## How to tell the clinic about your health history
+
+1. On **Health history**, scroll to **Tell the clinic about your health history**.
+2. Under each heading select **Add one** and fill in what applies: **Medicines you take that the clinic did not prescribe** (name as on the box,
+   how you take it, since when, whether you take it now), **Past illnesses**, **Operations and procedures**, **Illnesses in the family** and
+   **Daily life** (tobacco, alcohol, work, home, activity, diet — what the clinic already has is filled in; change only what is different).
+   Dates can be a year (2019), a month (2019-05) or a day (2019-05-12); leave a date blank if you do not know it.
+3. Tick the confirmation and select **Send to the clinic**. The clinic keeps your answers as what you told it — they are not a diagnosis — and
+   your care team reads them at your next visit; nobody is paged.
+4. For a medicine you reported here that you no longer take, select **I stopped taking this** and give the date if you know it.
+
+**Things to know:**
+
+- Once sent, an entry cannot be changed or removed here: if you made a mistake, tell the clinic at your next visit or send them a message, and
+  they will mark it as entered in error.
+- Other substance use and sexual history are not asked here; they are discussed at the clinic.
+- Someone who looks after your MyHealth with **view-only** access can read your history but cannot answer for you; with full access, their
+  answers are recorded as reported by a relative.
+- You can send up to 10 questionnaires an hour.
 
 ## How to see and pay your bills
 

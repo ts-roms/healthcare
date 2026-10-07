@@ -11,7 +11,10 @@ import { API_BASE_URL, COOKIES } from "./config";
  * portal access withdrawn): the patient is sent to sign in again. Other
  * errors throw `ApiError`.
  */
-export async function portalApi<T>(path: string, { method = "GET", body }: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
+export async function portalApi<T>(
+  path: string,
+  { method = "GET", body, headers: extra }: { method?: "GET" | "POST" | "PUT"; body?: unknown; headers?: Record<string, string> } = {},
+): Promise<T> {
   const jar = await cookies();
   const accessToken = jar.get(COOKIES.access)?.value;
   if (!accessToken) redirect("/login");
@@ -21,6 +24,7 @@ export async function portalApi<T>(path: string, { method = "GET", body }: { met
     accept: "application/json",
     authorization: `Bearer ${accessToken}`,
     ...acting,
+    ...extra,
   };
   // Only the devices list needs to know which remembered browser this is.
   const deviceToken = path.startsWith("/portal/mfa/devices") ? jar.get(COOKIES.device)?.value : undefined;
