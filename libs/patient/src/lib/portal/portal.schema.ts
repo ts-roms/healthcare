@@ -37,6 +37,10 @@ export const patientPortalAccount = pgTable("patient_portal_account", {
   mfaPendingSecretEncrypted: text("mfa_pending_secret_encrypted"),
   mfaEnabledAt: ts("mfa_enabled_at"),
   mfaLastUsedStep: bigint("mfa_last_used_step", { mode: "number" }),
+  /** 0107: the clinic exempted this account from a two-step verification requirement, with a reason. */
+  mfaExemptReason: text("mfa_exempt_reason"),
+  mfaExemptedBy: uuid("mfa_exempted_by"),
+  mfaExemptedAt: ts("mfa_exempted_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),

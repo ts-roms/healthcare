@@ -118,14 +118,29 @@ export default async function SignInSecurityPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-table">
             <p className="text-muted-foreground">
-              Patients can always add an authenticator app in MyHealth. When required, the date is announced in MyHealth first (at least a week); from it a
-              patient without it signs in only to set it up. Patients may remember a browser for 30 days after a code. The clinic turns it off for a patient who
-              lost the phone and the recovery codes, from the patient record.
+              Patients can always add an authenticator app in MyHealth. When required, the date is announced in MyHealth first (at least a week), and patients
+              who still need to set it up are told by email when it is turned on or the date moves; from the date a patient without it signs in only to set it
+              up. Patients may remember a browser for 30 days after a code. From the patient record the clinic turns it off for a patient who lost the phone and
+              the recovery codes, or exempts a patient who cannot use an authenticator app.
             </p>
             <p>
               {patients.accounts.active} active MyHealth account{patients.accounts.active === 1 ? "" : "s"}: {patients.accounts.withMfa} with it on,{" "}
-              {patients.accounts.withoutMfa} without it.
+              {patients.accounts.exempt} exempt, {patients.accounts.withoutMfa} without it.
             </p>
+            {patients.exemptions.length ? (
+              <ul className="flex flex-col gap-1" aria-label="Exempt patients">
+                {patients.exemptions.map((e) => (
+                  <li key={e.patientId} className="flex flex-wrap gap-x-2">
+                    <Link className="text-primary hover:underline" href={`/patients/${e.patientId}`}>
+                      Patient record
+                    </Link>
+                    <span className="text-muted-foreground">
+                      {e.reason} · {clinicalDateTime(e.exemptedAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {patients.updatedBy && patients.updatedAt ? (
               <p className="text-meta text-muted-foreground">
                 Last changed by {patients.updatedBy.displayName}, {clinicalDateTime(patients.updatedAt)}.

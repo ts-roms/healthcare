@@ -9,6 +9,8 @@ export const SECURITY_ALERT_EVENTS = [
   "email_changed",
   "proxy_access_granted",
   "proxy_access_ended",
+  "mfa_exempted",
+  "mfa_exemption_ended",
 ] as const;
 export type SecurityAlertEvent = (typeof SECURITY_ALERT_EVENTS)[number];
 

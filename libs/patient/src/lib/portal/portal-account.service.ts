@@ -48,6 +48,8 @@ export interface PortalPrincipal {
   sessionId: string;
   /** The account holder has two-step verification on (the guard reads the organization's policy against it). */
   mfaEnabled: boolean;
+  /** The clinic exempted the account holder from a two-step verification requirement (migration 0107). */
+  mfaExempt: boolean;
   /** Set when the request acts for another person's record (guardian access); `patientId` is then that person's. */
   proxy?: ProxyContext;
   request: RequestMetadata;
@@ -78,6 +80,8 @@ export interface PortalAccountStatusView {
   emailVerified: boolean;
   /** The patient uses two-step verification; staff can turn it off after checking identity. */
   mfaEnabled: boolean;
+  /** The clinic exempted the account from a two-step verification requirement (migration 0107), and why. */
+  mfaExemption: { reason: string; exemptedAt: string } | null;
 }
 
 const INVALID_ACTIVATION = "Activation details are incorrect, or the code has expired. Ask the clinic for a new code.";
@@ -137,6 +141,8 @@ export class PortalAccountService {
       portalConsent,
       emailVerified: Boolean(account?.emailVerifiedAt),
       mfaEnabled: account?.mfaEnabled ?? false,
+      mfaExemption:
+        account?.mfaExemptReason && account.mfaExemptedAt ? { reason: account.mfaExemptReason, exemptedAt: account.mfaExemptedAt.toISOString() } : null,
     };
   }
 
@@ -561,6 +567,7 @@ export class PortalAccountService {
       organizationId: row.account.organizationId,
       sessionId: row.session.id,
       mfaEnabled: row.account.mfaEnabled,
+      mfaExempt: row.account.mfaExemptReason !== null,
       request,
     };
   }
@@ -632,7 +639,7 @@ export class PortalAccountService {
       organization: { name: row.organizationName },
       account: { email: row.email, emailVerified: Boolean(row.emailVerifiedAt), mfaEnabled: row.mfaEnabled },
       /** The organization's two-step verification requirement for patients and what it means for this account (migration 0100). */
-      mfaPolicy: await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled),
+      mfaPolicy: await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled, principal.mfaExempt),
       /** The patient's clinic (where they were registered): MyHealth shows dates and times in its zone; a visit uses its own facility's. */
       timeZone: row.timeZone,
       /** Set when the request acts for another person: the patient above is that person, the account is the guardian's own. */

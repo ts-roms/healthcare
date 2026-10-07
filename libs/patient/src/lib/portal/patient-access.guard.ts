@@ -57,7 +57,7 @@ export class PatientAccessGuard implements CanActivate {
       !principal.mfaEnabled &&
       !this.reflector.getAllAndOverride<boolean | undefined>(ALLOW_DURING_MFA_ENROLLMENT, [context.getHandler(), context.getClass()])
     ) {
-      const policy = await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled);
+      const policy = await this.mfaPolicy.forAccount(principal.organizationId, principal.mfaEnabled, principal.mfaExempt);
       if (policy.enrollmentRequired) {
         throw new ForbiddenError("Your clinic requires two-step verification. Set it up under Sign-in security to continue.", "mfa_enrollment_required");
       }

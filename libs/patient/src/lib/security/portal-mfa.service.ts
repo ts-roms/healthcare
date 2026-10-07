@@ -247,6 +247,63 @@ export class PortalMfaService {
   }
 
   /**
+   * The clinic exempts a patient's account from its two-step verification requirement (migration 0107), with a reason:
+   * the account is never held at the set-up. Two-step verification already on stays on. The patient is told by email.
+   */
+  async exemptByClinic(actor: Actor, patientId: string, reason: string): Promise<void> {
+    const account = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.organizationId, actor.organizationId), eq(patientPortalAccount.patientId, patientId)))
+        .for("update");
+      if (!row) throw new NotFoundError("Portal account");
+      if (row.status === "disabled") throw new BusinessRuleError("MyHealth access is disabled for this patient", "portal_account_disabled");
+      if (row.mfaExemptReason) throw new BusinessRuleError("This patient is already exempt", "mfa_already_exempt");
+      await tx
+        .update(patientPortalAccount)
+        .set({ mfaExemptReason: reason, mfaExemptedBy: actor.userId, mfaExemptedAt: new Date(), updatedAt: new Date() })
+        .where(eq(patientPortalAccount.id, row.id));
+      await this.audit.record(tx, actor, {
+        action: "patient.portal-mfa-exempt",
+        resourceType: "patient_portal_account",
+        resourceId: row.id,
+        patientId,
+        reason,
+      });
+      return row;
+    });
+    if (account.status === "active") await this.alert(account, "mfa_exempted");
+  }
+
+  /** The clinic ends an exemption, with a reason; a requirement in force applies again at the next request. */
+  async endExemptionByClinic(actor: Actor, patientId: string, reason: string): Promise<void> {
+    const account = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.organizationId, actor.organizationId), eq(patientPortalAccount.patientId, patientId)))
+        .for("update");
+      if (!row) throw new NotFoundError("Portal account");
+      if (!row.mfaExemptReason) throw new BusinessRuleError("This patient is not exempt", "mfa_not_exempt");
+      await tx
+        .update(patientPortalAccount)
+        .set({ mfaExemptReason: null, mfaExemptedBy: null, mfaExemptedAt: null, updatedAt: new Date() })
+        .where(eq(patientPortalAccount.id, row.id));
+      await this.audit.record(tx, actor, {
+        action: "patient.portal-mfa-exempt-end",
+        resourceType: "patient_portal_account",
+        resourceId: row.id,
+        patientId,
+        reason,
+        metadata: { exemptedAt: row.mfaExemptedAt?.toISOString(), exemptReason: row.mfaExemptReason },
+      });
+      return row;
+    });
+    if (account.status === "active") await this.alert(account, "mfa_exemption_ended");
+  }
+
+  /**
    * A signed-in patient's second step for a sensitive change, spending the code. Wrong codes count toward the lockout.
    * Used by this service and by changing the sign-in email.
    */

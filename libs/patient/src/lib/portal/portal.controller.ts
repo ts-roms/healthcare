@@ -125,6 +125,26 @@ export class PatientPortalAccountController {
     await this.mfa.resetByClinic(actor, patientId, body.reason);
   }
 
+  @Post("mfa-exemption")
+  @HttpCode(204)
+  @RequirePermissions("patient.portal.manage")
+  @ApiOperation({ summary: "Exempt the patient from the clinic's two-step verification requirement, with a reason (audited; the patient is told)" })
+  async exemptMfa(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: DisablePortalAccountDto): Promise<void> {
+    await this.mfa.exemptByClinic(actor, patientId, body.reason);
+  }
+
+  @Post("mfa-exemption/end")
+  @HttpCode(204)
+  @RequirePermissions("patient.portal.manage")
+  @ApiOperation({ summary: "End the patient's exemption from the two-step verification requirement, with a reason (audited; the patient is told)" })
+  async endMfaExemption(
+    @CurrentActor() actor: Actor,
+    @Param("patientId", ParseUUIDPipe) patientId: string,
+    @Body() body: DisablePortalAccountDto,
+  ): Promise<void> {
+    await this.mfa.endExemptionByClinic(actor, patientId, body.reason);
+  }
+
   @Post("disable")
   @HttpCode(204)
   @RequirePermissions("patient.portal.manage")
