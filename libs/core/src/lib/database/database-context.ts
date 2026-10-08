@@ -108,8 +108,7 @@ export class ContextPool extends Pool {
   override connect(callback?: (err: Error | undefined, client: PoolClient | undefined, done: (release?: unknown) => void) => void): Promise<PoolClient> | void {
     const settings = contextSettings(storage.getStore(), this.mode);
     if (settings.missing) this.report();
-    const ready: Promise<PoolClient> =
-      settings.missing && this.mode === "enforce" ? Promise.reject(new DatabaseContextMissingError()) : this.stamped(settings);
+    const ready: Promise<PoolClient> = settings.missing && this.mode === "enforce" ? Promise.reject(new DatabaseContextMissingError()) : this.stamped(settings);
     if (!callback) return ready;
     ready.then(
       (client) => callback(undefined, client, (release) => client.release(release as Error | boolean | undefined)),
