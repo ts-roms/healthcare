@@ -69,15 +69,28 @@ export function contextSettings(
   if (mode === "off") return { organizationId: "", scope: "all", missing: false };
   if (store?.platform) return { organizationId: "", scope: "all", missing: false };
   if (store?.organizationId) return { organizationId: store.organizationId, scope: "organization", missing: false };
-  // No context: observe lets it through (and it is logged); enforce lets it see and write nothing.
+  // No context: observe lets it through (and it is logged); enforce refuses the connection (ContextPool), and the
+  // policies would let a connection stamped 'none' see and write nothing.
   return { organizationId: "", scope: mode === "observe" ? "all" : "none", missing: true };
+}
+
+/**
+ * A query without an organization or platform context in enforce mode. Refused before it runs, so a path nobody
+ * scoped fails visibly instead of reading nothing (docs/runbooks/database-roles.md "Row-level security").
+ */
+export class DatabaseContextMissingError extends Error {
+  constructor() {
+    super("A database query ran without an organization or platform context (DATABASE_RLS_MODE=enforce)");
+    this.name = "DatabaseContextMissingError";
+  }
 }
 
 const SET_CONTEXT = "SELECT set_config('app.organization_id', $1, false), set_config('app.scope', $2, false)";
 
 /**
  * A pg Pool that stamps the current context on a connection each time it is handed out (pool.query and transactions
- * alike). In `observe` mode a query without context still runs and its call site is logged once per process.
+ * alike). Without a context, `observe` runs the query and logs its call site once per process; `enforce` logs it the
+ * same way and refuses with DatabaseContextMissingError.
  */
 export class ContextPool extends Pool {
   private readonly logger = new Logger("DatabaseContext");
@@ -95,7 +108,17 @@ export class ContextPool extends Pool {
   override connect(callback?: (err: Error | undefined, client: PoolClient | undefined, done: (release?: unknown) => void) => void): Promise<PoolClient> | void {
     const settings = contextSettings(storage.getStore(), this.mode);
     if (settings.missing) this.report();
-    const ready = super.connect().then(async (client) => {
+    const ready: Promise<PoolClient> =
+      settings.missing && this.mode === "enforce" ? Promise.reject(new DatabaseContextMissingError()) : this.stamped(settings);
+    if (!callback) return ready;
+    ready.then(
+      (client) => callback(undefined, client, (release) => client.release(release as Error | boolean | undefined)),
+      (error: Error) => callback(error, undefined, () => undefined),
+    );
+  }
+
+  private stamped(settings: { organizationId: string; scope: string }): Promise<PoolClient> {
+    return super.connect().then(async (client) => {
       try {
         await client.query(SET_CONTEXT, [settings.organizationId, settings.scope]);
         return client;
@@ -104,11 +127,6 @@ export class ContextPool extends Pool {
         throw error;
       }
     });
-    if (!callback) return ready;
-    ready.then(
-      (client) => callback(undefined, client, (release) => client.release(release as Error | boolean | undefined)),
-      (error: Error) => callback(error, undefined, () => undefined),
-    );
   }
 
   /** Logs the first query without a context from each call site (the frames outside pg, drizzle and this file). */
@@ -128,7 +146,7 @@ export class ContextPool extends Pool {
       message:
         this.mode === "observe"
           ? "A query ran without an organization or platform context (allowed in observe mode)"
-          : "A query ran without an organization or platform context (sees and writes nothing in enforce mode)",
+          : "A query ran without an organization or platform context (refused in enforce mode)",
     });
   }
 }

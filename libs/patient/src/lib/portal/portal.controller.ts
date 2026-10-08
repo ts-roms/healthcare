@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { type Actor, CurrentActor, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, PlatformScope, Public, requestMetadataFrom, RequirePermissions } from "@healthcare/core";
 import type { Request } from "express";
 import { AllowDuringPortalMfaEnrollment, CurrentPatient, PatientAccessGuard, ProxyAllowed } from "./patient-access.guard";
 import {
@@ -30,6 +30,7 @@ export class PortalController {
 
   @Post("auth/password-reset/request")
   @Public()
+  @PlatformScope("MyHealth password-reset request")
   @HttpCode(202)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Ask for a password-reset link by email; the answer is the same whether or not an account exists" })
@@ -40,6 +41,7 @@ export class PortalController {
 
   @Post("auth/password-reset/confirm")
   @Public()
+  @PlatformScope("MyHealth password reset")
   @HttpCode(204)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Choose a new password with the emailed token and the patient's date of birth; signs the account out everywhere" })
@@ -49,6 +51,7 @@ export class PortalController {
 
   @Post("auth/activate")
   @Public()
+  @PlatformScope("MyHealth activation")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "First sign-in with patient number, birth date and the activation code from the clinic; sets email and password" })
@@ -58,6 +61,7 @@ export class PortalController {
 
   @Post("auth/login")
   @Public()
+  @PlatformScope("MyHealth sign-in")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   login(@Body() body: PortalLoginDto, @Req() request: Request) {
@@ -66,6 +70,7 @@ export class PortalController {
 
   @Post("auth/refresh")
   @Public()
+  @PlatformScope("MyHealth session refresh")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   refresh(@Body() body: PortalRefreshDto, @Req() request: Request) {

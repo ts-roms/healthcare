@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, Public, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, PlatformScope, Public, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 import { segmentCriteriaSchema } from "./crm.rules";
@@ -128,6 +128,7 @@ export class CrmController {
   }
 
   @Public()
+  @PlatformScope("outreach opt-out link")
   @Post("opt-out")
   @ApiOperation({ summary: "Record the opt-out an outreach email's link stands for (single-use token; the answer never says whether it existed)" })
   async optOut(@Body() body: OptOutDto): Promise<{ recorded: boolean; channel?: string }> {

@@ -4,7 +4,7 @@ import type { INestApplication } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
 import { hashPassword } from "@healthcare/auth";
-import { type AppConfig, loadAppConfig, OutboxRelay, runMigrations } from "@healthcare/core";
+import { type AppConfig, asPlatform, loadAppConfig, OutboxRelay, runMigrations } from "@healthcare/core";
 import { InMemoryObjectStorage, OBJECT_STORAGE } from "@healthcare/documents";
 import { INTEGRATION_QUEUE, type IntegrationQueue } from "@healthcare/interoperability";
 import { LAB_REPORT_ARCHIVE_QUEUE, type LabReportArchiveQueue } from "@healthcare/laboratory";
@@ -76,6 +76,8 @@ export function testConfig(env: Record<string, string> = {}): AppConfig {
     JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
     LOG_LEVEL: "error",
+    // Row-level security refuses any query without an organization or platform context (migration 0111).
+    DATABASE_RLS_MODE: "enforce",
     // Video tokens are signed locally; no LiveKit server is contacted in tests.
     LIVEKIT_URL: "wss://video.test.invalid",
     LIVEKIT_API_KEY: "test-key",
@@ -253,9 +255,9 @@ export const juan = {
   identifiers: [{ type: "philhealth_pin", value: "12-345678901-2" }],
 };
 
-/** Runs the outbox relay until no events are pending (the relay is not started in tests). */
+/** Runs the outbox relay until no events are pending (the relay is not started in tests), under its platform scope. */
 export async function drainEvents(ctx: TestContext): Promise<number> {
-  return ctx.app.get(OutboxRelay).drain();
+  return asPlatform("outbox relay", () => ctx.app.get(OutboxRelay).drain());
 }
 
 /** A local calendar date (Asia/Manila) `days` from now. */
