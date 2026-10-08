@@ -394,7 +394,7 @@ describe("laboratory quality management", () => {
       assessedOn: "2026-03-10",
       nextDueOn: "2027-03-10",
     }).expect(201);
-    const due = await ctx.app.get(LabQualityDue).competencyReassessmentsDue();
+    const due = await underPlatform(ctx.app.get(LabQualityDue)).competencyReassessmentsDue();
     expect(due.filter((d) => d.userId === ids.medtech2User && d.areaName.startsWith("Hematology"))).toEqual([]);
   });
 
