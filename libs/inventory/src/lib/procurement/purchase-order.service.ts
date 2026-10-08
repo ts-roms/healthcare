@@ -484,33 +484,32 @@ export class PurchaseOrderService {
     if (orders.length === 0) return [];
     const ids = orders.map((o) => o.id);
     const methodIds = [...new Set(orders.map((o) => o.procurementMethodId).filter((id): id is string => Boolean(id)))];
-    const [lines, suppliers, locations, methods] = await Promise.all([
-      executor
-        .select({ line: inventoryPurchaseOrderLine, item: inventoryItem })
-        .from(inventoryPurchaseOrderLine)
-        .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryPurchaseOrderLine.itemId))
-        .where(inArray(inventoryPurchaseOrderLine.purchaseOrderId, ids))
-        .orderBy(asc(inventoryPurchaseOrderLine.lineNumber)),
-      executor
-        .select({ id: inventorySupplier.id, code: inventorySupplier.code, name: inventorySupplier.name })
-        .from(inventorySupplier)
-        .where(and(eq(inventorySupplier.organizationId, actor.organizationId), inArray(inventorySupplier.id, [...new Set(orders.map((o) => o.supplierId))]))),
-      executor
-        .select({ id: inventoryLocation.id, name: inventoryLocation.name })
-        .from(inventoryLocation)
-        .where(and(eq(inventoryLocation.organizationId, actor.organizationId), inArray(inventoryLocation.id, [...new Set(orders.map((o) => o.locationId))]))),
-      methodIds.length
-        ? executor
-            .select({
-              id: inventoryProcurementMethod.id,
-              code: inventoryProcurementMethod.code,
-              name: inventoryProcurementMethod.name,
-              referenceLabel: inventoryProcurementMethod.referenceLabel,
-            })
-            .from(inventoryProcurementMethod)
-            .where(and(eq(inventoryProcurementMethod.organizationId, actor.organizationId), inArray(inventoryProcurementMethod.id, methodIds)))
-        : Promise.resolve([]),
-    ]);
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const lines = await executor
+      .select({ line: inventoryPurchaseOrderLine, item: inventoryItem })
+      .from(inventoryPurchaseOrderLine)
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryPurchaseOrderLine.itemId))
+      .where(inArray(inventoryPurchaseOrderLine.purchaseOrderId, ids))
+      .orderBy(asc(inventoryPurchaseOrderLine.lineNumber));
+    const suppliers = await executor
+      .select({ id: inventorySupplier.id, code: inventorySupplier.code, name: inventorySupplier.name })
+      .from(inventorySupplier)
+      .where(and(eq(inventorySupplier.organizationId, actor.organizationId), inArray(inventorySupplier.id, [...new Set(orders.map((o) => o.supplierId))])));
+    const locations = await executor
+      .select({ id: inventoryLocation.id, name: inventoryLocation.name })
+      .from(inventoryLocation)
+      .where(and(eq(inventoryLocation.organizationId, actor.organizationId), inArray(inventoryLocation.id, [...new Set(orders.map((o) => o.locationId))])));
+    const methods = methodIds.length
+      ? await executor
+          .select({
+            id: inventoryProcurementMethod.id,
+            code: inventoryProcurementMethod.code,
+            name: inventoryProcurementMethod.name,
+            referenceLabel: inventoryProcurementMethod.referenceLabel,
+          })
+          .from(inventoryProcurementMethod)
+          .where(and(eq(inventoryProcurementMethod.organizationId, actor.organizationId), inArray(inventoryProcurementMethod.id, methodIds)))
+      : [];
     return orders.map((order) => {
       const own = lines.filter((l) => l.line.purchaseOrderId === order.id).map((l) => lineView(l.line, l.item));
       const priced = own.filter((l) => l.unitCost !== null);

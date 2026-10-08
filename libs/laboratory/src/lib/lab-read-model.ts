@@ -78,30 +78,29 @@ export class LabReadModel {
   async orders(executor: DbExecutor, actor: Actor, orders: LabOrderRecord[]): Promise<OrderView[]> {
     if (orders.length === 0) return [];
     const orderIds = orders.map((o) => o.id);
-    const [items, specimens, results, sendOuts] = await Promise.all([
-      executor
-        .select({
-          item: labOrderItem,
-          departmentId: labTest.departmentId,
-          specimenTypeId: labTest.specimenTypeId,
-          resultType: labTest.resultType,
-          unit: labTest.unit,
-          codedValues: labTest.codedValues,
-          turnaroundMinutes: labTest.turnaroundMinutes,
-        })
-        .from(labOrderItem)
-        .innerJoin(labTest, eq(labTest.id, labOrderItem.testId))
-        .where(inArray(labOrderItem.orderId, orderIds))
-        .orderBy(asc(labTest.name)),
-      executor.select().from(labSpecimen).where(inArray(labSpecimen.orderId, orderIds)).orderBy(asc(labSpecimen.collectedAt)),
-      this.currentResults(executor, actor, orderIds),
-      executor
-        .select({ sendOut: labSendOut, name: labReferenceLaboratory.name })
-        .from(labSendOut)
-        .innerJoin(labReferenceLaboratory, eq(labReferenceLaboratory.id, labSendOut.referenceLaboratoryId))
-        .where(inArray(labSendOut.orderId, orderIds))
-        .orderBy(asc(labSendOut.preparedAt)),
-    ]);
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const items = await executor
+      .select({
+        item: labOrderItem,
+        departmentId: labTest.departmentId,
+        specimenTypeId: labTest.specimenTypeId,
+        resultType: labTest.resultType,
+        unit: labTest.unit,
+        codedValues: labTest.codedValues,
+        turnaroundMinutes: labTest.turnaroundMinutes,
+      })
+      .from(labOrderItem)
+      .innerJoin(labTest, eq(labTest.id, labOrderItem.testId))
+      .where(inArray(labOrderItem.orderId, orderIds))
+      .orderBy(asc(labTest.name));
+    const specimens = await executor.select().from(labSpecimen).where(inArray(labSpecimen.orderId, orderIds)).orderBy(asc(labSpecimen.collectedAt));
+    const results = await this.currentResults(executor, actor, orderIds);
+    const sendOuts = await executor
+      .select({ sendOut: labSendOut, name: labReferenceLaboratory.name })
+      .from(labSendOut)
+      .innerJoin(labReferenceLaboratory, eq(labReferenceLaboratory.id, labSendOut.referenceLaboratoryId))
+      .where(inArray(labSendOut.orderId, orderIds))
+      .orderBy(asc(labSendOut.preparedAt));
     // Latest send-out per test and specimen (later rows win).
     const sendOutByItem = new Map<string, ItemSendOutView>();
     for (const { sendOut: so, name } of sendOuts) {
@@ -158,19 +157,13 @@ export class LabReadModel {
 
   /** Result views with names, attachments and reagent lots; pass the transaction when the rows were just written in it. */
   async results(executor: DbExecutor, actor: Actor, rows: LabResultRecord[]): Promise<ResultView[]> {
-    const [staff, attachments, reagents] = await Promise.all([
+    const ids = rows.map((r) => r.id);
+    const [staff, { attachments, reagents }] = await Promise.all([
       this.context.staffNames(actor.organizationId, [
         ...new Set(rows.flatMap((r) => [r.enteredBy, r.verifiedBy, r.approvedBy, r.releasedBy]).filter((id): id is string => !!id)),
       ]),
-      attachmentsOf(
-        executor,
-        actor,
-        rows.map((r) => r.id),
-      ),
-      this.reagentsOn(
-        executor,
-        rows.map((r) => r.id),
-      ),
+      // One after the other: `executor` may be the caller's transaction, a single connection.
+      (async () => ({ attachments: await attachmentsOf(executor, actor, ids), reagents: await this.reagentsOn(executor, ids) }))(),
     ]);
     return rows.map((r) => this.resultView(r, staff, attachments.get(r.id), reagents.get(r.id)));
   }

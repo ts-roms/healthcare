@@ -322,27 +322,26 @@ export class PackageService {
       .orderBy(desc(billingPackageEnrollment.createdAt));
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.enrollment.id);
-    const [items, usage, sales] = await Promise.all([
-      executor
-        .select({ item: billingPackageItem, name: billingService.name })
-        .from(billingPackageItem)
-        .innerJoin(billingService, eq(billingService.id, billingPackageItem.serviceId))
-        .where(
-          inArray(
-            billingPackageItem.packageServiceId,
-            rows.map((r) => r.enrollment.packageServiceId),
-          ),
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const items = await executor
+      .select({ item: billingPackageItem, name: billingService.name })
+      .from(billingPackageItem)
+      .innerJoin(billingService, eq(billingService.id, billingPackageItem.serviceId))
+      .where(
+        inArray(
+          billingPackageItem.packageServiceId,
+          rows.map((r) => r.enrollment.packageServiceId),
         ),
-      executor
-        .select({ enrollmentId: billingCharge.packageEnrollmentId, serviceId: billingCharge.serviceId, used: sql<number>`sum(${billingCharge.quantity})::int` })
-        .from(billingCharge)
-        .where(and(inArray(billingCharge.packageEnrollmentId, ids), ne(billingCharge.status, "cancelled")))
-        .groupBy(billingCharge.packageEnrollmentId, billingCharge.serviceId),
-      executor
-        .select({ sourceId: billingCharge.sourceId, id: billingCharge.id, status: billingCharge.status, invoiceId: billingCharge.invoiceId })
-        .from(billingCharge)
-        .where(and(eq(billingCharge.sourceType, "package"), inArray(billingCharge.sourceId, ids))),
-    ]);
+      );
+    const usage = await executor
+      .select({ enrollmentId: billingCharge.packageEnrollmentId, serviceId: billingCharge.serviceId, used: sql<number>`sum(${billingCharge.quantity})::int` })
+      .from(billingCharge)
+      .where(and(inArray(billingCharge.packageEnrollmentId, ids), ne(billingCharge.status, "cancelled")))
+      .groupBy(billingCharge.packageEnrollmentId, billingCharge.serviceId);
+    const sales = await executor
+      .select({ sourceId: billingCharge.sourceId, id: billingCharge.id, status: billingCharge.status, invoiceId: billingCharge.invoiceId })
+      .from(billingCharge)
+      .where(and(eq(billingCharge.sourceType, "package"), inArray(billingCharge.sourceId, ids)));
     return rows.map(({ enrollment, packageName, packageCode }) => ({
       ...publicView(enrollment),
       packageName,
