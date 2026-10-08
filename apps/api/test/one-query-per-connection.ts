@@ -6,7 +6,7 @@ import { Client } from "pg";
  * other instead. Pool queries are not affected — each takes its own connection.
  */
 interface ClientState {
-  activeQuery?: unknown;
+  _activeQuery: unknown;
   _queryQueue: unknown[];
 }
 
@@ -15,7 +15,7 @@ if (!prototype.oneQueryAtATime) {
   prototype.oneQueryAtATime = true;
   const query = Client.prototype.query;
   Client.prototype.query = function (this: Client & ClientState, ...args: unknown[]) {
-    if (this.activeQuery || this._queryQueue.length > 0) {
+    if (this._activeQuery || this._queryQueue.length > 0) {
       throw new Error(
         "A query was sent to a database connection still running another (pg 9 refuses this). Queries on a transaction or a passed-in executor must run one after the other, not in Promise.all.",
       );
