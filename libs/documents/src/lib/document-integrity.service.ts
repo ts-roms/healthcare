@@ -241,7 +241,8 @@ export class DocumentIntegrityService implements OnApplicationShutdown {
   }
 
   private kick(): void {
-    if (this.timer) void this.tick();
+    // Under the poller's own scope, not the requesting member's organization (row-level security, migration 0111).
+    if (this.timer) asPlatform("document integrity reviews", () => void this.tick());
   }
 
   private async tick(): Promise<void> {

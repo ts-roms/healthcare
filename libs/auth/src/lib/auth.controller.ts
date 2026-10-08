@@ -6,6 +6,7 @@ import {
   AllowDuringMfaEnrollment,
   CurrentActor,
   ForbiddenError,
+  PlatformScope,
   Public,
   RequireFacility,
   requestMetadataFrom,
@@ -59,6 +60,7 @@ export class AuthController {
 
   @Post("login")
   @Public()
+  @PlatformScope("staff sign-in")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Sign in with email and password; may require an MFA step" })
@@ -68,6 +70,7 @@ export class AuthController {
 
   @Post("password-reset/request")
   @Public()
+  @PlatformScope("staff password-reset request")
   @HttpCode(204)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Ask for a password-reset link by email (same answer whether or not the account exists)" })
@@ -77,6 +80,7 @@ export class AuthController {
 
   @Post("password-reset")
   @Public()
+  @PlatformScope("staff password reset")
   @HttpCode(204)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Choose a new password with the emailed link (and a current code when two-step verification is on); signs out everywhere" })
@@ -86,6 +90,7 @@ export class AuthController {
 
   @Post("mfa/verify")
   @Public()
+  @PlatformScope("staff two-step verification at sign-in")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Complete sign-in with a TOTP code (each works once) or a single-use recovery code" })
@@ -95,6 +100,7 @@ export class AuthController {
 
   @Post("refresh")
   @Public()
+  @PlatformScope("staff session refresh")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Exchange a refresh token for new tokens (rotates the refresh token)" })

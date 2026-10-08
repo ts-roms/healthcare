@@ -15,10 +15,19 @@ export const ACCESS_METADATA = {
   platformAdmin: "access:platform-admin",
   facility: "access:facility",
   mfaEnrollment: "access:mfa-enrollment",
+  platformScope: "access:platform-scope",
 } as const;
 
 /** No authentication (login, health checks). Use sparingly. */
 export const Public = () => SetMetadata(ACCESS_METADATA.public, true);
+
+/**
+ * A @Public() route that reaches the database before any organization is known (sign-in, password reset by link, a
+ * provider's notification, an emailed opt-out link): its queries run under the platform scope of row-level security
+ * (migration 0111, docs/runbooks/database-roles.md), and `reason` names it in the logs. Never on a route the patient
+ * guard protects, which holds the request to the patient's organization.
+ */
+export const PlatformScope = (reason: string) => SetMetadata(ACCESS_METADATA.platformScope, reason);
 
 /** Caller must hold every listed permission in the current organization/facility. */
 export const RequirePermissions = (...permissions: [Permission, ...Permission[]]) => SetMetadata(ACCESS_METADATA.permissions, permissions);

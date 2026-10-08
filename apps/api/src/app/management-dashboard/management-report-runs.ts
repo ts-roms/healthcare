@@ -25,7 +25,7 @@ export class ManagementReportRuns implements OnApplicationShutdown {
   start(intervalMs = HOUR_MS): void {
     this.timer ??= setInterval(() => asPlatform("scheduled management reports", () => void this.tick()), intervalMs);
     this.timer.unref?.();
-    void this.tick();
+    asPlatform("scheduled management reports", () => void this.tick());
   }
 
   onApplicationShutdown(): void {

@@ -26,6 +26,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 /** A test double standing in for a real DOH adapter (none exists: the specification is an integration dependency). */
@@ -221,7 +222,7 @@ describe("DOH case reporting — through an adapter (test double) and the integr
         IntegrationWorkerModule.forRoot({ autoStart: false, dohGateway, queue: { provide: INTEGRATION_QUEUE, useValue: ctx.integrations } }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     s = await setup(ctx, "doh-adapter");
     await s.req(s.admin).post("/doh/rules", { codePrefix: "A9", category: "Dengue and other viral fevers" }).expect(201);
     await s.req(s.admin).put(`/doh/facilities/${s.tenant.facilityId}/facility-code`, { facilityCode: "NHFR-000999" }).expect(200);
@@ -280,7 +281,7 @@ describe("DOH case reporting — checking earlier diagnoses against the rules", 
 
   beforeAll(async () => {
     ctx = await createTestApp();
-    rescans = ctx.app.get(DohRescans);
+    rescans = underPlatform(ctx.app.get(DohRescans));
     s = await setup(ctx, "doh-rescan");
   });
   afterAll(() => ctx.close());
@@ -435,7 +436,7 @@ describe("Integration payload key rotation — queued DOH submissions through th
       ],
     }).compile();
     workers.push(module);
-    return module.get(IntegrationExchangeProcessor);
+    return underPlatform(module.get(IntegrationExchangeProcessor));
   };
   const payloadRow = async (exchangeId: string) =>
     (
@@ -478,7 +479,7 @@ describe("Integration payload key rotation — queued DOH submissions through th
     const actor = { ...systemActor(s.tenant.organizationId, s.tenant.facilityId), kind: "user" as const, userId: adminId };
     const exchanges = new IntegrationExchanges(rotated, ctx.app.get(DomainEventPublisher));
     const request = (idempotencyKey: string) =>
-      ctx.app.get<Database>(DATABASE).transaction((tx) =>
+      underPlatform(ctx.app.get<Database>(DATABASE)).transaction((tx) =>
         exchanges.request(tx, actor, {
           system: DOH_REPORTING_SYSTEM,
           operation: SUBMIT_CASE_REPORT,

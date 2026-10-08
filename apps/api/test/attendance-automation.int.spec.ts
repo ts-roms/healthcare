@@ -11,6 +11,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 const PASSWORD = "Maaraw-na-umaga-2026";
@@ -120,14 +121,14 @@ describe("automatic no-shows and online check-in", () => {
     });
 
     it("leaves unattended appointments alone while the clinic has not turned it on", async () => {
-      expect(await ctx.app.get(AutomaticNoShows).run()).toEqual({ marked: 0 });
+      expect(await underPlatform(ctx.app.get(AutomaticNoShows)).run()).toEqual({ marked: 0 });
       expect(await status(yesterday)).toEqual({ status: "booked", no_show_automatic: false });
     });
 
     it("waits for the clinic's hour on the appointment's day, then marks them once, audited and followed up", async () => {
       const saved = await setRules({ autoNoShow: true, autoNoShowHour: 18 });
       expect(saved.rules).toMatchObject({ autoNoShow: true, autoNoShowHour: 18, onlineCheckIn: false });
-      const job = ctx.app.get(AutomaticNoShows);
+      const job = underPlatform(ctx.app.get(AutomaticNoShows));
       // 17:00 in Manila on the day: past the appointments, but before the clinic's hour.
       expect(await job.run(new Date(`${manilaDate(-1)}T17:00:00+08:00`))).toEqual({ marked: 0 });
       expect(await job.run(new Date(`${manilaDate(-1)}T18:00:00+08:00`))).toEqual({ marked: 2 });

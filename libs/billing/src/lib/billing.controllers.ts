@@ -15,7 +15,7 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, Public, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { type Actor, CurrentActor, pdfFile, localDate, PH_TIMEZONE, PlatformScope, Public, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
   AddPriceDto,
   CancelEnrollmentDto,
@@ -466,6 +466,7 @@ export class BillingController {
  */
 @ApiTags("billing")
 @Public()
+@PlatformScope("payment provider notification")
 @Controller({ path: "billing/online-payments", version: "1" })
 export class OnlinePaymentNotificationController {
   constructor(private readonly online: OnlinePaymentService) {}

@@ -1,6 +1,6 @@
 import { FhirImportRetention } from "@healthcare/interoperability";
 import { randomBytes } from "node:crypto";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 const PIN_SYSTEM = "https://ids.test.invalid/philhealth-pin";
 const KEY = randomBytes(32).toString("base64");
@@ -396,7 +396,7 @@ describe("FHIR R4 imports", () => {
       expect(view.entries.every((e) => e.outcome === "rejected")).toBe(true);
       expect((await auditRows(ctx.pool, "action = 'fhir.import.reject' AND resource_id = $1", [id]))[0]).toMatchObject({ reason: "Not our patient" });
 
-      const retention = ctx.app.get(FhirImportRetention);
+      const retention = underPlatform(ctx.app.get(FhirImportRetention));
       expect(await retention.purge()).toBe(0);
       await ctx.pool.query(`UPDATE fhir_import SET completed_at = now() - interval '31 days' WHERE id = $1`, [id]);
       expect(await retention.purge()).toBe(1);

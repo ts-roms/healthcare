@@ -1,7 +1,7 @@
 import { type OnModuleInit } from "@nestjs/common";
 import { type OnGatewayConnection, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { ActorResolver } from "@healthcare/auth";
-import { DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
+import { asPlatform, DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
 import type { Namespace, Socket } from "socket.io";
 import { LAB_REALTIME_EVENTS, labUpdate } from "./lab-updates";
 
@@ -43,16 +43,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     const { ticket, token, facilityId } = (client.handshake.auth ?? {}) as { ticket?: unknown; token?: unknown; facilityId?: unknown };
     const request = { ipAddress: client.handshake.address, userAgent: client.handshake.headers["user-agent"] };
     try {
-      let actor;
-      if (typeof ticket === "string") {
-        // Browsers: a short-lived ticket bound to the session and facility (POST /auth/realtime-tickets).
-        actor = await this.actors.resolveRealtimeTicket(ticket, request);
-      } else if (typeof token === "string" && typeof facilityId === "string") {
-        // Server-side clients (e.g. display boards) may still use an access token.
-        actor = await this.actors.resolve(token, { facilityId }, request);
-      } else {
+      // The session is looked up before the organization is known (row-level security, migration 0111), as in the
+      // access guard; a socket reads nothing else from the database.
+      const actor = await asPlatform("resolve the realtime connection", async () => {
+        if (typeof ticket === "string") {
+          // Browsers: a short-lived ticket bound to the session and facility (POST /auth/realtime-tickets).
+          return this.actors.resolveRealtimeTicket(ticket, request);
+        }
+        if (typeof token === "string" && typeof facilityId === "string") {
+          // Server-side clients (e.g. display boards) may still use an access token.
+          return this.actors.resolve(token, { facilityId }, request);
+        }
         throw new Error("A ticket (or token and facilityId) is required");
-      }
+      });
       const channels = [
         ...(actor.permissions.has("clinic.queue.read") ? ["queue" as const] : []),
         ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),

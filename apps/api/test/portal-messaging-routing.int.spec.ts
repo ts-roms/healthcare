@@ -1,4 +1,4 @@
-import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 import { PatientMessageReminders } from "../src/app/portal/patient-message-reminders";
 
 const PASSWORD = "Pahintulot-ko-2026";
@@ -264,7 +264,7 @@ describe("MyHealth messaging: attachments, notes, routing and targets", () => {
   });
 
   it("marks conversations past their target, reminds the responsible people once per breach, and clears it on reply", async () => {
-    const reminders = ctx.app.get(PatientMessageReminders);
+    const reminders = underPlatform(ctx.app.get(PatientMessageReminders));
     expect(await reminders.run()).toBe(0);
     expect((await staff(admin).get("/patient-messages/overdue-count").expect(200)).body).toEqual({ overdue: 0 });
 

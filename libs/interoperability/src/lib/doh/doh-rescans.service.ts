@@ -120,7 +120,8 @@ export class DohRescans implements OnApplicationShutdown {
 
   /** Starts a requested check right away when the poller runs in this process (otherwise the next poll picks it up). */
   private kick(): void {
-    if (this.timer) void this.tick();
+    // Under the poller's own scope, not the requesting member's organization (row-level security, migration 0111).
+    if (this.timer) asPlatform("DOH rescans", () => void this.tick());
   }
 
   private async tick(): Promise<void> {

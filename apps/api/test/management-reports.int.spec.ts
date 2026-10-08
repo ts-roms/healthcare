@@ -1,6 +1,6 @@
 import { extractPdfText } from "@healthcare/pdf";
 import { ManagementReportRuns } from "../src/app/management-dashboard/management-report-runs";
-import { as, auditRows, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Scheduled management reports (docs/architecture/management-dashboard.md, "Scheduled reports"): a schedule's ended
@@ -43,7 +43,7 @@ describe("scheduled management reports", () => {
     await ctx.pool.query(`INSERT INTO role_assignment (organization_id, user_id, role_id) VALUES ($1, $2, $3)`, [tenant.organizationId, opsId, role]);
     admin = (await login(ctx, "admin@reports.ph")).accessToken;
     ops = (await login(ctx, "ops@reports.ph")).accessToken;
-    runs = ctx.app.get(ManagementReportRuns);
+    runs = underPlatform(ctx.app.get(ManagementReportRuns));
   });
   afterAll(() => ctx.close());
 

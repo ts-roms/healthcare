@@ -44,7 +44,13 @@ export class AccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType() !== "http") return true;
     const targets = [context.getHandler(), context.getClass()];
-    if (this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.public, targets)) return true;
+    if (this.reflector.getAllAndOverride<boolean>(ACCESS_METADATA.public, targets)) {
+      // Public routes that look up an account, a link or a provider's notification before the organization is known
+      // say so with @PlatformScope (row-level security, migration 0111); the others stay without a context.
+      const platformScope = this.reflector.getAllAndOverride<string | undefined>(ACCESS_METADATA.platformScope, targets);
+      if (platformScope) setRequestPlatformScope(platformScope);
+      return true;
+    }
 
     const request = context.switchToHttp().getRequest<Request>();
     const header = request.header("authorization");

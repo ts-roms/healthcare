@@ -8,7 +8,7 @@ import {
   NotificationDispatcher,
   NotificationWorkerModule,
 } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 class FailingSender implements ChannelSender {
   readonly channel = "email" as const;
@@ -49,7 +49,7 @@ describe("notifications", () => {
         }),
       ],
     }).compile();
-    dispatcher = worker.get(NotificationDispatcher);
+    dispatcher = underPlatform(worker.get(NotificationDispatcher));
     closeWorker = () => worker.close();
   });
 
