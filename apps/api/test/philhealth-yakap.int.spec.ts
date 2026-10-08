@@ -16,6 +16,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 /** A test double standing in for a real YAKAP adapter (none exists: the specification is an integration dependency). */
@@ -266,7 +267,7 @@ describe("PhilHealth YAKAP — through an adapter (test double) and the integrat
         }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     s = await signedConsultation(ctx, "yakap-adapter");
   });
   afterAll(async () => {

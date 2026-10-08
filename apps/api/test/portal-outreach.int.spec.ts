@@ -12,6 +12,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 const PATIENT_PASSWORD = "Maaraw-na-umaga-2026";
@@ -235,11 +236,11 @@ describe("patient outreach", () => {
 
     it("does not send at night", async () => {
       const night = zonedToUtc(manilaDate(0), "22:00", "Asia/Manila");
-      expect(await ctx.app.get(CarePlanRecallReminders).run(night)).toEqual({ patients: 0, activities: 0 });
+      expect(await underPlatform(ctx.app.get(CarePlanRecallReminders)).run(night)).toEqual({ patients: 0, activities: 0 });
     });
 
     it("sends one message per patient for due and overdue follow-ups, naming no condition or test", async () => {
-      const result = await ctx.app.get(CarePlanRecallReminders).run(tenAm());
+      const result = await underPlatform(ctx.app.get(CarePlanRecallReminders)).run(tenAm());
       expect(result).toEqual({ patients: 1, activities: 2 });
       expect(await sent(fe.patientId, "care-plan.follow-up-due")).toEqual([
         { channel: "in_app", status: "delivered", suppression_reason: null },
@@ -254,7 +255,7 @@ describe("patient outreach", () => {
     });
 
     it("sends each reminder once, and shows it on the recall list", async () => {
-      expect(await ctx.app.get(CarePlanRecallReminders).run(tenAm())).toEqual({ patients: 0, activities: 0 });
+      expect(await underPlatform(ctx.app.get(CarePlanRecallReminders)).run(tenAm())).toEqual({ patients: 0, activities: 0 });
       expect(await sent(fe.patientId, "care-plan.follow-up-due")).toHaveLength(2);
       const due = await staff(admin).get("/api/v1/care-plans/activities/due?withinDays=7").expect(200);
       const bp = due.body.find((a: { description: string }) => a.description === "BP follow-up");
@@ -262,7 +263,7 @@ describe("patient outreach", () => {
     });
 
     it("reminds again once the due follow-up is a week overdue", async () => {
-      const result = await ctx.app.get(CarePlanRecallReminders).run(tenAm(10));
+      const result = await underPlatform(ctx.app.get(CarePlanRecallReminders)).run(tenAm(10));
       expect(result).toEqual({ patients: 1, activities: 1 });
       await expect(ctx.pool.query(`UPDATE care_plan_activity_reminder SET kind = 'due'`)).rejects.toThrow();
     });

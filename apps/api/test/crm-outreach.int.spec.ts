@@ -1,5 +1,5 @@
 import { CrmCampaignRuns } from "@healthcare/crm";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Outreach (docs/domains/crm.md): segments from non-clinical criteria, campaigns approved by a second person, sent
@@ -32,7 +32,7 @@ describe("outreach segments and campaigns", () => {
     admin = (await login(ctx, "admin@crm.ph")).accessToken;
     approver = (await login(ctx, "second@crm.ph")).accessToken;
     auditor = (await login(ctx, "auditor@crm.ph")).accessToken;
-    runs = ctx.app.get(CrmCampaignRuns);
+    runs = underPlatform(ctx.app.get(CrmCampaignRuns));
     // Two women over 50 in Makati: one opted in to text-message outreach, one who never answered.
     optedIn = (
       await api(admin)

@@ -260,6 +260,21 @@ export async function drainEvents(ctx: TestContext): Promise<number> {
   return asPlatform("outbox relay", () => ctx.app.get(OutboxRelay).drain());
 }
 
+/**
+ * The service with each method run under the platform scope of row-level security (migration 0111), as its scheduler,
+ * worker or the outbox relay runs it in production: for tests that call a background job directly instead of starting
+ * its timer or queue.
+ */
+export function underPlatform<T extends object>(service: T): T {
+  const reason = `integration test: ${service.constructor.name}`;
+  return new Proxy(service, {
+    get(target, key, receiver) {
+      const value: unknown = Reflect.get(target, key, receiver);
+      return typeof value === "function" ? (...args: unknown[]) => asPlatform(reason, () => value.apply(target, args)) : value;
+    },
+  });
+}
+
 /** A local calendar date (Asia/Manila) `days` from now. */
 export function manilaDate(days: number): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(Date.now() + days * 86_400_000));

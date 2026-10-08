@@ -59,7 +59,7 @@ Migration `0111` enables row-level security with one `organization_isolation` po
 writes only the organization its connection is stamped with (`app.organization_id`) or everything under
 `app.scope = 'all'`; the API stamps each connection from the request or from `asOrganization` / `asPlatform`
 (`libs/core` `database-context.ts`, `ContextPool`). `DATABASE_RLS_MODE` decides what a query without a context may do
-(`observe` by default). See the [database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization).
+(`observe` by default; `enforce` refuses it). See the [database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization).
 
 ## Production hardening (not yet done)
 

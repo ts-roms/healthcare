@@ -1,7 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { CoreModule } from "@healthcare/core";
 import { CHANNEL_SENDERS, LoggingSender, NOTIFICATION_QUEUE, NotificationDispatcher, NotificationWorkerModule } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 const OLD_PASSWORD = "Pahintulot-ko-2026";
 const NEW_PASSWORD = "Bagong-sikreto-2026";
@@ -81,7 +81,7 @@ describe("MyHealth password reset", () => {
         }),
       ],
     }).compile();
-    dispatcher = worker.get(NotificationDispatcher);
+    dispatcher = underPlatform(worker.get(NotificationDispatcher));
     closeWorker = () => worker.close();
   });
   afterAll(async () => {

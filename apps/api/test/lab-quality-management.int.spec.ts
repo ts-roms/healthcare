@@ -1,6 +1,6 @@
 import { LabQualityDue } from "@healthcare/laboratory";
 import { LaboratoryQualityReminders } from "../src/app/laboratory-quality-reminders";
-import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Phase 9 — laboratory quality management: temperature monitoring with
@@ -338,7 +338,7 @@ describe("laboratory quality management", () => {
       ((await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200)).body as Array<Notice & { templateKey: string }>).filter(
         (n) => n.templateKey === "lab.quality-notice" && kind.test(n.subject),
       );
-    const job = ctx.app.get(LaboratoryQualityReminders);
+    const job = underPlatform(ctx.app.get(LaboratoryQualityReminders));
     const hours = (h: number) => new Date(Date.now() + h * 3_600_000);
 
     // A unit read every 4 hours is not due until 4 hours after it was registered.

@@ -90,9 +90,14 @@ stamped with, or every row under the platform scope. The owner is not subject to
 
 **Where the stamp comes from** (`libs/core/src/lib/database/database-context.ts`): the API's first middleware gives each
 request a context; the staff access guard sets the member's organization once the session is resolved, the MyHealth
-guard the patient's; a platform administrator route takes the platform scope. Background work declares its scope:
-every scheduler tick, the outbox relay and the three BullMQ workers run under `asPlatform(reason, …)` because they act
-on rows of every organization by id; the session lookups in both guards run under it too. `ContextPool` stamps each
+guard the patient's; a platform administrator route takes the platform scope. A `@Public()` route that reads before
+any organization is known declares it with `@PlatformScope("reason")` (`libs/core` access decorators; the access guard
+applies it): staff and MyHealth sign-in, two-step verification and passkey answers at sign-in, session refresh,
+activation, password resets by link, the payment provider's notifications and the outreach opt-out link. Never on a
+route the MyHealth guard protects. Background work declares its scope: every scheduler tick (and the immediate run a
+request asks for), the outbox relay, the three BullMQ workers, start-up checks, readiness probes and the realtime
+socket's session lookup run under `asPlatform(reason, …)` because they act on rows of every organization by id; the
+session lookups in both guards run under it too. `ContextPool` stamps each
 connection (`set_config('app.organization_id' / 'app.scope')`) when it is handed out, so `pool.query` and transactions
 alike carry the context of the code that asked for them.
 
@@ -105,12 +110,18 @@ to the platform scope.
 | Mode                | A query without any context                                                                           |
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
 | `observe` (default) | Runs as before. Its call site is logged once per process: `event: "db.context_missing"`, with `site`. |
-| `enforce`           | Sees nothing and can write nothing (the policies refuse it).                                          |
+| `enforce`           | Refused before it runs (`DatabaseContextMissingError`, a 500 on a request), logged the same way.      |
 | `off`               | Every connection gets the platform scope: the organization rule is suspended (rollback only).         |
 
 The organization rule itself applies in `observe` and `enforce` alike: a request stamped with organization A never
-sees or writes organization B's rows. Phase 2 follows the `db.context_missing` log lines (sign-in routes, public
-MyHealth routes, the realtime socket and the remaining unmarked paths) to zero, then makes `enforce` the default.
+sees or writes organization B's rows. Behind `enforce` the policies stay the backstop: a connection stamped with no
+scope sees and writes nothing. The integration tests and the end-to-end journeys run in `enforce`; tests that call a
+background job directly wrap it with `underPlatform` (`apps/api/test/harness.ts`).
+
+**Turning `enforce` on in production** (phase 2, recommended): keep `observe` until the API and both workers have logged
+no `db.context_missing` for 30 days that include a month-end (monthly management reports, audit partitions), then set
+`DATABASE_RLS_MODE=enforce` on all three (Railway variable or Terraform). A line that does appear names the call site:
+declare its scope there (below) and restart the count. To go back, set `observe`; nothing else changes.
 
 **When something is missing:** a request that reads another organization's rows on purpose (none is known) must say
 so with `asPlatform("why", …)` in the service, never by widening the policy. A row "not found" that exists means the

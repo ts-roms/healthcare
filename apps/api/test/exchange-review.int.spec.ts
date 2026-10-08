@@ -3,7 +3,20 @@ import { CoreModule } from "@healthcare/core";
 import { INTEGRATION_QUEUE, IntegrationExchangeProcessor, IntegrationWorkerModule } from "@healthcare/interoperability";
 import type { EligibilityOutcome, PhilHealthEligibilityGateway } from "@healthcare/philhealth";
 import { PHILHEALTH_ELIGIBILITY_GATEWAY, philhealthExchangeHandlers } from "@healthcare/philhealth";
-import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
+import {
+  as,
+  auditRows,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  juan,
+  login,
+  manilaDate,
+  type Tenant,
+  type TestContext,
+  underPlatform,
+} from "./harness";
 
 class FakeEligibilityGateway implements PhilHealthEligibilityGateway {
   readonly specification = {
@@ -54,7 +67,7 @@ describe("integration exchange review", () => {
         }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     tenant = await createTenant(ctx.pool, "exchange-review");
     await createStaff(ctx.pool, tenant, "admin@review.ph", ["org_admin"]);
     await createStaff(ctx.pool, tenant, "desk@review.ph", ["receptionist"]);

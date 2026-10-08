@@ -2,7 +2,7 @@ import { Test } from "@nestjs/testing";
 import { authenticator } from "otplib";
 import { CoreModule } from "@healthcare/core";
 import { CHANNEL_SENDERS, LoggingSender, NOTIFICATION_QUEUE, NotificationDispatcher, NotificationWorkerModule } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 const PASSWORD = "Pahintulot-ko-2026";
 const ORG = "myhealth-sec";
@@ -103,7 +103,7 @@ describe("MyHealth email verification and two-step verification", () => {
         }),
       ],
     }).compile();
-    dispatcher = worker.get(NotificationDispatcher);
+    dispatcher = underPlatform(worker.get(NotificationDispatcher));
     closeWorker = () => worker.close();
   });
   afterAll(async () => {
