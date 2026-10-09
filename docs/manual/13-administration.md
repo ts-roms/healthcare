@@ -39,6 +39,7 @@ The platform ships these system roles. Organizations can also create their own r
 | Cashier                    | Billing: charges, invoices, discounts, payments, deposits, PhilHealth claim preparation.                |
 | Inventory officer          | Stock receiving, issuing, counts and write-offs; inventory catalog; purchase orders.                    |
 | Auditor                    | Read-only access to the audit trail.                                                                    |
+| Waiting-room display       | A screen in the waiting area: called tickets and rooms only (`clinic.queue.display`), nothing else.     |
 
 Holding a permission is not always enough. Starting or signing an encounter, prescribing and recording dental work also need the user's account to be linked to
 an active **practitioner** of an allowed profession (for example, dental recording needs profession `dentist`). Only the responsible practitioner may sign an
@@ -84,6 +85,7 @@ not repeated. A dash (—) means only the organization administrator has it by d
 | `appointment.read`      | View appointments, schedules and availability                                    | Dental assistant, Dentist, Medical records officer, Nurse, Physician, Receptionist |
 | `clinic.configure`      | Manage practitioners, schedules, rooms, visit types, coding systems and closures | —                                                                                  |
 | `clinic.dashboard.read` | View the clinic dashboard                                                        | Dental assistant, Dentist, Nurse, Physician, Receptionist                          |
+| `clinic.queue.display`  | Show the waiting-room display (called tickets and rooms, how many wait)          | Receptionist, Waiting-room display                                                 |
 | `clinic.queue.manage`   | Check patients in and move them through the queue                                | Dental assistant, Dentist, Nurse, Physician, Receptionist                          |
 | `clinic.queue.read`     | View the facility queue                                                          | Dental assistant, Dentist, Nurse, Physician, Receptionist                          |
 | `clinic.triage.write`   | Record triage assessments and vital signs                                        | Dental assistant, Dentist, Nurse, Physician                                        |

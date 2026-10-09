@@ -266,9 +266,10 @@ sub-records / consent / preferences, document create / upload / list / download
 - Domain events and realtime messages carry identifiers and statuses only —
   never names or clinical text. Realtime clients are checked on connect with
   the same session, account, facility and permission rules as the REST API:
-  a socket receives `queue.updated` only with `clinic.queue.read` and
+  a socket receives `queue.updated` only with `clinic.queue.read` or
+  `clinic.queue.display` (the waiting-room display, migration `0112`) and
   `lab.updated` only with `lab.order.read` at that facility (and is refused
-  with neither). Browsers present a ticket from
+  with none). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
   versa). A ticket is not single-use: replayed within its minute it opens a
