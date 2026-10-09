@@ -34,10 +34,9 @@ async function navigationBadges(): Promise<StaffBadges | null> {
 
 /** Every staff page renders inside the signed-in shell; the session and permissions come from the API. */
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  const [session, facilities, jar, unread, badges] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
   // A waiting-room display account holds nothing else: it only ever shows the display.
   if (isDisplayOnly(session.permissions)) redirect("/display/queue");
-  const [facilities, jar, unread, badges] = await Promise.all([getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
