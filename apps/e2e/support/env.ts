@@ -43,6 +43,8 @@ export const STAFF = {
   pathologist: "patho@e2e.ph",
   /** Cashier role only (no organization.read): must still be able to choose the clinic. */
   cashier: "cashier@e2e.ph",
+  /** The waiting-room display's account (role queue_display only; journey 8). */
+  display: "display@e2e.ph",
 } as const;
 
 export const DOCTOR_NAME = "Dr. Maria Santos";

@@ -13,14 +13,15 @@ selected in the top bar. Times are shown in that facility's time zone (Asia/Mani
 - **Physicians and dentists** see the queue and start consultations from it (see [Consultations and care plans](04-consultations-and-care-plans.md)).
 - **Clinic administrators** choose which visit types patients may book online.
 
-| Screen           | Where                                            | Needs                                                    |
-| ---------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| Day schedule     | **Appointments** (`/appointments`)               | `appointment.read`                                       |
-| Book appointment | `/appointments/new` (from the record)            | `appointment.manage`                                     |
-| Visit types      | **Online booking** (`/appointments/visit-types`) | `appointment.read` to view, `clinic.configure` to change |
-| Queue board      | **Queue** (`/queue`)                             | `clinic.queue.read`; `clinic.queue.manage` to act        |
-| Check in walk-in | `/queue/walk-in` (from the record)               | `clinic.queue.manage`                                    |
-| Triage           | `/queue/visits/[id]/triage`                      | `clinic.triage.write`                                    |
+| Screen               | Where                                            | Needs                                                    |
+| -------------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| Day schedule         | **Appointments** (`/appointments`)               | `appointment.read`                                       |
+| Book appointment     | `/appointments/new` (from the record)            | `appointment.manage`                                     |
+| Visit types          | **Online booking** (`/appointments/visit-types`) | `appointment.read` to view, `clinic.configure` to change |
+| Queue board          | **Queue** (`/queue`)                             | `clinic.queue.read`; `clinic.queue.manage` to act        |
+| Check in walk-in     | `/queue/walk-in` (from the record)               | `clinic.queue.manage`                                    |
+| Triage               | `/queue/visits/[id]/triage`                      | `clinic.triage.write`                                    |
+| Waiting-room display | `/display/queue` (from **Queue**)                | `clinic.queue.display`                                   |
 
 By default, receptionists have `appointment.read`, `appointment.manage`, `clinic.queue.read` and `clinic.queue.manage`. Nurses have
 `appointment.read`, the queue permissions and `clinic.triage.write`, but not `appointment.manage`. Physicians (and dentists) have all of these.
@@ -176,6 +177,24 @@ physician signs the encounter.
 
 Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
 panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
+
+## How to set up the waiting-room display
+
+A screen in the waiting area can show the ticket being called and where to go — for example **A-007 → Room 2** — the tickets called before it,
+and how many patients are waiting. It never shows a name, patient number, visit type, priority or complaint, and it does not show the order of
+those waiting (urgent patients are seen first, so the order would seem to jump). Online consultations do not appear.
+
+1. An administrator creates a staff account for the screen (see [Administration](13-administration.md)) — for example "Waiting room, Main
+   Clinic" — and gives it only the **Waiting-room display** role, for the facility where the screen hangs. If your organization requires
+   two-step verification, exempt this account with a reason.
+2. On the screen's browser, sign in to the staff app with that account. It opens the display straight away and cannot open anything else.
+3. Select **Full screen**. To hear a chime when a ticket is called, select **Turn on sound** once (browsers only play sound after a click on the
+   screen). The display keeps the screen awake where the browser allows it.
+4. Call patients from the queue board as usual (**Call patient to** → **Call**). The call appears on the display within a second while it shows
+   **Live**; otherwise within 15 seconds.
+
+Receptionists and administrators can also open the display from **Queue** → **Open waiting-room display** (it opens in a new tab). A ticket
+leaves the display when the visit is closed (done, cancelled or left without being seen); the display starts empty each day.
 
 ## How to record triage and vital signs
 

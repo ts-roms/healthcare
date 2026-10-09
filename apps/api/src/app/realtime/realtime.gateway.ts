@@ -22,7 +22,8 @@ function laboratoryRoom(facilityId: string): string {
  * POST /auth/realtime-tickets, bound to their session and facility); server
  * clients may use { auth: { token, facilityId } }. Either way the session and
  * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
- * `queue.updated` with clinic.queue.read, `lab.updated` with lab.order.read (a socket with neither is refused).
+ * `queue.updated` with clinic.queue.read or clinic.queue.display (the waiting-room display, migration 0112),
+ * `lab.updated` with lab.order.read (a socket with none is refused).
  * Messages carry ids and statuses only — clients refetch details through the authorized REST API.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
@@ -57,7 +58,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
         throw new Error("A ticket (or token and facilityId) is required");
       });
       const channels = [
-        ...(actor.permissions.has("clinic.queue.read") ? ["queue" as const] : []),
+        ...(actor.permissions.has("clinic.queue.read") || actor.permissions.has("clinic.queue.display") ? ["queue" as const] : []),
         ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
       ];
       if (!actor.facilityId || channels.length === 0) throw new Error("Not permitted");

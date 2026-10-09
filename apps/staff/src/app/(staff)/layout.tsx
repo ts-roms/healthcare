@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { unstable_rethrow } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { KeyRoundIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
@@ -8,6 +8,7 @@ import { api } from "@/lib/api/client";
 import { COOKIES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
 import type { StaffBadges } from "@/lib/api/types";
+import { isDisplayOnly } from "@/lib/queue-display";
 import { setRequestTimeZone } from "@/lib/time-zone";
 import { PasswordForm } from "./account/account-forms";
 
@@ -34,6 +35,8 @@ async function navigationBadges(): Promise<StaffBadges | null> {
 /** Every staff page renders inside the signed-in shell; the session and permissions come from the API. */
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
   const [session, facilities, jar, unread, badges] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
+  // A waiting-room display account holds nothing else: it only ever shows the display.
+  if (isDisplayOnly(session.permissions)) redirect("/display/queue");
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
