@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   "appointment.manage",
   "clinic.queue.read",
   "clinic.queue.manage",
+  // Waiting-room display: called tickets only (migration 0112)
+  "clinic.queue.display",
   "clinic.triage.write",
   "clinical.read",
   "allergy.manage",

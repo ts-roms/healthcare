@@ -343,6 +343,14 @@ export class QueueController {
     return this.visits.queue(actor, { date: query.date, includeClosed: query.includeClosed === "true" });
   }
 
+  @Get("display")
+  @RequirePermissions("clinic.queue.display")
+  @RequireFacility()
+  @ApiOperation({ summary: "The waiting-room display: tickets called today and where to go, and how many wait (no patient details)" })
+  display(@CurrentActor() actor: Actor) {
+    return this.visits.display(actor);
+  }
+
   @Post("walk-ins")
   @RequirePermissions("clinic.queue.manage")
   @RequireFacility()
