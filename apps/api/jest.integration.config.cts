@@ -16,6 +16,8 @@ module.exports = {
   moduleFileExtensions: ["ts", "js"],
   roots: ["<rootDir>/test"],
   testMatch: ["**/*.int.spec.ts"],
+  // A query sent to a connection still running another fails the test (pg 9 refuses it).
+  setupFiles: ["<rootDir>/test/one-query-per-connection.ts"],
   testTimeout: 30_000,
   maxWorkers: 1,
 };

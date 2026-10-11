@@ -1,10 +1,10 @@
-import { asOrganization, asPlatform, ContextPool } from "@healthcare/core";
+import { asOrganization, asPlatform, ContextPool, DatabaseContextMissingError } from "@healthcare/core";
 import { as, createStaff, createTenant, createTestApp, juan, login, TEST_APP_DATABASE_URL, type Tenant, type TestContext } from "./harness";
 
 /**
  * Row-level security per organization (migration 0111, docs/runbooks/database-roles.md): the application role sees
  * and writes only the rows of the organization its connection is stamped with, everything under the platform scope,
- * and — in enforce mode — nothing without a context. The stamp comes from the request or from asOrganization /
+ * and — in enforce mode — a query without a context is refused before it runs. The stamp comes from the request or from asOrganization /
  * asPlatform (libs/core database-context.ts).
  */
 describe("row-level security", () => {
@@ -49,11 +49,19 @@ describe("row-level security", () => {
     expect(rows.filter((r) => !r.rls || !r.policy).map((r) => r.relname)).toEqual([]);
   });
 
-  it("shows one organization's rows to its context, every row to the platform scope, and none without a context", async () => {
+  it("shows one organization's rows to its context, every row to the platform scope, and refuses a query without a context", async () => {
     expect(await asOrganization(a.organizationId, () => ids(enforce))).toEqual([a.organizationId]);
     expect(await asOrganization(b.organizationId, () => ids(enforce))).toEqual([b.organizationId]);
     expect((await asPlatform("test", () => ids(enforce))).sort()).toEqual([a.organizationId, b.organizationId].sort());
-    expect(await ids(enforce)).toEqual([]);
+    await expect(ids(enforce)).rejects.toBeInstanceOf(DatabaseContextMissingError);
+    // The policy is the backstop: a connection stamped with no scope sees nothing.
+    const client = await asOrganization(a.organizationId, () => enforce.connect());
+    try {
+      await client.query("SELECT set_config('app.organization_id', '', false), set_config('app.scope', 'none', false)");
+      expect((await client.query("SELECT 1 FROM patient")).rows).toEqual([]);
+    } finally {
+      client.release(true);
+    }
     // Even asking for the other organization's row by id finds nothing.
     const { rows } = await asOrganization(a.organizationId, () => enforce.query("SELECT id FROM patient WHERE id = $1", [patientB]));
     expect(rows).toEqual([]);

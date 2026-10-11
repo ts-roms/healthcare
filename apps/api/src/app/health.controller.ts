@@ -4,6 +4,7 @@ import { SkipThrottle } from "@nestjs/throttler";
 import {
   APP_CONFIG,
   type AppConfig,
+  asPlatform,
   DATABASE,
   type Database,
   type DependencyState,
@@ -49,7 +50,7 @@ export class HealthController {
   @Public()
   async ready(@Res({ passthrough: true }) res: Response) {
     const checks: HealthCheck[] = [
-      { name: "database", required: true, probe: () => this.db.execute(sql`SELECT 1`).then(() => "ok" as const) },
+      { name: "database", required: true, probe: () => asPlatform("readiness check", async () => this.db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
       { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
       { name: "objectStorage", required: false, probe: () => this.probeStorage() },
       // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.

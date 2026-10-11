@@ -1,6 +1,6 @@
 import { type DynamicModule, Logger, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider, type Type } from "@nestjs/common";
 import { AuditModule } from "@healthcare/audit";
-import { APP_CONFIG, type AppConfig } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, asPlatform } from "@healthcare/core";
 import { DohCaseReportHandler, dohGatewayProvider } from "../doh/gateway";
 import { ReferenceLabSendOutHandler, referenceLabGatewayProvider } from "../reference-lab/gateway";
 import { bullMqIntegrationQueue, IntegrationWorkerRunner } from "./bullmq";
@@ -40,7 +40,7 @@ class WorkerLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
   async onApplicationBootstrap(): Promise<void> {
     if (!this.autoStart) return;
     // A key removed from INTEGRATION_PAYLOAD_KEYS before its payloads were sent: say so before those exchanges fail.
-    const missing = await this.processor.unavailableKeyIds();
+    const missing = await asPlatform("payload key check at start-up", () => this.processor.unavailableKeyIds());
     if (missing.length) this.logger.error(`Queued payloads are sealed with key id(s) not configured here: ${missing.join(", ")} — they will fail unsent`);
     this.runner.start();
   }

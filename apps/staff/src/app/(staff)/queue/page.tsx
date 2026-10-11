@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SearchIcon } from "lucide-react";
+import { MonitorIcon, SearchIcon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
@@ -31,13 +31,22 @@ export default async function QueuePage() {
         title="Queue"
         description={`${facility.name} · today · refreshes automatically`}
         actions={
-          canManage && can(session, "patient.search") ? (
-            <Button asChild size="sm">
-              <Link href="/patients">
-                <SearchIcon /> Find patient to check in
-              </Link>
-            </Button>
-          ) : null
+          <>
+            {can(session, "clinic.queue.display") ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/display/queue" target="_blank" rel="noopener">
+                  <MonitorIcon /> Open waiting-room display
+                </Link>
+              </Button>
+            ) : null}
+            {canManage && can(session, "patient.search") ? (
+              <Button asChild size="sm">
+                <Link href="/patients">
+                  <SearchIcon /> Find patient to check in
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <QueueWorkspace

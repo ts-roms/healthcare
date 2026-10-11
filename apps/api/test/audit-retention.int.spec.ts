@@ -1,7 +1,7 @@
 import { gunzipSync } from "node:zlib";
 import { Pool } from "pg";
 import { AuditRetentionService } from "../src/app/audit-retention/audit-retention.service";
-import { as, createStaff, createTenant, createTestApp, login, TEST_APP_DATABASE_URL, type Tenant, type TestContext } from "./harness";
+import { as, createStaff, createTenant, createTestApp, login, type Tenant, TEST_APP_DATABASE_URL, type TestContext, underPlatform } from "./harness";
 
 /**
  * Audit trail retention (0110_audit_partitions.sql, docs/runbooks/audit-retention.md): monthly partitions kept ready,
@@ -35,7 +35,7 @@ describe("audit trail retention", () => {
       retentionMonths: number | null;
       partitions: Array<{ partitionName: string; archivable: boolean; removable: boolean; archive: { id: string; status: string; rowCount: number } | null }>;
     };
-  const runArchives = () => ctx.app.get(AuditRetentionService).runPending();
+  const runArchives = () => underPlatform(ctx.app.get(AuditRetentionService)).runPending();
 
   beforeAll(async () => {
     ctx = await createTestApp();

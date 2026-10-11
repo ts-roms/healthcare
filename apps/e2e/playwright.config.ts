@@ -18,6 +18,8 @@ const apiEnv = {
   LOG_LEVEL: "warn",
   // The restricted application role (support/prepare-database.ts creates it after migrating as the owner).
   DATABASE_URL: E2E_APP_DATABASE_URL,
+  // Row-level security refuses any query without an organization or platform context (migration 0111).
+  DATABASE_RLS_MODE: "enforce",
   REDIS_URL,
   JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
   MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),

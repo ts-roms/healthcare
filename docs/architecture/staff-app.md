@@ -146,6 +146,18 @@ Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/vis
 - **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
 - **Live updates.** The queue page and the dashboard's clinic section subscribe to the API's Socket.IO `/realtime` gateway (`components/live-queue.tsx`). The browser never holds an access token: a server action (`realtimeTicket`) calls `POST /auth/realtime-tickets` and hands the browser a 60-second ticket bound to the session and the selected facility, plus the socket URL; each reconnection fetches a fresh one. On `queue.updated` (ids and status only) the page re-renders from the server (`router.refresh()`, debounced), so details are always re-read through the authorized API. While the socket is not live the page polls every 15 s (visible tabs only); while live it re-reads every 2 minutes as a safety net. The indicator next to the board says "Live", "Connecting…" or "Updates every 15 s". The laboratory workbench and the critical-results page do the same on `lab.updated` (`useLabUpdates`), and the dashboard listens for both on one socket.
 
+## Waiting-room display
+
+`/display/queue` (route group `(display)`: no shell, no navigation) shows the facility's called tickets and rooms and
+how many wait, from `GET /queue/display` ([clinic.md](../domains/clinic.md#waiting-room-display)). It needs
+`clinic.queue.display` and a selected facility (a single-facility account has it chosen at sign-in). The board
+(`display-board.tsx`) uses the same live updates as the queue page (`useQueueUpdates`: the socket, polling every 15 s
+while it is down); a failed read shows "Reconnecting…" and keeps trying. A display-only account (`isDisplayOnly` in
+`lib/queue-display.ts`: it holds nothing but that permission) is redirected there by the staff layout, so it never
+sees the staff app. The chime is Web Audio, armed by one click at the screen (`shouldChime`: never on the first render);
+a screen wake lock is requested where the browser offers one. The queue page links to it (**Open waiting-room display**,
+new tab).
+
 ## Management dashboard
 
 `/management` (`management.dashboard.read`): figures across clinic, laboratory, dental, telemedicine, billing and the

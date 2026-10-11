@@ -1,7 +1,7 @@
 import { type OnModuleInit } from "@nestjs/common";
 import { type OnGatewayConnection, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { ActorResolver } from "@healthcare/auth";
-import { DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
+import { asPlatform, DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
 import type { Namespace, Socket } from "socket.io";
 import { LAB_REALTIME_EVENTS, labUpdate } from "./lab-updates";
 
@@ -22,7 +22,8 @@ function laboratoryRoom(facilityId: string): string {
  * POST /auth/realtime-tickets, bound to their session and facility); server
  * clients may use { auth: { token, facilityId } }. Either way the session and
  * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
- * `queue.updated` with clinic.queue.read, `lab.updated` with lab.order.read (a socket with neither is refused).
+ * `queue.updated` with clinic.queue.read or clinic.queue.display (the waiting-room display, migration 0112),
+ * `lab.updated` with lab.order.read (a socket with none is refused).
  * Messages carry ids and statuses only — clients refetch details through the authorized REST API.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
@@ -43,18 +44,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     const { ticket, token, facilityId } = (client.handshake.auth ?? {}) as { ticket?: unknown; token?: unknown; facilityId?: unknown };
     const request = { ipAddress: client.handshake.address, userAgent: client.handshake.headers["user-agent"] };
     try {
-      let actor;
-      if (typeof ticket === "string") {
-        // Browsers: a short-lived ticket bound to the session and facility (POST /auth/realtime-tickets).
-        actor = await this.actors.resolveRealtimeTicket(ticket, request);
-      } else if (typeof token === "string" && typeof facilityId === "string") {
-        // Server-side clients (e.g. display boards) may still use an access token.
-        actor = await this.actors.resolve(token, { facilityId }, request);
-      } else {
+      // The session is looked up before the organization is known (row-level security, migration 0111), as in the
+      // access guard; a socket reads nothing else from the database.
+      const actor = await asPlatform("resolve the realtime connection", async () => {
+        if (typeof ticket === "string") {
+          // Browsers: a short-lived ticket bound to the session and facility (POST /auth/realtime-tickets).
+          return this.actors.resolveRealtimeTicket(ticket, request);
+        }
+        if (typeof token === "string" && typeof facilityId === "string") {
+          // Server-side clients (e.g. display boards) may still use an access token.
+          return this.actors.resolve(token, { facilityId }, request);
+        }
         throw new Error("A ticket (or token and facilityId) is required");
-      }
+      });
       const channels = [
-        ...(actor.permissions.has("clinic.queue.read") ? ["queue" as const] : []),
+        ...(actor.permissions.has("clinic.queue.read") || actor.permissions.has("clinic.queue.display") ? ["queue" as const] : []),
         ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
       ];
       if (!actor.facilityId || channels.length === 0) throw new Error("Not permitted");

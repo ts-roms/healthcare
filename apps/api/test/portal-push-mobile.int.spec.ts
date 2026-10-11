@@ -15,7 +15,7 @@ import {
   PushSubscriptionService,
   WebPushSender,
 } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 const PASSWORD = "Pahintulot-ko-2026";
 const ORG = "myhealth-mobile-push";
@@ -113,8 +113,8 @@ describe("MyHealth mobile push", () => {
         }),
       ],
     }).compile();
-    dispatcher = worker.get(NotificationDispatcher);
-    receipts = worker.get(ExpoPushReceipts);
+    dispatcher = underPlatform(worker.get(NotificationDispatcher));
+    receipts = underPlatform(worker.get(ExpoPushReceipts));
     closeWorker = () => worker.close();
   });
   afterAll(async () => {

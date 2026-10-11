@@ -277,13 +277,19 @@ export class LabNonconformanceService {
     if (rows.length === 0) return [];
     const instrumentIds = [...new Set(rows.map((r) => r.instrumentId).filter((id): id is string => !!id))];
     const specimenIds = [...new Set(rows.map((r) => r.specimenId).filter((id): id is string => !!id))];
-    const [instruments, specimens, names] = await Promise.all([
-      instrumentIds.length
-        ? executor.select({ id: labInstrument.id, name: labInstrument.name }).from(labInstrument).where(inArray(labInstrument.id, instrumentIds))
-        : [],
-      specimenIds.length
-        ? executor.select({ id: labSpecimen.id, accessionNumber: labSpecimen.accessionNumber }).from(labSpecimen).where(inArray(labSpecimen.id, specimenIds))
-        : [],
+    const [{ instruments, specimens }, names] = await Promise.all([
+      // One after the other: `executor` may be the caller's transaction, a single connection.
+      (async () => ({
+        instruments: instrumentIds.length
+          ? await executor.select({ id: labInstrument.id, name: labInstrument.name }).from(labInstrument).where(inArray(labInstrument.id, instrumentIds))
+          : [],
+        specimens: specimenIds.length
+          ? await executor
+              .select({ id: labSpecimen.id, accessionNumber: labSpecimen.accessionNumber })
+              .from(labSpecimen)
+              .where(inArray(labSpecimen.id, specimenIds))
+          : [],
+      }))(),
       this.context.staffNames(organizationId, [...new Set(rows.map((r) => r.reportedBy).filter((id): id is string => !!id))]),
     ]);
     return rows.map((r) => ({

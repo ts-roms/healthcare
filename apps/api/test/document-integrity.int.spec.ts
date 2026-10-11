@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { DocumentIntegrityService } from "@healthcare/documents";
-import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Integrity review of stored documents (migration 0105, docs/domains/documents.md): a run reads every available
@@ -30,7 +30,7 @@ describe("document integrity review", () => {
     await ctx.http().post(`/api/v1/documents/${id}/complete`).set(as(admin, tenant.facilityId)).expect(200);
     return id;
   };
-  const integrity = () => ctx.app.get(DocumentIntegrityService);
+  const integrity = () => underPlatform(ctx.app.get(DocumentIntegrityService));
   const startRun = (body: Record<string, unknown> = {}) => ctx.http().post("/api/v1/document-integrity/runs").set(as(records)).send(body);
   const runNow = async (body: Record<string, unknown> = {}) => {
     const run = (await startRun(body).expect(202)).body as { id: string };

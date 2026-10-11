@@ -32,3 +32,37 @@ export function compareQueueOrder(a: { priority: VisitPriority; checkedInAt: Dat
 export function queueTicket(queueNumber: number): string {
   return `A-${String(queueNumber).padStart(3, "0")}`;
 }
+
+/** How many called tickets the waiting-room display lists (the newest is the one being called now). */
+export const QUEUE_DISPLAY_CALLS = 8;
+
+export interface QueueDisplayRow {
+  queueNumber: number;
+  status: VisitStatus;
+  calledAt: Date | null;
+  calledTo: string | null;
+  /** Online visits never appear on a waiting-room screen. */
+  inPerson: boolean;
+}
+
+export interface QueueDisplayCall {
+  ticket: string;
+  calledTo: string;
+  calledAt: Date;
+}
+
+/**
+ * What the waiting-room display shows (migration 0112): the open visits staff called, newest first, with where to go,
+ * and how many open visits wait (for triage or for the doctor). Ticket labels and rooms only — never a patient detail,
+ * priority or the order of those waiting (priority would make it appear to jump).
+ */
+export function queueDisplay(rows: readonly QueueDisplayRow[], limit = QUEUE_DISPLAY_CALLS): { calls: QueueDisplayCall[]; waiting: number } {
+  const open = rows.filter((r) => r.inPerson && ACTIVE_VISIT_STATUSES.includes(r.status));
+  const calls = open
+    .filter((r): r is QueueDisplayRow & { calledAt: Date; calledTo: string } => r.calledAt !== null && !!r.calledTo)
+    .sort((a, b) => b.calledAt.getTime() - a.calledAt.getTime())
+    .slice(0, limit)
+    .map((r) => ({ ticket: queueTicket(r.queueNumber), calledTo: r.calledTo, calledAt: r.calledAt }));
+  const waiting = open.filter((r) => r.status === "waiting" || r.status === "awaiting_consultation").length;
+  return { calls, waiting };
+}

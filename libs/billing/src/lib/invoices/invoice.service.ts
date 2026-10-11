@@ -653,21 +653,23 @@ export class InvoiceService {
 
   /** What settles an invoice (payments, deposit applied, credit notes), read inside the caller's transaction. */
   async settlement(tx: DbExecutor, invoiceId: string): Promise<Settlement> {
-    const [ledger, account, credits, debits] = await Promise.all([
-      tx.select({ kind: billingPayment.kind, amount: billingPayment.amount }).from(billingPayment).where(eq(billingPayment.invoiceId, invoiceId)),
-      tx
-        .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
-        .from(billingAccountEntry)
-        .where(eq(billingAccountEntry.invoiceId, invoiceId)),
-      tx
-        .select({ total: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint` })
-        .from(billingCreditNote)
-        .where(eq(billingCreditNote.invoiceId, invoiceId)),
-      tx
-        .select({ total: sql<number>`coalesce(sum(${billingDebitNote.amount}), 0)::bigint` })
-        .from(billingDebitNote)
-        .where(eq(billingDebitNote.invoiceId, invoiceId)),
-    ]);
+    // One after the other: `tx` may be the caller's transaction, a single connection.
+    const ledger = await tx
+      .select({ kind: billingPayment.kind, amount: billingPayment.amount })
+      .from(billingPayment)
+      .where(eq(billingPayment.invoiceId, invoiceId));
+    const account = await tx
+      .select({ kind: billingAccountEntry.kind, amount: billingAccountEntry.amount })
+      .from(billingAccountEntry)
+      .where(eq(billingAccountEntry.invoiceId, invoiceId));
+    const credits = await tx
+      .select({ total: sql<number>`coalesce(sum(${billingCreditNote.appliedAmount}), 0)::bigint` })
+      .from(billingCreditNote)
+      .where(eq(billingCreditNote.invoiceId, invoiceId));
+    const debits = await tx
+      .select({ total: sql<number>`coalesce(sum(${billingDebitNote.amount}), 0)::bigint` })
+      .from(billingDebitNote)
+      .where(eq(billingDebitNote.invoiceId, invoiceId));
     return {
       paid: paidNet(ledger),
       depositApplied: depositApplied(account),

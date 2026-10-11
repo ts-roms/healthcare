@@ -1,5 +1,5 @@
 import type { INestApplicationContext } from "@nestjs/common";
-import { type AppConfig, DATABASE, type Database, type HealthCheck, startHealthServer } from "@healthcare/core";
+import { type AppConfig, asPlatform, DATABASE, type Database, type HealthCheck, startHealthServer } from "@healthcare/core";
 import { sql } from "drizzle-orm";
 import IORedis from "ioredis";
 
@@ -14,7 +14,7 @@ export function startWorkerHealth(app: INestApplicationContext, config: AppConfi
   redis.on("error", () => undefined);
   redis.connect().catch(() => undefined);
   const checks: HealthCheck[] = [
-    { name: "database", required: true, probe: () => db.execute(sql`SELECT 1`).then(() => "ok" as const) },
+    { name: "database", required: true, probe: () => asPlatform("readiness check", async () => db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
     { name: "redis", required: false, probe: () => redis.ping().then((answer) => (answer === "PONG" ? "ok" : "unreachable")) },
   ];
   const server = startHealthServer(config.HEALTH_PORT, checks);

@@ -221,7 +221,8 @@ export class AuditRetentionService implements OnApplicationShutdown {
   // ---- internals -----------------------------------------------------------------------------
 
   private kick(): void {
-    if (this.timers.length > 0) void this.tick();
+    // Under the poller's own scope, not the requesting administrator's request (row-level security, migration 0111).
+    if (this.timers.length > 0) asPlatform("audit partitions and archives", () => void this.tick());
   }
 
   private async tick(): Promise<void> {

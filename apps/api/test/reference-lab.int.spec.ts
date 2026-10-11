@@ -23,6 +23,7 @@ import {
   login,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 /** A test double standing in for a reference laboratory adapter (none exists: no laboratory's interface is on record). */
@@ -444,7 +445,7 @@ describe("send-out tests — electronic submission through an adapter (test doub
         IntegrationWorkerModule.forRoot({ autoStart: false, referenceLabGateway, queue: { provide: INTEGRATION_QUEUE, useValue: ctx.integrations } }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     s = await setup(ctx, "refw");
     s.referenceLabId = (await s.lab(s.pathologist).post("/laboratory/reference-labs", { code: "ref", name: "Partner Reference Lab" }).expect(201)).body.id;
     await s.lab(s.pathologist).put(`/laboratory/referrals/${s.catalog.tsh}`, { referenceLaboratoryId: s.referenceLabId }).expect(200);

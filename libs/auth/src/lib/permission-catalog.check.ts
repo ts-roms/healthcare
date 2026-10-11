@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnApplicationBootstrap } from "@nestjs/common";
-import { DATABASE, type Database, PERMISSIONS } from "@healthcare/core";
+import { asPlatform, DATABASE, type Database, PERMISSIONS } from "@healthcare/core";
 import { permission } from "./auth.schema";
 
 /** Refuses to start if the code permission catalog and the database disagree. */
@@ -8,7 +8,7 @@ export class PermissionCatalogCheck implements OnApplicationBootstrap {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const rows = await this.db.select({ key: permission.key }).from(permission);
+    const rows = await asPlatform("permission catalog check at start-up", async () => this.db.select({ key: permission.key }).from(permission));
     const inDatabase = new Set(rows.map((row) => row.key));
     const inCode = new Set<string>(PERMISSIONS);
     const missingInDb = [...inCode].filter((key) => !inDatabase.has(key));

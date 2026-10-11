@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, R
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { createZodDto } from "nestjs-zod";
-import { Public, requestMetadataFrom } from "@healthcare/core";
+import { PlatformScope, Public, requestMetadataFrom } from "@healthcare/core";
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
 import type { Request } from "express";
 import { z } from "zod";
@@ -222,6 +222,7 @@ export class PortalMfaLoginController {
 
   @Post("passkey/options")
   @Public()
+  @PlatformScope("MyHealth passkey options at sign-in")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Options for answering the second step with a passkey (the challenge from the password step is the credential)" })
@@ -231,6 +232,7 @@ export class PortalMfaLoginController {
 
   @Post("verify")
   @Public()
+  @PlatformScope("MyHealth two-step verification at sign-in")
   @HttpCode(200)
   @Throttle(CREDENTIAL_THROTTLE)
   @ApiOperation({ summary: "Finish signing in with the challenge from the password step and the app's code, a recovery code or a passkey's answer" })

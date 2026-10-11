@@ -93,25 +93,24 @@ export class PortalPreferencesService {
   }
 
   private async read(db: Pick<Database, "select">, principal: PortalPrincipal): Promise<PortalPreferencesView> {
-    const [rows, contacts] = await Promise.all([
-      db
-        .select()
-        .from(patientCommunicationPreference)
-        .where(
-          and(eq(patientCommunicationPreference.organizationId, principal.organizationId), eq(patientCommunicationPreference.patientId, principal.patientId)),
+    // One after the other: `db` may be the caller's transaction, a single connection.
+    const rows = await db
+      .select()
+      .from(patientCommunicationPreference)
+      .where(
+        and(eq(patientCommunicationPreference.organizationId, principal.organizationId), eq(patientCommunicationPreference.patientId, principal.patientId)),
+      );
+    const contacts = await db
+      .select({ system: patientContactPoint.system, value: patientContactPoint.valueNormalized })
+      .from(patientContactPoint)
+      .where(
+        and(
+          eq(patientContactPoint.organizationId, principal.organizationId),
+          eq(patientContactPoint.patientId, principal.patientId),
+          eq(patientContactPoint.isPrimary, true),
+          eq(patientContactPoint.status, "active"),
         ),
-      db
-        .select({ system: patientContactPoint.system, value: patientContactPoint.valueNormalized })
-        .from(patientContactPoint)
-        .where(
-          and(
-            eq(patientContactPoint.organizationId, principal.organizationId),
-            eq(patientContactPoint.patientId, principal.patientId),
-            eq(patientContactPoint.isPrimary, true),
-            eq(patientContactPoint.status, "active"),
-          ),
-        ),
-    ]);
+      );
     const destinations = {} as Record<PortalPreferenceChannel, string | null>;
     for (const channel of PORTAL_PREFERENCE_CHANNELS) {
       destinations[channel] =

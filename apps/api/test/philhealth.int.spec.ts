@@ -16,6 +16,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 /** A test double standing in for a real eClaims adapter (none exists: the specification is an integration dependency). */
@@ -217,7 +218,7 @@ describe("PhilHealth claims — through an adapter (test double) and the integra
         }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     s = await issuedInvoiceWithPhilHealth(ctx, "ph-adapter");
     await s.req(s.admin).put(`/philhealth/facilities/${s.tenant.facilityId}/accreditation`, { accreditationNumber: "H91000200" }).expect(200);
   });

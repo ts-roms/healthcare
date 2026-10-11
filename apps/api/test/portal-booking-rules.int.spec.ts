@@ -11,6 +11,7 @@ import {
   manilaDate,
   type Tenant,
   type TestContext,
+  underPlatform,
 } from "./harness";
 
 const PASSWORD = "Maaraw-na-umaga-2026";
@@ -654,7 +655,7 @@ describe("online booking rules, another doctor, and the waiting list", () => {
       expect(reoffered).toHaveLength(1);
       expect(await offersOf(waiting.token)).toEqual([]);
       await ctx.pool.query("UPDATE waitlist_offer SET expires_at = now() - interval '1 minute' WHERE id = $1", [reoffered[0]!.id]);
-      const offers = ctx.app.get(WaitlistOffersService);
+      const offers = underPlatform(ctx.app.get(WaitlistOffersService));
       expect((await offers.expire()).expired).toBe(1);
       expect(await offersOf(newcomer.token)).toEqual([]);
       const open = (await staff(receptionist).get(`/waitlist/offers?facilityId=${tenant.facilityId}`).expect(200)).body as Array<{

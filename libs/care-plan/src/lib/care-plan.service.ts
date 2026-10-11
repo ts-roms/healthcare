@@ -507,16 +507,19 @@ export class CarePlanService {
       .from(carePlan)
       .where(and(eq(carePlan.organizationId, organizationId), eq(carePlan.id, carePlanId)));
     if (!plan) throw new NotFoundError("Care plan");
-    const [problems, goals, activities, notes] = await Promise.all([
-      executor.select().from(carePlanProblem).where(eq(carePlanProblem.carePlanId, carePlanId)).orderBy(asc(carePlanProblem.createdAt)),
-      executor.select().from(carePlanGoal).where(eq(carePlanGoal.carePlanId, carePlanId)).orderBy(asc(carePlanGoal.createdAt)),
-      executor
-        .select()
-        .from(carePlanActivity)
-        .where(eq(carePlanActivity.carePlanId, carePlanId))
-        .orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`, asc(carePlanActivity.createdAt)),
-      executor.select().from(carePlanProgressNote).where(eq(carePlanProgressNote.carePlanId, carePlanId)).orderBy(desc(carePlanProgressNote.recordedAt)),
-    ]);
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const problems = await executor.select().from(carePlanProblem).where(eq(carePlanProblem.carePlanId, carePlanId)).orderBy(asc(carePlanProblem.createdAt));
+    const goals = await executor.select().from(carePlanGoal).where(eq(carePlanGoal.carePlanId, carePlanId)).orderBy(asc(carePlanGoal.createdAt));
+    const activities = await executor
+      .select()
+      .from(carePlanActivity)
+      .where(eq(carePlanActivity.carePlanId, carePlanId))
+      .orderBy(sql`${carePlanActivity.dueDate} ASC NULLS LAST`, asc(carePlanActivity.createdAt));
+    const notes = await executor
+      .select()
+      .from(carePlanProgressNote)
+      .where(eq(carePlanProgressNote.carePlanId, carePlanId))
+      .orderBy(desc(carePlanProgressNote.recordedAt));
     return { ...strip(plan), problems, goals, activities: activities.map(strip), progressNotes: notes };
   }
 

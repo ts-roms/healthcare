@@ -3,7 +3,20 @@ import { CoreModule } from "@healthcare/core";
 import { INTEGRATION_QUEUE, IntegrationExchangeProcessor, IntegrationWorkerModule } from "@healthcare/interoperability";
 import type { EligibilityInquiry, EligibilityOutcome, PhilHealthEligibilityGateway } from "@healthcare/philhealth";
 import { PHILHEALTH_ELIGIBILITY_GATEWAY, philhealthExchangeHandlers } from "@healthcare/philhealth";
-import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
+import {
+  as,
+  auditRows,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  juan,
+  login,
+  manilaDate,
+  type Tenant,
+  type TestContext,
+  underPlatform,
+} from "./harness";
 
 /** A test double standing in for a real eligibility adapter (none exists: the specification is an integration dependency). */
 class FakeEligibilityGateway implements PhilHealthEligibilityGateway {
@@ -122,7 +135,7 @@ describe("PhilHealth eligibility — through an adapter (test double) and the in
         }),
       ],
     }).compile();
-    processor = worker.get(IntegrationExchangeProcessor);
+    processor = underPlatform(worker.get(IntegrationExchangeProcessor));
     s = await setup(ctx, "elig-adapter");
   });
   afterAll(async () => {

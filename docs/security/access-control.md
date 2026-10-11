@@ -88,10 +88,12 @@ should confirm the person's identity in person first (the reason records how).
 
 **Organization isolation in the database (migration `0111`):** behind the application's own `organization_id` filters,
 PostgreSQL row-level security holds every request to its actor's organization: the access guards stamp the request's
-database context once the actor is resolved, platform administrator routes and background work take the platform
-scope with a stated reason. Applies when the API connects as the restricted application role
-([database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization)); `DATABASE_RLS_MODE`
-`observe` (default) still lets a query without any context through and logs where it came from.
+database context once the actor is resolved, platform administrator routes, public sign-in and link routes
+(`@PlatformScope`) and background work take the platform scope with a stated reason. Applies when the API connects as
+the restricted application role ([database roles runbook](../runbooks/database-roles.md#row-level-security-per-organization));
+`DATABASE_RLS_MODE` `observe` (default) still lets a query without any context through and logs where it came from,
+`enforce` refuses it (the tests and end-to-end journeys run in `enforce`; production follows after 30 days without such
+a log line).
 
 ```
 User ──membership──▶ Organization
@@ -264,9 +266,10 @@ sub-records / consent / preferences, document create / upload / list / download
 - Domain events and realtime messages carry identifiers and statuses only —
   never names or clinical text. Realtime clients are checked on connect with
   the same session, account, facility and permission rules as the REST API:
-  a socket receives `queue.updated` only with `clinic.queue.read` and
+  a socket receives `queue.updated` only with `clinic.queue.read` or
+  `clinic.queue.display` (the waiting-room display, migration `0112`) and
   `lab.updated` only with `lab.order.read` at that facility (and is refused
-  with neither). Browsers present a ticket from
+  with none). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
   versa). A ticket is not single-use: replayed within its minute it opens a

@@ -92,10 +92,9 @@ export class DentalFeeLookup {
   }
 
   async price(organizationId: string, procedureTypeIds: readonly string[], pricedOn: string, executor: DbExecutor = this.db): Promise<PricedProcedures> {
-    const [types, alternatives] = await Promise.all([
-      this.catalog.byIds(executor, organizationId, [...procedureTypeIds]),
-      this.catalog.alternativesOf(executor, organizationId, procedureTypeIds),
-    ]);
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const types = await this.catalog.byIds(executor, organizationId, [...procedureTypeIds]);
+    const alternatives = await this.catalog.alternativesOf(executor, organizationId, procedureTypeIds);
     const codes = new Set([...types.values()].map((t) => t.code));
     for (const list of alternatives.values()) for (const a of list) codes.add(a.code);
     const listed = await this.fees.listedFees(organizationId, [...codes], pricedOn);

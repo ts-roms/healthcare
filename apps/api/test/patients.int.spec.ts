@@ -1,5 +1,5 @@
 import { PatientRecordService } from "@healthcare/patient";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 describe("patient master", () => {
   let ctx: TestContext;
@@ -211,7 +211,8 @@ describe("patient master", () => {
 
   it("reads the address and phone for case reporting only within the patient's organization", async () => {
     const other = await createTenant(ctx.pool, "patient-other");
-    const records = ctx.app.get(PatientRecordService);
+    // Read by DOH case reporting from its event handler, under the outbox relay's platform scope.
+    const records = underPlatform(ctx.app.get(PatientRecordService));
     const own = await records.primaryAddressAndPhone(tenant.organizationId, juanId);
     expect(own.contactNumber).toEqual(expect.any(String));
     expect(await records.primaryAddressAndPhone(other.organizationId, juanId)).toEqual({ address: null, contactNumber: null });

@@ -387,6 +387,16 @@ export interface PatientBrief {
 export type VisitStatus = "waiting" | "in_triage" | "awaiting_consultation" | "in_consultation" | "completed" | "cancelled" | "left_without_being_seen";
 export type VisitPriority = "routine" | "urgent" | "emergency";
 
+/** GET /queue/display: the waiting-room display (no patient details, no visit ids). */
+export interface QueueDisplay {
+  facilityName: string;
+  date: string;
+  timeZone: string;
+  /** Called tickets, newest first: the first is the one being called now. */
+  calls: Array<{ ticket: string; calledTo: string; calledAt: string }>;
+  waiting: number;
+}
+
 /** GET /queue row. */
 export interface QueueVisit {
   id: string;

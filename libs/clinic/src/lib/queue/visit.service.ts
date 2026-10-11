@@ -27,7 +27,15 @@ import type { PatientBookingContext } from "../appointments/patient-booking.serv
 import { onlineCheckInWindow } from "../domain/patient-booking";
 import { appointmentEvent } from "../appointments/appointment.service";
 import { canApply } from "../domain/appointment-state";
-import { ACTIVE_VISIT_STATUSES, canTransition, compareQueueOrder, queueTicket, requiresReason } from "../domain/queue-state";
+import {
+  ACTIVE_VISIT_STATUSES,
+  canTransition,
+  compareQueueOrder,
+  type QueueDisplayCall,
+  queueDisplay,
+  queueTicket,
+  requiresReason,
+} from "../domain/queue-state";
 import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
 
 export type VisitView = Omit<VisitRecord, "organizationId"> & { ticket: string };
@@ -39,6 +47,16 @@ export interface QueueEntryView extends VisitView {
   encounterId: string | null;
   /** From the visit type: an online visit is started from Telemedicine, not with an ordinary consultation. */
   modality: Modality;
+}
+
+/** The waiting-room display (migration 0112): no patient detail, no visit id, no priority. */
+export interface QueueDisplayView {
+  facilityName: string;
+  /** The facility's local date the display shows. */
+  date: string;
+  timeZone: string;
+  calls: QueueDisplayCall[];
+  waiting: number;
 }
 
 export function toVisitView(row: VisitRecord): VisitView {
@@ -310,6 +328,30 @@ export class VisitService {
       modality: modalityByType.get(row.visitTypeId) ?? "in_person",
       waitingMinutes: Math.max(0, Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000)),
     }));
+  }
+
+  /**
+   * The waiting-room display for the actor's facility today: tickets called and where to go, and how many wait. It
+   * holds no patient detail, so reading it is not audited (the full queue read is).
+   */
+  async display(actor: Actor): Promise<QueueDisplayView> {
+    const facilityId = requireFacilityId(actor);
+    const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
+    const date = localDate(new Date(), facility.timezone);
+    const rows = await this.db
+      .select({ queueNumber: visit.queueNumber, status: visit.status, calledAt: visit.calledAt, calledTo: visit.calledTo, modality: visitType.modality })
+      .from(visit)
+      .innerJoin(visitType, and(eq(visitType.organizationId, visit.organizationId), eq(visitType.id, visit.visitTypeId)))
+      .where(
+        and(
+          eq(visit.organizationId, actor.organizationId),
+          eq(visit.facilityId, facilityId),
+          eq(visit.queueDate, date),
+          inArray(visit.status, [...ACTIVE_VISIT_STATUSES]),
+        ),
+      );
+    const { calls, waiting } = queueDisplay(rows.map((r) => ({ ...r, inPerson: r.modality === "in_person" })));
+    return { facilityName: facility.name, date, timeZone: facility.timezone, calls, waiting };
   }
 
   async get(actor: Actor, visitId: string): Promise<VisitView> {

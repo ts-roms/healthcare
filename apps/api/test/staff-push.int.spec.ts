@@ -12,7 +12,7 @@ import {
   WebPushSender,
   type WebPushTransport,
 } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 const ORG = "staff-push";
 const vapid = webpush.generateVAPIDKeys();
@@ -72,7 +72,7 @@ describe("staff push notifications", () => {
     nurseId = await createStaff(ctx.pool, tenant, "nurse@staff-push.ph", ["nurse"]);
     admin = (await login(ctx, "admin@staff-push.ph")).accessToken;
     nurse = (await login(ctx, "nurse@staff-push.ph")).accessToken;
-    notifications = ctx.app.get(NotificationService);
+    notifications = underPlatform(ctx.app.get(NotificationService));
     const db = ctx.app.get<Database>(DATABASE);
     const worker = await Test.createTestingModule({
       imports: [
@@ -87,7 +87,7 @@ describe("staff push notifications", () => {
         }),
       ],
     }).compile();
-    dispatcher = worker.get(NotificationDispatcher);
+    dispatcher = underPlatform(worker.get(NotificationDispatcher));
     closeWorker = () => worker.close();
   });
   afterAll(async () => {

@@ -678,23 +678,22 @@ export class LabQualityService {
 
   private async runViews(executor: DbExecutor, organizationId: string, runs: LabQcRunRecord[]): Promise<QcRunView[]> {
     if (runs.length === 0) return [];
-    const [lots, actions] = await Promise.all([
-      executor
-        .select({ id: labQcLot.id, lotNumber: labQcLot.lotNumber, materialName: labQcMaterial.name, level: labQcMaterial.level })
-        .from(labQcLot)
-        .innerJoin(labQcMaterial, eq(labQcMaterial.id, labQcLot.materialId))
-        .where(inArray(labQcLot.id, [...new Set(runs.map((r) => r.qcLotId))])),
-      executor
-        .select()
-        .from(labQcAction)
-        .where(
-          inArray(
-            labQcAction.qcRunId,
-            runs.map((r) => r.id),
-          ),
-        )
-        .orderBy(asc(labQcAction.recordedAt)),
-    ]);
+    // One after the other: `executor` may be the caller's transaction, a single connection.
+    const lots = await executor
+      .select({ id: labQcLot.id, lotNumber: labQcLot.lotNumber, materialName: labQcMaterial.name, level: labQcMaterial.level })
+      .from(labQcLot)
+      .innerJoin(labQcMaterial, eq(labQcMaterial.id, labQcLot.materialId))
+      .where(inArray(labQcLot.id, [...new Set(runs.map((r) => r.qcLotId))]));
+    const actions = await executor
+      .select()
+      .from(labQcAction)
+      .where(
+        inArray(
+          labQcAction.qcRunId,
+          runs.map((r) => r.id),
+        ),
+      )
+      .orderBy(asc(labQcAction.recordedAt));
     const [names, reagents] = await Promise.all([
       this.context.staffNames(organizationId, [...new Set([...runs.map((r) => r.enteredBy), ...actions.map((a) => a.recordedBy)])]),
       this.reagents.onQcRuns(

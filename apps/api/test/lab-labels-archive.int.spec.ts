@@ -1,7 +1,20 @@
 import type { DomainEventRecord } from "@healthcare/core";
 import { LabReportArchive } from "@healthcare/laboratory";
 import { extractPdfText } from "@healthcare/pdf";
-import { as, auditRows, binary, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext } from "./harness";
+import {
+  as,
+  auditRows,
+  binary,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  juan,
+  login,
+  type Tenant,
+  type TestContext,
+  underPlatform,
+} from "./harness";
 
 // The official FHIR R4 JSON schema (bundled by this dev dependency); each resource is checked against its own type.
 type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
@@ -123,7 +136,7 @@ describe("laboratory labels and report archive", () => {
         last_error: string;
       }>(`SELECT * FROM lab_report_archive WHERE order_id = $1 ORDER BY archive_version`, [orderId])
     ).rows;
-  const archive = () => ctx.app.get(LabReportArchive);
+  const archive = () => underPlatform(ctx.app.get(LabReportArchive));
 
   describe("specimen labels", () => {
     it("prints tube labels with the accession barcode and only what identifies the specimen", async () => {

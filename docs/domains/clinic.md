@@ -255,14 +255,14 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 ## Permissions
 
 `clinic.configure`, `appointment.read`, `appointment.manage`, `clinic.queue.read`, `clinic.queue.manage`,
-`clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`,
+`clinic.queue.display` (the waiting-room display, below), `clinic.triage.write`, `clinical.read`, `allergy.manage`, `encounter.read`, `encounter.write`, `encounter.sign`,
 `encounter.amend`, `clinic.dashboard.read`. Queue, check-in, walk-in and dashboard require facility context.
 
 ## API
 
 `/clinic/{practitioners,rooms,visit-types,coding-systems,schedules,schedule-exceptions}`,
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
-`/queue` (+ `walk-ins`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
+`/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
@@ -299,6 +299,29 @@ starts the telemedicine encounter for the visit. See [telemedicine.md](telemedic
 - Diagnosis codes are not validated against a code catalog (no licensed ICD dataset is bundled).
 - Procedures performed here are recorded in consultations (above); past procedures reported or documented from elsewhere
   are part of the [patient history](patient-history.md).
+
+## Waiting-room display
+
+A screen in the waiting area shows the ticket being called and where to go ("A-007 → Room 2"), the tickets called
+before it and how many wait (migration `0112`).
+
+- `GET /queue/display` (`clinic.queue.display`, facility context): the facility's name, local date and time zone, the
+  open in-person visits of today that staff called — ticket, the free text of **Call patient to**, call time — newest
+  first (at most 8; `queueDisplay` in `domain/queue-state.ts`), and how many open in-person visits wait (`waiting` or
+  `awaiting_consultation`). Never a name, patient number, visit id, visit type, priority or complaint, and never the
+  order of those waiting (priority would make it appear to jump). It holds no patient detail, so reading it is not
+  audited (the full queue read is, `queue.view`). Closed visits leave it; online visits never appear.
+- The realtime gateway lets a holder of `clinic.queue.display` join the facility's `queue.updated` messages (ids and
+  statuses only); the screen re-reads the display on each one and every 15 seconds while the socket is down.
+- Built-in role `queue_display` holds only this permission: a staff account per screen, granted for the screen's
+  facility, signs in on the screen and lands on the display (the staff app sends a display-only account nowhere else).
+  Where staff two-step verification is required, the account is exempted with a reason. Receptionists and
+  organization administrators hold the permission too and open the display from the queue page.
+- Staff app `/display/queue`: no navigation; current call in large type, earlier calls, the waiting count, the
+  facility's local time, an optional two-tone chime (Web Audio, turned on with one click at the screen), a screen
+  wake lock and full screen. English labels; the room text is whatever staff typed.
+- Not built: separate queues per service point, ticket printing or a kiosk, spoken announcements, and priority lanes
+  (which the organization would first confirm against current rules).
 
 ## Automatic no-shows and online check-in
 
