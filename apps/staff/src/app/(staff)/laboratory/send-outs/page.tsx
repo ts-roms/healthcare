@@ -45,33 +45,35 @@ export default async function SendOutsPage({ searchParams }: { searchParams: Pro
           </Link>
         }
       />
-      <nav aria-label="Send-out view" className="mb-3 flex flex-wrap gap-1">
-        {VIEWS.map((v) => {
-          const count = dashboard ? v.count(dashboard) : null;
-          return (
-            <Link
-              key={v.view}
-              href={`/laboratory/send-outs?view=${v.view}`}
-              aria-current={v.view === view ? "page" : undefined}
-              className={`rounded-md border px-2.5 py-1 text-table ${v.view === view ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}
-            >
-              {v.label}
-              {count !== null ? <span className="tabular ml-1.5 opacity-80">{count}</span> : null}
-            </Link>
-          );
-        })}
-        {dashboard?.sendOutsOverdue ? (
-          <span className="self-center text-meta font-semibold text-critical">{dashboard.sendOutsOverdue} past the expected turnaround</span>
-        ) : null}
-      </nav>
-      <SendOutsView
-        key={view}
-        view={view}
-        rows={rows}
-        dispatches={dispatches}
-        integration={integration}
-        permissions={{ handle: can(session, "lab.specimen.receive"), reject: can(session, "lab.specimen.reject") }}
-      />
+      <div className="gap-4 p-4">
+        <nav aria-label="Send-out view" className="mb-3 flex flex-wrap gap-1">
+          {VIEWS.map((v) => {
+            const count = dashboard ? v.count(dashboard) : null;
+            return (
+              <Link
+                key={v.view}
+                href={`/laboratory/send-outs?view=${v.view}`}
+                aria-current={v.view === view ? "page" : undefined}
+                className={`rounded-md border px-2.5 py-1 text-table ${v.view === view ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}
+              >
+                {v.label}
+                {count !== null ? <span className="tabular ml-1.5 opacity-80">{count}</span> : null}
+              </Link>
+            );
+          })}
+          {dashboard?.sendOutsOverdue ? (
+            <span className="self-center text-meta font-semibold text-critical">{dashboard.sendOutsOverdue} past the expected turnaround</span>
+          ) : null}
+        </nav>
+        <SendOutsView
+          key={view}
+          view={view}
+          rows={rows}
+          dispatches={dispatches}
+          integration={integration}
+          permissions={{ handle: can(session, "lab.specimen.receive"), reject: can(session, "lab.specimen.reject") }}
+        />
+      </div>
     </>
   );
 }
