@@ -313,7 +313,13 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   filters by service point through `?servicePoint=` (`service-point-switcher.tsx`; the API's `GET /queue?servicePointId=`), the ticket panel shows
   the service point and offers **Send to** (`routeVisit` → `POST /queue/visits/:id/route`) for visits in triage or awaiting consultation, and the
   triage form ends with **Send to** (`servicePointId` on the triage call; `defaultServicePoint` in `lib/clinic-mapping.ts` starts it on the visit's
-  own service point, else the first consultation one). See [clinic.md](../domains/clinic.md#service-points).
+  own service point, else the first consultation one). See [clinic.md](../domains/clinic.md#service-points). **Visit routes** (migration `0115`):
+  the triage card is **Route** — the first stop plus **Then** stops (`components/route-stops-editor.tsx`; `route` on the triage call); the ticket
+  panel's **Route** section (`queue/route-panel.tsx`: **Done here, send on** → `advanceRoute` → `POST /queue/visits/:id/route/next`, **Skip step…**
+  → `skipRouteStep`, **Plan route…** → `planRoute` → `PUT …/route-plan`); cards show "next: X" (`nextStopLabel`); the page reads
+  `GET /clinic/service-point-settings` so the panel says whether the patient will be called; `/admin/service-points` edits each service point's
+  **Location** and the facility's **Routes** setting (`routing-settings.tsx`, `saveServicePointSettings`). See
+  [clinic.md](../domains/clinic.md#visit-routes).
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on

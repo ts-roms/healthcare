@@ -148,8 +148,8 @@ Open **Queue** (`/queue`). The board shows today's visits at the selected facili
 | **Done**               | Seen, cancelled, or left without being seen         |
 
 Each card shows the ticket, the patient's name, a priority badge (**Urgent** or **Emergency**) when not routine, and where the patient was called
-to or what they are waiting for — and, once the patient has been sent to a service point, its name. In the waiting columns the card also shows
-minutes since arrival; waits over 45 minutes are highlighted with ⚠.
+to or what they are waiting for — and, once the patient has been sent to a service point, its name, and **next: …** when their route has a stop
+ahead. In the waiting columns the card also shows minutes since arrival; waits over 45 minutes are highlighted with ⚠.
 
 If your facility has service points (see below), a **Service point** list above the board shows **All service points** or one of them — for example
 only the emergency room's queue. The choice is kept in the page address, so a bookmarked link opens that service point's board and live updates keep
@@ -177,6 +177,8 @@ Select **Refresh** to reload at any time.
 5. To send a triaged patient somewhere else — from the emergency room to X-ray, say — choose the place under **Send to** and select **Send**. This is
    offered while the patient is **In triage** or **Ready for provider** and only when the facility has service points; the panel shows the
    **Service point** the patient is at. Every move is kept in the visit's history and the audit trail.
+6. When the patient has several stops ahead, use the **Route** part of the panel instead of sending them one move at a time (see "How to work a
+   patient's route" below).
 
 Calling and moving need `clinic.queue.manage`. From the panel you can also open **Triage & vitals** (or **Update triage** once the patient is
 ready for the provider), **Start consultation** or **Open consultation**, **Patient 360** and **Open patient record** — each only if you have the permission
@@ -188,6 +190,28 @@ physician signs the encounter.
 Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
 panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
 
+### How to work a patient's route
+
+A route is the planned sequence of service points for one visit — say **Emergency room → Laboratory → X-ray**. It is planned at triage (the
+**Route** card) or from the ticket panel. The panel's **Route** section shows the stops in order: done ones ticked, a skipped one struck
+through, the one the patient is at marked **here**, and the stops still ahead; **Next:** says where the patient goes next and, if your facility
+calls patients automatically, that they will be called there.
+
+- **Done here, send on** — when the patient is finished at the current stop. Add a note if useful (for example "CBC sample taken") and select
+  **Send on**: the stop is marked done, the patient moves to the next stop, and — if your facility turned it on under **Administration → Service
+  points → Routes** — they are called there at once, so the waiting-room display shows and announces it ("A-002 → Laboratory, 2nd floor") just
+  as if you had typed it under **Call patient to**. At the last stop the button reads **Mark done**: the patient stays where they are and the
+  route shows **Complete**.
+- **Skip step…** — choose the stop to skip and give a reason (at least 3 characters). Skipping a stop still ahead changes nothing else; skipping
+  the stop the patient is at sends them on to the next one, as **Done here** would.
+- **Plan route…** / **Change next stops…** — choose the stops after the one the patient is at, in order (**Then** → **Add stop**, ✕ to remove one),
+  and select **Save route**. This replaces only the stops still ahead; what is done stays. A stop cannot be the same as the one before it. A
+  patient still on the ordinary consultation line can be given a route too: **Done here, send on** then takes them to its first stop.
+
+Nothing moves a patient on its own: a sample taken at the laboratory or a procedure recorded does not finish the stop — the person at the station
+selects **Done here, send on** when the patient really is done there. Routes need `clinic.queue.manage`, like calling and moving; every step is
+kept with the visit and in the audit trail.
+
 ## How to set up service points
 
 A larger facility is not one line: after triage a patient may go to the consultation line, the emergency room, X-ray or another station. A clinic
@@ -195,13 +219,17 @@ administrator (`clinic.configure`) sets these up under **Administration → Serv
 top bar:
 
 1. Select **Add a service point**: a **Code** (lower-case letters, digits and hyphens; it cannot change later), a **Name** as staff should see it,
-   and a **Kind** — **Consultation**, **Emergency**, **Imaging** or **Other**. The kind only labels and orders the service point at triage and on the
-   board; it adds no rule, and no national list of stations or triage scale is built in.
-2. **Edit** renames a service point or changes its kind. **Deactivate** takes it out of the lists at triage and on the board; patients already sent
-   there stay there until moved, and the history keeps the name. **Reactivate** brings it back.
+   a **Kind** — **Consultation**, **Emergency**, **Imaging** or **Other** — and optionally a **Location** (up to 60 characters, for example
+   "Laboratory, 2nd floor"): what the waiting-room display shows and reads out when a route sends a patient there; the name is used when it is
+   empty. The kind only labels and orders the service point at triage and on the board; it adds no rule, and no national list of stations or
+   triage scale is built in.
+2. **Edit** renames a service point or changes its kind or location. **Deactivate** takes it out of the lists at triage and on the board; patients
+   already sent there stay there until moved, and the history keeps the name. **Reactivate** brings it back.
+3. Under **Routes**, tick **Call the patient when a route sends them on** and **Save** if the display should announce each move of a route by
+   itself. Off (the default), **Done here, send on** moves the patient and staff call them with **Call patient to** as usual.
 
 A facility without service points works as before: one consultation queue. The waiting-room display is unchanged either way — it shows the ticket
-and the place you type when you call the patient, never the service point.
+and the place you type (or the location configured) when the patient is called, never the service point or the route.
 
 ## How to set up the waiting-room display
 
@@ -238,9 +266,11 @@ leaves the display when the visit is closed (done, cancelled or left without bei
    - **Risk flags** — comma-separated, for example "fall risk, pregnant, infectious symptoms".
 4. Under **Vital signs**, enter what you measured. Leave blank what was not measured. **BMI** is calculated from weight and height for display.
 5. Optionally add **Triage notes**.
-6. Under **Send to**, choose where the patient goes next — **Consultation**, **Emergency room**, **X-ray** or whatever your facility has set up. The
-   list starts on the service point the patient is already at, otherwise on the facility's consultation line. Leave it on **Choose…** to keep the
-   ordinary consultation queue; if the list says **No service points set up**, your facility has none and the patient stays on that queue.
+6. Under **Route**, choose under **Send to** where the patient goes next — **Consultation**, **Emergency room**, **X-ray** or whatever your facility
+   has set up. The list starts on the service point the patient is already at, otherwise on the facility's consultation line. Leave it on
+   **Choose…** to keep the ordinary consultation queue; if the list says **No service points set up**, your facility has none and the patient stays
+   on that queue. When the patient has more stops ahead — the laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes
+   one). From the queue board, **Done here, send on** then moves the patient from stop to stop (see "How to work a patient's route" above).
 7. Choose how to save:
    - **Complete triage — ready for provider** — saves and moves the patient to **Ready for provider** (at the service point you chose).
    - **Save, keep in triage** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is
@@ -418,6 +448,8 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 - Queue moves follow a fixed order (see the buttons above); a patient with the provider cannot be moved from the queue.
 - A patient can be sent to a service point only while **In triage** or **Ready for provider**: triage comes first, a patient with the provider is
   not moved, and a closed visit cannot be sent anywhere. Only an active service point of the same facility can be chosen.
+- A route's stops follow the same rule; a stop cannot repeat the one before it; skipping a stop needs a reason; a finished or skipped stop cannot be
+  changed; nothing moves a patient along a route without someone selecting **Done here, send on** (or skipping the stop they are at).
 - Impossible vital signs are refused, never corrected. Systolic and diastolic pressure must be recorded together.
 - If someone else changed the appointment or visit a moment before you, your action is refused; the screen reloads so you can see the latest
   state.
@@ -442,6 +474,10 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 | Triage is not possible while the visit is in consultation (or completed…)                  | The consultation has started or the visit is closed                     | Record findings in the encounter instead                               |
 | A visit that is waiting (or in consultation, completed…) cannot be sent to a service point | Routing needs triage first, or the visit is with the provider or closed | Record triage, or leave the visit as it is                             |
 | The patient is already at that service point                                               | Nothing to change                                                       | Choose another service point                                           |
+| The visit has no route                                                                     | **Done here, send on** needs planned stops                              | **Plan route…** first, or use **Send to**                              |
+| The route is complete; the patient is at the last stop                                     | No stop is left                                                         | **Change next stops…** to add more, or **Send to**                     |
+| A stop cannot repeat the one before it                                                     | The same service point twice in a row, or the one the patient is at     | Remove the repeated stop                                               |
+| A step that is done (or skipped) cannot be skipped                                         | The step is finished                                                    | Nothing to do; plan further stops if needed                            |
 | … is no longer in use (service point)                                                      | The service point was deactivated                                       | Choose another, or ask an administrator to reactivate it               |
 | Service point code "…" is already in use at this facility                                  | Codes are unique per facility                                           | Choose another code                                                    |
 | … was modified by someone else (expected version …). Reload and try again.                 | Another user changed it first                                           | The screen refreshes; check and try again                              |
