@@ -43,6 +43,7 @@ import { ProcedureSuppliesService } from "./procedures/procedure-supplies.servic
 import { ClinicProcedureController } from "./procedures/procedure.controller";
 import { ClinicProcedureService } from "./procedures/procedure.service";
 import { ServicePointService } from "./config/service-point.service";
+import { VisitRouteService } from "./queue/visit-route.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
@@ -105,6 +106,7 @@ export class ClinicModule {
         WaitlistOffersService,
         WaitlistNotices,
         ServicePointService,
+        VisitRouteService,
         TriageService,
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },

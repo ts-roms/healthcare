@@ -28,7 +28,12 @@ import {
   CreateServicePointDto,
   UpdateServicePointDto,
   ServicePointsQueryDto,
+  ServicePointSettingsQueryDto,
+  UpdateServicePointSettingsDto,
   RouteVisitDto,
+  PlanRouteDto,
+  AdvanceRouteDto,
+  SkipRouteStepDto,
   CreateVisitTypeDto,
   UpdateVisitTypeDto,
   CreateWaitlistDto,
@@ -58,6 +63,7 @@ import { ClinicConfigService } from "./config/clinic-config.service";
 import { ServicePointService } from "./config/service-point.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
+import { VisitRouteService } from "./queue/visit-route.service";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -101,9 +107,23 @@ export class ClinicConfigController {
 
   @Patch("service-points/:servicePointId")
   @RequirePermissions("clinic.configure")
-  @ApiOperation({ summary: "Rename a service point, change its kind, deactivate or reactivate it (the code never changes; audited)" })
+  @ApiOperation({ summary: "Rename a service point, change its kind or location, deactivate or reactivate it (the code never changes; audited)" })
   updateServicePoint(@CurrentActor() actor: Actor, @Param("servicePointId", ParseUUIDPipe) id: string, @Body() body: UpdateServicePointDto) {
     return this.servicePoints.update(actor, id, body);
+  }
+
+  @Get("service-point-settings")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "A facility's routing settings (migration 0115): whether a route sending a patient on calls them automatically" })
+  servicePointSettings(@CurrentActor() actor: Actor, @Query() query: ServicePointSettingsQueryDto) {
+    return this.servicePoints.getSettings(actor, query.facilityId);
+  }
+
+  @Put("service-point-settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set a facility's routing settings (audited)" })
+  updateServicePointSettings(@CurrentActor() actor: Actor, @Body() body: UpdateServicePointSettingsDto) {
+    return this.servicePoints.updateSettings(actor, body);
   }
 
   @Get("waitlist-rules")
@@ -361,6 +381,7 @@ export class AppointmentController {
 export class QueueController {
   constructor(
     private readonly visits: VisitService,
+    private readonly routes: VisitRouteService,
     private readonly triage: TriageService,
   ) {}
 
@@ -421,6 +442,40 @@ export class QueueController {
   @ApiOperation({ summary: "The visit's moves between service points, oldest first" })
   routing(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string) {
     return this.visits.routingHistory(actor, id);
+  }
+
+  // ---- visit routes (migration 0115) -----------------------------------------------------------------------
+
+  @Get("visits/:visitId/route")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "The visit's route: its planned stops in order, with each step's progress" })
+  routePlan(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string) {
+    return this.routes.route(actor, id);
+  }
+
+  @Put("visits/:visitId/route-plan")
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Set the stops still ahead of the visit (replaces the planned ones; the current step stays)" })
+  planRoute(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: PlanRouteDto) {
+    return this.routes.plan(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route/next")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({
+    summary: "Done here, send on: finish the current step and send the patient to the next planned service point (called there when the facility asks)",
+  })
+  advanceRoute(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: AdvanceRouteDto) {
+    return this.routes.advance(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route/skip")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Skip a planned step, or the current one (the patient then moves on); a reason is required" })
+  skipRouteStep(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: SkipRouteStepDto) {
+    return this.routes.skip(actor, id, body);
   }
 
   @Post("visits/:visitId/assign")

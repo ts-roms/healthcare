@@ -254,8 +254,46 @@ export const servicePoint = pgTable("service_point", {
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  /** What the waiting-room display says when a route sends a patient here (migration 0115); the name when null. */
+  location: text("location"),
 });
 export type ServicePointRecord = typeof servicePoint.$inferSelect;
+
+/** Per-facility routing settings (migration 0115); a facility without a row calls nobody automatically. */
+export const servicePointSetting = pgTable("service_point_setting", {
+  facilityId: uuid("facility_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  autoCallOnRoute: boolean("auto_call_on_route").notNull().default(false),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type ServicePointSettingRecord = typeof servicePointSetting.$inferSelect;
+
+export const ROUTE_STEP_STATUSES = ["planned", "current", "done", "skipped", "removed"] as const;
+export type RouteStepStatus = (typeof ROUTE_STEP_STATUSES)[number];
+
+/**
+ * One planned stop of a visit's route (migration 0115): the planning never changes; the step's progress moves forward
+ * only (planned → current → done, skipped with a reason, or removed from the plan before it is reached; trigger).
+ */
+export const visitRouteStep = pgTable("visit_route_step", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  visitId: uuid("visit_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  position: integer("position").notNull(),
+  servicePointId: uuid("service_point_id").notNull(),
+  status: text("status").$type<RouteStepStatus>().notNull().default("planned"),
+  plannedBy: uuid("planned_by").notNull(),
+  plannedAt: ts("planned_at").notNull().defaultNow(),
+  startedAt: ts("started_at"),
+  completedAt: ts("completed_at"),
+  completedBy: uuid("completed_by"),
+  note: text("note"),
+});
+export type VisitRouteStepRecord = typeof visitRouteStep.$inferSelect;
 
 /** One move of a visit between service points (from null = the consultation line it started on); append-only. */
 export const visitRouting = pgTable("visit_routing", {

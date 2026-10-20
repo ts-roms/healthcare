@@ -4,8 +4,8 @@ import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, 
 import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
-import type { createServicePointSchema, updateServicePointSchema } from "../clinic.dto";
-import { servicePoint, type ServicePointKind, type ServicePointRecord } from "../clinic.schema";
+import type { createServicePointSchema, updateServicePointSchema, updateServicePointSettingsSchema } from "../clinic.dto";
+import { servicePoint, type ServicePointKind, type ServicePointRecord, servicePointSetting } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 
 export type ServicePointView = Omit<ServicePointRecord, "organizationId">;
@@ -16,9 +16,19 @@ export interface ServicePointBrief {
   code: string;
   name: string;
   kind: ServicePointKind;
+  /** What the display says when a route sends a patient here (migration 0115); the name when null. */
+  location: string | null;
 }
 
-const FIELDS = ["name", "kind", "status"] as const;
+/** A facility's routing settings (migration 0115); `version` is null while the facility uses the defaults. */
+export interface ServicePointSettingsView {
+  facilityId: string;
+  autoCallOnRoute: boolean;
+  version: number | null;
+  updatedAt: Date | null;
+}
+
+const FIELDS = ["name", "kind", "status", "location"] as const;
 
 /**
  * The organization's own service points per facility (docs/domains/clinic.md, "Service points"; migration 0113,
@@ -109,10 +119,56 @@ export class ServicePointService {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return new Map();
     const rows = await executor
-      .select({ id: servicePoint.id, code: servicePoint.code, name: servicePoint.name, kind: servicePoint.kind })
+      .select({ id: servicePoint.id, code: servicePoint.code, name: servicePoint.name, kind: servicePoint.kind, location: servicePoint.location })
       .from(servicePoint)
       .where(and(eq(servicePoint.organizationId, organizationId), inArray(servicePoint.id, unique)));
     return new Map(rows.map((r) => [r.id, r]));
+  }
+
+  // ---- routing settings per facility (migration 0115) ----------------------------------------------------
+
+  /** A facility's routing settings; the defaults (nothing called automatically) without a row. */
+  async settings(organizationId: string, facilityId: string, executor: DbExecutor = this.db): Promise<ServicePointSettingsView> {
+    const [row] = await executor
+      .select()
+      .from(servicePointSetting)
+      .where(and(eq(servicePointSetting.organizationId, organizationId), eq(servicePointSetting.facilityId, facilityId)));
+    return { facilityId, autoCallOnRoute: row?.autoCallOnRoute ?? false, version: row?.version ?? null, updatedAt: row?.updatedAt ?? null };
+  }
+
+  async getSettings(actor: Actor, facilityId: string): Promise<ServicePointSettingsView> {
+    await this.organizations.getFacility(actor.organizationId, facilityId);
+    return this.settings(actor.organizationId, facilityId);
+  }
+
+  /** Sets a facility's routing settings (`version` is null while the facility still uses the defaults); audited. */
+  async updateSettings(actor: Actor, input: z.infer<typeof updateServicePointSettingsSchema>): Promise<ServicePointSettingsView> {
+    await this.organizations.getFacility(actor.organizationId, input.facilityId);
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(servicePointSetting)
+        .where(and(eq(servicePointSetting.organizationId, actor.organizationId), eq(servicePointSetting.facilityId, input.facilityId)))
+        .for("update");
+      if (current) assertVersion(current.version, input.version ?? current.version, "Routing settings");
+      const [row] = await tx
+        .insert(servicePointSetting)
+        .values({ facilityId: input.facilityId, organizationId: actor.organizationId, autoCallOnRoute: input.autoCallOnRoute, updatedBy: actor.userId })
+        .onConflictDoUpdate({
+          target: servicePointSetting.facilityId,
+          set: { autoCallOnRoute: input.autoCallOnRoute, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${servicePointSetting.version} + 1` },
+        })
+        .returning();
+      const saved = found(row, "Routing settings");
+      await this.audit.record(tx, actor, {
+        action: "service-point-setting.update",
+        resourceType: "service_point_setting",
+        resourceId: input.facilityId,
+        changes: { autoCallOnRoute: { from: current?.autoCallOnRoute ?? false, to: saved.autoCallOnRoute } },
+        metadata: { facilityId: input.facilityId },
+      });
+      return { facilityId: saved.facilityId, autoCallOnRoute: saved.autoCallOnRoute, version: saved.version, updatedAt: saved.updatedAt };
+    });
   }
 }
 

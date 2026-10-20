@@ -34,6 +34,7 @@ import { assertVersion, found, publicView } from "../clinic-support";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { ClinicConfigService } from "../config/clinic-config.service";
 import { type ServicePointBrief, ServicePointService } from "../config/service-point.service";
+import { loadRouteSteps, type RouteStepView, toRouteStepViews } from "./visit-route.queries";
 import type { PatientBookingContext } from "../appointments/patient-booking.service";
 import { onlineCheckInWindow } from "../domain/patient-booking";
 import { appointmentEvent } from "../appointments/appointment.service";
@@ -61,6 +62,8 @@ export interface QueueEntryView extends VisitView {
   modality: Modality;
   /** Where the visit is (migration 0113); null = the facility's consultation line. */
   servicePoint: ServicePointBrief | null;
+  /** The visit's route (migration 0115), in order; empty when none was planned. */
+  route: RouteStepView[];
 }
 
 /** One move of a visit between service points, oldest first (`GET /queue/visits/:id/routing`). */
@@ -355,10 +358,15 @@ export class VisitService {
           .where(and(eq(visitType.organizationId, actor.organizationId), inArray(visitType.id, typeIds)))
       : [];
     const modalityByType = new Map(types.map((t) => [t.id, t.modality]));
-    const servicePoints = await this.servicePoints.briefs(
+    const routes = await loadRouteSteps(
+      this.db,
       actor.organizationId,
-      rows.flatMap((r) => (r.servicePointId ? [r.servicePointId] : [])),
+      rows.map((r) => r.id),
     );
+    const servicePoints = await this.servicePoints.briefs(actor.organizationId, [
+      ...rows.flatMap((r) => (r.servicePointId ? [r.servicePointId] : [])),
+      ...[...routes.values()].flat().map((s) => s.servicePointId),
+    ]);
     const now = Date.now();
     await this.audit.recordStandalone(actor, {
       action: "queue.view",
@@ -371,6 +379,7 @@ export class VisitService {
       encounterId: encounterByVisit.get(row.id) ?? null,
       modality: modalityByType.get(row.visitTypeId) ?? "in_person",
       servicePoint: (row.servicePointId && servicePoints.get(row.servicePointId)) || null,
+      route: toRouteStepViews(routes.get(row.id) ?? [], servicePoints),
       waitingMinutes: Math.max(0, Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000)),
     }));
   }
@@ -542,6 +551,24 @@ export class VisitService {
       },
       queueEvent(result),
     );
+    return result;
+  }
+
+  /**
+   * Calls a locked, open visit to a place in the caller's transaction (a route sending the patient on, migration
+   * 0115): the same `called_at` / `called_to` as the board's call, audited `visit.call` with the given metadata, and
+   * the same queue update — so the waiting-room display shows and announces it with no change there.
+   */
+  async callIn(tx: DbExecutor, actor: Actor, row: VisitRecord, calledTo: string, metadata: Record<string, unknown>): Promise<VisitRecord> {
+    if (!ACTIVE_VISIT_STATUSES.includes(row.status)) throw new BusinessRuleError("The visit is closed", "visit_closed");
+    const [updated] = await tx
+      .update(visit)
+      .set({ calledAt: new Date(), calledTo, updatedAt: new Date(), version: sql`${visit.version} + 1` })
+      .where(eq(visit.id, row.id))
+      .returning();
+    const result = found(updated, "Visit");
+    await this.audit.record(tx, actor, { action: "visit.call", resourceType: "visit", resourceId: row.id, patientId: row.patientId, metadata });
+    await this.events.record(tx, queueEvent(result));
     return result;
   }
 
