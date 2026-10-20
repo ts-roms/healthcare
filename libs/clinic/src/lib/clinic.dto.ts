@@ -429,6 +429,13 @@ export class ListEncountersDto extends createZodDto(listEncountersSchema) {}
 export const dashboardQuerySchema = z.object({ date: z.iso.date().optional() });
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
 
+/** The days to count appointments and schedule slots for: local dates in the facility's zone, `from` included and `to` not, at most 62 days. */
+export const dashboardLoadQuerySchema = z
+  .object({ from: z.iso.date(), to: z.iso.date() })
+  .refine((v) => v.to > v.from, { message: "to must be after from", path: ["to"] })
+  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 62, { message: "Ask for at most 62 days", path: ["to"] });
+export class DashboardLoadQueryDto extends createZodDto(dashboardLoadQuerySchema) {}
+
 export type BookAppointmentInput = z.infer<typeof bookAppointmentSchema>;
 export type VitalsInput = z.infer<typeof vitalsSchema>;
 

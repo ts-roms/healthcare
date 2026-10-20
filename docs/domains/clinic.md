@@ -266,7 +266,7 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 `/clinic/{practitioners,rooms,visit-types,coding-systems,schedules,schedule-exceptions}`,
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
 `/clinic/service-points` (+ `:id`), `/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage,route,routing}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
-`/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
+`/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`, `/clinic/dashboard/load` (`clinic.dashboard.read`, facility; `from`/`to` local dates, at most 62 days: per day the appointments scheduled and holding a slot against the slots the schedules offer less leave and closures; counts only, for the dashboard's calendar and week).
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.

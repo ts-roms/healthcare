@@ -72,7 +72,7 @@ describe("queueFigures", () => {
       now,
     );
     expect(figures).toMatchObject({ inQueue: 4, done: 2, waiting: 3, withProvider: 1, averageWaitMinutes: 20 });
-    expect(figures.longestWait).toEqual({ minutes: 30, patientName: "SANTOS, Maria" });
+    expect(figures.longestWait).toEqual({ minutes: 30, patientName: "SANTOS, Maria", ticket: "A-007", priority: "routine" });
   });
 
   it("has no waits when nobody is waiting", () => {

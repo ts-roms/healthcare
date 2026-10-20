@@ -8,6 +8,7 @@ import type {
   RouteStep,
   ServicePoint,
   ServicePointKind,
+  VisitPriority,
   VisitStatus,
   VisitType,
 } from "./api/types";
@@ -86,7 +87,7 @@ export interface QueueFigures {
   waiting: number;
   withProvider: number;
   averageWaitMinutes: number | null;
-  longestWait: { minutes: number; patientName: string } | null;
+  longestWait: { minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null;
 }
 
 /** The figure tiles above the board, from the visits on it, as of `now` (waits tick without another request). */
@@ -96,8 +97,13 @@ export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFig
     .map((v) => ({
       minutes: Math.max(0, Math.floor((now.getTime() - new Date(v.checkedInAt).getTime()) / 60_000)),
       patientName: v.patient?.displayName ?? "Patient",
+      ticket: v.ticket,
+      priority: v.priority,
     }));
-  const longest = waits.reduce<{ minutes: number; patientName: string } | null>((best, w) => (best && best.minutes >= w.minutes ? best : w), null);
+  const longest = waits.reduce<{ minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null>(
+    (best, w) => (best && best.minutes >= w.minutes ? best : w),
+    null,
+  );
   return {
     inQueue: visits.filter((v) => ["waiting", "in_triage", "awaiting_consultation", "in_consultation"].includes(v.status)).length,
     done: visits.filter((v) => ["completed", "cancelled", "left_without_being_seen"].includes(v.status)).length,
