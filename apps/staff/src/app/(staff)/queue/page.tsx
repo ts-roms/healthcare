@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getServicePoints } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { QueueVisit } from "@/lib/api/types";
+import type { QueueVisit, ServicePointSettings } from "@/lib/api/types";
 import { QueueWorkspace } from "./queue-workspace";
 import { ServicePointSwitcher } from "./service-point-switcher";
 
@@ -34,6 +34,8 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
     query: { includeClosed: "true", ...(selectedServicePoint ? { servicePointId: selectedServicePoint.id } : {}) },
   });
   const canManage = can(session, "clinic.queue.manage");
+  // Whether a route sending a patient on calls them (migration 0115): the panel says so before the click.
+  const routing = servicePoints.length > 0 ? await api<ServicePointSettings>("/clinic/service-point-settings", { query: { facilityId: facility.id } }) : null;
   return (
     <>
       <PageHeader
@@ -62,6 +64,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
       <QueueWorkspace
         visits={visits}
         servicePoints={servicePoints}
+        autoCall={routing?.autoCallOnRoute ?? false}
         canManage={canManage}
         canTriage={can(session, "clinic.triage.write")}
         canOpenRecord={can(session, "patient.read")}

@@ -14,9 +14,10 @@ interface Form {
   code: string;
   name: string;
   kind: ServicePointKind;
+  location: string;
 }
 
-const EMPTY: Form = { code: "", name: "", kind: "consultation" };
+const EMPTY: Form = { code: "", name: "", kind: "consultation", location: "" };
 
 /** The facility's service points: add, rename, change the kind, deactivate or reactivate (the code never changes). */
 export function ServicePointList({ facilityId, servicePoints }: { facilityId: string; servicePoints: ServicePoint[] }) {
@@ -31,7 +32,11 @@ export function ServicePointList({ facilityId, servicePoints }: { facilityId: st
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) {
-      run(() => updateServicePoint(editing.id, { name: form.name, kind: form.kind, version: editing.version }), `${form.name.trim()} updated`, reset);
+      run(
+        () => updateServicePoint(editing.id, { name: form.name, kind: form.kind, location: form.location, version: editing.version }),
+        `${form.name.trim()} updated`,
+        reset,
+      );
     } else {
       run(() => createServicePoint({ facilityId, ...form }), `${form.name.trim()} added`, reset);
     }
@@ -51,6 +56,7 @@ export function ServicePointList({ facilityId, servicePoints }: { facilityId: st
               <TableHead>Service point</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Kind</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="sr-only">Actions</TableHead>
             </TableRow>
@@ -61,6 +67,7 @@ export function ServicePointList({ facilityId, servicePoints }: { facilityId: st
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell className="font-mono text-meta">{s.code}</TableCell>
                 <TableCell>{SERVICE_POINT_KIND_LABEL[s.kind]}</TableCell>
+                <TableCell>{s.location ?? <span className="text-muted-foreground">— (the name)</span>}</TableCell>
                 <TableCell>
                   {s.status === "active" ? (
                     <Badge variant="success">
@@ -79,7 +86,7 @@ export function ServicePointList({ facilityId, servicePoints }: { facilityId: st
                     disabled={pending}
                     onClick={() => {
                       setEditing(s);
-                      setForm({ code: s.code, name: s.name, kind: s.kind });
+                      setForm({ code: s.code, name: s.name, kind: s.kind, location: s.location ?? "" });
                     }}
                   >
                     <PencilIcon aria-hidden /> Edit
@@ -132,8 +139,19 @@ export function ServicePointList({ facilityId, servicePoints }: { facilityId: st
             ))}
           </NativeSelect>
         </div>
+        <div className="grid gap-1 sm:col-span-3">
+          <Label htmlFor="service-point-location">Location (what the display says)</Label>
+          <Input
+            id="service-point-location"
+            maxLength={60}
+            placeholder="e.g. Laboratory, 2nd floor"
+            value={form.location}
+            onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+          />
+        </div>
         <p className="text-meta text-muted-foreground sm:col-span-6">
-          The kind only labels and orders the service point on the queue and at triage; it adds no rule. The code cannot change once added.
+          The kind only labels and orders the service point on the queue and at triage; it adds no rule. The code cannot change once added. The location is what
+          the waiting-room display shows and reads out when a route sends a patient here; the name is used when it is empty.
         </p>
         <div className="flex gap-2 sm:col-span-6">
           <Button type="submit" size="sm" disabled={pending || form.name.trim().length < 1 || (!editing && form.code.trim().length < 2)}>

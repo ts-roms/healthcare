@@ -73,6 +73,8 @@ export const triageInputSchema = z.object({
   completeTriage: z.boolean(),
   /** Where the patient goes next (a service point of the facility); omitted = unchanged. */
   servicePointId: z.uuid().optional(),
+  /** The stops after that one (migration 0115), in order; only with `servicePointId`. */
+  route: z.array(z.uuid()).max(10).optional(),
 });
 export type TriageInput = z.input<typeof triageInputSchema>;
 

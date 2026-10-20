@@ -24,11 +24,13 @@ import {
 } from "@/lib/clinic-mapping";
 import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
 import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
-import { callVisit, moveVisit, routeVisit } from "./actions";
+import { advanceRoute, callVisit, moveVisit, planRoute, routeVisit, skipRouteStep } from "./actions";
+import { RoutePanel } from "./route-panel";
 
 export function QueueWorkspace({
   visits,
   servicePoints = [],
+  autoCall = false,
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
@@ -39,6 +41,8 @@ export function QueueWorkspace({
   visits: QueueVisit[];
   /** The facility's active service points (migration 0113); none = the single consultation line. */
   servicePoints?: ServicePoint[];
+  /** The facility calls the patient automatically when a route sends them on (migration 0115). */
+  autoCall?: boolean;
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
@@ -104,6 +108,7 @@ export function QueueWorkspace({
           key={`${selected.id}:${selected.version}`}
           visit={selected}
           servicePoints={servicePoints}
+          autoCall={autoCall}
           canManage={canManage}
           canTriage={mayTriage}
           canOpenRecord={canOpenRecord}
@@ -119,6 +124,13 @@ export function QueueWorkspace({
           onRoute={(servicePointId, name) =>
             run(() => routeVisit({ visitId: selected.id, servicePointId, version: selected.version }), `${selected.ticket} sent to ${name}`)
           }
+          onAdvance={(note) => run(() => advanceRoute({ visitId: selected.id, note, version: selected.version }), `${selected.ticket} sent on`)}
+          onSkip={(stepId, reason) =>
+            run(() => skipRouteStep({ visitId: selected.id, stepId, reason, version: selected.version }), `${selected.ticket}: step skipped`)
+          }
+          onPlan={(servicePointIds) =>
+            run(() => planRoute({ visitId: selected.id, servicePointIds, version: selected.version }), `${selected.ticket}: route saved`)
+          }
         />
       ) : (
         <p className="self-start rounded-lg border border-dashed p-4 text-body text-muted-foreground">
@@ -132,6 +144,7 @@ export function QueueWorkspace({
 function VisitPanel({
   visit,
   servicePoints,
+  autoCall,
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
@@ -143,9 +156,13 @@ function VisitPanel({
   onMove,
   onCall,
   onRoute,
+  onAdvance,
+  onSkip,
+  onPlan,
 }: {
   visit: QueueVisit;
   servicePoints: ServicePoint[];
+  autoCall: boolean;
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
@@ -157,6 +174,9 @@ function VisitPanel({
   onMove: (move: QueueMove, reason?: string) => void;
   onCall: (calledTo: string) => void;
   onRoute: (servicePointId: string, name: string) => void;
+  onAdvance: (note?: string) => void;
+  onSkip: (stepId: string, reason: string) => void;
+  onPlan: (servicePointIds: string[]) => void;
 }) {
   const [calledTo, setCalledTo] = React.useState(visit.calledTo ?? "");
   const [sendTo, setSendTo] = React.useState("");
@@ -255,6 +275,18 @@ function VisitPanel({
               <HandIcon /> Procedures
             </Link>
           </Button>
+        ) : null}
+        {open ? (
+          <RoutePanel
+            visit={visit}
+            servicePoints={servicePoints}
+            canManage={canManage}
+            autoCall={autoCall}
+            pending={pending}
+            onAdvance={onAdvance}
+            onSkip={onSkip}
+            onPlan={onPlan}
+          />
         ) : null}
         {canManage && open ? (
           <>

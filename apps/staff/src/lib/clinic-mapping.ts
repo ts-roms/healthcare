@@ -5,6 +5,7 @@ import type {
   Practitioner,
   PractitionerScheduleRow,
   QueueVisit,
+  RouteStep,
   ServicePoint,
   ServicePointKind,
   VisitStatus,
@@ -50,10 +51,12 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
     id: v.id,
     ticket: v.ticket,
     patientName: v.patient?.displayName ?? "Patient",
-    // Where the patient was called to, else what they are waiting for — and the service point they were sent to.
+    // Where the patient was called to, else what they are waiting for — the service point they were sent to, and the next stop of their route.
     station: v.calledTo
-      ? [`Called to ${v.calledTo}`, v.servicePoint?.name].filter(Boolean).join(" · ")
-      : [VISIT_STATUS_LABEL[v.status], v.servicePoint?.name, checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint].filter(Boolean).join(" · "),
+      ? [`Called to ${v.calledTo}`, v.servicePoint?.name, nextStopLabel(v.route)].filter(Boolean).join(" · ")
+      : [VISIT_STATUS_LABEL[v.status], v.servicePoint?.name, nextStopLabel(v.route), checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint]
+          .filter(Boolean)
+          .join(" · "),
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
     priority: v.priority === "routine" ? undefined : v.priority,
@@ -111,6 +114,29 @@ export const SERVICE_POINT_KIND_LABEL: Record<ServicePointKind, string> = {
 export function defaultServicePoint(servicePoints: ReadonlyArray<Pick<ServicePoint, "id" | "kind" | "status">>, currentId: string | null): string {
   if (currentId) return currentId;
   return servicePoints.find((s) => s.kind === "consultation" && s.status === "active")?.id ?? "";
+}
+
+// ---- Visit routes (migration 0115) ----------------------------------------------------------------------
+
+/** The step the visit is at, if it is at a step of its route. */
+export function currentRouteStep(route: readonly RouteStep[]): RouteStep | null {
+  return route.find((s) => s.status === "current") ?? null;
+}
+
+/** The next stop still ahead (the planned step with the lowest position). */
+export function nextRouteStep(route: readonly RouteStep[]): RouteStep | null {
+  return [...route].filter((s) => s.status === "planned").sort((a, b) => a.position - b.position)[0] ?? null;
+}
+
+/** A route with stops and none left: the patient is at (or past) the last one. */
+export function routeComplete(route: readonly RouteStep[]): boolean {
+  return route.length > 0 && route.every((s) => s.status === "done" || s.status === "skipped");
+}
+
+/** "next: X-ray" for queue cards; nothing without a next stop. */
+export function nextStopLabel(route: readonly RouteStep[]): string | null {
+  const next = nextRouteStep(route);
+  return next ? `next: ${next.servicePoint?.name ?? "service point"}` : null;
 }
 
 export function moveNeedsReason(move: QueueMove): boolean {

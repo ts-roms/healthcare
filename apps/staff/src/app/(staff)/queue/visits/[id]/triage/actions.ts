@@ -14,7 +14,7 @@ import { type TriageInput, triageInputSchema } from "@/lib/triage-form";
 export async function recordTriage(input: TriageInput, idempotencyKey?: string): Promise<ActionResult<{ visit: Visit }>> {
   const parsed = triageInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
-  const { visitId, notes, vitals, servicePointId, ...body } = parsed.data;
+  const { visitId, notes, vitals, servicePointId, route, ...body } = parsed.data;
   return actionResult(() =>
     api<{ visit: Visit }>(`/queue/visits/${visitId}/triage`, {
       method: "POST",
@@ -23,6 +23,7 @@ export async function recordTriage(input: TriageInput, idempotencyKey?: string):
         notes: notes || undefined,
         vitals: vitals && Object.keys(vitals).length > 0 ? vitals : undefined,
         servicePointId: servicePointId || undefined,
+        route: servicePointId && route?.length ? route : undefined,
       },
       idempotencyKey,
     }),

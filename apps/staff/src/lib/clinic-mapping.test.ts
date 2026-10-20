@@ -32,6 +32,7 @@ const visit: QueueVisit = {
   ticket: "A-007",
   queueNumber: 7,
   queueDate: "2026-09-27",
+  route: [],
   priority: "routine",
   status: "awaiting_consultation",
   chiefComplaint: "Fever",
@@ -72,9 +73,27 @@ describe("toQueueEntry", () => {
   });
 
   it("names the service point the patient was sent to", () => {
-    const er = { id: "sp-er", code: "er", name: "Emergency room", kind: "emergency" as const };
+    const er = { id: "sp-er", code: "er", name: "Emergency room", kind: "emergency" as const, location: null };
     expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er }).station).toBe("Ready for provider · Emergency room · Fever");
     expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er, calledTo: "Bed 3" }).station).toBe("Called to Bed 3 · Emergency room");
+  });
+
+  it("names the next stop of the route, never a finished or skipped one", () => {
+    const xray = { id: "sp-xray", code: "xray", name: "X-ray", kind: "imaging" as const, location: "X-ray, ground floor" };
+    const step = (id: string, position: number, status: "planned" | "current" | "done" | "skipped") => ({
+      id,
+      position,
+      status,
+      servicePointId: xray.id,
+      servicePoint: xray,
+      startedAt: null,
+      completedAt: null,
+      note: null,
+    });
+    expect(toQueueEntry({ ...visit, route: [step("s1", 1, "done"), step("s2", 2, "current"), step("s3", 3, "planned")] }).station).toBe(
+      "Ready for provider · next: X-ray · Fever",
+    );
+    expect(toQueueEntry({ ...visit, route: [step("s1", 1, "done"), step("s2", 2, "skipped")] }).station).toBe("Ready for provider · Fever");
   });
 });
 

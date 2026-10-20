@@ -422,10 +422,12 @@ export interface QueueVisit {
   /** Where the visit is (migration 0113); null = the facility's consultation line. */
   servicePointId: string | null;
   servicePoint: ServicePointBrief | null;
+  /** The visit's route (migration 0115), in order; empty when none was planned. */
+  route: RouteStep[];
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint" | "route">;
 
 // ---- Service points (migration 0113) -----------------------------------------------------------------
 
@@ -439,12 +441,45 @@ export interface ServicePoint {
   name: string;
   kind: ServicePointKind;
   status: "active" | "inactive";
+  /** What the waiting-room display says when a route sends a patient here (migration 0115); the name when null. */
+  location: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
 }
 
-export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind">;
+export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind" | "location">;
+
+/** `GET /clinic/service-point-settings` (migration 0115); `version` is null while the facility uses the defaults. */
+export interface ServicePointSettings {
+  facilityId: string;
+  autoCallOnRoute: boolean;
+  version: number | null;
+  updatedAt: string | null;
+}
+
+export type RouteStepStatus = "planned" | "current" | "done" | "skipped";
+
+/** One stop of a visit's route (migration 0115), as `GET /queue` rows and `GET /queue/visits/:id/route` list them. */
+export interface RouteStep {
+  id: string;
+  position: number;
+  status: RouteStepStatus;
+  servicePointId: string;
+  servicePoint: ServicePointBrief | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** The note left at "done here", or the reason for skipping. */
+  note: string | null;
+}
+
+/** What the route commands answer (`PUT …/route-plan`, `POST …/route/next`, `POST …/route/skip`). */
+export interface VisitRouteResult {
+  visit: Visit;
+  route: RouteStep[];
+  /** The patient was called to the next stop's location (the facility calls automatically). */
+  called: boolean;
+}
 
 /** `GET /queue/visits/:id/routing` row: one move between service points (from null = the consultation line). */
 export interface VisitRouting {
