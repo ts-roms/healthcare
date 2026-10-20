@@ -143,6 +143,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Integrations", href: "/admin/integrations" },
       { label: "Compliance", href: "/admin/compliance" },
       { label: "Consent wording", href: "/admin/consent-wording" },
+      { label: "Data privacy", href: "/admin/privacy" },
     ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },

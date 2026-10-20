@@ -28,6 +28,7 @@ import type {
 import {
   copySectionsForScope,
   daysWaiting,
+  fulfilmentRefusal,
   MAX_OPEN_RECORDS_REQUESTS,
   recordsRequestOpen,
   recordsRequestOverdue,
@@ -107,6 +108,7 @@ export class RecordsRequestService {
           organizationId: context.organizationId,
           patientId: context.patientId,
           requestNumber: `RR${String(counter.value).padStart(8, "0")}`,
+          kind: input.kind,
           scope: [...new Set(input.scope)],
           periodFrom: input.periodFrom ?? null,
           periodTo: input.periodTo ?? null,
@@ -122,7 +124,7 @@ export class RecordsRequestService {
         resourceType: "records_request",
         resourceId: request.id,
         patientId: context.patientId,
-        metadata: { requestNumber: request.requestNumber, scope: request.scope },
+        metadata: { requestNumber: request.requestNumber, kind: request.kind, scope: request.scope },
       });
       await this.events.record(tx, requestEvent("RecordsRequestSubmitted", request));
       return request;
@@ -167,6 +169,7 @@ export class RecordsRequestService {
     return rows.map((r) => ({
       id: r.id,
       requestNumber: r.requestNumber,
+      kind: r.kind,
       scope: r.scope,
       periodFrom: r.periodFrom,
       periodTo: r.periodTo,
@@ -335,6 +338,8 @@ export class RecordsRequestService {
         if (setting?.identityCheckRequired && !input.identityCheckMethod) {
           throw new BusinessRuleError("Record how you confirmed the requester's identity before sharing", "identity_check_required");
         }
+        const refusal = fulfilmentRefusal(current.kind, documentIds.length, input.note);
+        if (refusal) throw new BusinessRuleError(refusal, "answer_incomplete");
         for (const documentId of documentIds) {
           // Ordinary documents only (a domain that manages its documents shares them itself), of this patient, available.
           const doc = await this.documents.get(actor, documentId).catch(() => undefined);
@@ -343,15 +348,17 @@ export class RecordsRequestService {
             throw new BusinessRuleError("Share only available documents from this patient's record", "document_not_shareable", { documentId });
           }
         }
-        await tx.insert(recordsRequestDocument).values(
-          documentIds.map((documentId) => ({
-            organizationId: actor.organizationId,
-            requestId,
-            patientId: current.patientId,
-            documentId,
-            sharedBy: actor.userId,
-          })),
-        );
+        if (documentIds.length) {
+          await tx.insert(recordsRequestDocument).values(
+            documentIds.map((documentId) => ({
+              organizationId: actor.organizationId,
+              requestId,
+              patientId: current.patientId,
+              documentId,
+              sharedBy: actor.userId,
+            })),
+          );
+        }
         const identity = input.identityCheckMethod
           ? { identityCheckMethod: input.identityCheckMethod, identityCheckedBy: actor.userId, identityCheckedAt: new Date() }
           : {};

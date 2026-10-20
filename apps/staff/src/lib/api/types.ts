@@ -3922,10 +3922,14 @@ export type RecordsRequestScope = "consultations" | "laboratory" | "prescription
 export type RecordsRequestStatus = "submitted" | "in_review" | "fulfilled" | "declined" | "withdrawn";
 
 /** GET /records-requests */
+/** What the patient asks (migration 0114): copies, a correction, erasure or blocking, or an objection to a use. */
+export type RecordsRequestKind = "access" | "rectification" | "erasure" | "objection";
+
 export interface RecordsRequest {
   id: string;
   patientId: string;
   requestNumber: string;
+  kind: RecordsRequestKind;
   scope: RecordsRequestScope[];
   periodFrom: string | null;
   periodTo: string | null;
@@ -3962,6 +3966,56 @@ export interface RecordsRequestDetail extends RecordsRequest {
 
 export type RecordCopySection =
   "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations" | "history";
+
+// ---- Data privacy: the breach register and privacy settings (migration 0114) ---------------------------
+
+export type PrivacyDataCategory = "identifiers" | "contact" | "health" | "financial" | "credentials" | "other";
+export type PrivacyAssessment = "pending" | "notifiable" | "not_notifiable";
+export type PrivacyEntryKind = "reported" | "note" | "containment" | "assessment" | "npc_notified" | "subjects_notified" | "closed";
+
+/** `GET /privacy/setting`: the organization's own notification window and its DPO as named. */
+export interface PrivacySetting {
+  breachNotificationHours: number;
+  dpoName: string | null;
+  dpoContact: string | null;
+  /** 0 when never set. */
+  version: number;
+  updatedAt: string | null;
+}
+
+/** `GET /privacy/incidents` row. */
+export interface PrivacyIncident {
+  id: string;
+  incidentNumber: string;
+  title: string;
+  description: string;
+  discoveredAt: string;
+  occurredAt: string | null;
+  dataCategories: PrivacyDataCategory[];
+  affectedEstimate: number | null;
+  notifyBy: string;
+  status: "open" | "closed";
+  assessment: PrivacyAssessment;
+  assessmentReason: string | null;
+  assessedAt: string | null;
+  npcNotifiedAt: string | null;
+  npcReference: string | null;
+  subjectsNotifiedAt: string | null;
+  subjectsNotificationMethod: string | null;
+  closedAt: string | null;
+  closureNote: string | null;
+  reportedBy: string;
+  createdAt: string;
+  version: number;
+  notificationPending: boolean;
+  notificationOverdue: boolean;
+  /** Hours left in the window (negative once passed); null when none is pending. */
+  hoursLeft: number | null;
+}
+
+export interface PrivacyIncidentDetail extends PrivacyIncident {
+  entries: Array<{ id: string; kind: PrivacyEntryKind; note: string; recordedBy: string; recordedAt: string }>;
+}
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {

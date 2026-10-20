@@ -2,10 +2,11 @@ import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { KeyRoundIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { IdleSignOut } from "@/components/idle-sign-out";
 import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
 import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
-import { COOKIES } from "@/lib/api/config";
+import { COOKIES, STAFF_IDLE_MINUTES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
 import { loadManual } from "@/lib/manual-content";
 import type { StaffBadges } from "@/lib/api/types";
@@ -54,6 +55,8 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       badges={badges}
       manualChapters={manualChapters}
     >
+      {/* Shared clinic computers: sign out after a period without activity (STAFF_IDLE_MINUTES; 0 turns it off). */}
+      <IdleSignOut minutes={STAFF_IDLE_MINUTES} />
       {/* Until the member replaces a temporary password, or sets up the two-step verification their organization requires, the API opens nothing else. */}
       {session.user.passwordChangeRequired ? (
         <ChooseNewPassword />

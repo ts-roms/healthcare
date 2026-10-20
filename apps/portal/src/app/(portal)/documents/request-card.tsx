@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2Icon, CircleSlashIcon, ClockIcon, FileTextIcon, XCircleIcon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
 import type { PortalRecordsRequest } from "@/lib/api/types";
-import { requestOpen, requestState, type RequestTone, SCOPE_TEXT } from "@/lib/documents";
+import { KIND_TEXT, requestOpen, requestState, type RequestTone, SCOPE_TEXT } from "@/lib/documents";
 import { formatCalendarDate } from "@/lib/greeting";
 import { withdrawRecordsRequest } from "./actions";
 import { OpenFile } from "./open-file";
@@ -21,12 +21,16 @@ export function RequestCard({ request }: { request: PortalRecordsRequest }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
-  const state = requestState(request.status);
+  const kind = request.kind ?? "access";
+  const state = requestState(request.status, kind);
   const { className, Icon } = TONE[state.tone];
   return (
     <article className="flex flex-col gap-2 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-semibold">{request.scope.map((s) => SCOPE_TEXT[s]).join(", ")}</h3>
+        <h3 className="font-semibold">
+          {kind === "access" ? "" : `${KIND_TEXT[kind].label}: `}
+          {request.scope.map((s) => SCOPE_TEXT[s]).join(", ")}
+        </h3>
         <span className="text-meta text-muted-foreground">
           {request.requestNumber} · sent {formatCalendarDate(request.submittedAt.slice(0, 10))}
         </span>
@@ -47,7 +51,9 @@ export function RequestCard({ request }: { request: PortalRecordsRequest }) {
       </span>
       {request.responseNote ? (
         <p className="rounded-lg bg-muted/60 p-2 text-body">
-          <span className="font-medium">{request.status === "declined" ? "Reason: " : "From the records office: "}</span>
+          <span className="font-medium">
+            {request.status === "declined" ? "Reason: " : kind === "access" ? "From the records office: " : "What the clinic did: "}
+          </span>
           {request.responseNote}
         </p>
       ) : null}

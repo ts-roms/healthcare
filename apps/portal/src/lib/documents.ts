@@ -1,4 +1,4 @@
-import type { PortalRecordsRequestStatus, PortalRecordsScope, PortalReferral } from "./api/types";
+import type { PortalRecordsKind, PortalRecordsRequestStatus, PortalRecordsScope, PortalReferral } from "./api/types";
 import { formatCalendarDate } from "./greeting";
 
 /** What a patient may ask copies of, in their words. */
@@ -12,16 +12,36 @@ export const SCOPE_TEXT: Record<PortalRecordsScope, string> = {
   other: "Something else",
 };
 
+/** The kinds of request a patient may send, in their words (the rights of the Data Privacy Act, as the clinic answers them). */
+export const KIND_TEXT: Record<PortalRecordsKind, { label: string; help: string; details: string }> = {
+  access: { label: "Copies of my records", help: "The clinic shares copies with you here.", details: "Details" },
+  rectification: {
+    label: "Correct something in my records",
+    help: "Say what is wrong and what it should be. The clinic checks and tells you what it changed.",
+    details: "What is wrong, and what it should be",
+  },
+  erasure: {
+    label: "Remove or block some of my data",
+    help: "Say which data and why. Medical records may have to be kept by law; the clinic tells you what it can do.",
+    details: "Which data, and why",
+  },
+  objection: {
+    label: "Object to a use of my data",
+    help: "Say which use you object to (for example reminders or outreach). You can also change your message settings and consents yourself.",
+    details: "Which use, and why",
+  },
+};
+
 export type RequestTone = "waiting" | "done" | "declined" | "closed";
 
-export function requestState(status: PortalRecordsRequestStatus): { tone: RequestTone; text: string } {
+export function requestState(status: PortalRecordsRequestStatus, kind: PortalRecordsKind = "access"): { tone: RequestTone; text: string } {
   switch (status) {
     case "submitted":
       return { tone: "waiting", text: "Sent — waiting for the records office" };
     case "in_review":
       return { tone: "waiting", text: "The records office is working on it" };
     case "fulfilled":
-      return { tone: "done", text: "Answered — your copies are below" };
+      return { tone: "done", text: kind === "access" ? "Answered — your copies are below" : "Answered — see what the clinic did below" };
     case "declined":
       return { tone: "declined", text: "Not granted — see the reason" };
     case "withdrawn":

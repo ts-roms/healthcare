@@ -98,11 +98,12 @@ unset, so a variable left empty in the dashboard does not stop start-up. Require
 
 ### staff
 
-| Variable       | Value                                                                                                                                                          |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`     | `production` (sets `Secure` session cookies)                                                                                                                   |
-| `API_BASE_URL` | `http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}/api/v1`. Set `PORT` explicitly on `api` (e.g. `8080`) so it can be referenced.                           |
-| `REALTIME_URL` | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}/realtime`. **Required.** The default derives from `API_BASE_URL`, which is a private address the browser cannot reach. |
+| Variable             | Value                                                                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`           | `production` (sets `Secure` session cookies)                                                                                                                     |
+| `API_BASE_URL`       | `http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}/api/v1`. Set `PORT` explicitly on `api` (e.g. `8080`) so it can be referenced.                             |
+| `REALTIME_URL`       | `https://${{api.RAILWAY_PUBLIC_DOMAIN}}/realtime`. **Required.** The default derives from `API_BASE_URL`, which is a private address the browser cannot reach.   |
+| `STAFF_IDLE_MINUTES` | Minutes without activity before the staff app signs the browser out (default `20`; `0` turns it off). The organization's own choice for shared clinic computers. |
 
 ### portal
 

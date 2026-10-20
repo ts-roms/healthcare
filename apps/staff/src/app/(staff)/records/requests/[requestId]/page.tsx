@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { RecordsRequestDetail, RecordsRequestSetting } from "@/lib/api/types";
-import { periodText, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
+import { periodText, RECORDS_KIND_BADGE, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
+import { RECORDS_KIND_HINT } from "@/lib/privacy-mapping";
 import { RecordCopyCard } from "./record-copy";
 import { RequestAnswer } from "./request-answer";
 
@@ -71,7 +72,12 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
               </p>
             ) : null}
             <p>
-              <span className="text-muted-foreground">Asked for: </span>
+              <span className="text-muted-foreground">Request: </span>
+              <Badge variant={RECORDS_KIND_BADGE[request.kind ?? "access"].variant}>{RECORDS_KIND_BADGE[request.kind ?? "access"].label}</Badge>
+              <span className="block text-meta text-muted-foreground">{RECORDS_KIND_HINT[request.kind ?? "access"]}</span>
+            </p>
+            <p>
+              <span className="text-muted-foreground">{request.kind && request.kind !== "access" ? "About: " : "Asked for: "}</span>
               {request.scope.map((s) => RECORDS_SCOPE_LABEL[s]).join(", ")}
             </p>
             <p>
@@ -124,7 +130,7 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
             </CardContent>
           </Card>
         )}
-        <RecordCopyCard request={request} open={open} />
+        {(request.kind ?? "access") === "access" ? <RecordCopyCard request={request} open={open} /> : null}
       </div>
     </>
   );

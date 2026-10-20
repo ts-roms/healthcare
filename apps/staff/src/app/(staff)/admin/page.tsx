@@ -18,6 +18,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "/admin/integrations": "Outbound exchanges that failed or stalled.",
   "/admin/compliance": "Your organization's own compliance configuration and who validated it.",
   "/admin/consent-wording": "The wording patients agree to when they give consent online.",
+  "/admin/privacy": "The personal data breach register, your notification window and your Data Protection Officer.",
 };
 
 /** The administration pages open to the signed-in user (the same list as the menu). */

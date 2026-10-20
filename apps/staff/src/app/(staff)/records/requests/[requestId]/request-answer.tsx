@@ -26,6 +26,9 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
       } else toast.error(result.message ?? "Something went wrong.");
     });
   const toggle = (id: string) => setChosen((prev) => (prev.has(id) ? new Set([...prev].filter((x) => x !== id)) : new Set([...prev, id])));
+  // Copies are answered by sharing documents; a correction, erasure or objection by saying what was done (documents optional).
+  const copies = (request.kind ?? "access") === "access";
+  const answerReady = copies ? chosen.size > 0 : note.trim().length >= 3;
 
   return (
     <Card>
@@ -45,7 +48,9 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1 text-table font-medium">Documents to share from the patient&apos;s record</legend>
+          <legend className="mb-1 text-table font-medium">
+            {copies ? "Documents to share from the patient's record" : "Documents to share (optional, e.g. a corrected certificate)"}
+          </legend>
           {request.available.length === 0 ? (
             <p className="text-meta text-muted-foreground">
               No documents in the record yet. Upload the copies to the{" "}
@@ -69,7 +74,7 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
           ))}
         </fieldset>
         <div className="grid gap-1">
-          <Label htmlFor="share-note">Note to the patient (optional)</Label>
+          <Label htmlFor="share-note">{copies ? "Note to the patient (optional)" : "What was done, in words the patient will read *"}</Label>
           <Textarea id="share-note" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
         <div className="grid gap-1">
@@ -84,7 +89,7 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={pending || chosen.size === 0 || (identityCheckRequired && identity.trim().length < 3)}
+            disabled={pending || !answerReady || (identityCheckRequired && identity.trim().length < 3)}
             onClick={() =>
               run(
                 () =>
@@ -95,11 +100,11 @@ export function RequestAnswer({ request, identityCheckRequired }: { request: Rec
                     identityCheckMethod: identity.trim() || undefined,
                     version: request.version,
                   }),
-                "Shared — the patient can download the documents in MyHealth",
+                copies ? "Shared — the patient can download the documents in MyHealth" : "Answered — the patient reads your note in MyHealth",
               )
             }
           >
-            Share {chosen.size ? `${chosen.size} document${chosen.size === 1 ? "" : "s"}` : "documents"}
+            {copies ? `Share ${chosen.size ? `${chosen.size} document${chosen.size === 1 ? "" : "s"}` : "documents"}` : "Answer request"}
           </Button>
           {!declining ? (
             <Button variant="ghost" onClick={() => setDeclining(true)}>

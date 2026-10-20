@@ -4,3 +4,6 @@ export * from "./lib/organization.schema";
 export * from "./lib/organization.service";
 export * from "./lib/compliance/compliance.schema";
 export * from "./lib/compliance/compliance-review.service";
+export * from "./lib/privacy/privacy.schema";
+export * from "./lib/privacy/privacy.rules";
+export * from "./lib/privacy/privacy-incident.service";

@@ -107,8 +107,10 @@ outside.
 
 ## How to answer a patient's records request
 
-Patients ask for copies of their records in MyHealth (**Documents**). You need `patient.records-request.manage` (records officers and organization
-administrators). You get a message under the bell for each new request.
+Patients ask for copies of their records in MyHealth (**Documents**) — and, since the same screen covers their Data Privacy Act rights, they may also ask
+for a **correction**, for **erasure or blocking** of some data, or **object to a use** of it. You need `patient.records-request.manage` (records
+officers and organization administrators). You get a message under the bell for each new request. The list and the request show the kind as a
+badge (**Copies**, **Correction**, **Erasure / blocking**, **Objection**).
 
 1. Open **Records** → **Requests**. Open requests are listed oldest first, with how long each has waited.
 2. Open one to see what the patient asked for (consultation records, laboratory results, prescriptions, dental records, X-rays and images,
@@ -123,6 +125,11 @@ administrators). You get a message under the bell for each new request.
    **Documents to share** (including a copy of the record you prepared), add a **Note to the patient** if useful, and select **Share**. The patient
    downloads them in MyHealth.
 7. To decline: select **Decline…**, write the reason in words the patient will read, and select **Decline request**.
+8. For a **correction**, **erasure / blocking** or **objection**: first do what your procedure allows through the ordinary screens — correct the
+   patient's details, mark an entry as made in error, archive a document with a reason, change the patient's message settings or record a consent
+   withdrawal — then write **What was done** in words the patient will read and select **Answer request** (documents are optional; a corrected
+   certificate, for example). The platform never changes or deletes a record because a request was made, and medical records may have to be kept
+   by law: say so in your answer when you cannot erase. Decline with a reason when your procedure does not allow what was asked.
 
 If your organization requires it, write **How the requester's identity was confirmed** before sharing; sharing is refused without it.
 

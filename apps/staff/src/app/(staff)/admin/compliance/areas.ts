@@ -29,8 +29,8 @@ export const COMPLIANCE_AREAS: Record<ComplianceArea, { label: string; covers: s
   },
   data_privacy: {
     label: "Data privacy",
-    covers: "Document retention periods and the records-request procedure (response time, identity check, notice)",
-    href: "/records/retention",
+    covers: "The breach register and notification window, the Data Protection Officer, document retention periods and the records-request procedure",
+    href: "/admin/privacy",
   },
   dental_estimates: {
     label: "Dental written estimates",

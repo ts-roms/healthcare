@@ -294,6 +294,10 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
   create, edit (optimistic lock) or inactivate a facility; add departments.
+- `/admin/privacy` (`privacy.incident.manage`): the personal data breach register (open, closed, all; record an incident) and the organization's
+  privacy settings (notification window, DPO); `/admin/privacy/[incidentId]`: the incident, its trail and the steps to record (note or containment,
+  assessment, NPC notified, affected people told, close). Server actions in `admin/privacy/actions.ts`; labels in `lib/privacy-mapping.ts`. The
+  staff layout mounts `IdleSignOut` (`STAFF_IDLE_MINUTES`, [access control](../security/access-control.md#idle-sign-out-staff-app)).
 - `/admin/service-points` (`clinic.configure`; facility selected in the top bar): the facility's service points (migration `0113`) — add (code,
   name, kind), rename or change the kind, deactivate and reactivate (optimistic lock; `admin/service-points/actions.ts`). The queue board (`/queue`)
   filters by service point through `?servicePoint=` (`service-point-switcher.tsx`; the API's `GET /queue?servicePointId=`), the ticket panel shows

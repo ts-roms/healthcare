@@ -34,6 +34,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
     "compliance.review.manage",
     "consent.wording.manage",
     "clinic.configure",
+    "privacy.incident.manage",
   ],
 };
 
@@ -72,6 +73,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/admin/integrations": ["integration.exchange.manage"],
   "/admin/compliance": ["compliance.review.manage"],
   "/admin/consent-wording": ["consent.wording.manage"],
+  "/admin/privacy": ["privacy.incident.manage"],
 };
 
 /**

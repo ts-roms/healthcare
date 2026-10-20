@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { RecordsRequest } from "@/lib/api/types";
-import { periodText, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
+import { periodText, RECORDS_KIND_BADGE, RECORDS_SCOPE_LABEL, RECORDS_STATUS, waitingText } from "@/lib/records-mapping";
 
 export const metadata = { title: "Records requests" };
 
@@ -29,7 +29,7 @@ export default async function RecordsRequestsPage({ searchParams }: { searchPara
     <>
       <PageHeader
         title="Records requests"
-        description="Patients ask in MyHealth for copies of their records. Check the request, then share documents from the patient's record or decline with a reason the patient will read. Follow your organization's Data Privacy Act procedures for what to release and when."
+        description="Patients ask in MyHealth for copies of their records, for a correction, for erasure or blocking, or object to a use of their data. Check the request, answer it (share documents, or say what was done) or decline with a reason the patient will read. Follow your organization's Data Privacy Act procedures for what to release, change and when."
       />
       <div className="flex flex-col gap-3 p-4">
         <nav aria-label="View" className="flex flex-wrap gap-1">
@@ -78,6 +78,9 @@ export default async function RecordsRequestsPage({ searchParams }: { searchPara
                       )}
                     </TableCell>
                     <TableCell className="text-meta">
+                      <Badge variant={RECORDS_KIND_BADGE[r.kind ?? "access"].variant} className="mr-1">
+                        {RECORDS_KIND_BADGE[r.kind ?? "access"].label}
+                      </Badge>
                       {r.scope.map((s) => RECORDS_SCOPE_LABEL[s]).join(", ")}
                       <span className="block text-muted-foreground">{periodText(r.periodFrom, r.periodTo, (d) => clinicalDate(`${d}T12:00:00Z`))}</span>
                     </TableCell>

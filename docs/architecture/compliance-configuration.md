@@ -65,7 +65,7 @@ Compliance) links each area to its settings.
   diagnosis time plus the days), kept even if the rule changes, and is **overdue** while still pending review, queued,
   failed or rejected past it. Shown on the rules table and the case report list. No DOH deadline is suggested.
 
-## Data Privacy Act: retention and records requests
+## Data Privacy Act: retention, records requests and the breach register
 
 - **Retention** (`document_retention_policy`, `libs/documents`): the organization's retention period (years) per document
   category, with where it comes from (its schedule, issuance or advice); setting a new period ends the previous one
@@ -81,6 +81,29 @@ Compliance) links each area to its settings.
   asking (fees, identification, how answers are given — in the organization's words). `GET|PUT /records-requests/setting`
   (read: `patient.records-request.manage`; write also `organization.manage`; audited `patient.records-request.setting`).
   Staff `/records/requests/settings` ("Your procedure"); the answer form asks how identity was confirmed.
+- **Kinds of request** (migration `0114`): besides copies (`access`), a patient may ask for a `rectification`, an
+  `erasure` (or blocking) or record an `objection` to a use of their data — the rights of RA 10173 as the
+  organization's procedure answers them. Such a request must say what it is about (details ≥ 10 characters); the
+  records office answers with a note of what was done (documents optional) or declines with a reason. The platform
+  changes or deletes nothing on a request: corrections, "entered in error", archival and preference changes go through
+  their own screens first. Rules in `libs/patient/src/lib/records-requests/records-request.rules.ts`
+  (`fulfilmentRefusal`).
+- **Privacy settings and the breach register** (`privacy_setting`, `privacy_incident`, `privacy_incident_entry`;
+  `libs/organization/src/lib/privacy`; permission `privacy.incident.manage`, org_admin): the organization's own
+  breach-notification window in hours from discovery (default 72, the NPC circular's figure, **as a reference the DPO
+  confirms**) and its Data Protection Officer's name and contact (shown to patients in MyHealth, `GET /portal/privacy`).
+  Each incident (`PI########`): title, description, discovery and (if known) occurrence time, the kinds of personal data
+  involved, an estimate of those affected, `notify_by` from the window in force when recorded; an append-only trail of
+  entries (reported, note, containment, assessment, NPC notified, affected people told, closed); the assessment
+  (notifiable or not, with the reason); the NPC notification with its reference and the notification of the affected
+  people with its method, each recorded once and never before the discovery; closure only after assessment, with a
+  note. The API counts the hours left and flags `notificationOverdue` while a notification is pending (open, not
+  assessed as not notifiable, no NPC notification recorded); it decides nothing and notifies no one. Routes
+  `GET|PUT /privacy/setting`, `GET|POST /privacy/incidents`, `GET /privacy/incidents/:id`, `POST
+/privacy/incidents/:id/{entries,assess,npc-notification,subjects-notification,close}`; audited `privacy.setting.update`,
+  `privacy.incident.record | note | assess | npc-notified | subjects-notified | close | list | view`; events
+  `PrivacyIncidentRecorded`, `PrivacyIncidentClosed` (ids and status only). Staff **Administration → Data privacy**
+  (`/admin/privacy`, `/admin/privacy/[id]`). See [data privacy act](../security/data-privacy-act.md).
 
 ## Dental written estimates
 
