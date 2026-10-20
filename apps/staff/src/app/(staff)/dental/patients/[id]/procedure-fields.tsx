@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { surfaceName, toothLabel, type ToothNotation, type ToothSurface, toothSurfaces } from "@healthcare/domain";
 import { Input, Label, NativeSelect, ToggleGroup, ToggleGroupItem } from "@healthcare/ui/primitives";
 import type { DentalProcedureType } from "@/lib/api/types";
@@ -112,8 +111,4 @@ export function selectionComplete(selection: ProcedureSelection, type: DentalPro
 export function itemLabel(name: string, tooth: string | null, surfaces: readonly string[], notation: ToothNotation): string {
   if (!tooth) return name;
   return `${name} — ${toothLabel(tooth, notation)}${surfaces.length ? ` ${surfaces.join("")}` : ""}`;
-}
-
-export function useProcedureTypes(types: DentalProcedureType[]) {
-  return React.useMemo(() => types.filter((t) => t.status === "active"), [types]);
 }

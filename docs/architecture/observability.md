@@ -67,7 +67,7 @@ also carries `traceId` and `spanId` when telemetry is on.
   exists, through `DocumentsService.probeStorage`). Railway probes `/ready` (`apps/api/railway.json`).
 
 **Workers** — no HTTP server by default. With `HEALTH_PORT` set, each worker serves `GET /live` and `GET /ready`
-(database required, Redis reported) on that port and nothing else (`apps/*-worker/src/health.ts`,
+(database required, Redis reported) on that port and nothing else (`startWorkerHealth` and
 `startHealthServer` in `libs/core`), so the platform can restart a stalled consumer, not only a crashed one. On
 Railway this needs the worker to listen on the port Railway assigns and a `healthcheckPath` in its `railway.json` —
 not yet set up or verified there.

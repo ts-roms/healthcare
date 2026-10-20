@@ -4,7 +4,6 @@ import { FhirImportError, IMPORT_LIMITS, parseImport } from "./inbound-validatio
 
 // The official FHIR R4 JSON schema (dev dependency), to hold the samples to the specification as well.
 type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
   ajv: { compile(schema: object): Validate };
   schema: { $schema: string; definitions: object };

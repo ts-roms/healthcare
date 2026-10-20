@@ -2,24 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  DateInput,
-  Label,
-  NativeSelect,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Label, NativeSelect } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
 import { PageHeader } from "@/components/page-header";
+import { SimpleTable } from "@/components/simple-table";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { ManagementDashboard } from "@/lib/api/types";
@@ -577,33 +563,5 @@ function Section({ title, definition, children }: { title: string; definition?: 
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function SimpleTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][]; empty: string }) {
-  if (rows.length === 0) return <p className="text-table text-muted-foreground">{empty}</p>;
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {head.map((h, i) => (
-            <TableHead key={`${h}-${i}`} className={i === 0 ? undefined : "text-right"}>
-              {h}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row, r) => (
-          <TableRow key={r}>
-            {row.map((cell, i) => (
-              <TableCell key={i} className={i === 0 ? undefined : "tabular text-right"}>
-                {cell}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   );
 }

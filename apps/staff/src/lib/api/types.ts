@@ -8,10 +8,6 @@
 
 import type { ToothFinding, ToothNotation, ToothSurface } from "@healthcare/domain";
 
-export interface ApiErrorBody {
-  error: { code: string; message: string; details?: unknown; requestId?: string };
-}
-
 export interface TokenResponse {
   status: "authenticated";
   accessToken: string;

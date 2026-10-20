@@ -100,11 +100,6 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
   return status;
 }
 
-/** Live queue updates (see useLiveUpdates). */
-export function useLiveQueue(onRefresh?: () => void): LiveStatus {
-  return useLiveUpdates(QUEUE_EVENTS, onRefresh);
-}
-
 /**
  * Keeps a screen current: live updates when the socket is up, polling
  * otherwise. `onTick` runs on every tick and every live refresh (e.g. to

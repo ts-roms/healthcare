@@ -28,7 +28,6 @@ import type { FhirContext, PatientRecordSource } from "./sources";
 // The official FHIR R4 (4.0) JSON schema, bundled by this validator (dev dependency). Each resource is checked against
 // its own type's definition (the umbrella schema's oneOf reports every other resource type as a mismatch).
 type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
   ajv: { compile(schema: object): Validate };
   schema: { $schema: string; definitions: object };

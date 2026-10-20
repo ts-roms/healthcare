@@ -59,11 +59,6 @@ export function slotsByPartOfDay(slots: Slot[], timeZone: string): Array<{ label
   return groups.filter((g) => g.slots.length > 0);
 }
 
-/** Only facilities where the chosen practitioner works (or all, for "any doctor"). */
-export function practitionersAt(options: BookingOptions, facilityId: string | null) {
-  return options.facilities.find((f) => f.id === facilityId)?.practitioners ?? [];
-}
-
 /** The platform's defaults, for before a clinic is chosen. */
 export const DEFAULT_RULES: BookingRulesView = {
   minLeadMinutes: 120,

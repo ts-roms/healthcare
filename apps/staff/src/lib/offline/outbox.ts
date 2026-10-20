@@ -8,7 +8,6 @@ import type { VitalsPayload } from "../triage-form";
  * whatever it refuses is parked for a person to resolve — never merged or retried blindly.
  */
 
-export type OfflineActionKind = "register" | "walk_in" | "triage";
 export type OfflineActionStatus = "waiting" | "replaying" | "done" | "parked";
 
 /** A patient as the offline screen knows them: registered offline (an action id) or an existing patient number. */

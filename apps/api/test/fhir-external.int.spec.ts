@@ -2,7 +2,6 @@ import { as, auditRows, createClinician, createStaff, createTenant, createTestAp
 
 // The official FHIR R4 JSON schema (bundled by this dev dependency); each resource is checked against its own type.
 type Validate = ((data: unknown) => boolean) & { errors?: Array<{ dataPath?: string }> | null };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
   ajv: { compile(schema: object): Validate };
   schema: { $schema: string; definitions: object };

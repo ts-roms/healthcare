@@ -152,12 +152,6 @@ export function overdueMinutes(item: Pick<LabOrderItem, "turnaroundMinutes" | "s
   return late > 0 ? late : null;
 }
 
-/** One-line patient identification for worklists: name, number, age in years. */
-export function patientLine(patient: { patientNumber: string; displayName: string; sex: string; age: number } | null): string {
-  if (!patient) return "Patient";
-  return `${patient.displayName} · ${patient.patientNumber} · ${patient.age} y`;
-}
-
 // ---- Send-outs to reference laboratories ----------------------------------------------------------
 
 export const SEND_OUT_STATUS_LABEL: Record<LabSendOutStatus, string> = {

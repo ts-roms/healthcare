@@ -253,7 +253,6 @@ export const vitalsSchema = z
       ),
     { message: "Record at least one measurement" },
   );
-export class VitalsDto extends createZodDto(vitalsSchema) {}
 
 export const recordVitalsSchema = z.object({
   patientId: z.string().uuid(),

@@ -3,7 +3,6 @@ import { extractPdfText } from "@healthcare/pdf";
 import { as, auditRows, createClinician, createStaff, createTenant, createTestApp, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
 
 type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
   ajv: { compile(schema: object): Validate };
   schema: { $schema: string; definitions: object };
