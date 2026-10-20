@@ -91,11 +91,7 @@
     "rxjs": "^7.8.0",
     "tslib": "^2.3.0",
     "@healthcare/core": "workspace:*",
-    "@healthcare/audit": "workspace:*",
     "@healthcare/interoperability": "workspace:*",
     "@healthcare/philhealth": "workspace:*"
-  },
-  "devDependencies": {
-    "@nestjs/testing": "^11.0.0"
   }
 }

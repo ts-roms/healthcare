@@ -92,8 +92,5 @@
     "tslib": "^2.3.0",
     "@healthcare/core": "workspace:*",
     "@healthcare/notification": "workspace:*"
-  },
-  "devDependencies": {
-    "@nestjs/testing": "^11.0.0"
   }
 }
