@@ -11,6 +11,23 @@ D4 and D13 in [mobile-app.md](../architecture/mobile-app.md):
 
 Nothing here has been run against Expo's or the stores' services yet: no EAS build or submission exists. What was verified is listed at the end.
 
+## Distributing an APK directly (without Google Play)
+
+For a pilot, a demo, or an LGU facility that hands phones out, the organization may serve the Android build itself:
+
+1. Build an APK (an EAS `preview` build with `buildType: apk`, or a local build) signed with the organization's key.
+2. Put it at `apps/portal/public/downloads/myhealth.apk` (the folder is served as-is by MyHealth at `/downloads/myhealth.apk`) and deploy
+   MyHealth, or host the file elsewhere over https.
+3. Set `MOBILE_APP_ANDROID_URL=/downloads/myhealth.apk` on the `portal` **and** `staff` services (an absolute https link also works). The
+   MyHealth sign-in page then shows **Get the MyHealth app** with a QR code labelled **Android app (APK)**, and the staff landing page's
+   **MyHealth, on the phone** section shows the same code; both resolve the path to the full MyHealth address (`PORTAL_BASE_URL`).
+4. Tell patients the phone will ask to allow installing from this source, and that iPhone users use MyHealth in the browser until the App
+   Store listing exists (`MOBILE_APP_IOS_URL`).
+
+A sideloaded app gets no store updates: publish a new APK and tell users, or move to the stores. Keep the signing key safe: a different key
+cannot update an installed app. The repository holds no APK (`apps/portal/public/downloads/` has only a README); add the file in the
+deployment, or commit it deliberately knowing its size.
+
 ## What is in the repository
 
 | File                        | What it holds                                                                                                                          |

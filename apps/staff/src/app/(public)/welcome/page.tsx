@@ -236,16 +236,8 @@ export default function WelcomePage() {
           </div>
         </section>
 
-        {/* MyHealth on the phone: QR codes to the organization's store listings (or MyHealth on the web until published). */}
-        <section id="myhealth" className="scroll-mt-16 border-b">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-start lg:py-20">
-            <SectionHeading eyebrow="For patients" title="MyHealth, on the phone">
-              Patients see their visits, released results, prescriptions, bills and messages in MyHealth, the patient portal. Point a phone&apos;s camera at the
-              code to get it. Accounts are activated at the clinic with a one-time code.
-            </SectionHeading>
-            <MyHealthDownload className="rounded-2xl border bg-card p-6" />
-          </div>
-        </section>
+        {/* MyHealth on the phone: QR codes to the organization's store listings (or MyHealth on the web until published); nothing when unconfigured. */}
+        <MyHealthDownload />
 
         {/* Call to action */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
