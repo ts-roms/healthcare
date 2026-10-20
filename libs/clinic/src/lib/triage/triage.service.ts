@@ -70,6 +70,10 @@ export class TriageService {
         current = await this.visits.setStatus(tx, current, "in_triage", { ...details, triageStartedAt: current.triageStartedAt ?? new Date() });
       }
       current = await this.visits.setStatus(tx, current, input.completeTriage ? "awaiting_consultation" : "in_triage", details);
+      // Where the patient goes next (migration 0113): routed in the same transaction; the current service point is kept silently.
+      if (input.servicePointId && input.servicePointId !== current.servicePointId) {
+        current = await this.visits.routeIn(tx, actor, current, input.servicePointId);
+      }
 
       const triage = found(assessment, "Triage assessment");
       await this.audit.record(tx, actor, {
@@ -77,7 +81,7 @@ export class TriageService {
         resourceType: "triage_assessment",
         resourceId: triage.id,
         patientId: current.patientId,
-        metadata: { visitId, priority: input.priority, riskFlags: input.riskFlags, vitalsId: vitals?.id },
+        metadata: { visitId, priority: input.priority, riskFlags: input.riskFlags, vitalsId: vitals?.id, servicePointId: current.servicePointId },
       });
       await this.events.record(tx, {
         type: "TriageCompleted",

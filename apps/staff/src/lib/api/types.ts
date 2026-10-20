@@ -419,10 +419,42 @@ export interface QueueVisit {
   encounterId: string | null;
   /** From the visit type; an online visit is started from Telemedicine. */
   modality: "in_person" | "telemedicine";
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePointId: string | null;
+  servicePoint: ServicePointBrief | null;
 }
 
-/** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
+/** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint">;
+
+// ---- Service points (migration 0113) -----------------------------------------------------------------
+
+export type ServicePointKind = "consultation" | "emergency" | "imaging" | "other";
+
+/** `GET /clinic/service-points` row: a queue line of the facility as the organization names it. */
+export interface ServicePoint {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  kind: ServicePointKind;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind">;
+
+/** `GET /queue/visits/:id/routing` row: one move between service points (from null = the consultation line). */
+export interface VisitRouting {
+  id: string;
+  from: ServicePointBrief | null;
+  to: ServicePointBrief | null;
+  routedBy: string;
+  reason: string | null;
+  routedAt: string;
+}
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 

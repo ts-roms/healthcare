@@ -294,6 +294,12 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
   create, edit (optimistic lock) or inactivate a facility; add departments.
+- `/admin/service-points` (`clinic.configure`; facility selected in the top bar): the facility's service points (migration `0113`) — add (code,
+  name, kind), rename or change the kind, deactivate and reactivate (optimistic lock; `admin/service-points/actions.ts`). The queue board (`/queue`)
+  filters by service point through `?servicePoint=` (`service-point-switcher.tsx`; the API's `GET /queue?servicePointId=`), the ticket panel shows
+  the service point and offers **Send to** (`routeVisit` → `POST /queue/visits/:id/route`) for visits in triage or awaiting consultation, and the
+  triage form ends with **Send to** (`servicePointId` on the triage call; `defaultServicePoint` in `lib/clinic-mapping.ts` starts it on the visit's
+  own service point, else the first consultation one). See [clinic.md](../domains/clinic.md#service-points).
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on

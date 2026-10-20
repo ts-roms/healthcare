@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientSummaryResponse, Visit } from "@/lib/api/types";
+import type { PatientDetail, PatientSummaryResponse, ServicePoint, Visit } from "@/lib/api/types";
 import { canTriage, visitStatusLabel } from "@/lib/clinic-mapping";
 import { toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 import { TriageForm } from "./triage-form";
@@ -40,9 +40,11 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
   const visit = await load<Visit>(`/queue/visits/${id}`);
   if (visit.facilityId !== facility.id) notFound();
   // Allergies and alerts must be visible at triage (clinic rules); they need clinical access.
-  const [patient, summary] = await Promise.all([
+  const [patient, summary, servicePoints] = await Promise.all([
     load<PatientDetail>(`/patients/${visit.patientId}`),
     can(session, "clinical.read") ? load<PatientSummaryResponse>(`/patients/${visit.patientId}/summary`) : Promise.resolve(null),
+    // Inactive ones too: the visit may already be at a service point that was deactivated since.
+    api<ServicePoint[]>("/clinic/service-points", { query: { facilityId: facility.id, includeInactive: "true" } }),
   ]);
   const latest = summary?.latestVitals[0];
   const banner = toBannerPatient(patient, summary?.allergies);
@@ -54,8 +56,15 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
       {canTriage(visit.status) ? (
         <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <TriageForm
-            visit={{ id: visit.id, ticket: visit.ticket, chiefComplaint: visit.chiefComplaint ?? "", priority: visit.priority }}
+            visit={{
+              id: visit.id,
+              ticket: visit.ticket,
+              chiefComplaint: visit.chiefComplaint ?? "",
+              priority: visit.priority,
+              servicePointId: visit.servicePointId ?? null,
+            }}
             patientId={visit.patientId}
+            servicePoints={servicePoints.filter((s) => s.status === "active" || s.id === visit.servicePointId)}
           />
           <aside className="flex flex-col gap-3 self-start">
             {summary ? (

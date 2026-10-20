@@ -3,8 +3,10 @@ import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api
 import {
   referralRecipient,
   appointmentActions,
+  canRouteVisit,
   canStartConsultation,
   canTriage,
+  defaultServicePoint,
   groupByPractitioner,
   groupByRoom,
   moveNeedsReason,
@@ -39,6 +41,8 @@ const visit: QueueVisit = {
   encounterId: null,
   modality: "in_person",
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
+  servicePointId: null,
+  servicePoint: null,
 };
 
 describe("toQueueEntry", () => {
@@ -62,6 +66,35 @@ describe("toQueueEntry", () => {
 
   it("shows where a called patient should go, and non-routine priority", () => {
     expect(toQueueEntry({ ...visit, calledTo: "Room 2", priority: "emergency" })).toMatchObject({ station: "Called to Room 2", priority: "emergency" });
+  });
+
+  it("names the service point the patient was sent to", () => {
+    const er = { id: "sp-er", code: "er", name: "Emergency room", kind: "emergency" as const };
+    expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er }).station).toBe("Ready for provider · Emergency room · Fever");
+    expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er, calledTo: "Bed 3" }).station).toBe("Called to Bed 3 · Emergency room");
+  });
+});
+
+describe("service points", () => {
+  const points = [
+    { id: "sp-xray", kind: "imaging" as const, status: "active" as const },
+    { id: "sp-opd", kind: "consultation" as const, status: "inactive" as const },
+    { id: "sp-opd2", kind: "consultation" as const, status: "active" as const },
+  ];
+
+  it("routes only from in triage or awaiting consultation, as the API does", () => {
+    expect(canRouteVisit("waiting")).toBe(false);
+    expect(canRouteVisit("in_triage")).toBe(true);
+    expect(canRouteVisit("awaiting_consultation")).toBe(true);
+    expect(canRouteVisit("in_consultation")).toBe(false);
+    expect(canRouteVisit("completed")).toBe(false);
+  });
+
+  it("starts the triage picker on the visit's own service point, else the first active consultation line, else none", () => {
+    expect(defaultServicePoint(points, "sp-xray")).toBe("sp-xray");
+    expect(defaultServicePoint(points, null)).toBe("sp-opd2");
+    expect(defaultServicePoint([points[0]!], null)).toBe("");
+    expect(defaultServicePoint([], null)).toBe("");
   });
 });
 

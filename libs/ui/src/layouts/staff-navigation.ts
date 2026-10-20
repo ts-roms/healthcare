@@ -138,6 +138,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Sign-in security", href: "/admin/security" },
       { label: "Roles", href: "/admin/roles" },
       { label: "Facilities", href: "/admin/facilities" },
+      { label: "Service points", href: "/admin/service-points" },
       { label: "Audit log", href: "/admin/audit" },
       { label: "Integrations", href: "/admin/integrations" },
       { label: "Compliance", href: "/admin/compliance" },

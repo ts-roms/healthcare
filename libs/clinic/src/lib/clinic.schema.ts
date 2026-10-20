@@ -235,6 +235,43 @@ export const waitlistOffer = pgTable("waitlist_offer", {
 
 export type WaitlistOfferRecord = typeof waitlistOffer.$inferSelect;
 
+export const SERVICE_POINT_KINDS = ["consultation", "emergency", "imaging", "other"] as const;
+export type ServicePointKind = (typeof SERVICE_POINT_KINDS)[number];
+
+/**
+ * A queue line of a facility the organization defines itself — the consultation line, the emergency room, X-ray …
+ * (migration 0113, ADR-0014). The kind only labels and orders it in the staff app.
+ */
+export const servicePoint = pgTable("service_point", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  kind: text("kind").$type<ServicePointKind>().notNull(),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type ServicePointRecord = typeof servicePoint.$inferSelect;
+
+/** One move of a visit between service points (from null = the consultation line it started on); append-only. */
+export const visitRouting = pgTable("visit_routing", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  visitId: uuid("visit_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  fromServicePointId: uuid("from_service_point_id"),
+  toServicePointId: uuid("to_service_point_id").notNull(),
+  routedBy: uuid("routed_by").notNull(),
+  reason: text("reason"),
+  routedAt: ts("routed_at").notNull().defaultNow(),
+});
+export type VisitRoutingRecord = typeof visitRouting.$inferSelect;
+
 export const facilityQueueCounter = pgTable(
   "facility_queue_counter",
   {
@@ -270,6 +307,8 @@ export const visit = pgTable("visit", {
   closedReason: text("closed_reason"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  /** Where the visit is now (migration 0113); null = the facility's consultation line. */
+  servicePointId: uuid("service_point_id"),
 });
 
 export const triageAssessment = pgTable("triage_assessment", {

@@ -33,6 +33,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
     "integration.exchange.manage",
     "compliance.review.manage",
     "consent.wording.manage",
+    "clinic.configure",
   ],
 };
 
@@ -66,6 +67,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/admin/security": ["user.read"],
   "/admin/roles": ["user.read"],
   "/admin/facilities": ["organization.read"],
+  "/admin/service-points": ["clinic.configure"],
   "/admin/audit": ["audit.read"],
   "/admin/integrations": ["integration.exchange.manage"],
   "/admin/compliance": ["compliance.review.manage"],

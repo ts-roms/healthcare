@@ -18,17 +18,29 @@ import {
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
-import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, walkInSchema } from "../clinic.dto";
-import { appointment, encounter, facilityQueueCounter, type Modality, visit, type VisitRecord, visitType, type VisitStatus } from "../clinic.schema";
+import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, routeVisitSchema, walkInSchema } from "../clinic.dto";
+import {
+  appointment,
+  encounter,
+  facilityQueueCounter,
+  type Modality,
+  visit,
+  type VisitRecord,
+  visitRouting,
+  visitType,
+  type VisitStatus,
+} from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { ClinicConfigService } from "../config/clinic-config.service";
+import { type ServicePointBrief, ServicePointService } from "../config/service-point.service";
 import type { PatientBookingContext } from "../appointments/patient-booking.service";
 import { onlineCheckInWindow } from "../domain/patient-booking";
 import { appointmentEvent } from "../appointments/appointment.service";
 import { canApply } from "../domain/appointment-state";
 import {
   ACTIVE_VISIT_STATUSES,
+  canRouteVisit,
   canTransition,
   compareQueueOrder,
   type QueueDisplayCall,
@@ -47,6 +59,18 @@ export interface QueueEntryView extends VisitView {
   encounterId: string | null;
   /** From the visit type: an online visit is started from Telemedicine, not with an ordinary consultation. */
   modality: Modality;
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePoint: ServicePointBrief | null;
+}
+
+/** One move of a visit between service points, oldest first (`GET /queue/visits/:id/routing`). */
+export interface VisitRoutingView {
+  id: string;
+  from: ServicePointBrief | null;
+  to: ServicePointBrief | null;
+  routedBy: string;
+  reason: string | null;
+  routedAt: Date;
 }
 
 /** The waiting-room display (migration 0112): no patient detail, no visit id, no priority. */
@@ -72,7 +96,14 @@ export function queueEvent(row: VisitRecord) {
     aggregateId: row.id,
     facilityId: row.facilityId,
     patientId: row.patientId,
-    payload: { status: row.status, queueNumber: row.queueNumber, queueDate: row.queueDate, priority: row.priority, calledTo: row.calledTo },
+    payload: {
+      status: row.status,
+      queueNumber: row.queueNumber,
+      queueDate: row.queueDate,
+      priority: row.priority,
+      calledTo: row.calledTo,
+      servicePointId: row.servicePointId,
+    },
   };
 }
 
@@ -87,6 +118,7 @@ export class VisitService {
     private readonly config: ClinicConfigService,
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
     private readonly bookingRules: BookingRulesService,
+    private readonly servicePoints: ServicePointService,
   ) {}
 
   async walkIn(actor: Actor, input: z.infer<typeof walkInSchema>): Promise<VisitView> {
@@ -291,13 +323,17 @@ export class VisitService {
     return toVisitView(row);
   }
 
-  /** Today's queue (or another date) for the actor's facility, in service order. */
-  async queue(actor: Actor, options: { date?: string; includeClosed?: boolean }): Promise<QueueEntryView[]> {
+  /**
+   * Today's queue (or another date) for the actor's facility, in service order; with `servicePointId`, only the
+   * visits at that service point (the same order — a service point's queue is the facility queue filtered to it).
+   */
+  async queue(actor: Actor, options: { date?: string; includeClosed?: boolean; servicePointId?: string }): Promise<QueueEntryView[]> {
     const facilityId = requireFacilityId(actor);
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
     const date = options.date ?? localDate(new Date(), facility.timezone);
     const conditions = [eq(visit.organizationId, actor.organizationId), eq(visit.facilityId, facilityId), eq(visit.queueDate, date)];
     if (!options.includeClosed) conditions.push(inArray(visit.status, [...ACTIVE_VISIT_STATUSES]));
+    if (options.servicePointId) conditions.push(eq(visit.servicePointId, options.servicePointId));
     const rows = await this.db
       .select()
       .from(visit)
@@ -319,13 +355,22 @@ export class VisitService {
           .where(and(eq(visitType.organizationId, actor.organizationId), inArray(visitType.id, typeIds)))
       : [];
     const modalityByType = new Map(types.map((t) => [t.id, t.modality]));
+    const servicePoints = await this.servicePoints.briefs(
+      actor.organizationId,
+      rows.flatMap((r) => (r.servicePointId ? [r.servicePointId] : [])),
+    );
     const now = Date.now();
-    await this.audit.recordStandalone(actor, { action: "queue.view", resourceType: "visit", metadata: { facilityId, date, count: rows.length } });
+    await this.audit.recordStandalone(actor, {
+      action: "queue.view",
+      resourceType: "visit",
+      metadata: { facilityId, date, count: rows.length, ...(options.servicePointId ? { servicePointId: options.servicePointId } : {}) },
+    });
     return rows.sort(compareQueueOrder).map((row) => ({
       ...toVisitView(row),
       patient: patients.get(row.patientId) ?? null,
       encounterId: encounterByVisit.get(row.id) ?? null,
       modality: modalityByType.get(row.visitTypeId) ?? "in_person",
+      servicePoint: (row.servicePointId && servicePoints.get(row.servicePointId)) || null,
       waitingMinutes: Math.max(0, Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000)),
     }));
   }
@@ -384,6 +429,45 @@ export class VisitService {
     });
   }
 
+  /**
+   * Sends the visit to a service point of its facility (migration 0113): from the queue board, after triage. The
+   * move is one row of the visit's routing history, written with the change.
+   */
+  async route(actor: Actor, visitId: string, input: z.infer<typeof routeVisitSchema>): Promise<VisitView> {
+    return this.db.transaction(async (tx) => {
+      const current = await this.lock(tx, actor.organizationId, visitId);
+      if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError("Visit");
+      assertVersion(current.version, input.version, "Visit");
+      if (current.servicePointId === input.servicePointId) {
+        throw new BusinessRuleError("The patient is already at that service point", "already_at_service_point");
+      }
+      return toVisitView(await this.routeIn(tx, actor, current, input.servicePointId, input.reason));
+    });
+  }
+
+  /** The visit's moves between service points, oldest first, with the service points' names. */
+  async routingHistory(actor: Actor, visitId: string): Promise<VisitRoutingView[]> {
+    const current = await this.find(this.db, actor.organizationId, visitId);
+    if (actor.facilityId && current.facilityId !== actor.facilityId) throw new NotFoundError("Visit");
+    const rows = await this.db
+      .select()
+      .from(visitRouting)
+      .where(and(eq(visitRouting.organizationId, actor.organizationId), eq(visitRouting.visitId, visitId)))
+      .orderBy(visitRouting.routedAt, visitRouting.id);
+    const briefs = await this.servicePoints.briefs(
+      actor.organizationId,
+      rows.flatMap((r) => [r.toServicePointId, ...(r.fromServicePointId ? [r.fromServicePointId] : [])]),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      from: (r.fromServicePointId && briefs.get(r.fromServicePointId)) || null,
+      to: briefs.get(r.toServicePointId) ?? null,
+      routedBy: r.routedBy,
+      reason: r.reason,
+      routedAt: r.routedAt,
+    }));
+  }
+
   async assign(actor: Actor, visitId: string, input: z.infer<typeof assignVisitSchema>): Promise<VisitView> {
     if (input.practitionerId) await this.config.requireActivePractitioner(actor.organizationId, input.practitionerId);
     return this.update(actor, visitId, input.version, (current) => {
@@ -404,6 +488,61 @@ export class VisitService {
       .where(and(eq(visit.organizationId, organizationId), eq(visit.id, visitId)))
       .for("update");
     return found(row, "Visit");
+  }
+
+  /**
+   * Routes a locked visit to an active service point of its facility in the caller's transaction (triage, or the
+   * route command): appends the routing row, moves the visit, audits `visit.route` and records `VisitRouted` with the
+   * queue update. The caller decides whether an unchanged target is a refusal (the command) or nothing to do (triage).
+   */
+  async routeIn(tx: DbExecutor, actor: Actor, row: VisitRecord, servicePointId: string, reason?: string): Promise<VisitRecord> {
+    if (!canRouteVisit(row.status)) {
+      throw new BusinessRuleError(`A visit that is ${row.status.replace(/_/g, " ")} cannot be sent to a service point`, "visit_not_routable");
+    }
+    const target = await this.servicePoints.requireActive(tx, actor.organizationId, row.facilityId, servicePointId);
+    const [routing] = await tx
+      .insert(visitRouting)
+      .values({
+        organizationId: actor.organizationId,
+        facilityId: row.facilityId,
+        visitId: row.id,
+        patientId: row.patientId,
+        fromServicePointId: row.servicePointId,
+        toServicePointId: target.id,
+        routedBy: actor.userId,
+        reason: reason ?? null,
+      })
+      .returning();
+    const routingId = found(routing, "Visit routing").id;
+    const [updated] = await tx
+      .update(visit)
+      .set({ servicePointId: target.id, updatedAt: new Date(), version: sql`${visit.version} + 1` })
+      .where(eq(visit.id, row.id))
+      .returning();
+    const result = found(updated, "Visit");
+    await this.audit.record(tx, actor, {
+      action: "visit.route",
+      resourceType: "visit",
+      resourceId: row.id,
+      patientId: row.patientId,
+      reason,
+      changes: { servicePointId: { from: row.servicePointId, to: target.id } },
+      metadata: { routingId, toCode: target.code },
+    });
+    await this.events.record(
+      tx,
+      {
+        type: "VisitRouted",
+        organizationId: row.organizationId,
+        aggregateType: "visit",
+        aggregateId: row.id,
+        facilityId: row.facilityId,
+        patientId: row.patientId,
+        payload: { routingId, fromServicePointId: row.servicePointId, toServicePointId: target.id },
+      },
+      queueEvent(result),
+    );
+    return result;
   }
 
   /** Applies a status change decided by another workflow step (triage, encounter start/sign). */

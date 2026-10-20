@@ -71,6 +71,8 @@ export const triageInputSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
   vitals: z.record(z.string(), z.number()).optional(),
   completeTriage: z.boolean(),
+  /** Where the patient goes next (a service point of the facility); omitted = unchanged. */
+  servicePointId: z.uuid().optional(),
 });
 export type TriageInput = z.input<typeof triageInputSchema>;
 

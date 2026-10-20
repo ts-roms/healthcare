@@ -1,5 +1,5 @@
 import type { Appointment, AppointmentStatus, QueueEntry, QueueStatus } from "@healthcare/domain";
-import type { AppointmentItem, AppointmentStatusApi, Practitioner, QueueVisit, VisitStatus, VisitType } from "./api/types";
+import type { AppointmentItem, AppointmentStatusApi, Practitioner, QueueVisit, ServicePoint, ServicePointKind, VisitStatus, VisitType } from "./api/types";
 
 /**
  * Adapters from the clinic API to the design system's queue board and
@@ -40,10 +40,10 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
     id: v.id,
     ticket: v.ticket,
     patientName: v.patient?.displayName ?? "Patient",
-    // Where the patient was called to, else what they are waiting for.
+    // Where the patient was called to, else what they are waiting for — and the service point they were sent to.
     station: v.calledTo
-      ? `Called to ${v.calledTo}`
-      : [VISIT_STATUS_LABEL[v.status], checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint].filter(Boolean).join(" · "),
+      ? [`Called to ${v.calledTo}`, v.servicePoint?.name].filter(Boolean).join(" · ")
+      : [VISIT_STATUS_LABEL[v.status], v.servicePoint?.name, checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint].filter(Boolean).join(" · "),
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
     priority: v.priority === "routine" ? undefined : v.priority,
@@ -80,6 +80,27 @@ export function canTriage(status: VisitStatus): boolean {
 /** A consultation can start from any active status before it (`libs/clinic` queue-state transitions to in_consultation). */
 export function canStartConsultation(status: VisitStatus): boolean {
   return status === "waiting" || status === "in_triage" || status === "awaiting_consultation";
+}
+
+/** A visit can be sent to a service point from in triage or awaiting consultation (`libs/clinic` queue-state, migration 0113). */
+export function canRouteVisit(status: VisitStatus): boolean {
+  return status === "in_triage" || status === "awaiting_consultation";
+}
+
+export const SERVICE_POINT_KIND_LABEL: Record<ServicePointKind, string> = {
+  consultation: "Consultation",
+  emergency: "Emergency",
+  imaging: "Imaging",
+  other: "Other",
+};
+
+/**
+ * What the triage picker starts on: the visit's own service point when it has one, else the first active
+ * `consultation` service point, else "" — the ordinary consultation line (no routing).
+ */
+export function defaultServicePoint(servicePoints: ReadonlyArray<Pick<ServicePoint, "id" | "kind" | "status">>, currentId: string | null): string {
+  if (currentId) return currentId;
+  return servicePoints.find((s) => s.kind === "consultation" && s.status === "active")?.id ?? "";
 }
 
 export function moveNeedsReason(move: QueueMove): boolean {

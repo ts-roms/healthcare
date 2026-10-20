@@ -13,6 +13,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "/admin/security": "Whether staff must use two-step verification, who still needs it, and exempt integration accounts.",
   "/admin/roles": "What each role allows; your organization's own roles.",
   "/admin/facilities": "Clinics, laboratories and other sites, and their departments.",
+  "/admin/service-points": "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
   "/admin/audit": "Who did what, when and to which record.",
   "/admin/integrations": "Outbound exchanges that failed or stalled.",
   "/admin/compliance": "Your organization's own compliance configuration and who validated it.",

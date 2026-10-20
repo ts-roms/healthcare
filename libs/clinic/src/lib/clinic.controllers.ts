@@ -25,6 +25,10 @@ import {
   CreatePractitionerDto,
   CreateRoomDto,
   CreateScheduleDto,
+  CreateServicePointDto,
+  UpdateServicePointDto,
+  ServicePointsQueryDto,
+  RouteVisitDto,
   CreateVisitTypeDto,
   UpdateVisitTypeDto,
   CreateWaitlistDto,
@@ -51,6 +55,7 @@ import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
+import { ServicePointService } from "./config/service-point.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
 import { VisitService } from "./queue/visit.service";
@@ -75,7 +80,31 @@ export class ClinicConfigController {
     private readonly config: ClinicConfigService,
     private readonly bookingRules: BookingRulesService,
     private readonly waitlistRules: WaitlistRulesService,
+    private readonly servicePoints: ServicePointService,
   ) {}
+
+  // ---- service points (migration 0113) ---------------------------------------------------------------------
+
+  @Get("service-points")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "A facility's service points (consultation line, emergency room, X-ray …) as the organization defines them" })
+  listServicePoints(@CurrentActor() actor: Actor, @Query() query: ServicePointsQueryDto) {
+    return this.servicePoints.list(actor, query.facilityId, query.includeInactive === "true");
+  }
+
+  @Post("service-points")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Add a service point to a facility (409 service_point_exists on a duplicate code; audited)" })
+  createServicePoint(@CurrentActor() actor: Actor, @Body() body: CreateServicePointDto) {
+    return this.servicePoints.create(actor, body);
+  }
+
+  @Patch("service-points/:servicePointId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Rename a service point, change its kind, deactivate or reactivate it (the code never changes; audited)" })
+  updateServicePoint(@CurrentActor() actor: Actor, @Param("servicePointId", ParseUUIDPipe) id: string, @Body() body: UpdateServicePointDto) {
+    return this.servicePoints.update(actor, id, body);
+  }
 
   @Get("waitlist-rules")
   @RequirePermissions("appointment.read")
@@ -338,9 +367,9 @@ export class QueueController {
   @Get()
   @RequirePermissions("clinic.queue.read")
   @RequireFacility()
-  @ApiOperation({ summary: "The facility queue in service order (priority, then arrival)" })
+  @ApiOperation({ summary: "The facility queue in service order (priority, then arrival); servicePointId narrows it to one service point" })
   queue(@CurrentActor() actor: Actor, @Query() query: QueueQueryDto) {
-    return this.visits.queue(actor, { date: query.date, includeClosed: query.includeClosed === "true" });
+    return this.visits.queue(actor, { date: query.date, includeClosed: query.includeClosed === "true", servicePointId: query.servicePointId });
   }
 
   @Get("display")
@@ -377,6 +406,21 @@ export class QueueController {
   @RequirePermissions("clinic.queue.manage")
   call(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: CallVisitDto) {
     return this.visits.call(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Send the patient to a service point of the facility (from in triage or awaiting consultation; kept in the routing history)" })
+  route(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RouteVisitDto) {
+    return this.visits.route(actor, id, body);
+  }
+
+  @Get("visits/:visitId/routing")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "The visit's moves between service points, oldest first" })
+  routing(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string) {
+    return this.visits.routingHistory(actor, id);
   }
 
   @Post("visits/:visitId/assign")

@@ -9,6 +9,7 @@ import {
   REFERRAL_KINDS,
   REFERRAL_URGENCIES,
   ROOM_TYPES,
+  SERVICE_POINT_KINDS,
   VISIT_PRIORITIES,
 } from "./clinic.schema";
 
@@ -62,6 +63,23 @@ export const updateVisitTypeSchema = z.object({
   version: z.number().int().positive(),
 });
 export class UpdateVisitTypeDto extends createZodDto(updateVisitTypeSchema) {}
+
+// ---- Service points (migration 0113) -------------------------------------------
+
+export const servicePointsQuerySchema = z.object({ facilityId: z.string().uuid(), includeInactive: z.enum(["true", "false"]).optional() });
+export class ServicePointsQueryDto extends createZodDto(servicePointsQuerySchema) {}
+
+export const createServicePointSchema = z.object({ facilityId: z.string().uuid(), code, name: text(120), kind: z.enum(SERVICE_POINT_KINDS) });
+export class CreateServicePointDto extends createZodDto(createServicePointSchema) {}
+
+/** Rename, change the kind, deactivate or reactivate a service point; the code never changes. */
+export const updateServicePointSchema = z.object({
+  name: text(120).optional(),
+  kind: z.enum(SERVICE_POINT_KINDS).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  version: z.number().int().positive(),
+});
+export class UpdateServicePointDto extends createZodDto(updateServicePointSchema) {}
 
 export const createCodingSystemSchema = z.object({ key: code, name: text(120), version: text(40).optional() });
 export class CreateCodingSystemDto extends createZodDto(createCodingSystemSchema) {}
@@ -210,6 +228,8 @@ export class CheckInDto extends createZodDto(checkInSchema) {}
 export const queueQuerySchema = z.object({
   date: z.iso.date().optional(),
   includeClosed: z.enum(["true", "false"]).optional(),
+  /** Only the visits at this service point (migration 0113); the whole facility when omitted. */
+  servicePointId: z.string().uuid().optional(),
 });
 export class QueueQueryDto extends createZodDto(queueQuerySchema) {}
 
@@ -222,6 +242,14 @@ export class MoveVisitDto extends createZodDto(moveVisitSchema) {}
 
 export const callVisitSchema = z.object({ calledTo: text(60), version: z.number().int().positive() });
 export class CallVisitDto extends createZodDto(callVisitSchema) {}
+
+/** Send a visit to a service point of its facility (migration 0113); allowed from in_triage and awaiting_consultation. */
+export const routeVisitSchema = z.object({
+  servicePointId: z.string().uuid(),
+  reason: reason.optional(),
+  version: z.number().int().positive(),
+});
+export class RouteVisitDto extends createZodDto(routeVisitSchema) {}
 
 export const assignVisitSchema = z.object({
   practitionerId: z.string().uuid().nullable(),
@@ -271,6 +299,8 @@ export const triageSchema = z.object({
   vitals: vitalsSchema.optional(),
   /** Move the patient to "awaiting consultation" (default) or keep them in triage. */
   completeTriage: z.boolean().default(true),
+  /** Where the patient goes next (an active service point of the facility, migration 0113); unchanged when omitted. */
+  servicePointId: z.string().uuid().optional(),
 });
 export class TriageDto extends createZodDto(triageSchema) {}
 

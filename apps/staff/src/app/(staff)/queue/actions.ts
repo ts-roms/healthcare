@@ -33,6 +33,21 @@ export async function callVisit(input: z.input<typeof callSchema>): Promise<Acti
   return actionResult(() => api<Visit>(`/queue/visits/${visitId}/call`, { method: "POST", body }));
 }
 
+const routeSchema = z.object({
+  visitId: z.uuid(),
+  servicePointId: z.uuid("Choose a service point"),
+  reason: z.string().trim().max(500).optional(),
+  version: z.number().int().positive(),
+});
+
+/** Sends the visit to a service point of the facility (migration 0113); the API checks the status and records the move. */
+export async function routeVisit(input: z.input<typeof routeSchema>): Promise<ActionResult<Visit>> {
+  const parsed = routeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { visitId, ...body } = parsed.data;
+  return actionResult(() => api<Visit>(`/queue/visits/${visitId}/route`, { method: "POST", body: { ...body, reason: body.reason || undefined } }));
+}
+
 const walkInSchema = z.object({
   patientId: z.uuid(),
   visitTypeId: z.uuid("Choose a visit type"),

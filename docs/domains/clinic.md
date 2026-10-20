@@ -26,6 +26,7 @@ Appointment (or walk-in) → check-in → queue (visit) → triage + vitals → 
 | `appointment`                                       | `booked → confirmed → checked_in → completed`, or `cancelled` / `no_show`. **Exclusion constraints** prevent double-booking a practitioner or a room                                                                                                                                                                                           |
 | `appointment_waitlist_entry`                        | Waiting list, fulfilled by booking                                                                                                                                                                                                                                                                                                             |
 | `visit` (+ `facility_queue_counter`)                | One arrival = one queue entry. Daily ticket per facility (`A-001`). One active visit per patient per facility                                                                                                                                                                                                                                  |
+| `service_point`, `visit_routing`                    | The facility's own service points (consultation, emergency, imaging, other) and the append-only history of a visit's moves between them; `visit.service_point_id` null = the ordinary consultation line (migration `0113`, "Service points" below)                                                                                             |
 | `triage_assessment`, `vital_sign_set`               | Corrections mark entered-in-error; never deleted                                                                                                                                                                                                                                                                                               |
 | `allergy_intolerance`, `allergy_review`             | Active allergies; "no known allergies" is a recorded review, distinct from "not reviewed". It holds only if asserted after the last change to the allergy list (a later allergy, even resolved or entered in error, makes it "not reviewed" again)                                                                                             |
 | `encounter`, `encounter_note_revision`, `diagnosis` | Note revisions are append-only (trigger): drafts, the signed revision, amendments with reason                                                                                                                                                                                                                                                  |
@@ -222,8 +223,9 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
 
 ## Rules
 
-- Queue order: priority (`emergency`, `urgent`, `routine`), then arrival. Transitions are a state machine
-  (`domain/queue-state.ts`); closing without care requires a reason.
+- Queue order: priority (`emergency`, `urgent`, `routine`), then arrival — within a service point too. Transitions are a state machine
+  (`domain/queue-state.ts`); closing without care requires a reason. A visit is routed to a service point only from
+  `in_triage` or `awaiting_consultation` ("Service points" below).
 - Vital signs are validated against wide plausibility limits (`domain/vital-signs.ts`): impossible values are rejected,
   never corrected. The platform does **not** label values normal/abnormal. BMI is computed for display.
 - Only a practitioner linked to the signed-in account (physician, dentist, midwife) can start an encounter; only the
@@ -245,7 +247,7 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
 ## Events
 
 `AppointmentBooked`, `AppointmentConfirmed`, `AppointmentRescheduled`, `AppointmentCancelled`, `AppointmentNoShow`,
-`AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
+`AppointmentCheckedIn`, `QueueEntryUpdated`, `VisitRouted`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
 `EncounterAmended`, `DiagnosisRecorded`, `ClinicProcedurePerformed`, `ClinicProcedureEnteredInError` (billing charges and
 cancels). Consumers: appointment reminders (SMS 24 h before, withdrawn on
 cancel/reschedule/no-show), the no-show follow-up (`AppointmentNoShow` → SMS + MyHealth "we missed you, book again" — skipped when the patient
@@ -262,7 +264,7 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 
 `/clinic/{practitioners,rooms,visit-types,coding-systems,schedules,schedule-exceptions}`,
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
-`/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
+`/clinic/service-points` (+ `:id`), `/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage,route,routing}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
 `/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
@@ -320,8 +322,55 @@ before it and how many wait (migration `0112`).
 - Staff app `/display/queue`: no navigation; current call in large type, earlier calls, the waiting count, the
   facility's local time, an optional two-tone chime (Web Audio, turned on with one click at the screen), a screen
   wake lock and full screen. English labels; the room text is whatever staff typed.
-- Not built: separate queues per service point, ticket printing or a kiosk, spoken announcements, and priority lanes
-  (which the organization would first confirm against current rules).
+- Not built: ticket printing or a kiosk, spoken announcements, and priority lanes (which the organization would first
+  confirm against current rules). Service points (below) do not change the display: a call still shows the ticket and the
+  place typed, never the service point.
+
+## Service points
+
+Migration `0113` (ADR-0014). An LGU hospital's outpatient department is not one line: after triage a patient goes to
+the consultation line, the emergency room, X-ray or another station. The organization defines its own **service
+points** per facility; a visit is sent to one at the end of triage (or later from the queue board) and the board shows
+one service point at a time. Nothing national is assumed: no ESI or Manchester triage scale, no emergency-care rule, no
+list of stations.
+
+- `service_point` (per facility): `code` (lower-case, fixed), `name`, `kind` `consultation` | `emergency` | `imaging` |
+  `other` (how the staff app labels and orders it; nothing else hangs on it), `status` active/inactive, `version`.
+  `GET /clinic/service-points?facilityId=` (`clinic.queue.read`; `includeInactive=true` for all), `POST
+/clinic/service-points` and `PATCH /clinic/service-points/:id` (name, kind, status; `clinic.configure`; audited
+  `service-point.create` / `service-point.update` with before and after). Deactivating one keeps every visit that
+  names it; it only refuses new routing (`service_point_inactive`). Staff `/admin/service-points` (the selected
+  facility's list; add, rename, change the kind, deactivate, reactivate).
+- `visit.service_point_id` (nullable, same facility by composite key). **Null is the single consultation line that
+  existed before** — every earlier visit and every screen keeps working, and an organization that never sets up
+  service points sees no change.
+- `visit_routing` (append-only, trigger): one row per move — visit, from and to service point (from null for the
+  first), who routed, an optional reason, when. The visit's past is never rewritten; `GET /queue/visits/:id/routing`
+  (`clinic.queue.read`) lists it with the service points' names.
+- Routing: `POST /queue/visits/:id/route` `{ servicePointId, reason?, version }` (`clinic.queue.manage`, the
+  permission that moves and calls visits), or `servicePointId` on `POST /queue/visits/:id/triage`
+  (`clinic.triage.write`): triage records the assessment, advances the visit and routes it in **one transaction**.
+  Allowed from `in_triage` and `awaiting_consultation` only (`canRouteVisit` in `domain/queue-state.ts`): a waiting
+  patient is triaged first, a patient with the provider is not moved, a closed visit cannot be routed
+  (`visit_not_routable`). The target must be an active service point of the visit's facility; routing to the one
+  the visit is already at is refused by the command (`already_at_service_point`) and skipped by triage (the picker
+  shows the current one). Audited `visit.route` (from → to, reason); `VisitRouted` event (ids only) beside
+  `QueueEntryUpdated`, whose payload now carries `servicePointId`.
+- The queue of a service point is the facility queue filtered to it, in the same service order — priority
+  (`emergency`, `urgent`, `routine`), then arrival (`servicePointQueue` in `domain/queue-state.ts`). `GET
+/queue?servicePointId=` returns one service point's visits; without it, the whole facility. Rows carry
+  `servicePointId` and `servicePoint { id, code, name, kind }`. Staff `/queue` has a service-point switcher (**All
+  service points** or one of them, kept in the URL so live refreshes keep it), the ticket panel shows where the
+  patient was sent and offers **Send to** for routable visits, and the triage page ends with **Send to**
+  (defaulting to the visit's service point, else the first `consultation` service point, else the ordinary
+  consultation line).
+- The waiting-room display is unchanged: ticket and the place typed at the call, never the service point.
+
+Out of scope for this slice, each its own decision later: imaging orders and a radiology worklist (a service point of
+kind `imaging` is a queue, not an order), triage scales (ESI, Manchester) and any rule about who goes to the
+emergency room, beds and observation, a ticket series per service point, kiosks, and routing on check-in (a visit
+always starts on the facility's line; the nurse decides at triage). Who may send a patient where is the
+organization's policy, recorded in the [compliance register](../security/compliance-dependencies.md).
 
 ## Automatic no-shows and online check-in
 

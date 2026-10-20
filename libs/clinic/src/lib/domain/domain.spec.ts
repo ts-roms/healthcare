@@ -1,6 +1,6 @@
 import { availableSlots } from "./availability";
 import { canApply, noShowAllowed } from "./appointment-state";
-import { canTransition, compareQueueOrder, queueDisplay, queueTicket, requiresReason } from "./queue-state";
+import { canRouteVisit, canTransition, compareQueueOrder, queueDisplay, queueTicket, requiresReason, servicePointQueue } from "./queue-state";
 import { bodyMassIndex, implausibleVitals } from "./vital-signs";
 
 describe("appointment state", () => {
@@ -30,6 +30,31 @@ describe("queue state", () => {
   it("requires a reason to close a visit without care", () => {
     expect(requiresReason("left_without_being_seen")).toBe(true);
     expect(requiresReason("in_triage")).toBe(false);
+  });
+
+  it("routes to a service point only after triage has started, never from a closed visit", () => {
+    expect(canRouteVisit("waiting")).toBe(false);
+    expect(canRouteVisit("in_triage")).toBe(true);
+    expect(canRouteVisit("awaiting_consultation")).toBe(true);
+    expect(canRouteVisit("in_consultation")).toBe(false);
+    expect(canRouteVisit("completed")).toBe(false);
+    expect(canRouteVisit("cancelled")).toBe(false);
+    expect(canRouteVisit("left_without_being_seen")).toBe(false);
+  });
+
+  it("lists a service point's queue by priority, then arrival, and the consultation line as the null service point", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 20, 1, minute));
+    const er = "er";
+    const rows = [
+      { id: "a", priority: "routine" as const, checkedInAt: at(0), servicePointId: er },
+      { id: "b", priority: "routine" as const, checkedInAt: at(5), servicePointId: null },
+      { id: "c", priority: "emergency" as const, checkedInAt: at(10), servicePointId: er },
+      { id: "d", priority: "urgent" as const, checkedInAt: at(15), servicePointId: er },
+      { id: "e", priority: "urgent" as const, checkedInAt: at(20), servicePointId: "xray" },
+    ];
+    expect(servicePointQueue(rows, er).map((r) => r.id)).toEqual(["c", "d", "a"]);
+    expect(servicePointQueue(rows, null).map((r) => r.id)).toEqual(["b"]);
+    expect(servicePointQueue(rows, "none")).toEqual([]);
   });
 
   it("orders by priority, then arrival", () => {

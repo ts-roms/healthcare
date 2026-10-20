@@ -28,6 +28,27 @@ export function compareQueueOrder(a: { priority: VisitPriority; checkedInAt: Dat
   return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.checkedInAt.getTime() - b.checkedInAt.getTime();
 }
 
+/**
+ * Statuses from which a visit may be sent to a service point (migration 0113, ADR-0014): after triage has started or
+ * finished. A waiting patient is triaged first, a patient with the provider is not moved, a closed visit is history.
+ */
+export const ROUTABLE_VISIT_STATUSES: readonly VisitStatus[] = ["in_triage", "awaiting_consultation"];
+
+export function canRouteVisit(status: VisitStatus): boolean {
+  return ROUTABLE_VISIT_STATUSES.includes(status);
+}
+
+/**
+ * The queue of one service point: the facility's rows that are at it (null = the consultation line that existed
+ * before service points), in service order — priority, then arrival. The whole facility queue uses the same order.
+ */
+export function servicePointQueue<T extends { priority: VisitPriority; checkedInAt: Date; servicePointId: string | null }>(
+  rows: readonly T[],
+  servicePointId: string | null,
+): T[] {
+  return rows.filter((r) => r.servicePointId === servicePointId).sort(compareQueueOrder);
+}
+
 /** "A-007" style ticket label shown on display boards. */
 export function queueTicket(queueNumber: number): string {
   return `A-${String(queueNumber).padStart(3, "0")}`;

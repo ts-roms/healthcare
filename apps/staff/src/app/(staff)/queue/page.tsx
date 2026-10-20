@@ -5,14 +5,18 @@ import { Button } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
+import { getServicePoints } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { QueueVisit } from "@/lib/api/types";
 import { QueueWorkspace } from "./queue-workspace";
+import { ServicePointSwitcher } from "./service-point-switcher";
 
 export const metadata = { title: "Queue" };
 
-export default async function QueuePage() {
-  const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function QueuePage({ searchParams }: { searchParams: Promise<{ servicePoint?: string }> }) {
+  const [session, facility, params] = await Promise.all([getSession(), getSelectedFacility(), searchParams]);
   if (!can(session, "clinic.queue.read")) redirect("/");
   if (!facility) {
     return (
@@ -22,14 +26,19 @@ export default async function QueuePage() {
       </>
     );
   }
+  // One service point of the facility (migration 0113), or the whole queue; an unknown id falls back to the whole queue.
+  const servicePoints = await getServicePoints(facility.id);
+  const selectedServicePoint = params.servicePoint && UUID.test(params.servicePoint) ? servicePoints.find((s) => s.id === params.servicePoint) : undefined;
   // Closed visits too, so the board shows who has already been seen today.
-  const visits = await api<QueueVisit[]>("/queue", { query: { includeClosed: "true" } });
+  const visits = await api<QueueVisit[]>("/queue", {
+    query: { includeClosed: "true", ...(selectedServicePoint ? { servicePointId: selectedServicePoint.id } : {}) },
+  });
   const canManage = can(session, "clinic.queue.manage");
   return (
     <>
       <PageHeader
         title="Queue"
-        description={`${facility.name} · today · refreshes automatically`}
+        description={`${facility.name} · ${selectedServicePoint ? selectedServicePoint.name : "all service points"} · today · refreshes automatically`}
         actions={
           <>
             {can(session, "clinic.queue.display") ? (
@@ -49,8 +58,10 @@ export default async function QueuePage() {
           </>
         }
       />
+      {servicePoints.length > 0 ? <ServicePointSwitcher servicePoints={servicePoints} selectedId={selectedServicePoint?.id ?? ""} /> : null}
       <QueueWorkspace
         visits={visits}
+        servicePoints={servicePoints}
         canManage={canManage}
         canTriage={can(session, "clinic.triage.write")}
         canOpenRecord={can(session, "patient.read")}
