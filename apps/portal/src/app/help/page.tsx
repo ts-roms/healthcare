@@ -2,8 +2,8 @@ import { ArrowLeftIcon, HeartPulseIcon } from "lucide-react";
 import Link from "next/link";
 import { Markdown, manualSections } from "@healthcare/ui/primitives";
 import { GuideSearch } from "@/components/help-search";
-import { guideHref, patientGuide } from "@/lib/guide";
-import { loadGuideChapter } from "@/lib/guide-content";
+import { guideHref, patientGuideWithFaq } from "@/lib/guide";
+import { loadGuideChapter, loadGuideFaqChapter } from "@/lib/guide-content";
 
 export const metadata = { title: "Help" };
 
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 
 /** The MyHealth guide from the user manual. Open to everyone, so a patient who cannot sign in can still read it. */
 export default function HelpPage() {
-  const guide = patientGuide(loadGuideChapter());
+  // The MyHealth chapter, then the manual's questions for patients.
+  const guide = patientGuideWithFaq(loadGuideChapter(), loadGuideFaqChapter());
   // The guide is one page: search results link to its sections.
   const sections = manualSections([
     {

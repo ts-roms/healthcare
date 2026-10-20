@@ -4,7 +4,7 @@ This manual explains how to **use** the healthcare platform: the staff app (clin
 **MyHealth**, the patient portal. It is written for the people who work in the clinic and for patients.
 
 The same pages are in the apps: **Help** in the staff app's menu and the floating help button at the bottom-right of its pages (a **Need a hand?** window listing the chapters, the one about the current screen first; `/help`), and **How to use MyHealth** on the MyHealth sign-in page and the
-**Help** button in its header (`/help`, chapter 12 without its staff sections, readable before signing in). Edit the files here and the
+**Help** button in its header (`/help`, chapter 12 without its staff sections, followed by the questions for patients from chapter 14, readable before signing in). Both Help pages have a search box, and the staff app's **Need a hand?** window and Help page link straight to the FAQ. Edit the files here and the
 apps show the change on their next deployment.
 
 Developers and system operators should read the technical documentation instead: [architecture](../architecture/overview.md),

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpenIcon, LifeBuoyIcon } from "lucide-react";
+import { BookOpenIcon, CircleHelpIcon, LifeBuoyIcon } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -81,6 +81,11 @@ export function HelpFab({ chapters, sections = [] }: { chapters: HelpChapter[]; 
                 </span>
               </Link>
             ) : null}
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/help/glossary-and-faq#faq" onClick={close}>
+                <CircleHelpIcon aria-hidden /> Frequently asked questions
+              </Link>
+            </Button>
             <Button asChild className="w-full">
               <Link href="/help" onClick={close}>
                 <BookOpenIcon aria-hidden /> Open the user manual

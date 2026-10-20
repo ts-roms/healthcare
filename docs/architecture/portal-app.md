@@ -110,7 +110,7 @@ Patients can add an authenticator app (TOTP, RFC 6238: 6 digits, 30 s, one step 
 | `hp_at` | Access token  | httpOnly, SameSite=Lax, Secure in prod    | Token TTL minus 30 s                    |
 | `hp_rt` | Refresh token | httpOnly, SameSite=Strict, Secure in prod | Until the API's `refreshTokenExpiresAt` |
 
-Names differ from the staff app's (`hc_*`) so the two sessions never mix on one domain. `src/proxy.ts` gates every page except `/login`, `/activate` and `/forgot-password` (`/reset-password` and `/help` open for everyone, signed in or not; `/help` has a search box over the guide's sections, `HelpSearch`), refreshes through `POST /portal/auth/refresh` with the same single-flight refresher and failure handling as the staff app (rejected → sign in; busy → 503 retry page), and clears stale cookies when the API ends a session (`/login?reason=session`). The API revokes the session if a rotated refresh token is reused.
+Names differ from the staff app's (`hc_*`) so the two sessions never mix on one domain. `src/proxy.ts` gates every page except `/login`, `/activate` and `/forgot-password` (`/reset-password` and `/help` open for everyone, signed in or not; `/help` shows chapter 12 followed by the "For patients" FAQ of chapter 14 — `patientGuideWithFaq` — with a search box over its sections, `HelpSearch`), refreshes through `POST /portal/auth/refresh` with the same single-flight refresher and failure handling as the staff app (rejected → sign in; busy → 503 retry page), and clears stale cookies when the API ends a session (`/login?reason=session`). The API revokes the session if a rotated refresh token is reused.
 
 ## Data
 
