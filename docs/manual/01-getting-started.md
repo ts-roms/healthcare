@@ -46,6 +46,8 @@ open it with the menu button (**Open navigation**) at the top left.
   reach is not shown at all.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
+- **Help** at the end of the menu opens this manual. The round **Open the user manual** button at the bottom-right corner of every page opens it
+  too, without leaving the sidebar: hover over it or move to it with the keyboard to see its name.
 
 What each default role usually sees in the sidebar, besides **Dashboard**:
 
