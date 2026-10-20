@@ -1,6 +1,7 @@
 import { ArrowLeftIcon, HeartPulseIcon } from "lucide-react";
 import Link from "next/link";
-import { Markdown } from "@healthcare/ui/primitives";
+import { Markdown, manualSections } from "@healthcare/ui/primitives";
+import { GuideSearch } from "@/components/help-search";
 import { guideHref, patientGuide } from "@/lib/guide";
 import { loadGuideChapter } from "@/lib/guide-content";
 
@@ -11,6 +12,17 @@ export const dynamic = "force-dynamic";
 
 /** The MyHealth guide from the user manual. Open to everyone, so a patient who cannot sign in can still read it. */
 export default function HelpPage() {
+  const guide = patientGuide(loadGuideChapter());
+  // The guide is one page: search results link to its sections.
+  const sections = manualSections([
+    {
+      slug: "",
+      title: "How to use MyHealth",
+      source: `# How to use MyHealth
+
+${guide}`,
+    },
+  ]);
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 py-6">
       <header className="flex items-center gap-3">
@@ -25,7 +37,8 @@ export default function HelpPage() {
         </Link>
       </header>
       <h1 className="text-page-lg font-semibold">How to use MyHealth</h1>
-      <Markdown source={patientGuide(loadGuideChapter())} resolveHref={guideHref} linkComponent={Link} className="text-section" />
+      <GuideSearch sections={sections} />
+      <Markdown source={guide} resolveHref={guideHref} linkComponent={Link} className="text-section" />
     </main>
   );
 }

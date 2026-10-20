@@ -16,7 +16,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@healthcare/ui/primitives";
+import type { ManualSection } from "@healthcare/ui/primitives";
 import { chapterForPath, type ManualChapter } from "@/lib/manual";
+import { StaffHelpSearch } from "./help-search";
 
 export type HelpChapter = Pick<ManualChapter, "slug" | "title">;
 
@@ -27,7 +29,7 @@ export type HelpChapter = Pick<ManualChapter, "slug" | "title">;
  * sheets and toasts (`z-30`); the content area keeps enough bottom padding that it never covers a form's last
  * buttons. Rendered by `StaffShell`, so the waiting-room display and the signed-out pages never show it.
  */
-export function HelpFab({ chapters }: { chapters: HelpChapter[] }) {
+export function HelpFab({ chapters, sections = [] }: { chapters: HelpChapter[]; sections?: ManualSection[] }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const suggestedSlug = chapterForPath(pathname);
@@ -51,7 +53,7 @@ export function HelpFab({ chapters }: { chapters: HelpChapter[] }) {
         </TooltipTrigger>
         <TooltipContent side="left">Open the user manual</TooltipContent>
       </Tooltip>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-full bg-primary-subtle text-primary" aria-hidden>
@@ -59,45 +61,50 @@ export function HelpFab({ chapters }: { chapters: HelpChapter[] }) {
             </span>
             Need a hand?
           </DialogTitle>
-          <DialogDescription>Step-by-step guides for every role, from registration to billing.</DialogDescription>
+          <DialogDescription>Step-by-step guides for every role, from registration to billing. Search the manual, or open a chapter.</DialogDescription>
         </DialogHeader>
-        {suggested ? (
-          <Link
-            href={`/help/${suggested.slug}`}
-            onClick={close}
-            className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary-subtle px-3 py-2 text-table outline-none hover:bg-primary-subtle/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          >
-            <BookOpenIcon className="size-4 shrink-0 text-primary" aria-hidden />
-            <span className="min-w-0">
-              <span className="block text-meta text-muted-foreground">About this screen</span>
-              <span className="block truncate font-semibold">
-                {suggestedIndex + 1}. {suggested.title}
-              </span>
-            </span>
-          </Link>
-        ) : null}
-        <nav aria-label="Manual chapters" className="max-h-[45dvh] overflow-y-auto">
-          <ol className="flex flex-col gap-0.5 text-table">
-            {chapters.map((chapter, i) => (
-              <li key={chapter.slug}>
-                <Link
-                  href={`/help/${chapter.slug}`}
-                  onClick={close}
-                  aria-current={chapter.slug === suggested?.slug ? "true" : undefined}
-                  className="block rounded-md px-2 py-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:font-semibold"
-                >
-                  <span className="mr-1 text-muted-foreground tabular-nums">{i + 1}.</span>
-                  {chapter.title}
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </nav>
-        <Button asChild className="w-full">
-          <Link href="/help" onClick={close}>
-            <BookOpenIcon aria-hidden /> Open the user manual
-          </Link>
-        </Button>
+        {sections.length ? <StaffHelpSearch sections={sections} onNavigate={close} /> : null}
+        <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
+          <div className="flex flex-col gap-3">
+            {suggested ? (
+              <Link
+                href={`/help/${suggested.slug}`}
+                onClick={close}
+                className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary-subtle px-3 py-2 text-table outline-none hover:bg-primary-subtle/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <BookOpenIcon className="size-4 shrink-0 text-primary" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-meta text-muted-foreground">About this screen</span>
+                  <span className="block truncate font-semibold">
+                    {suggestedIndex + 1}. {suggested.title}
+                  </span>
+                </span>
+              </Link>
+            ) : null}
+            <Button asChild className="w-full">
+              <Link href="/help" onClick={close}>
+                <BookOpenIcon aria-hidden /> Open the user manual
+              </Link>
+            </Button>
+          </div>
+          <nav aria-label="Manual chapters" className="max-h-[60dvh] overflow-y-auto rounded-lg border p-1">
+            <ol className="flex flex-col gap-0.5 text-table">
+              {chapters.map((chapter, i) => (
+                <li key={chapter.slug}>
+                  <Link
+                    href={`/help/${chapter.slug}`}
+                    onClick={close}
+                    aria-current={chapter.slug === suggested?.slug ? "true" : undefined}
+                    className="block rounded-md px-2 py-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:font-semibold"
+                  >
+                    <span className="mr-1 text-muted-foreground tabular-nums">{i + 1}.</span>
+                    {chapter.title}
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -7,6 +7,7 @@ export * from "./clinical-note";
 export * from "./clinical-summary";
 export * from "./diagnosis-selector";
 export * from "./encounter-timeline";
+export * from "./help-search";
 export * from "./lab-result";
 export * from "./lab-result-table";
 export * from "./daily-series-chart";

@@ -44,7 +44,10 @@ back to Asia/Manila.
 `/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
 `lib/manual-content.ts` (walks up from the working directory to `docs/manual`; cached per process), with the design system's
 `Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
-links to developer documentation are shown as text. The menu shows **Help** to every signed-in user, and `StaffShell` renders
+links to developer documentation are shown as text. A search box above the chapter list (`HelpSearch` in `@healthcare/ui/healthcare`)
+searches an index of every section built on the server from the Markdown (`manualSections` / `searchManual` in `@healthcare/ui/primitives`:
+sections at `##`/`###` headings, anchors as the `Markdown` view gives them, every query word must occur, heading matches first, a
+passage around the match); results link to `/help/<slug>#<anchor>`; the same box sits at the top of the help dialog (below), whose results close it. The menu shows **Help** to every signed-in user, and `StaffShell` renders
 `components/help-fab.tsx` once on every signed-in page: a round **Open the user manual** button fixed at the bottom-right (16px gutter and
 the phone's safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
 screen** link to the chapter for the current route (`chapterForPath` in `lib/manual.ts`, longest route prefix first; nothing when no chapter

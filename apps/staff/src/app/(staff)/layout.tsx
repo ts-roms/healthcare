@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { KeyRoundIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { Card, CardContent, CardHeader, CardTitle, manualSections } from "@healthcare/ui/primitives";
 import { IdleSignOut } from "@/components/idle-sign-out";
 import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
 import { StaffShell } from "@/components/staff-shell";
@@ -42,7 +42,8 @@ export default async function StaffGroupLayout({ children }: { children: React.R
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
-  const manualChapters = loadManual().chapters.map(({ slug, title }) => ({ slug, title }));
+  const manual = loadManual();
+  const manualChapters = manual.chapters.map(({ slug, title }) => ({ slug, title }));
   return (
     <StaffShell
       permissions={session.permissions}
@@ -54,6 +55,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       unreadNotices={unread}
       badges={badges}
       manualChapters={manualChapters}
+      manualSections={manualSections(manual.chapters)}
     >
       {/* Shared clinic computers: sign out after a period without activity (STAFF_IDLE_MINUTES; 0 turns it off). */}
       <IdleSignOut minutes={STAFF_IDLE_MINUTES} />

@@ -1,14 +1,27 @@
 import Link from "next/link";
 import * as React from "react";
-import { Markdown } from "@healthcare/ui/primitives";
+import { Markdown, type ManualSection } from "@healthcare/ui/primitives";
+import { StaffHelpSearch } from "@/components/help-search";
 import { cn } from "@healthcare/ui/lib/utils";
 import { manualHref } from "@/lib/manual";
 import type { ManualChapter } from "@/lib/manual";
 
-/** Chapter list beside one page of the manual. */
-export function HelpShell({ chapters, active, source }: { chapters: ManualChapter[]; active: string | null; source: string }) {
+/** Search box and chapter list beside one page of the manual. */
+export function HelpShell({
+  chapters,
+  sections,
+  active,
+  source,
+}: {
+  chapters: ManualChapter[];
+  /** Every section of the manual, for the search box (built on the server from the Markdown). */
+  sections: ManualSection[];
+  active: string | null;
+  source: string;
+}) {
   return (
     <div className="grid gap-6 p-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <StaffHelpSearch sections={sections} className="lg:col-span-2" />
       <nav aria-label="Manual chapters" className="lg:sticky lg:top-4 lg:self-start">
         <ol className="flex flex-wrap gap-1 text-table lg:flex-col">
           <li>
