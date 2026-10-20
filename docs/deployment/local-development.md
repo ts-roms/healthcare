@@ -8,6 +8,7 @@ cp .env.example .env              # then set SEED_ADMIN_PASSWORD
 pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mailpit, clamd (the integration tests need PostgreSQL and, for rate limits, Redis)
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
+pnpm db:seed:demo                 # demo clinic through the running API: staff per role, patients, today's queue… (docs/demo/walkthrough.md)
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
