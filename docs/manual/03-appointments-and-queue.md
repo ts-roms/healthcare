@@ -213,8 +213,12 @@ those waiting (urgent patients are seen first, so the order would seem to jump).
    Clinic" — and gives it only the **Waiting-room display** role, for the facility where the screen hangs. If your organization requires
    two-step verification, exempt this account with a reason.
 2. On the screen's browser, sign in to the staff app with that account. It opens the display straight away and cannot open anything else.
-3. Select **Full screen**. To hear a chime when a ticket is called, select **Turn on sound** once (browsers only play sound after a click on the
-   screen). The display keeps the screen awake where the browser allows it.
+3. Select **Full screen**. To hear a chime when a ticket is called, open **Sound** and select **Turn on sound** once (browsers only play sound
+   after a click on the screen). There you also choose how loud it plays (**Quiet**, **Normal**, **Loud**) and whether the call is read out as
+   well — "Number A 0 0 7, please proceed to Room 2" — in **English**, **Filipino** or **Both**, using the voices installed on the screen's
+   device (a Filipino voice is not available on every device); **Test** plays what the display will do. The screen remembers the volume and
+   voice choice; sound itself is turned on again with one click after the page reloads. The display keeps the screen awake where the browser
+   allows it.
 4. Call patients from the queue board as usual (**Call patient to** → **Call**). The call appears on the display within a second while it shows
    **Live**; otherwise within 15 seconds.
 

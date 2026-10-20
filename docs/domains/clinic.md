@@ -320,9 +320,13 @@ before it and how many wait (migration `0112`).
   Where staff two-step verification is required, the account is exempted with a reason. Receptionists and
   organization administrators hold the permission too and open the display from the queue page.
 - Staff app `/display/queue`: no navigation; current call in large type, earlier calls, the waiting count, the
-  facility's local time, an optional two-tone chime (Web Audio, turned on with one click at the screen), a screen
-  wake lock and full screen. English labels; the room text is whatever staff typed.
-- Not built: ticket printing or a kiosk, spoken announcements, and priority lanes (which the organization would first
+  facility's local time, an optional bell-like chime (Web Audio, turned on with one click at the screen; quiet, normal or
+  loud) and an optional spoken announcement after it through the browser's speech synthesis — "Number A 0 0 7, please
+  proceed to Room 2", in English, Filipino or both, the ticket spelled out character by character and the place as
+  typed; the device's installed voices, nothing sent anywhere — with the level and voice choice kept in the screen's
+  browser storage (`apps/staff/src/lib/queue-display.ts`, `queue-display-sound.ts`), a screen wake lock and full screen.
+  English labels; the room text is whatever staff typed.
+- Not built: ticket printing or a kiosk, announcements over a public-address system, and priority lanes (which the organization would first
   confirm against current rules). Service points (below) do not change the display: a call still shows the ticket and the
   place typed, never the service point.
 
