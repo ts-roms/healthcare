@@ -158,7 +158,10 @@ export function TriageForm({
         e.preventDefault();
         submit(true);
       }}
-      className="flex min-h-0 flex-1 flex-col"
+      // `relative`: the radio groups add hidden absolute inputs that would otherwise lengthen the whole document (a second scrollbar).
+      // `-mb-20`: the page container keeps 5rem free under its content for the floating help button; the bar below takes that space
+      // so it ends at the edge of the screen, and keeps clear of the button with its own right padding.
+      className="relative -mb-20 flex min-h-0 flex-1 flex-col"
     >
       <div className="grid flex-1 content-start gap-4 p-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <fieldset disabled={pending} className="flex min-w-0 flex-col gap-4">
