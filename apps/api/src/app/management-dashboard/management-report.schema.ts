@@ -59,4 +59,3 @@ export const managementReportFile = pgTable(
   },
   (t) => [primaryKey({ columns: [t.reportId, t.table] })],
 );
-export type ManagementReportFileRecord = typeof managementReportFile.$inferSelect;

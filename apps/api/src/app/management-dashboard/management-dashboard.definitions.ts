@@ -44,5 +44,3 @@ export const METRIC_DEFINITIONS = {
     "The same figure over the comparison period: by default the previous period of equal length ending the day before this one; or, when chosen, the same calendar dates one year earlier (29 February falls back to 28 February). Rates change in percentage points; other figures by their own unit and in percent. “Better” or “worse” follows each figure's direction of improvement; volumes are neither.",
   suppression: `Patient counts from 1 to ${SMALL_CELL_THRESHOLD - 1} are shown as “<${SMALL_CELL_THRESHOLD}” so that no one can be singled out, and a rate built on such a count is withheld. Counts of consultations, tests and procedures, and amounts, are not patient counts.`,
 } as const;
-
-export type MetricKey = keyof typeof METRIC_DEFINITIONS;

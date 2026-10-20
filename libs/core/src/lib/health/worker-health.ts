@@ -1,11 +1,15 @@
 import type { INestApplicationContext } from "@nestjs/common";
-import { type AppConfig, asPlatform, DATABASE, type Database, type HealthCheck, startHealthServer } from "@healthcare/core";
 import { sql } from "drizzle-orm";
 import IORedis from "ioredis";
+import type { AppConfig } from "../config/app-config";
+import { DATABASE, type Database } from "../database/database";
+import { asPlatform } from "../database/database-context";
+import { type HealthCheck, startHealthServer } from "./health-server";
 
 /**
- * `GET /live` and `/ready` on `HEALTH_PORT` (docs/architecture/observability.md): the database is required, Redis is
- * reported (the queue consumer cannot work without it, but BullMQ reconnects on its own). Nothing else is served.
+ * `GET /live` and `/ready` on `HEALTH_PORT` for a queue worker (docs/architecture/observability.md): the database is
+ * required, Redis is reported (the queue consumer cannot work without it, but BullMQ reconnects on its own). Nothing else
+ * is served. Shared by the notification and integration workers.
  */
 export function startWorkerHealth(app: INestApplicationContext, config: AppConfig): void {
   if (!config.HEALTH_PORT) return;

@@ -113,9 +113,6 @@ export function waitlistMatches(
   return true;
 }
 
-/** The old name, for callers that only need the platform's defaults. */
-export const PATIENT_BOOKING_RULES = DEFAULT_BOOKING_RULES;
-
 // ---- waiting-list rules per visit type or practitioner (migration 0096) ------------------------------------------
 
 /** What a patient's waiting-list request is allowed at this facility, for this visit type and practitioner. */

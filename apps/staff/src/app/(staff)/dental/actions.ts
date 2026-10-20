@@ -156,11 +156,6 @@ export async function createTreatmentPlan(input: z.input<typeof planSchema>, ide
   return run(planSchema, input, "/dental/treatment-plans", { idempotencyKey, revalidate: record(input.patientId) });
 }
 
-export async function addPlanItem(patientId: string, planId: string, input: z.input<typeof planItem> & { version: number }) {
-  if (!id.safeParse(planId).success) return { ok: false as const, message: "Unknown plan." };
-  return run<DentalTreatmentPlan>(planItem.extend({ version }), input, `/dental/treatment-plans/${planId}/items`, { revalidate: record(patientId) });
-}
-
 const decisionSchema = z.object({
   acceptedItemIds: z.array(id).max(60),
   note: z.string().trim().min(3, "Say how the patient decided (e.g. options and fees explained, consent form signed).").max(1000),

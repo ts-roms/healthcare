@@ -218,8 +218,6 @@ export function relationshipPayload(form: z.output<typeof relationshipFormSchema
 
 export const retireReasonSchema = reason;
 
-export type PreferenceKey = `${(typeof COMMUNICATION_CHANNEL_OPTIONS)[number]}:${(typeof COMMUNICATION_CATEGORY_OPTIONS)[number]}`;
-
 /** Without a recorded choice, care-related messages are sent and outreach is not (the notification service's rule). */
 export function defaultOptedIn(category: string): boolean {
   return category !== "outreach";

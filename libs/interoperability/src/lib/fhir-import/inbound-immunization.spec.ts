@@ -3,7 +3,6 @@ import { mapInboundEntries, toImmunizationInput } from "./inbound-mapping";
 import { FhirImportError, parseImport } from "./inbound-validation";
 
 type Validate = ((data: unknown) => boolean) & { errors?: unknown[] | null };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Validator = require("@asymmetrik/fhir-json-schema-validator") as new () => {
   ajv: { compile(schema: object): Validate };
   schema: { $schema: string; definitions: object };

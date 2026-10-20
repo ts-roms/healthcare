@@ -4,8 +4,7 @@ import { telemetry } from "./telemetry";
 import { ConsoleLogger, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
-import { levelsFrom, loadAppConfig } from "@healthcare/core";
-import { startWorkerHealth } from "./health";
+import { levelsFrom, loadAppConfig, startWorkerHealth } from "@healthcare/core";
 import { IntegrationWorkerAppModule } from "./app/app.module";
 
 async function bootstrap(): Promise<void> {

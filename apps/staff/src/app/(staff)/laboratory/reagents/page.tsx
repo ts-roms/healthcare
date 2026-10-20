@@ -1,26 +1,11 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  DateInput,
-  Label,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, DateInput, Label } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
+import { Figure, SimpleTable } from "@/components/simple-table";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabAvailableReagentLot, LabReagentTestsPerRun, LabReagentUsage, LabReagentYield, LabTest } from "@/lib/api/types";
@@ -216,43 +201,5 @@ export default async function ReagentUsePage({ searchParams }: { searchParams: P
         </Card>
       </div>
     </>
-  );
-}
-
-function Figure({ label, value, children }: { label: string; value: string; children: ReactNode }) {
-  return (
-    <Card className="p-3">
-      <p className="text-meta text-muted-foreground">{label}</p>
-      <p className="tabular text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-meta text-muted-foreground">{children}</p>
-    </Card>
-  );
-}
-
-function SimpleTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][]; empty: string }) {
-  if (rows.length === 0) return <p className="text-table text-muted-foreground">{empty}</p>;
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {head.map((h, i) => (
-            <TableHead key={h} className={i === 0 ? undefined : "text-right"}>
-              {h}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row, r) => (
-          <TableRow key={r}>
-            {row.map((cell, i) => (
-              <TableCell key={i} className={i === 0 ? undefined : "tabular text-right"}>
-                {cell}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   );
 }
