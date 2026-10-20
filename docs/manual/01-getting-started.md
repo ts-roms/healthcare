@@ -80,12 +80,11 @@ From left to right:
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
-- Your **name** and **organization** (on wide screens; a person icon on narrow ones) — opens **My account** (see below).
-- **Sign out** button (the exit icon). Hover over it to see which email is signed in.
+- **Account menu** (your initials) — shows your name, email and organization, and has **My account** (see below), **Company settings** (when you may open them) and **Log out**.
 
 ## How to change your password or turn on two-step verification
 
-Click your name in the top bar to open **My account** (`/account`).
+Open the **Account menu** (your initials in the top bar) and choose **My account** (`/account`).
 
 - **Password:** enter your current password, then the new one twice (at least 12 characters, not repetitive), and click **Change password**.
   You stay signed in here; every other session of yours is signed out.
@@ -167,7 +166,7 @@ The small indicator next to **Clinic today** tells you how the figures update:
 
 ## How to sign out
 
-1. Select the **Sign out** icon at the right end of the top bar.
+1. Open the **Account menu** (your initials at the right end of the top bar) and choose **Log out**.
 2. You return to the sign-in page. Your session is ended on the server and your facility choice is cleared.
 
 Always sign out of a shared workstation. The staff app does not sign you out after a period of inactivity.

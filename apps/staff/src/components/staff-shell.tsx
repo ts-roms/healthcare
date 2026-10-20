@@ -96,13 +96,6 @@ export function StaffShell({
       onSearch={(q) => router.push(`/patients?q=${encodeURIComponent(q)}`)}
       // Room under every page for the floating help button, so it never sits on a form's last controls.
       contentClassName="pb-20"
-      sidebarFooter={
-        <form action={signOut}>
-          <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
-            <LogOutIcon /> Sign out
-          </Button>
-        </form>
-      }
       topbarEnd={
         <>
           {facilities.length > 0 ? (
