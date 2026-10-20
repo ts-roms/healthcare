@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api/types";
+import type { AppointmentItem, Practitioner, PractitionerScheduleRow, QueueVisit, VisitType } from "./api/types";
 import {
   referralRecipient,
   appointmentActions,
@@ -10,7 +10,10 @@ import {
   groupByPractitioner,
   groupByRoom,
   moveNeedsReason,
+  nextScheduledDate,
   queueMoves,
+  scheduleBlocksOn,
+  scheduleDaysText,
   shiftDate,
   toAppointment,
   todayIn,
@@ -95,6 +98,50 @@ describe("service points", () => {
     expect(defaultServicePoint(points, null)).toBe("sp-opd2");
     expect(defaultServicePoint([points[0]!], null)).toBe("");
     expect(defaultServicePoint([], null)).toBe("");
+  });
+});
+
+describe("practitioner schedule days", () => {
+  const block = (dayOfWeek: number, startTime: string, endTime: string, extra: Partial<PractitionerScheduleRow> = {}): PractitionerScheduleRow => ({
+    id: `${dayOfWeek}-${startTime}`,
+    practitionerId: "dr",
+    facilityId: "main",
+    roomId: null,
+    dayOfWeek,
+    startTime,
+    endTime,
+    slotMinutes: 20,
+    validFrom: "2026-01-01",
+    validUntil: null,
+    status: "active",
+    retiredAt: null,
+    ...extra,
+  });
+  const rows = [
+    block(2, "08:00:00", "12:00:00"),
+    block(4, "08:00:00", "12:00:00"),
+    block(5, "13:00:00", "17:00:00"),
+    block(1, "08:00:00", "12:00:00", { status: "retired" }),
+    block(1, "08:00:00", "12:00:00", { facilityId: "annex" }),
+    block(3, "08:00:00", "12:00:00", { validUntil: "2026-10-01" }),
+  ];
+
+  it("lists the days and hours of the current schedule at the facility", () => {
+    expect(scheduleDaysText(rows, "dr", "main", "2026-10-26")).toBe("Tue, Thu 08:00–12:00 · Fri 13:00–17:00");
+    expect(scheduleDaysText(rows, "dr", "annex", "2026-10-26")).toBe("Mon 08:00–12:00");
+    expect(scheduleDaysText(rows, "nobody", "main", "2026-10-26")).toBe("");
+  });
+
+  it("finds the blocks valid on a date, and the next scheduled day after it", () => {
+    // Monday 26 October 2026: no block at the main clinic (the Monday one is retired).
+    expect(scheduleBlocksOn(rows, "dr", "main", "2026-10-26")).toEqual([]);
+    expect(scheduleBlocksOn(rows, "dr", "main", "2026-10-27").map((b) => b.dayOfWeek)).toEqual([2]);
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-26")).toBe("2026-10-27");
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-29")).toBe("2026-10-30");
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-30")).toBe("2026-11-03");
+    // A block that is no longer valid, or starts later, is not a day to jump to.
+    expect(nextScheduledDate([block(3, "08:00:00", "12:00:00", { validUntil: "2026-10-01" })], "dr", "main", "2026-10-26")).toBeNull();
+    expect(nextScheduledDate([block(3, "08:00:00", "12:00:00", { validFrom: "2026-11-04" })], "dr", "main", "2026-10-26")).toBe("2026-11-04");
   });
 });
 

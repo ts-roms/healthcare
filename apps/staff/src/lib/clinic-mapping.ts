@@ -1,5 +1,15 @@
 import type { Appointment, AppointmentStatus, QueueEntry, QueueStatus } from "@healthcare/domain";
-import type { AppointmentItem, AppointmentStatusApi, Practitioner, QueueVisit, ServicePoint, ServicePointKind, VisitStatus, VisitType } from "./api/types";
+import type {
+  AppointmentItem,
+  AppointmentStatusApi,
+  Practitioner,
+  PractitionerScheduleRow,
+  QueueVisit,
+  ServicePoint,
+  ServicePointKind,
+  VisitStatus,
+  VisitType,
+} from "./api/types";
 
 /**
  * Adapters from the clinic API to the design system's queue board and
@@ -203,6 +213,72 @@ export function groupByRoom<T extends { room?: { id: string; name: string } | nu
   const none = byRoom.get(null);
   if (none?.length) columns.push({ roomId: null, name: "No room", items: sortByStart(none) });
   return columns;
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** 0 (Sunday) – 6 for a YYYY-MM-DD date (calendar arithmetic, no time zone). */
+export function weekdayOf(date: string): number {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** The schedule blocks of one practitioner at a facility that are active and valid on `date`. */
+export function scheduleBlocksOn(
+  rows: readonly PractitionerScheduleRow[],
+  practitionerId: string,
+  facilityId: string,
+  date: string,
+): PractitionerScheduleRow[] {
+  const weekday = weekdayOf(date);
+  return rows.filter(
+    (s) =>
+      s.practitionerId === practitionerId &&
+      s.facilityId === facilityId &&
+      s.status === "active" &&
+      s.dayOfWeek === weekday &&
+      s.validFrom <= date &&
+      (!s.validUntil || s.validUntil >= date),
+  );
+}
+
+/**
+ * The practitioner's weekly schedule at a facility in one line, for the booking form when a day has no slots:
+ * "Mon, Wed 08:00–12:00 · Fri 13:00–17:00" (blocks active today or starting later; grouped by hours, in weekday order).
+ */
+export function scheduleDaysText(rows: readonly PractitionerScheduleRow[], practitionerId: string, facilityId: string, today: string): string {
+  const current = rows.filter(
+    (s) => s.practitionerId === practitionerId && s.facilityId === facilityId && s.status === "active" && (!s.validUntil || s.validUntil >= today),
+  );
+  const byHours = new Map<string, Set<number>>();
+  for (const s of current) {
+    const hours = `${s.startTime.slice(0, 5)}–${s.endTime.slice(0, 5)}`;
+    byHours.set(hours, (byHours.get(hours) ?? new Set()).add(s.dayOfWeek));
+  }
+  return [...byHours.entries()]
+    .map(([hours, days]) => ({ hours, days: [...days].sort((a, b) => a - b) }))
+    .sort((a, b) => (a.days[0] ?? 0) - (b.days[0] ?? 0) || a.hours.localeCompare(b.hours))
+    .map(({ hours, days }) => `${days.map((d) => DAY_NAMES[d]).join(", ")} ${hours}`)
+    .join(" · ");
+}
+
+/**
+ * The first date after `date` (within `horizonDays`) on which the practitioner has a schedule block at the facility —
+ * the day to jump to when the chosen one has no slots. Closures and bookings are not known here: the API decides the
+ * slots once there. Null when no block falls in the horizon.
+ */
+export function nextScheduledDate(
+  rows: readonly PractitionerScheduleRow[],
+  practitionerId: string,
+  facilityId: string,
+  date: string,
+  horizonDays = 90,
+): string | null {
+  for (let i = 1; i <= horizonDays; i++) {
+    const candidate = shiftDate(date, i);
+    if (scheduleBlocksOn(rows, practitionerId, facilityId, candidate).length > 0) return candidate;
+  }
+  return null;
 }
 
 /** YYYY-MM-DD shifted by whole days (calendar arithmetic, no time zone). */
