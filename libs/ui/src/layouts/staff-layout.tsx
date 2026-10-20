@@ -25,8 +25,10 @@ export interface StaffLayoutProps {
   Link?: LinkComponent;
   navigation?: NavItem[];
   productName?: string;
-  /** Bottom of the sidebar (and mobile menu): a help card, sign-out. */
+  /** Bottom of the sidebar (and mobile menu): sign-out. */
   sidebarFooter?: React.ReactNode;
+  /** Extra classes on the scrolling content area, e.g. bottom padding that keeps a floating button off the page's last controls. */
+  contentClassName?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export function StaffLayout({
   navigation,
   productName = "Healthcare Platform",
   sidebarFooter,
+  contentClassName,
 }: StaffLayoutProps) {
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -155,7 +158,7 @@ export function StaffLayout({
             </form>
             <div className="ml-auto flex items-center gap-2">{topbarEnd}</div>
           </header>
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+          <main className={cn("min-h-0 flex-1 overflow-auto", contentClassName)}>{children}</main>
         </div>
       </div>
     </TooltipProvider>

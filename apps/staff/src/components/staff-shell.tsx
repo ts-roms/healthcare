@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, FlaskConicalIcon, LifeBuoyIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
-import { SidebarPromo, StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { BellIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
+import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import {
   Button,
@@ -20,6 +20,7 @@ import {
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import type { StaffBadges } from "@/lib/api/types";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
+import { HelpFab, type HelpChapter } from "./help-fab";
 import { OfflineBanner } from "./offline-banner";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
@@ -37,12 +38,25 @@ export interface StaffShellProps {
   unreadNotices: number;
   /** Counts for the navigation (`GET /me/badges`); refreshed every minute from `/badges`. */
   badges: StaffBadges | null;
+  /** The user manual's chapters, for the floating help button's dialog. */
+  manualChapters: HelpChapter[];
   children: React.ReactNode;
 }
 
 const BADGES_REFRESH_MS = 60_000;
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, badges, children }: StaffShellProps) {
+export function StaffShell({
+  permissions,
+  user,
+  organizationName,
+  facilities,
+  facilityId,
+  timeZone,
+  unreadNotices,
+  badges,
+  manualChapters,
+  children,
+}: StaffShellProps) {
   // Set during render, before the page below renders, so every client component formats times in the facility's zone.
   setClinicTimeZone(timeZone);
   const pathname = usePathname();
@@ -76,24 +90,14 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       navigation={navigation}
       Link={NextLink}
       onSearch={(q) => router.push(`/patients?q=${encodeURIComponent(q)}`)}
+      // Room under every page for the floating help button, so it never sits on a form's last controls.
+      contentClassName="pb-20"
       sidebarFooter={
-        <>
-          <SidebarPromo
-            icon={LifeBuoyIcon}
-            title="Need a hand?"
-            description="Step-by-step guides for every role, from registration to billing."
-            action={
-              <Button asChild size="sm" className="w-full">
-                <Link href="/help">Open the user manual</Link>
-              </Button>
-            }
-          />
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
-              <LogOutIcon /> Sign out
-            </Button>
-          </form>
-        </>
+        <form action={signOut}>
+          <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
+            <LogOutIcon /> Sign out
+          </Button>
+        </form>
       }
       topbarEnd={
         <>
@@ -181,6 +185,7 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
       <OfflineBanner />
       {children}
+      <HelpFab chapters={manualChapters} />
     </StaffLayout>
   );
 }

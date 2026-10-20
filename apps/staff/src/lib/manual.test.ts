@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { chapterSlug, chapterTitle, manualHref, withoutTitle } from "./manual";
+import { chapterForPath, chapterSlug, chapterTitle, manualHref, withoutTitle } from "./manual";
 
 const MANUAL_DIR = new URL("../../../../docs/manual/", import.meta.url);
 
@@ -18,6 +18,35 @@ describe("manual", () => {
     expect(manualHref("#rules")).toBe("#rules");
     expect(manualHref("https://example.org")).toBe("https://example.org");
     expect(manualHref("../architecture/overview.md")).toBeNull();
+  });
+
+  it("names the chapter about a screen by its route, longest prefix first", () => {
+    expect(chapterForPath("/")).toBe("getting-started");
+    expect(chapterForPath("/laboratory/worklist")).toBe("laboratory");
+    expect(chapterForPath("/laboratory/qc")).toBe("laboratory-quality");
+    expect(chapterForPath("/admin/integrations")).toBe("records-reporting-and-integrations");
+    expect(chapterForPath("/admin/users/abc")).toBe("administration");
+    expect(chapterForPath("/help/patients")).toBeNull();
+    expect(chapterForPath("/patientsx")).toBeNull();
+  });
+
+  it("maps every screen's chapter to a chapter file of docs/manual", () => {
+    const slugs = new Set(readdirSync(MANUAL_DIR).map(chapterSlug).filter(Boolean));
+    for (const path of [
+      "/",
+      "/patients",
+      "/appointments",
+      "/clinic",
+      "/laboratory",
+      "/laboratory/qc",
+      "/dental",
+      "/billing",
+      "/inventory",
+      "/records",
+      "/admin",
+    ]) {
+      expect(slugs.has(chapterForPath(path))).toBe(true);
+    }
   });
 
   it("resolves every link between chapters of docs/manual to a chapter that exists", () => {
