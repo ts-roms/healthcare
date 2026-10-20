@@ -14,8 +14,6 @@
  *   DEMO_PASSWORD                      password of every demo account (default: Demo-Clinic-2026)
  *   DEMO_EMAIL_DOMAIN                  default demo.healthcare.ph
  */
-import { randomUUID } from "node:crypto";
-
 const API = (process.env.API_BASE_URL ?? "http://localhost:3333/api/v1").replace(/\/+$/, "");
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
@@ -964,5 +962,3 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
-
-export { randomUUID as _demoRandom };
