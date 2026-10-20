@@ -11,7 +11,7 @@ selected in the top bar. Times are shown in that facility's time zone (Asia/Mani
 - **Receptionists** book, confirm, cancel and check patients in, and call patients from the queue.
 - **Nurses** run the queue and record triage and vital signs.
 - **Physicians and dentists** see the queue and start consultations from it (see [Consultations and care plans](04-consultations-and-care-plans.md)).
-- **Clinic administrators** choose which visit types patients may book online.
+- **Clinic administrators** set up the visit types and choose which of them patients may book online.
 
 | Screen               | Where                                            | Needs                                                    |
 | -------------------- | ------------------------------------------------ | -------------------------------------------------------- |
@@ -87,8 +87,8 @@ On the day schedule, each open appointment (**Booked** or **Confirmed**) shows t
   **Cancel appointment**. Select **Keep** to leave it booked.
 - **No-show** — appears only once the appointment's start time has passed. Marking a no-show may send the patient a "we missed you" message
   inviting them to book again (not if they already have another visit booked), subject to their communication preferences. Where the clinic turned
-  on **Automatic no-shows** (see "How to choose which visit types patients may book online"), appointments nobody attended are marked for you at the
-  end of the day.
+  on **Automatic no-shows** (see "How to set up visit types and choose which patients may book online"), appointments nobody attended are marked
+  for you at the end of the day.
 
 These actions need `appointment.manage`.
 
@@ -281,14 +281,23 @@ The visit must be open and in person. If the patient is seen by a doctor in the 
 the encounter workspace instead (see [Consultations](04-consultations-and-care-plans.md)). A mistake is marked **Entered in error…** with a reason.
 All of a patient's procedures, in and outside consultations, are listed under **Procedures done here** on the patient record.
 
-## How to choose which visit types patients may book online
+## How to set up visit types and choose which patients may book online
+
+Visit types (Consultation, Follow-up, Online consultation…) are what every appointment, walk-in and online booking is made with. A fresh
+organization has none: until a clinic administrator adds one, **Book appointment** and **Check in walk-in** say that no visit types are set up.
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
-2. The table lists each visit type with **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
-3. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
+3. To add one, select **Add a visit type…** and fill in the **Name** staff and patients see, a **Code** (2–49 letters, digits or hyphens, unique in
+   your organization; it can never be changed), **Where** the visit happens, its **Usual length** in minutes (5–480; the length of the slot offered
+   when booking), whether patients go through **Triage before the consultation**, and whether **Patients may book it themselves in MyHealth**. Select
+   **Add visit type**.
+4. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+5. To retire a visit type, select **Deactivate…** on its row and confirm. It is no longer offered for bookings, walk-ins or online booking;
+   appointments and visits already recorded keep it, and it stays in the list as **Inactive**. Visit types are never deleted.
 
-Only active visit types can be opened. Changing this needs `clinic.configure`; without it you see "Only clinic administrators can change these
-settings."
+Only active visit types can be opened. Adding and deactivating visit types and changing online booking need `clinic.configure` (clinic
+administrators); without it you see "Only clinic administrators can change these settings." Every change is audited.
 
 Patients book online only inside published schedules. Until a clinic sets its own rules they book at least 2 hours ahead and up to 60 days out, with at
 most 3 open bookings, and can change or cancel until 2 hours before. Their bookings appear on your day schedule marked **Booked online by the patient**.
@@ -395,7 +404,7 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 | Some vital signs are not plausible; check the entries                      | A value is outside the limits; the field is highlighted | Re-measure or correct the typing                                       |
 | Triage is not possible while the visit is in consultation (or completed…)  | The consultation has started or the visit is closed     | Record findings in the encounter instead                               |
 | … was modified by someone else (expected version …). Reload and try again. | Another user changed it first                           | The screen refreshes; check and try again                              |
-| No in-person visit types are configured.                                   | Walk-ins need an in-person visit type                   | Ask your administrator to set one up                                   |
+| No in-person visit types are configured.                                   | Walk-ins need an in-person visit type                   | A clinic administrator adds one under **Online booking**               |
 | This procedure is recorded in a consultation (the catalogue does not…)     | The entry is not allowed outside a consultation         | Record it in the encounter workspace, or ask an administrator          |
 | Record the patient's consent with this procedure                           | The entry requires consent                              | Fill in the **Consent** part of the form                               |
 
