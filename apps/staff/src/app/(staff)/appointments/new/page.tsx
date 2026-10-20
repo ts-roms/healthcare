@@ -5,7 +5,7 @@ import { api } from "@/lib/api/client";
 import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { Availability } from "@/lib/api/types";
+import type { Availability, PractitionerScheduleRow } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
 import { safeNextPath } from "@healthcare/web-session";
 import { BookingForm } from "./booking-form";
@@ -40,8 +40,18 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
       </>
     );
   }
-  const [patient, practitioners, visitTypes] = await Promise.all([getPatientForAction(params.patientId), getPractitioners(), getVisitTypes()]);
+  const [patient, allPractitioners, visitTypes, schedules] = await Promise.all([
+    getPatientForAction(params.patientId),
+    getPractitioners(),
+    getVisitTypes(),
+    api<PractitionerScheduleRow[]>("/clinic/schedules"),
+  ]);
   const today = todayIn(facility.timezone);
+  // Only slots inside a published schedule are offered, so only practitioners with a current schedule at this facility are listed.
+  const scheduledHere = new Set(
+    schedules.filter((s) => s.facilityId === facility.id && s.status === "active" && (!s.validUntil || s.validUntil >= today)).map((s) => s.practitionerId),
+  );
+  const practitioners = allPractitioners.filter((p) => scheduledHere.has(p.id));
   const practitionerId = practitioners.find((p) => p.id === params.practitionerId)?.id ?? "";
   const visitTypeId = visitTypes.find((v) => v.id === params.visitTypeId)?.id ?? (visitTypes.length === 1 ? (visitTypes[0]?.id ?? "") : "");
   const date = params.date && DATE.test(params.date) && params.date >= today ? params.date : today;

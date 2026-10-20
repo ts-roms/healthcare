@@ -248,8 +248,13 @@ function RecordRun({
           </div>
           <div className="grid gap-1">
             <Label htmlFor="qc-test">Test</Label>
-            <NativeSelect id="qc-test" value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value, qcLotId: "" })}>
-              <option value="">{testsWithTargets.length ? "Choose…" : "No targets on this instrument"}</option>
+            <NativeSelect
+              id="qc-test"
+              placeholder="Choose…"
+              emptyText="No targets on this instrument"
+              value={f.testId}
+              onChange={(e) => setF({ ...f, testId: e.target.value, qcLotId: "" })}
+            >
               {testsWithTargets.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

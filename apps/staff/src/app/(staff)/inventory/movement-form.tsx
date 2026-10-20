@@ -115,6 +115,8 @@ export function MovementForm({
     });
 
   const needsLot = kind === "adjust" || kind === "write_off";
+  // Counts and write-offs name a lot (expired ones included); issues and transfers never take an expired lot, so none is offered.
+  const offeredLots = needsLot ? lots : lots.filter((l) => l.expiry !== "expired");
   return (
     <Card>
       <CardHeader>
@@ -143,7 +145,12 @@ export function MovementForm({
           }}
         >
           <Field label={kind === "transfer" ? "From" : "Location"} id="mv-location">
-            <NativeSelect id="mv-location" value={f.locationId} onChange={(e) => set({ locationId: e.target.value, lotId: "" })}>
+            <NativeSelect
+              id="mv-location"
+              emptyText="No active stock locations at this facility"
+              value={f.locationId}
+              onChange={(e) => set({ locationId: e.target.value, lotId: "" })}
+            >
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -185,9 +192,15 @@ export function MovementForm({
           ) : null}
           {kind !== "receive" ? (
             <Field label={needsLot ? "Lot" : "Lot (optional: earliest expiry first)"} id="mv-lot" wide>
-              <NativeSelect id="mv-lot" value={f.lotId} onChange={(e) => set({ lotId: e.target.value })}>
-                <option value="">{needsLot ? "Choose…" : "Earliest expiry first"}</option>
-                {lots.map((l) => (
+              <NativeSelect
+                id="mv-lot"
+                placeholder={needsLot ? "Choose…" : undefined}
+                emptyText="No lots of this item at this location"
+                value={f.lotId}
+                onChange={(e) => set({ lotId: e.target.value })}
+              >
+                {needsLot ? null : <option value="">Earliest expiry first</option>}
+                {offeredLots.map((l) => (
                   <option key={l.lotId} value={l.lotId}>
                     {l.lotNumber ?? "—"} × {l.quantity}
                     {l.expiryDate ? ` · exp. ${l.expiryDate}` : ""}
@@ -203,7 +216,7 @@ export function MovementForm({
           {kind === "receive" ? (
             <>
               <Field label="Supplier" id="mv-supplier">
-                <NativeSelect id="mv-supplier" value={f.supplierId} onChange={(e) => set({ supplierId: e.target.value })}>
+                <NativeSelect id="mv-supplier" emptyText="No active suppliers" value={f.supplierId} onChange={(e) => set({ supplierId: e.target.value })}>
                   <option value="">—</option>
                   {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>

@@ -72,17 +72,20 @@ export function WalkInForm({
       <fieldset disabled={pending} className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1">
           <Label htmlFor="visitType">Visit type *</Label>
-          <NativeSelect id="visitType" value={visitTypeId} onChange={(e) => setVisitTypeId(e.target.value)} required>
-            <option value="" disabled>
-              Select…
-            </option>
+          <NativeSelect
+            id="visitType"
+            placeholder="Choose…"
+            emptyText="No in-person visit types set up"
+            value={visitTypeId}
+            onChange={(e) => setVisitTypeId(e.target.value)}
+            required
+          >
             {visitTypes.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
               </option>
             ))}
           </NativeSelect>
-          {visitTypes.length === 0 ? <p className="text-meta text-danger-foreground">No in-person visit types are configured.</p> : null}
         </div>
         <div className="grid gap-1">
           <Label htmlFor="priority">Priority</Label>

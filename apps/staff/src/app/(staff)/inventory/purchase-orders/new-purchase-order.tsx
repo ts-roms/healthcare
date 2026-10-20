@@ -98,7 +98,12 @@ export function NewPurchaseOrder({
               </NativeSelect>
             </Field>
             <Field id="po-location" label="Deliver to">
-              <NativeSelect id="po-location" value={f.locationId} onChange={(e) => setF({ ...f, locationId: e.target.value })}>
+              <NativeSelect
+                id="po-location"
+                emptyText="No active stock locations at this facility"
+                value={f.locationId}
+                onChange={(e) => setF({ ...f, locationId: e.target.value })}
+              >
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}

@@ -48,7 +48,8 @@ Appointments are booked from the patient record, so you always book for the righ
 
 1. Select **Find patient to book** on the Appointments screen (or search under **Patients**), and open the patient record.
 2. Select **Book appointment**. (It appears only for active records and only if you have `appointment.manage`.)
-3. Choose the **Practitioner \***, the **Visit type \*** and the **Day \***. Online visit types are marked "online" in the list.
+3. Choose the **Practitioner \***, the **Visit type \*** and the **Day \***. Only practitioners with a current published schedule at this
+   facility are listed; online visit types are marked "online" in the list.
 4. Under **Open slots**, pick a time. Only open times in the practitioner's published schedule at this facility are offered — times already
    booked, and leave or facility closures, are left out. If you see "No open slots on this day. Try another day or practitioner.", change the
    day or practitioner.
@@ -395,7 +396,7 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 | Some vital signs are not plausible; check the entries                      | A value is outside the limits; the field is highlighted | Re-measure or correct the typing                                       |
 | Triage is not possible while the visit is in consultation (or completed…)  | The consultation has started or the visit is closed     | Record findings in the encounter instead                               |
 | … was modified by someone else (expected version …). Reload and try again. | Another user changed it first                           | The screen refreshes; check and try again                              |
-| No in-person visit types are configured.                                   | Walk-ins need an in-person visit type                   | Ask your administrator to set one up                                   |
+| No in-person visit types set up (in the **Visit type** list)               | Walk-ins need an in-person visit type                   | Ask your administrator to set one up                                   |
 | This procedure is recorded in a consultation (the catalogue does not…)     | The entry is not allowed outside a consultation         | Record it in the encounter workspace, or ask an administrator          |
 | Record the patient's consent with this procedure                           | The entry requires consent                              | Fill in the **Consent** part of the form                               |
 

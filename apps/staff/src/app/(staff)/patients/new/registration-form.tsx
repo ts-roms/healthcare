@@ -115,10 +115,7 @@ export function RegistrationFormView() {
               {field(
                 "sex",
                 "Sex *",
-                <NativeSelect id="sex" aria-invalid={!!errors.sex} defaultValue="" {...form.register("sex")}>
-                  <option value="" disabled>
-                    Select…
-                  </option>
+                <NativeSelect id="sex" placeholder="Choose…" aria-invalid={!!errors.sex} defaultValue="" {...form.register("sex")}>
                   <option value="female">Female</option>
                   <option value="male">Male</option>
                   <option value="intersex">Intersex</option>

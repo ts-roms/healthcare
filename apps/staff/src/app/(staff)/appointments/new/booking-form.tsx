@@ -129,10 +129,13 @@ export function BookingForm({
       <fieldset disabled={pending} className="grid gap-3 sm:grid-cols-3">
         <div className="grid gap-1">
           <Label htmlFor="practitioner">Practitioner *</Label>
-          <NativeSelect id="practitioner" value={selection.practitionerId} onChange={(e) => select({ practitionerId: e.target.value })}>
-            <option value="" disabled>
-              Select…
-            </option>
+          <NativeSelect
+            id="practitioner"
+            placeholder="Choose…"
+            emptyText="No practitioner has a schedule at this facility"
+            value={selection.practitionerId}
+            onChange={(e) => select({ practitionerId: e.target.value })}
+          >
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -142,10 +145,13 @@ export function BookingForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor="visitType">Visit type *</Label>
-          <NativeSelect id="visitType" value={selection.visitTypeId} onChange={(e) => select({ visitTypeId: e.target.value })}>
-            <option value="" disabled>
-              Select…
-            </option>
+          <NativeSelect
+            id="visitType"
+            placeholder="Choose…"
+            emptyText="No active visit types"
+            value={selection.visitTypeId}
+            onChange={(e) => select({ visitTypeId: e.target.value })}
+          >
             {visitTypes.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
