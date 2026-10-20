@@ -65,7 +65,7 @@ describe("entry links", () => {
     expect(entryHref(entry({}), PATIENT, "Asia/Manila")).toBe("/clinic/encounters/e1");
     expect(entryHref(entry({ link: { type: "invoice", id: "i1" } }), PATIENT, "Asia/Manila")).toBe("/billing/invoices/i1");
     expect(entryHref(entry({ link: { type: "dental_record", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/dental/patients/${PATIENT}`);
-    expect(entryHref(entry({ link: { type: "patient_laboratory", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/patients/${PATIENT}#laboratory`);
+    expect(entryHref(entry({ link: { type: "patient_laboratory", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/patients/${PATIENT}?tab=labs#laboratory`);
     expect(entryHref(entry({ link: { type: "telemedicine", id: "a1" } }), PATIENT, "Asia/Manila")).toBe("/telemedicine/a1");
     expect(entryHref(entry({ link: null }), PATIENT, "Asia/Manila")).toBeNull();
   });
@@ -76,7 +76,7 @@ describe("entry links", () => {
     expect(entryHref(entry({ kind: "records_request", link: { type: "records_request", id: "r1" } }), PATIENT, "Asia/Manila")).toBe("/records/requests/r1");
     expect(entryHref(entry({ kind: "allergy", link: { type: "patient_record", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(`/patients/${PATIENT}`);
     expect(entryHref(entry({ kind: "specimen", link: { type: "patient_laboratory", id: PATIENT } }), PATIENT, "Asia/Manila")).toBe(
-      `/patients/${PATIENT}#laboratory`,
+      `/patients/${PATIENT}?tab=labs#laboratory`,
     );
   });
 

@@ -75,30 +75,44 @@ Registration never merges records by itself.
 
 ## How to read the patient record
 
-Open a patient from the search results. The record (`/patients/[id]`) shows:
+Open a patient from the search results. The record (`/patients/[id]`) has a header, a row of sections and the section you chose.
 
-- **Patient banner** at the top: name, patient number, age, sex and the allergy statement.
-- A yellow **Record status** line if the patient is not active (for example deceased, with the date). A merged (retired) record instead says **Merged into
-  P… on … by …** with a link to the surviving record; it is read only.
-- **Merged records** (on a surviving record): the patient numbers merged into this record, when, and the merge history. Everything filed under those
-  numbers — allergies, problems, prescriptions, consultations, results, dental work, bills — is shown on this record, each row marked **Filed under P…**.
-- **Action buttons** (each only if you have the permission):
-  - **Patient 360** — the doctor's one-screen workspace (see below).
-  - **Timeline** — the whole record in date order (see below).
-  - **Check in (walk-in)** — put the patient in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
+**The header**
+
+- Name, patient number, **Active** (or the record's status), age, sex, mobile number and the allergy statement. Allergies are always beside the name.
+- **In queue · Ready for provider · #9** when the patient has an open visit in today's queue at the facility you selected. Select it to open the queue.
+- Buttons, each only if you have the permission:
+  - **Start consultation** — shown when the patient is in today's queue and can be seen (`encounter.write`). An online visit opens in Telemedicine instead.
+  - **Check in (walk-in)** — shown when the patient is not in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
   - **Book appointment** (`appointment.manage`).
   - **Billing** — the patient's charges and invoices (`billing.charge.read`). See [Billing](10-billing.md).
-  - **Dental record** (`dental.record.read`). See [Dental](08-dental.md).
-  - **Merge duplicate…** (`patient.merge`, records officers and organization administrators). See
-    [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records).
-- **Demographics**, **Contact & address**, **Identifiers** (PhilHealth PIN, PhilSys, SC/PWD ID, HMO) and **Emergency contacts & guardians**.
-- **Clinical summary** (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**, **Recent encounters**, **Upcoming
-  visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
-  decision.
-- **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
-- **Consent & communication**, **Recent activity**, **Referrals** (the patient's referrals with their status and **Overdue** when your organization flags
-  them; select one to open it), **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient portal
-  (MyHealth)**.
+  - **More** — **Patient 360** (the doctor's one-screen workspace, see below), **Timeline** (the whole record in date order, see below), **Dental record**
+    (`dental.record.read`, see [Dental](08-dental.md)), **Edit details** and **Merge duplicate…** (`patient.merge`, records officers and organization
+    administrators; see [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records)).
+
+**Notices under the header**
+
+- A yellow **Record status** line if the patient is not active (for example deceased, with the date). A merged (retired) record instead says **Merged into
+  P… on … by …** with a link to the surviving record; it is read only.
+- **A visit from an earlier day is still open** (queue access): a visit that was never closed keeps the patient shown as in the queue. Select **Close visit**,
+  choose **Patient left without being seen** (or **Checked in by mistake**, only before triage), add a note if you want, and confirm. A consultation under way
+  is not closed here: open it and finish it. The visit is not moved to today; check the patient in again if they are here now.
+
+**The sections** (the address keeps the section, `?tab=`, so you can come back to it)
+
+- **Overview** — **Record 56% complete** (what the front desk can still ask for: exact date of birth, civil status, nationality, occupation, a mobile
+  number, an address, an emergency contact, an ID and a consent decision; a prompt, not a rule), **Demographics**, **Contact & address**, **Identifiers**
+  (PhilHealth PIN, PhilSys, SC/PWD ID, HMO), **Emergency contacts & guardians**, **Merged records** (on a surviving record: the patient numbers merged into
+  this record, when, and the merge history; everything filed under those numbers is shown on this record, each row marked **Filed under P…**), **Recent
+  activity**, and the **Clinical summary** at the side (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**,
+  **Recent encounters**, **Upcoming visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or
+  physician before any clinical decision.
+- **Clinical** — **Medical, medication, family and social history**, **Immunizations** and **External history (imported)**.
+- **Visits** — appointments, queue visits, consultations, referrals, certificates and procedures in date order, **Referrals** (with their status and
+  **Overdue** when your organization flags them; select one to open it) and **Procedures done here**.
+- **Labs** — **Laboratory results** and **Archived laboratory reports**.
+- **Coverage** — **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
+- **Consent & portal** — **Consent & communication** and **Patient portal (MyHealth)** with **Guardians and caregivers**.
 
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 

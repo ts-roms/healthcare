@@ -276,7 +276,7 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
             icon={FlaskConicalIcon}
             action={
               labResults?.length ? (
-                <Link href={`/patients/${id}#laboratory`} className="text-meta text-primary hover:underline">
+                <Link href={`/patients/${id}?tab=labs#laboratory`} className="text-meta text-primary hover:underline">
                   All results
                 </Link>
               ) : null

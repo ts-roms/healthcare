@@ -213,7 +213,7 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
 
 const BLANK_PRACTITIONER: PractitionerInput = { displayName: "", profession: "physician", specialty: "", licenseNumber: "", licenseValidUntil: "", userId: "" };
 
-function PractitionerFields({
+export function PractitionerFields({
   prefix,
   form,
   set,

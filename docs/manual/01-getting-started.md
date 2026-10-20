@@ -80,12 +80,11 @@ From left to right:
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
-- Your **name** and **organization** (on wide screens; a person icon on narrow ones) — opens **My account** (see below).
-- **Sign out** button (the exit icon). Hover over it to see which email is signed in.
+- **Account menu** (your initials) — shows your name, email and organization, and has **My account** (see below), **Company settings** (when you may open them) and **Log out**.
 
 ## How to change your password or turn on two-step verification
 
-Click your name in the top bar to open **My account** (`/account`).
+Open the **Account menu** (your initials in the top bar) and choose **My account** (`/account`).
 
 - **Password:** enter your current password, then the new one twice (at least 12 characters, not repetitive), and click **Change password**.
   You stay signed in here; every other session of yours is signed out.
@@ -128,21 +127,32 @@ again to turn it back on. The test notice is always sent.
 
 ## How to use the dashboard
 
-The **Dashboard** (`/`) greets you by name and shows your organization and selected facility. What you see depends on your permissions and needs a selected
-facility.
+The **Dashboard** (`/`) greets you by name ("Good morning", "Good afternoon" or "Good evening" by the facility's clock) and shows the date, your organization and
+the selected facility. What you see depends on your permissions and needs a selected facility.
 
-- **Find patient** and **Register patient** buttons (with `patient.search` and `patient.register`).
-- **Clinic today** (with `clinic.dashboard.read`):
-  - Figures: **Appointments**, **Waiting**, **With provider**, **Seen**, **Average wait** and **No-show rate**. Select a figure to open its screen.
-  - **Attention required**: for example "Long wait in the queue" (someone waiting more than 45 minutes), "Unsigned encounters", "Left without being seen
-    today", "Overdue care-plan activities" and "Care-plan activities due this week". When the list is empty it says "Nothing needs your attention."
-  - **Your next patients** (if your account is linked to a practitioner) or **Next patients**, with a **Full schedule** link.
-  - **Provider workload** (Booked, Seen, Waiting per practitioner) and the live queue board.
-- **Laboratory** (with laboratory permissions): **To collect**, **Awaiting results**, **Awaiting sign-off**, **STAT open**, **Released today**, **Avg.
-  turnaround** and **Rejected today**, plus "Critical results not yet acknowledged" and "Tests past their turnaround time". Quality staff also see a
-  **Laboratory quality** list. See [Laboratory](06-laboratory.md) and [Laboratory quality](07-laboratory-quality.md).
+- **Register patient** and **Check in patient** buttons (with `patient.register`, and with `clinic.queue.manage` and `patient.search`).
+- **Figures** (with `clinic.dashboard.read`; select one to open its screen): **Appointments** (with how many arrived and how many did not come),
+  **Waiting** (with the average wait), **Longest wait** (red with a warning icon from 30 minutes, with the patient and ticket when you may open the
+  queue), **With provider** and **Seen** (compared with the same weekday last week).
+- **Needs attention**: the urgent and soon things of the day, each with a tag (**Urgent**, **Soon**, **Info**, **Setup**) and a button to where it is dealt
+  with. The chips **All**, **Patients**, **Lab** and **Setup** narrow the list. It shows, for example, a patient waiting 30 minutes or more ("Call now"),
+  unsigned consultations, patients who left without being seen, overdue care-plan activities, critical laboratory results not yet acknowledged, tests
+  past their turnaround time, samples not yet collected and the laboratory quality items — and, under **Setup**, a laboratory licence that was never
+  recorded and practitioners without a staff account or a licence number (for those who may change practitioners). When nothing needs attention it
+  says so. The orange and red numbers are only for reading the day; the system decides nothing from them.
+- **Next up** (or **Your next patients** if your account is linked to a practitioner): today's next appointments with the practitioner and reason, and
+  **Checked in**, **N min late** or **Expected**; **Full schedule** opens the appointments.
+- **Laboratory** (with laboratory permissions): the four steps **To collect**, **Awaiting results**, **Awaiting sign-off** and **Released today**, the
+  average turnaround, what was released and rejected today, and **STAT open** when there is one. Select a step to open that stage of the worklist.
+  Quality staff also see the laboratory quality items under **Needs attention**. See [Laboratory](06-laboratory.md) and
+  [Laboratory quality](07-laboratory-quality.md).
+- **Calendar**: the month with a bar under each day for how full it is — the appointments holding a slot against the slots the schedules offer, after leave and
+  closures: **Light**, **Busy** (from 40 %) or **Nearly full** (from 80 %); a day without a schedule has no bar. The arrows move by month and **Today** comes back. Under it,
+  today's appointments and open slots, and **Open day**.
+- **This week**: the appointments of each day from Monday (Sunday too when it has any), today in the dark bar, and how many follow-ups fall due in the
+  next 7 days (**Review** opens the recall list).
 
-The small indicator next to **Clinic today** tells you how the figures update:
+The small **Live** indicator under your name tells you how the figures update:
 
 | Indicator              | Meaning                                                                    |
 | ---------------------- | -------------------------------------------------------------------------- |
@@ -167,7 +177,7 @@ The small indicator next to **Clinic today** tells you how the figures update:
 
 ## How to sign out
 
-1. Select the **Sign out** icon at the right end of the top bar.
+1. Open the **Account menu** (your initials at the right end of the top bar) and choose **Log out**.
 2. You return to the sign-in page. Your session is ended on the server and your facility choice is cleared.
 
 Always sign out of a shared workstation. The staff app does not sign you out after a period of inactivity.

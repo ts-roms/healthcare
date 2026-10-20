@@ -137,7 +137,7 @@ A double click adds the patient only once.
 
 ## How to use the queue board
 
-Open **Queue** (`/queue`). The board shows today's visits at the selected facility in five columns:
+Open **Queue** (`/queue`). At the top are the page title with the connection state, three chips (the **facility**, the **service point** and the day), and the two buttons a front desk uses most: **Waiting-room display** and **Check in patient**. Below them four figures sum up the queue: **In queue** (with how many are done), **Avg wait**, **Longest wait** (with the patient's name; it turns red with a warning icon at 30 minutes or more) and **With provider**. The board shows today's visits at the selected facility in five columns, filling the screen; each column scrolls on its own:
 
 | Column                 | Meaning                                             |
 | ---------------------- | --------------------------------------------------- |
@@ -147,31 +147,32 @@ Open **Queue** (`/queue`). The board shows today's visits at the selected facili
 | **With provider**      | Consultation in progress                            |
 | **Done**               | Seen, cancelled, or left without being seen         |
 
-Each card shows the ticket, the patient's name, a priority badge (**Urgent** or **Emergency**) when not routine, and where the patient was called
-to or what they are waiting for — and, once the patient has been sent to a service point, its name, and **next: …** when their route has a stop
-ahead. In the waiting columns the card also shows minutes since arrival; waits over 45 minutes are highlighted with ⚠.
+**Done** is folded into a count with the last ticket; select **View list** to see who they were and **Hide list** to fold it again.
 
-If your facility has service points (see below), a **Service point** list above the board shows **All service points** or one of them — for example
+Each card shows the ticket, the patient's name, the complaint or where the patient was called to, and tags: **Walk-in** or **Appointment**, and **Urgent**, **Emergency** or **Priority · …** when not routine. Once the patient has been sent to a service point, the card also shows its name, and **next: …** when their route has a stop ahead. In the waiting columns the card shows how long the patient has waited since arrival, as a coloured label with the minutes: green under 15 minutes, amber from 15, red with a warning icon from 30. These limits are only how the board is drawn; they are not a target set by the system. The selected ticket is outlined.
+
+When nobody has checked in yet, the columns fold into zero counts and the board says **No patients in the queue yet**, with **Check in patient**, **View today's appointments (…)** and who the first appointment of the day is.
+
+If your facility has service points (see below), the **service point** chip in the header shows **All service points** or one of them — for example
 only the emergency room's queue. The choice is kept in the page address, so a bookmarked link opens that service point's board and live updates keep
 it. Each service point's queue is in the same order as the whole board: emergency, then urgent, then routine, each by arrival.
 
-The board updates by itself. Next to the count of active visits you see the connection state:
+The board updates by itself. Next to the title you see the connection state and when the board was last updated:
 
 - **Live** — changes appear as they happen.
 - **Connecting…** — reconnecting.
 - **Updates every 15 s** — live updates are unavailable, so the board re-reads the queue every 15 seconds.
 
-Select **Refresh** to reload at any time.
+Select the refresh button next to the connection state to reload at any time.
 
 ### Call a patient and move them along
 
-1. Select a ticket. A panel opens on the right with the patient's name, number, age and sex, status, arrival time (appointment or walk-in),
-   complaint, and where they were called to.
+1. Select a ticket. A panel opens on the right with the ticket in large type and how long the patient has waited, the patient's name, number, age and sex, the complaint, and four details: **Stage**, **Arrived**, **Visit** (appointment or walk-in) and **Assigned** (the provider, or **Any provider**). It also shows where they were called to, and a **Timeline** of check-in, calls and the current stage. On a narrow screen the panel opens under the board.
 2. To call the patient, type the place in **Call patient to** (for example "Triage 1" or "Room 3") and select **Call**.
 3. To move the patient, use the buttons shown for their current status:
-   - From **Waiting**: **Send to triage**, **Cancel visit…**, **Left without being seen…**
-   - From **Triage / Vitals**: **Ready for provider**, **Left without being seen…**
-   - From **Ready for provider**: **Send to triage** (back to triage), **Left without being seen…**
+   - From **Waiting**: **Move to Triage / Vitals**, **Cancel visit…**, **Left without being seen…**
+   - From **Triage / Vitals**: **Move to Ready for provider**, **Left without being seen…**
+   - From **Ready for provider**: **Send back to Triage / Vitals**, **Left without being seen…**
 4. **Cancel visit…** and **Left without being seen…** need a reason (at least 3 characters); it is recorded in the audit trail. Select the
    button again to confirm, or **Keep in queue**.
 5. To send a triaged patient somewhere else — from the emergency room to X-ray, say — choose the place under **Send to** and select **Send**. This is
@@ -256,25 +257,33 @@ leaves the display when the visit is closed (done, cancelled or left without bei
 ## How to record triage and vital signs
 
 1. On the queue board, select the ticket and then **Triage & vitals**.
-2. The page shows the patient banner with allergies, and on the right the patient's **Allergies** and **Previous vitals**. (These need
-   `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You can record allergies here; see
-   [Patients](02-patients.md).
-3. Under **Assessment**:
-   - **Chief complaint \*** — required.
+2. The top of the page shows the ticket, the patient's name, sex, age and patient number, their allergies, **Waiting … min** (amber from 15 minutes, red
+   from 30) and whether they walked in or had an appointment. **Open patient record** is on the right. On the right of the form are the patient's
+   **Allergies** and **Previous vitals**. (These need `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You
+   can record allergies here; see [Patients](02-patients.md).
+3. **1 · Chief complaint \*** — required. The **Common** buttons (Fever, Cough / colds, Headache, Abdominal pain, High blood pressure, Follow-up) add
+   those words to what you have written; they are wording only.
+4. **2 · Vital signs** — enter what you measured. Leave blank what was not measured. Under each field is the adult reference band until you type, then
+   where your reading sits (for example "High · normal 60–100"); a reading outside the band turns red, with the word as well as the colour.
+   **BMI** is calculated from weight and height and shown under **Height**. When any reading is outside the band, a **From these vitals** card lists
+   them and offers **Set priority to Urgent**. The bands are guidance beside the number; nothing changes the priority or blocks a save unless you press
+   that button, and the decision is the nurse's. The bands are for adults: for a patient under 18 the page says so, shows no bands and flags nothing (only the BMI figure), and you read the values against your own references.
+5. **3 · Priority & risk**:
    - **Priority \*** — **Routine**, **Urgent** or **Emergency**. Urgent and emergency patients are seen first.
-   - **Pain score (0–10)** — or **Not assessed**.
-   - **Risk flags** — comma-separated, for example "fall risk, pregnant, infectious symptoms".
-4. Under **Vital signs**, enter what you measured. Leave blank what was not measured. **BMI** is calculated from weight and height for display.
-5. Optionally add **Triage notes**.
-6. Under **Route**, choose under **Send to** where the patient goes next — **Consultation**, **Emergency room**, **X-ray** or whatever your facility
-   has set up. The list starts on the service point the patient is already at, otherwise on the facility's consultation line. Leave it on
-   **Choose…** to keep the ordinary consultation queue; if the list says **No service points set up**, your facility has none and the patient stays
-   on that queue. When the patient has more stops ahead — the laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes
-   one). From the queue board, **Done here, send on** then moves the patient from stop to stop (see "How to work a patient's route" above).
-7. Choose how to save:
-   - **Complete triage — ready for provider** — saves and moves the patient to **Ready for provider** (at the service point you chose).
-   - **Save, keep in triage** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is
-     recorded all the same.
+   - **Pain score** — **N/A** or 0 to 10.
+   - **Risk flags** — choose from Fall risk, Pregnant, Infectious symptoms, Senior (60+), PWD, Needs interpreter and Wheelchair, or **+ Other** to type
+     your own, comma-separated.
+6. **4 · Notes for the provider** — optional.
+7. When the facility has service points, a **Route** card follows. Under **Send to** choose where the patient goes next — **Consultation**,
+   **Emergency room**, **X-ray** or whatever your facility has set up. The list starts on the service point the patient is already at, otherwise on the
+   facility's consultation line. Leave it on **Choose…** to keep the ordinary consultation queue. When the patient has more stops ahead — the
+   laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes one). From the queue board, **Done here, send on** then moves the
+   patient from stop to stop (see "How to work a patient's route" above). Without service points the bar at the bottom says **No service points set
+   up yet** with **Set up rooms** (administrators), and the patient stays on the consultation line.
+8. The bar at the bottom says **Next:** where the patient goes, and has the buttons:
+   - **Complete triage** — saves and moves the patient to **Ready for provider** (at the service point you chose).
+   - **Save draft** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is recorded all the
+     same.
    - **Cancel** — leaves without saving.
 
 The triage, the vital signs, the queue move and the service point are saved together: either all of it is recorded or none of it.
@@ -284,8 +293,9 @@ this visit".
 
 ### Vital-sign limits
 
-The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges, and the platform does not
-label vital signs normal or abnormal.
+The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges. The adult reference bands shown
+beside your readings are a separate, display-only guide for the person reading the number; they are not a diagnosis, are not set per patient (a
+child's normal is different) and the platform never acts on them.
 
 | Field            | Unit  | Accepted range | Notes                                |
 | ---------------- | ----- | -------------- | ------------------------------------ |
@@ -435,6 +445,18 @@ changing it needs `clinic.configure` (organization administrators by default). E
 
 Visit types are set up under **Online booking** (`/appointments/visit-types`); diagnosis coding systems have no screen yet (see
 [Administration](13-administration.md)).
+
+## How to read a doctor's profile
+
+Select **Doctors** in the menu (`/doctors`) and **View profile** on a card. The profile shows one practitioner at the selected facility:
+
+- **Header** — the name, whether the practitioner is **Active**, profession, specialty and facility. **Edit profile** (needs `clinic.configure`) opens the same form as **Edit…** on the schedules page; **Book appointment** opens the booking screen with this doctor chosen (for staff who may book).
+- **Steps left to finish this doctor's profile** — a yellow bar that appears while something is missing: a **staff account** (without one the doctor cannot document or prescribe), the **PRC licence number** (printed on medical certificates and referral letters) or a **weekly schedule** (without one nobody can book the doctor). Each step opens the place where it is fixed. The platform does not check the licence number.
+- **Four figures** — **Next available**: the first open slot among the doctor's next clinic days at this facility, for the first in-person visit type; **Hours per week** and the number of clinic days; **Next week**: appointments booked in the coming Monday-to-Sunday week out of the slots the schedule offers that week (a day touched by leave or a closure counts as no slots, even when only part of it is closed); **Seen this month**: the patients with a completed appointment this month (with a **+** after 100 appointments).
+- **Weekly schedule** — Monday to Sunday, each with a bar of the hours in clinic within 08:00–20:00 (wider when a schedule starts earlier or ends later), the hours and the number of slots; days without a schedule say **Not in clinic**. **Edit hours** opens the schedules page.
+- **Credentials** — the licence number and its expiry, and the linked staff account; a missing one is a link that opens **Edit profile**. A PhilHealth accreditation number is not recorded for individual practitioners.
+- **Calendar** — the month with a dot under each clinic day and an orange dot under days of leave; today is filled and the day of the next open slot has a ring. The arrows move by month.
+- **Upcoming appointments** — the next days with booked or confirmed appointments (up to three days) with time, patient and reason, how many slots are still open on the first of them, and **See all**, which opens this doctor's schedule. It says when the doctor is not in clinic today.
 
 ## Rules the system enforces
 

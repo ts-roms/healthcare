@@ -819,6 +819,24 @@ export interface ClinicDashboard {
   providerWorkload: Array<{ practitionerId: string; displayName: string; booked: number; seen: number; waiting: number }>;
 }
 
+/** GET /clinic/dashboard/load: appointments and schedule slots per local day at the selected facility (counts only). */
+export interface ClinicLoadDay {
+  date: string;
+  /** Appointments that day, cancelled ones left out (no-shows count). */
+  scheduled: number;
+  /** Of them, the ones holding a slot (no-shows do not). */
+  booked: number;
+  /** Slots the weekly schedules offer that day, less leave and closures. */
+  slots: number;
+}
+export interface ClinicLoad {
+  facilityId: string;
+  timeZone: string;
+  from: string;
+  to: string;
+  days: ClinicLoadDay[];
+}
+
 /** GET /care-plans/activities/due row (recall list). */
 export interface DueCareActivity {
   id: string;

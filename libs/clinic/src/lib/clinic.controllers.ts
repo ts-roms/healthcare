@@ -37,6 +37,7 @@ import {
   CreateVisitTypeDto,
   UpdateVisitTypeDto,
   CreateWaitlistDto,
+  DashboardLoadQueryDto,
   DashboardQueryDto,
   EnteredInErrorDto,
   ListAppointmentsDto,
@@ -638,5 +639,13 @@ export class ClinicDashboardController {
   @RequireFacility()
   get(@CurrentActor() actor: Actor, @Query() query: DashboardQueryDto) {
     return this.dashboard.forFacility(actor, query.date);
+  }
+
+  @Get("load")
+  @RequirePermissions("clinic.dashboard.read")
+  @RequireFacility()
+  @ApiOperation({ summary: "Appointments booked and schedule slots offered per local day (counts only), for the dashboard calendar and week" })
+  load(@CurrentActor() actor: Actor, @Query() query: DashboardLoadQueryDto) {
+    return this.dashboard.dailyLoad(actor, query);
   }
 }

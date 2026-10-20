@@ -101,7 +101,7 @@ export function InstrumentResultReview({ rows, canDecide, decided }: { rows: Lab
               <TableCell className="text-right">
                 {decided ? (
                   r.state === "accepted" && r.patientId ? (
-                    <Link href={`/patients/${r.patientId}#laboratory`} className="text-meta text-primary hover:underline">
+                    <Link href={`/patients/${r.patientId}?tab=labs#laboratory`} className="text-meta text-primary hover:underline">
                       Open results
                     </Link>
                   ) : null

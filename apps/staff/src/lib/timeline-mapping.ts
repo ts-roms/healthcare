@@ -126,9 +126,9 @@ export function entryHref(entry: PatientTimelineEntry, patientId: string, timeZo
       return `/appointments?${params.toString()}`;
     }
     case "patient_laboratory":
-      return `/patients/${patientId}#laboratory`;
+      return `/patients/${patientId}?tab=labs#laboratory`;
     case "patient_external_history":
-      return `/patients/${patientId}#external-history`;
+      return `/patients/${patientId}?tab=clinical#external-history`;
     case "patient_immunizations":
       return `/patients/${patientId}/immunizations`;
     case "patient_record":

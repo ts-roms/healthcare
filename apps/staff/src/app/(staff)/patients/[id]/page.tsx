@@ -6,9 +6,7 @@ import {
   ArchiveIcon,
   BadgeCheckIcon,
   CalendarIcon,
-  CalendarPlusIcon,
   FlaskConicalIcon,
-  LogInIcon,
   EyeOffIcon,
   FileInputIcon,
   PhoneIcon,
@@ -17,18 +15,14 @@ import {
   ShieldCheckIcon,
   SmartphoneIcon,
   UsersIcon,
-  ReceiptIcon,
-  SmileIcon,
   HistoryIcon,
   NotebookTextIcon,
-  LayoutDashboardIcon,
   GitMergeIcon,
   WaypointsIcon,
   SyringeIcon,
-  PencilIcon,
   HandIcon,
 } from "lucide-react";
-import { clinicalDate, clinicalDateTime, PatientHeader, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
@@ -44,12 +38,15 @@ import type {
   PatientSummaryResponse,
   PatientTimelinePage,
   PortalAccountStatus,
+  QueueVisit,
   StaffProxyOverview,
   YakapConsultationList,
   YakapRegistrationOverview,
   Referral,
 } from "@/lib/api/types";
-import { referralRecipient, todayIn } from "@/lib/clinic-mapping";
+import { canStartConsultation, referralRecipient, todayIn, visitStatusLabel } from "@/lib/clinic-mapping";
+import { parseProfileTab, recordCompleteness, splitOpenVisits, type ProfileTab } from "@/lib/patient-profile";
+import { TIMELINE_GROUPS } from "@/lib/timeline-mapping";
 import { ReferralList } from "@/components/referral-list";
 import { ConsentHistory } from "./consent-history";
 import { ArchivedLabReports } from "./archived-lab-reports";
@@ -62,6 +59,11 @@ import { PortalAccess } from "./portal-access";
 import { ProxyAccess } from "./proxy-access";
 import { SendPortalMessage } from "./send-portal-message";
 import { RecordConsent } from "./record-consent";
+import { CompletenessCard } from "./completeness-card";
+import { ProfileHeader } from "./profile-header";
+import { ProfileTabs } from "./profile-tabs";
+import { StaleVisitBanner } from "./stale-visit-banner";
+import type { MoreMenuItem } from "./profile-more-menu";
 import { formatAddress, label, toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
 import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline-view";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
@@ -239,29 +241,91 @@ async function loadYakap(id: string): Promise<{ overview: YakapRegistrationOverv
   return overview || consultations ? { overview, consultations } : null;
 }
 
-export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const [p, summary, portal, proxies, labResults, labArchives, eligibility, yakap, externalHistory, recent, referrals, facility, session] = await Promise.all([
-    loadPatient(id),
-    loadSummary(id),
-    loadPortalAccount(id),
-    loadProxies(id),
-    loadLabResults(id),
-    loadArchivedLabReports(id),
-    loadEligibility(id),
-    loadYakap(id),
-    loadExternalHistory(id),
-    loadRecentActivity(id),
-    loadReferrals(id),
-    getSelectedFacility(),
-    getSession(),
-  ]);
+/**
+ * The patient's queue visits that are still open at the selected facility, found from the timeline's queue entries and read
+ * one by one (the version is needed to close one). Empty without queue access or a facility; never blocks the record.
+ */
+async function loadOpenVisits(id: string, facilityId: string | null, today: string): Promise<{ today: QueueVisit[]; earlier: QueueVisit[] }> {
+  const none = { today: [], earlier: [] };
+  const session = await getSession();
+  if (!facilityId || !can(session, "clinic.queue.read")) return none;
+  let page: PatientTimelinePage;
+  try {
+    page = await api<PatientTimelinePage>(`/patients/${id}/timeline`, { query: { kinds: "queue_visit", limit: 10 } });
+  } catch (e) {
+    if (e instanceof ApiError) return none;
+    throw e;
+  }
+  const open = new Set(["waiting", "in_triage", "awaiting_consultation", "in_consultation"]);
+  const ids = page.items
+    .filter((entry) => entry.status && open.has(entry.status))
+    .flatMap((entry) => (entry.sourceIds.visitId ? [entry.sourceIds.visitId] : []));
+  const visits = await Promise.all(
+    ids.slice(0, 5).map((visitId) =>
+      api<QueueVisit>(`/queue/visits/${visitId}`).catch((e: unknown) => {
+        if (e instanceof ApiError) return null;
+        throw e;
+      }),
+    ),
+  );
+  return splitOpenVisits(
+    visits.filter((v): v is QueueVisit => v !== null && v.facilityId === facilityId),
+    today,
+  );
+}
+
+/** The consultations, appointments, visits, referrals and procedures on the timeline (audited by the API); null when they cannot be shown. */
+async function loadVisitActivity(id: string): Promise<PatientTimelinePage | null> {
+  const kinds = TIMELINE_GROUPS.find((g) => g.key === "visits")?.kinds.join(",");
+  try {
+    return await api<PatientTimelinePage>(`/patients/${id}/timeline`, { query: { kinds, limit: 20 } });
+  } catch (e) {
+    if (e instanceof ApiError) return null;
+    throw e;
+  }
+}
+
+const none = <T,>(): Promise<T | null> => Promise.resolve(null);
+
+export default async function PatientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string | string[] }> }) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const tab: ProfileTab = parseProfileTab(query.tab);
+  const [p, summary, facility, session] = await Promise.all([loadPatient(id), loadSummary(id), getSelectedFacility(), getSession()]);
   const merged = p.status === "merged";
-  const [mergeHistory, immunizations, medicalHistory, procedures] = await Promise.all([
+  const today = todayIn(facility?.timezone ?? "Asia/Manila");
+  // Only what the open section shows is read: each read of a clinical list is audited by the API.
+  const [
+    mergeHistory,
+    openVisits,
+    recent,
+    visitActivity,
+    referrals,
+    procedures,
+    immunizations,
+    medicalHistory,
+    externalHistory,
+    labResults,
+    labArchives,
+    eligibility,
+    yakap,
+    portal,
+    proxies,
+  ] = await Promise.all([
     loadMergeHistory(p),
-    merged ? Promise.resolve(null) : loadImmunizations(id),
-    merged ? Promise.resolve(null) : loadPatientHistory(id).then((h) => h.history),
-    merged ? Promise.resolve(null) : loadProcedures(id),
+    loadOpenVisits(id, facility?.id ?? null, today),
+    tab === "overview" ? loadRecentActivity(id) : none<PatientTimelinePage>(),
+    tab === "visits" ? loadVisitActivity(id) : none<PatientTimelinePage>(),
+    tab === "visits" ? loadReferrals(id) : none<Referral[]>(),
+    tab === "visits" && !merged ? loadProcedures(id) : none<ClinicProcedure[]>(),
+    tab === "clinical" && !merged ? loadImmunizations(id) : none<ImmunizationRecord[]>(),
+    tab === "clinical" && !merged ? loadPatientHistory(id).then((h) => h.history) : none<Awaited<ReturnType<typeof loadPatientHistory>>["history"]>(),
+    tab === "clinical" ? loadExternalHistory(id) : none<ExternalHistoryEntry[]>(),
+    tab === "labs" ? loadLabResults(id) : none<PatientLabResult[]>(),
+    tab === "labs" ? loadArchivedLabReports(id) : none<LabReportArchiveEntry[]>(),
+    tab === "coverage" ? loadEligibility(id) : none<EligibilityOverview>(),
+    tab === "coverage" ? loadYakap(id) : none<{ overview: YakapRegistrationOverview | null; consultations: YakapConsultationList | null }>(),
+    tab === "portal" ? loadPortalAccount(id) : none<PortalAccountStatus>(),
+    tab === "portal" ? loadProxies(id) : none<StaffProxyOverview>(),
   ]);
   const lastMerge = merged ? mergeHistory?.find((h) => h.retired.id === p.id && h.action !== "unmerged") : undefined;
   const canCheckIn = can(session, "clinic.queue.manage");
@@ -271,13 +335,31 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   const canRecordConsent = can(session, "patient.consent.manage") && p.status !== "merged";
   const canViewDocuments = can(session, "document.read");
   const emergency = p.relationships.filter((r) => r.isEmergencyContact || r.isLegalGuardian);
+  const active = p.status === "active";
+  const todaysVisit = openVisits.today[0] ?? null;
+  const more: MoreMenuItem[] = [
+    { key: "360", label: "Patient 360", href: `/patients/${p.id}/360` },
+    { key: "timeline", label: "Timeline", href: `/patients/${p.id}/timeline` },
+    ...(canDental ? [{ key: "dental", label: "Dental record", href: `/dental/patients/${p.id}` }] : []),
+    ...((can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged
+      ? [{ key: "edit", label: "Edit details", href: `/patients/${p.id}/edit` }]
+      : []),
+    ...(can(session, "patient.merge") && !merged ? [{ key: "merge", label: "Merge duplicate…", href: `/patients/${p.id}/merge` }] : []),
+  ];
 
   return (
     <div className="flex min-h-full flex-col">
-      <PatientHeader
+      <ProfileHeader
         patient={toBannerPatient(p, summary?.allergies)}
+        statusLabel={merged ? "Merged" : active ? null : label(p.status)}
         allergiesHidden={!summary}
         allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
+        todaysVisit={todaysVisit}
+        canStartConsultation={canStartConsultation(todaysVisit?.status ?? "completed") && can(session, "encounter.write")}
+        checkInHref={canCheckIn && active && facility ? `/queue/walk-in?patientId=${p.id}` : undefined}
+        bookHref={canBook && active ? `/appointments/new?patientId=${p.id}` : undefined}
+        billingHref={canBill ? `/billing/patients/${p.id}` : undefined}
+        more={more}
       />
       {merged && p.mergedInto ? (
         <p
@@ -292,7 +374,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             Open {p.mergedInto.patientNumber}
           </Link>
         </p>
-      ) : p.status !== "active" ? (
+      ) : !active ? (
         <p
           role="alert"
           className="flex items-center gap-2 border-b border-warning/40 bg-warning-subtle px-4 py-2 text-table font-medium text-warning-foreground"
@@ -307,440 +389,478 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           ) : null}
         </p>
       ) : null}
+      <StaleVisitBanner
+        canManage={canCheckIn}
+        visits={openVisits.earlier.map((v) => ({
+          id: v.id,
+          version: v.version,
+          status: v.status,
+          statusLabel: visitStatusLabel(v.status),
+          ticket: v.ticket,
+          dayLabel: clinicalDate(`${v.queueDate}T12:00:00Z`),
+          encounterId: v.encounterId,
+        }))}
+      />
 
-      <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2">
-        <Button asChild size="sm" variant="outline">
-          <Link href={`/patients/${p.id}/360`}>
-            <LayoutDashboardIcon /> Patient 360
-          </Link>
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href={`/patients/${p.id}/timeline`}>
-            <HistoryIcon /> Timeline
-          </Link>
-        </Button>
-        {canCheckIn && p.status === "active" ? (
-          <Button asChild size="sm">
-            <Link href={`/queue/walk-in?patientId=${p.id}`}>
-              <LogInIcon /> Check in (walk-in)
-            </Link>
-          </Button>
-        ) : null}
-        {canBook && p.status === "active" ? (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/appointments/new?patientId=${p.id}`}>
-              <CalendarPlusIcon /> Book appointment
-            </Link>
-          </Button>
-        ) : null}
-        {canBill ? (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/billing/patients/${p.id}`}>
-              <ReceiptIcon /> Billing
-            </Link>
-          </Button>
-        ) : null}
-        {canDental ? (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/dental/patients/${p.id}`}>
-              <SmileIcon /> Dental record
-            </Link>
-          </Button>
-        ) : null}
-        {(can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged ? (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/patients/${p.id}/edit`}>
-              <PencilIcon /> Edit details
-            </Link>
-          </Button>
-        ) : null}
-        {can(session, "patient.merge") && !merged ? (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/patients/${p.id}/merge`}>
-              <GitMergeIcon /> Merge duplicate…
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+      <ProfileTabs patientId={p.id} active={tab} />
 
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_20rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Demographics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1.5 text-body">
-              <Row term="Name">{p.displayName}</Row>
-              <Row term="Birth date">
-                {clinicalDate(p.birthDate)}
-                {p.birthDateIsEstimated ? <Badge className="ml-2">Estimated</Badge> : null} <span className="text-muted-foreground">({p.age} y)</span>
-              </Row>
-              <Row term="Sex">{sexLabel(p.sex)}</Row>
-              {p.genderIdentity ? <Row term="Gender identity">{p.genderIdentity}</Row> : null}
-              <Row term="Civil status">{label(p.civilStatus)}</Row>
-              <Row term="Nationality">{p.nationality ?? "—"}</Row>
-              <Row term="Occupation">{p.occupation ?? "—"}</Row>
-            </dl>
-          </CardContent>
-        </Card>
+      {tab === "overview" ? (
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <CompletenessCard
+              completeness={recordCompleteness(p)}
+              editHref={(can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged ? `/patients/${p.id}/edit` : undefined}
+            />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Demographics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-body">
+                    <Row term="Name">{p.displayName}</Row>
+                    <Row term="Birth date">
+                      {clinicalDate(p.birthDate)}
+                      {p.birthDateIsEstimated ? <Badge className="ml-2">Estimated</Badge> : null} <span className="text-muted-foreground">({p.age} y)</span>
+                    </Row>
+                    <Row term="Sex">{sexLabel(p.sex)}</Row>
+                    {p.genderIdentity ? <Row term="Gender identity">{p.genderIdentity}</Row> : null}
+                    <Row term="Civil status">{label(p.civilStatus)}</Row>
+                    <Row term="Nationality">{p.nationality ?? "—"}</Row>
+                    <Row term="Occupation">{p.occupation ?? "—"}</Row>
+                  </dl>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <PhoneIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Contact &amp; address</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 text-body">
-            {p.contacts.length ? (
-              <ul className="flex flex-col gap-1">
-                {p.contacts.map((c) => (
-                  <li key={c.id} className="flex items-baseline gap-2">
-                    <span className="w-16 text-meta text-muted-foreground">{label(c.system)}</span>
-                    <span className="tabular">{c.value}</span>
-                    {c.isPrimary ? <Badge variant="info">Primary</Badge> : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">No contact details recorded.</p>
-            )}
-            {p.addresses.length ? (
-              <ul className="flex flex-col gap-1 border-t pt-2">
-                {p.addresses.map((a) => (
-                  <li key={a.id} className="flex items-baseline gap-2">
-                    <span className="w-16 text-meta text-muted-foreground">{label(a.use)}</span>
-                    <span>{formatAddress(a)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="border-t pt-2 text-muted-foreground">No address recorded.</p>
-            )}
-          </CardContent>
-        </Card>
+              <Card>
+                <CardHeader>
+                  <PhoneIcon className="size-4 text-muted-foreground" aria-hidden />
+                  <CardTitle>Contact &amp; address</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 text-body">
+                  {p.contacts.length ? (
+                    <ul className="flex flex-col gap-1">
+                      {p.contacts.map((c) => (
+                        <li key={c.id} className="flex items-baseline gap-2">
+                          <span className="w-16 text-meta text-muted-foreground">{label(c.system)}</span>
+                          <span className="tabular">{c.value}</span>
+                          {c.isPrimary ? <Badge variant="info">Primary</Badge> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">No contact details recorded.</p>
+                  )}
+                  {p.addresses.length ? (
+                    <ul className="flex flex-col gap-1 border-t pt-2">
+                      {p.addresses.map((a) => (
+                        <li key={a.id} className="flex items-baseline gap-2">
+                          <span className="w-16 text-meta text-muted-foreground">{label(a.use)}</span>
+                          <span>{formatAddress(a)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="border-t pt-2 text-muted-foreground">No address recorded.</p>
+                  )}
+                </CardContent>
+              </Card>
 
-        <Card className="lg:row-span-3" id="clinical-summary">
-          <CardHeader>
-            <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Clinical summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {summary ? (
-              <ClinicalPanel
-                summary={summary}
-                patientId={p.id}
-                canOpenEncounters={can(session, "encounter.read")}
-                canOpenCarePlans={can(session, "care-plan.read")}
-                canManageAllergies={can(session, "allergy.manage") && !merged}
-              />
-            ) : (
-              <NoClinicalAccess />
-            )}
-          </CardContent>
-        </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Identifiers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {p.identifiers.length ? (
+                    <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-body">
+                      {p.identifiers.map((i) => (
+                        <Row key={i.id} term={label(i.type)}>
+                          <span className="font-mono">{i.value}</span>
+                          {i.validUntil ? <span className="ml-2 text-meta text-muted-foreground">until {clinicalDate(i.validUntil)}</span> : null}
+                        </Row>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-body text-muted-foreground">No identifiers recorded (PhilHealth PIN, PhilSys, SC/PWD ID, HMO).</p>
+                  )}
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Identifiers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {p.identifiers.length ? (
-              <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1.5 text-body">
-                {p.identifiers.map((i) => (
-                  <Row key={i.id} term={label(i.type)}>
-                    <span className="font-mono">{i.value}</span>
-                    {i.validUntil ? <span className="ml-2 text-meta text-muted-foreground">until {clinicalDate(i.validUntil)}</span> : null}
-                  </Row>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-body text-muted-foreground">No identifiers recorded (PhilHealth PIN, PhilSys, SC/PWD ID, HMO).</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {eligibility ? (
-          <Card>
-            <CardHeader>
-              <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>PhilHealth eligibility</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PhilHealthEligibility
-                patientId={p.id}
-                overview={eligibility}
-                today={todayIn(facility?.timezone ?? "Asia/Manila")}
-                facilitySelected={facility !== null}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {yakap ? (
-          <Card>
-            <CardHeader>
-              <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>PhilHealth YAKAP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PhilHealthYakap patientId={p.id} overview={yakap.overview} consultations={yakap.consultations} facilityId={facility?.id ?? null} />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card>
-          <CardHeader>
-            <UsersIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Emergency contacts &amp; guardians</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {emergency.length ? (
-              <ul className="flex flex-col gap-1.5 text-body">
-                {emergency.map((r) => (
-                  <li key={r.id}>
-                    <span className="font-medium">{r.name ?? "Registered patient"}</span>{" "}
-                    <span className="text-muted-foreground">· {label(r.relationship)}</span>
-                    {r.isLegalGuardian ? <Badge className="ml-2">Guardian</Badge> : null}
-                    {r.contactNumber ? <span className="tabular ml-2">{r.contactNumber}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-body text-muted-foreground">None recorded.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <ShieldCheckIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Consent &amp; communication</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-3">
-              <ConsentList consents={p.consents} canViewDocuments={canViewDocuments} />
-              {canRecordConsent ? <RecordConsent patientId={p.id} canUpload={can(session, "document.upload")} /> : null}
-              {/* Reset (hide) a stale history when a new decision is recorded. */}
-              {p.consents.length ? <ConsentHistory key={p.consents.map((c) => c.id).join()} patientId={p.id} canViewDocuments={canViewDocuments} /> : null}
+              <Card>
+                <CardHeader>
+                  <UsersIcon className="size-4 text-muted-foreground" aria-hidden />
+                  <CardTitle>Emergency contacts &amp; guardians</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {emergency.length ? (
+                    <ul className="flex flex-col gap-1.5 text-body">
+                      {emergency.map((r) => (
+                        <li key={r.id}>
+                          <span className="font-medium">{r.name ?? "Registered patient"}</span>{" "}
+                          <span className="text-muted-foreground">· {label(r.relationship)}</span>
+                          {r.isLegalGuardian ? <Badge className="ml-2">Guardian</Badge> : null}
+                          {r.contactNumber ? <span className="tabular ml-2">{r.contactNumber}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-body text-muted-foreground">None recorded.</p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-            {p.communicationPreferences.length ? (
-              <ul className="flex flex-col gap-1 text-body">
-                {p.communicationPreferences.map((c) => (
-                  <li key={`${c.channel}-${c.category}`}>
-                    {label(c.channel)} · {label(c.category)}:{" "}
-                    <span className={c.optedIn ? "" : "text-muted-foreground"}>{c.optedIn ? "Opted in" : "Opted out"}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-body text-muted-foreground">No communication preferences recorded.</p>
-            )}
-            {can(session, "notification.read") ? (
-              <p className="md:col-span-2">
-                <Link className="text-table text-primary hover:underline" href={`/patients/${p.id}/communications`}>
-                  Messages sent to this patient
-                </Link>
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
 
-        {p.mergedRecords?.length || (merged && mergeHistory?.length) ? (
-          <Card className="lg:col-span-2" id="merged-records">
+            {p.mergedRecords?.length || (merged && mergeHistory?.length) ? (
+              <Card id="merged-records">
+                <CardHeader>
+                  <GitMergeIcon className="size-4 text-muted-foreground" aria-hidden />
+                  <CardTitle>{merged ? "Merge history" : "Merged records"}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MergedRecords survivorId={p.id} records={p.mergedRecords ?? []} history={mergeHistory} canUnmerge={can(session, "patient.merge")} />
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {recent ? (
+              <Card id="recent-activity">
+                <CardHeader>
+                  <HistoryIcon className="size-4 text-muted-foreground" aria-hidden />
+                  <CardTitle>Recent activity</CardTitle>
+                  <Button asChild size="sm" variant="ghost" className="ml-auto">
+                    <Link href={`/patients/${p.id}/timeline`}>Open timeline</Link>
+                  </Button>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  {recent.items.length ? (
+                    <PatientTimelineView entries={recent.items} patientId={p.id} timeZone={recent.timeZone} />
+                  ) : recent.withheld.length ? null : (
+                    <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
+                  )}
+                  <WithheldNote withheld={recent.withheld} />
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          <Card id="clinical-summary" className="self-start">
             <CardHeader>
-              <GitMergeIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>{merged ? "Merge history" : "Merged records"}</CardTitle>
+              <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Clinical summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <MergedRecords survivorId={p.id} records={p.mergedRecords ?? []} history={mergeHistory} canUnmerge={can(session, "patient.merge")} />
+              {summary ? (
+                <ClinicalPanel
+                  summary={summary}
+                  patientId={p.id}
+                  canOpenEncounters={can(session, "encounter.read")}
+                  canOpenCarePlans={can(session, "care-plan.read")}
+                  canManageAllergies={can(session, "allergy.manage") && !merged}
+                />
+              ) : (
+                <NoClinicalAccess />
+              )}
             </CardContent>
           </Card>
-        ) : null}
+        </div>
+      ) : null}
 
-        {recent ? (
-          <Card className="lg:col-span-2" id="recent-activity">
+      {tab === "clinical" ? (
+        <div className="flex flex-col gap-4 p-4">
+          {medicalHistory ? (
+            <Card id="history">
+              <CardHeader>
+                <NotebookTextIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Medical, medication, family and social history</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href={`/patients/${p.id}/history`}>{can(session, "history.record") ? "Open and record" : "Open history"}</Link>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <HistorySummary history={medicalHistory} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {immunizations ? (
+            <Card id="immunizations">
+              <CardHeader>
+                <SyringeIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Immunizations</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href={`/patients/${p.id}/immunizations`}>{can(session, "immunization.record") ? "Open and record" : "Open history"}</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <ImmunizationHistory patientId={p.id} records={immunizations.slice(0, 5)} canRecord={false} grouped={false} linkedRecords={p.mergedRecords} />
+                {immunizations.length > 5 ? <p className="text-meta text-muted-foreground">{immunizations.length - 5} more in the full history.</p> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {externalHistory?.length ? (
+            <Card id="external-history">
+              <CardHeader>
+                <FileInputIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>External history (imported)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ExternalHistory patientId={p.id} entries={externalHistory} canCorrect={can(session, "interop.fhir.import.review")} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {!medicalHistory && !immunizations && !externalHistory?.length ? (
+            <Card>
+              <CardContent className="text-body text-muted-foreground">
+                {merged
+                  ? "This record was merged; its clinical history is shown on the surviving record."
+                  : "No clinical history is available to you, or none is recorded yet."}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === "visits" ? (
+        <div className="flex flex-col gap-4 p-4">
+          <Card id="visits">
             <CardHeader>
-              <HistoryIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Recent activity</CardTitle>
+              <CalendarIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Visits</CardTitle>
               <Button asChild size="sm" variant="ghost" className="ml-auto">
                 <Link href={`/patients/${p.id}/timeline`}>Open timeline</Link>
               </Button>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {recent.items.length ? (
-                <PatientTimelineView entries={recent.items} patientId={p.id} timeZone={recent.timeZone} />
-              ) : recent.withheld.length ? null : (
-                <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
+              {visitActivity ? (
+                <>
+                  {visitActivity.items.length ? (
+                    <PatientTimelineView entries={visitActivity.items} patientId={p.id} timeZone={visitActivity.timeZone} />
+                  ) : visitActivity.withheld.length ? null : (
+                    <p className="text-body text-muted-foreground">No visits recorded yet.</p>
+                  )}
+                  <WithheldNote withheld={visitActivity.withheld} />
+                </>
+              ) : (
+                <p className="text-body text-muted-foreground">Visits are not available to you.</p>
               )}
-              <WithheldNote withheld={recent.withheld} />
             </CardContent>
           </Card>
-        ) : null}
 
-        {referrals ? (
-          <Card className="lg:col-span-2" id="referrals">
-            <CardHeader>
-              <WaypointsIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Referrals</CardTitle>
-              <Button asChild size="sm" variant="ghost" className="ml-auto">
-                <Link href="/clinic/referrals">All referrals</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <ReferralList
-                empty="No referrals. Referrals are made from a consultation."
-                referrals={referrals.slice(0, 10).map((r) => ({
-                  id: r.id,
-                  referralNumber: r.referralNumber,
-                  status: r.status,
-                  urgency: r.urgency,
-                  recipient: referralRecipient(r),
-                  specialty: r.specialty,
-                  issuedAt: r.issuedAt,
-                  overdue: r.overdue,
-                  referringPractitionerName: r.referringPractitioner?.displayName ?? null,
-                  filedUnder: r.patientId !== p.id ? (r.patient?.patientNumber ?? null) : null,
-                }))}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
+          {referrals ? (
+            <Card id="referrals">
+              <CardHeader>
+                <WaypointsIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Referrals</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href="/clinic/referrals">All referrals</Link>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <ReferralList
+                  empty="No referrals. Referrals are made from a consultation."
+                  referrals={referrals.slice(0, 10).map((r) => ({
+                    id: r.id,
+                    referralNumber: r.referralNumber,
+                    status: r.status,
+                    urgency: r.urgency,
+                    recipient: referralRecipient(r),
+                    specialty: r.specialty,
+                    issuedAt: r.issuedAt,
+                    overdue: r.overdue,
+                    referringPractitionerName: r.referringPractitioner?.displayName ?? null,
+                    filedUnder: r.patientId !== p.id ? (r.patient?.patientNumber ?? null) : null,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
 
-        {medicalHistory ? (
-          <Card className="lg:col-span-2" id="history">
-            <CardHeader>
-              <NotebookTextIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Medical, medication, family and social history</CardTitle>
-              <Button asChild size="sm" variant="ghost" className="ml-auto">
-                <Link href={`/patients/${p.id}/history`}>{can(session, "history.record") ? "Open and record" : "Open history"}</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <HistorySummary history={medicalHistory} />
-            </CardContent>
-          </Card>
-        ) : null}
+          {procedures ? (
+            <Card id="procedures">
+              <CardHeader>
+                <HandIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Procedures done here</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href={`/patients/${p.id}/procedures`}>Open all</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {procedures.length ? (
+                  <ul className="flex flex-col gap-1 text-table">
+                    {procedures.slice(0, 5).map((pr) => (
+                      <li key={pr.id} className="flex flex-wrap items-baseline gap-x-2">
+                        <span className={pr.enteredInError ? "line-through" : "font-medium"}>{pr.description}</span>
+                        <span className="text-meta text-muted-foreground">
+                          {clinicalDateTime(pr.performedAt)} · {pr.performer.name}
+                          {pr.encounterId ? "" : " · outside a consultation"}
+                          {pr.consent ? " · consent recorded" : ""}
+                          {pr.patientId !== p.id ? ` · ${filedUnderText(filedUnderLookup(p.mergedRecords)(pr.patientId)) ?? ""}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-table text-muted-foreground">No procedure recorded.</p>
+                )}
+                {procedures.length > 5 ? <p className="text-meta text-muted-foreground">{procedures.length - 5} more in the full list.</p> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
 
-        {procedures ? (
-          <Card className="lg:col-span-2" id="procedures">
+      {tab === "labs" ? (
+        <div className="flex flex-col gap-4 p-4">
+          {labResults ? (
+            <Card id="laboratory">
+              <CardHeader>
+                <FlaskConicalIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Laboratory results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PatientLabResults patientId={p.id} results={labResults} linkedRecords={p.mergedRecords} />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="text-body text-muted-foreground">Laboratory results are not available to you.</CardContent>
+            </Card>
+          )}
+
+          {labArchives ? (
+            <Card id="laboratory-archive">
+              <CardHeader>
+                <ArchiveIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Archived laboratory reports</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ArchivedLabReports archives={labArchives} />
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === "coverage" ? (
+        <div className="flex flex-col gap-4 p-4">
+          {eligibility ? (
+            <Card>
+              <CardHeader>
+                <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>PhilHealth eligibility</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PhilHealthEligibility patientId={p.id} overview={eligibility} today={today} facilitySelected={facility !== null} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {yakap ? (
+            <Card>
+              <CardHeader>
+                <BadgeCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>PhilHealth YAKAP</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PhilHealthYakap patientId={p.id} overview={yakap.overview} consultations={yakap.consultations} facilityId={facility?.id ?? null} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {!eligibility && !yakap ? (
+            <Card>
+              <CardContent className="flex flex-col gap-2 text-body text-muted-foreground">
+                <p>PhilHealth answers are shown to staff who record them. Identifiers (PIN, HMO, senior or PWD ID) are on the Overview.</p>
+                {canBill ? (
+                  <p>
+                    <Link href={`/billing/patients/${p.id}`} className="text-primary hover:underline">
+                      Open billing for this patient
+                    </Link>
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === "portal" ? (
+        <div className="flex flex-col gap-4 p-4">
+          <Card>
             <CardHeader>
-              <HandIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Procedures done here</CardTitle>
-              <Button asChild size="sm" variant="ghost" className="ml-auto">
-                <Link href={`/patients/${p.id}/procedures`}>Open all</Link>
-              </Button>
+              <ShieldCheckIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Consent &amp; communication</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {procedures.length ? (
-                <ul className="flex flex-col gap-1 text-table">
-                  {procedures.slice(0, 5).map((pr) => (
-                    <li key={pr.id} className="flex flex-wrap items-baseline gap-x-2">
-                      <span className={pr.enteredInError ? "line-through" : "font-medium"}>{pr.description}</span>
-                      <span className="text-meta text-muted-foreground">
-                        {clinicalDateTime(pr.performedAt)} · {pr.performer.name}
-                        {pr.encounterId ? "" : " · outside a consultation"}
-                        {pr.consent ? " · consent recorded" : ""}
-                        {pr.patientId !== p.id ? ` · ${filedUnderText(filedUnderLookup(p.mergedRecords)(pr.patientId)) ?? ""}` : ""}
-                      </span>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-3">
+                <ConsentList consents={p.consents} canViewDocuments={canViewDocuments} />
+                {canRecordConsent ? <RecordConsent patientId={p.id} canUpload={can(session, "document.upload")} /> : null}
+                {/* Reset (hide) a stale history when a new decision is recorded. */}
+                {p.consents.length ? <ConsentHistory key={p.consents.map((c) => c.id).join()} patientId={p.id} canViewDocuments={canViewDocuments} /> : null}
+              </div>
+              {p.communicationPreferences.length ? (
+                <ul className="flex flex-col gap-1 text-body">
+                  {p.communicationPreferences.map((c) => (
+                    <li key={`${c.channel}-${c.category}`}>
+                      {label(c.channel)} · {label(c.category)}:{" "}
+                      <span className={c.optedIn ? "" : "text-muted-foreground"}>{c.optedIn ? "Opted in" : "Opted out"}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-table text-muted-foreground">No procedure recorded.</p>
+                <p className="text-body text-muted-foreground">No communication preferences recorded.</p>
               )}
-              {procedures.length > 5 ? <p className="text-meta text-muted-foreground">{procedures.length - 5} more in the full list.</p> : null}
+              {can(session, "notification.read") ? (
+                <p className="md:col-span-2">
+                  <Link className="text-table text-primary hover:underline" href={`/patients/${p.id}/communications`}>
+                    Messages sent to this patient
+                  </Link>
+                </p>
+              ) : null}
             </CardContent>
           </Card>
-        ) : null}
 
-        {immunizations ? (
-          <Card className="lg:col-span-2" id="immunizations">
+          <Card>
             <CardHeader>
-              <SyringeIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Immunizations</CardTitle>
-              <Button asChild size="sm" variant="ghost" className="ml-auto">
-                <Link href={`/patients/${p.id}/immunizations`}>{can(session, "immunization.record") ? "Open and record" : "Open history"}</Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <ImmunizationHistory patientId={p.id} records={immunizations.slice(0, 5)} canRecord={false} grouped={false} linkedRecords={p.mergedRecords} />
-              {immunizations.length > 5 ? <p className="text-meta text-muted-foreground">{immunizations.length - 5} more in the full history.</p> : null}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {labResults ? (
-          <Card className="lg:col-span-2" id="laboratory">
-            <CardHeader>
-              <FlaskConicalIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Laboratory results</CardTitle>
+              <SmartphoneIcon className="size-4 text-muted-foreground" aria-hidden />
+              <CardTitle>Patient portal (MyHealth)</CardTitle>
             </CardHeader>
             <CardContent>
-              <PatientLabResults patientId={p.id} results={labResults} linkedRecords={p.mergedRecords} />
+              {portal?.status === "active" && can(session, "patient.message.manage") ? (
+                <div className="mb-3">
+                  <SendPortalMessage patientId={p.id} />
+                </div>
+              ) : null}
+              {can(session, "patient.message.read") ? (
+                <p className="mb-3 text-table">
+                  <Link href={`/messages?patientId=${p.id}&view=all`} className="text-primary hover:underline">
+                    Conversations with this patient in MyHealth
+                  </Link>
+                </p>
+              ) : null}
+              {portal ? (
+                <PortalAccess
+                  patientId={p.id}
+                  patientNumber={p.patientNumber}
+                  account={portal}
+                  canManage={can(session, "patient.portal.manage")}
+                  patientActive={p.status === "active"}
+                />
+              ) : (
+                <p className="text-body text-muted-foreground">Portal status is unavailable right now.</p>
+              )}
+              {proxies ? (
+                <div className="mt-4 border-t pt-4">
+                  <ProxyAccess patientId={p.id} overview={proxies} canManage={can(session, "patient.portal.proxy.manage") && p.status === "active"} />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
-        ) : null}
+        </div>
+      ) : null}
 
-        {labArchives ? (
-          <Card className="lg:col-span-2" id="laboratory-archive">
-            <CardHeader>
-              <ArchiveIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Archived laboratory reports</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ArchivedLabReports archives={labArchives} />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {externalHistory?.length ? (
-          <Card className="lg:col-span-2" id="external-history">
-            <CardHeader>
-              <FileInputIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>External history (imported)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ExternalHistory patientId={p.id} entries={externalHistory} canCorrect={can(session, "interop.fhir.import.review")} />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <SmartphoneIcon className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle>Patient portal (MyHealth)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {portal?.status === "active" && can(session, "patient.message.manage") ? (
-              <div className="mb-3">
-                <SendPortalMessage patientId={p.id} />
-              </div>
-            ) : null}
-            {can(session, "patient.message.read") ? (
-              <p className="mb-3 text-table">
-                <Link href={`/messages?patientId=${p.id}&view=all`} className="text-primary hover:underline">
-                  Conversations with this patient in MyHealth
-                </Link>
-              </p>
-            ) : null}
-            {portal ? (
-              <PortalAccess
-                patientId={p.id}
-                patientNumber={p.patientNumber}
-                account={portal}
-                canManage={can(session, "patient.portal.manage")}
-                patientActive={p.status === "active"}
-              />
-            ) : (
-              <p className="text-body text-muted-foreground">Portal status is unavailable right now.</p>
-            )}
-            {proxies ? (
-              <div className="mt-4 border-t pt-4">
-                <ProxyAccess patientId={p.id} overview={proxies} canManage={can(session, "patient.portal.proxy.manage") && p.status === "active"} />
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
       <p className="px-4 pb-4 text-meta text-muted-foreground">
         Registered {clinicalDateTime(p.createdAt)} · last updated {clinicalDateTime(p.updatedAt)} · version {p.version}. Viewing this record is recorded in the
         audit trail.

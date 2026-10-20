@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
+import { ActivityIcon, LayoutDashboardIcon, MenuIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
 import type { StaffRole } from "@healthcare/domain";
 import { Kbd } from "../primitives/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../primitives/popover";
@@ -105,25 +105,14 @@ export function StaffLayout({
       <div className="flex h-dvh overflow-hidden bg-background">
         <aside
           className={cn(
-            "hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
+            "relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
             collapsed ? "w-14" : "w-60",
           )}
         >
           <Brand name={productName} collapsed={collapsed} />
+          <SidebarToggle collapsed={collapsed} onToggle={toggleCollapsed} />
           {railNav}
           {sidebarFooter && !collapsed ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
-          <div className="shrink-0 border-t border-sidebar-border p-2">
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-body font-medium text-sidebar-muted outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {collapsed ? <PanelLeftOpenIcon className="size-4 shrink-0" aria-hidden /> : <PanelLeftCloseIcon className="size-4 shrink-0" aria-hidden />}
-              {collapsed ? null : "Collapse"}
-            </button>
-          </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
@@ -162,6 +151,32 @@ export function StaffLayout({
         </div>
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * Collapse or expand the desktop sidebar: a small round icon button floating on the sidebar's right edge, level with the brand,
+ * so it stays in the same place whichever way the sidebar is open.
+ */
+function SidebarToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const label = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <div className="absolute top-3.5 -right-3.5 z-20">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={!collapsed}
+            aria-label={label}
+            className="flex size-7 items-center justify-center rounded-full border border-sidebar-border bg-card text-sidebar-muted shadow-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LayoutDashboardIcon className="size-3.5" aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 

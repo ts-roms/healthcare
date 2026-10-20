@@ -198,6 +198,10 @@ export interface QueueEntry {
   status: QueueStatus;
   arrivedAt: string;
   priority?: "senior" | "pwd" | "pregnant" | "urgent" | "emergency";
+  /** How the patient arrived, for the board card's tag. */
+  arrival?: "walk-in" | "appointment";
+  /** What the card says under the name when the status is already clear from its column: the complaint, where the patient was called to. */
+  detail?: string;
 }
 
 export interface PrescriptionItem {

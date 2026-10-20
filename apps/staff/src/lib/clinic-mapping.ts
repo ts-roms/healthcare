@@ -8,6 +8,7 @@ import type {
   RouteStep,
   ServicePoint,
   ServicePointKind,
+  VisitPriority,
   VisitStatus,
   VisitType,
 } from "./api/types";
@@ -60,6 +61,56 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
     priority: v.priority === "routine" ? undefined : v.priority,
+    arrival: v.arrivalMode === "appointment" ? "appointment" : "walk-in",
+    detail: v.calledTo
+      ? [`Called to ${v.calledTo}`, v.servicePoint?.name, nextStopLabel(v.route)].filter(Boolean).join(" · ")
+      : [v.chiefComplaint, v.servicePoint?.name, nextStopLabel(v.route), checkedInOnline(v) ? "Checked in online" : null].filter(Boolean).join(" · ") ||
+        undefined,
+  };
+}
+
+/**
+ * Waiting minutes from which a ticket on the board is shown as waiting a while and as waiting long. These are the board's
+ * display thresholds, not a clinical target or a rule of the API.
+ */
+export const WAIT_WARN_MINUTES = 15;
+export const WAIT_LONG_MINUTES = 30;
+
+/** The statuses in which a patient is still waiting for the provider (the board's wait timer runs). */
+const STILL_WAITING: readonly VisitStatus[] = ["waiting", "in_triage", "awaiting_consultation"];
+
+export interface QueueFigures {
+  /** Everyone who has not been seen or closed yet, the ones with a provider included. */
+  inQueue: number;
+  /** Seen, cancelled or left without being seen. */
+  done: number;
+  waiting: number;
+  withProvider: number;
+  averageWaitMinutes: number | null;
+  longestWait: { minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null;
+}
+
+/** The figure tiles above the board, from the visits on it, as of `now` (waits tick without another request). */
+export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFigures {
+  const waits = visits
+    .filter((v) => STILL_WAITING.includes(v.status))
+    .map((v) => ({
+      minutes: Math.max(0, Math.floor((now.getTime() - new Date(v.checkedInAt).getTime()) / 60_000)),
+      patientName: v.patient?.displayName ?? "Patient",
+      ticket: v.ticket,
+      priority: v.priority,
+    }));
+  const longest = waits.reduce<{ minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null>(
+    (best, w) => (best && best.minutes >= w.minutes ? best : w),
+    null,
+  );
+  return {
+    inQueue: visits.filter((v) => ["waiting", "in_triage", "awaiting_consultation", "in_consultation"].includes(v.status)).length,
+    done: visits.filter((v) => ["completed", "cancelled", "left_without_being_seen"].includes(v.status)).length,
+    waiting: waits.length,
+    withProvider: visits.filter((v) => v.status === "in_consultation").length,
+    averageWaitMinutes: waits.length ? Math.round(waits.reduce((sum, w) => sum + w.minutes, 0) / waits.length) : null,
+    longestWait: longest,
   };
 }
 

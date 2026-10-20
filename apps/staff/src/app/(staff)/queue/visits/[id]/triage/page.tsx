@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { VitalSigns } from "@healthcare/ui/healthcare";
 import { AllergiesPanel } from "@/components/allergies-panel";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
@@ -9,7 +9,9 @@ import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { PatientDetail, PatientSummaryResponse, RouteStep, ServicePoint, Visit } from "@/lib/api/types";
 import { canTriage, visitStatusLabel } from "@/lib/clinic-mapping";
 import { toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { minutesSince } from "@/lib/triage-flags";
 import { TriageForm } from "./triage-form";
+import { TriageHeader } from "./triage-header";
 
 // Never put patient names in the tab title.
 export const metadata = { title: "Triage" };
@@ -51,39 +53,54 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
   const latest = summary?.latestVitals[0];
   const banner = toBannerPatient(patient, summary?.allergies);
 
+  const allergyCount = summary?.allergies.allergies.length ?? 0;
+  const aside = summary ? (
+    <>
+      <section aria-label="Allergies" className="rounded-xl border bg-card p-4">
+        <h2 className={`mb-2 text-meta font-semibold tracking-wide uppercase ${allergyCount > 0 ? "text-danger-foreground" : "text-muted-foreground"}`}>
+          Allergies{allergyCount > 0 ? ` · ${allergyCount}` : ""}
+        </h2>
+        <AllergiesPanel patientId={visit.patientId} summary={summary.allergies} canManage={can(session, "allergy.manage")} />
+      </section>
+      <section aria-label="Previous vitals" className="rounded-xl border bg-card p-4">
+        <h2 className="mb-2 text-meta font-semibold tracking-wide text-muted-foreground uppercase">Previous vitals</h2>
+        {latest ? (
+          <VitalSigns vitals={toVitalSigns(latest)} />
+        ) : (
+          <p className="text-table text-muted-foreground">None on record. Today&apos;s readings become the baseline.</p>
+        )}
+      </section>
+    </>
+  ) : (
+    <p className="text-table text-muted-foreground">Allergies and previous vitals need clinical access.</p>
+  );
+
   return (
     <div className="flex min-h-full flex-col">
-      <PatientHeader patient={banner} allergiesHidden={!summary} allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true} />
-      <PageHeader title={`Triage · ${visit.ticket}`} description={`${facility.name} · ${visitStatusLabel(visit.status)}`} />
+      <TriageHeader
+        ticket={visit.ticket}
+        patient={banner}
+        patientHref={`/patients/${visit.patientId}`}
+        allergiesHidden={!summary}
+        allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
+        waitingMinutes={minutesSince(visit.checkedInAt)}
+        arrivalMode={visit.arrivalMode}
+      />
       {canTriage(visit.status) ? (
-        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <TriageForm
-            visit={{
-              id: visit.id,
-              ticket: visit.ticket,
-              chiefComplaint: visit.chiefComplaint ?? "",
-              priority: visit.priority,
-              servicePointId: visit.servicePointId ?? null,
-              plannedStops: route.filter((s) => s.status === "planned").map((s) => s.servicePointId),
-            }}
-            patientId={visit.patientId}
-            servicePoints={servicePoints.filter((s) => s.status === "active" || s.id === visit.servicePointId)}
-          />
-          <aside className="flex flex-col gap-3 self-start">
-            {summary ? (
-              <>
-                <SummarySection title="Allergies">
-                  <AllergiesPanel patientId={visit.patientId} summary={summary.allergies} canManage={can(session, "allergy.manage")} />
-                </SummarySection>
-                <SummarySection title="Previous vitals">
-                  {latest ? <VitalSigns vitals={toVitalSigns(latest)} /> : <p className="text-table text-muted-foreground">No vital signs recorded.</p>}
-                </SummarySection>
-              </>
-            ) : (
-              <p className="text-table text-muted-foreground">Allergies and previous vitals need clinical access.</p>
-            )}
-          </aside>
-        </div>
+        <TriageForm
+          visit={{
+            id: visit.id,
+            ticket: visit.ticket,
+            chiefComplaint: visit.chiefComplaint ?? "",
+            priority: visit.priority,
+            servicePointId: visit.servicePointId ?? null,
+            plannedStops: route.filter((s) => s.status === "planned").map((s) => s.servicePointId),
+          }}
+          servicePoints={servicePoints.filter((s) => s.status === "active" || s.id === visit.servicePointId)}
+          canConfigureServicePoints={can(session, "clinic.configure")}
+          ageYears={patient.age}
+          aside={aside}
+        />
       ) : (
         <p role="status" className="m-4 rounded-md border px-3 py-2 text-body">
           Triage is closed for this visit ({visitStatusLabel(visit.status).toLowerCase()}).
