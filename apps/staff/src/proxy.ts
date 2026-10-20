@@ -39,7 +39,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const toLogin = () => {
-    const url = new URL("/login", request.url);
+    // A signed-out visitor at the site root lands on the public landing page, which links to sign-in; any other page
+    // goes to sign-in and comes back to where they were going.
+    const url = new URL(pathname === "/" ? "/welcome" : "/login", request.url);
     if (pathname !== "/") url.searchParams.set("next", `${pathname}${search}`);
     const response = NextResponse.redirect(url);
     clearSessionCookies(response.cookies);
