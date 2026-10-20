@@ -6,6 +6,7 @@ export * from "./checkbox";
 export * from "./dialog";
 export * from "./dropdown-menu";
 export * from "./input";
+export * from "./password-input";
 export * from "./kbd";
 export * from "./label";
 export * from "./radio-group";

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CheckCircle2Icon, MailWarningIcon } from "lucide-react";
-import { Button, Input, Label } from "@healthcare/ui/primitives";
+import { Button, Input, Label, PasswordInput } from "@healthcare/ui/primitives";
 import type { PortalEmailStatus } from "@/lib/api/types";
 import { securityMessage } from "@/lib/security";
 import { changeEmail, confirmEmailCode, sendEmailCode } from "./actions";
@@ -120,7 +120,7 @@ export function EmailSection({ status, mfaEnabled }: { status: PortalEmailStatus
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="change-password">Your password</Label>
-            <Input id="change-password" name="password" type="password" autoComplete="current-password" required className="h-11" />
+            <PasswordInput id="change-password" name="password" autoComplete="current-password" required className="h-11" />
           </div>
           {mfaEnabled ? (
             <div className="grid gap-1.5">

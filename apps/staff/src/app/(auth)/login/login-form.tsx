@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AlertTriangleIcon, KeyRoundIcon, ShieldCheckIcon } from "lucide-react";
-import { Button, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, PasswordInput } from "@healthcare/ui/primitives";
 import { authenticate, type LoginState } from "./actions";
 
 export function LoginForm({ next, notice }: { next: string; notice?: string }) {
@@ -76,7 +76,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
           ) : null}
           <div className="grid gap-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="password" autoComplete="current-password" required className="h-10" />
+            <PasswordInput id="password" name="password" autoComplete="current-password" required className="h-10" />
           </div>
           <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
             <KeyRoundIcon /> {pending ? "Signing in…" : "Sign in"}

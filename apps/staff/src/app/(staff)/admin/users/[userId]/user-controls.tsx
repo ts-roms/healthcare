@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect, PasswordInput, toast } from "@healthcare/ui/primitives";
 import { grantRole, resetStaffPassword, revokeRole, setMembershipStatus } from "../actions";
 
 interface Option {
@@ -240,9 +240,8 @@ export function TemporaryPasswordReset({ userId }: { userId: string }) {
         Give the temporary password to the person directly, never by email or chat. They must choose their own password when they next sign in.
       </p>
       <Label htmlFor="temporary-password">Temporary password</Label>
-      <Input
+      <PasswordInput
         id="temporary-password"
-        type="password"
         autoComplete="new-password"
         required
         minLength={12}
@@ -251,7 +250,7 @@ export function TemporaryPasswordReset({ userId }: { userId: string }) {
         onChange={set("temporaryPassword")}
       />
       <Label htmlFor="temporary-password-again">Temporary password again</Label>
-      <Input id="temporary-password-again" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
+      <PasswordInput id="temporary-password-again" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
       <Label htmlFor="reset-reason">Reason</Label>
       <Input
         id="reset-reason"

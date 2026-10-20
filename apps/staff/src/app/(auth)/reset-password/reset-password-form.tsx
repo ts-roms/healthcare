@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { CheckCircle2Icon } from "lucide-react";
-import { Button, Input, Label } from "@healthcare/ui/primitives";
+import { Button, Input, Label, PasswordInput } from "@healthcare/ui/primitives";
 import { chooseNewPassword } from "../password-reset-actions";
 
 /** The token is in the link's fragment (#token=…), which browsers never send to a server; it is read here and posted once. */
@@ -71,21 +71,12 @@ export function ResetPasswordForm() {
       ) : null}
       <div className="grid gap-1.5">
         <Label htmlFor="new-password">New password</Label>
-        <Input
-          id="new-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={12}
-          maxLength={128}
-          value={form.password}
-          onChange={set("password")}
-        />
+        <PasswordInput id="new-password" autoComplete="new-password" required minLength={12} maxLength={128} value={form.password} onChange={set("password")} />
         <p className="text-meta text-muted-foreground">At least 12 characters and not repetitive.</p>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="new-password-again">New password again</Label>
-        <Input id="new-password-again" type="password" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
+        <PasswordInput id="new-password-again" autoComplete="new-password" required value={form.confirm} onChange={set("confirm")} />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="reset-code">
