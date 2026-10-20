@@ -99,10 +99,7 @@ export function RecordConsent({ patientId, canUpload }: { patientId: string; can
       </h3>
 
       <Field id="consent-type" label="Consent" error={errors.consentType} hint={type?.hint}>
-        <NativeSelect id="consent-type" value={form.consentType} onChange={(e) => set("consentType", e.target.value)} required autoFocus>
-          <option value="" disabled>
-            Choose…
-          </option>
+        <NativeSelect id="consent-type" placeholder="Choose…" value={form.consentType} onChange={(e) => set("consentType", e.target.value)} required autoFocus>
           {Object.entries(CONSENT_TYPES).map(([value, t]) => (
             <option key={value} value={value}>
               {t.label}

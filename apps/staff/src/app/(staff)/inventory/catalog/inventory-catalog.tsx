@@ -170,7 +170,12 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
           }}
         >
           <Field id="rl-location" label="Location">
-            <NativeSelect id="rl-location" value={f.locationId} onChange={(e) => setF({ ...f, locationId: e.target.value })}>
+            <NativeSelect
+              id="rl-location"
+              emptyText="No active stock locations at this facility"
+              value={f.locationId}
+              onChange={(e) => setF({ ...f, locationId: e.target.value })}
+            >
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}

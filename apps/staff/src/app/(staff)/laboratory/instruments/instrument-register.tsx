@@ -451,8 +451,13 @@ function ReagentPanel({
         >
           <div className="grid gap-1">
             <Label htmlFor={`reagent-${instrument.id}`}>Load a lot from stock</Label>
-            <NativeSelect id={`reagent-${instrument.id}`} value={f.inventoryLotId} onChange={(e) => setF({ ...f, inventoryLotId: e.target.value })}>
-              <option value="">{availableLots.length ? "Choose a reagent lot…" : "No reagent lots in stock at this facility"}</option>
+            <NativeSelect
+              id={`reagent-${instrument.id}`}
+              placeholder="Choose a reagent lot…"
+              emptyText="No reagent lots in stock at this facility"
+              value={f.inventoryLotId}
+              onChange={(e) => setF({ ...f, inventoryLotId: e.target.value })}
+            >
               {availableLots.map((l) => (
                 <option key={l.lotId} value={l.lotId}>
                   {l.itemName} · lot {l.lotNumber ?? "—"}

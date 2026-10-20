@@ -59,9 +59,9 @@ export default async function BillingSettingsPage() {
         settings={settings}
         taxProfile={taxProfile}
         packages={packages}
-        visitTypes={visitTypes.map((v) => ({ code: v.code, name: v.name }))}
+        visitTypes={visitTypes.filter((v) => v.status === "active").map((v) => ({ code: v.code, name: v.name }))}
         labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
-        dentalProcedures={(dental?.procedureTypes ?? []).map((t) => ({ code: t.code, name: t.name }))}
+        dentalProcedures={(dental?.procedureTypes ?? []).filter((t) => t.status === "active").map((t) => ({ code: t.code, name: t.name }))}
         clinicProcedures={procedures.map((p) => ({ code: p.code, name: p.name }))}
         canManage={can(session, "billing.pricelist.manage")}
         philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}

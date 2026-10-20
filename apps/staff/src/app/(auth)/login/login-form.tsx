@@ -57,10 +57,14 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
           {state.step === "organization" ? (
             <div className="grid gap-1.5">
               <Label htmlFor="organizationId">Organization</Label>
-              <NativeSelect id="organizationId" name="organizationId" required defaultValue="">
-                <option value="" disabled>
-                  Choose where you are working…
-                </option>
+              <NativeSelect
+                id="organizationId"
+                name="organizationId"
+                placeholder="Choose where you are working…"
+                emptyText="No organization to sign in to"
+                required
+                defaultValue=""
+              >
                 {state.organizations.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.name}
