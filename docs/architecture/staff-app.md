@@ -81,6 +81,8 @@ The record also has a **Patient portal (MyHealth)** card (`GET /patients/:id/por
 
 Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects may not import backend libraries. Move them into `type:contract` libraries, or generate them from the OpenAPI document, as domains grow.
 
+**Server actions from client forms:** a client component runs a server action through `useServerAction` (`lib/use-server-action.ts`): `run(call, success, after?)` awaits the action inside a React transition and, when it answers `ok`, toasts `success`, calls `after` (close the form, clear the fields) and refreshes the page's server data with `router.refresh()` — or with the `refresh` callback a parent passed (the laboratory workbench and send-outs hand down `onChanged`); a refusal is toasted with the action's message. `refreshOnFailure` also refreshes after a refusal, for the scheduling set-up whose version-conflict message says the screen was refreshed. Forms that show field errors instead of a toast (patient edit, patient history) or do more with the answer (invoice actions, import review) keep their own transition. One hook replaced the copies the 2026-10-20 codebase audit counted (finding C-03).
+
 ## Patient timeline
 
 The patient record has a **Timeline** button and a **Recent activity** card (the latest five entries) from `GET /patients/:id/timeline` ([patient-timeline.md](../domains/patient-timeline.md)). `/patients/[id]/timeline` is a page of its own rather than a tab of the record, because the record is one long server-rendered page and the timeline needs its own URL state (filters), paging and audit per view:

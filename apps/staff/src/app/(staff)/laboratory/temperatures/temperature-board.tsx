@@ -24,7 +24,7 @@ import {
 } from "@healthcare/ui/primitives";
 import type { LabStorageUnit, LabTemperatureReading, StorageUnitKind } from "@/lib/api/types";
 import { createStorageUnit, loadTemperatureReadings, recordTemperature, setStorageUnitStatus } from "../quality-management-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 const KIND_LABEL: Record<StorageUnitKind, string> = {
   refrigerator: "Refrigerator",
@@ -132,7 +132,7 @@ export function TemperatureBoard({ units, canRecord, canManage }: { units: LabSt
 }
 
 function ReadingForm({ unit }: { unit: LabStorageUnit }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [celsius, setCelsius] = React.useState("");
   const [note, setNote] = React.useState("");
   const value = num(celsius);
@@ -180,7 +180,7 @@ function ReadingForm({ unit }: { unit: LabStorageUnit }) {
 }
 
 function Readings({ unit, canManage }: { unit: LabStorageUnit; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [rows, setRows] = React.useState<LabTemperatureReading[] | null>(null);
   const [retiring, setRetiring] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -242,7 +242,7 @@ function Readings({ unit, canManage }: { unit: LabStorageUnit; canManage: boolea
 }
 
 function NewUnit() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const empty = { code: "", name: "", kind: "refrigerator" as StorageUnitKind, minCelsius: "", maxCelsius: "", readingIntervalHours: "" };
   const [f, setF] = React.useState(empty);
   return (

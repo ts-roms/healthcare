@@ -1,31 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label } from "@healthcare/ui/primitives";
 import { parsePesos } from "@/lib/billing-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { createProcurementMethod, createWithholdingCode, deactivateComplianceEntry } from "../actions";
-
-type Result = { ok: true } | { ok: false; message: string };
-
-function useRun() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const run = (call: () => Promise<Result>, success: string, done?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        done?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, run };
-}
 
 /** Adds one of the organization's withholding codes (the rate is shown for reference only). */
 export function NewWithholdingCode() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", description: "", rate: "" });
   // A percentage with up to two decimals is basis points the same way pesos are centavos (1.5 → 150).
   const rate = f.rate.trim() ? parsePesos(f.rate) : null;
@@ -62,7 +45,7 @@ export function NewWithholdingCode() {
 
 /** Adds one of the organization's procurement methods and the reference an order under it needs. */
 export function NewProcurementMethod() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "", referenceLabel: "" });
   return (
     <form
@@ -102,7 +85,7 @@ export function NewProcurementMethod() {
 }
 
 export function DeactivateButton({ kind, id, label }: { kind: "withholding-codes" | "procurement-methods"; id: string; label: string }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   return (
     <Button
       size="xs"

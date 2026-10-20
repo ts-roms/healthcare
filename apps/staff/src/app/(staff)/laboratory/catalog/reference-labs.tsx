@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { BuildingIcon, CircleCheckIcon, CirclePauseIcon, PlusIcon, TruckIcon } from "lucide-react";
 import {
   Badge,
@@ -19,28 +18,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  toast,
 } from "@healthcare/ui/primitives";
 import type { LabTest, LabTestReferral, ReferenceLaboratory } from "@/lib/api/types";
 import { formatDuration } from "@/lib/lab-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { createReferenceLab, removeTestReferral, setReferenceLabStatus, setTestReferral } from "../actions";
-
-type Run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) => void;
-
-function useRun(): { pending: boolean; run: Run } {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run: Run = (call, success, after) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
-}
 
 /**
  * Reference laboratories the organization sends tests to, and the tests this facility refers out. The accreditation /
@@ -136,7 +118,7 @@ export function ReferenceLabSettings({
 }
 
 function ReferenceLabRow({ lab, canManage }: { lab: ReferenceLaboratory; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const next = lab.status === "active" ? "inactive" : "active";
   return (
     <TableRow>
@@ -177,7 +159,7 @@ function ReferenceLabRow({ lab, canManage }: { lab: ReferenceLaboratory; canMana
 }
 
 function NewReferenceLab() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const empty = { code: "", name: "", contactName: "", phone: "", email: "", address: "", accreditationReference: "" };
   const [form, setForm] = React.useState(empty);
@@ -229,7 +211,7 @@ function NewReferenceLab() {
 }
 
 function ReferralRow({ referral, canManage }: { referral: LabTestReferral; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [removing, setRemoving] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const turnaround = referral.turnaroundMinutes ?? referral.testTurnaroundMinutes;
@@ -282,7 +264,7 @@ function ReferralRow({ referral, canManage }: { referral: LabTestReferral; canMa
 }
 
 function NewReferral({ tests, referenceLabs, referrals }: { tests: LabTest[]; referenceLabs: ReferenceLaboratory[]; referrals: LabTestReferral[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const referred = new Set(referrals.map((r) => r.testId));
   const [testId, setTestId] = React.useState("");
   const [labId, setLabId] = React.useState(referenceLabs[0]?.id ?? "");

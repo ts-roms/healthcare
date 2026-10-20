@@ -1,35 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, PlusIcon, XIcon } from "lucide-react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { BillingCategory, BillingPackage, BillingService, BillingSettingsFull, SequenceKind, TaxClass, TaxProfile, VatStatus } from "@/lib/api/types";
 import { CATEGORY_LABEL, parsePesos, peso, TAX_CLASS_LABEL } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { createPackage, setServiceTaxClass, updatePrefixes, updateTaxProfile } from "../actions";
 
 const SERIES_LABEL: Record<SequenceKind, string> = { invoice: "Invoices", receipt: "Receipts", credit_note: "Credit notes", debit_note: "Debit notes" };
 const VAT_STATUS_LABEL: Record<VatStatus, string> = { not_configured: "Not configured", vat_registered: "VAT-registered", non_vat: "Non-VAT" };
 
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, submit };
-}
-
 /** Number series: prefixes and, optionally, the last number the organization is authorized to use. */
 export function DocumentNumbers({ settings, canManage }: { settings: BillingSettingsFull; canManage: boolean }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({
     invoicePrefix: settings.invoicePrefix,
     receiptPrefix: settings.receiptPrefix,
@@ -70,7 +55,7 @@ export function DocumentNumbers({ settings, canManage }: { settings: BillingSett
               const lastNumbers = Object.fromEntries(
                 settings.series.map((s) => [s.kind, limits[s.kind].trim() === "" ? null : Number(limits[s.kind].replace(/\D/g, ""))]),
               );
-              submit(() => updatePrefixes({ ...f, lastNumbers }), "Document numbers saved");
+              run(() => updatePrefixes({ ...f, lastNumbers }), "Document numbers saved");
             }}
           >
             <span className="text-meta text-muted-foreground">Series</span>
@@ -110,7 +95,7 @@ export function DocumentNumbers({ settings, canManage }: { settings: BillingSett
 
 /** The organization's own tax and document settings — what its registration says; nothing is assumed. */
 export function TaxProfileCard({ profile, canManage }: { profile: TaxProfile; canManage: boolean }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({
     registeredName: profile.registeredName ?? "",
     tin: profile.tin ?? "",
@@ -146,7 +131,7 @@ export function TaxProfileCard({ profile, canManage }: { profile: TaxProfile; ca
                 toast.error("Enter the VAT rate in percent, as registered.");
                 return;
               }
-              submit(
+              run(
                 () =>
                   updateTaxProfile({
                     registeredName: orNull(f.registeredName),
@@ -236,7 +221,7 @@ export function Packages({
   canManage: boolean;
   vatRegistered: boolean;
 }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const blank = (): PackageRow => ({ key: crypto.randomUUID(), serviceId: "", quantity: "1" });
   const [f, setF] = React.useState({
@@ -276,7 +261,7 @@ export function Packages({
                   value={p.taxClass ?? ""}
                   disabled={pending}
                   onChange={(e) =>
-                    submit(
+                    run(
                       () => setServiceTaxClass({ serviceId: p.id, taxClass: (e.target.value || null) as TaxClass | null, version: p.version }),
                       "VAT class saved",
                     )
@@ -305,7 +290,7 @@ export function Packages({
                   toast.error("Enter the package price in pesos");
                   return;
                 }
-                submit(
+                run(
                   () =>
                     createPackage({
                       code: f.code,

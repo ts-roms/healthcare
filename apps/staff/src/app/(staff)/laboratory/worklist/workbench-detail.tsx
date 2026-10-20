@@ -46,6 +46,7 @@ import {
   signResult,
 } from "../actions";
 import { fileSize } from "@/lib/lab-attachments";
+import { useServerAction } from "@/lib/use-server-action";
 
 /** Active instruments at the facility; a result names the one it was measured on (the API links the QC in force). */
 const InstrumentsContext = React.createContext<LabInstrument[]>([]);
@@ -193,20 +194,6 @@ export function WorkbenchDetail({
   );
 }
 
-function useRun(onChanged: () => void) {
-  const [pending, start] = React.useTransition();
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        onChanged();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
-}
-
 function CollectPanel({ row, specimenTypeName, onChanged }: { row: LabWorklistRow; specimenTypeName: Map<string, string>; onChanged: () => void }) {
   const [pending, start] = React.useTransition();
   const [excluded, setExcluded] = React.useState<Set<string>>(new Set());
@@ -259,7 +246,7 @@ function CollectPanel({ row, specimenTypeName, onChanged }: { row: LabWorklistRo
 }
 
 function ReceiveButton({ specimenId, onChanged }: { specimenId: string; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   return (
     <Button size="sm" className="self-start" disabled={pending} onClick={() => run(() => receiveSpecimen(specimenId), "Specimen received")}>
       <CheckIcon /> Receive specimen
@@ -268,7 +255,7 @@ function ReceiveButton({ specimenId, onChanged }: { specimenId: string; onChange
 }
 
 function RejectForm({ specimenId, onChanged }: { specimenId: string; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const [recollect, setRecollect] = React.useState(true);
@@ -411,7 +398,7 @@ const NEXT_STEP: Partial<Record<LabResult["status"], { step: "verify" | "approve
 };
 
 function ResultRow({ item, result, permissions, onChanged }: { item: LabOrderItem; result: LabResult; permissions: LabPermissions; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [mode, setMode] = React.useState<"view" | "correct" | "cancel">("view");
   const flag = uiFlag(result.flag);
   const next = NEXT_STEP[result.status];
@@ -504,7 +491,7 @@ function ChangeForm({
   onDone: () => void;
   onChanged: () => void;
 }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [value, setValue] = React.useState("");
   const [reason, setReason] = React.useState("");
   const [instrumentId, setInstrumentId] = React.useState(result.instrumentId ?? "");
@@ -600,7 +587,7 @@ function SignAll({ items, permissions, onChanged }: { items: LabOrderItem[]; per
  * what was verified and released); opening one fetches a short-lived link, audited by the API.
  */
 function ResultAttachments({ result, editable, onChanged }: { result: LabResult; editable: boolean; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [removing, setRemoving] = React.useState<string | null>(null);
   const [reason, setReason] = React.useState("");
   const [opening, startOpen] = React.useTransition();
@@ -724,7 +711,7 @@ function SendOutList({ items }: { items: LabOrderItem[] }) {
 
 /** Refer received tests by hand (tests configured as referred are prepared when the specimen is received). */
 function SendOutForm({ items, referenceLabs, onChanged }: { items: LabOrderItem[]; referenceLabs: ReferenceLaboratory[]; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [open, setOpen] = React.useState(false);
   const [labId, setLabId] = React.useState(referenceLabs[0]?.id ?? "");
   const [chosen, setChosen] = React.useState<Set<string>>(new Set());

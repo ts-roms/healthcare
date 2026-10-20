@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { CheckCircle2Icon, CircleAlertIcon, PlugZapIcon, SendIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@healthcare/ui/primitives";
 import type { CaseReportDetail } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { dismissCase, recordReported, submitCase } from "../actions";
 import { CaseStatus, FoundByCheck } from "../case-status";
 
@@ -17,24 +17,13 @@ const OPEN = ["pending_review", "rejected", "failed"];
  * dismissed with a reason, or (once an adapter exists) submitted.
  */
 export function CaseReview({ detail }: { detail: CaseReportDetail }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const { pending, run } = useServerAction();
   const [reference, setReference] = React.useState("");
   const [reason, setReason] = React.useState("");
   const [key, setKey] = React.useState(() => crypto.randomUUID());
   const open = OPEN.includes(detail.status);
   const connected = detail.integration.status !== "dependency";
   const r = detail.report;
-
-  const act = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
 
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
@@ -162,7 +151,7 @@ export function CaseReview({ detail }: { detail: CaseReportDetail }) {
                   className="flex flex-col gap-2"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    act(() => recordReported({ caseReportId: detail.id, reference, version: detail.version }), "Recorded as reported");
+                    run(() => recordReported({ caseReportId: detail.id, reference, version: detail.version }), "Recorded as reported");
                   }}
                 >
                   <Label htmlFor="doh-reference">Reference from DOH&apos;s channel</Label>
@@ -179,7 +168,7 @@ export function CaseReview({ detail }: { detail: CaseReportDetail }) {
                     className="self-start"
                     disabled={pending || !detail.ready}
                     onClick={() =>
-                      act(
+                      run(
                         () => submitCase({ caseReportId: detail.id, idempotencyKey: key, version: detail.version }),
                         "Report queued",
                         () => setKey(crypto.randomUUID()),
@@ -193,7 +182,7 @@ export function CaseReview({ detail }: { detail: CaseReportDetail }) {
                   className="flex flex-col gap-2 border-t pt-3"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    act(() => dismissCase({ caseReportId: detail.id, reason, version: detail.version }), "Dismissed");
+                    run(() => dismissCase({ caseReportId: detail.id, reason, version: detail.version }), "Dismissed");
                   }}
                 >
                   <Label htmlFor="doh-dismiss">Not reportable after review — reason</Label>
