@@ -95,7 +95,7 @@ function checkPathLength(): void {
   if (deepest.length < 258) return;
   fail(
     `This checkout is too deep for a Windows build: Ninja refuses paths of 260 characters or more and the build reaches ${deepest.length} ` +
-      `(${deepest}). Check the repository out at a short path such as D:\hc, run pnpm install there and pnpm mobile:apk from it ` +
+      `(${deepest}). Check the repository out at a short path such as D:\\hc, run pnpm install there and pnpm mobile:apk from it ` +
       `(--output can still point here), or build with --cloud or from WSL.`,
   );
 }
