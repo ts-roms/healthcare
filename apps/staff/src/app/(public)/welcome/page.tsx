@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
+import { MyHealthDownload } from "@/components/myhealth-download";
 import { BrandMark, PLATFORM_MODULES } from "@/components/platform-highlights";
 
 export const metadata = {
@@ -32,6 +33,7 @@ const NAV = [
   { href: "#journey", label: "Care journey" },
   { href: "#philippines", label: "Philippines" },
   { href: "#security", label: "Security" },
+  { href: "#myhealth", label: "MyHealth" },
 ];
 
 const JOURNEY: ReadonlyArray<{ title: string; description: string }> = [
@@ -231,6 +233,17 @@ export default function WelcomePage() {
               Healthcare records are never casually changed or deleted: history is kept, corrections are recorded, and sensitive actions are audited.
             </SectionHeading>
             <FeatureGrid items={SECURITY} className="lg:grid-cols-3" />
+          </div>
+        </section>
+
+        {/* MyHealth on the phone: QR codes to the organization's store listings (or MyHealth on the web until published). */}
+        <section id="myhealth" className="scroll-mt-16 border-b">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-start lg:py-20">
+            <SectionHeading eyebrow="For patients" title="MyHealth, on the phone">
+              Patients see their visits, released results, prescriptions, bills and messages in MyHealth, the patient portal. Point a phone&apos;s camera at the
+              code to get it. Accounts are activated at the clinic with a one-time code.
+            </SectionHeading>
+            <MyHealthDownload className="rounded-2xl border bg-card p-6" />
           </div>
         </section>
 

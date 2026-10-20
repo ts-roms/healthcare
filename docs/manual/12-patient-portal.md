@@ -453,8 +453,10 @@ You can use up to 5 devices. If the browser says notifications are blocked, allo
 
 ## How to use the MyHealth app on your phone
 
-If your clinic has the MyHealth app, install it from the app store the clinic points you to. The app shows your **released results** and can tell you
-when something is waiting in MyHealth. Visits, bills, messages and everything else are on the MyHealth website.
+If your clinic has the MyHealth app, install it from the app store the clinic points you to: the MyHealth sign-in page shows **Get the MyHealth
+app** with a QR code for each store once the clinic has published it — point your phone's camera at the code, or tap the link under it. The
+clinic's own website may show the same codes. The app shows your **released results** and can tell you when something is waiting in MyHealth.
+Visits, bills, messages and everything else are on the MyHealth website.
 
 1. Open the app and sign in with your MyHealth email and password (and the code from your authenticator app, if you use two-step verification). To activate a
    new account, or if you forgot your password, use the MyHealth website first.

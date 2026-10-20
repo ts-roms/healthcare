@@ -1,5 +1,7 @@
 export * from "./action-dashboard";
 export * from "./allergy-badge";
+export * from "./app-download";
+export * from "./app-download";
 export * from "./appointment-card";
 export * from "./audit-history";
 export * from "./care-plan";

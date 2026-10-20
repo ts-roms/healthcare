@@ -39,6 +39,13 @@ different zones never share one. In the browser, `StaffShell` sets it (`setClini
 `hc_tz` is written with `hc_fac` (facility selection, sign-in pre-selection) and is display-only: an unknown zone falls
 back to Asia/Manila.
 
+## Landing page
+
+`/welcome` (route group `(public)`, no session) presents the platform and links to the sign-in page. Its **MyHealth, on the phone** section
+(`components/myhealth-download.tsx`) shows a QR code per store listing of the MyHealth app (`MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL`) or,
+while none is set, one to MyHealth on the web (`PORTAL_BASE_URL`); nothing when no link is configured (`lib/mobile-app.ts`, tested). Codes are
+drawn on the server from the configured URLs only.
+
 ## Help (user manual)
 
 `/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
