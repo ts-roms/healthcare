@@ -257,3 +257,37 @@ the browser tab; both are deliberate for phase 1 and documented in the manual. L
 staff-chosen offline PIN so the outbox survives a closed tab; more captured actions (appointments, documentation);
 the mobile app (D10 stays as is). Printing stays online (every PDF is rendered by the API). Patient data held
 briefly in a browser on a shared computer is a data-protection matter recorded in the compliance register.
+
+## ADR-0014 Service points: one visit, one queue line at a time, routed after triage
+
+**Status:** accepted (2026-10-20). **Context:** the queue was one line per facility (`visit`: waiting → in triage →
+awaiting consultation → in consultation → completed). The platform is run for LGU hospitals whose outpatient
+department sends a triaged patient to the consultation line, the emergency room, X-ray or another station, and the
+nurse had no way to say where. `CLAUDE.md` listed service-point queues as not built, and the waiting-room display
+(0112) shows only the ticket and the place typed at the call.
+
+**Decision.** A service point is a **queue line of a facility**, defined by the organization (`service_point`, 0113:
+code, name, kind `consultation` | `emergency` | `imaging` | `other`, status) — never a national list, triage scale
+or emergency-care rule. A visit is at most at **one** service point (`visit.service_point_id`) and moves between them
+through an **append-only** `visit_routing` history (from, to, who, reason, when) written in the same transaction as
+the move, audited and published as `VisitRouted` (ids only). `null` keeps its old meaning — the facility's single
+consultation line — so every earlier visit, the dashboard, the timeline and the display keep working and an
+organization that sets nothing up sees no change. Routing is a step of triage (the nurse chooses **Send to** when
+completing it; one transaction with the assessment, the vitals and the status change) and a command on the queue board
+(`POST /queue/visits/:id/route`, `clinic.queue.manage`), allowed only from `in_triage` and `awaiting_consultation`:
+a patient is triaged before being sent anywhere, a patient with the provider is not moved, a closed visit is history.
+The queue of a service point is the facility queue filtered to it in the same service order (priority, then
+arrival): the status machine, the ticket series and the one-active-visit-per-patient rule are unchanged, and
+`GET /queue` filters by `servicePointId` rather than growing a second queue model. Kinds are labels for the staff
+app, not behaviour: an `imaging` service point is where a patient waits, not an imaging order.
+
+**Alternatives rejected.** A service point as a status of the visit (the status machine would multiply with every
+station and a visit at X-ray awaiting consultation would need two states); routing on check-in (the desk would decide
+what triage should); a visit per station (two active visits per patient, two tickets, two histories for one
+arrival); showing the service point on the waiting-room display (a patient's destination says something about
+their condition; the display keeps ticket and place only).
+
+**Consequences.** Imaging orders and a radiology worklist, triage scales, beds and observation, a ticket series per
+service point, kiosks and routing at check-in are separate decisions. Who may send a patient to the emergency room,
+and under what criteria, is the organization's policy (compliance register). Billing, laboratory and dental read
+nothing new; the timeline's queue entries are unchanged.

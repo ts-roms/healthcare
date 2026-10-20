@@ -3,12 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, HandIcon, MegaphoneIcon, RefreshCwIcon, StethoscopeIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, HandIcon, MegaphoneIcon, RefreshCwIcon, SendIcon, StethoscopeIcon, XIcon } from "lucide-react";
 import { clinicalTime, QueueBoard, sexLabel } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
-import type { QueueVisit } from "@/lib/api/types";
+import type { QueueVisit, ServicePoint } from "@/lib/api/types";
 import {
+  canRouteVisit,
   canStartConsultation,
   checkedInOnline,
   canTriage,
@@ -17,15 +18,19 @@ import {
   QUEUE_MOVE_LABEL,
   type QueueMove,
   queueMoves,
+  SERVICE_POINT_KIND_LABEL,
   toQueueEntry,
   visitStatusLabel,
 } from "@/lib/clinic-mapping";
 import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
 import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
-import { callVisit, moveVisit } from "./actions";
+import { advanceRoute, callVisit, moveVisit, planRoute, routeVisit, skipRouteStep } from "./actions";
+import { RoutePanel } from "./route-panel";
 
 export function QueueWorkspace({
   visits,
+  servicePoints = [],
+  autoCall = false,
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
@@ -34,6 +39,10 @@ export function QueueWorkspace({
   canRecordProcedure = false,
 }: {
   visits: QueueVisit[];
+  /** The facility's active service points (migration 0113); none = the single consultation line. */
+  servicePoints?: ServicePoint[];
+  /** The facility calls the patient automatically when a route sends them on (migration 0115). */
+  autoCall?: boolean;
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
@@ -98,6 +107,8 @@ export function QueueWorkspace({
         <VisitPanel
           key={`${selected.id}:${selected.version}`}
           visit={selected}
+          servicePoints={servicePoints}
+          autoCall={autoCall}
           canManage={canManage}
           canTriage={mayTriage}
           canOpenRecord={canOpenRecord}
@@ -110,6 +121,16 @@ export function QueueWorkspace({
             run(() => moveVisit({ visitId: selected.id, status: move, reason, version: selected.version }), `${selected.ticket}: ${QUEUE_MOVE_LABEL[move]}`)
           }
           onCall={(calledTo) => run(() => callVisit({ visitId: selected.id, calledTo, version: selected.version }), `${selected.ticket} called to ${calledTo}`)}
+          onRoute={(servicePointId, name) =>
+            run(() => routeVisit({ visitId: selected.id, servicePointId, version: selected.version }), `${selected.ticket} sent to ${name}`)
+          }
+          onAdvance={(note) => run(() => advanceRoute({ visitId: selected.id, note, version: selected.version }), `${selected.ticket} sent on`)}
+          onSkip={(stepId, reason) =>
+            run(() => skipRouteStep({ visitId: selected.id, stepId, reason, version: selected.version }), `${selected.ticket}: step skipped`)
+          }
+          onPlan={(servicePointIds) =>
+            run(() => planRoute({ visitId: selected.id, servicePointIds, version: selected.version }), `${selected.ticket}: route saved`)
+          }
         />
       ) : (
         <p className="self-start rounded-lg border border-dashed p-4 text-body text-muted-foreground">
@@ -122,6 +143,8 @@ export function QueueWorkspace({
 
 function VisitPanel({
   visit,
+  servicePoints,
+  autoCall,
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
@@ -132,8 +155,14 @@ function VisitPanel({
   onClose,
   onMove,
   onCall,
+  onRoute,
+  onAdvance,
+  onSkip,
+  onPlan,
 }: {
   visit: QueueVisit;
+  servicePoints: ServicePoint[];
+  autoCall: boolean;
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
@@ -144,8 +173,16 @@ function VisitPanel({
   onClose: () => void;
   onMove: (move: QueueMove, reason?: string) => void;
   onCall: (calledTo: string) => void;
+  onRoute: (servicePointId: string, name: string) => void;
+  onAdvance: (note?: string) => void;
+  onSkip: (stepId: string, reason: string) => void;
+  onPlan: (servicePointIds: string[]) => void;
 }) {
   const [calledTo, setCalledTo] = React.useState(visit.calledTo ?? "");
+  const [sendTo, setSendTo] = React.useState("");
+  const sendToPoint = servicePoints.find((s) => s.id === sendTo);
+  // Where the patient may be sent from here: the facility's other active service points (never the one they are at).
+  const routable = canManage && canRouteVisit(visit.status) && servicePoints.length > 0;
   const [closing, setClosing] = React.useState<QueueMove | null>(null);
   const [reason, setReason] = React.useState("");
   const moves = queueMoves(visit.status);
@@ -197,6 +234,14 @@ function VisitPanel({
               <dd>{visit.chiefComplaint}</dd>
             </>
           ) : null}
+          {visit.servicePoint ? (
+            <>
+              <dt className="text-muted-foreground">Service point</dt>
+              <dd>
+                {visit.servicePoint.name} <span className="text-muted-foreground">· {SERVICE_POINT_KIND_LABEL[visit.servicePoint.kind]}</span>
+              </dd>
+            </>
+          ) : null}
           {visit.calledTo ? (
             <>
               <dt className="text-muted-foreground">Called to</dt>
@@ -231,6 +276,18 @@ function VisitPanel({
             </Link>
           </Button>
         ) : null}
+        {open ? (
+          <RoutePanel
+            visit={visit}
+            servicePoints={servicePoints}
+            canManage={canManage}
+            autoCall={autoCall}
+            pending={pending}
+            onAdvance={onAdvance}
+            onSkip={onSkip}
+            onPlan={onPlan}
+          />
+        ) : null}
         {canManage && open ? (
           <>
             <form
@@ -248,6 +305,37 @@ function VisitPanel({
                 <MegaphoneIcon /> Call
               </Button>
             </form>
+            {routable ? (
+              <form
+                className="flex items-end gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (sendToPoint) onRoute(sendToPoint.id, sendToPoint.name);
+                }}
+              >
+                <div className="grid flex-1 gap-1">
+                  <Label htmlFor="send-to">Send to</Label>
+                  <NativeSelect
+                    id="send-to"
+                    value={sendTo}
+                    placeholder="Choose…"
+                    emptyText="No service points set up"
+                    onChange={(e) => setSendTo(e.target.value)}
+                  >
+                    {servicePoints
+                      .filter((s) => s.id !== visit.servicePointId)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} · {SERVICE_POINT_KIND_LABEL[s.kind]}
+                        </option>
+                      ))}
+                  </NativeSelect>
+                </div>
+                <Button type="submit" variant="outline" disabled={pending || !sendToPoint}>
+                  <SendIcon /> Send
+                </Button>
+              </form>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {moves
                 .filter((m) => !moveNeedsReason(m))

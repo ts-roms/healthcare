@@ -10,7 +10,8 @@ timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and any
 
 ## How to find a patient
 
-1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there).
+1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there). The page lists all active
+   patients A–Z, 25 a page, until you search.
 2. In **Name, patient no. or mobile**, type at least 2 characters. Examples: `dela cruz juan`, a patient number such as `P00001234`, or a mobile number in any
    Philippine format. Accents don't matter: "pena" finds "Peña".
 3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.

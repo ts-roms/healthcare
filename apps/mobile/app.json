@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
+      "./plugins/with-local-gradle-build.js",
       "expo-router",
       "expo-secure-store",
       [

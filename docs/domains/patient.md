@@ -43,7 +43,8 @@ survivor (see [Patient merge](#patient-merge-link-dont-move)).
 
 ## Queries
 
-- **Lookup** `GET /patients`: `q` is interpreted as patient number (`P123`),
+- **Lookup** `GET /patients`: without any criterion, the organization's patients in name order (paged; audited as
+  `queryKind: browse`); `q` is interpreted as patient number (`P123`),
   phone (any PH format) or name (trigram, accent-insensitive: "pena" finds
   "Peña"); plus birth date and identifier filters. Returns summaries with masked
   mobile only. Inactive and merged records are hidden unless `includeInactive=true`. A patient number, phone or

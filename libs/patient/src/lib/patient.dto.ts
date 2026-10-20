@@ -188,7 +188,7 @@ export const patientSearchSchema = pageQuerySchema
     identifierValue: z.string().trim().min(1).max(64).optional(),
     includeInactive: z.enum(["true", "false"]).optional(),
   })
-  .refine((v) => v.q || v.birthDate || v.identifierValue, { message: "Provide q, birthDate or identifierValue" })
+  // Without any criterion the lookup lists the organization's patients in name order (paged, the same minimal fields).
   .refine((v) => !v.identifierValue || v.identifierType, {
     message: "identifierType is required with identifierValue",
     path: ["identifierType"],

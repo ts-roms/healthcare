@@ -6,7 +6,7 @@ import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/
 import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { Availability, PractitionerScheduleRow } from "@/lib/api/types";
-import { todayIn } from "@/lib/clinic-mapping";
+import { nextScheduledDate, scheduleDaysText, todayIn } from "@/lib/clinic-mapping";
 import { safeNextPath } from "@healthcare/web-session";
 import { BookingForm } from "./booking-form";
 
@@ -55,6 +55,11 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
   const practitionerId = practitioners.find((p) => p.id === params.practitionerId)?.id ?? "";
   const visitTypeId = visitTypes.find((v) => v.id === params.visitTypeId)?.id ?? (visitTypes.length === 1 ? (visitTypes[0]?.id ?? "") : "");
   const date = params.date && DATE.test(params.date) && params.date >= today ? params.date : today;
+  // When a day has no slots: the practitioner's schedule days here, and the next day a block falls on (closures and
+  // bookings are the API's business once there).
+  const schedule = practitionerId
+    ? { days: scheduleDaysText(schedules, practitionerId, facility.id, today), nextDate: nextScheduledDate(schedules, practitionerId, facility.id, date) }
+    : null;
 
   // Slots come from the practitioner's published schedule minus bookings and closures (the API decides).
   let availability: Availability | null = null;
@@ -91,6 +96,7 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
         }}
         slots={availability?.slots ?? null}
         availabilityError={availabilityError}
+        schedule={schedule}
       />
     </>
   );

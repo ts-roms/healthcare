@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { safeNextPath } from "@healthcare/web-session";
+import { GetTheApp } from "@/components/app-download";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
@@ -27,6 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           Set up your account
         </Link>
       </section>
+      <GetTheApp />
       <Link href="/help" className="text-center text-body font-medium text-primary underline-offset-4 hover:underline">
         How to use MyHealth
       </Link>

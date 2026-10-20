@@ -1,4 +1,4 @@
-import type { RecordCopySection, RecordsRequestScope, RecordsRequestStatus } from "./api/types";
+import type { RecordCopySection, RecordsRequestKind, RecordsRequestScope, RecordsRequestStatus } from "./api/types";
 
 export const RECORDS_SCOPE_LABEL: Record<RecordsRequestScope, string> = {
   consultations: "Consultation records",
@@ -30,11 +30,19 @@ export function orderedCopySections(chosen: Iterable<RecordCopySection>): Record
   return RECORD_COPY_SECTIONS.map((s) => s.key).filter((k) => set.has(k));
 }
 
+/** What the request is, for the list and the request page (migration 0114). */
+export const RECORDS_KIND_BADGE: Record<RecordsRequestKind, { label: string; variant: "neutral" | "info" | "warning" }> = {
+  access: { label: "Copies", variant: "neutral" },
+  rectification: { label: "Correction", variant: "info" },
+  erasure: { label: "Erasure / blocking", variant: "warning" },
+  objection: { label: "Objection", variant: "warning" },
+};
+
 /** Status as colour + icon + text (the icon is chosen by the page). */
 export const RECORDS_STATUS: Record<RecordsRequestStatus, { label: string; variant: "info" | "warning" | "success" | "neutral" | "danger" }> = {
   submitted: { label: "New", variant: "warning" },
   in_review: { label: "In review", variant: "info" },
-  fulfilled: { label: "Shared", variant: "success" },
+  fulfilled: { label: "Answered", variant: "success" },
   declined: { label: "Declined", variant: "danger" },
   withdrawn: { label: "Withdrawn by the patient", variant: "neutral" },
 };

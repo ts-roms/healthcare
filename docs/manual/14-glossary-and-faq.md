@@ -229,6 +229,35 @@ person after checking their identity. The patient sets up the account again.
 **13. Why are times shown as they are?**
 Clinical times are shown in the facility's time zone (Asia/Manila by default), whatever the time zone of your computer.
 
+**13a. The Book button is greyed out and the day shows "No open slots". What now?**
+Only open slots inside the practitioner's published schedule are offered, and the Book button needs one chosen. The message names the days the
+practitioner is scheduled at this facility and offers **Next scheduled day**; a day may also be a closure or fully booked. To book outside the
+schedule, ask an administrator to add hours under **Appointments → Schedules**. See [Appointments and queue](03-appointments-and-queue.md#how-to-book-an-appointment).
+
+**13b. How do I send a triaged patient to the emergency room or X-ray?**
+Set up **service points** for the facility (**Administration → Service points**). At the end of triage, choose where the patient goes under
+**Send to**; on the queue board, **Send to** moves a patient who is in triage or ready for the provider, and the **Service point** list shows one
+line at a time. Every move is kept in the visit's history. The waiting-room display still shows only the ticket and the place called. See
+[Appointments and queue](03-appointments-and-queue.md#how-to-set-up-service-points).
+
+**13c. Why was I signed out while I stepped away?**
+The staff app signs a browser out after 20 minutes without activity (a one-minute warning first) so a record is not left open on a shared
+computer. **Stay signed in** on the warning resets the clock; your deployment can change the period. See [Administration](13-administration.md#data-privacy-notes).
+
+**13d. Where do I record a data breach, or a patient's request to correct or delete their data?**
+A breach or security incident goes in the register under **Administration → Data privacy**: record it when discovered, assess it with your Data
+Protection Officer, record the NPC and patient notifications you make, and close it. Patients ask for copies, corrections, erasure or object to a
+use under MyHealth **Documents**; the records office answers under **Records → Requests**. The platform changes or deletes nothing on a request
+and notifies no one by itself. See [Administration](13-administration.md#how-to-keep-the-breach-register-data-privacy) and
+[Records](11-records-reporting-and-integrations.md#how-to-answer-a-patients-records-request).
+
+**13e. Where is the list of all patients?**
+**Patients** lists every active patient A–Z, 25 a page, until you search. Tick **Include inactive records** to see inactive and merged ones too.
+
+**13f. How do I find something in this manual?**
+Type a few words in the search box at the top of any Help page, or in the **Need a hand?** window (the round button at the bottom-right): the
+sections whose heading or text contain all the words are listed, best match first, each with a passage. Select one to open it.
+
 ### For patients
 
 **14. I did not receive my activation code, or it expired.**
@@ -248,6 +277,26 @@ day, and are not for urgent problems: call the clinic, and 911 in an emergency. 
 
 **18. Why don't I see Dental in MyHealth?**
 Your clinic has not turned on sharing of dental records, or there is nothing to show yet. Ask the clinic if you need a copy of your dental record.
+
+**19. I can't see my password as I type. Is there a way to check it?**
+Yes — select the eye icon at the right of the password box to show what you typed, and again to hide it. The same works on every password box.
+
+**20. Something in my record is wrong. How do I get it corrected?**
+Under **Documents**, choose **Ask the records office**, pick **Correct something in my records**, say what is wrong and what it should be, and send.
+The clinic checks and tells you what it changed, in MyHealth. You can also ask for copies of your records, ask for some data to be removed or
+blocked (medical records may have to be kept by law), or object to a use of your data, such as reminders. See [MyHealth](12-patient-portal.md#how-to-get-your-medical-certificates-referral-letters-and-copies-of-your-records).
+
+**21. Who do I talk to about my personal information?**
+The clinic's data protection officer. When the clinic has named one, **Privacy and consents** in MyHealth shows the name and how to reach them;
+otherwise ask the clinic.
+
+**22. Why am I asked to set up two-step verification?**
+Your clinic requires it from a date it announced, to protect your records. Set it up under **Security** with an authenticator app (and passkeys if you
+like); until then you can only reach that set-up. If you cannot, ask the clinic — it can exempt you with a reason. See [MyHealth](12-patient-portal.md#how-to-make-your-sign-in-more-secure).
+
+**23. I searched the help and found nothing. What else?**
+The search needs every word you typed to appear in a section. Try fewer or different words — "result" instead of "lab test outcome". For anything the
+guide does not answer, write to the clinic under **Messages** (not for emergencies).
 
 ## Related chapters
 

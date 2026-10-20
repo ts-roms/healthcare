@@ -1,3 +1,5 @@
+import { parseIdleMinutes } from "../idle";
+
 /** Base URL of the healthcare API, including the version prefix. Server-side only; never exposed to the browser. */
 export const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:3333/api/v1").replace(/\/+$/, "");
 
@@ -20,3 +22,6 @@ export const COOKIES = {
 } as const;
 
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";
+
+/** Minutes without activity before the staff app signs the browser out (default 20; 0 turns it off). Server-side only. */
+export const STAFF_IDLE_MINUTES = parseIdleMinutes(process.env.STAFF_IDLE_MINUTES);

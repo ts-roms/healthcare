@@ -1,5 +1,7 @@
 export * from "./action-dashboard";
 export * from "./allergy-badge";
+export * from "./app-download";
+export * from "./app-download";
 export * from "./appointment-card";
 export * from "./audit-history";
 export * from "./care-plan";
@@ -7,6 +9,7 @@ export * from "./clinical-note";
 export * from "./clinical-summary";
 export * from "./diagnosis-selector";
 export * from "./encounter-timeline";
+export * from "./help-search";
 export * from "./lab-result";
 export * from "./lab-result-table";
 export * from "./daily-series-chart";

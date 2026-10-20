@@ -47,6 +47,9 @@ describe("navigationForPermissions", () => {
     expect(people?.children?.map((c) => c.href)).toEqual(["/admin/organization", "/admin/users", "/admin/security", "/admin/roles", "/admin/facilities"]);
     const auditor = navigationForPermissions(["audit.read"]).find((i) => i.href === "/admin");
     expect(auditor?.children?.map((c) => c.href)).toEqual(["/admin/audit"]);
+    // Service points are clinic configuration; a clinic administrator without user.read still reaches them.
+    const clinicAdmin = navigationForPermissions(["clinic.configure"]).find((i) => i.href === "/admin");
+    expect(clinicAdmin?.children?.map((c) => c.href)).toEqual(["/admin/service-points"]);
   });
 
   it("offers only the laboratory pages the user can open", () => {

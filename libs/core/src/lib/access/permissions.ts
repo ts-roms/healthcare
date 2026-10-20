@@ -144,6 +144,8 @@ export const PERMISSIONS = [
   "compliance.review.manage",
   "inventory.controlled-register.read",
   "document.retention.manage",
+  // The personal data breach register and the organization's privacy settings (migration 0114; docs/security/data-privacy-act.md).
+  "privacy.incident.manage",
   // Integrity review of stored documents against their checksums, and its findings (migration 0105).
   "document.integrity.manage",
   // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).

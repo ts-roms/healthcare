@@ -25,7 +25,7 @@ export async function startReview(requestId: string, requestVersion: number) {
 
 const fulfilSchema = z.object({
   requestId: id,
-  documentIds: z.array(id).min(1, "Choose the documents to share.").max(50),
+  documentIds: z.array(id).max(50),
   note: z.string().trim().max(1000).optional(),
   identityCheckMethod: z.string().trim().min(3, "Say how the identity was confirmed.").max(200).optional(),
   version,

@@ -82,6 +82,10 @@ Open points found by the trace, for the decisions below (not changes made):
 - **Absolute session length.** A refresh never extends `refreshTokenExpiresAt`, so the app signs the patient out after
   `REFRESH_TOKEN_TTL_DAYS` (14) whatever their activity — kept (decision recorded below).
 - **Password reset** links open `PORTAL_BASE_URL/reset-password#token=…` in the browser (D7); the reset itself works from any client.
+- **Getting the app**: the organization sets its store listings per deployment (`MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL`); the staff
+  landing page (`/welcome`, "MyHealth, on the phone") and the MyHealth sign-in page ("Get the MyHealth app") show a QR code per listing, drawn on
+  the server with `qrcode` (`AppDownload` in `@healthcare/ui/healthcare`; `apps/staff/src/lib/mobile-app.ts`, `apps/portal/src/lib/mobile-app.ts`).
+  Until a listing is set, the landing page's code opens MyHealth on the web (`PORTAL_BASE_URL`) and the sign-in page shows nothing.
 
 ### Patient data endpoints (VERIFIED, [portal-app.md](portal-app.md#data))
 

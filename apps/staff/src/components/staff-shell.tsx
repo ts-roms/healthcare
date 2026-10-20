@@ -20,6 +20,7 @@ import {
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import type { StaffBadges } from "@/lib/api/types";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
+import type { ManualSection } from "@healthcare/ui/primitives";
 import { HelpFab, type HelpChapter } from "./help-fab";
 import { OfflineBanner } from "./offline-banner";
 
@@ -40,6 +41,8 @@ export interface StaffShellProps {
   badges: StaffBadges | null;
   /** The user manual's chapters, for the floating help button's dialog. */
   manualChapters: HelpChapter[];
+  /** Every section of the manual, for the dialog's search box. */
+  manualSections?: ManualSection[];
   children: React.ReactNode;
 }
 
@@ -55,6 +58,7 @@ export function StaffShell({
   unreadNotices,
   badges,
   manualChapters,
+  manualSections = [],
   children,
 }: StaffShellProps) {
   // Set during render, before the page below renders, so every client component formats times in the facility's zone.
@@ -185,7 +189,7 @@ export function StaffShell({
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
       <OfflineBanner />
       {children}
-      <HelpFab chapters={manualChapters} />
+      <HelpFab chapters={manualChapters} sections={manualSections} />
     </StaffLayout>
   );
 }

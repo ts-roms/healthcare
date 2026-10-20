@@ -7,7 +7,12 @@ import { ConsentCard } from "./consent-card";
 export const metadata = { title: "Privacy and consents" };
 
 export default async function PrivacyPage() {
-  const [{ timeZone, organization }, consents] = await Promise.all([getMe(), portalApi<PortalConsent[]>("/portal/consents")]);
+  const [{ timeZone, organization }, consents, dpo] = await Promise.all([
+    getMe(),
+    portalApi<PortalConsent[]>("/portal/consents"),
+    // The clinic's Data Protection Officer as it names them (none set: the generic advice below).
+    portalApi<{ dpoName: string | null; dpoContact: string | null }>("/portal/privacy").catch(() => ({ dpoName: null, dpoContact: null })),
+  ]);
   // Consents never recorded and not offered online stay off the list: there is nothing to show, give or withdraw.
   const shown = consents.filter((c) => c.current || c.canGive);
   return (
@@ -30,8 +35,19 @@ export default async function PrivacyPage() {
       )}
       <p className="flex gap-2 text-body text-muted-foreground">
         <ShieldCheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-        Withdrawing a consent applies from now on; it does not undo what was done before. Questions about your personal information? Ask the clinic for its data
-        protection officer.
+        Withdrawing a consent applies from now on; it does not undo what was done before. Questions about your personal information?{" "}
+        {dpo.dpoName || dpo.dpoContact ? (
+          <span>
+            Contact the clinic&apos;s data protection officer{dpo.dpoName ? `, ${dpo.dpoName}` : ""}
+            {dpo.dpoContact ? `: ${dpo.dpoContact}` : ""}. You may ask for copies of your records, a correction, erasure or blocking, or object to a use of your
+            data under <strong>Documents</strong>.
+          </span>
+        ) : (
+          <span>
+            Ask the clinic for its data protection officer. You may ask for copies of your records, a correction, erasure or blocking, or object to a use of
+            your data under <strong>Documents</strong>.
+          </span>
+        )}
       </p>
     </div>
   );

@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { AppointmentItem, Practitioner, QueueVisit, VisitType } from "./api/types";
+import type { AppointmentItem, Practitioner, PractitionerScheduleRow, QueueVisit, VisitType } from "./api/types";
 import {
   referralRecipient,
   appointmentActions,
+  canRouteVisit,
   canStartConsultation,
   canTriage,
+  defaultServicePoint,
   groupByPractitioner,
   groupByRoom,
   moveNeedsReason,
+  nextScheduledDate,
   queueMoves,
+  scheduleBlocksOn,
+  scheduleDaysText,
   shiftDate,
   toAppointment,
   todayIn,
@@ -27,6 +32,7 @@ const visit: QueueVisit = {
   ticket: "A-007",
   queueNumber: 7,
   queueDate: "2026-09-27",
+  route: [],
   priority: "routine",
   status: "awaiting_consultation",
   chiefComplaint: "Fever",
@@ -39,6 +45,8 @@ const visit: QueueVisit = {
   encounterId: null,
   modality: "in_person",
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
+  servicePointId: null,
+  servicePoint: null,
 };
 
 describe("toQueueEntry", () => {
@@ -62,6 +70,97 @@ describe("toQueueEntry", () => {
 
   it("shows where a called patient should go, and non-routine priority", () => {
     expect(toQueueEntry({ ...visit, calledTo: "Room 2", priority: "emergency" })).toMatchObject({ station: "Called to Room 2", priority: "emergency" });
+  });
+
+  it("names the service point the patient was sent to", () => {
+    const er = { id: "sp-er", code: "er", name: "Emergency room", kind: "emergency" as const, location: null };
+    expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er }).station).toBe("Ready for provider · Emergency room · Fever");
+    expect(toQueueEntry({ ...visit, servicePointId: er.id, servicePoint: er, calledTo: "Bed 3" }).station).toBe("Called to Bed 3 · Emergency room");
+  });
+
+  it("names the next stop of the route, never a finished or skipped one", () => {
+    const xray = { id: "sp-xray", code: "xray", name: "X-ray", kind: "imaging" as const, location: "X-ray, ground floor" };
+    const step = (id: string, position: number, status: "planned" | "current" | "done" | "skipped") => ({
+      id,
+      position,
+      status,
+      servicePointId: xray.id,
+      servicePoint: xray,
+      startedAt: null,
+      completedAt: null,
+      note: null,
+    });
+    expect(toQueueEntry({ ...visit, route: [step("s1", 1, "done"), step("s2", 2, "current"), step("s3", 3, "planned")] }).station).toBe(
+      "Ready for provider · next: X-ray · Fever",
+    );
+    expect(toQueueEntry({ ...visit, route: [step("s1", 1, "done"), step("s2", 2, "skipped")] }).station).toBe("Ready for provider · Fever");
+  });
+});
+
+describe("service points", () => {
+  const points = [
+    { id: "sp-xray", kind: "imaging" as const, status: "active" as const },
+    { id: "sp-opd", kind: "consultation" as const, status: "inactive" as const },
+    { id: "sp-opd2", kind: "consultation" as const, status: "active" as const },
+  ];
+
+  it("routes only from in triage or awaiting consultation, as the API does", () => {
+    expect(canRouteVisit("waiting")).toBe(false);
+    expect(canRouteVisit("in_triage")).toBe(true);
+    expect(canRouteVisit("awaiting_consultation")).toBe(true);
+    expect(canRouteVisit("in_consultation")).toBe(false);
+    expect(canRouteVisit("completed")).toBe(false);
+  });
+
+  it("starts the triage picker on the visit's own service point, else the first active consultation line, else none", () => {
+    expect(defaultServicePoint(points, "sp-xray")).toBe("sp-xray");
+    expect(defaultServicePoint(points, null)).toBe("sp-opd2");
+    expect(defaultServicePoint([points[0]!], null)).toBe("");
+    expect(defaultServicePoint([], null)).toBe("");
+  });
+});
+
+describe("practitioner schedule days", () => {
+  const block = (dayOfWeek: number, startTime: string, endTime: string, extra: Partial<PractitionerScheduleRow> = {}): PractitionerScheduleRow => ({
+    id: `${dayOfWeek}-${startTime}`,
+    practitionerId: "dr",
+    facilityId: "main",
+    roomId: null,
+    dayOfWeek,
+    startTime,
+    endTime,
+    slotMinutes: 20,
+    validFrom: "2026-01-01",
+    validUntil: null,
+    status: "active",
+    retiredAt: null,
+    ...extra,
+  });
+  const rows = [
+    block(2, "08:00:00", "12:00:00"),
+    block(4, "08:00:00", "12:00:00"),
+    block(5, "13:00:00", "17:00:00"),
+    block(1, "08:00:00", "12:00:00", { status: "retired" }),
+    block(1, "08:00:00", "12:00:00", { facilityId: "annex" }),
+    block(3, "08:00:00", "12:00:00", { validUntil: "2026-10-01" }),
+  ];
+
+  it("lists the days and hours of the current schedule at the facility", () => {
+    expect(scheduleDaysText(rows, "dr", "main", "2026-10-26")).toBe("Tue, Thu 08:00–12:00 · Fri 13:00–17:00");
+    expect(scheduleDaysText(rows, "dr", "annex", "2026-10-26")).toBe("Mon 08:00–12:00");
+    expect(scheduleDaysText(rows, "nobody", "main", "2026-10-26")).toBe("");
+  });
+
+  it("finds the blocks valid on a date, and the next scheduled day after it", () => {
+    // Monday 26 October 2026: no block at the main clinic (the Monday one is retired).
+    expect(scheduleBlocksOn(rows, "dr", "main", "2026-10-26")).toEqual([]);
+    expect(scheduleBlocksOn(rows, "dr", "main", "2026-10-27").map((b) => b.dayOfWeek)).toEqual([2]);
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-26")).toBe("2026-10-27");
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-29")).toBe("2026-10-30");
+    expect(nextScheduledDate(rows, "dr", "main", "2026-10-30")).toBe("2026-11-03");
+    // A block that is no longer valid, or starts later, is not a day to jump to.
+    expect(nextScheduledDate([block(3, "08:00:00", "12:00:00", { validUntil: "2026-10-01" })], "dr", "main", "2026-10-26")).toBeNull();
+    expect(nextScheduledDate([block(3, "08:00:00", "12:00:00", { validFrom: "2026-11-04" })], "dr", "main", "2026-10-26")).toBe("2026-11-04");
   });
 });
 

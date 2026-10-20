@@ -419,10 +419,77 @@ export interface QueueVisit {
   encounterId: string | null;
   /** From the visit type; an online visit is started from Telemedicine. */
   modality: "in_person" | "telemedicine";
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePointId: string | null;
+  servicePoint: ServicePointBrief | null;
+  /** The visit's route (migration 0115), in order; empty when none was planned. */
+  route: RouteStep[];
 }
 
-/** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
+/** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint" | "route">;
+
+// ---- Service points (migration 0113) -----------------------------------------------------------------
+
+export type ServicePointKind = "consultation" | "emergency" | "imaging" | "other";
+
+/** `GET /clinic/service-points` row: a queue line of the facility as the organization names it. */
+export interface ServicePoint {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  kind: ServicePointKind;
+  status: "active" | "inactive";
+  /** What the waiting-room display says when a route sends a patient here (migration 0115); the name when null. */
+  location: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind" | "location">;
+
+/** `GET /clinic/service-point-settings` (migration 0115); `version` is null while the facility uses the defaults. */
+export interface ServicePointSettings {
+  facilityId: string;
+  autoCallOnRoute: boolean;
+  version: number | null;
+  updatedAt: string | null;
+}
+
+export type RouteStepStatus = "planned" | "current" | "done" | "skipped";
+
+/** One stop of a visit's route (migration 0115), as `GET /queue` rows and `GET /queue/visits/:id/route` list them. */
+export interface RouteStep {
+  id: string;
+  position: number;
+  status: RouteStepStatus;
+  servicePointId: string;
+  servicePoint: ServicePointBrief | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** The note left at "done here", or the reason for skipping. */
+  note: string | null;
+}
+
+/** What the route commands answer (`PUT …/route-plan`, `POST …/route/next`, `POST …/route/skip`). */
+export interface VisitRouteResult {
+  visit: Visit;
+  route: RouteStep[];
+  /** The patient was called to the next stop's location (the facility calls automatically). */
+  called: boolean;
+}
+
+/** `GET /queue/visits/:id/routing` row: one move between service points (from null = the consultation line). */
+export interface VisitRouting {
+  id: string;
+  from: ServicePointBrief | null;
+  to: ServicePointBrief | null;
+  routedBy: string;
+  reason: string | null;
+  routedAt: string;
+}
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 
@@ -3890,10 +3957,14 @@ export type RecordsRequestScope = "consultations" | "laboratory" | "prescription
 export type RecordsRequestStatus = "submitted" | "in_review" | "fulfilled" | "declined" | "withdrawn";
 
 /** GET /records-requests */
+/** What the patient asks (migration 0114): copies, a correction, erasure or blocking, or an objection to a use. */
+export type RecordsRequestKind = "access" | "rectification" | "erasure" | "objection";
+
 export interface RecordsRequest {
   id: string;
   patientId: string;
   requestNumber: string;
+  kind: RecordsRequestKind;
   scope: RecordsRequestScope[];
   periodFrom: string | null;
   periodTo: string | null;
@@ -3930,6 +4001,56 @@ export interface RecordsRequestDetail extends RecordsRequest {
 
 export type RecordCopySection =
   "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations" | "history";
+
+// ---- Data privacy: the breach register and privacy settings (migration 0114) ---------------------------
+
+export type PrivacyDataCategory = "identifiers" | "contact" | "health" | "financial" | "credentials" | "other";
+export type PrivacyAssessment = "pending" | "notifiable" | "not_notifiable";
+export type PrivacyEntryKind = "reported" | "note" | "containment" | "assessment" | "npc_notified" | "subjects_notified" | "closed";
+
+/** `GET /privacy/setting`: the organization's own notification window and its DPO as named. */
+export interface PrivacySetting {
+  breachNotificationHours: number;
+  dpoName: string | null;
+  dpoContact: string | null;
+  /** 0 when never set. */
+  version: number;
+  updatedAt: string | null;
+}
+
+/** `GET /privacy/incidents` row. */
+export interface PrivacyIncident {
+  id: string;
+  incidentNumber: string;
+  title: string;
+  description: string;
+  discoveredAt: string;
+  occurredAt: string | null;
+  dataCategories: PrivacyDataCategory[];
+  affectedEstimate: number | null;
+  notifyBy: string;
+  status: "open" | "closed";
+  assessment: PrivacyAssessment;
+  assessmentReason: string | null;
+  assessedAt: string | null;
+  npcNotifiedAt: string | null;
+  npcReference: string | null;
+  subjectsNotifiedAt: string | null;
+  subjectsNotificationMethod: string | null;
+  closedAt: string | null;
+  closureNote: string | null;
+  reportedBy: string;
+  createdAt: string;
+  version: number;
+  notificationPending: boolean;
+  notificationOverdue: boolean;
+  /** Hours left in the window (negative once passed); null when none is pending. */
+  hoursLeft: number | null;
+}
+
+export interface PrivacyIncidentDetail extends PrivacyIncident {
+  entries: Array<{ id: string; kind: PrivacyEntryKind; note: string; recordedBy: string; recordedAt: string }>;
+}
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {

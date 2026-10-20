@@ -108,7 +108,8 @@ export class PatientSearchService {
       action: "patient.search",
       resourceType: "patient",
       metadata: {
-        queryKind: interpreted?.kind,
+        // "browse": no criterion at all — the paged list of the organization's patients.
+        queryKind: interpreted?.kind ?? (query.birthDate || query.identifierValue ? undefined : "browse"),
         criteria: {
           q: query.q,
           birthDate: query.birthDate,

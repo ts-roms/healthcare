@@ -335,6 +335,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                               | Screen: `/appointments/schedules`                                                          | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Diagnosis coding systems                                                                                                           | Screen: `/clinic/coding-systems` (**Clinic → Coding systems**)                             | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
 | Visit types patients may book online                                                                                               | Screen: `/appointments/visit-types`                                                        | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
+| Service points of each facility (consultation line, emergency room, X-ray …) where a triaged patient can be sent                   | Screen: `/admin/service-points` (**Administration → Service points**)                      | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                  | Screen: `/clinic/vaccines` (**Clinic → Vaccines**)                                         | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
 | Procedure catalogue (your own codes and names, another code if you use one, whether the body site is asked, supplies usually used) | Screen: `/clinic/procedures` (**Clinic → Procedures**)                                     | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
 | Services and prices, discount rules, payers, packages, tax and documents, document numbers                                         | Screen: `/billing/settings`                                                                | `billing.pricelist.manage`      | [Billing](10-billing.md)                                                                                  |
@@ -352,6 +353,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Document retention periods                                                                                                         | Screen: `/records/retention`                                                               | `document.retention.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Document integrity review                                                                                                          | Screen: `/records/integrity`                                                               | `document.integrity.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Records-request procedure (response time, identity check, notice to patients)                                                      | Screen: `/records/requests/settings`                                                       | `organization.manage`           | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
+| Breach-notification window, Data Protection Officer, the breach register                                                           | Screen: `/admin/privacy` (**Administration → Data privacy**)                               | `privacy.incident.manage`       | this chapter                                                                                              |
 | Compliance reviews (who validated each area's configuration)                                                                       | Screen: `/admin/compliance`                                                                | `compliance.review.manage`      | this chapter                                                                                              |
 | Integration payload keys                                                                                                           | Deployment configuration (usage shown on `/admin/integrations` to platform administrators) | IT / platform administrator     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Payment provider, PhilHealth, DOH and reference-laboratory adapters                                                                | Not configured: no adapter exists yet (integration dependencies)                           | —                               | [Billing](10-billing.md), [Records, reporting and integrations](11-records-reporting-and-integrations.md) |
@@ -390,6 +392,27 @@ not say what a consent legally needs: have your data protection officer approve 
 
 The patient's record shows a consent given online as "by the patient in MyHealth" with **wording v…**, the version they read. Consent to the use of
 information, to general treatment, and to MyHealth itself is always given at the clinic.
+
+## How to keep the breach register (Data privacy)
+
+**Administration → Data privacy** (`/admin/privacy`; `privacy.incident.manage`, organization administrators by default — grant it to your Data
+Protection Officer's role) keeps your organization's personal data breach register and its privacy settings. Opening the register is recorded.
+
+1. **Settings** (right): **Notify within (hours from discovery)** is your own notification window — the National Privacy Commission's circular is
+   the reference your Data Protection Officer confirms; 72 hours until you change it. Enter your **Data Protection Officer** and **How patients
+   reach the DPO**: patients then see them in MyHealth under **Privacy and consents**.
+2. **Record an incident…** as soon as something is discovered that may involve personal data: a title, what happened as known now, when it was
+   discovered (the window starts there) and, if known, when it occurred, the kinds of data involved and an estimate of the people affected. Keep
+   patient names out of these notes.
+3. Open the incident to add what was done (**Note** or **Containment step**), record the **assessment** (**Notifiable** or **Not notifiable**, with
+   the reason — your DPO's decision, not the platform's), record **NPC notified** with the NPC's reference and when, record that the **affected
+   people were told** and how, and finally **Close** it with what was concluded. An incident is closed only once assessed; a notifiable incident
+   that was not notified needs that explained in the closure note.
+4. The list shows each open incident's window: hours left, or **past the window** with a warning once it has passed without an NPC notification
+   recorded. Nothing is sent by the platform — you notify the NPC and the patients through your own channels and record it here.
+
+Every step is kept in order and cannot be edited or deleted; the audit trail records who did what. See
+[what the platform does and what your organization validates](../security/data-privacy-act.md).
 
 ## How to record compliance reviews
 
@@ -441,9 +464,12 @@ entries.
 - **Messages.** SMS and email never contain clinical details. Free-text staff messages go only to the patient's MyHealth inbox.
 - **Files.** Documents, reports and images are kept in private, encrypted storage and opened with links that expire after a few minutes. Each opening is
   audited.
-- **Shared workstations.** The staff app has no inactivity time-out. Train staff to sign out of shared computers.
+- **Shared workstations.** The staff app signs a browser out after 20 minutes without activity (a one-minute warning first; your deployment can
+  change or turn off the period with `STAFF_IDLE_MINUTES`). Still train staff to sign out of shared computers.
 - **Retention.** Data retention periods and deletion or anonymization procedures are not defined in the platform. Define them with your Data Protection Officer
   against current National Privacy Commission guidance.
+- **Breaches and data-subject rights.** Keep the breach register (above) and answer patients' requests for copies, corrections, erasure or
+  objections under **Records → Requests**. [What the platform does and what your organization validates](../security/data-privacy-act.md).
 - **No compliance claim.** Having these features does not make an organization compliant with the Data Privacy Act or any DOH, PhilHealth or BIR requirement.
   Compliance must be assessed against current official requirements before use in production.
 

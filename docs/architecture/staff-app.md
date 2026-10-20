@@ -39,12 +39,22 @@ different zones never share one. In the browser, `StaffShell` sets it (`setClini
 `hc_tz` is written with `hc_fac` (facility selection, sign-in pre-selection) and is display-only: an unknown zone falls
 back to Asia/Manila.
 
+## Landing page
+
+`/welcome` (route group `(public)`, no session) presents the platform and links to the sign-in page. Its **MyHealth, on the phone** section
+(`components/myhealth-download.tsx`) shows a QR code per store listing of the MyHealth app (`MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL`) or,
+while none is set, one to MyHealth on the web (`PORTAL_BASE_URL`); nothing when no link is configured (`lib/mobile-app.ts`, tested). Codes are
+drawn on the server from the configured URLs only.
+
 ## Help (user manual)
 
 `/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
 `lib/manual-content.ts` (walks up from the working directory to `docs/manual`; cached per process), with the design system's
 `Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
-links to developer documentation are shown as text. The menu shows **Help** to every signed-in user, and `StaffShell` renders
+links to developer documentation are shown as text. A search box above the chapter list (`HelpSearch` in `@healthcare/ui/healthcare`)
+searches an index of every section built on the server from the Markdown (`manualSections` / `searchManual` in `@healthcare/ui/primitives`:
+sections at `##`/`###` headings, anchors as the `Markdown` view gives them, every query word must occur, heading matches first, a
+passage around the match); results link to `/help/<slug>#<anchor>`; the same box sits at the top of the help dialog (below), whose results close it. The menu shows **Help** to every signed-in user, and `StaffShell` renders
 `components/help-fab.tsx` once on every signed-in page: a round **Open the user manual** button fixed at the bottom-right (16px gutter and
 the phone's safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
 screen** link to the chapter for the current route (`chapterForPath` in `lib/manual.ts`, longest route prefix first; nothing when no chapter
@@ -294,6 +304,22 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
   create, edit (optimistic lock) or inactivate a facility; add departments.
+- `/admin/privacy` (`privacy.incident.manage`): the personal data breach register (open, closed, all; record an incident) and the organization's
+  privacy settings (notification window, DPO); `/admin/privacy/[incidentId]`: the incident, its trail and the steps to record (note or containment,
+  assessment, NPC notified, affected people told, close). Server actions in `admin/privacy/actions.ts`; labels in `lib/privacy-mapping.ts`. The
+  staff layout mounts `IdleSignOut` (`STAFF_IDLE_MINUTES`, [access control](../security/access-control.md#idle-sign-out-staff-app)).
+- `/admin/service-points` (`clinic.configure`; facility selected in the top bar): the facility's service points (migration `0113`) — add (code,
+  name, kind), rename or change the kind, deactivate and reactivate (optimistic lock; `admin/service-points/actions.ts`). The queue board (`/queue`)
+  filters by service point through `?servicePoint=` (`service-point-switcher.tsx`; the API's `GET /queue?servicePointId=`), the ticket panel shows
+  the service point and offers **Send to** (`routeVisit` → `POST /queue/visits/:id/route`) for visits in triage or awaiting consultation, and the
+  triage form ends with **Send to** (`servicePointId` on the triage call; `defaultServicePoint` in `lib/clinic-mapping.ts` starts it on the visit's
+  own service point, else the first consultation one). See [clinic.md](../domains/clinic.md#service-points). **Visit routes** (migration `0115`):
+  the triage card is **Route** — the first stop plus **Then** stops (`components/route-stops-editor.tsx`; `route` on the triage call); the ticket
+  panel's **Route** section (`queue/route-panel.tsx`: **Done here, send on** → `advanceRoute` → `POST /queue/visits/:id/route/next`, **Skip step…**
+  → `skipRouteStep`, **Plan route…** → `planRoute` → `PUT …/route-plan`); cards show "next: X" (`nextStopLabel`); the page reads
+  `GET /clinic/service-point-settings` so the panel says whether the patient will be called; `/admin/service-points` edits each service point's
+  **Location** and the facility's **Routes** setting (`routing-settings.tsx`, `saveServicePointSettings`). See
+  [clinic.md](../domains/clinic.md#visit-routes).
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on

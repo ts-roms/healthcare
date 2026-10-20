@@ -2,11 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRightIcon, BellRingIcon, MaximizeIcon, UsersIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
-import { Button } from "@healthcare/ui/primitives";
+import { ArrowRightIcon, BellRingIcon, MaximizeIcon, Play, UsersIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import { Button, Popover, PopoverContent, PopoverTrigger, ToggleGroup, ToggleGroupItem } from "@healthcare/ui/primitives";
 import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
 import type { QueueDisplay } from "@/lib/api/types";
-import { currentCallKey, shouldChime } from "@/lib/queue-display";
+import {
+  announcements,
+  currentCallKey,
+  type DisplaySoundSettings,
+  parseSoundSettings,
+  shouldChime,
+  SOUND_LEVEL_GAIN,
+  SOUND_SETTINGS_KEY,
+  type SoundLevel,
+  type VoiceLanguage,
+} from "@/lib/queue-display";
+import { canSpeak, playChime, speak, stopSpeaking } from "@/lib/queue-display-sound";
 
 /**
  * The waiting-room display: the ticket being called now and where to go, the tickets called before it, and how many
@@ -25,12 +36,12 @@ export function DisplayBoard({
 }) {
   const [now, setNow] = React.useState(() => new Date());
   const status = useQueueUpdates(() => setNow(new Date()));
-  const sound = useChime(currentCallKey(display));
+  const [current, ...earlier] = display?.calls ?? [];
+  const sound = useDisplaySound(currentCallKey(display), current ?? null);
   useWakeLock();
 
   const time = (iso: string | Date) => new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   const today = new Intl.DateTimeFormat("en-PH", { timeZone, weekday: "long", month: "long", day: "numeric" }).format(now);
-  const [current, ...earlier] = display?.calls ?? [];
 
   return (
     <div className="flex min-h-dvh flex-col gap-4 p-4 sm:p-8">
@@ -43,9 +54,7 @@ export function DisplayBoard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LiveIndicator status={status} />
-          <Button variant="outline" size="sm" onClick={sound.toggle} aria-pressed={sound.on}>
-            {sound.on ? <Volume2Icon /> : <VolumeXIcon />} {sound.on ? "Sound on" : "Turn on sound"}
-          </Button>
+          <SoundMenu sound={sound} />
           <Button variant="outline" size="sm" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
             <MaximizeIcon /> Full screen
           </Button>
@@ -118,45 +127,175 @@ export function DisplayBoard({
   );
 }
 
-/**
- * A short two-tone chime when the call shown changes. Off until someone turns it on at the screen (browsers only play
- * sound after a click there); never on the first render.
- */
-function useChime(callKey: string | null): { on: boolean; toggle: () => void } {
-  const [on, setOn] = React.useState(false);
-  const audio = React.useRef<AudioContext | null>(null);
-  const previous = React.useRef<string | null | undefined>(undefined);
-
-  React.useEffect(() => {
-    if (on && audio.current && shouldChime(previous.current, callKey)) playChime(audio.current);
-    previous.current = callKey;
-  }, [callKey, on]);
-
-  const toggle = () => {
-    if (!on) {
-      audio.current ??= new AudioContext();
-      void audio.current.resume();
-      playChime(audio.current);
-    }
-    setOn(!on);
-  };
-  return { on, toggle };
+interface DisplaySound {
+  on: boolean;
+  settings: DisplaySoundSettings;
+  speechAvailable: boolean;
+  toggle: () => void;
+  setLevel: (level: SoundLevel) => void;
+  setVoice: (voice: VoiceLanguage) => void;
+  test: () => void;
 }
 
-function playChime(context: AudioContext) {
-  const start = context.currentTime;
-  [660, 880].forEach((frequency, i) => {
-    const at = start + i * 0.35;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.3, at + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.6);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(at);
-    oscillator.stop(at + 0.65);
+/** The sound controls: on/off, how loud, whether the call is read out, and a test of what the screen will do. */
+function SoundMenu({ sound }: { sound: DisplaySound }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" aria-pressed={sound.on}>
+          {sound.on ? <Volume2Icon /> : <VolumeXIcon />} {sound.on ? "Sound on" : "Sound off"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-4">
+        <div className="space-y-1">
+          <p className="text-body font-medium">Sound</p>
+          <p className="text-meta text-muted-foreground">A chime when a ticket is called. Browsers play sound only after a click on this screen.</p>
+          <Button variant={sound.on ? "outline" : "default"} size="sm" onClick={sound.toggle} aria-pressed={sound.on}>
+            {sound.on ? <VolumeXIcon /> : <Volume2Icon />} {sound.on ? "Turn off sound" : "Turn on sound"}
+          </Button>
+        </div>
+        <fieldset className="space-y-1.5">
+          <legend className="text-body font-medium">Volume</legend>
+          <ToggleGroup type="single" value={sound.settings.level} onValueChange={(value) => value && sound.setLevel(value as SoundLevel)} aria-label="Volume">
+            <ToggleGroupItem value="quiet">Quiet</ToggleGroupItem>
+            <ToggleGroupItem value="normal">Normal</ToggleGroupItem>
+            <ToggleGroupItem value="loud">Loud</ToggleGroupItem>
+          </ToggleGroup>
+        </fieldset>
+        <fieldset className="space-y-1.5">
+          <legend className="text-body font-medium">Read the call out</legend>
+          <ToggleGroup
+            type="single"
+            value={sound.settings.voice}
+            onValueChange={(value) => value && sound.setVoice(value as VoiceLanguage)}
+            aria-label="Read the call out"
+            disabled={!sound.speechAvailable}
+          >
+            <ToggleGroupItem value="off">Off</ToggleGroupItem>
+            <ToggleGroupItem value="en">English</ToggleGroupItem>
+            <ToggleGroupItem value="fil">Filipino</ToggleGroupItem>
+            <ToggleGroupItem value="both">Both</ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-meta text-muted-foreground">
+            {sound.speechAvailable
+              ? "After the chime: “Number A 0 0 7, please proceed to Room 2”, with the voices installed on this device (a Filipino voice is not available everywhere)."
+              : "This browser cannot read text out."}
+          </p>
+        </fieldset>
+        <Button variant="outline" size="sm" onClick={sound.test} disabled={!sound.on}>
+          <Play /> Test
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ---- this browser's sound settings as an external store ---------------------------------------------------------------
+
+const soundSettingsListeners = new Set<() => void>();
+/** Settings kept for this page load when storage is blocked (private window). */
+let memorySettings: string | null = null;
+
+function subscribeToSoundSettings(listener: () => void): () => void {
+  soundSettingsListeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    soundSettingsListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+function notifySoundSettings(): void {
+  for (const listener of soundSettingsListeners) listener();
+}
+
+/** The stored settings text (a string, so equal values are the same snapshot); null when nothing is stored or storage is blocked. */
+function readStoredSoundSettings(): string | null {
+  try {
+    return window.localStorage.getItem(SOUND_SETTINGS_KEY) ?? memorySettings;
+  } catch {
+    return memorySettings;
+  }
+}
+
+const subscribeNever = () => () => undefined;
+
+/**
+ * The chime (and, when chosen, the spoken call) whenever the call shown changes. Off until someone turns it on at the
+ * screen (browsers only play sound after a click there); never on the first render. Volume and voice are kept in this
+ * browser's storage, so the screen keeps them across reloads; whether sound is on is not — it needs the click.
+ */
+function useDisplaySound(callKey: string | null, current: { ticket: string; calledTo: string } | null): DisplaySound {
+  const [on, setOn] = React.useState(false);
+  // Read from this browser's storage without a render-then-effect round trip: the server render (and hydration) use the defaults.
+  const storedSettings = React.useSyncExternalStore(subscribeToSoundSettings, readStoredSoundSettings, () => null);
+  const settings = React.useMemo(() => parseSoundSettings(storedSettings), [storedSettings]);
+  const speechAvailable = React.useSyncExternalStore(subscribeNever, canSpeak, () => false);
+  const audio = React.useRef<AudioContext | null>(null);
+  const previous = React.useRef<string | null | undefined>(undefined);
+  const speakTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = React.useRef({ settings, current });
+  // Refs are written after the render commits, never during it.
+  React.useEffect(() => {
+    latest.current = { settings, current };
   });
+
+  React.useEffect(() => {
+    // Chrome loads voices after the first ask; asking now has them ready for the first announcement.
+    if (canSpeak()) window.speechSynthesis.getVoices();
+    return () => {
+      if (speakTimer.current) clearTimeout(speakTimer.current);
+      stopSpeaking();
+    };
+  }, []);
+
+  const play = React.useCallback((call: { ticket: string; calledTo: string } | null) => {
+    const context = audio.current;
+    if (!context) return;
+    const { settings: now } = latest.current;
+    const gain = SOUND_LEVEL_GAIN[now.level];
+    const seconds = playChime(context, gain);
+    if (speakTimer.current) clearTimeout(speakTimer.current);
+    stopSpeaking();
+    const lines = call ? announcements(call, now.voice) : [];
+    if (lines.length) speakTimer.current = setTimeout(() => speak(lines, gain), seconds * 1000 - 400);
+  }, []);
+
+  React.useEffect(() => {
+    // The call read out is the one the key names: it changes together with the key.
+    if (on && shouldChime(previous.current, callKey)) play(latest.current.current);
+    previous.current = callKey;
+  }, [callKey, on, play]);
+
+  const save = (next: DisplaySoundSettings) => {
+    try {
+      window.localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage blocked: kept for this page load only.
+      memorySettings = JSON.stringify(next);
+    }
+    notifySoundSettings();
+  };
+
+  return {
+    on,
+    settings,
+    speechAvailable,
+    toggle: () => {
+      if (!on) {
+        audio.current ??= new AudioContext();
+        void audio.current.resume();
+        play(null);
+      } else {
+        if (speakTimer.current) clearTimeout(speakTimer.current);
+        stopSpeaking();
+      }
+      setOn(!on);
+    },
+    setLevel: (level) => save({ ...latest.current.settings, level }),
+    setVoice: (voice) => save({ ...latest.current.settings, voice }),
+    test: () => play(latest.current.current ?? { ticket: "A-001", calledTo: "Room 1" }),
+  };
 }
 
 /** Keeps the screen from sleeping while the display is shown (where the browser supports it). */

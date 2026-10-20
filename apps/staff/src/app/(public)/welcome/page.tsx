@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
+import { MyHealthDownload } from "@/components/myhealth-download";
 import { BrandMark, PLATFORM_MODULES } from "@/components/platform-highlights";
 
 export const metadata = {
@@ -32,6 +33,7 @@ const NAV = [
   { href: "#journey", label: "Care journey" },
   { href: "#philippines", label: "Philippines" },
   { href: "#security", label: "Security" },
+  { href: "#myhealth", label: "MyHealth" },
 ];
 
 const JOURNEY: ReadonlyArray<{ title: string; description: string }> = [
@@ -233,6 +235,9 @@ export default function WelcomePage() {
             <FeatureGrid items={SECURITY} className="lg:grid-cols-3" />
           </div>
         </section>
+
+        {/* MyHealth on the phone: QR codes to the organization's store listings (or MyHealth on the web until published); nothing when unconfigured. */}
+        <MyHealthDownload />
 
         {/* Call to action */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">

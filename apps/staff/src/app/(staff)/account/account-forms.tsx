@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, PasswordInput, toast } from "@healthcare/ui/primitives";
 import { beginTwoStep, changeOwnPassword, confirmTwoStep, renewRecoveryCodes, turnOffTwoStep } from "./actions";
 
 function FormError({ message }: { message: string | null }) {
@@ -37,13 +37,12 @@ export function PasswordForm({ temporary = false }: { temporary?: boolean } = {}
     >
       <div className="grid gap-1">
         <Label htmlFor="current-password">{temporary ? "Temporary password" : "Current password"}</Label>
-        <Input id="current-password" type="password" autoComplete="current-password" required value={form.currentPassword} onChange={set("currentPassword")} />
+        <PasswordInput id="current-password" autoComplete="current-password" required value={form.currentPassword} onChange={set("currentPassword")} />
       </div>
       <div className="grid gap-1">
         <Label htmlFor="new-password">New password</Label>
-        <Input
+        <PasswordInput
           id="new-password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}
@@ -58,7 +57,7 @@ export function PasswordForm({ temporary = false }: { temporary?: boolean } = {}
       </div>
       <div className="grid gap-1">
         <Label htmlFor="confirm-password">New password again</Label>
-        <Input id="confirm-password" type="password" autoComplete="new-password" required value={form.confirmPassword} onChange={set("confirmPassword")} />
+        <PasswordInput id="confirm-password" autoComplete="new-password" required value={form.confirmPassword} onChange={set("confirmPassword")} />
       </div>
       <FormError message={error} />
       <Button type="submit" size="sm" className="self-start" disabled={pending}>
@@ -113,7 +112,7 @@ export function TwoStepSettings({ enabled, required = false }: { enabled: boolea
       >
         <div className="grid gap-1">
           <Label htmlFor="off-password">Your password</Label>
-          <Input id="off-password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput id="off-password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="off-code">Code from your authenticator app, or a recovery code</Label>
@@ -307,14 +306,7 @@ export function RecoveryCodesSettings({ remaining }: { remaining: number }) {
           <p className="text-meta text-muted-foreground">Your old recovery codes stop working.</p>
           <div className="grid gap-1">
             <Label htmlFor="renew-password">Your password</Label>
-            <Input
-              id="renew-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <PasswordInput id="renew-password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="renew-code">Code from your authenticator app</Label>

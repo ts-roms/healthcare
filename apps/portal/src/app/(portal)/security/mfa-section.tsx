@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AlertTriangleIcon, CheckCircle2Icon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
-import { Button, Input, Label } from "@healthcare/ui/primitives";
+import { Button, Input, Label, PasswordInput } from "@healthcare/ui/primitives";
 import type { PortalMfaSetup, PortalMfaStatus } from "@/lib/api/types";
 import { resultDate } from "@/lib/records";
 import { recoveryCodesLow, recoveryCodesText, securityMessage } from "@/lib/security";
@@ -125,7 +125,7 @@ export function MfaSection({ status, timeZone }: { status: PortalMfaStatus; time
               </p>
               <div className="grid gap-1.5">
                 <Label htmlFor="mfa-password">Your password</Label>
-                <Input id="mfa-password" name="password" type="password" autoComplete="current-password" required className="h-11" />
+                <PasswordInput id="mfa-password" name="password" autoComplete="current-password" required className="h-11" />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="mfa-code">Code</Label>
@@ -165,7 +165,7 @@ export function MfaSection({ status, timeZone }: { status: PortalMfaStatus; time
             >
               <div className="grid gap-1.5">
                 <Label htmlFor="setup-password">Your password</Label>
-                <Input id="setup-password" name="password" type="password" autoComplete="current-password" required autoFocus className="h-11" />
+                <PasswordInput id="setup-password" name="password" autoComplete="current-password" required autoFocus className="h-11" />
               </div>
               <Button type="submit" size="sm" className="self-start" disabled={pending}>
                 {pending ? "Working…" : "Continue"}

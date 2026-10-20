@@ -376,11 +376,18 @@ Choose **Documents** on **Home**.
 - **Referrals** — when your doctor refers you to another doctor or clinic: who it is to, the date and where it stands (for example "Sent — bring the
   letter when you go"). Choose **Letter** to open the referral letter to bring or send. You get a message when a new one is ready. A referral your
   doctor cancelled stays listed as cancelled, without its letter.
-- **Copies of your records** — to ask the clinic's records office for copies:
-  1. Choose **Ask for copies of my records**.
-  2. Tick what you need (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical certificates or
-     something else — then say what in **Details**), and optionally the period and what you need them for.
-  3. Choose **Send request**. It gets a number (`RR########`).
+- **Asking the records office** — to ask for copies of your records, or to use your rights under the Data Privacy Act:
+  1. Choose **Ask the records office**.
+  2. Under **What do you want to ask?** choose **Copies of my records**, **Correct something in my records**, **Remove or block some of my data**
+     or **Object to a use of my data**.
+  3. Tick which records it is about (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical
+     certificates or something else — then say what in **Details**), and optionally the period and what you need them for. For a correction,
+     removal or objection, **Details** is required: say what is wrong and what it should be, which data and why, or which use and why.
+  4. Choose **Send request**. It gets a number (`RR########`).
+
+  The clinic checks and answers in MyHealth: copies appear under the request with **Download**; for the other requests the answer says what the
+  clinic did or why it could not (medical records may have to be kept by law). You can also change your message settings and some consents
+  yourself (see below). The clinic's data protection officer, when the clinic names one, is shown under **Privacy and consents**.
 
   The clinic may show a note above the form (for example its fees or what identification to bring) and how many days it aims to take to answer;
   each waiting request then shows the date the clinic aims to answer by.
@@ -446,8 +453,11 @@ You can use up to 5 devices. If the browser says notifications are blocked, allo
 
 ## How to use the MyHealth app on your phone
 
-If your clinic has the MyHealth app, install it from the app store the clinic points you to. The app shows your **released results** and can tell you
-when something is waiting in MyHealth. Visits, bills, messages and everything else are on the MyHealth website.
+If your clinic has the MyHealth app, install it from the app store the clinic points you to: the MyHealth sign-in page shows **Get the MyHealth
+app** with a QR code for each store once the clinic has published it — point your phone's camera at the code, or tap the link under it. The
+clinic's own website may show the same codes. Some clinics give out the Android app directly (**Android app (APK)**): the phone then asks to
+allow installing from this source; allow it only for a link the clinic gave you. The app shows your **released results** and can tell you when something is waiting in MyHealth.
+Visits, bills, messages and everything else are on the MyHealth website.
 
 1. Open the app and sign in with your MyHealth email and password (and the code from your authenticator app, if you use two-step verification). To activate a
    new account, or if you forgot your password, use the MyHealth website first.

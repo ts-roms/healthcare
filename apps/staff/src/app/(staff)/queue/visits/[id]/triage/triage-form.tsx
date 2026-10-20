@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, CheckIcon, SaveIcon } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import type { VisitPriority } from "@/lib/api/types";
+import type { ServicePoint, VisitPriority } from "@/lib/api/types";
+import { RouteStopsEditor } from "@/components/route-stops-editor";
+import { defaultServicePoint, SERVICE_POINT_KIND_LABEL } from "@/lib/clinic-mapping";
 import { bmi, EMPTY_VITALS, parseRiskFlags, parseVitals, VITAL_FIELDS, type VitalField, vitalErrorsFromApi, type VitalsForm } from "@/lib/triage-form";
 import { recordTriage } from "./actions";
 
@@ -24,13 +26,20 @@ const VITAL_LAYOUT: VitalField[] = [
 export function TriageForm({
   visit,
   patientId,
+  servicePoints,
 }: {
-  visit: { id: string; ticket: string; chiefComplaint: string; priority: VisitPriority };
+  visit: { id: string; ticket: string; chiefComplaint: string; priority: VisitPriority; servicePointId: string | null; plannedStops: string[] };
   patientId: string;
+  /** The facility's active service points (migration 0113), plus the visit's own if it was deactivated since (the page filters). */
+  servicePoints: ServicePoint[];
 }) {
   const router = useRouter();
   const [chiefComplaint, setChiefComplaint] = React.useState(visit.chiefComplaint);
   const [priority, setPriority] = React.useState<VisitPriority>(visit.priority);
+  const [servicePointId, setServicePointId] = React.useState(() => defaultServicePoint(servicePoints, visit.servicePointId));
+  const sendTo = servicePoints.find((s) => s.id === servicePointId);
+  const [stops, setStops] = React.useState<string[]>(visit.plannedStops);
+  const active = servicePoints.filter((s) => s.status === "active");
   const [painScore, setPainScore] = React.useState("");
   const [riskFlags, setRiskFlags] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -64,9 +73,13 @@ export function TriageForm({
         notes: notes.trim() || undefined,
         vitals: values,
         completeTriage,
+        servicePointId: servicePointId || undefined,
+        route: servicePointId && stops.length > 0 ? stops : undefined,
       });
       if (result.ok) {
-        toast.success(completeTriage ? `${visit.ticket}: triage complete, ready for provider` : `${visit.ticket}: triage saved`);
+        const then = servicePointId && stops.length > 0 ? `, then ${stops.map((id) => servicePoints.find((s) => s.id === id)?.name ?? "…").join(" → ")}` : "";
+        const where = sendTo && sendTo.id !== visit.servicePointId ? ` · sent to ${sendTo.name}${then}` : then ? ` · route${then}` : "";
+        toast.success(completeTriage ? `${visit.ticket}: triage complete, ready for provider${where}` : `${visit.ticket}: triage saved${where}`);
         router.push("/queue");
         return;
       }
@@ -173,6 +186,52 @@ export function TriageForm({
           <Label htmlFor="notes">Triage notes</Label>
           <Textarea id="notes" maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Route</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <Label htmlFor="servicePointId">Send to</Label>
+              <NativeSelect
+                id="servicePointId"
+                value={servicePointId}
+                placeholder="Choose…"
+                emptyText="No service points set up"
+                onChange={(e) => setServicePointId(e.target.value)}
+              >
+                {servicePoints.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {SERVICE_POINT_KIND_LABEL[s.kind]}
+                  </option>
+                ))}
+              </NativeSelect>
+              <p className="text-meta text-muted-foreground">
+                {servicePoints.length === 0
+                  ? "Your clinic has not set up service points; the patient stays on the consultation line."
+                  : "Where the patient goes next, recorded with the triage. Leave it on “Choose…” to keep the ordinary consultation line."}
+              </p>
+            </div>
+            {active.length > 0 ? (
+              <div className="grid gap-1">
+                <RouteStopsEditor
+                  id="routeStop"
+                  servicePoints={active}
+                  stops={stops}
+                  after={servicePointId || null}
+                  disabled={!servicePointId}
+                  onChange={setStops}
+                />
+                <p className="text-meta text-muted-foreground">
+                  {servicePointId
+                    ? "The stops after that one, in order. From the queue, “Done here, send on” moves the patient to the next stop."
+                    : "Choose where to send the patient first; the stops after it are planned from there."}
+                </p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </fieldset>
 
       {error ? (

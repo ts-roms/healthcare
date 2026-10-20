@@ -425,9 +425,14 @@ export interface PortalCertificate {
   restDays: number | null;
 }
 
+/** What the patient asks (migration 0114): copies, a correction, erasure or blocking, or an objection. */
+export type PortalRecordsKind = "access" | "rectification" | "erasure" | "objection";
+
 export interface PortalRecordsRequest {
   id: string;
   requestNumber: string;
+  /** Older API versions leave it out (copies). */
+  kind?: PortalRecordsKind;
   scope: PortalRecordsScope[];
   periodFrom: string | null;
   periodTo: string | null;
