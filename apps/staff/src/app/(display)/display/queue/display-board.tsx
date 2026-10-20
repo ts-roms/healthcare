@@ -9,7 +9,6 @@ import type { QueueDisplay } from "@/lib/api/types";
 import {
   announcements,
   currentCallKey,
-  DEFAULT_SOUND_SETTINGS,
   type DisplaySoundSettings,
   parseSoundSettings,
   shouldChime,
@@ -191,6 +190,36 @@ function SoundMenu({ sound }: { sound: DisplaySound }) {
   );
 }
 
+// ---- this browser's sound settings as an external store ---------------------------------------------------------------
+
+const soundSettingsListeners = new Set<() => void>();
+/** Settings kept for this page load when storage is blocked (private window). */
+let memorySettings: string | null = null;
+
+function subscribeToSoundSettings(listener: () => void): () => void {
+  soundSettingsListeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    soundSettingsListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+function notifySoundSettings(): void {
+  for (const listener of soundSettingsListeners) listener();
+}
+
+/** The stored settings text (a string, so equal values are the same snapshot); null when nothing is stored or storage is blocked. */
+function readStoredSoundSettings(): string | null {
+  try {
+    return window.localStorage.getItem(SOUND_SETTINGS_KEY) ?? memorySettings;
+  } catch {
+    return memorySettings;
+  }
+}
+
+const subscribeNever = () => () => undefined;
+
 /**
  * The chime (and, when chosen, the spoken call) whenever the call shown changes. Off until someone turns it on at the
  * screen (browsers only play sound after a click there); never on the first render. Volume and voice are kept in this
@@ -198,22 +227,20 @@ function SoundMenu({ sound }: { sound: DisplaySound }) {
  */
 function useDisplaySound(callKey: string | null, current: { ticket: string; calledTo: string } | null): DisplaySound {
   const [on, setOn] = React.useState(false);
-  const [settings, setSettings] = React.useState<DisplaySoundSettings>(DEFAULT_SOUND_SETTINGS);
-  const [speechAvailable, setSpeechAvailable] = React.useState(false);
+  // Read from this browser's storage without a render-then-effect round trip: the server render (and hydration) use the defaults.
+  const storedSettings = React.useSyncExternalStore(subscribeToSoundSettings, readStoredSoundSettings, () => null);
+  const settings = React.useMemo(() => parseSoundSettings(storedSettings), [storedSettings]);
+  const speechAvailable = React.useSyncExternalStore(subscribeNever, canSpeak, () => false);
   const audio = React.useRef<AudioContext | null>(null);
   const previous = React.useRef<string | null | undefined>(undefined);
   const speakTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = React.useRef({ settings, current });
-  latest.current = { settings, current };
-
-  // Read after mount: the server render knows nothing of this screen's storage.
+  // Refs are written after the render commits, never during it.
   React.useEffect(() => {
-    try {
-      setSettings(parseSoundSettings(window.localStorage.getItem(SOUND_SETTINGS_KEY)));
-    } catch {
-      // Private window or storage blocked: the defaults, for this page load.
-    }
-    setSpeechAvailable(canSpeak());
+    latest.current = { settings, current };
+  });
+
+  React.useEffect(() => {
     // Chrome loads voices after the first ask; asking now has them ready for the first announcement.
     if (canSpeak()) window.speechSynthesis.getVoices();
     return () => {
@@ -241,12 +268,13 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
   }, [callKey, on, play]);
 
   const save = (next: DisplaySoundSettings) => {
-    setSettings(next);
     try {
       window.localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(next));
     } catch {
-      // Kept for this page load only.
+      // Storage blocked: kept for this page load only.
+      memorySettings = JSON.stringify(next);
     }
+    notifySoundSettings();
   };
 
   return {
