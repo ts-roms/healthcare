@@ -1,15 +1,14 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MonitorIcon, SearchIcon } from "lucide-react";
-import { Button } from "@healthcare/ui/primitives";
+import { clinicalTime } from "@healthcare/ui/healthcare";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { getServicePoints } from "@/lib/api/clinic";
-import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { QueueVisit, ServicePointSettings } from "@/lib/api/types";
+import { getPractitioners, getServicePoints } from "@/lib/api/clinic";
+import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
+import type { AppointmentItem, Page, QueueVisit, ServicePointSettings } from "@/lib/api/types";
+import { todayIn } from "@/lib/clinic-mapping";
+import type { TodayAppointments } from "./queue-empty";
 import { QueueWorkspace } from "./queue-workspace";
-import { ServicePointSwitcher } from "./service-point-switcher";
 
 export const metadata = { title: "Queue" };
 
@@ -36,42 +35,47 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   const canManage = can(session, "clinic.queue.manage");
   // Whether a route sending a patient on calls them (migration 0115): the panel says so before the click.
   const routing = servicePoints.length > 0 ? await api<ServicePointSettings>("/clinic/service-point-settings", { query: { facilityId: facility.id } }) : null;
+  const facilities = await getFacilities();
+  // Names for "Assigned" on the ticket, and today's appointments for the empty board; neither is worth failing the queue for.
+  const canSeeAppointments = can(session, "appointment.read");
+  const [practitioners, appointments] = await Promise.all([
+    canSeeAppointments ? getPractitioners().catch(() => []) : [],
+    canSeeAppointments && visits.length === 0
+      ? api<Page<AppointmentItem>>("/appointments", { query: { facilityId: facility.id, date: todayIn(facility.timezone), pageSize: 100 } }).catch(() => null)
+      : null,
+  ]);
   return (
-    <>
-      <PageHeader
-        title="Queue"
-        description={`${facility.name} · ${selectedServicePoint ? selectedServicePoint.name : "all service points"} · today · refreshes automatically`}
-        actions={
-          <>
-            {can(session, "clinic.queue.display") ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href="/display/queue" target="_blank" rel="noopener">
-                  <MonitorIcon /> Open waiting-room display
-                </Link>
-              </Button>
-            ) : null}
-            {canManage && can(session, "patient.search") ? (
-              <Button asChild size="sm">
-                <Link href="/patients">
-                  <SearchIcon /> Find patient to check in
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-      {servicePoints.length > 0 ? <ServicePointSwitcher servicePoints={servicePoints} selectedId={selectedServicePoint?.id ?? ""} /> : null}
-      <QueueWorkspace
-        visits={visits}
-        servicePoints={servicePoints}
-        autoCall={routing?.autoCallOnRoute ?? false}
-        canManage={canManage}
-        canTriage={can(session, "clinic.triage.write")}
-        canOpenRecord={can(session, "patient.read")}
-        canConsult={can(session, "encounter.write")}
-        canOpenEncounter={can(session, "encounter.read")}
-        canRecordProcedure={can(session, "procedure.record")}
-      />
-    </>
+    <QueueWorkspace
+      visits={visits}
+      servicePoints={servicePoints}
+      autoCall={routing?.autoCallOnRoute ?? false}
+      chrome={{
+        facilities: facilities.map((f) => ({ id: f.id, name: f.name })),
+        facilityId: facility.id,
+        dateLabel: `Today, ${new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", timeZone: facility.timezone }).format(new Date())}`,
+        selectedServicePointId: selectedServicePoint?.id ?? "",
+        canOpenDisplay: can(session, "clinic.queue.display"),
+        canCheckIn: canManage && can(session, "patient.search"),
+      }}
+      practitionerNames={Object.fromEntries(practitioners.map((p) => [p.id, p.displayName]))}
+      today={todayAppointments(appointments)}
+      canManage={canManage}
+      canTriage={can(session, "clinic.triage.write")}
+      canOpenRecord={can(session, "patient.read")}
+      canConsult={can(session, "encounter.write")}
+      canOpenEncounter={can(session, "encounter.read")}
+      canRecordProcedure={can(session, "procedure.record")}
+    />
   );
+}
+
+/** How many appointments are booked today (cancelled ones not counted) and who is first, for the empty board. */
+function todayAppointments(page: Page<AppointmentItem> | null): TodayAppointments | null {
+  if (!page) return null;
+  const open = page.items.filter((a) => a.status !== "cancelled" && a.status !== "no_show").sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const first = open.find((a) => a.status === "booked" || a.status === "confirmed");
+  return {
+    count: open.length,
+    first: first ? { time: clinicalTime(first.startsAt), patientName: first.patient?.displayName ?? "Patient" } : null,
+  };
 }

@@ -20,6 +20,7 @@ import {
   upcomingAppointments,
   zonedLocalToIso,
   toQueueEntry,
+  queueFigures,
 } from "./clinic-mapping";
 
 const visit: QueueVisit = {
@@ -49,6 +50,37 @@ const visit: QueueVisit = {
   servicePoint: null,
 };
 
+describe("queueFigures", () => {
+  const at = (minutesAgo: number, status: QueueVisit["status"], name = "DELA CRUZ, Juan"): QueueVisit => ({
+    ...visit,
+    status,
+    checkedInAt: new Date(Date.parse("2026-09-27T02:00:00Z") - minutesAgo * 60_000).toISOString(),
+    patient: { patientNumber: "P1", displayName: name, sex: "male", age: 30 },
+  });
+  const now = new Date("2026-09-27T02:00:00Z");
+
+  it("counts who is in the queue, who is done and how long the others have waited", () => {
+    const figures = queueFigures(
+      [
+        at(10, "waiting"),
+        at(30, "in_triage", "SANTOS, Maria"),
+        at(20, "awaiting_consultation"),
+        at(50, "in_consultation"),
+        at(90, "completed"),
+        at(80, "cancelled"),
+      ],
+      now,
+    );
+    expect(figures).toMatchObject({ inQueue: 4, done: 2, waiting: 3, withProvider: 1, averageWaitMinutes: 20 });
+    expect(figures.longestWait).toEqual({ minutes: 30, patientName: "SANTOS, Maria" });
+  });
+
+  it("has no waits when nobody is waiting", () => {
+    expect(queueFigures([], now)).toEqual({ inQueue: 0, done: 0, waiting: 0, withProvider: 0, averageWaitMinutes: null, longestWait: null });
+    expect(queueFigures([at(5, "in_consultation")], now).longestWait).toBeNull();
+  });
+});
+
 describe("toQueueEntry", () => {
   it("maps API statuses to board columns with a readable station", () => {
     expect(toQueueEntry(visit)).toEqual({
@@ -59,7 +91,11 @@ describe("toQueueEntry", () => {
       status: "ready",
       arrivedAt: "2026-09-27T01:00:00Z",
       priority: undefined,
+      arrival: "walk-in",
+      detail: "Fever",
     });
+    expect(toQueueEntry({ ...visit, arrivalMode: "appointment" }).arrival).toBe("appointment");
+    expect(toQueueEntry({ ...visit, calledTo: "Room 2", calledAt: "2026-09-27T01:05:00Z" }).detail).toBe("Called to Room 2");
     expect(toQueueEntry({ ...visit, status: "in_triage" }).status).toBe("vitals");
     expect(toQueueEntry({ ...visit, status: "in_consultation" }).status).toBe("with-provider");
     expect(toQueueEntry({ ...visit, status: "left_without_being_seen" }).station).toBe("Left without being seen · Fever");

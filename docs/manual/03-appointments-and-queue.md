@@ -137,7 +137,7 @@ A double click adds the patient only once.
 
 ## How to use the queue board
 
-Open **Queue** (`/queue`). The board shows today's visits at the selected facility in five columns:
+Open **Queue** (`/queue`). At the top are the page title with the connection state, three chips (the **facility**, the **service point** and the day), and the two buttons a front desk uses most: **Waiting-room display** and **Check in patient**. Below them four figures sum up the queue: **In queue** (with how many are done), **Avg wait**, **Longest wait** (with the patient's name; it turns red with a warning icon at 30 minutes or more) and **With provider**. The board shows today's visits at the selected facility in five columns, filling the screen; each column scrolls on its own:
 
 | Column                 | Meaning                                             |
 | ---------------------- | --------------------------------------------------- |
@@ -147,31 +147,32 @@ Open **Queue** (`/queue`). The board shows today's visits at the selected facili
 | **With provider**      | Consultation in progress                            |
 | **Done**               | Seen, cancelled, or left without being seen         |
 
-Each card shows the ticket, the patient's name, a priority badge (**Urgent** or **Emergency**) when not routine, and where the patient was called
-to or what they are waiting for — and, once the patient has been sent to a service point, its name, and **next: …** when their route has a stop
-ahead. In the waiting columns the card also shows minutes since arrival; waits over 45 minutes are highlighted with ⚠.
+**Done** is folded into a count with the last ticket; select **View list** to see who they were and **Hide list** to fold it again.
 
-If your facility has service points (see below), a **Service point** list above the board shows **All service points** or one of them — for example
+Each card shows the ticket, the patient's name, the complaint or where the patient was called to, and tags: **Walk-in** or **Appointment**, and **Urgent**, **Emergency** or **Priority · …** when not routine. Once the patient has been sent to a service point, the card also shows its name, and **next: …** when their route has a stop ahead. In the waiting columns the card shows how long the patient has waited since arrival, as a coloured label with the minutes: green under 15 minutes, amber from 15, red with a warning icon from 30. These limits are only how the board is drawn; they are not a target set by the system. The selected ticket is outlined.
+
+When nobody has checked in yet, the columns fold into zero counts and the board says **No patients in the queue yet**, with **Check in patient**, **View today's appointments (…)** and who the first appointment of the day is.
+
+If your facility has service points (see below), the **service point** chip in the header shows **All service points** or one of them — for example
 only the emergency room's queue. The choice is kept in the page address, so a bookmarked link opens that service point's board and live updates keep
 it. Each service point's queue is in the same order as the whole board: emergency, then urgent, then routine, each by arrival.
 
-The board updates by itself. Next to the count of active visits you see the connection state:
+The board updates by itself. Next to the title you see the connection state and when the board was last updated:
 
 - **Live** — changes appear as they happen.
 - **Connecting…** — reconnecting.
 - **Updates every 15 s** — live updates are unavailable, so the board re-reads the queue every 15 seconds.
 
-Select **Refresh** to reload at any time.
+Select the refresh button next to the connection state to reload at any time.
 
 ### Call a patient and move them along
 
-1. Select a ticket. A panel opens on the right with the patient's name, number, age and sex, status, arrival time (appointment or walk-in),
-   complaint, and where they were called to.
+1. Select a ticket. A panel opens on the right with the ticket in large type and how long the patient has waited, the patient's name, number, age and sex, the complaint, and four details: **Stage**, **Arrived**, **Visit** (appointment or walk-in) and **Assigned** (the provider, or **Any provider**). It also shows where they were called to, and a **Timeline** of check-in, calls and the current stage. On a narrow screen the panel opens under the board.
 2. To call the patient, type the place in **Call patient to** (for example "Triage 1" or "Room 3") and select **Call**.
 3. To move the patient, use the buttons shown for their current status:
-   - From **Waiting**: **Send to triage**, **Cancel visit…**, **Left without being seen…**
-   - From **Triage / Vitals**: **Ready for provider**, **Left without being seen…**
-   - From **Ready for provider**: **Send to triage** (back to triage), **Left without being seen…**
+   - From **Waiting**: **Move to Triage / Vitals**, **Cancel visit…**, **Left without being seen…**
+   - From **Triage / Vitals**: **Move to Ready for provider**, **Left without being seen…**
+   - From **Ready for provider**: **Send back to Triage / Vitals**, **Left without being seen…**
 4. **Cancel visit…** and **Left without being seen…** need a reason (at least 3 characters); it is recorded in the audit trail. Select the
    button again to confirm, or **Keep in queue**.
 5. To send a triaged patient somewhere else — from the emergency room to X-ray, say — choose the place under **Send to** and select **Send**. This is
