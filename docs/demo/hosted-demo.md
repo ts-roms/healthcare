@@ -14,6 +14,37 @@ This page lists what is needed and what stays the organization's decision; `docs
 - The existing Railway project `cliniq` in the same workspace is **another application** (`ts-roms/cliniq`, with `web`,
   `api` and `ai-service` services); this platform has no Railway project yet.
 
+## The demo environment (created 2026-10-20)
+
+Railway project **healthcare-demo** (`700105a8-4f8b-4882-b871-42060b79b082`, workspace "Rom Cena's Projects"),
+environment `production`, region `sfo` (bucket in `sin`):
+
+| Service               | Id                                           | Public address                                  |
+| --------------------- | -------------------------------------------- | ----------------------------------------------- |
+| `api`                 | `28d2be66-5934-4d39-81d4-0a56efb24c59`       | `https://api-production-1eb6.up.railway.app`    |
+| `staff`               | `12ab7e4b-ac32-458b-bb1b-3a836c9d05ef`       | `https://staff-production-28d9.up.railway.app`  |
+| `portal` (MyHealth)   | `53874cb8-0cfd-4436-ba4d-e015e791bcc9`       | `https://portal-production-c1a4.up.railway.app` |
+| `notification-worker` | `25b4d453-e1c5-4d90-b757-2436307fde18`       | —                                               |
+| `integration-worker`  | `e9f21dab-c43f-487a-a870-aa3362177bc5`       | —                                               |
+| `Postgres`, `Redis`   | Railway templates (PostgreSQL 18, Redis 8.2) | —                                               |
+| bucket `documents`    | `d8ecc176-ed29-47dd-ba77-e4925b1a9d8e`       | referenced as `${{documents.*}}`                |
+
+What is set: every variable of `docs/deployment/railway.md` for a demo — generated `JWT_ACCESS_SECRET`,
+`MFA_ENCRYPTION_KEY`, `INTEGRATION_PAYLOAD_KEY` and VAPID keys (never written to the repository; read them in the
+dashboard), database, Redis and bucket references, the public addresses, `CORS_ORIGINS`, `TRUST_PROXY`, the seed
+variables (`SEED_ORG_CODE=demo`, administrator `admin@demo.healthcare.ph` with a generated password held in the `api`
+service's variables), `PORTAL_ORGANIZATION_CODE=demo`, `STAFF_IDLE_MINUTES=20`; and each service's build, start,
+health check, pre-deploy (`pnpm db:migrate` on `api`) and restart settings, applied directly because Railway now
+refuses the config-as-code path for new services (the `railway.json` files stay the reference).
+
+Not set: SMTP (no email: password resets and notices by email do not go out), LiveKit (no video), ClamAV
+(uploads "not scanned"), PayMongo, OTLP. The database is used as its owner (no restricted role: acceptable for a demo
+that holds no real patient data, not for a real deployment).
+
+**Pending**: no service has a source yet. Connect each of the five services to `ts-roms/healthcare` on the branch to
+demo (deploys start at once: `api` first, then the rest), run `pnpm db:seed` and `pnpm db:seed:demo` against the API
+with its `SEED_*` values, change `DEMO_PASSWORD`, and turn deploy-on-push off per service.
+
 ## Steps
 
 1. **Repository and branch.** Railway deploys from GitHub: push the branch to deploy (for a demo, a `demo` branch that
