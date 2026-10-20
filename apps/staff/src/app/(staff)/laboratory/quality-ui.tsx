@@ -1,26 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertOctagonIcon, CheckCircle2Icon, CircleDotIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
-import { Badge, toast } from "@healthcare/ui/primitives";
+import { Badge } from "@healthcare/ui/primitives";
 import type { LabNonconformance, NonconformanceCategory, NonconformanceSeverity } from "@/lib/api/types";
-
-/** Runs a server action, toasts the outcome and refreshes the page's server data on success. */
-export function useRun() {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
-}
 
 export const CATEGORY_LABEL: Record<NonconformanceCategory, string> = {
   pre_analytical: "Pre-analytical",

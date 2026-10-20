@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, PlusIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import {
@@ -39,6 +38,7 @@ import type {
 import { YakapParticipation } from "./yakap-participation";
 import { CATEGORY_LABEL, parsePesos, percent, peso, TAX_CLASS_LABEL } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import {
   addPrice,
   createDiscountRule,
@@ -68,21 +68,6 @@ const RULE_KINDS: Record<DiscountRule["kind"], string> = {
   promotional: "Promotional",
   other: "Other",
 };
-
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, submit };
-}
 
 export function BillingSettings({
   services,
@@ -158,7 +143,7 @@ function Services({
   canManage: boolean;
   vatRegistered: boolean;
 }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const sourceName = (s: BillingService) => {
     if (!s.sourceKind) return "Added by staff";
     const name = sources[s.sourceKind].find((x) => x.code === s.sourceCode)?.name ?? s.sourceCode;
@@ -208,7 +193,7 @@ function Services({
                             value={s.chargeUnit ?? "each"}
                             disabled={pending}
                             onChange={(e) =>
-                              submit(
+                              run(
                                 () => setServiceChargeUnit({ serviceId: s.id, chargeUnit: e.target.value as "each" | "surface", version: s.version }),
                                 e.target.value === "surface" ? `${s.name} is charged per surface` : `${s.name} is charged per procedure`,
                               )
@@ -238,7 +223,7 @@ function Services({
                           value={s.taxClass ?? ""}
                           disabled={pending}
                           onChange={(e) =>
-                            submit(
+                            run(
                               () => setServiceTaxClass({ serviceId: s.id, taxClass: (e.target.value || null) as TaxClass | null, version: s.version }),
                               "VAT class saved",
                             )
@@ -268,7 +253,7 @@ function Services({
                             variant="ghost"
                             disabled={pending}
                             onClick={() =>
-                              submit(
+                              run(
                                 () => setServiceStatus({ serviceId: s.id, status: s.status === "active" ? "inactive" : "active", version: s.version }),
                                 s.status === "active" ? `${s.name} deactivated` : `${s.name} activated`,
                               )
@@ -292,7 +277,7 @@ function Services({
 }
 
 function NewPrice({ service }: { service: BillingService }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [amount, setAmount] = React.useState("");
   const [from, setFrom] = React.useState(todayIn("Asia/Manila"));
@@ -320,7 +305,7 @@ function NewPrice({ service }: { service: BillingService }) {
         size="xs"
         disabled={pending || centavos === null}
         onClick={() =>
-          submit(
+          run(
             () => addPrice({ serviceId: service.id, unitPrice: centavos ?? 0, effectiveFrom: from }),
             "Price added",
             () => setOpen(false),
@@ -334,7 +319,7 @@ function NewPrice({ service }: { service: BillingService }) {
 }
 
 function NewService({ sources }: { sources: Sources }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({
     code: "",
     name: "",
@@ -357,7 +342,7 @@ function NewService({ sources }: { sources: Sources }) {
           toast.error("Enter the price in pesos, e.g. 500.00");
           return;
         }
-        submit(
+        run(
           () =>
             createService({
               code: f.code,
@@ -445,7 +430,7 @@ function NewService({ sources }: { sources: Sources }) {
 }
 
 function Rules({ rules, canManage }: { rules: DiscountRule[]; canManage: boolean }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const blank = {
     code: "",
     name: "",
@@ -503,7 +488,7 @@ function Rules({ rules, canManage }: { rules: DiscountRule[]; canManage: boolean
                           size="xs"
                           variant="ghost"
                           disabled={pending}
-                          onClick={() => submit(() => deactivateDiscountRule({ ruleId: r.id }), `${r.name} deactivated`)}
+                          onClick={() => run(() => deactivateDiscountRule({ ruleId: r.id }), `${r.name} deactivated`)}
                         >
                           Deactivate
                         </Button>
@@ -522,7 +507,7 @@ function Rules({ rules, canManage }: { rules: DiscountRule[]; canManage: boolean
             className="mx-4 grid gap-2 rounded-lg border p-3 sm:grid-cols-3"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(
+              run(
                 () =>
                   createDiscountRule({
                     code: f.code,
@@ -595,7 +580,7 @@ function Rules({ rules, canManage }: { rules: DiscountRule[]; canManage: boolean
 }
 
 function Payers({ payers, canManage }: { payers: BillingPayer[]; canManage: boolean }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "", payerType: "hmo" as BillingPayer["payerType"] });
   return (
     <Card>
@@ -617,7 +602,7 @@ function Payers({ payers, canManage }: { payers: BillingPayer[]; canManage: bool
             className="grid grid-cols-2 gap-2 border-t pt-3"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(
+              run(
                 () => createPayer(f),
                 `${f.name} added`,
                 () => setF({ code: "", name: "", payerType: "hmo" }),
@@ -660,7 +645,7 @@ function Accreditation({
   facilityName: string;
   accreditation: PhilHealthAccreditation | null;
 }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({
     accreditationNumber: accreditation?.accreditationNumber ?? "",
     validFrom: accreditation?.validFrom ?? "",
@@ -679,7 +664,7 @@ function Accreditation({
           className="grid grid-cols-2 gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(
+            run(
               () =>
                 recordAccreditation({
                   facilityId,

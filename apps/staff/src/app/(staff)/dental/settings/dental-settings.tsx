@@ -8,6 +8,7 @@ import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { DentalChartEffect, DentalPortalSetting, DentalProcedureSite, DentalProcedureType, DentalSettings } from "@/lib/api/types";
 import { PROCEDURE_SITES } from "@/lib/dental-mapping";
+import { type RunServerAction, useServerAction } from "@/lib/use-server-action";
 import {
   createProcedureType,
   setFeeEstimates,
@@ -42,22 +43,11 @@ export function DentalSettingsForm({
   facility: { id: string; name: string } | null;
   canManage: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const { pending, run } = useServerAction();
   const [form, setForm] = React.useState({ code: "", name: "", site: "tooth" as DentalProcedureSite, chartEffect: "" });
   const effects = (Object.keys(EFFECTS) as DentalChartEffect[]).filter((e) =>
     form.site === "mouth" ? false : form.site === "surface" ? SURFACE_EFFECTS.includes(e) : !SURFACE_EFFECTS.includes(e),
   );
-
-  const act = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(done);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
 
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
@@ -83,7 +73,7 @@ export function DentalSettingsForm({
                     variant="ghost"
                     disabled={pending}
                     onClick={() =>
-                      act(
+                      run(
                         () => setProcedureTypeStatus(t.id, t.status === "active" ? "inactive" : "active", t.version),
                         t.status === "active" ? `${t.name} deactivated` : `${t.name} reactivated`,
                       )
@@ -102,7 +92,7 @@ export function DentalSettingsForm({
               className="grid gap-2 rounded-md border p-3 sm:grid-cols-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                act(
+                run(
                   () => createProcedureType({ ...form, chartEffect: (form.chartEffect || null) as DentalChartEffect | null }),
                   `${form.name} added`,
                   () => setForm({ code: "", name: "", site: form.site, chartEffect: "" }),
@@ -178,7 +168,7 @@ export function DentalSettingsForm({
                 aria-label="Tooth notation"
                 value={settings.notation}
                 disabled={pending}
-                onChange={(e) => act(() => setNotation(facility.id, e.target.value as ToothNotation), "Notation changed")}
+                onChange={(e) => run(() => setNotation(facility.id, e.target.value as ToothNotation), "Notation changed")}
               >
                 {(Object.keys(NOTATIONS) as ToothNotation[]).map((n) => (
                   <option key={n} value={n}>
@@ -235,7 +225,7 @@ export function DentalSettingsForm({
                 className="self-start"
                 disabled={pending}
                 onClick={() =>
-                  act(
+                  run(
                     () => setPortalDentalRecords(!portal.portalDentalRecords, portal.version),
                     portal.portalDentalRecords ? "Dental records hidden from MyHealth" : "Dental records shown in MyHealth",
                   )
@@ -247,8 +237,8 @@ export function DentalSettingsForm({
           </CardContent>
         </Card>
 
-        {portal.portalDentalRecords ? <PlanDecisions portal={portal} canManage={canManage} pending={pending} act={act} /> : null}
-        <FeeEstimates portal={portal} canManage={canManage} pending={pending} act={act} />
+        {portal.portalDentalRecords ? <PlanDecisions portal={portal} canManage={canManage} pending={pending} run={run} /> : null}
+        <FeeEstimates portal={portal} canManage={canManage} pending={pending} run={run} />
       </div>
     </div>
   );
@@ -318,20 +308,10 @@ function MayBecome({ type, types, canManage }: { type: DentalProcedureType; type
   );
 }
 
-function PlanDecisions({
-  portal,
-  canManage,
-  pending,
-  act,
-}: {
-  portal: DentalPortalSetting;
-  canManage: boolean;
-  pending: boolean;
-  act: (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) => void;
-}) {
+function PlanDecisions({ portal, canManage, pending, run }: { portal: DentalPortalSetting; canManage: boolean; pending: boolean; run: RunServerAction }) {
   const [text, setText] = React.useState(portal.portalPlanAcknowledgement ?? "");
   const save = (portalPlanDecisions: boolean, done: string) =>
-    act(
+    run(
       () =>
         setPortalPlanDecisions({
           portalDentalRecords: true,
@@ -400,22 +380,12 @@ function PlanDecisions({
  * Fee estimates on treatment plans: the organization's own note printed and shown under every estimate, and whether
  * MyHealth shows estimates (only while dental records are shown). Prices come from billing's price list.
  */
-function FeeEstimates({
-  portal,
-  canManage,
-  pending,
-  act,
-}: {
-  portal: DentalPortalSetting;
-  canManage: boolean;
-  pending: boolean;
-  act: (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) => void;
-}) {
+function FeeEstimates({ portal, canManage, pending, run }: { portal: DentalPortalSetting; canManage: boolean; pending: boolean; run: RunServerAction }) {
   const [note, setNote] = React.useState(portal.feeEstimateNote ?? "");
   const [validity, setValidity] = React.useState(portal.writtenEstimateValidityDays === null ? "" : String(portal.writtenEstimateValidityDays));
   const [writtenRequired, setWrittenRequired] = React.useState(portal.writtenEstimateRequired);
   const save = (portalPlanEstimates: boolean | undefined, done: string) =>
-    act(
+    run(
       () =>
         setFeeEstimates({
           portalDentalRecords: portal.portalDentalRecords,

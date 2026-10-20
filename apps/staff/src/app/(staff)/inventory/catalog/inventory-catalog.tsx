@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { PlusIcon } from "lucide-react";
 import {
   Badge,
@@ -20,26 +19,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  toast,
 } from "@healthcare/ui/primitives";
 import type { InventoryCategory, InventoryItem, InventoryLocation, InventorySupplier } from "@/lib/api/types";
 import { INVENTORY_CATEGORY_LABEL as CATEGORY } from "@/lib/inventory-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { createItem, createLocation, createSupplier, setReorderLevel } from "../actions";
-
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, submit };
-}
 
 export function InventoryCatalog({
   items,
@@ -68,7 +52,7 @@ export function InventoryCatalog({
 }
 
 function Items({ items }: { items: InventoryItem[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const empty = { code: "", name: "", category: "medicine" as InventoryCategory, stockUnit: "", tracksLots: true, controlled: false };
   const [f, setF] = React.useState(empty);
   return (
@@ -116,7 +100,7 @@ function Items({ items }: { items: InventoryItem[] }) {
           aria-label="Add an item"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(
+            run(
               () => createItem(f),
               `${f.name} added`,
               () => setF(empty),
@@ -161,7 +145,7 @@ function Items({ items }: { items: InventoryItem[] }) {
 }
 
 function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations: InventoryLocation[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ locationId: locations[0]?.id ?? "", itemId: "", level: "", quantity: "" });
   return (
     <Card>
@@ -173,7 +157,7 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
           className="grid gap-2 sm:grid-cols-5 sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(
+            run(
               () =>
                 setReorderLevel({
                   locationId: f.locationId,
@@ -219,7 +203,7 @@ function ReorderLevels({ items, locations }: { items: InventoryItem[]; locations
 }
 
 function Locations({ locations, facility }: { locations: InventoryLocation[]; facility: { id: string; name: string } | null }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "" });
   return (
     <Card>
@@ -240,7 +224,7 @@ function Locations({ locations, facility }: { locations: InventoryLocation[]; fa
             className="grid grid-cols-2 gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(
+              run(
                 () => createLocation({ facilityId: facility.id, ...f }),
                 `${f.name} added`,
                 () => setF({ code: "", name: "" }),
@@ -266,7 +250,7 @@ function Locations({ locations, facility }: { locations: InventoryLocation[]; fa
 }
 
 function Suppliers({ suppliers }: { suppliers: InventorySupplier[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "", contact: "" });
   return (
     <Card>
@@ -285,7 +269,7 @@ function Suppliers({ suppliers }: { suppliers: InventorySupplier[] }) {
           className="grid grid-cols-2 gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(
+            run(
               () => createSupplier({ ...f, contact: f.contact || undefined }),
               `${f.name} added`,
               () => setF({ code: "", name: "", contact: "" }),

@@ -6,8 +6,9 @@ import { CheckCircle2Icon, PlusIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import type { LabNonconformanceDetail, NonconformanceEntryKind, NonconformanceSeverity } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { addNonconformanceEntry, closeNonconformance, reclassifyNonconformance } from "../../quality-management-actions";
-import { CATEGORY_LABEL, NonconformanceStatusBadge, SEVERITY_LABEL, SeverityBadge, useRun } from "../../quality-ui";
+import { CATEGORY_LABEL, NonconformanceStatusBadge, SEVERITY_LABEL, SeverityBadge } from "../../quality-ui";
 
 const ENTRY_LABEL: Record<LabNonconformanceDetail["entries"][number]["kind"], string> = {
   note: "Note",
@@ -90,7 +91,7 @@ export function NonconformanceWorkspace({ record, canEnter, canManage }: { recor
 }
 
 function EntryForm({ record }: { record: LabNonconformanceDetail }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [kind, setKind] = React.useState<NonconformanceEntryKind>("note");
   const [body, setBody] = React.useState("");
   return (
@@ -128,7 +129,7 @@ function EntryForm({ record }: { record: LabNonconformanceDetail }) {
 }
 
 function ManagePanel({ record }: { record: LabNonconformanceDetail }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [summary, setSummary] = React.useState("");
   const [severity, setSeverity] = React.useState<NonconformanceSeverity>(record.severity);
   const [reason, setReason] = React.useState("");

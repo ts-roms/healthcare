@@ -1,31 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Button, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
+import { Button, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import { DOCUMENT_CATEGORY_LABEL } from "@/lib/records-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { cancelIntegrityRun, resolveIntegrityFinding, startIntegrityRun } from "./actions";
-
-type Result = { ok: true } | { ok: false; message: string };
-
-function useRun() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const run = (call: () => Promise<Result>, success: string, done?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        done?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, run };
-}
 
 /** Start a review of every available document, or of one category. */
 export function StartRunForm({ disabled }: { disabled: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [category, setCategory] = React.useState("");
   return (
     <form
@@ -58,7 +41,7 @@ export function StartRunForm({ disabled }: { disabled: boolean }) {
 }
 
 export function CancelRunButton({ runId }: { runId: string }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   return (
     <Button size="xs" variant="ghost" disabled={pending} onClick={() => run(() => cancelIntegrityRun({ runId }), "Review stopped")}>
       Stop
@@ -68,7 +51,7 @@ export function CancelRunButton({ runId }: { runId: string }) {
 
 /** Record what the records office decided about a finding; the document is served again afterwards. */
 export function ResolveFindingForm({ findingId }: { findingId: string }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [note, setNote] = React.useState("");
   if (!open) {

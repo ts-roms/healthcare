@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { PlusIcon, ShieldAlertIcon } from "lucide-react";
 import {
   Badge,
@@ -20,9 +19,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  toast,
 } from "@healthcare/ui/primitives";
 import type { LabCatalogEntry, LabPanel, LabPolicy, LabReferenceRange, LabResultType, LabSpecimenType, LabTest, QcRejectRule } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { addReferenceRange, createCatalogEntry, createLabPanel, createLabTest, setLabPolicy, setLabTestStatus } from "../actions";
 
 const QC_RULES: Array<[QcRejectRule, string]> = [
@@ -32,23 +31,6 @@ const QC_RULES: Array<[QcRejectRule, string]> = [
   ["4_1s", "4-1s"],
   ["10_x", "10-x"],
 ];
-
-type Run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) => void;
-
-function useRun(): { pending: boolean; run: Run } {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run: Run = (call, success, after) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
-}
 
 /** "3.9–5.5 (crit ≤2.2 / ≥22.2)" · "male, 18 y+" */
 export function describeRange(r: LabReferenceRange): string {
@@ -157,7 +139,7 @@ export function LabCatalog({
 }
 
 function TestRow({ test, department, specimen, canManage }: { test: LabTest; department?: string; specimen?: string; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [addingRange, setAddingRange] = React.useState(false);
   return (
     <>
@@ -230,7 +212,7 @@ function TestRow({ test, department, specimen, canManage }: { test: LabTest; dep
 }
 
 function RangeForm({ test, onDone }: { test: LabTest; onDone: () => void }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ sex: "", ageMinYears: "", ageMaxYears: "", low: "", high: "", criticalLow: "", criticalHigh: "", textRange: "" });
   const field = (key: keyof typeof f, label: string, width = "w-24") => (
     <div className="grid gap-1">
@@ -296,7 +278,7 @@ function RangeForm({ test, onDone }: { test: LabTest; onDone: () => void }) {
 }
 
 function NewTestForm({ departments, specimenTypes }: { departments: LabCatalogEntry[]; specimenTypes: LabSpecimenType[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const blank = {
     code: "",
     name: "",
@@ -457,7 +439,7 @@ function EntryList({
   entries: Array<LabCatalogEntry & { container?: string | null }>;
   canManage: boolean;
 }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "", container: "" });
   return (
     <Card>
@@ -506,7 +488,7 @@ function EntryList({
 }
 
 function NewPanelForm({ tests }: { tests: LabTest[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", name: "", testIds: [] as string[] });
   return (
     <form
@@ -543,7 +525,7 @@ function NewPanelForm({ tests }: { tests: LabTest[] }) {
 }
 
 function PolicyCard({ policy, facilityName, canManage }: { policy: LabPolicy; facilityName: string; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ ...policy, qcValidHours: String(policy.qcValidHours), reason: "" });
   const changed =
     f.allowSelfVerification !== policy.allowSelfVerification ||

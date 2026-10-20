@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CalendarClockIcon, CheckCircle2Icon, FlaskRoundIcon, HistoryIcon, PlusIcon, TriangleAlertIcon, WrenchIcon, XCircleIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import {
@@ -38,6 +37,7 @@ import type {
   LabTest,
 } from "@/lib/api/types";
 import { REAGENT_USE_KIND_LABEL, reagentUseText, runsText } from "@/lib/lab-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { InstrumentInterfacePanel } from "./instrument-interface-panel";
 import {
   createInstrument,
@@ -73,21 +73,6 @@ function kindsFor(status: LabInstrument["status"], canManage: boolean): LabInstr
   kinds.push(status === "active" ? "out_of_service" : "returned_to_service");
   if (canManage) kinds.push("retired");
   return kinds;
-}
-
-function useRun() {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
 }
 
 export function InstrumentRegister({
@@ -233,7 +218,7 @@ export function InstrumentRegister({
 }
 
 function InstrumentLog({ instrument, canLog, canManage }: { instrument: LabInstrument; canLog: boolean; canManage: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [entries, setEntries] = React.useState<LabInstrumentLogEntry[] | null>(null);
   const [reload, setReload] = React.useState(0);
   const kinds = kindsFor(instrument.status, canManage);
@@ -364,7 +349,7 @@ function ReagentPanel({
   yields: LabReagentYield[];
   canLog: boolean;
 }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const blank = { inventoryLotId: "", testId: "", locationId: "", quantity: "", capacity: "" };
   const [f, setF] = React.useState(blank);
   const [unloading, setUnloading] = React.useState<{ loadId: string; reason: string } | null>(null);
@@ -579,7 +564,7 @@ const MANUAL_KINDS: LabManualReagentUseKind[] = ["repeat", "calibration", "primi
 
 /** Runs counted against a load, and use recorded by staff (repeats not entered as results, calibration, priming, waste). */
 function ReagentUses({ load, canLog }: { load: LabReagentLoad; canLog: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const blank = { kind: "repeat" as LabManualReagentUseKind, tests: "1", reason: "" };
   const [form, setForm] = React.useState<typeof blank | null>(null);
   const [uses, setUses] = React.useState<LabReagentUse[] | null>(null);
@@ -673,7 +658,7 @@ function ReagentUses({ load, canLog }: { load: LabReagentLoad; canLog: boolean }
 }
 
 function NewInstrument({ departments }: { departments: LabCatalogEntry[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const empty = { code: "", name: "", departmentId: "", manufacturer: "", model: "", serialNumber: "" };
   const [f, setF] = React.useState(empty);
   return (

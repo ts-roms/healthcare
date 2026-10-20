@@ -1,31 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Button, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
 import { DOCUMENT_CATEGORY_LABEL } from "@/lib/records-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { endRetentionPolicy, setRetentionPolicy } from "./actions";
-
-type Result = { ok: true } | { ok: false; message: string };
-
-function useRun() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const run = (call: () => Promise<Result>, success: string, done?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        done?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, run };
-}
 
 /** Set a category's retention period from the organization's own schedule (replaces the current one, kept as history). */
 export function RetentionPolicyForm() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ category: "", retainYears: "", basisNote: "" });
   return (
     <form
@@ -71,7 +54,7 @@ export function RetentionPolicyForm() {
 }
 
 export function EndPolicyButton({ category }: { category: string }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   return (
     <Button size="xs" variant="ghost" disabled={pending} onClick={() => run(() => endRetentionPolicy({ category }), "Retention period removed")}>
       Remove

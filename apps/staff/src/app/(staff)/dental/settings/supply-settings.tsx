@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Card, CardContent, CardHeader, CardTitle, NativeSelect } from "@healthcare/ui/primitives";
 import { SupplyTemplates } from "@/components/supply-templates";
 import type { DentalProcedureType, DentalSupplyOptions } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { setSupplyLocation, setSupplyTemplate } from "../actions";
 
 /**
@@ -22,18 +22,7 @@ export function SupplySettings({
   facility: { id: string; name: string } | null;
   canManage: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-
-  const act = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(done);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
+  const { pending, run } = useServerAction();
 
   return (
     <div className="grid gap-4 px-4 pb-4 xl:grid-cols-[2fr_1fr]">
@@ -63,7 +52,7 @@ export function SupplySettings({
               aria-label="Default stock location for dental supplies"
               value={options.defaultLocationId ?? ""}
               disabled={pending}
-              onChange={(e) => act(() => setSupplyLocation(facility.id, e.target.value || null), "Default location saved")}
+              onChange={(e) => run(() => setSupplyLocation(facility.id, e.target.value || null), "Default location saved")}
             >
               <option value="">No default</option>
               {options.locations.map((l) => (
