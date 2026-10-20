@@ -46,9 +46,11 @@ back to Asia/Manila.
 `Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
 links to developer documentation are shown as text. The menu shows **Help** to every signed-in user, and `StaffShell` renders
 `components/help-fab.tsx` once on every signed-in page: a round **Open the user manual** button fixed at the bottom-right (16px gutter and
-the phone's safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that goes to `/help`; the content area is padded at the
-bottom (`contentClassName` on `StaffLayout`) so it never covers a form's last buttons. The waiting-room display and the signed-out pages
-have their own layouts and never show it.
+the phone's safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
+screen** link to the chapter for the current route (`chapterForPath` in `lib/manual.ts`, longest route prefix first; nothing when no chapter
+fits, e.g. on `/help`), every chapter (the `(staff)` layout passes slugs and titles from `loadManual()` through `StaffShell`), and a button
+to `/help`; links close the dialog. The content area is padded at the bottom (`contentClassName` on `StaffLayout`) so the button never covers
+a form's last controls. The waiting-room display and the signed-out pages have their own layouts and never show it.
 
 ## Notifications
 

@@ -20,7 +20,7 @@ import {
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import type { StaffBadges } from "@/lib/api/types";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
-import { HelpFab } from "./help-fab";
+import { HelpFab, type HelpChapter } from "./help-fab";
 import { OfflineBanner } from "./offline-banner";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
@@ -38,12 +38,25 @@ export interface StaffShellProps {
   unreadNotices: number;
   /** Counts for the navigation (`GET /me/badges`); refreshed every minute from `/badges`. */
   badges: StaffBadges | null;
+  /** The user manual's chapters, for the floating help button's dialog. */
+  manualChapters: HelpChapter[];
   children: React.ReactNode;
 }
 
 const BADGES_REFRESH_MS = 60_000;
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, badges, children }: StaffShellProps) {
+export function StaffShell({
+  permissions,
+  user,
+  organizationName,
+  facilities,
+  facilityId,
+  timeZone,
+  unreadNotices,
+  badges,
+  manualChapters,
+  children,
+}: StaffShellProps) {
   // Set during render, before the page below renders, so every client component formats times in the facility's zone.
   setClinicTimeZone(timeZone);
   const pathname = usePathname();
@@ -172,7 +185,7 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
       <OfflineBanner />
       {children}
-      <HelpFab />
+      <HelpFab chapters={manualChapters} />
     </StaffLayout>
   );
 }

@@ -22,6 +22,49 @@ export function chapterTitle(source: string): string {
   return heading.replace(/^\d+\.\s*/, "").trim();
 }
 
+/**
+ * The chapter about a staff screen, by route prefix (longest first), for the help dialog's "About this screen" link:
+ * the slug of a `docs/manual` chapter, or null where no chapter fits (the manual itself, unknown routes).
+ */
+const CHAPTER_BY_ROUTE: [prefix: string, slug: string][] = [
+  ["/laboratory/qc", "laboratory-quality"],
+  ["/laboratory/instruments", "laboratory-quality"],
+  ["/laboratory/reagents", "laboratory-quality"],
+  ["/laboratory/temperatures", "laboratory-quality"],
+  ["/laboratory/nonconformances", "laboratory-quality"],
+  ["/laboratory/eqa", "laboratory-quality"],
+  ["/laboratory/competency", "laboratory-quality"],
+  ["/laboratory/licence", "laboratory-quality"],
+  ["/laboratory", "laboratory"],
+  ["/patients", "patients"],
+  ["/appointments", "appointments-and-queue"],
+  ["/queue", "appointments-and-queue"],
+  ["/calendar", "appointments-and-queue"],
+  ["/doctors", "appointments-and-queue"],
+  ["/clinic", "consultations-and-care-plans"],
+  ["/telemedicine", "telemedicine"],
+  ["/dental", "dental"],
+  ["/pharmacy", "pharmacy-and-inventory"],
+  ["/inventory", "pharmacy-and-inventory"],
+  ["/billing", "billing"],
+  ["/records", "records-reporting-and-integrations"],
+  ["/reporting", "records-reporting-and-integrations"],
+  ["/management", "records-reporting-and-integrations"],
+  ["/admin/integrations", "records-reporting-and-integrations"],
+  ["/messages", "records-reporting-and-integrations"],
+  ["/communications", "records-reporting-and-integrations"],
+  ["/outreach", "records-reporting-and-integrations"],
+  ["/admin", "administration"],
+  ["/account", "getting-started"],
+  ["/notifications", "getting-started"],
+];
+
+export function chapterForPath(pathname: string): string | null {
+  if (pathname === "/") return "getting-started";
+  const match = CHAPTER_BY_ROUTE.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return match?.[1] ?? null;
+}
+
 /** The Markdown after its first heading (the page header shows the title). */
 export function withoutTitle(source: string): string {
   return source.replace(/^#\s+.+\r?\n/m, "").trimStart();

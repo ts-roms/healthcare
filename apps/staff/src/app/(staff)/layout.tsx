@@ -7,6 +7,7 @@ import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
 import { COOKIES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
+import { loadManual } from "@/lib/manual-content";
 import type { StaffBadges } from "@/lib/api/types";
 import { isDisplayOnly } from "@/lib/queue-display";
 import { setRequestTimeZone } from "@/lib/time-zone";
@@ -40,6 +41,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
+  const manualChapters = loadManual().chapters.map(({ slug, title }) => ({ slug, title }));
   return (
     <StaffShell
       permissions={session.permissions}
@@ -50,6 +52,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       timeZone={timeZone}
       unreadNotices={unread}
       badges={badges}
+      manualChapters={manualChapters}
     >
       {/* Until the member replaces a temporary password, or sets up the two-step verification their organization requires, the API opens nothing else. */}
       {session.user.passwordChangeRequired ? (
