@@ -257,25 +257,33 @@ leaves the display when the visit is closed (done, cancelled or left without bei
 ## How to record triage and vital signs
 
 1. On the queue board, select the ticket and then **Triage & vitals**.
-2. The page shows the patient banner with allergies, and on the right the patient's **Allergies** and **Previous vitals**. (These need
-   `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You can record allergies here; see
-   [Patients](02-patients.md).
-3. Under **Assessment**:
-   - **Chief complaint \*** — required.
+2. The top of the page shows the ticket, the patient's name, sex, age and patient number, their allergies, **Waiting … min** (amber from 15 minutes, red
+   from 30) and whether they walked in or had an appointment. **Open patient record** is on the right. On the right of the form are the patient's
+   **Allergies** and **Previous vitals**. (These need `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You
+   can record allergies here; see [Patients](02-patients.md).
+3. **1 · Chief complaint \*** — required. The **Common** buttons (Fever, Cough / colds, Headache, Abdominal pain, High blood pressure, Follow-up) add
+   those words to what you have written; they are wording only.
+4. **2 · Vital signs** — enter what you measured. Leave blank what was not measured. Under each field is the adult reference band until you type, then
+   where your reading sits (for example "High · normal 60–100"); a reading outside the band turns red, with the word as well as the colour.
+   **BMI** is calculated from weight and height and shown under **Height**. When any reading is outside the band, a **From these vitals** card lists
+   them and offers **Set priority to Urgent**. The bands are guidance beside the number; nothing changes the priority or blocks a save unless you press
+   that button, and the decision is the nurse's. The bands are for adults: for a patient under 18 the page says so, shows no bands and flags nothing (only the BMI figure), and you read the values against your own references.
+5. **3 · Priority & risk**:
    - **Priority \*** — **Routine**, **Urgent** or **Emergency**. Urgent and emergency patients are seen first.
-   - **Pain score (0–10)** — or **Not assessed**.
-   - **Risk flags** — comma-separated, for example "fall risk, pregnant, infectious symptoms".
-4. Under **Vital signs**, enter what you measured. Leave blank what was not measured. **BMI** is calculated from weight and height for display.
-5. Optionally add **Triage notes**.
-6. Under **Route**, choose under **Send to** where the patient goes next — **Consultation**, **Emergency room**, **X-ray** or whatever your facility
-   has set up. The list starts on the service point the patient is already at, otherwise on the facility's consultation line. Leave it on
-   **Choose…** to keep the ordinary consultation queue; if the list says **No service points set up**, your facility has none and the patient stays
-   on that queue. When the patient has more stops ahead — the laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes
-   one). From the queue board, **Done here, send on** then moves the patient from stop to stop (see "How to work a patient's route" above).
-7. Choose how to save:
-   - **Complete triage — ready for provider** — saves and moves the patient to **Ready for provider** (at the service point you chose).
-   - **Save, keep in triage** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is
-     recorded all the same.
+   - **Pain score** — **N/A** or 0 to 10.
+   - **Risk flags** — choose from Fall risk, Pregnant, Infectious symptoms, Senior (60+), PWD, Needs interpreter and Wheelchair, or **+ Other** to type
+     your own, comma-separated.
+6. **4 · Notes for the provider** — optional.
+7. When the facility has service points, a **Route** card follows. Under **Send to** choose where the patient goes next — **Consultation**,
+   **Emergency room**, **X-ray** or whatever your facility has set up. The list starts on the service point the patient is already at, otherwise on the
+   facility's consultation line. Leave it on **Choose…** to keep the ordinary consultation queue. When the patient has more stops ahead — the
+   laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes one). From the queue board, **Done here, send on** then moves the
+   patient from stop to stop (see "How to work a patient's route" above). Without service points the bar at the bottom says **No service points set
+   up yet** with **Set up rooms** (administrators), and the patient stays on the consultation line.
+8. The bar at the bottom says **Next:** where the patient goes, and has the buttons:
+   - **Complete triage** — saves and moves the patient to **Ready for provider** (at the service point you chose).
+   - **Save draft** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is recorded all the
+     same.
    - **Cancel** — leaves without saving.
 
 The triage, the vital signs, the queue move and the service point are saved together: either all of it is recorded or none of it.
@@ -285,8 +293,9 @@ this visit".
 
 ### Vital-sign limits
 
-The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges, and the platform does not
-label vital signs normal or abnormal.
+The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges. The adult reference bands shown
+beside your readings are a separate, display-only guide for the person reading the number; they are not a diagnosis, are not set per patient (a
+child's normal is different) and the platform never acts on them.
 
 | Field            | Unit  | Accepted range | Notes                                |
 | ---------------- | ----- | -------------- | ------------------------------------ |

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ArrowDownIcon, ArrowUpIcon, HeartPulseIcon } from "lucide-react";
-import type { VitalSigns as VitalSignsData } from "@healthcare/domain";
+import { interpretVital, type VitalSigns as VitalSignsData } from "@healthcare/domain";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "../primitives/card";
 import { clinicalDateTime } from "../lib/format";
 import { cn } from "../lib/utils";
@@ -15,25 +15,25 @@ interface VitalItem {
   interp: Interp;
 }
 
-/** Adult reference bands. Real deployments should source these from configuration. */
+/** Adult reference bands (`@healthcare/domain` `vital-bands`); real deployments should source these from configuration. */
 function interpret(v: VitalSignsData): VitalItem[] {
-  const band = (n: number | undefined, lo: number, hi: number): Interp => (n === undefined ? "normal" : n < lo ? "low" : n > hi ? "high" : "normal");
   const items: VitalItem[] = [];
   if (v.systolic !== undefined && v.diastolic !== undefined) {
-    const s = band(v.systolic, 90, 139);
-    const d = band(v.diastolic, 60, 89);
+    const s = interpretVital("systolic", v.systolic);
+    const d = interpretVital("diastolic", v.diastolic);
     items.push({ key: "bp", label: "BP", value: `${v.systolic}/${v.diastolic}`, unit: "mmHg", interp: s !== "normal" ? s : d });
   }
-  if (v.heartRate !== undefined) items.push({ key: "hr", label: "HR", value: String(v.heartRate), unit: "bpm", interp: band(v.heartRate, 60, 100) });
+  if (v.heartRate !== undefined)
+    items.push({ key: "hr", label: "HR", value: String(v.heartRate), unit: "bpm", interp: interpretVital("heartRate", v.heartRate) });
   if (v.respiratoryRate !== undefined)
-    items.push({ key: "rr", label: "RR", value: String(v.respiratoryRate), unit: "/min", interp: band(v.respiratoryRate, 12, 20) });
+    items.push({ key: "rr", label: "RR", value: String(v.respiratoryRate), unit: "/min", interp: interpretVital("respiratoryRate", v.respiratoryRate) });
   if (v.temperatureC !== undefined)
-    items.push({ key: "temp", label: "Temp", value: v.temperatureC.toFixed(1), unit: "°C", interp: band(v.temperatureC, 36, 37.5) });
-  if (v.spo2 !== undefined) items.push({ key: "spo2", label: "SpO₂", value: String(v.spo2), unit: "%", interp: band(v.spo2, 95, 100) });
+    items.push({ key: "temp", label: "Temp", value: v.temperatureC.toFixed(1), unit: "°C", interp: interpretVital("temperatureC", v.temperatureC) });
+  if (v.spo2 !== undefined) items.push({ key: "spo2", label: "SpO₂", value: String(v.spo2), unit: "%", interp: interpretVital("spo2", v.spo2) });
   if (v.weightKg !== undefined) items.push({ key: "wt", label: "Wt", value: v.weightKg.toFixed(1), unit: "kg", interp: "normal" });
   if (v.weightKg !== undefined && v.heightCm) {
     const bmi = v.weightKg / (v.heightCm / 100) ** 2;
-    items.push({ key: "bmi", label: "BMI", value: bmi.toFixed(1), unit: "kg/m²", interp: band(bmi, 18.5, 24.9) });
+    items.push({ key: "bmi", label: "BMI", value: bmi.toFixed(1), unit: "kg/m²", interp: interpretVital("bmi", bmi) });
   }
   return items;
 }
