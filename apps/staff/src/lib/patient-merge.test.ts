@@ -19,7 +19,7 @@ describe("mergeWorkHref", () => {
     expect(mergeWorkHref({ link: { type: "visit", id: "v1" } }, "r")).toBe("/queue/visits/v1");
     expect(mergeWorkHref({ link: { type: "invoice", id: "i1" } }, "r")).toBe("/billing/invoices/i1");
     expect(mergeWorkHref({ link: { type: "billing_patient", id: "r" } }, "r")).toBe("/billing/patients/r");
-    expect(mergeWorkHref({ link: { type: "lab_order", id: "o1" } }, "r")).toBe("/patients/r#laboratory");
+    expect(mergeWorkHref({ link: { type: "lab_order", id: "o1" } }, "r")).toBe("/patients/r?tab=labs#laboratory");
     expect(mergeWorkHref({ link: null }, "r")).toBeNull();
   });
 

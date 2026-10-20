@@ -536,7 +536,7 @@ export function EncounterWorkspace({
               ) : null}
               {lab.results ? (
                 <SummarySection title="Recent laboratory results">
-                  <LabResultsSummary results={lab.results} limit={6} href={`/patients/${encounter.patientId}#laboratory`} />
+                  <LabResultsSummary results={lab.results} limit={6} href={`/patients/${encounter.patientId}?tab=labs#laboratory`} />
                 </SummarySection>
               ) : null}
               <SummarySection title="Latest vitals">

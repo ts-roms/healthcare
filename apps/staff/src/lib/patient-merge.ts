@@ -55,7 +55,7 @@ export function mergeWorkHref(item: Pick<MergeWorkItem, "link">, retiredPatientI
     case "appointment":
       return "/appointments";
     case "lab_order":
-      return `/patients/${retiredPatientId}#laboratory`;
+      return `/patients/${retiredPatientId}?tab=labs#laboratory`;
     case "invoice":
       return `/billing/invoices/${link.id}`;
     case "billing_patient":
