@@ -437,6 +437,18 @@ changing it needs `clinic.configure` (organization administrators by default). E
 Visit types are set up under **Online booking** (`/appointments/visit-types`); diagnosis coding systems have no screen yet (see
 [Administration](13-administration.md)).
 
+## How to read a doctor's profile
+
+Select **Doctors** in the menu (`/doctors`) and **View profile** on a card. The profile shows one practitioner at the selected facility:
+
+- **Header** — the name, whether the practitioner is **Active**, profession, specialty and facility. **Edit profile** (needs `clinic.configure`) opens the same form as **Edit…** on the schedules page; **Book appointment** opens the booking screen with this doctor chosen (for staff who may book).
+- **Steps left to finish this doctor's profile** — a yellow bar that appears while something is missing: a **staff account** (without one the doctor cannot document or prescribe), the **PRC licence number** (printed on medical certificates and referral letters) or a **weekly schedule** (without one nobody can book the doctor). Each step opens the place where it is fixed. The platform does not check the licence number.
+- **Four figures** — **Next available**: the first open slot among the doctor's next clinic days at this facility, for the first in-person visit type; **Hours per week** and the number of clinic days; **Next week**: appointments booked in the coming Monday-to-Sunday week out of the slots the schedule offers that week (a day touched by leave or a closure counts as no slots, even when only part of it is closed); **Seen this month**: the patients with a completed appointment this month (with a **+** after 100 appointments).
+- **Weekly schedule** — Monday to Sunday, each with a bar of the hours in clinic within 08:00–20:00 (wider when a schedule starts earlier or ends later), the hours and the number of slots; days without a schedule say **Not in clinic**. **Edit hours** opens the schedules page.
+- **Credentials** — the licence number and its expiry, and the linked staff account; a missing one is a link that opens **Edit profile**. A PhilHealth accreditation number is not recorded for individual practitioners.
+- **Calendar** — the month with a dot under each clinic day and an orange dot under days of leave; today is filled and the day of the next open slot has a ring. The arrows move by month.
+- **Upcoming appointments** — the next days with booked or confirmed appointments (up to three days) with time, patient and reason, how many slots are still open on the first of them, and **See all**, which opens this doctor's schedule. It says when the doctor is not in clinic today.
+
 ## Rules the system enforces
 
 - A practitioner (or room) cannot be double-booked. The database refuses a second booking for the same time, even if two people book at once.
