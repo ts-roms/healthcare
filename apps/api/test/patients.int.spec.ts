@@ -126,8 +126,13 @@ describe("patient master", () => {
     expect(byTypo.body.items[0].displayName).toBe("PEÑA, Ma. Teresa");
     const byIdentifier = await api().get("/api/v1/patients?identifierType=philhealth_pin&identifierValue=123456789012").expect(200);
     expect(byIdentifier.body.items.map((p: { id: string }) => p.id)).toEqual([juanId]);
-    await api().get("/api/v1/patients").expect(400);
-    expect((await auditRows(ctx.pool, `action = 'patient.search'`)).length).toBeGreaterThanOrEqual(4);
+    // No criterion at all: the organization's patients, paged (audited as a browse).
+    const all = await api().get("/api/v1/patients").expect(200);
+    expect(all.body.items.map((p: { id: string }) => p.id)).toContain(juanId);
+    expect(all.body.items.length).toBeGreaterThanOrEqual(2);
+    const searches = await auditRows(ctx.pool, `action = 'patient.search'`);
+    expect(searches.length).toBeGreaterThanOrEqual(5);
+    expect(searches.at(-1)?.metadata).toMatchObject({ queryKind: "browse" });
   });
 
   it("leaves inactive records out of search unless asked, and reactivates them with a reason", async () => {

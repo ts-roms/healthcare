@@ -41,10 +41,12 @@ export default async function PatientsPage({
   const page = Math.max(1, Number(pageParam) || 1);
   const query = q.trim();
   const hasCriteria = query.length >= 2 || Boolean(birthDate) || Boolean(idValue);
+  // Nothing typed: the list of all (active) patients, A–Z, 25 a page. A one-character name or an ID number without its kind asks for more.
+  const browsing = !hasCriteria && query.length === 0 && !(idValueParam.trim() && !idType);
 
   let result: Page<PatientSummary> | undefined;
   let error: string | undefined;
-  if (hasCriteria) {
+  if (hasCriteria || browsing) {
     try {
       result = await api<Page<PatientSummary>>("/patients", {
         query: {
@@ -76,7 +78,7 @@ export default async function PatientsPage({
     <>
       <PageHeader
         title="Patients"
-        description="Look up by name, patient number, mobile number or an ID number, optionally with birth date."
+        description="All patients A–Z, or look up by name, patient number, mobile number or an ID number, optionally with birth date."
         actions={
           can(session, "patient.register") ? (
             <Button asChild size="sm">
@@ -120,13 +122,9 @@ export default async function PatientsPage({
         </Button>
       </form>
 
-      {!hasCriteria ? (
+      {!hasCriteria && !browsing ? (
         <p className="p-6 text-center text-muted-foreground">
-          {query.length === 1
-            ? "Enter at least 2 characters."
-            : idValueParam.trim() && !idType
-              ? "Choose the kind of ID to search by its number."
-              : "Search to find a patient. Results show only what's needed to identify the right person."}
+          {query.length === 1 ? "Enter at least 2 characters." : "Choose the kind of ID to search by its number."}
         </p>
       ) : error ? (
         <p role="alert" className="m-4 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2 text-danger-foreground">
@@ -135,7 +133,7 @@ export default async function PatientsPage({
       ) : result && result.items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 p-8 text-center text-muted-foreground">
           <p>
-            No patients match. Check the spelling, or try the birth date or mobile number.
+            {browsing ? "No patients registered yet." : "No patients match. Check the spelling, or try the birth date or mobile number."}
             {includeInactive ? null : " Inactive records are left out unless you tick Include inactive records."}
           </p>
           {can(session, "patient.register") ? (
