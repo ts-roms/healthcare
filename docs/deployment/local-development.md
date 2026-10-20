@@ -9,6 +9,7 @@ pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mail
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
 pnpm db:seed:demo                 # demo clinic through the running API: staff per role, patients, today's queue… (docs/demo/walkthrough.md)
+pnpm mobile:apk                   # MyHealth Android app as an APK into apps/portal/public/downloads (docs/deployment/mobile-release.md)
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 

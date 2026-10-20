@@ -15,9 +15,20 @@ Nothing here has been run against Expo's or the stores' services yet: no EAS bui
 
 For a pilot, a demo, or an LGU facility that hands phones out, the organization may serve the Android build itself:
 
-1. Build an APK (an EAS `preview` build with `buildType: apk`, or a local build) signed with the organization's key.
-2. Put it at `apps/portal/public/downloads/myhealth.apk` (the folder is served as-is by MyHealth at `/downloads/myhealth.apk`) and deploy
-   MyHealth, or host the file elsewhere over https.
+1. Build the APK with the `apk` profile of `eas.json` (a `preview` release build with `buildType: apk`, signed with the organization's
+   Android key held by EAS):
+
+   ```bash
+   pnpm mobile:apk            # on this machine (EAS local build: Android SDK + JDK; macOS, Linux or WSL — not Windows)
+   pnpm mobile:apk --cloud    # on EAS Build's servers, then downloaded
+   pnpm mobile:apk --dry-run  # shows the commands only
+   ```
+
+   The script (`tools/mobile/build-apk.ts`) needs `MYHEALTH_ANDROID_PACKAGE` and `EAS_PROJECT_ID` (shell or `apps/mobile/.env.local`) and
+   an `eas-cli` sign-in to the Expo account that holds the project; it writes the file to `apps/portal/public/downloads/myhealth.apk`
+   (`--output` for elsewhere; `--from <file>` only places an APK built another way).
+
+2. The folder is served as-is by MyHealth at `/downloads/myhealth.apk`: deploy MyHealth with the file in place, or host it elsewhere over https.
 3. Set `MOBILE_APP_ANDROID_URL=/downloads/myhealth.apk` on the `portal` **and** `staff` services (an absolute https link also works). The
    MyHealth sign-in page then shows **Get the MyHealth app** with a QR code labelled **Android app (APK)**, and the staff landing page's
    **MyHealth, on the phone** section shows the same code; both resolve the path to the full MyHealth address (`PORTAL_BASE_URL`).

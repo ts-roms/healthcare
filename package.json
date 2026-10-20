@@ -19,6 +19,7 @@
     "db:migrate": "node -r @swc-node/register tools/db/migrate.ts",
     "db:seed": "node -r @swc-node/register tools/db/seed.ts",
     "db:seed:demo": "node -r @swc-node/register tools/db/seed-demo.ts",
+    "mobile:apk": "node -r @swc-node/register tools/mobile/build-apk.ts",
     "build": "nx run-many -t build",
     "typecheck": "nx run-many -t typecheck",
     "lint": "nx run-many -t lint",
