@@ -16,6 +16,7 @@ import {
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
+import { PractitionerSignatureService } from "../signatures/practitioner-signature.service";
 import { and, asc, desc, eq, inArray, lte, ne, or, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type {
@@ -98,6 +99,7 @@ export class ReferralService {
     private readonly organizations: OrganizationService,
     private readonly documents: DocumentsService,
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
+    private readonly signatures: PractitionerSignatureService,
   ) {}
 
   async create(actor: Actor, encounterId: string, input: z.infer<typeof createReferralSchema>): Promise<ReferralView> {
@@ -157,6 +159,8 @@ export class ReferralService {
           clinicalSummary: input.clinicalSummary || null,
           diagnosisIds,
           issuedBy: actor.userId,
+          // The signature in force now (when the organization prints them): the stored letter is drawn from this record.
+          practitionerSignatureId: await this.signatures.forIssue(tx, actor.organizationId, clinician.id),
         })
         .returning();
       const created = found(inserted, "Referral");
@@ -547,6 +551,7 @@ export class ReferralService {
     const patient = patients.get(row.patientId);
     const referrer = clinicians.find((c) => c.id === row.referringPractitionerId);
     const recipient = clinicians.find((c) => c.id === row.toPractitionerId);
+    const strokes = await this.signatures.strokesOf(row.organizationId, row.practitionerSignatureId);
     const to =
       row.kind === "internal"
         ? [recipient?.displayName, recipient?.specialty ?? row.specialty, facility.name].filter(Boolean).join(", ")
@@ -596,12 +601,12 @@ export class ReferralService {
         );
         w.space();
         w.paragraph("Please send your findings and recommendations back to the referring practitioner.", { muted: true });
-        w.signatures([
-          {
-            name: referrer?.displayName ?? " ",
-            role: referrer?.licenseNumber ? `Referring practitioner · License no. ${referrer.licenseNumber}` : "Referring practitioner",
-          },
-        ]);
+        const signer = {
+          name: referrer?.displayName ?? " ",
+          role: referrer?.licenseNumber ? `Referring practitioner · License no. ${referrer.licenseNumber}` : "Referring practitioner",
+        };
+        if (strokes) w.signatureMark({ strokes, ...signer });
+        else w.signatures([signer]);
       },
     );
   }

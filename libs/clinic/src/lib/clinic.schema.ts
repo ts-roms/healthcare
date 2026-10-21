@@ -589,6 +589,8 @@ export const medicalCertificate = pgTable("medical_certificate", {
   status: text("status").$type<"issued" | "void">().notNull().default("issued"),
   issuedAt: ts("issued_at").notNull().defaultNow(),
   issuedBy: uuid("issued_by").notNull(),
+  /** The practitioner's signature printed on the certificate, recorded when it was issued (0122). */
+  practitionerSignatureId: uuid("practitioner_signature_id"),
   voidedAt: ts("voided_at"),
   voidedBy: uuid("voided_by"),
   voidReason: text("void_reason"),
@@ -630,6 +632,8 @@ export const referral = pgTable("referral", {
   status: text("status").$type<ReferralStatus>().notNull().default("sent"),
   issuedAt: ts("issued_at").notNull().defaultNow(),
   issuedBy: uuid("issued_by").notNull(),
+  /** The referring practitioner's signature printed on the letter, recorded when it was issued (0122). */
+  practitionerSignatureId: uuid("practitioner_signature_id"),
   respondedAt: ts("responded_at"),
   respondedBy: uuid("responded_by"),
   responseNote: text("response_note"),

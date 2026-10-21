@@ -215,7 +215,7 @@ export class PdfWriter {
    * the box (the capture pad's own proportions, 3:1); anything outside is clipped to the box. Printed with the signer's name
    * and role and a verification line, so the page shows who signed what and when.
    */
-  signatureMark(mark: { strokes: number[][][]; name: string; role: string; signedAt: string; verification?: string }): this {
+  signatureMark(mark: { strokes: number[][][]; name: string; role: string; signedAt?: string; verification?: string }): this {
     const boxWidth = Math.min(210, this.width / 2);
     const boxHeight = boxWidth / 3;
     this.ensure(boxHeight + 56);
@@ -254,7 +254,7 @@ export class PdfWriter {
       .font("Helvetica")
       .fontSize(8)
       .fillColor(MUTED)
-      .text(winAnsi(`${mark.role}  |  ${mark.signedAt}`), x, this.doc.y, { width: this.width });
+      .text(winAnsi(mark.signedAt ? `${mark.role}  |  ${mark.signedAt}` : mark.role), x, this.doc.y, { width: this.width });
     if (mark.verification) this.doc.text(winAnsi(mark.verification), x, this.doc.y, { width: this.width });
     this.doc.fillColor("black");
     this.doc.x = MARGIN;

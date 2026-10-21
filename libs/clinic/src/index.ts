@@ -38,6 +38,8 @@ export * from "./lib/procedures/procedure.schema";
 export * from "./lib/procedures/procedure.rules";
 export * from "./lib/procedures/procedure.service";
 export * from "./lib/procedures/consent-signature.service";
+export * from "./lib/signatures/practitioner-signature.service";
+export * from "./lib/signatures/practitioner-signature.schema";
 export { type ConsentSigningSettingView } from "./lib/procedures/consent-signing.settings";
 export { PortalSignFormDto } from "./lib/procedures/procedure.dto";
 export * from "./lib/procedures/procedure-supplies.service";
