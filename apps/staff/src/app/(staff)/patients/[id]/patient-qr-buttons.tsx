@@ -1,15 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { PrinterIcon, QrCodeIcon } from "lucide-react";
+import { PrinterIcon, QrCodeIcon, RefreshCwIcon } from "lucide-react";
 import { Button, Input, Label } from "@healthcare/ui/primitives";
 import { useServerAction } from "@/lib/use-server-action";
-import { issuePatientQr, revokePatientQr } from "./patient-qr-actions";
+import { issuePatientQr, regeneratePatientQr, revokePatientQr } from "./patient-qr-actions";
 
 /** Issue, print and revoke. The API enforces the permission, the organization's setting and the state. */
 export function PatientQrButtons({ patientId, hasActive, canIssue }: { patientId: string; hasActive: boolean; canIssue: boolean }) {
   const { pending, run } = useServerAction();
-  const [revoking, setRevoking] = React.useState(false);
+  const [revoking, setRevoking] = React.useState<"revoke" | "regenerate" | null>(null);
   const [reason, setReason] = React.useState("");
   return (
     <div className="flex flex-col gap-2">
@@ -21,7 +21,12 @@ export function PatientQrButtons({ patientId, hasActive, canIssue }: { patientId
                 <PrinterIcon /> Print card
               </a>
             </Button>
-            <Button size="sm" variant="outline" disabled={pending} onClick={() => setRevoking((v) => !v)}>
+            {canIssue ? (
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => setRevoking((v) => (v === "regenerate" ? null : "regenerate"))}>
+                <RefreshCwIcon /> Regenerate…
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" disabled={pending} onClick={() => setRevoking((v) => (v === "revoke" ? null : "revoke"))}>
               Revoke (lost card)…
             </Button>
           </>
@@ -36,21 +41,38 @@ export function PatientQrButtons({ patientId, hasActive, canIssue }: { patientId
           className="grid max-w-md gap-2"
           onSubmit={(e) => {
             e.preventDefault();
+            const regenerate = revoking === "regenerate";
             run(
-              () => revokePatientQr(patientId, reason),
-              "QR code revoked",
+              () => (regenerate ? regeneratePatientQr(patientId, reason) : revokePatientQr(patientId, reason)),
+              regenerate ? "New QR code issued" : "QR code revoked",
               () => {
-                setRevoking(false);
+                setRevoking(null);
                 setReason("");
               },
             );
           }}
         >
           <Label htmlFor="qr-revoke-reason">Reason</Label>
-          <Input id="qr-revoke-reason" value={reason} maxLength={500} placeholder="e.g. card lost" onChange={(e) => setReason(e.target.value)} />
-          <p className="text-meta text-muted-foreground">A revoked code is refused at the next scan. You can then issue a new one.</p>
-          <Button type="submit" size="sm" variant="destructive" className="self-start" disabled={pending || reason.trim().length < 5}>
-            Revoke code
+          <Input
+            id="qr-revoke-reason"
+            value={reason}
+            maxLength={500}
+            placeholder={revoking === "regenerate" ? "e.g. card damaged, or switch to the MyHealth link" : "e.g. card lost"}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <p className="text-meta text-muted-foreground">
+            {revoking === "regenerate"
+              ? "The current code stops working at once and a new one is made with what your clinic's setting holds now. Print the new card afterwards."
+              : "A revoked code is refused at the next scan. You can then issue a new one."}
+          </p>
+          <Button
+            type="submit"
+            size="sm"
+            variant={revoking === "regenerate" ? "default" : "destructive"}
+            className="self-start"
+            disabled={pending || reason.trim().length < 5}
+          >
+            {revoking === "regenerate" ? "Regenerate code" : "Revoke code"}
           </Button>
         </form>
       ) : null}

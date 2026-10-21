@@ -55,6 +55,14 @@ export class PatientQrController {
     return this.qr.revoke(actor, patientId, body.reason);
   }
 
+  @Post("patients/:patientId/regenerate")
+  @HttpCode(200)
+  @RequirePermissions("patient.qr.issue", "patient.read")
+  @ApiOperation({ summary: "Replace the patient's QR code with a new one in one step (the old card stops working), with a reason" })
+  regenerate(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: RevokePatientQrDto) {
+    return this.qr.regenerate(actor, patientId, body.reason);
+  }
+
   @Get("patients/:patientId/card.pdf")
   @RequirePermissions("patient.qr.issue", "patient.read")
   @ApiOperation({ summary: "The patient card (QR code, name, patient number) as a PDF (audited)" })

@@ -107,6 +107,26 @@ test("scanning the code finds the patient", async () => {
   await shot(desk, "6-scan-not-a-code");
 });
 
+test("regenerating replaces the code in one step", async () => {
+  await desk.goto(`/patients/${patient.id}?tab=portal`);
+  await desk.getByRole("button", { name: "Regenerate…" }).click();
+  await shot(desk, "6b-regenerate-form");
+  await desk.locator("#qr-revoke-reason").fill("Card damaged in the wash");
+  await desk.getByRole("button", { name: "Regenerate code" }).click();
+  await toast(desk, "New QR code issued");
+  await expect(desk.getByRole("img", { name: "Patient QR code" })).toBeVisible();
+  await expect(desk.getByText("Earlier codes (1)")).toBeVisible();
+  const api = await staffApi(STAFF.admin, state.facilityId);
+  const qr = await api.get<{ active: { payload: string } }>(`/patient-qr/patients/${patient.id}`);
+  await api.dispose();
+  await scan(desk, payload);
+  await expect(desk.locator("p[role=alert]")).toContainText("revoked");
+  payload = qr.active.payload;
+  await scan(desk, payload);
+  await expect(desk.getByText(new RegExp(patient.family, "i")).first()).toBeVisible();
+  await shot(desk, "6c-scan-after-regenerate");
+});
+
 test("a lost card is revoked and its scans are refused", async () => {
   await desk.goto(`/patients/${patient.id}?tab=portal`);
   await desk.getByRole("button", { name: "Revoke (lost card)…" }).click();

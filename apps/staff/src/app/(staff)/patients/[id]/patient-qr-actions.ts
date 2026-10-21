@@ -17,6 +17,15 @@ export async function issuePatientQr(id: string): Promise<ActionResult<PatientQr
   return result;
 }
 
+export async function regeneratePatientQr(id: string, reason: string): Promise<ActionResult<PatientQrCode>> {
+  if (!patientId.safeParse(id).success) return { ok: false, message: "Unknown patient." };
+  const trimmed = reason.trim();
+  if (trimmed.length < 5) return { ok: false, message: "Give a reason of at least 5 characters." };
+  const result = await actionResult(() => api<PatientQrCode>(`/patient-qr/patients/${id}/regenerate`, { method: "POST", body: { reason: trimmed } }));
+  revalidatePath(`/patients/${id}`);
+  return result;
+}
+
 export async function revokePatientQr(id: string, reason: string): Promise<ActionResult<PatientQrCode>> {
   if (!patientId.safeParse(id).success) return { ok: false, message: "Unknown patient." };
   const trimmed = reason.trim();

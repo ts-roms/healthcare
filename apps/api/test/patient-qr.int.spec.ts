@@ -179,6 +179,29 @@ describe("patient QR codes", () => {
     await api(desk).post("/patient-qr/scan", { payload: state.active.payload }).expect(200);
   });
 
+  it("regenerates a code in one step: the old card stops working and the new one works", async () => {
+    const patient = await register(5, { familyName: "Qrregen", givenName: "Reggie", birthDate: "1993-03-03" });
+    const before = (await api(desk).get(`/patient-qr/patients/${patient.id}`).expect(200)).body.active as { payload: string; id: string };
+    await api(desk).post(`/patient-qr/patients/${patient.id}/regenerate`, { reason: "no" }).expect(400);
+    await api(doctor).post(`/patient-qr/patients/${patient.id}/regenerate`, { reason: "Card damaged in the wash" }).expect(403);
+    const fresh = await api(desk).post(`/patient-qr/patients/${patient.id}/regenerate`, { reason: "Card damaged in the wash" }).expect(200);
+    expect(fresh.body.status).toBe("active");
+    const after = (await api(desk).get(`/patient-qr/patients/${patient.id}`).expect(200)).body as {
+      active: { payload: string; id: string };
+      history: Array<{ id: string; revokeReason: string }>;
+    };
+    expect(after.active.id).not.toBe(before.id);
+    expect(after.active.payload).not.toBe(before.payload);
+    expect(after.history.map((h) => [h.id, h.revokeReason])).toEqual([[before.id, "Card damaged in the wash"]]);
+    expect((await api(desk).post("/patient-qr/scan", { payload: before.payload }).expect(422)).body.error.code).toBe("qr_revoked");
+    await api(desk).post("/patient-qr/scan", { payload: after.active.payload }).expect(200);
+    expect(await auditRows(ctx.pool, "action IN ('patient.qr.revoke', 'patient.qr.issue') AND patient_id = $1", [patient.id])).toHaveLength(3);
+    // A patient with no active code gets one too.
+    const bare = await register(6, { familyName: "Qrregenbare", givenName: "Bea", birthDate: "1994-04-04", issueQrCode: false });
+    await api(desk).post(`/patient-qr/patients/${bare.id}/regenerate`, { reason: "First card for a patient" }).expect(200);
+    expect((await api(desk).get(`/patient-qr/patients/${bare.id}`).expect(200)).body.active).not.toBeNull();
+  });
+
   it("never edits or deletes a code in the database", async () => {
     await expect(q(`UPDATE patient_qr_code SET token = 'A' || substr(token, 2)`)).rejects.toThrow();
     await expect(q(`DELETE FROM patient_qr_code`)).rejects.toThrow();

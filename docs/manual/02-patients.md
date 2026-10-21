@@ -63,6 +63,7 @@ opens nothing by itself. Your clinic decides whether to use codes (**Administrat
   They scan the card with their phone: their date of birth and email are already filled in, and they enter the code and choose their own password.
 - **Scan.** On **Patients**, select **Scan QR code**. Scan with the hand-held scanner (click in the field first) or choose **Use the camera**. Select **Open record**
   or **Check in**. Every scan is recorded.
+- **New code.** **Regenerate…** replaces the code in one step (give a reason): the old card stops working at once and the new one follows your clinic's current setting. Print the new card afterwards.
 - **Lost card.** On the same card select **Revoke (lost card)…**, give the reason, then **Issue QR code** for a new one. A revoked card is refused at the next
   scan ("This QR code was revoked"); ask the patient for another form of identification.
 

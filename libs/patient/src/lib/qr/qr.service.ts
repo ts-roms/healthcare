@@ -204,35 +204,50 @@ export class PatientQrService {
   async revoke(actor: Actor, patientId: string, reason: string): Promise<PatientQrView> {
     return this.db.transaction(async (tx) => {
       const record = await this.findPatient(tx, actor.organizationId, patientId);
-      const [active] = await tx
-        .select()
-        .from(patientQrCode)
-        .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, record.id), eq(patientQrCode.status, "active")))
-        .for("update");
-      if (!active) throw new NotFoundError("Active QR code");
-      const [revoked] = await tx
-        .update(patientQrCode)
-        .set({ status: "revoked", revokedBy: actor.userId, revokedAt: new Date(), revokeReason: reason })
-        .where(eq(patientQrCode.id, active.id))
-        .returning();
-      if (!revoked) throw new Error("QR revoke returned no row");
-      await this.audit.record(tx, actor, {
-        action: "patient.qr.revoke",
-        resourceType: "patient_qr_code",
-        resourceId: revoked.id,
-        patientId: record.id,
-        reason,
-      });
-      await this.events.record(tx, {
-        type: "PatientQrRevoked",
-        organizationId: actor.organizationId,
-        aggregateType: "patient",
-        aggregateId: record.id,
-        patientId: record.id,
-        payload: { qrCodeId: revoked.id, patientId: record.id },
-      });
+      const revoked = await this.revokeActive(tx, actor, record.id, reason);
+      if (!revoked) throw new NotFoundError("Active QR code");
       return codeView(revoked);
     });
+  }
+
+  /**
+   * A new code in place of the current one, in one step: the active code (if any) is revoked with the reason and a new one is
+   * issued with what the organization's setting holds now (so it also moves a card to a changed setting). The old card stops
+   * working at once.
+   */
+  async regenerate(actor: Actor, patientId: string, reason: string): Promise<PatientQrView> {
+    return this.db.transaction(async (tx) => {
+      const record = await this.findPatient(tx, actor.organizationId, patientId);
+      const setting = await this.setting(actor.organizationId, tx);
+      if (!setting.enabled) throw new BusinessRuleError("Patient QR codes are not turned on for this organization", "qr_disabled");
+      await this.revokeActive(tx, actor, record.id, reason);
+      return codeView(await this.insertCode(tx, actor, record.id, setting.content, "patient_record"));
+    });
+  }
+
+  private async revokeActive(tx: DbExecutor, actor: Actor, patientId: string, reason: string): Promise<PatientQrCodeRecord | undefined> {
+    const [active] = await tx
+      .select()
+      .from(patientQrCode)
+      .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, patientId), eq(patientQrCode.status, "active")))
+      .for("update");
+    if (!active) return undefined;
+    const [revoked] = await tx
+      .update(patientQrCode)
+      .set({ status: "revoked", revokedBy: actor.userId, revokedAt: new Date(), revokeReason: reason })
+      .where(eq(patientQrCode.id, active.id))
+      .returning();
+    if (!revoked) throw new Error("QR revoke returned no row");
+    await this.audit.record(tx, actor, { action: "patient.qr.revoke", resourceType: "patient_qr_code", resourceId: revoked.id, patientId, reason });
+    await this.events.record(tx, {
+      type: "PatientQrRevoked",
+      organizationId: actor.organizationId,
+      aggregateType: "patient",
+      aggregateId: patientId,
+      patientId,
+      payload: { qrCodeId: revoked.id, patientId },
+    });
+    return revoked;
   }
 
   /** Resolves what a scanner delivered to a patient summary. A retired (merged) record resolves to its survivor. */
