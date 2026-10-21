@@ -61,6 +61,33 @@ export class PublishConsentWordingDto extends createZodDto(publishConsentWording
 export const consentFormQuery = z.object({ patientId: z.uuid() });
 export class ConsentFormQueryDto extends createZodDto(consentFormQuery) {}
 
+// ---- electronic signature on a consent form (0120) -------------------------------------------------------------
+
+const strokePoint = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+
+export const signConsentFormSchema = z
+  .object({
+    patientId: z.uuid(),
+    /** Chosen by the client so a retry finds the same signed document. */
+    requestId: z.uuid(),
+    signerKind: z.enum(["patient", "representative"]),
+    /** As written, printed under the signature. */
+    signerName: z.string().trim().min(2).max(200),
+    /** The representative's relationship as written (who may sign for whom is the organization's own rule). */
+    signerRelationship: z.string().trim().min(2).max(100).optional(),
+    /** What the member of staff checked to identify the signer, in their words. */
+    identityCheck: z.string().trim().min(3).max(500),
+    /** Polylines of [x, y] in 0..1 inside the signature box (3:1). */
+    strokes: z.array(z.array(strokePoint).min(1).max(3000)).min(1).max(64),
+  })
+  .superRefine((v, ctx) => {
+    if (v.signerKind === "representative" && !v.signerRelationship)
+      ctx.addIssue({ code: "custom", message: "Say how the representative is related to the patient", path: ["signerRelationship"] });
+    if (v.signerKind === "patient" && v.signerRelationship)
+      ctx.addIssue({ code: "custom", message: "A relationship is given only for a representative", path: ["signerRelationship"] });
+  });
+export class SignConsentFormDto extends createZodDto(signConsentFormSchema) {}
+
 // ---- consent recorded against a procedure (0095) ----------------------------------------------------------------
 
 export const procedureConsentSchema = z

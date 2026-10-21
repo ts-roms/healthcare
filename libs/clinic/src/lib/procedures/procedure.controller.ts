@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, type StreamableFile } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, type StreamableFile } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
@@ -13,6 +13,7 @@ import {
   RecordProcedureSuppliesDto,
   RecordVisitProcedureDto,
   ReturnProcedureSuppliesDto,
+  SignConsentFormDto,
   UpdateProcedureDefinitionDto,
 } from "./procedure.dto";
 import { ProcedureSuppliesService } from "./procedure-supplies.service";
@@ -61,6 +62,23 @@ export class ClinicProcedureController {
   @ApiOperation({ summary: "Publish the next version of the organization's own consent wording for a procedure (append-only; none is shipped)" })
   publishConsentWording(@CurrentActor() actor: Actor, @Param("definitionId", ParseUUIDPipe) id: string, @Body() body: PublishConsentWordingDto) {
     return this.procedures.publishConsentWording(actor, id, body);
+  }
+
+  @Post("clinic/procedure-definitions/:definitionId/consent-form/sign")
+  @HttpCode(200)
+  @RequirePermissions("procedure.record", "patient.read")
+  @RequireFacility()
+  @ApiOperation({
+    summary:
+      "Sign the consent form on screen: stores the signed form as a consent_form document of the patient with the signature evidence (signer, identity check, hash of the text, strokes); link it when recording the consent. Idempotent by requestId",
+  })
+  signConsentForm(
+    @CurrentActor() actor: Actor,
+    @Param("definitionId", ParseUUIDPipe) id: string,
+    @Body() body: SignConsentFormDto,
+    @Headers("user-agent") userAgent?: string,
+  ) {
+    return this.procedures.signConsentForm(actor, id, body, userAgent ? userAgent.slice(0, 300) : null);
   }
 
   @Get("clinic/procedure-definitions/:definitionId/consent-form.pdf")

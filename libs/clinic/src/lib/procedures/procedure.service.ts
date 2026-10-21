@@ -21,9 +21,9 @@ import {
   type TimelineWindow,
   VersionConflictError,
 } from "@healthcare/core";
-import { DocumentsService } from "@healthcare/documents";
+import { DocumentsService, documentSignature } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
-import { facilityLetterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
+import { facilityLetterhead, type PdfWriter, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { encounter, practitioner, visit, visitType } from "../clinic.schema";
@@ -35,10 +35,19 @@ import type {
   procedureConsentSchema,
   publishConsentWordingSchema,
   recordProcedureSchema,
+  signConsentFormSchema,
   recordVisitProcedureSchema,
   updateProcedureDefinitionSchema,
 } from "./procedure.dto";
-import { consentProblem, performedAtProblem, procedureText, recordingProblem, visitRecordingProblem } from "./procedure.rules";
+import {
+  consentProblem,
+  performedAtProblem,
+  procedureText,
+  recordingProblem,
+  consentTextHash,
+  signatureProblem,
+  visitRecordingProblem,
+} from "./procedure.rules";
 import {
   type ClinicProcedureConsentRecord,
   type ClinicProcedureRecord,
@@ -219,6 +228,116 @@ export class ClinicProcedureService {
    * and uploaded as a `consent_form` document and linked when the consent is recorded. Audited.
    */
   async consentFormPdf(actor: Actor, definitionId: string, patientId: string): Promise<{ filename: string; pdf: Buffer }> {
+    const form = await this.loadConsentForm(actor, definitionId, patientId);
+    await this.audit.recordStandalone(actor, {
+      action: "clinic.procedure-consent-form.print",
+      resourceType: "clinic_procedure_consent_wording",
+      resourceId: form.wording.id,
+      patientId,
+      metadata: { definitionId, version: form.wording.version },
+    });
+    return { filename: form.filename, pdf: await this.renderConsentForm(form) };
+  }
+
+  /**
+   * The consent form signed on screen (electronic signatures, phase 1): the same form with the signer's drawn mark,
+   * name and the time on it, stored once as a `consent_form` document of the patient, with the evidence — who signed,
+   * what the staff member checked, the hash of the form as shown and the strokes — kept append-only beside it
+   * (`document_signature`). The document is then linked when the consent is recorded (captured electronically).
+   * Idempotent by `requestId`. Whether a drawn signature is valid for this document is the organization's decision.
+   */
+  async signConsentForm(
+    actor: Actor,
+    definitionId: string,
+    input: z.output<typeof signConsentFormSchema>,
+    device: string | null,
+  ): Promise<{ documentId: string; signatureId: string; signedAt: string }> {
+    const problem = signatureProblem(input.strokes);
+    if (problem) throw new BusinessRuleError(problem === "signature_empty" ? "Ask the signer to sign again" : "The signature is too large", problem);
+    const userId = actor.userId;
+    if (!userId) throw new ForbiddenError("A signature is recorded by a member of staff");
+    const form = await this.loadConsentForm(actor, definitionId, input.patientId);
+    const timezone = form.facility.timezone;
+    const signedAt = new Date();
+    const witness = (await this.staff.staffNames(actor.organizationId, [userId])).get(userId) ?? "a member of staff";
+    // What the signer agreed to: the hash of the wording and what it was about, which anyone can recompute from the records
+    // (the PDF bytes carry a creation time, so they could not be).
+    const shownSha256 = consentTextHash({
+      wordingId: form.wording.id,
+      version: form.wording.version,
+      title: form.wording.title,
+      body: form.wording.body,
+      patientNumber: form.patient.patientNumber,
+      procedureCode: form.definition.code,
+    });
+    const documentId = input.requestId;
+    const role = input.signerKind === "patient" ? "Patient" : `Representative (${input.signerRelationship})`;
+    const signed = await this.renderConsentForm(form, (w) =>
+      w.signatureMark({
+        strokes: input.strokes,
+        name: input.signerName,
+        role: `${role}, signed on screen`,
+        signedAt: pdfDateTime(signedAt, timezone),
+        verification: `Witnessed by ${witness}. Document ${documentId}. Text hash ${shownSha256.slice(0, 16)}.`,
+      }),
+    );
+    let signatureId = "";
+    const stored = await this.documents.storeGenerated(
+      actor,
+      {
+        id: documentId,
+        facilityId: form.facility.id,
+        patientId: input.patientId,
+        category: "consent_form",
+        title: `${form.wording.title} (signed)`,
+        fileName: form.filename.replace(/\.pdf$/, "-signed.pdf"),
+        contentType: "application/pdf",
+        body: signed,
+      },
+      async (tx) => {
+        const [row] = await tx
+          .insert(documentSignature)
+          .values({
+            organizationId: actor.organizationId,
+            patientId: input.patientId,
+            documentId,
+            shownSha256,
+            signerKind: input.signerKind,
+            signerName: input.signerName,
+            signerRelationship: input.signerKind === "representative" ? (input.signerRelationship ?? null) : null,
+            identityCheck: input.identityCheck,
+            method: "drawn",
+            strokes: input.strokes,
+            signedAt,
+            witnessedBy: userId,
+            device,
+          })
+          .onConflictDoNothing()
+          .returning({ id: documentSignature.id });
+        if (!row) return;
+        signatureId = row.id;
+        await this.audit.record(tx, actor, {
+          action: "document.sign",
+          resourceType: "document",
+          resourceId: documentId,
+          patientId: input.patientId,
+          metadata: { signatureId: row.id, signerKind: input.signerKind, method: "drawn", definitionId, wordingVersion: form.wording.version },
+        });
+      },
+    );
+    if (!signatureId) {
+      // A retry: the first attempt already recorded the signature.
+      const [existing] = await this.db
+        .select()
+        .from(documentSignature)
+        .where(and(eq(documentSignature.organizationId, actor.organizationId), eq(documentSignature.documentId, documentId)));
+      if (!existing) throw new Error("Signed document stored without its signature record");
+      return { documentId: stored.id, signatureId: existing.id, signedAt: existing.signedAt.toISOString() };
+    }
+    return { documentId: stored.id, signatureId, signedAt: signedAt.toISOString() };
+  }
+
+  private async loadConsentForm(actor: Actor, definitionId: string, patientId: string) {
     const facilityId = requireFacilityId(actor);
     const definition = await this.definition(actor.organizationId, definitionId);
     const wording = (await this.currentWording(actor.organizationId, [definitionId])).get(definitionId);
@@ -230,14 +349,12 @@ export class ClinicProcedureService {
     ]);
     const patient = patients.get(patientId);
     if (!patient) throw new NotFoundError("Patient");
-    await this.audit.recordStandalone(actor, {
-      action: "clinic.procedure-consent-form.print",
-      resourceType: "clinic_procedure_consent_wording",
-      resourceId: wording.id,
-      patientId,
-      metadata: { definitionId, version: wording.version },
-    });
-    const pdf = await renderPdf(
+    return { definition, wording, organization, facility, patient, filename: `consent-${definition.code}-v${wording.version}.pdf` };
+  }
+
+  private renderConsentForm(form: Awaited<ReturnType<ClinicProcedureService["loadConsentForm"]>>, afterBody?: (w: PdfWriter) => void): Promise<Buffer> {
+    const { definition, wording, organization, facility, patient } = form;
+    return renderPdf(
       {
         title: wording.title,
         subtitle: `Consent to ${definition.name}`,
@@ -256,13 +373,15 @@ export class ClinicProcedureService {
         w.space();
         for (const paragraph of wording.body.split(/\n{2,}/)) w.paragraph(paragraph.replace(/\s*\n\s*/g, " "));
         w.space(1.2);
-        w.signatures([
-          { name: "Patient or representative", role: "Signature over printed name, relationship and date" },
-          { name: "Clinician", role: "Signature over printed name and date" },
-        ]);
+        if (afterBody) afterBody(w);
+        else {
+          w.signatures([
+            { name: "Patient or representative", role: "Signature over printed name, relationship and date" },
+            { name: "Clinician", role: "Signature over printed name and date" },
+          ]);
+        }
       },
     );
-    return { filename: `consent-${definition.code}-v${wording.version}.pdf`, pdf };
   }
 
   async createDefinition(actor: Actor, input: z.output<typeof createProcedureDefinitionSchema>): Promise<ProcedureDefinitionView> {

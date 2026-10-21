@@ -1,4 +1,12 @@
-import { consentProblem, performedAtProblem, procedureText, recordingProblem, visitRecordingProblem } from "./procedure.rules";
+import {
+  consentProblem,
+  performedAtProblem,
+  procedureText,
+  recordingProblem,
+  consentTextHash,
+  signatureProblem,
+  visitRecordingProblem,
+} from "./procedure.rules";
 
 describe("clinic procedure rules", () => {
   const started = new Date("2026-09-30T01:00:00Z");
@@ -53,5 +61,34 @@ describe("clinic procedure rules", () => {
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "electronic" }), performed)).toBe("consent_wording_required");
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "electronic", wordingId: "w1" }), performed)).toBeNull();
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "verbal" }), performed)).toBeNull();
+  });
+
+  it("hashes the text a signer agreed to, changing with any part of it", () => {
+    const text = { wordingId: "w1", version: 2, title: "Consent", body: "I agree.", patientNumber: "P1", procedureCode: "SUT" };
+    const hash = consentTextHash(text);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(consentTextHash({ ...text })).toBe(hash);
+    for (const change of [{ version: 3 }, { body: "I agree!" }, { patientNumber: "P2" }, { procedureCode: "XYZ" }, { wordingId: "w2" }]) {
+      expect(consentTextHash({ ...text, ...change })).not.toBe(hash);
+    }
+  });
+
+  it("accepts a drawn signature with ink and refuses a tap or an oversized drawing", () => {
+    const line = [
+      [0.1, 0.5],
+      [0.6, 0.5],
+    ];
+    expect(signatureProblem([line])).toBeNull();
+    expect(signatureProblem([[[0.5, 0.5]]])).toBe("signature_empty");
+    expect(
+      signatureProblem([
+        [
+          [0.5, 0.5],
+          [0.52, 0.5],
+        ],
+      ]),
+    ).toBe("signature_empty");
+    expect(signatureProblem(Array.from({ length: 65 }, () => line))).toBe("signature_too_large");
+    expect(signatureProblem([Array.from({ length: 3001 }, (_, i) => [i / 3001, 0.5])])).toBe("signature_too_large");
   });
 });

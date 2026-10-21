@@ -23,9 +23,11 @@ import { blocksServing } from "./document-integrity.rules";
 import {
   document,
   type DocumentCategory,
+  documentSignature,
   documentIntegrityFinding,
   type DocumentManager,
   type DocumentRecord,
+  type DocumentSignatureRecord,
   type DocumentScanStatus,
 } from "./document.schema";
 import { MALWARE_SCANNER, type MalwareScanner } from "./malware-scanner";
@@ -64,6 +66,9 @@ export interface GeneratedDocumentInput {
 export interface DocumentScope {
   managedBy?: DocumentManager | null;
 }
+
+/** A signature on a document without its strokes, device or organization. */
+export type DocumentSignatureView = Omit<DocumentSignatureRecord, "strokes" | "organizationId" | "device">;
 
 function toView({ storageKey: _key, organizationId: _org, declaredSha256: _declared, ...rest }: DocumentRecord): DocumentView {
   return rest;
@@ -352,6 +357,26 @@ export class DocumentsService {
       .from(document)
       .where(and(eq(document.organizationId, organizationId), inArray(document.id, [...new Set(documentIds)])));
     return new Map(rows.map(({ id, ...rest }) => [id, rest]));
+  }
+
+  /**
+   * The electronic signatures recorded on a document (migration 0120): who signed, how they were identified, when, and
+   * the hash of the text they agreed to. The strokes themselves are never returned. Audited as a read of the document.
+   */
+  async signatures(actor: Actor, documentId: string): Promise<DocumentSignatureView[]> {
+    const record = await this.find(actor.organizationId, documentId);
+    const rows = await this.db
+      .select()
+      .from(documentSignature)
+      .where(and(eq(documentSignature.organizationId, actor.organizationId), eq(documentSignature.documentId, documentId)))
+      .orderBy(documentSignature.signedAt);
+    await this.audit.recordStandalone(actor, {
+      action: "document.signatures.view",
+      resourceType: "document",
+      resourceId: documentId,
+      patientId: record.patientId ?? undefined,
+    });
+    return rows.map(({ strokes: _strokes, organizationId: _org, device: _device, ...rest }) => rest);
   }
 
   async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
