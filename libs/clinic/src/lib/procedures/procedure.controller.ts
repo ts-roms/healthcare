@@ -2,8 +2,10 @@ import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, 
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, RequireFacility, RequirePermissions } from "@healthcare/core";
 import {
+  CancelSignatureRequestDto,
   ConsentFormQueryDto,
   CreateProcedureDefinitionDto,
+  CreateSignatureRequestDto,
   ProcedureConsentDto,
   ProcedureDefinitionListQueryDto,
   ProcedureInErrorDto,
@@ -15,7 +17,9 @@ import {
   ReturnProcedureSuppliesDto,
   SignConsentFormDto,
   UpdateProcedureDefinitionDto,
+  UpdateSigningSettingDto,
 } from "./procedure.dto";
+import { ConsentSignatureService } from "./consent-signature.service";
 import { ProcedureSuppliesService } from "./procedure-supplies.service";
 import { ClinicProcedureService } from "./procedure.service";
 
@@ -26,6 +30,7 @@ export class ClinicProcedureController {
   constructor(
     private readonly procedures: ClinicProcedureService,
     private readonly supplies: ProcedureSuppliesService,
+    private readonly signatures: ConsentSignatureService,
   ) {}
 
   @Get("clinic/procedure-definitions")
@@ -62,6 +67,43 @@ export class ClinicProcedureController {
   @ApiOperation({ summary: "Publish the next version of the organization's own consent wording for a procedure (append-only; none is shipped)" })
   publishConsentWording(@CurrentActor() actor: Actor, @Param("definitionId", ParseUUIDPipe) id: string, @Body() body: PublishConsentWordingDto) {
     return this.procedures.publishConsentWording(actor, id, body);
+  }
+
+  @Get("clinic/consent-signing/settings")
+  @RequirePermissions("encounter.read")
+  @ApiOperation({ summary: "The organization's choices for signing consent forms: the age under which a representative signs, signing in MyHealth" })
+  signingSettings(@CurrentActor() actor: Actor) {
+    return this.signatures.settings(actor);
+  }
+
+  @Put("clinic/consent-signing/settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set the age under which a parent or guardian signs (null = no rule), signing in MyHealth, and how long a request stays open" })
+  updateSigningSettings(@CurrentActor() actor: Actor, @Body() body: UpdateSigningSettingDto) {
+    return this.signatures.updateSettings(actor, body);
+  }
+
+  @Post("patients/:patientId/consent-signature-requests")
+  @RequirePermissions("procedure.record", "patient.read")
+  @RequireFacility()
+  @ApiOperation({ summary: "Ask a patient (or their guardian) to sign a procedure's consent form in MyHealth; the current wording is fixed on the request" })
+  requestSignature(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Body() body: CreateSignatureRequestDto) {
+    return this.signatures.create(actor, patientId, body);
+  }
+
+  @Get("patients/:patientId/consent-signature-requests")
+  @RequirePermissions("encounter.read", "patient.read")
+  @ApiOperation({ summary: "The patient's consent signature requests, newest first" })
+  signatureRequests(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
+    return this.signatures.list(actor, patientId);
+  }
+
+  @Post("consent-signature-requests/:requestId/cancel")
+  @HttpCode(200)
+  @RequirePermissions("procedure.record")
+  @ApiOperation({ summary: "Cancel an open signature request with a reason" })
+  cancelSignatureRequest(@CurrentActor() actor: Actor, @Param("requestId", ParseUUIDPipe) id: string, @Body() body: CancelSignatureRequestDto) {
+    return this.signatures.cancel(actor, id, body);
   }
 
   @Post("clinic/procedure-definitions/:definitionId/consent-form/sign")

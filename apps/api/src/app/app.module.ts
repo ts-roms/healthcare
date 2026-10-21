@@ -87,6 +87,7 @@ import { PortalBookingController } from "./portal/portal-booking.controller";
 import { PatientPush } from "./portal/patient-push";
 import { PortalPushController, PortalPushDevices } from "./portal/portal-push.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
+import { PortalFormsController } from "./portal/portal-forms.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
 import { PortalHistoryController } from "./portal/portal-history.controller";
@@ -256,6 +257,7 @@ export class AppModule implements NestModule {
         PortalBookingController,
         PortalPushController,
         PortalDentalController,
+        PortalFormsController,
         PortalDocumentsController,
         PortalImmunizationsController,
         PortalHistoryController,

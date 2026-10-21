@@ -152,3 +152,41 @@ export const clinicProcedureSupplyUseLine = pgTable("clinic_procedure_supply_use
   returnsLineId: uuid("returns_line_id"),
 });
 export type ProcedureSupplyUseLineRecord = typeof clinicProcedureSupplyUseLine.$inferSelect;
+
+// ---- signing consent forms online (0121_consent_signing_online.sql) ------------------------------------------------
+
+/** The organization's choices for signing consent forms: the age under which a representative signs, and signing in MyHealth. */
+export const consentSigningSetting = pgTable("consent_signing_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  minorAgeYears: smallint("minor_age_years"),
+  portalSigningEnabled: boolean("portal_signing_enabled").notNull().default(false),
+  requestValidDays: smallint("request_valid_days").notNull().default(14),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type ConsentSigningSettingRecord = typeof consentSigningSetting.$inferSelect;
+
+export type ConsentSignatureRequestStatus = "pending" | "signed" | "cancelled";
+
+/** A request to a patient (or their guardian) to sign a procedure's consent form in MyHealth; the wording version is fixed. */
+export const consentSignatureRequest = pgTable("consent_signature_request", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  definitionId: uuid("definition_id").notNull(),
+  wordingId: uuid("wording_id").notNull(),
+  wordingVersion: integer("wording_version").notNull(),
+  representativeRequired: boolean("representative_required").notNull(),
+  requestedBy: uuid("requested_by").notNull(),
+  requestedAt: ts("requested_at").notNull().defaultNow(),
+  expiresAt: ts("expires_at").notNull(),
+  status: text("status").$type<ConsentSignatureRequestStatus>().notNull().default("pending"),
+  signedDocumentId: uuid("signed_document_id"),
+  signedAt: ts("signed_at"),
+  cancelledBy: uuid("cancelled_by"),
+  cancelledAt: ts("cancelled_at"),
+  cancelReason: text("cancel_reason"),
+});
+export type ConsentSignatureRequestRecord = typeof consentSignatureRequest.$inferSelect;

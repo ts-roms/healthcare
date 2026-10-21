@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { type AuditActor, AuditService } from "@healthcare/audit";
 import {
   type Actor,
   asPgError,
@@ -29,7 +29,8 @@ import type { z } from "zod";
 import { encounter, practitioner, visit, visitType } from "../clinic.schema";
 import { found } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
-import { PATIENT_DIRECTORY, type PatientDirectory } from "../ports";
+import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
+import { loadSigningSetting } from "./consent-signing.settings";
 import type {
   createProcedureDefinitionSchema,
   procedureConsentSchema,
@@ -45,7 +46,9 @@ import {
   procedureText,
   recordingProblem,
   consentTextHash,
+  representativeRequired,
   signatureProblem,
+  signerProblem,
   visitRecordingProblem,
 } from "./procedure.rules";
 import {
@@ -59,6 +62,41 @@ import {
   type ProcedureDefinitionRecord,
 } from "./procedure.schema";
 import { PROCEDURE_STAFF_NAMES, type ProcedureStaffNames } from "./ports";
+
+/** What a consent form is made of: the entry, its wording version, the facility and the patient (for the form and for signing it). */
+export interface ConsentFormContext {
+  definition: ProcedureDefinitionRecord;
+  wording: ConsentWordingView;
+  organization: Awaited<ReturnType<OrganizationService["getOrganization"]>>;
+  facility: Awaited<ReturnType<OrganizationService["getFacility"]>>;
+  patient: PatientBrief;
+  filename: string;
+}
+
+/** The evidence of one drawn signature on a consent form: who signed and how they were identified. */
+export interface SignedConsentEvidence {
+  /** The id of the signed document (chosen by the caller so a retry finds it). */
+  documentId: string;
+  patientId: string;
+  definitionId: string;
+  signerKind: "patient" | "representative";
+  signerName: string;
+  signerRelationship: string | null;
+  /** Polylines of [x, y] in 0..1 inside the signature box. */
+  strokes: number[][][];
+  identity:
+    | { method: "staff_checked"; check: string; witnessUserId: string; witnessName: string }
+    | { method: "portal_password"; portalAccountId: string; proxyGrantId: string | null };
+  device: string | null;
+  /** The signature request this answers (MyHealth), if any. */
+  requestId: string | null;
+}
+
+export interface SignedConsentResult {
+  documentId: string;
+  signatureId: string;
+  signedAt: string;
+}
 
 /** A catalogue entry with its current consent wording (the latest version), if any. */
 export type ProcedureDefinitionView = Omit<ProcedureDefinitionRecord, "organizationId"> & { consentWording: ConsentWordingView | null };
@@ -228,7 +266,7 @@ export class ClinicProcedureService {
    * and uploaded as a `consent_form` document and linked when the consent is recorded. Audited.
    */
   async consentFormPdf(actor: Actor, definitionId: string, patientId: string): Promise<{ filename: string; pdf: Buffer }> {
-    const form = await this.loadConsentForm(actor, definitionId, patientId);
+    const form = await this.loadConsentForm(actor.organizationId, requireFacilityId(actor), definitionId, patientId);
     await this.audit.recordStandalone(actor, {
       action: "clinic.procedure-consent-form.print",
       resourceType: "clinic_procedure_consent_wording",
@@ -240,26 +278,56 @@ export class ClinicProcedureService {
   }
 
   /**
-   * The consent form signed on screen (electronic signatures, phase 1): the same form with the signer's drawn mark,
-   * name and the time on it, stored once as a `consent_form` document of the patient, with the evidence — who signed,
-   * what the staff member checked, the hash of the form as shown and the strokes — kept append-only beside it
-   * (`document_signature`). The document is then linked when the consent is recorded (captured electronically).
-   * Idempotent by `requestId`. Whether a drawn signature is valid for this document is the organization's decision.
+   * The consent form signed on screen at the clinic (electronic signatures, phase 1): the same form with the signer's drawn
+   * mark, name and the time on it, stored once as a `consent_form` document of the patient, with the evidence — who signed,
+   * what the staff member checked, the hash of the text agreed to and the strokes — kept append-only beside it
+   * (`document_signature`). The document is then linked when the consent is recorded (captured electronically). A minor's
+   * form is signed by a parent or guardian (the organization's age, `consent_signing_setting`). Idempotent by `requestId`.
+   * Whether a drawn signature is valid for this document is the organization's decision.
    */
   async signConsentForm(
     actor: Actor,
     definitionId: string,
     input: z.output<typeof signConsentFormSchema>,
     device: string | null,
-  ): Promise<{ documentId: string; signatureId: string; signedAt: string }> {
-    const problem = signatureProblem(input.strokes);
-    if (problem) throw new BusinessRuleError(problem === "signature_empty" ? "Ask the signer to sign again" : "The signature is too large", problem);
+  ): Promise<SignedConsentResult> {
     const userId = actor.userId;
     if (!userId) throw new ForbiddenError("A signature is recorded by a member of staff");
-    const form = await this.loadConsentForm(actor, definitionId, input.patientId);
+    const form = await this.loadConsentForm(actor.organizationId, requireFacilityId(actor), definitionId, input.patientId);
+    const setting = await loadSigningSetting(this.db, actor.organizationId);
+    if (signerProblem(input.signerKind, representativeRequired(form.patient.age, setting.minorAgeYears))) {
+      throw new BusinessRuleError("This patient is a minor: a parent or guardian signs the form", "minor_requires_representative");
+    }
+    const witnessName = (await this.staff.staffNames(actor.organizationId, [userId])).get(userId) ?? "a member of staff";
+    return this.storeSignedConsent(actor, form, {
+      documentId: input.requestId,
+      patientId: input.patientId,
+      definitionId,
+      signerKind: input.signerKind,
+      signerName: input.signerName,
+      signerRelationship: input.signerKind === "representative" ? (input.signerRelationship ?? null) : null,
+      strokes: input.strokes,
+      identity: { method: "staff_checked", check: input.identityCheck, witnessUserId: userId, witnessName },
+      device,
+      requestId: null,
+    });
+  }
+
+  /**
+   * Renders the consent form with the drawn mark, stores it once (`documentId`) and records the evidence in the same
+   * transaction (and whatever `within` adds, e.g. answering a signature request); idempotent by `documentId`. Shared by
+   * signing at the clinic and in MyHealth.
+   */
+  async storeSignedConsent(
+    actor: Actor,
+    form: ConsentFormContext,
+    evidence: SignedConsentEvidence,
+    options: { within?: (tx: DbExecutor) => Promise<void>; auditAs?: AuditActor } = {},
+  ): Promise<SignedConsentResult> {
+    const problem = signatureProblem(evidence.strokes);
+    if (problem) throw new BusinessRuleError(problem === "signature_empty" ? "Ask the signer to sign again" : "The signature is too large", problem);
     const timezone = form.facility.timezone;
     const signedAt = new Date();
-    const witness = (await this.staff.staffNames(actor.organizationId, [userId])).get(userId) ?? "a member of staff";
     // What the signer agreed to: the hash of the wording and what it was about, which anyone can recompute from the records
     // (the PDF bytes carry a creation time, so they could not be).
     const shownSha256 = consentTextHash({
@@ -270,26 +338,31 @@ export class ClinicProcedureService {
       patientNumber: form.patient.patientNumber,
       procedureCode: form.definition.code,
     });
-    const documentId = input.requestId;
-    const role = input.signerKind === "patient" ? "Patient" : `Representative (${input.signerRelationship})`;
+    const role = evidence.signerKind === "patient" ? "Patient" : `Representative (${evidence.signerRelationship})`;
+    const how = evidence.identity.method === "staff_checked" ? "signed on screen" : "signed in MyHealth";
+    const verification =
+      evidence.identity.method === "staff_checked"
+        ? `Witnessed by ${evidence.identity.witnessName}. Document ${evidence.documentId}. Text hash ${shownSha256.slice(0, 16)}.`
+        : `The account holder confirmed their password. Document ${evidence.documentId}. Text hash ${shownSha256.slice(0, 16)}.`;
     const signed = await this.renderConsentForm(form, (w) =>
       w.signatureMark({
-        strokes: input.strokes,
-        name: input.signerName,
-        role: `${role}, signed on screen`,
+        strokes: evidence.strokes,
+        name: evidence.signerName,
+        role: `${role}, ${how}`,
         signedAt: pdfDateTime(signedAt, timezone),
-        verification: `Witnessed by ${witness}. Document ${documentId}. Text hash ${shownSha256.slice(0, 16)}.`,
+        verification,
       }),
     );
+    const auditAs = options.auditAs ?? actor;
     let signatureId = "";
     const stored = await this.documents.storeGenerated(
       actor,
       {
-        id: documentId,
+        id: evidence.documentId,
         facilityId: form.facility.id,
-        patientId: input.patientId,
+        patientId: evidence.patientId,
         category: "consent_form",
-        title: `${form.wording.title} (signed)`,
+        title: `${form.wording.title} (${evidence.identity.method === "staff_checked" ? "signed" : "signed in MyHealth"})`,
         fileName: form.filename.replace(/\.pdf$/, "-signed.pdf"),
         contentType: "application/pdf",
         body: signed,
@@ -299,30 +372,43 @@ export class ClinicProcedureService {
           .insert(documentSignature)
           .values({
             organizationId: actor.organizationId,
-            patientId: input.patientId,
-            documentId,
+            patientId: evidence.patientId,
+            documentId: evidence.documentId,
             shownSha256,
-            signerKind: input.signerKind,
-            signerName: input.signerName,
-            signerRelationship: input.signerKind === "representative" ? (input.signerRelationship ?? null) : null,
-            identityCheck: input.identityCheck,
+            signerKind: evidence.signerKind,
+            signerName: evidence.signerName,
+            signerRelationship: evidence.signerRelationship,
+            identityCheck: evidence.identity.method === "staff_checked" ? evidence.identity.check : "MyHealth account holder confirmed their password",
+            identityMethod: evidence.identity.method,
             method: "drawn",
-            strokes: input.strokes,
+            strokes: evidence.strokes,
             signedAt,
-            witnessedBy: userId,
-            device,
+            witnessedBy: evidence.identity.method === "staff_checked" ? evidence.identity.witnessUserId : null,
+            portalAccountId: evidence.identity.method === "portal_password" ? evidence.identity.portalAccountId : null,
+            proxyGrantId: evidence.identity.method === "portal_password" ? evidence.identity.proxyGrantId : null,
+            requestId: evidence.requestId,
+            device: evidence.device,
           })
           .onConflictDoNothing()
           .returning({ id: documentSignature.id });
-        if (!row) return;
-        signatureId = row.id;
-        await this.audit.record(tx, actor, {
-          action: "document.sign",
-          resourceType: "document",
-          resourceId: documentId,
-          patientId: input.patientId,
-          metadata: { signatureId: row.id, signerKind: input.signerKind, method: "drawn", definitionId, wordingVersion: form.wording.version },
-        });
+        if (row) {
+          signatureId = row.id;
+          await this.audit.record(tx, auditAs, {
+            action: "document.sign",
+            resourceType: "document",
+            resourceId: evidence.documentId,
+            patientId: evidence.patientId,
+            metadata: {
+              signatureId: row.id,
+              signerKind: evidence.signerKind,
+              method: "drawn",
+              identityMethod: evidence.identity.method,
+              definitionId: evidence.definitionId,
+              wordingVersion: form.wording.version,
+            },
+          });
+        }
+        await options.within?.(tx);
       },
     );
     if (!signatureId) {
@@ -330,29 +416,31 @@ export class ClinicProcedureService {
       const [existing] = await this.db
         .select()
         .from(documentSignature)
-        .where(and(eq(documentSignature.organizationId, actor.organizationId), eq(documentSignature.documentId, documentId)));
+        .where(and(eq(documentSignature.organizationId, actor.organizationId), eq(documentSignature.documentId, evidence.documentId)));
       if (!existing) throw new Error("Signed document stored without its signature record");
       return { documentId: stored.id, signatureId: existing.id, signedAt: existing.signedAt.toISOString() };
     }
     return { documentId: stored.id, signatureId, signedAt: signedAt.toISOString() };
   }
 
-  private async loadConsentForm(actor: Actor, definitionId: string, patientId: string) {
-    const facilityId = requireFacilityId(actor);
-    const definition = await this.definition(actor.organizationId, definitionId);
-    const wording = (await this.currentWording(actor.organizationId, [definitionId])).get(definitionId);
+  /** The consent form for one patient and procedure: the entry, its wording (the current one, or the named version), the facility and the patient. */
+  async loadConsentForm(organizationId: string, facilityId: string, definitionId: string, patientId: string, wordingId?: string): Promise<ConsentFormContext> {
+    const definition = await this.definition(organizationId, definitionId);
+    const wording = wordingId
+      ? await this.wordingOf(this.db, organizationId, definitionId, wordingId)
+      : (await this.currentWording(organizationId, [definitionId])).get(definitionId);
     if (!wording) throw new BusinessRuleError("No consent wording is published for this procedure", "consent_wording_not_published");
     const [organization, facility, patients] = await Promise.all([
-      this.organizations.getOrganization(actor.organizationId),
-      this.organizations.getFacility(actor.organizationId, facilityId),
-      this.patients.summaries(actor.organizationId, [patientId]),
+      this.organizations.getOrganization(organizationId),
+      this.organizations.getFacility(organizationId, facilityId),
+      this.patients.summaries(organizationId, [patientId]),
     ]);
     const patient = patients.get(patientId);
     if (!patient) throw new NotFoundError("Patient");
     return { definition, wording, organization, facility, patient, filename: `consent-${definition.code}-v${wording.version}.pdf` };
   }
 
-  private renderConsentForm(form: Awaited<ReturnType<ClinicProcedureService["loadConsentForm"]>>, afterBody?: (w: PdfWriter) => void): Promise<Buffer> {
+  private renderConsentForm(form: ConsentFormContext, afterBody?: (w: PdfWriter) => void): Promise<Buffer> {
     const { definition, wording, organization, facility, patient } = form;
     return renderPdf(
       {

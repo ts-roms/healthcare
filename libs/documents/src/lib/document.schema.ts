@@ -146,7 +146,14 @@ export const documentSignature = pgTable("document_signature", {
   method: text("method").$type<"drawn">().notNull(),
   strokes: jsonb("strokes").$type<number[][][]>().notNull(),
   signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
-  witnessedBy: uuid("witnessed_by").notNull(),
+  /** The member of staff who was present; null when the account holder signed in MyHealth. */
+  witnessedBy: uuid("witnessed_by"),
   device: text("device"),
+  /** The signature request this answered (0121), if any. */
+  requestId: uuid("request_id"),
+  /** The MyHealth account that signed, and the guardian grant when it signed for another (0121). */
+  portalAccountId: uuid("portal_account_id"),
+  proxyGrantId: uuid("proxy_grant_id"),
+  identityMethod: text("identity_method").$type<"staff_checked" | "portal_password">().notNull().default("staff_checked"),
 });
 export type DocumentSignatureRecord = typeof documentSignature.$inferSelect;

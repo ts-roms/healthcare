@@ -88,6 +88,32 @@ export const signConsentFormSchema = z
   });
 export class SignConsentFormDto extends createZodDto(signConsentFormSchema) {}
 
+// ---- signing consent forms in MyHealth and for minors (0121) ---------------------------------------------------
+
+export const updateSigningSettingSchema = z.object({
+  /** Under this age (full years) a parent or guardian signs; null = no age rule. 18 is a reference until the organization confirms its own. */
+  minorAgeYears: z.number().int().min(1).max(30).nullable(),
+  portalSigningEnabled: z.boolean(),
+  requestValidDays: z.number().int().min(1).max(90),
+  /** The version read (0 when the organization has never saved its own). */
+  version: z.number().int().min(0),
+});
+export class UpdateSigningSettingDto extends createZodDto(updateSigningSettingSchema) {}
+
+export const createSignatureRequestSchema = z.object({ definitionId: z.uuid() });
+export class CreateSignatureRequestDto extends createZodDto(createSignatureRequestSchema) {}
+
+export const cancelSignatureRequestSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
+export class CancelSignatureRequestDto extends createZodDto(cancelSignatureRequestSchema) {}
+
+/** What a patient (or their guardian) sends to sign a requested form in MyHealth: the password again, the drawing, and that they read it. */
+export const portalSignFormSchema = z.object({
+  password: z.string().min(1).max(128),
+  strokes: z.array(z.array(strokePoint).min(1).max(3000)).min(1).max(64),
+  understood: z.literal(true, { error: "Confirm that you read the form" }),
+});
+export class PortalSignFormDto extends createZodDto(portalSignFormSchema) {}
+
 // ---- consent recorded against a procedure (0095) ----------------------------------------------------------------
 
 export const procedureConsentSchema = z

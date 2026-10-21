@@ -74,6 +74,21 @@ export class PortalProxyService {
     return { ...principal, patientId: dependentPatientId, proxy };
   }
 
+  /** The patients who may act for this one right now (live grants with the "act" scope), for notices that ask a guardian to do something. */
+  async liveGuardians(organizationId: string, dependentPatientId: string, now = new Date()): Promise<string[]> {
+    const grants = await this.db
+      .select()
+      .from(portalProxyGrant)
+      .where(
+        and(
+          eq(portalProxyGrant.organizationId, organizationId),
+          eq(portalProxyGrant.dependentPatientId, dependentPatientId),
+          isNull(portalProxyGrant.revokedAt),
+        ),
+      );
+    return grants.filter((g) => grantLive(g, now) && g.scopes.includes("act")).map((g) => g.guardianPatientId);
+  }
+
   // ---- the account holder (MyHealth) -------------------------------------------------------
 
   /** The people this account holder may act for now. */

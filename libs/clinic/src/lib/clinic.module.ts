@@ -41,6 +41,7 @@ import { PatientHistoryService } from "./history/history.service";
 import { PROCEDURE_STAFF_NAMES, PROCEDURE_SUPPLIES, type ProcedureSupplies } from "./procedures/ports";
 import { ProcedureSuppliesService } from "./procedures/procedure-supplies.service";
 import { ClinicProcedureController } from "./procedures/procedure.controller";
+import { ConsentSignatureService } from "./procedures/consent-signature.service";
 import { ClinicProcedureService } from "./procedures/procedure.service";
 import { RouteTemplateService } from "./config/route-template.service";
 import { ServicePointService } from "./config/service-point.service";
@@ -119,6 +120,7 @@ export class ClinicModule {
         // The history reads staff names through the same adapter (it answers from the auth domain).
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ClinicProcedureService,
+        ConsentSignatureService,
         { provide: PROCEDURE_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ProcedureSuppliesService,
         { provide: PROCEDURE_SUPPLIES, useClass: options.procedureSupplies },
@@ -140,6 +142,7 @@ export class ClinicModule {
         PatientHistoryService,
         PatientHistoryPortalService,
         ClinicProcedureService,
+        ConsentSignatureService,
       ],
     };
   }

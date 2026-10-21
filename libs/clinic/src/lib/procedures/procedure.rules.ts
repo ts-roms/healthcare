@@ -118,3 +118,37 @@ export function signatureProblem(strokes: number[][][]): SignatureProblem | null
   }
   return ink < SIGNATURE_MIN_INK ? "signature_empty" : null;
 }
+
+// ---- signing consent forms online and for minors (migration 0121) ------------------------------------------------
+
+/** The organization's defaults until it sets its own: a reference age and nothing in MyHealth. */
+export const DEFAULT_MINOR_AGE_YEARS = 18;
+export const DEFAULT_REQUEST_VALID_DAYS = 14;
+
+/**
+ * Whether a parent or guardian must sign for this patient: the organization chose an age and the patient (in full years, on
+ * the facility's local date) is under it. The platform encodes no age of majority; the organization confirms its own value.
+ */
+export function representativeRequired(patientAge: number, minorAgeYears: number | null): boolean {
+  return minorAgeYears !== null && patientAge < minorAgeYears;
+}
+
+export type SignerProblem = "minor_requires_representative";
+
+/** A minor's form is signed by a representative, at the clinic or in MyHealth. */
+export function signerProblem(signerKind: "patient" | "representative", needsRepresentative: boolean): SignerProblem | null {
+  return needsRepresentative && signerKind === "patient" ? "minor_requires_representative" : null;
+}
+
+export type SignatureRequestProblem = "request_not_pending" | "request_expired";
+
+/** A request can be signed (or cancelled) only while pending and not past its expiry. */
+export function signatureRequestProblem(request: { status: "pending" | "signed" | "cancelled"; expiresAt: Date }, now: Date): SignatureRequestProblem | null {
+  if (request.status !== "pending") return "request_not_pending";
+  return request.expiresAt.getTime() <= now.getTime() ? "request_expired" : null;
+}
+
+/** When a request made now stops being open. */
+export function signatureRequestExpiry(now: Date, validDays: number): Date {
+  return new Date(now.getTime() + validDays * 86_400_000);
+}
