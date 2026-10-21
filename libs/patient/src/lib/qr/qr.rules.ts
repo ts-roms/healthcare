@@ -26,16 +26,27 @@ export function generateQrToken(bytes: Buffer = randomBytes(16)): string {
   return out;
 }
 
-/** The text encoded in the QR symbol. */
-export function encodeQrPayload(content: PatientQrContent, token: string, patientNumber: string): string {
-  return content === "token" ? `${QR_PREFIX}:T:${token}` : `${QR_PREFIX}:N:${patientNumber}`;
+/**
+ * The text encoded in the QR symbol. A `portal_link` is the MyHealth activation page with the key in the fragment, which
+ * browsers never send to a server; it needs the portal's address.
+ */
+export function encodeQrPayload(content: PatientQrContent, token: string, patientNumber: string, portalBaseUrl?: string): string {
+  if (content === "patient_number") return `${QR_PREFIX}:N:${patientNumber}`;
+  if (content === "portal_link") {
+    if (!portalBaseUrl) throw new Error("A portal link needs the portal address");
+    return `${portalBaseUrl.replace(/\/+$/, "")}/activate#${QR_PREFIX}:T:${token}`;
+  }
+  return `${QR_PREFIX}:T:${token}`;
 }
 
 export type ParsedQr = { kind: "token"; token: string } | { kind: "patient_number"; patientNumber: string };
 
 /** Reads what a scanner (or a hand-held scanner typing into a field) delivered; undefined when it is not ours. */
 export function parseQrPayload(raw: string): ParsedQr | undefined {
-  const text = raw.trim();
+  let text = raw.trim();
+  // A portal link: only the fragment after "/activate#" is the key.
+  const link = /^https?:\/\/[^\s#]{1,200}\/activate#(HPQ1:[^\s#]+)$/.exec(text);
+  if (link?.[1]) text = link[1];
   if (text.length > MAX_PAYLOAD) return undefined;
   const [prefix, kind, value, ...rest] = text.split(":");
   if (prefix !== QR_PREFIX || rest.length > 0 || !value) return undefined;

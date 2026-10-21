@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { loadState, staffApi } from "../support/api";
-import { STAFF } from "../support/env";
+import { PORTAL_URL, STAFF } from "../support/env";
 import { staffPage, toast } from "../support/pages";
 
 /**
@@ -101,6 +101,39 @@ test("a lost card is revoked and its scans are refused", async () => {
   await desk.getByRole("button", { name: "Issue QR code" }).click();
   await toast(desk, "QR code issued");
   await expect(desk.getByRole("img", { name: "Patient QR code" })).toBeVisible();
+});
+
+test("a card with a MyHealth link opens the activation page with the patient number filled in", async ({ browser }) => {
+  await admin.goto("/admin/patient-qr");
+  await admin.getByRole("radio", { name: /A MyHealth link/ }).click();
+  await admin.getByRole("button", { name: "Save settings" }).click();
+  await toast(admin, "Settings saved");
+
+  const api = await staffApi(STAFF.admin, state.facilityId);
+  const linked = await api.post<{ id: string; patientNumber: string }>("/patients", {
+    familyName: "Qrlinkjourney",
+    givenName: "Lorna",
+    sex: "female",
+    birthDate: "1969-08-23",
+  });
+  await api.post(`/patients/${linked.id}/consents`, { consentType: "portal_access", decision: "granted", capturedVia: "paper" });
+  await api.post(`/patients/${linked.id}/portal-account/invitations`);
+  const qr = await api.get<{ active: { payload: string } }>(`/patient-qr/patients/${linked.id}`);
+  await api.dispose();
+  expect(qr.active.payload).toMatch(/\/activate#HPQ1:T:[A-Z2-7]{26}$/);
+  expect(qr.active.payload).not.toContain(linked.patientNumber);
+
+  // The patient's phone: the card's link, with the key after "#".
+  const phone = await browser.newPage();
+  await phone.goto(`${PORTAL_URL}/activate#${qr.active.payload.split("#")[1]}`);
+  await expect(phone.getByRole("status")).toContainText("Hello, Lorna");
+  await expect(phone.locator("#patientNumber")).toHaveValue(linked.patientNumber);
+  await expect(phone.locator("#patientNumber")).toHaveJSProperty("readOnly", true);
+  // The key is cleared from the address, and the form still wants the birth date and the clinic's code.
+  expect(phone.url()).not.toContain("#");
+  await expect(phone.locator("#activationCode")).toBeVisible();
+  await expect(phone.locator("#birthDate")).toBeVisible();
+  await phone.close();
 });
 
 test("the administrator turns the feature off and scans are refused", async () => {

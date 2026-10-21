@@ -44,6 +44,14 @@ export function PatientQrSettingForm({ setting }: { setting: PatientQrSetting })
                   Easier to read from the card. Anyone who knows the number can make the same code, so revoking only stops this system accepting it.
                 </span>
               </RadioGroupTile>
+              <RadioGroupTile value="portal_link" id="qr-content-portal" className="p-3">
+                <span className="font-medium">A MyHealth link</span>
+                <span className="block text-meta text-muted-foreground">
+                  The patient scans the card with their phone, MyHealth opens with their patient number filled in, and they choose their own password. They
+                  still need their date of birth and the activation code the clinic gives them, so the card alone opens nothing. Needs the MyHealth address set
+                  up for the API.
+                </span>
+              </RadioGroupTile>
             </RadioGroup>
             <p className="text-meta text-muted-foreground">Applies to codes issued from now on. Codes already on cards keep what they hold.</p>
           </fieldset>

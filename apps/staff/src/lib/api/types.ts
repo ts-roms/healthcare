@@ -202,7 +202,7 @@ export interface RegisteredPatient {
 
 // ---- Patient QR codes (docs/domains/patient.md) ------------------------------------------------------------------------
 
-export type PatientQrContent = "token" | "patient_number";
+export type PatientQrContent = "token" | "patient_number" | "portal_link";
 
 export interface PatientQrSetting {
   enabled: boolean;

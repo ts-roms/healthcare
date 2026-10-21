@@ -17,6 +17,16 @@ describe("patient QR payloads", () => {
     expect(parseQrPayload(` ${number}\n`)).toEqual({ kind: "patient_number", patientNumber: "P00000012" });
   });
 
+  it("encodes a portal link with the key in the fragment, and reads it back", () => {
+    const token = generateQrToken();
+    const link = encodeQrPayload("portal_link", token, "P00000012", "https://myhealth.example.ph/");
+    expect(link).toBe(`https://myhealth.example.ph/activate#HPQ1:T:${token}`);
+    expect(link).not.toContain("P00000012");
+    expect(parseQrPayload(link)).toEqual({ kind: "token", token });
+    expect(() => encodeQrPayload("portal_link", token, "P00000012")).toThrow();
+    expect(parseQrPayload(`https://x.example/other#HPQ1:T:${token}`)).toBeUndefined();
+  });
+
   it("refuses anything else", () => {
     for (const bad of [
       "",

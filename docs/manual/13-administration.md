@@ -396,8 +396,9 @@ information, to general treatment, and to MyHealth itself is always given at the
 ## How to set up patient QR codes
 
 Choose **Administration → Patient QR codes** (`patient.qr.manage`). Tick **Use patient QR codes**, say whether a code is issued when a patient is registered, and
-choose what it holds: a random key (recommended; a lost card is revoked and replaced) or the patient number (easier to read, but anyone who knows the number can make
-the same code). Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
+choose what it holds: a random key (recommended; a lost card is revoked and replaced) the patient number (easier to read, but anyone who knows the number can make
+the same code), or a **MyHealth link**: the patient scans the card with their phone, MyHealth opens with their patient number filled in and they choose their own password
+(they still need their date of birth and the activation code the clinic gives them). Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
 [Patients](02-patients.md#how-to-use-patient-qr-codes).
 
 ## How to keep the breach register (Data privacy)

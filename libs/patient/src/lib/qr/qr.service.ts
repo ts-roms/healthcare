@@ -2,6 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
+  APP_CONFIG,
+  type AppConfig,
   BusinessRuleError,
   ConflictError,
   DATABASE,
@@ -9,13 +11,15 @@ import {
   type DbExecutor,
   DomainEventPublisher,
   NotFoundError,
+  type RequestMetadata,
   VersionConflictError,
 } from "@healthcare/core";
-import { OrganizationService } from "@healthcare/organization";
+import { organization, OrganizationService } from "@healthcare/organization";
 import { CARD_STOCK, renderQrCards } from "@healthcare/pdf";
 import { and, desc, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { patient, type PatientRecord } from "../patient.schema";
+import { patientPortalAccount } from "../portal/portal.schema";
 import { displayName, type PatientSummary, toSummary } from "../patient.views";
 import type { patientQrSettingSchema } from "./qr.dto";
 import { encodeQrPayload, generateQrToken, parseQrPayload } from "./qr.rules";
@@ -85,7 +89,19 @@ export class PatientQrService {
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
     private readonly organizations: OrganizationService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  /** What the code encodes; a portal link needs the portal's address (`PORTAL_BASE_URL`). */
+  private payload(row: Pick<PatientQrCodeRecord, "content" | "token">, patientNumber: string): string {
+    return encodeQrPayload(row.content, row.token, patientNumber, this.config.PORTAL_BASE_URL);
+  }
+
+  private requirePortalAddress(content: PatientQrContent): void {
+    if (content === "portal_link" && !this.config.PORTAL_BASE_URL) {
+      throw new BusinessRuleError("MyHealth links need PORTAL_BASE_URL to be set for the API", "portal_link_unavailable");
+    }
+  }
 
   async setting(organizationId: string, executor: DbExecutor = this.db): Promise<PatientQrSettingView> {
     const [row] = await executor.select().from(patientQrSetting).where(eq(patientQrSetting.organizationId, organizationId));
@@ -93,6 +109,7 @@ export class PatientQrService {
   }
 
   async setSetting(actor: Actor, input: z.infer<typeof patientQrSettingSchema>): Promise<PatientQrSettingView> {
+    this.requirePortalAddress(input.content);
     await this.db.transaction(async (tx) => {
       const [current] = await tx.select().from(patientQrSetting).where(eq(patientQrSetting.organizationId, actor.organizationId)).for("update");
       if ((current?.version ?? 0) !== input.version) throw new VersionConflictError("Patient QR setting", input.version);
@@ -144,7 +161,7 @@ export class PatientQrService {
     await this.audit.recordStandalone(actor, { action: "patient.qr.view", resourceType: "patient_qr_code", resourceId: active?.id, patientId: record.id });
     return {
       enabled: setting.enabled,
-      active: active ? { ...codeView(active), payload: encodeQrPayload(active.content, active.token, record.patientNumber) } : null,
+      active: active ? { ...codeView(active), payload: this.payload(active, record.patientNumber) } : null,
       history: rows.filter((r) => r.status === "revoked").map(codeView),
     };
   }
@@ -251,6 +268,49 @@ export class PatientQrService {
     return { patient: { ...toSummary(target), resolvedFrom }, qrCodeId: hit.code.id };
   }
 
+  /**
+   * MyHealth activation, step one (public): a patient who scanned a card with a MyHealth link learns which patient number
+   * to activate. Only while the clinic has invited them and the invitation is still open, and only their number and first
+   * name come back; the date of birth and the one-time activation code are still checked by activation itself.
+   * Every refusal is the same 404.
+   */
+  async activationFromCard(organizationCode: string, payload: string, request: RequestMetadata): Promise<{ patientNumber: string; givenName: string }> {
+    const parsed = parseQrPayload(payload);
+    const [org] = await this.db.select({ id: organization.id }).from(organization).where(eq(organization.code, organizationCode));
+    const [hit] =
+      org && parsed?.kind === "token"
+        ? await this.db
+            .select({ code: patientQrCode, patient, account: patientPortalAccount })
+            .from(patientQrCode)
+            .innerJoin(patient, and(eq(patient.organizationId, patientQrCode.organizationId), eq(patient.id, patientQrCode.patientId)))
+            .innerJoin(
+              patientPortalAccount,
+              and(eq(patientPortalAccount.organizationId, patient.organizationId), eq(patientPortalAccount.patientId, patient.id)),
+            )
+            .where(
+              and(
+                eq(patientQrCode.organizationId, org.id),
+                eq(patientQrCode.token, parsed.token),
+                eq(patientQrCode.status, "active"),
+                eq(patientQrCode.content, "portal_link"),
+              ),
+            )
+        : [];
+    const open = !!hit && hit.account.status === "invited" && !!hit.account.activationExpiresAt && hit.account.activationExpiresAt > new Date();
+    await this.audit.recordStandalone(
+      { kind: "anonymous", organizationId: org?.id, request },
+      {
+        action: "portal.activation-card",
+        resourceType: "patient_qr_code",
+        resourceId: hit?.code.id,
+        patientId: open ? hit.patient.id : undefined,
+        outcome: open ? "success" : "denied",
+      },
+    );
+    if (!open) throw new NotFoundError("Card");
+    return { patientNumber: hit.patient.patientNumber, givenName: hit.patient.givenName };
+  }
+
   /** The patient card as a PDF (QR code, name, number); printing is audited. */
   async cardPdf(actor: Actor, patientId: string): Promise<Buffer> {
     const record = await this.findPatient(this.db, actor.organizationId, patientId);
@@ -264,13 +324,16 @@ export class PatientQrService {
       CARD_STOCK,
       [
         {
-          qr: encodeQrPayload(active.content, active.token, record.patientNumber),
+          qr: this.payload(active, record.patientNumber),
           heading: organization.name,
           lines: [
             { text: displayName(record), bold: true, size: 9, maxLines: 2 },
             { text: record.patientNumber, bold: true, size: 11 },
           ],
-          footer: "Show this card at the front desk. Tell the clinic if it is lost.",
+          footer:
+            active.content === "portal_link"
+              ? "Scan with your phone to set up MyHealth. Show it at the front desk. Tell the clinic if it is lost."
+              : "Show this card at the front desk. Tell the clinic if it is lost.",
         },
       ],
       { title: "Patient card" },
@@ -280,6 +343,7 @@ export class PatientQrService {
   }
 
   private async insertCode(tx: DbExecutor, actor: Actor, patientId: string, content: PatientQrContent, via: PatientQrIssuedVia): Promise<PatientQrCodeRecord> {
+    this.requirePortalAddress(content);
     const [existing] = await tx
       .select({ id: patientQrCode.id })
       .from(patientQrCode)

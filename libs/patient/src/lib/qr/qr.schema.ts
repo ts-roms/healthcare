@@ -5,7 +5,7 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 /** What a QR code encodes: an opaque revocable token (default) or the patient number. Never clinical or demographic data. */
-export const PATIENT_QR_CONTENTS = ["token", "patient_number"] as const;
+export const PATIENT_QR_CONTENTS = ["token", "patient_number", "portal_link"] as const;
 export type PatientQrContent = (typeof PATIENT_QR_CONTENTS)[number];
 export const PATIENT_QR_STATUSES = ["active", "revoked"] as const;
 export type PatientQrStatus = (typeof PATIENT_QR_STATUSES)[number];

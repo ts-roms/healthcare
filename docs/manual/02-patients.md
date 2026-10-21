@@ -58,6 +58,8 @@ opens nothing by itself. Your clinic decides whether to use codes (**Administrat
 
 - **Print a card.** Open the patient, choose the **MyHealth** tab, then **Print card** under **Patient QR code**. Give the card to the patient. If the patient has no
   code yet (registered before codes were turned on, or declined), select **Issue QR code** first.
+- **Card with a MyHealth link.** If your clinic uses this kind, invite the patient to MyHealth first (see below) and give them the card and the activation code.
+  They scan the card with their phone, enter their date of birth and the code, and choose their own password.
 - **Scan.** On **Patients**, select **Scan QR code**. Scan with the hand-held scanner (click in the field first) or choose **Use the camera**. Select **Open record**
   or **Check in**. Every scan is recorded.
 - **Lost card.** On the same card select **Revoke (lost card)…**, give the reason, then **Issue QR code** for a new one. A revoked card is refused at the next

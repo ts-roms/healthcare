@@ -34,8 +34,13 @@ export async function PatientQrCard({ patientId }: { patientId: string }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={image} alt="Patient QR code" width={192} height={192} className="rounded border bg-white" />
             <p className="max-w-prose text-table text-muted-foreground">
-              Issued {clinicalDateTime(state.active.issuedAt)}. It holds {state.active.content === "token" ? "a random key" : "the patient number"} only: no
-              name, health or contact details. Staff scan it to find this record; it opens nothing by itself.
+              Issued {clinicalDateTime(state.active.issuedAt)}. It holds{" "}
+              {state.active.content === "patient_number"
+                ? "the patient number"
+                : state.active.content === "portal_link"
+                  ? "a MyHealth link with a random key"
+                  : "a random key"}{" "}
+              only: no name, health or contact details. Staff scan it to find this record; it opens nothing by itself.
             </p>
           </div>
         ) : (
