@@ -5369,3 +5369,30 @@ export interface AuditRetention {
   retentionMonths: number | null;
   partitions: AuditPartition[];
 }
+
+/** The organization's choices for signing consent forms (GET /clinic/consent-signing/settings). */
+export interface ConsentSigningSetting {
+  minorAgeYears: number | null;
+  portalSigningEnabled: boolean;
+  requestValidDays: number;
+  version: number;
+}
+
+/** A request to sign a consent form in MyHealth (GET /patients/:id/consent-signature-requests). */
+export interface ConsentSignatureRequest {
+  id: string;
+  patientId: string;
+  definitionId: string;
+  procedureCode: string;
+  procedureName: string;
+  wordingVersion: number;
+  representativeRequired: boolean;
+  status: "pending" | "signed" | "cancelled";
+  expired: boolean;
+  requestedAt: string;
+  requestedByName: string | null;
+  expiresAt: string;
+  signedAt: string | null;
+  signedDocumentId: string | null;
+  cancelReason: string | null;
+}

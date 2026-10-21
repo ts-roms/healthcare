@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { ProcedureDefinition, ProcedureSupplyOptions } from "@/lib/api/types";
+import type { ConsentSigningSetting, ProcedureDefinition, ProcedureSupplyOptions } from "@/lib/api/types";
+import { ConsentSigningSettings } from "./consent-signing-settings";
 import { ProcedureCatalog } from "./procedure-catalog";
 import { ProcedureConsentWording } from "./procedure-consent-wording";
 import { ProcedureSupplyTemplates } from "./procedure-supply-templates";
@@ -17,9 +18,10 @@ export const metadata = { title: "Procedures" };
 export default async function ProceduresPage() {
   const session = await getSession();
   if (!can(session, "encounter.read")) redirect("/");
-  const [definitions, supplyOptions] = await Promise.all([
+  const [definitions, supplyOptions, signingSetting] = await Promise.all([
     api<ProcedureDefinition[]>("/clinic/procedure-definitions", { query: { includeInactive: "true" } }),
     api<ProcedureSupplyOptions>("/clinic/procedure-supplies/options"),
+    api<ConsentSigningSetting>("/clinic/consent-signing/settings"),
   ]);
   return (
     <>
@@ -29,6 +31,7 @@ export default async function ProceduresPage() {
       />
       <ProcedureCatalog definitions={definitions} canConfigure={can(session, "clinic.configure")} />
       <ProcedureConsentWording definitions={definitions.filter((d) => d.status === "active")} canConfigure={can(session, "clinic.configure")} />
+      <ConsentSigningSettings setting={signingSetting} canConfigure={can(session, "clinic.configure")} />
       <ProcedureSupplyTemplates options={supplyOptions} definitions={definitions} canConfigure={can(session, "clinic.configure")} />
     </>
   );

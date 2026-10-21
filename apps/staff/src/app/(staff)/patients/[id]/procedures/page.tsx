@@ -5,10 +5,11 @@ import { ApiError } from "@healthcare/web-session";
 import { Button } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { PatientProcedures } from "./patient-procedures";
+import { SignatureRequests } from "./signature-requests";
 import { api } from "@/lib/api/client";
 import { loadConsentFormDocuments } from "@/lib/api/procedures";
 import { can, getSession } from "@/lib/api/session";
-import type { ClinicProcedure, PatientDetail, ProcedureDefinition } from "@/lib/api/types";
+import type { ClinicProcedure, ConsentSignatureRequest, ConsentSigningSetting, PatientDetail, ProcedureDefinition } from "@/lib/api/types";
 
 // Never put patient names in the tab title.
 export const metadata = { title: "Procedures" };
@@ -30,10 +31,12 @@ export default async function PatientProceduresPage({ params }: { params: Promis
     throw error;
   });
   if (patient.mergedIntoPatientId) redirect(`/patients/${patient.mergedIntoPatientId}/procedures`);
-  const [procedures, definitions, documents] = await Promise.all([
+  const [procedures, definitions, documents, signatureRequests, signingSetting] = await Promise.all([
     api<ClinicProcedure[]>(`/patients/${id}/procedures`),
     api<ProcedureDefinition[]>("/clinic/procedure-definitions", { query: { includeInactive: "true" } }).catch(() => [] as ProcedureDefinition[]),
     loadConsentFormDocuments(id),
+    api<ConsentSignatureRequest[]>(`/patients/${id}/consent-signature-requests`).catch(() => [] as ConsentSignatureRequest[]),
+    api<ConsentSigningSetting>("/clinic/consent-signing/settings").catch(() => null),
   ]);
 
   return (
@@ -60,6 +63,13 @@ export default async function PatientProceduresPage({ params }: { params: Promis
           Procedures done at the clinic, in consultations and outside them. New ones are recorded from the consultation&apos;s encounter workspace or, for
           procedures your clinic allows outside a consultation, from the visit on the queue.
         </p>
+        <SignatureRequests
+          patientId={id}
+          requests={signatureRequests}
+          definitions={definitions}
+          canRequest={can(session, "procedure.record") && patient.status === "active"}
+          portalEnabled={signingSetting?.portalSigningEnabled ?? false}
+        />
         <PatientProcedures
           patientId={id}
           procedures={procedures}

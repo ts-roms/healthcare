@@ -28,6 +28,7 @@ export * from "./qc-chart";
 export * from "./record-timeline";
 export * from "./queue-board";
 export * from "./selectors";
+export * from "./signature-pad";
 export * from "./specimen-status";
 export * from "./status";
 export * from "./video-call";

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { ClinicProcedure, ProcedureConsentWording, ProcedureDefinition, SupplyUse } from "@/lib/api/types";
+import type { ClinicProcedure, ConsentSignatureRequest, ConsentSigningSetting, ProcedureConsentWording, ProcedureDefinition, SupplyUse } from "@/lib/api/types";
 import {
   type ConsentWordingForm,
   consentPayload,
@@ -227,5 +227,42 @@ export async function saveProcedureSupplyTemplate(definitionId: string, items: z
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the supplies." };
   const result = await actionResult(() => api(`/clinic/procedure-definitions/${definitionId}/supplies`, { method: "PUT", body: parsed.data }));
   if (result.ok) revalidatePath("/clinic/procedures");
+  return result;
+}
+
+const signingSettingSchema = z.object({
+  minorAgeYears: z.number().int().min(1, "The age is between 1 and 30.").max(30, "The age is between 1 and 30.").nullable(),
+  portalSigningEnabled: z.boolean(),
+  requestValidDays: z.number().int().min(1, "Between 1 and 90 days.").max(90, "Between 1 and 90 days."),
+  version: z.number().int().min(0),
+});
+/** Saves how consent forms are signed: the age under which a parent or guardian signs, and signing in MyHealth (clinic.configure). */
+export async function saveConsentSigningSettings(input: z.input<typeof signingSettingSchema>): Promise<ActionResult<ConsentSigningSetting>> {
+  const parsed = signingSettingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the settings." };
+  const result = await actionResult(() => api<ConsentSigningSetting>("/clinic/consent-signing/settings", { method: "PUT", body: parsed.data }));
+  if (result.ok) revalidatePath("/clinic/procedures");
+  return result;
+}
+
+/** Asks the patient (or their guardian) to sign a procedure's consent form in MyHealth (procedure.record). */
+export async function requestConsentSignature(patientId: string, definitionId: string): Promise<ActionResult<ConsentSignatureRequest>> {
+  if (!uuid.safeParse(patientId).success || !uuid.safeParse(definitionId).success) return { ok: false, message: "Choose the procedure." };
+  const result = await actionResult(() =>
+    api<ConsentSignatureRequest>(`/patients/${patientId}/consent-signature-requests`, { method: "POST", body: { definitionId } }),
+  );
+  if (result.ok) revalidatePath(`/patients/${patientId}/procedures`);
+  return result;
+}
+
+/** Cancels a request that is still open, with a reason (procedure.record). */
+export async function cancelConsentSignatureRequest(requestId: string, patientId: string, reason: string): Promise<ActionResult<ConsentSignatureRequest>> {
+  if (!uuid.safeParse(requestId).success || !uuid.safeParse(patientId).success) return { ok: false, message: "Invalid request." };
+  const trimmed = reason.trim();
+  if (trimmed.length < 3) return { ok: false, message: "Give a reason (at least 3 characters)." };
+  const result = await actionResult(() =>
+    api<ConsentSignatureRequest>(`/consent-signature-requests/${requestId}/cancel`, { method: "POST", body: { reason: trimmed } }),
+  );
+  if (result.ok) revalidatePath(`/patients/${patientId}/procedures`);
   return result;
 }

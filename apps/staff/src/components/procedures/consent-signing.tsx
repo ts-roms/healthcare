@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { FileCheck2Icon, PenLineIcon } from "lucide-react";
+import { hasEnoughInk, type SignatureStroke } from "@healthcare/domain";
+import { SignaturePad } from "@healthcare/ui/healthcare";
 import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
 import { signConsentForm } from "@/app/(staff)/clinic/procedure-actions";
-import { hasEnoughInk, type SignatureStroke } from "@/lib/signature";
 import type { ProcedureForm } from "@/lib/procedure-form";
-import { SignaturePad } from "./signature-pad";
 
 /**
  * Sign the consent form on screen (docs/architecture/electronic-signatures.md, phase 1). The signer reads the wording

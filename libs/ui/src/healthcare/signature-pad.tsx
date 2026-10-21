@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { EraserIcon } from "lucide-react";
-import { Button } from "@healthcare/ui/primitives";
-import { normalizeStrokes, type PadPoint, type SignatureStroke } from "@/lib/signature";
+import { normalizeStrokes, type PadPoint, type SignatureStroke } from "@healthcare/domain";
+import { Button } from "../primitives/button";
 
 const WIDTH = 600;
 const HEIGHT = 200;
