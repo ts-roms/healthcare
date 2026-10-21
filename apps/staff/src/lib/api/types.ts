@@ -207,6 +207,7 @@ export type PatientQrContent = "token" | "patient_number" | "portal_link";
 export interface PatientQrSetting {
   enabled: boolean;
   issueAtRegistration: boolean;
+  inviteAtRegistration: boolean;
   content: PatientQrContent;
   version: number;
   updatedAt: string | null;

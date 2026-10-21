@@ -12,6 +12,9 @@ export const registrationFormSchema = z
     birthDateIsEstimated: z.boolean().optional(),
     /** Only set when the organization has patient QR codes on; leave unset to follow its setting. */
     issueQrCode: z.boolean().optional(),
+    /** Give MyHealth access now: the patient agreed (how: `portalConsentVia`); consent and an activation code are recorded after registration. */
+    portalAccess: z.boolean().optional(),
+    portalConsentVia: z.enum(["paper", "verbal"]).optional(),
     mobile: z
       .string()
       .trim()

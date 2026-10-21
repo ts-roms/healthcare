@@ -16,6 +16,7 @@ export const patientQrSetting = pgTable("patient_qr_setting", {
   organizationId: uuid("organization_id").primaryKey(),
   enabled: boolean("enabled").notNull().default(false),
   issueAtRegistration: boolean("issue_at_registration").notNull().default(true),
+  inviteAtRegistration: boolean("invite_at_registration").notNull().default(false),
   content: text("content").$type<PatientQrContent>().notNull().default("token"),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),

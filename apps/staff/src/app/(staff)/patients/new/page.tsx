@@ -21,7 +21,7 @@ export default async function RegisterPatientPage() {
         description={facility ? `Registering at ${facility.name}. The system checks for existing records before creating a new one.` : undefined}
       />
       {facility ? (
-        <RegistrationFormView qr={qr.enabled ? { issueAtRegistration: qr.issueAtRegistration } : undefined} />
+        <RegistrationFormView qr={qr} canInvite={can(session, "patient.consent.manage") && can(session, "patient.portal.manage")} />
       ) : (
         <p role="alert" className="m-4 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-warning-foreground">
           Select your facility in the top bar first. Patients are registered at a facility.

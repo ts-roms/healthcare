@@ -5,6 +5,8 @@ import { PATIENT_QR_CONTENTS } from "./qr.schema";
 export const patientQrSettingSchema = z.object({
   enabled: z.boolean(),
   issueAtRegistration: z.boolean(),
+  /** Registration offers MyHealth access (portal consent + activation code) by default. */
+  inviteAtRegistration: z.boolean().default(false),
   content: z.enum(PATIENT_QR_CONTENTS),
   version: z.number().int().min(0),
 });

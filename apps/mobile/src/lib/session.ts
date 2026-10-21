@@ -89,8 +89,8 @@ export class PatientSession {
    * A scanned patient card: which patient number it is for (only while the clinic's invitation is open). Grants nothing:
    * `activate` still needs the date of birth and the clinic's one-time code.
    */
-  async activationCard(key: string): Promise<{ patientNumber: string; givenName: string }> {
-    return this.postPublic<{ patientNumber: string; givenName: string }>("/portal/auth/activation-card", {
+  async activationCard(key: string): Promise<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }> {
+    return this.postPublic<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }>("/portal/auth/activation-card", {
       organizationCode: this.options.organizationCode,
       payload: key,
     });

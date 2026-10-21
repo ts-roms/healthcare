@@ -41,7 +41,7 @@ describe("patient QR code as a MyHealth link", () => {
           givenName: "Lina",
           sex: "female",
           birthDate: "1988-04-09",
-          contacts: [],
+          contacts: [{ system: "email", value: "lina@qr-link.ph" }],
           addresses: [],
           identifiers: [],
         })
@@ -61,7 +61,7 @@ describe("patient QR code as a MyHealth link", () => {
     await api(admin).post(`/patients/${patient.id}/consents`, { consentType: "portal_access", decision: "granted", capturedVia: "paper" }).expect(201);
     const code = (await api(admin).post(`/patients/${patient.id}/portal-account/invitations`).expect(201)).body.activationCode as string;
     const found = await card("qr-link-org", key).expect(200);
-    expect(found.body).toEqual({ patientNumber: patient.patientNumber, givenName: "Lina" });
+    expect(found.body).toEqual({ patientNumber: patient.patientNumber, givenName: "Lina", birthDate: "1988-04-09", email: "lina@qr-link.ph" });
     // The right organization only, and only a MyHealth-link key.
     await card("other-org", key).expect(404);
     await card("qr-link-org", `HPQ1:T:${"A".repeat(26)}`).expect(404);

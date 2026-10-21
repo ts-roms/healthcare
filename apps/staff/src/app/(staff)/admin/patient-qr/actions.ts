@@ -10,6 +10,7 @@ import type { PatientQrSetting } from "@/lib/api/types";
 const schema = z.object({
   enabled: z.boolean(),
   issueAtRegistration: z.boolean(),
+  inviteAtRegistration: z.boolean(),
   content: z.enum(["token", "patient_number", "portal_link"]),
   version: z.number().int().min(0),
 });

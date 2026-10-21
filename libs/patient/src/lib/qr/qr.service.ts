@@ -18,7 +18,7 @@ import { organization, OrganizationService } from "@healthcare/organization";
 import { CARD_STOCK, renderQrCards } from "@healthcare/pdf";
 import { and, desc, eq } from "drizzle-orm";
 import type { z } from "zod";
-import { patient, type PatientRecord } from "../patient.schema";
+import { patient, patientContactPoint, type PatientRecord } from "../patient.schema";
 import { patientPortalAccount } from "../portal/portal.schema";
 import { displayName, type PatientSummary, toSummary } from "../patient.views";
 import type { patientQrSettingSchema } from "./qr.dto";
@@ -35,9 +35,18 @@ import {
 export interface PatientQrSettingView {
   enabled: boolean;
   issueAtRegistration: boolean;
+  inviteAtRegistration: boolean;
   content: PatientQrContent;
   version: number;
   updatedAt: Date | null;
+}
+
+/** What a scanned MyHealth card pre-fills in activation (open invitations only). */
+export interface CardActivation {
+  patientNumber: string;
+  givenName: string;
+  birthDate: string;
+  email: string | null;
 }
 
 export interface PatientQrView {
@@ -57,11 +66,25 @@ export interface PatientQrState {
   history: PatientQrView[];
 }
 
-const DEFAULT_SETTING: PatientQrSettingView = { enabled: false, issueAtRegistration: true, content: "token", version: 0, updatedAt: null };
+const DEFAULT_SETTING: PatientQrSettingView = {
+  enabled: false,
+  issueAtRegistration: true,
+  inviteAtRegistration: false,
+  content: "token",
+  version: 0,
+  updatedAt: null,
+};
 
 function settingView(row: PatientQrSettingRecord | undefined): PatientQrSettingView {
   if (!row) return DEFAULT_SETTING;
-  return { enabled: row.enabled, issueAtRegistration: row.issueAtRegistration, content: row.content, version: row.version, updatedAt: row.updatedAt };
+  return {
+    enabled: row.enabled,
+    issueAtRegistration: row.issueAtRegistration,
+    inviteAtRegistration: row.inviteAtRegistration,
+    content: row.content,
+    version: row.version,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function codeView(row: PatientQrCodeRecord): PatientQrView {
@@ -116,6 +139,7 @@ export class PatientQrService {
       const values = {
         enabled: input.enabled,
         issueAtRegistration: input.issueAtRegistration,
+        inviteAtRegistration: input.inviteAtRegistration,
         content: input.content,
         updatedBy: actor.userId,
         updatedAt: new Date(),
@@ -134,6 +158,7 @@ export class PatientQrService {
         changes: {
           enabled: { from: before.enabled, to: input.enabled },
           issueAtRegistration: { from: before.issueAtRegistration, to: input.issueAtRegistration },
+          inviteAtRegistration: { from: before.inviteAtRegistration, to: input.inviteAtRegistration },
           content: { from: before.content, to: input.content },
         },
       });
@@ -274,7 +299,7 @@ export class PatientQrService {
    * name come back; the date of birth and the one-time activation code are still checked by activation itself.
    * Every refusal is the same 404.
    */
-  async activationFromCard(organizationCode: string, payload: string, request: RequestMetadata): Promise<{ patientNumber: string; givenName: string }> {
+  async activationFromCard(organizationCode: string, payload: string, request: RequestMetadata): Promise<CardActivation> {
     const parsed = parseQrPayload(payload);
     const [org] = await this.db.select({ id: organization.id }).from(organization).where(eq(organization.code, organizationCode));
     const [hit] =
@@ -308,7 +333,22 @@ export class PatientQrService {
       },
     );
     if (!open) throw new NotFoundError("Card");
-    return { patientNumber: hit.patient.patientNumber, givenName: hit.patient.givenName };
+    // The patient's primary email on record, to start the form with; the date of birth too. Only the one-time activation code
+    // (and the patient's own password) are left to enter; activation still checks the date of birth and the code itself.
+    const [contact] = await this.db
+      .select({ value: patientContactPoint.value })
+      .from(patientContactPoint)
+      .where(
+        and(
+          eq(patientContactPoint.organizationId, org!.id),
+          eq(patientContactPoint.patientId, hit.patient.id),
+          eq(patientContactPoint.system, "email"),
+          eq(patientContactPoint.status, "active"),
+        ),
+      )
+      .orderBy(desc(patientContactPoint.isPrimary), desc(patientContactPoint.createdAt))
+      .limit(1);
+    return { patientNumber: hit.patient.patientNumber, givenName: hit.patient.givenName, birthDate: hit.patient.birthDate, email: contact?.value ?? null };
   }
 
   /** The patient card as a PDF (QR code, name, number); printing is audited. */

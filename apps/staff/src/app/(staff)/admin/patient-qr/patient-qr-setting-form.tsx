@@ -9,6 +9,7 @@ import { savePatientQrSetting } from "./actions";
 export function PatientQrSettingForm({ setting }: { setting: PatientQrSetting }) {
   const [enabled, setEnabled] = React.useState(setting.enabled);
   const [atRegistration, setAtRegistration] = React.useState(setting.issueAtRegistration);
+  const [invite, setInvite] = React.useState(setting.inviteAtRegistration);
   const [content, setContent] = React.useState<PatientQrContent>(setting.content);
   const { pending, run } = useServerAction({ refreshOnFailure: true });
   return (
@@ -21,7 +22,10 @@ export function PatientQrSettingForm({ setting }: { setting: PatientQrSetting })
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            run(() => savePatientQrSetting({ enabled, issueAtRegistration: atRegistration, content, version: setting.version }), "Settings saved");
+            run(
+              () => savePatientQrSetting({ enabled, issueAtRegistration: atRegistration, inviteAtRegistration: invite, content, version: setting.version }),
+              "Settings saved",
+            );
           }}
         >
           <label className="flex items-center gap-2 text-table">
@@ -31,6 +35,13 @@ export function PatientQrSettingForm({ setting }: { setting: PatientQrSetting })
             <Checkbox id="qr-at-registration" disabled={!enabled} checked={atRegistration} onCheckedChange={(v) => setAtRegistration(v === true)} /> Issue a
             code when a patient is registered (the registering person can still decline for one patient)
           </label>
+          <label className="flex items-center gap-2 text-table">
+            <Checkbox id="qr-invite" disabled={!enabled} checked={invite} onCheckedChange={(v) => setInvite(v === true)} /> Offer MyHealth access at
+            registration (ticked by default: records the patient&apos;s portal consent and issues an activation code)
+          </label>
+          <p className="-mt-2 text-meta text-muted-foreground">
+            Only after the registering person confirms the patient agreed, on a signed paper form or in person. Nothing is recorded for the patient otherwise.
+          </p>
           <fieldset className="grid gap-2" disabled={!enabled}>
             <legend className="text-table font-medium">What the code holds</legend>
             <RadioGroup value={content} onValueChange={(v) => setContent(v as PatientQrContent)} className="grid gap-2">

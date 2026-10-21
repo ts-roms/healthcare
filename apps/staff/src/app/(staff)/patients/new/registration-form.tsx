@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangleIcon, ExternalLinkIcon, UserPlusIcon } from "lucide-react";
-import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, sexLabel } from "@healthcare/ui/healthcare";
 import {
   Badge,
   Button,
@@ -36,7 +36,13 @@ const REASONS: Record<string, string> = {
   similar_name_and_birth_year: "Similar name, same birth year",
 };
 
-export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boolean } }) {
+export function RegistrationFormView({
+  qr,
+  canInvite,
+}: {
+  qr: { enabled: boolean; issueAtRegistration: boolean; inviteAtRegistration: boolean };
+  canInvite: boolean;
+}) {
   const router = useRouter();
   const form = useForm<RegistrationForm>({
     resolver: zodResolver(registrationFormSchema),
@@ -48,9 +54,18 @@ export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boole
       mobile: "",
       email: "",
       philhealthPin: "",
-      ...(qr ? { issueQrCode: qr.issueAtRegistration } : {}),
+      ...(qr.enabled ? { issueQrCode: qr.issueAtRegistration } : {}),
+      ...(canInvite ? { portalAccess: qr.enabled && qr.inviteAtRegistration, portalConsentVia: "paper" as const } : {}),
     },
   });
+  const [done, setDone] = React.useState<{
+    id: string;
+    number: string;
+    name: string;
+    invitation?: { activationCode: string; expiresAt: string };
+    error?: string;
+    card: boolean;
+  } | null>(null);
   const [candidates, setCandidates] = React.useState<DuplicateCandidate[] | null>(null);
   const [reviewed, setReviewed] = React.useState<Set<string>>(new Set());
   const [reason, setReason] = React.useState("");
@@ -69,6 +84,18 @@ export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boole
       setAttemptKey(crypto.randomUUID());
       if (result.ok) {
         toast.success(`Registered ${values.familyName.toUpperCase()}, ${values.givenName}`, { description: `Patient no. ${result.patient.patientNumber}` });
+        if (result.portalInvitation || result.portalError) {
+          // The activation code is shown once: stay here until the person has handed it over.
+          setDone({
+            id: result.patient.id,
+            number: result.patient.patientNumber,
+            name: `${values.familyName.toUpperCase()}, ${values.givenName}`,
+            invitation: result.portalInvitation,
+            error: result.portalError,
+            card: !!result.patient.qrCodeIssued,
+          });
+          return;
+        }
         router.push(`/patients/${result.patient.id}`);
         return;
       }
@@ -99,6 +126,47 @@ export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boole
       ) : null}
     </div>
   );
+
+  if (done) {
+    return (
+      <div className="flex max-w-2xl flex-col gap-4 p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {done.name} is registered · patient no. <span className="font-mono">{done.number}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {done.invitation ? (
+              <div className="rounded-md border border-primary/30 bg-primary-subtle p-3">
+                <p className="font-medium">MyHealth activation code — shown only once</p>
+                <p className="my-2 font-mono text-page-lg font-semibold tracking-widest">{done.invitation.activationCode}</p>
+                <p className="text-table text-muted-foreground">
+                  Give it to the patient in person after checking their identity. They set up MyHealth with patient number {done.number}, their date of birth
+                  and this code{done.card ? ", or by scanning the QR code on their card" : ""}, and choose their own password. It expires{" "}
+                  {clinicalDateTime(done.invitation.expiresAt)}.
+                </p>
+              </div>
+            ) : (
+              <p role="alert" className="rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-table text-warning-foreground">
+                The patient is registered, but MyHealth access was not set up: {done.error} Open the record to try again.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {done.card ? (
+                <Button asChild variant="outline">
+                  <a href={`/patients/${done.id}/qr/card.pdf`} target="_blank" rel="noreferrer">
+                    Print card
+                  </a>
+                </Button>
+              ) : null}
+              <Button onClick={() => router.push(`/patients/${done.id}`)}>Open record</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
@@ -164,7 +232,7 @@ export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boole
               {field("province", "Province", <Input id="province" {...form.register("province")} />)}
             </CardContent>
           </Card>
-          {qr ? (
+          {qr.enabled ? (
             <Card>
               <CardHeader>
                 <CardTitle>Patient card</CardTitle>
@@ -188,6 +256,40 @@ export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boole
                 </label>
                 <p className="text-meta text-muted-foreground">
                   The code is printed on a card from the patient record. It holds no health or contact details, only a key that staff scan to find the record.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+          {canInvite ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>MyHealth access</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <label className="flex items-start gap-2 text-table">
+                  <Controller
+                    control={form.control}
+                    name="portalAccess"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="portalAccess"
+                        className="mt-0.5"
+                        checked={!!field.value}
+                        onCheckedChange={(v) => field.onChange(v === true)}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    )}
+                  />{" "}
+                  <span>Give MyHealth access now. The patient agreed to use MyHealth and I have their signed paper form (or their verbal agreement).</span>
+                </label>
+                <NativeSelect id="portalConsentVia" aria-label="How the patient agreed" {...form.register("portalConsentVia")}>
+                  <option value="paper">Signed paper form</option>
+                  <option value="verbal">Verbal agreement</option>
+                </NativeSelect>
+                <p className="text-meta text-muted-foreground">
+                  Records the patient&apos;s portal access consent and issues an activation code, shown once after registering. Leave it unticked if the patient
+                  has not agreed.
                 </p>
               </CardContent>
             </Card>

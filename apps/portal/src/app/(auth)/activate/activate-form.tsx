@@ -10,7 +10,7 @@ export function ActivateForm() {
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
   // The card's link carries its key after "#", which the browser never sends to a server; read it here, then clear it.
-  const [card, setCard] = React.useState<{ patientNumber: string; givenName: string } | null>(null);
+  const [card, setCard] = React.useState<{ patientNumber: string; givenName: string; birthDate: string; email: string | null } | null>(null);
   const [cardFailed, setCardFailed] = React.useState(false);
   React.useEffect(() => {
     const key = window.location.hash.replace(/^#/, "");
@@ -23,8 +23,8 @@ export function ActivateForm() {
       <FormError message={state.error} />
       {card ? (
         <p role="status" className="rounded-lg border border-success/30 bg-success-subtle p-3 text-body">
-          Hello, {card.givenName}. Your card is for patient number <span className="font-mono">{card.patientNumber}</span>. Enter your date of birth and the
-          activation code the clinic gave you, then choose your own password.
+          Hello, {card.givenName}. Your card is for patient number <span className="font-mono">{card.patientNumber}</span>. Check your details, then enter the
+          activation code the clinic gave you and choose your own password.
         </p>
       ) : cardFailed ? (
         <p role="status" className="rounded-lg border p-3 text-body text-muted-foreground">
@@ -46,7 +46,7 @@ export function ActivateForm() {
           defaultValue={card?.patientNumber ?? v.patientNumber}
           error={e.patientNumber}
         />
-        <Field name="birthDate" label="Date of birth" type="date" required defaultValue={v.birthDate} error={e.birthDate} />
+        <Field name="birthDate" label="Date of birth" type="date" required defaultValue={card?.birthDate ?? v.birthDate} error={e.birthDate} />
         <Field
           name="activationCode"
           label="Activation code"
@@ -62,7 +62,7 @@ export function ActivateForm() {
       </fieldset>
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 font-semibold">2. Choose how you&apos;ll sign in</legend>
-        <Field name="email" label="Email" type="email" inputMode="email" autoComplete="email" required defaultValue={v.email} error={e.email} />
+        <Field name="email" label="Email" type="email" inputMode="email" autoComplete="email" required defaultValue={card?.email ?? v.email} error={e.email} />
         <Field
           name="password"
           label="New password"

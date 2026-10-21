@@ -130,10 +130,13 @@ const ACTIVATE_FIELDS = ["patientNumber", "birthDate", "activationCode", "email"
  * is for (only while the clinic's invitation is open). Gives nothing else and grants nothing: activation still needs the
  * date of birth and the one-time code.
  */
-export async function lookupCard(payload: string): Promise<{ patientNumber: string; givenName: string } | null> {
+export async function lookupCard(payload: string): Promise<{ patientNumber: string; givenName: string; birthDate: string; email: string | null } | null> {
   if (typeof payload !== "string" || payload.length > 100) return null;
   try {
-    return await post<{ patientNumber: string; givenName: string }>("/portal/auth/activation-card", { organizationCode: PORTAL_ORGANIZATION_CODE, payload });
+    return await post<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }>("/portal/auth/activation-card", {
+      organizationCode: PORTAL_ORGANIZATION_CODE,
+      payload,
+    });
   } catch {
     return null;
   }

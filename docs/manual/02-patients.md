@@ -43,6 +43,7 @@ Always search first. Registration also checks for existing records, but searchin
    **City / municipality**, **Barangay** and **Province**.
 5. If your clinic uses patient QR codes, the **Patient card** box offers **Issue a patient QR code** (ticked as your clinic set it). Untick it for a patient who does not want a card.
 6. Select **Register patient**.
+   If **MyHealth access** is shown, **Give MyHealth access now** records the patient's portal consent and shows an activation code once after registering: tick it only when the patient has agreed (signed paper form or verbal agreement).
 7. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
 
 If you don't see **Register patient**, you need the `patient.register` permission (receptionists, nurses, physicians, dentists and dental assistants have it by
@@ -59,7 +60,7 @@ opens nothing by itself. Your clinic decides whether to use codes (**Administrat
 - **Print a card.** Open the patient, choose the **MyHealth** tab, then **Print card** under **Patient QR code**. Give the card to the patient. If the patient has no
   code yet (registered before codes were turned on, or declined), select **Issue QR code** first.
 - **Card with a MyHealth link.** If your clinic uses this kind, invite the patient to MyHealth first (see below) and give them the card and the activation code.
-  They scan the card with their phone, enter their date of birth and the code, and choose their own password.
+  They scan the card with their phone: their date of birth and email are already filled in, and they enter the code and choose their own password.
 - **Scan.** On **Patients**, select **Scan QR code**. Scan with the hand-held scanner (click in the field first) or choose **Use the camera**. Select **Open record**
   or **Check in**. Every scan is recorded.
 - **Lost card.** On the same card select **Revoke (lost card)…**, give the reason, then **Issue QR code** for a new one. A revoked card is refused at the next

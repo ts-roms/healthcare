@@ -51,6 +51,7 @@ test("QR codes are off until the administrator turns them on", async () => {
   await admin.getByLabel("Use patient QR codes").check();
   await expect(admin.getByLabel(/Issue a code when a patient is registered/)).toBeEnabled();
   await expect(admin.getByRole("radio", { name: /A random key/ })).toBeChecked();
+  await admin.getByLabel(/Offer MyHealth access at registration/).check();
   await admin.getByRole("button", { name: "Save settings" }).click();
   await toast(admin, "Settings saved");
   await shot(admin, "2-settings-on");
@@ -64,7 +65,14 @@ test("the front desk registers a patient and a code is issued with the registrat
   await desk.locator("#givenName").fill(patient.given);
   await desk.locator("#sex").selectOption("male");
   await desk.locator("#birthDate").fill("1975-02-11");
+  // The organization's default offers MyHealth access too: ticked, with the activation code shown once afterwards.
+  await expect(desk.getByLabel(/Give MyHealth access now/)).toBeChecked();
+  await shot(desk, "3b-registration-myhealth-access");
   await desk.getByRole("button", { name: "Register patient" }).click();
+  await expect(desk.getByText("MyHealth activation code")).toBeVisible();
+  await expect(desk.getByText(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/)).toBeVisible();
+  await shot(desk, "3c-registered-activation-code");
+  await desk.getByRole("button", { name: "Open record" }).click();
   await desk.waitForURL(/\/patients\/[0-9a-f-]{36}$/);
   patient.id = desk.url().split("/").pop()!;
 
@@ -130,6 +138,7 @@ test("a card with a MyHealth link opens the activation page with the patient num
     givenName: "Lorna",
     sex: "female",
     birthDate: "1969-08-23",
+    contacts: [{ system: "email", value: "lorna@qr-link.example.ph" }],
   });
   await api.post(`/patients/${linked.id}/consents`, { consentType: "portal_access", decision: "granted", capturedVia: "paper" });
   await api.post(`/patients/${linked.id}/portal-account/invitations`);
@@ -145,6 +154,9 @@ test("a card with a MyHealth link opens the activation page with the patient num
   await expect(phone.locator("#patientNumber")).toHaveValue(linked.patientNumber);
   await shot(phone, "9-myhealth-from-card");
   await expect(phone.locator("#patientNumber")).toHaveJSProperty("readOnly", true);
+  // The date of birth and the email on record are filled in too; only the activation code and the password are left.
+  await expect(phone.locator("#birthDate")).toHaveValue("1969-08-23");
+  await expect(phone.locator("#email")).toHaveValue("lorna@qr-link.example.ph");
   // The key is cleared from the address, and the form still wants the birth date and the clinic's code.
   expect(phone.url()).not.toContain("#");
   await expect(phone.locator("#activationCode")).toBeVisible();

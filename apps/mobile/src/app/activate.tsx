@@ -17,7 +17,7 @@ export default function ActivateScreen() {
   const { signedIn } = useSession();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
-  const [card, setCard] = useState<{ patientNumber: string; givenName: string } | null>(null);
+  const [card, setCard] = useState<{ patientNumber: string; givenName: string; birthDate: string; email: string | null } | null>(null);
   const [patientNumber, setPatientNumber] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [activationCode, setActivationCode] = useState("");
@@ -47,6 +47,8 @@ export default function ActivateScreen() {
       const found = await session.activationCard(key);
       setCard(found);
       setPatientNumber(found.patientNumber);
+      setBirthDate(found.birthDate);
+      if (found.email) setEmail(found.email);
     } catch {
       setError("This card could not be used. Type your patient number below, or ask the clinic to invite you again.");
     } finally {
