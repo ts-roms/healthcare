@@ -17,6 +17,7 @@
     "dev:integration-worker": "nx serve integration-worker",
     "dev:deps": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
     "db:migrate": "node -r @swc-node/register tools/db/migrate.ts",
+    "db:migrate:new": "node -r @swc-node/register tools/db/new-migration.ts",
     "db:seed": "node -r @swc-node/register tools/db/seed.ts",
     "db:seed:demo": "node -r @swc-node/register tools/db/seed-demo.ts",
     "mobile:apk": "node -r @swc-node/register tools/mobile/build-apk.ts",
