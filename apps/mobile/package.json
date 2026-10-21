@@ -13,6 +13,7 @@
     "@expo/metro-runtime": "~57.0.16",
     "@healthcare/domain": "workspace:*",
     "expo": "~57.0.26",
+    "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",

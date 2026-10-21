@@ -45,6 +45,7 @@ function Screens() {
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="activate" options={{ title: "Set up MyHealth", headerBackTitle: "Sign in" }} />
         </Stack.Protected>
       </Stack>
     </>
