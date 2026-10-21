@@ -10,6 +10,11 @@ export const registrationFormSchema = z
     sex: z.enum(["female", "male", "intersex", "unknown"], { message: "Select sex" }),
     birthDate: z.iso.date("Enter a valid date").refine((d) => d <= new Date().toISOString().slice(0, 10), "Birth date cannot be in the future"),
     birthDateIsEstimated: z.boolean().optional(),
+    /** Only set when the organization has patient QR codes on; leave unset to follow its setting. */
+    issueQrCode: z.boolean().optional(),
+    /** Give MyHealth access now: the patient agreed (how: `portalConsentVia`); consent and an activation code are recorded after registration. */
+    portalAccess: z.boolean().optional(),
+    portalConsentVia: z.enum(["paper", "verbal"]).optional(),
     mobile: z
       .string()
       .trim()
@@ -63,6 +68,7 @@ export function toRegisterPayload(form: RegistrationForm, duplicateOverride?: Du
     ],
     addresses: city ? [{ use: "home" as const, cityMunicipality: city, barangay: blank(form.barangay), province: blank(form.province), isPrimary: true }] : [],
     identifiers: pin ? [{ type: "philhealth_pin" as const, value: pin }] : [],
+    ...(form.issueQrCode !== undefined ? { issueQrCode: form.issueQrCode } : {}),
     ...(duplicateOverride ? { duplicateOverride } : {}),
   };
 }

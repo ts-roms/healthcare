@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -119,7 +120,12 @@ export default function SignInScreen() {
             </View>
           )}
 
-          <Text style={styles.meta}>Setting up MyHealth for the first time, or forgot your password? Use MyHealth on the web, or ask the clinic.</Text>
+          {step === "password" ? (
+            <Pressable onPress={() => router.push("/activate")} accessibilityRole="button" style={styles.link}>
+              <Text style={styles.linkText}>First time? Set up with your clinic card</Text>
+            </Pressable>
+          ) : null}
+          <Text style={styles.meta}>Forgot your password? Use MyHealth on the web, or ask the clinic.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

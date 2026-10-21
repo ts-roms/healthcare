@@ -75,3 +75,19 @@ export function announcements(call: { ticket: string; calledTo: string }, voice:
       return [];
   }
 }
+
+/** The display's connection text (always shown with an icon, never colour alone): what a patient in the room can rely on. */
+export function displayStatusLabel(status: "connecting" | "live" | "offline"): string {
+  return status === "live" ? "Live" : status === "connecting" ? "Reconnecting�" : "Offline";
+}
+
+/** How long the Now serving card stays highlighted after a new call. */
+export const CALL_HIGHLIGHT_MS = 4_000;
+
+/** The last calls the "Recently called" card lists (the one being served is shown on its own card). */
+export const RECENT_CALLS_SHOWN = 4;
+
+/** What a screen reader hears when a new ticket is called. */
+export function callAnnouncement(call: { ticket: string; calledTo: string }): string {
+  return `Ticket ${call.ticket}, please proceed to ${call.calledTo}`;
+}

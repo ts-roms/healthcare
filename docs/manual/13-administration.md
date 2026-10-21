@@ -393,6 +393,14 @@ not say what a consent legally needs: have your data protection officer approve 
 The patient's record shows a consent given online as "by the patient in MyHealth" with **wording v…**, the version they read. Consent to the use of
 information, to general treatment, and to MyHealth itself is always given at the clinic.
 
+## How to set up patient QR codes
+
+Choose **Administration → Patient QR codes** (`patient.qr.manage`). Tick **Use patient QR codes**, say whether a code is issued when a patient is registered, and
+choose what it holds: a random key (recommended; a lost card is revoked and replaced) the patient number (easier to read, but anyone who knows the number can make
+the same code), or a **MyHealth link**: the patient scans the card with their phone, MyHealth opens with their patient number filled in and they choose their own password
+(their date of birth and email are filled in; they only enter the activation code the clinic gives them and a password). You can also tick **Offer MyHealth access at registration**: the registration form then starts with MyHealth access ticked, records the patient's consent (the registering person confirms they agreed) and shows the activation code once. Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
+[Patients](02-patients.md#how-to-use-patient-qr-codes).
+
 ## How to keep the breach register (Data privacy)
 
 **Administration → Data privacy** (`/admin/privacy`; `privacy.incident.manage`, organization administrators by default — grant it to your Data

@@ -144,6 +144,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Compliance", href: "/admin/compliance" },
       { label: "Consent wording", href: "/admin/consent-wording" },
       { label: "Data privacy", href: "/admin/privacy" },
+      { label: "Patient QR codes", href: "/admin/patient-qr" },
     ],
   },
   { label: "Help", href: "/help", icon: CircleHelpIcon },

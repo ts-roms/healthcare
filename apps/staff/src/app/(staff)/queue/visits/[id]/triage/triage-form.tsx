@@ -19,9 +19,10 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import { cn } from "@healthcare/ui/lib/utils";
-import type { ServicePoint, VisitPriority } from "@/lib/api/types";
+import type { RouteTemplate, ServicePoint, VisitPriority } from "@/lib/api/types";
 import { RouteStopsEditor } from "@/components/route-stops-editor";
 import { defaultServicePoint, SERVICE_POINT_KIND_LABEL } from "@/lib/clinic-mapping";
+import { routeSummary, triageStopsFromTemplate } from "@/lib/route-template";
 import { addComplaint, COMMON_COMPLAINTS, outOfRange, RISK_FLAG_PRESETS, toggleFlag, vitalHints, type HintKey } from "@/lib/triage-flags";
 import { bmi, EMPTY_VITALS, parseRiskFlags, parseVitals, VITAL_FIELDS, type VitalField, vitalErrorsFromApi, type VitalsForm } from "@/lib/triage-form";
 import { recordTriage } from "./actions";
@@ -37,6 +38,8 @@ const PRIORITY_LABEL: Record<VisitPriority, string> = { routine: "Routine", urge
 export function TriageForm({
   visit,
   servicePoints,
+  templates,
+  offeredTemplateId,
   canConfigureServicePoints,
   ageYears,
   aside,
@@ -44,6 +47,10 @@ export function TriageForm({
   visit: { id: string; ticket: string; chiefComplaint: string; priority: VisitPriority; servicePointId: string | null; plannedStops: string[] };
   /** The facility's active service points (migration 0113), plus the visit's own if it was deactivated since (the page filters). */
   servicePoints: ServicePoint[];
+  /** Route templates the nurse may apply (migration 0116); they only fill in the route below, which stays editable. */
+  templates: RouteTemplate[];
+  /** The template the facility offers first for this visit's type; pre-selected only while no route is planned yet. */
+  offeredTemplateId: string | null;
   /** Whether to offer the link that sets service points up. */
   canConfigureServicePoints: boolean;
   /** The patient's age; the adult reference bands are not applied under 18. */
@@ -54,9 +61,12 @@ export function TriageForm({
   const router = useRouter();
   const [chiefComplaint, setChiefComplaint] = React.useState(visit.chiefComplaint);
   const [priority, setPriority] = React.useState<VisitPriority>(visit.priority);
-  const [servicePointId, setServicePointId] = React.useState(() => defaultServicePoint(servicePoints, visit.servicePointId));
+  const offered = visit.plannedStops.length === 0 && visit.servicePointId === null ? (templates.find((x) => x.id === offeredTemplateId) ?? null) : null;
+  const fromOffered = offered ? triageStopsFromTemplate(offered) : null;
+  const [templateId, setTemplateId] = React.useState(offered && fromOffered ? offered.id : "");
+  const [servicePointId, setServicePointId] = React.useState(() => fromOffered?.servicePointId ?? defaultServicePoint(servicePoints, visit.servicePointId));
   const sendTo = servicePoints.find((s) => s.id === servicePointId);
-  const [stops, setStops] = React.useState<string[]>(visit.plannedStops);
+  const [stops, setStops] = React.useState<string[]>(() => fromOffered?.stops ?? visit.plannedStops);
   const active = servicePoints.filter((s) => s.status === "active");
   const [painScore, setPainScore] = React.useState("na");
   const [flags, setFlags] = React.useState<string[]>([]);
@@ -351,6 +361,33 @@ export function TriageForm({
                 <CardTitle>Route</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
+                {templates.length > 0 ? (
+                  <div className="grid gap-1 sm:col-span-2">
+                    <Label htmlFor="routeTemplate">Route template</Label>
+                    <NativeSelect
+                      id="routeTemplate"
+                      value={templateId}
+                      placeholder="None — choose the stops below"
+                      emptyText="No route templates"
+                      onChange={(e) => {
+                        const chosen = templates.find((x) => x.id === e.target.value);
+                        setTemplateId(e.target.value);
+                        const filled = chosen ? triageStopsFromTemplate(chosen) : null;
+                        if (filled) {
+                          setServicePointId(filled.servicePointId);
+                          setStops(filled.stops);
+                        }
+                      }}
+                    >
+                      {templates.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name} · {routeSummary(x)}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <p className="text-meta text-muted-foreground">Fills in where the patient goes and the stops after it. You can still change them.</p>
+                  </div>
+                ) : null}
                 <div className="grid gap-1">
                   <Label htmlFor="servicePointId">Send to</Label>
                   <NativeSelect

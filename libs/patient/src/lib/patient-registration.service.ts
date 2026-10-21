@@ -12,6 +12,7 @@ import {
   requireFacilityId,
 } from "@healthcare/core";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { PatientQrService } from "./qr/qr.service";
 import { normalizeContact } from "./contact-normalization";
 import { assessDuplicate, type DuplicateAssessment, transposeDayMonth } from "./duplicate-detection";
 import type { DuplicateCheckInput, RegisterPatientInput } from "./patient.dto";
@@ -52,6 +53,7 @@ export class PatientRegistrationService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly qr: PatientQrService,
   ) {}
 
   /** Candidates that may be the same person, strongest first. */
@@ -176,7 +178,7 @@ export class PatientRegistrationService {
    * those candidates and gives a reason (audited). A shared identifier
    * (e.g. the same PhilHealth PIN) can never be overridden.
    */
-  async register(actor: Actor, input: RegisterPatientInput): Promise<PatientRecord> {
+  async register(actor: Actor, input: RegisterPatientInput): Promise<PatientRecord & { qrCodeIssued: boolean }> {
     const facilityId = requireFacilityId(actor);
     const contacts = input.contacts.map((c) => ({ ...c, valueNormalized: normalizeContact(c.system, c.value) }));
     const relationships = input.relationships.map((r) => ({
@@ -256,7 +258,8 @@ export class PatientRegistrationService {
           metadata: { reviewedCandidateIds: blocking.map((c) => c.patient.id) },
         });
       }
-      return created;
+      const qrCodeIssued = await this.qr.issueAtRegistration(tx, actor, created, input.issueQrCode);
+      return { ...created, qrCodeIssued };
     });
   }
 

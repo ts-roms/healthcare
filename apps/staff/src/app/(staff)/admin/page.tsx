@@ -19,6 +19,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "/admin/compliance": "Your organization's own compliance configuration and who validated it.",
   "/admin/consent-wording": "The wording patients agree to when they give consent online.",
   "/admin/privacy": "The personal data breach register, your notification window and your Data Protection Officer.",
+  "/admin/patient-qr": "Whether patients get a QR code on a card, when it is issued and what it holds.",
 };
 
 /** The administration pages open to the signed-in user (the same list as the menu). */

@@ -199,6 +199,30 @@ export function EncounterWorkspace({
     });
   };
 
+  // Any other link inside the app (the menu, the top bar, a patient in the search results) is a client-side navigation:
+  // it skips beforeunload too, so unsaved text would be lost without a word. Save the draft first, as for the links above.
+  // Set once the note is signed: until the page refreshes it still looks editable, but there is nothing left to save.
+  const signedRef = React.useRef(false);
+  const leaveRef = React.useRef(leaveTo);
+  React.useEffect(() => {
+    leaveRef.current = leaveTo;
+  });
+  React.useEffect(() => {
+    if (!dirty || !controls.editNote) return;
+    const onClick = (e: MouseEvent) => {
+      if (signedRef.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || (anchor.target && anchor.target !== "_self") || anchor.hasAttribute("download")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.search === window.location.search)) return;
+      // The link's own handlers must not run as well: one save, then one navigation.
+      e.stopPropagation();
+      leaveRef.current(`${url.pathname}${url.search}${url.hash}`)(e as unknown as React.MouseEvent);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty, controls.editNote]);
+
   // Ctrl/Cmd+S saves the draft — clinicians shouldn't need the mouse.
   const saveRef = React.useRef(save);
   React.useEffect(() => {
@@ -227,6 +251,7 @@ export function EncounterWorkspace({
         draft: dirty ? { basedOnRevision: baseRevision, ...template, ...notePayload(note) } : undefined,
       });
       if (result.ok) {
+        signedRef.current = true;
         toast.success("Encounter signed", { description: "The visit is complete." });
         setBaseRevision(latestRevision + (dirty ? 2 : 1));
         router.refresh();

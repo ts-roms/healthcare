@@ -94,6 +94,18 @@ describe("waiting-room display", () => {
     expect(body.waiting).toBe(2);
   });
 
+  it("a ticket that moves on is no longer announced at the place it was called to", async () => {
+    const moved = await ctx
+      .http()
+      .post(`/api/v1/queue/visits/${visits[0]!.id}/move`)
+      .set(as(desk, tenant.facilityId))
+      .send({ status: "in_triage", version: visits[0]!.version })
+      .expect(200);
+    expect(moved.body).toMatchObject({ status: "in_triage", calledTo: null, calledAt: null });
+    visits[0] = moved.body;
+    expect((await display(screen).expect(200)).body.calls).toEqual([]);
+  });
+
   it("is open to reception, and reading it is not audited (it holds no patient detail)", async () => {
     const before = (await ctx.pool.query<{ n: number }>("SELECT count(*)::int AS n FROM audit_event WHERE action = 'queue.view'")).rows[0]!.n;
     await display(desk).expect(200);

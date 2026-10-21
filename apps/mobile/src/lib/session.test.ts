@@ -266,9 +266,7 @@ describe("restore and sign-out", () => {
 it("words errors for patients as MyHealth on the web does", () => {
   expect(patientMessage(new TypeError("Network request failed"))).toBe("We couldn't reach MyHealth. Check your connection and try again.");
   expect(patientMessage(new ApiError(429, "rate_limited", "x"))).toBe("Too many attempts. Wait a minute, then try again.");
-  expect(patientMessage(new ApiError(401, "invalid_credentials", "Invalid email or password", "abcdef1234"))).toBe("Invalid email or password (ref abcdef12)");
-  expect(patientMessage(new ApiError(503, "unavailable", "x", "abcdef1234"))).toBe(
-    "Something went wrong on our side. Try again in a few minutes. (ref abcdef12)",
-  );
+  expect(patientMessage(new ApiError(401, "invalid_credentials", "Invalid email or password", "abcdef1234"))).toBe("Invalid email or password");
+  expect(patientMessage(new ApiError(503, "unavailable", "x", "abcdef1234"))).toBe("Something went wrong on our side. Try again in a few minutes.");
   expect(patientMessage(new SessionEndedError())).toBe("Your session has ended. Sign in again.");
 });

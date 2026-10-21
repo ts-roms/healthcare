@@ -7,7 +7,7 @@ import { ExternalLinkIcon, HandIcon, MegaphoneIcon, SendIcon, StethoscopeIcon, X
 import { clinicalTime, QueueBoard, sexLabel, WaitPill } from "@healthcare/ui/healthcare";
 import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
-import type { QueueVisit, ServicePoint } from "@/lib/api/types";
+import type { QueueVisit, RouteTemplate, ServicePoint } from "@/lib/api/types";
 import {
   canRouteVisit,
   canStartConsultation,
@@ -42,6 +42,7 @@ const PANEL_CLASS = "xl:w-[20rem] xl:shrink-0";
 export function QueueWorkspace({
   visits,
   servicePoints = [],
+  templates = [],
   autoCall = false,
   chrome,
   practitionerNames = {},
@@ -56,6 +57,8 @@ export function QueueWorkspace({
   visits: QueueVisit[];
   /** The facility's active service points (migration 0113); none = the single consultation line. */
   servicePoints?: ServicePoint[];
+  /** Route templates a nurse may apply while planning a route (migration 0116). */
+  templates?: RouteTemplate[];
   /** The facility calls the patient automatically when a route sends them on (migration 0115). */
   autoCall?: boolean;
   /** The header's facility, day and buttons. */
@@ -136,6 +139,7 @@ export function QueueWorkspace({
                   visit={selected}
                   now={now}
                   servicePoints={servicePoints}
+                  templates={templates}
                   practitionerNames={practitionerNames}
                   autoCall={autoCall}
                   canManage={canManage}
@@ -189,6 +193,7 @@ function VisitPanel({
   visit,
   now,
   servicePoints,
+  templates,
   practitionerNames,
   autoCall,
   canManage,
@@ -209,6 +214,7 @@ function VisitPanel({
   visit: QueueVisit;
   now: Date;
   servicePoints: ServicePoint[];
+  templates: RouteTemplate[];
   practitionerNames: Record<string, string>;
   autoCall: boolean;
   canManage: boolean;
@@ -341,6 +347,7 @@ function VisitPanel({
           <RoutePanel
             visit={visit}
             servicePoints={servicePoints}
+            templates={templates}
             canManage={canManage}
             autoCall={autoCall}
             pending={pending}

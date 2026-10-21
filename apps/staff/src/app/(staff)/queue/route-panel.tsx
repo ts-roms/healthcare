@@ -5,8 +5,9 @@ import { ArrowRightIcon, CheckCircle2Icon, CircleDotIcon, CircleIcon, ListOrdere
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Input, Label, NativeSelect, Textarea } from "@healthcare/ui/primitives";
 import { RouteStopsEditor } from "@/components/route-stops-editor";
-import type { QueueVisit, RouteStep, ServicePoint } from "@/lib/api/types";
+import type { QueueVisit, RouteStep, RouteTemplate, ServicePoint } from "@/lib/api/types";
 import { canRouteVisit, currentRouteStep, nextRouteStep, routeComplete } from "@/lib/clinic-mapping";
+import { routeSummary, stopsAfter } from "@/lib/route-template";
 
 /**
  * The visit's route on the ticket panel (migration 0115): the stops in order with the current one marked, **Done here,
@@ -16,6 +17,7 @@ import { canRouteVisit, currentRouteStep, nextRouteStep, routeComplete } from "@
 export function RoutePanel({
   visit,
   servicePoints,
+  templates = [],
   canManage,
   autoCall,
   pending,
@@ -25,6 +27,8 @@ export function RoutePanel({
 }: {
   visit: QueueVisit;
   servicePoints: ServicePoint[];
+  /** Route templates (migration 0116) the nurse may apply while planning; they only fill in the stops. */
+  templates?: RouteTemplate[];
   canManage: boolean;
   /** The facility calls the patient automatically when a route sends them on. */
   autoCall: boolean;
@@ -162,6 +166,27 @@ export function RoutePanel({
             The stops after {after ? (servicePoints.find((s) => s.id === after)?.name ?? "the current one") : "the consultation line"}, in order. Replaces the
             planned stops; what is done stays.
           </p>
+          {templates.length > 0 ? (
+            <div className="grid gap-1">
+              <Label htmlFor="route-plan-template">Route template</Label>
+              <NativeSelect
+                id="route-plan-template"
+                value=""
+                placeholder="Fill in from a template…"
+                emptyText="No route templates"
+                onChange={(e) => {
+                  const chosen = templates.find((x) => x.id === e.target.value);
+                  if (chosen) setStops(stopsAfter(chosen, after));
+                }}
+              >
+                {templates.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name} · {routeSummary(x)}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+          ) : null}
           <RouteStopsEditor id="route-plan-stop" servicePoints={servicePoints} stops={stops} after={after} disabled={pending} onChange={setStops} />
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={pending || stops.length === 0}>

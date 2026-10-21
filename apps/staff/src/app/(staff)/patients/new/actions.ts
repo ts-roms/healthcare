@@ -3,11 +3,11 @@
 import { unstable_rethrow } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { ApiError, userMessage } from "@healthcare/web-session";
-import type { DuplicateCandidate, RegisteredPatient } from "@/lib/api/types";
+import type { DuplicateCandidate, PortalInvitation, RegisteredPatient } from "@/lib/api/types";
 import { type DuplicateOverride, fieldErrorsFromApi, type RegistrationForm, registrationFormSchema, toRegisterPayload } from "@/lib/patient-registration";
 
 export type RegisterResult =
-  | { ok: true; patient: RegisteredPatient }
+  | { ok: true; patient: RegisteredPatient; portalInvitation?: PortalInvitation; portalError?: string }
   | { ok: false; kind: "duplicates"; candidates: DuplicateCandidate[]; message: string }
   | { ok: false; kind: "invalid"; fieldErrors: Partial<Record<keyof RegistrationForm, string>>; message: string }
   | { ok: false; kind: "error"; message: string };
@@ -32,6 +32,21 @@ export async function registerPatient(form: RegistrationForm, idempotencyKey: st
       body: toRegisterPayload(parsed.data, override),
       idempotencyKey,
     });
+    // MyHealth access given with the registration: the patient's consent (as confirmed by the registering person), then the
+    // activation code, shown once. Each step is its own API call with its own permission; a refusal leaves the registration.
+    if (parsed.data.portalAccess) {
+      try {
+        await api(`/patients/${patient.id}/consents`, {
+          method: "POST",
+          body: { consentType: "portal_access", decision: "granted", capturedVia: parsed.data.portalConsentVia ?? "paper" },
+        });
+        const portalInvitation = await api<PortalInvitation>(`/patients/${patient.id}/portal-account/invitations`, { method: "POST" });
+        return { ok: true, patient, portalInvitation };
+      } catch (error) {
+        unstable_rethrow(error);
+        return { ok: true, patient, portalError: userMessage(error) };
+      }
+    }
     return { ok: true, patient };
   } catch (error) {
     // Let Next's redirect (e.g. the session ended) propagate.

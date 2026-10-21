@@ -53,7 +53,7 @@ export class PatientController {
   @ApiOperation({ summary: "Register a patient at the current facility (409 possible_duplicates if matches need review)" })
   async register(@CurrentActor() actor: Actor, @Body() body: RegisterPatientDto) {
     const created = await this.registration.register(actor, body);
-    return { id: created.id, patientNumber: created.patientNumber, version: created.version };
+    return { id: created.id, patientNumber: created.patientNumber, version: created.version, qrCodeIssued: created.qrCodeIssued };
   }
 
   @Get(":patientId")

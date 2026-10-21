@@ -3,7 +3,8 @@ import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { ServicePoint, ServicePointSettings } from "@/lib/api/types";
+import type { RouteTemplate, ServicePoint, ServicePointSettings, VisitType } from "@/lib/api/types";
+import { RouteTemplates } from "./route-templates";
 import { RoutingSettings } from "./routing-settings";
 import { ServicePointList } from "./service-point-list";
 
@@ -24,9 +25,11 @@ export default async function ServicePointsPage() {
       </>
     );
   }
-  const [servicePoints, settings] = await Promise.all([
+  const [servicePoints, settings, templates, visitTypes] = await Promise.all([
     api<ServicePoint[]>("/clinic/service-points", { query: { facilityId: facility.id, includeInactive: "true" } }),
     api<ServicePointSettings>("/clinic/service-point-settings", { query: { facilityId: facility.id } }),
+    api<RouteTemplate[]>("/clinic/route-templates", { query: { facilityId: facility.id, includeInactive: "true" } }),
+    api<VisitType[]>("/clinic/visit-types").then((all) => all.filter((v) => v.status === "active" && v.modality === "in_person")),
   ]);
   return (
     <>
@@ -36,6 +39,7 @@ export default async function ServicePointsPage() {
       />
       <ServicePointList facilityId={facility.id} servicePoints={servicePoints} />
       <RoutingSettings key={settings.version ?? 0} settings={settings} />
+      <RouteTemplates facilityId={facility.id} templates={templates} servicePoints={servicePoints} visitTypes={visitTypes} />
     </>
   );
 }

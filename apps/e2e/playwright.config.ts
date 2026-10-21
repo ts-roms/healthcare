@@ -27,7 +27,18 @@ const apiEnv = {
   // MyHealth's address: the relying party of its passkeys (journey 7) and the links in its emails.
   PORTAL_BASE_URL: PORTAL_URL,
   TRUST_PROXY: "true",
+  // Object storage for stored documents (referral letters, copies of the record): the development compose service with
+  // its own bucket, so a run never fills the development bucket. `docker compose up` creates it with
+  // `aws s3 mb s3://healthcare-documents-e2e` (docs/deployment/local-development.md). Without it those journeys skip.
+  S3_ENDPOINT: process.env.E2E_S3_ENDPOINT ?? "http://localhost:9000",
+  S3_REGION: "ap-southeast-1",
+  S3_BUCKET: process.env.E2E_S3_BUCKET ?? "healthcare-documents-e2e",
+  S3_ACCESS_KEY_ID: process.env.E2E_S3_ACCESS_KEY_ID ?? "healthcare",
+  S3_SECRET_ACCESS_KEY: process.env.E2E_S3_SECRET_ACCESS_KEY ?? "healthcare-dev-secret",
+  S3_FORCE_PATH_STYLE: "true",
 };
+// The journeys that need stored documents check this (they skip when it is empty).
+process.env.S3_ENDPOINT = apiEnv.S3_ENDPOINT;
 // No video server: online consultations run without video (the clinician can call the patient's number). Nx loads a
 // developer's .env into this process, and the web servers inherit it, so drop any video settings from it.
 for (const key of ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) delete process.env[key];

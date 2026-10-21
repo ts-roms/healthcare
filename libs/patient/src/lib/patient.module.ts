@@ -24,6 +24,8 @@ import { PatientRecordService } from "./patient-record.service";
 import { PatientReportingQueries } from "./patient-reporting.queries";
 import { PatientRegistrationService } from "./patient-registration.service";
 import { PatientSearchService } from "./patient-search.service";
+import { PatientQrController } from "./qr/qr.controller";
+import { PatientQrService } from "./qr/qr.service";
 import { PatientAccessGuard } from "./portal/patient-access.guard";
 import { PatientPortalAccountController, PortalController } from "./portal/portal.controller";
 import { PortalAccountService } from "./portal/portal-account.service";
@@ -39,6 +41,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
   imports: [JwtModule.register({}), OrganizationModule],
   controllers: [
     PatientController,
+    PatientQrController,
     PortalController,
     PatientPortalAccountController,
     RecordsRequestController,
@@ -58,6 +61,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientTimelineQueries,
     PatientReportingQueries,
     PatientRegistrationService,
+    PatientQrService,
     PatientSearchService,
     PortalAccountService,
     PortalTokenService,
@@ -82,6 +86,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientTimelineQueries,
     PatientReportingQueries,
     PatientRegistrationService,
+    PatientQrService,
     PortalAccountService,
     PatientAccessGuard,
     RecordsRequestService,

@@ -91,6 +91,35 @@ export const updateServicePointSchema = z.object({
 });
 export class UpdateServicePointDto extends createZodDto(updateServicePointSchema) {}
 
+// ---- Route templates (migration 0116) ------------------------------------------------------------------
+
+export const routeTemplatesQuerySchema = z.object({ facilityId: z.string().uuid(), includeInactive: z.enum(["true", "false"]).optional() });
+export class RouteTemplatesQueryDto extends createZodDto(routeTemplatesQuerySchema) {}
+
+const templateStops = z.array(z.string().uuid()).min(1).max(10);
+const templateDefaults = z.array(z.string().uuid()).max(100);
+
+export const createRouteTemplateSchema = z.object({
+  facilityId: z.string().uuid(),
+  code,
+  name: text(120),
+  /** The stops in order: the first is where the patient is sent, the others follow it. */
+  servicePointIds: templateStops,
+  /** Visit types this template is offered first for at the facility. */
+  defaultForVisitTypeIds: templateDefaults.optional(),
+});
+export class CreateRouteTemplateDto extends createZodDto(createRouteTemplateSchema) {}
+
+/** Rename, change the stops (they replace the list; routes already planned are untouched), deactivate, or set the visit types it is offered for. */
+export const updateRouteTemplateSchema = z.object({
+  name: text(120).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  servicePointIds: templateStops.optional(),
+  defaultForVisitTypeIds: templateDefaults.optional(),
+  version: z.number().int().positive(),
+});
+export class UpdateRouteTemplateDto extends createZodDto(updateRouteTemplateSchema) {}
+
 // ---- Routing settings per facility and visit routes (migration 0115) -------------------------------------
 
 export const servicePointSettingsQuerySchema = z.object({ facilityId: z.string().uuid() });

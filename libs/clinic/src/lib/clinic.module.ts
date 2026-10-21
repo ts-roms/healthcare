@@ -42,6 +42,7 @@ import { PROCEDURE_STAFF_NAMES, PROCEDURE_SUPPLIES, type ProcedureSupplies } fro
 import { ProcedureSuppliesService } from "./procedures/procedure-supplies.service";
 import { ClinicProcedureController } from "./procedures/procedure.controller";
 import { ClinicProcedureService } from "./procedures/procedure.service";
+import { RouteTemplateService } from "./config/route-template.service";
 import { ServicePointService } from "./config/service-point.service";
 import { VisitRouteService } from "./queue/visit-route.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
@@ -106,6 +107,7 @@ export class ClinicModule {
         WaitlistOffersService,
         WaitlistNotices,
         ServicePointService,
+        RouteTemplateService,
         VisitRouteService,
         TriageService,
         VisitService,

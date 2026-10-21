@@ -41,14 +41,33 @@ Always search first. Registration also checks for existing records, but searchin
    and **Birth date \***. If the exact date is unknown, tick **Estimated (exact date unknown)**.
 4. Fill in **Contact & identifiers** if you have them: **Mobile** (e.g. `0917 123 4567`), **Email**, **PhilHealth PIN** (12 digits, e.g. `12-345678901-2`),
    **City / municipality**, **Barangay** and **Province**.
-5. Select **Register patient**.
-6. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
+5. If your clinic uses patient QR codes, the **Patient card** box offers **Issue a patient QR code** (ticked as your clinic set it). Untick it for a patient who does not want a card.
+6. Select **Register patient**.
+   If **MyHealth access** is shown, **Give MyHealth access now** records the patient's portal consent and shows an activation code once after registering: tick it only when the patient has agreed (signed paper form or verbal agreement).
+7. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
 
 If you don't see **Register patient**, you need the `patient.register` permission (receptionists, nurses, physicians, dentists and dental assistants have it by
 default).
 
 > An address needs its **City / municipality**. If you enter a barangay or province without one, the form asks for it ("Enter the city or
 > municipality to save the address") instead of registering the patient without the address.
+
+## How to use patient QR codes
+
+A QR code on a card or wristband lets you find a patient by scanning instead of typing. The code holds only a random key: no name, health or contact details, and it
+opens nothing by itself. Your clinic decides whether to use codes (**Administration → Patient QR codes**, administrators).
+
+- **Print a card.** Open the patient, choose the **MyHealth** tab, then **Print card** under **Patient QR code**. Give the card to the patient. If the patient has no
+  code yet (registered before codes were turned on, or declined), select **Issue QR code** first.
+- **Card with a MyHealth link.** If your clinic uses this kind, invite the patient to MyHealth first (see below) and give them the card and the activation code.
+  They scan the card with their phone: their date of birth and email are already filled in, and they enter the code and choose their own password.
+- **Scan.** On **Patients**, select **Scan QR code**. Scan with the hand-held scanner (click in the field first) or choose **Use the camera**. Select **Open record**
+  or **Check in**. Every scan is recorded.
+- **New code.** **Regenerate…** replaces the code in one step (give a reason): the old card stops working at once and the new one follows your clinic's current setting. Print the new card afterwards.
+- **Lost card.** On the same card select **Revoke (lost card)…**, give the reason, then **Issue QR code** for a new one. A revoked card is refused at the next
+  scan ("This QR code was revoked"); ask the patient for another form of identification.
+
+You need the `patient.qr.issue` permission to print, issue and revoke, and `patient.search` to scan.
 
 ## How to review possible duplicates
 

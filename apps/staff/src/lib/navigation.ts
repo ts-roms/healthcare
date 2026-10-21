@@ -35,6 +35,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
     "consent.wording.manage",
     "clinic.configure",
     "privacy.incident.manage",
+    "patient.qr.manage",
   ],
 };
 
@@ -74,6 +75,7 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   "/admin/compliance": ["compliance.review.manage"],
   "/admin/consent-wording": ["consent.wording.manage"],
   "/admin/privacy": ["privacy.incident.manage"],
+  "/admin/patient-qr": ["patient.qr.manage"],
 };
 
 /**

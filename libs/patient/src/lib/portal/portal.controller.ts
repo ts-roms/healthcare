@@ -7,6 +7,7 @@ import { AllowDuringPortalMfaEnrollment, CurrentPatient, PatientAccessGuard, Pro
 import {
   DisablePortalAccountDto,
   PortalActivateDto,
+  PortalCardDto,
   PortalLoginDto,
   PortalPasswordResetConfirmDto,
   PortalPasswordResetRequestDto,
@@ -14,6 +15,7 @@ import {
 } from "./portal.dto";
 import { type PortalPrincipal, PortalAccountService } from "./portal-account.service";
 import { PortalPasswordResetService } from "./portal-password-reset.service";
+import { PatientQrService } from "../qr/qr.service";
 import { PortalMfaService } from "../security/portal-mfa.service";
 
 // Credential endpoints get the same tight rate limit as staff sign-in.
@@ -26,6 +28,7 @@ export class PortalController {
   constructor(
     private readonly accounts: PortalAccountService,
     private readonly passwordReset: PortalPasswordResetService,
+    private readonly qr: PatientQrService,
   ) {}
 
   @Post("auth/password-reset/request")
@@ -47,6 +50,16 @@ export class PortalController {
   @ApiOperation({ summary: "Choose a new password with the emailed token and the patient's date of birth; signs the account out everywhere" })
   async confirmPasswordReset(@Body() body: PortalPasswordResetConfirmDto, @Req() request: Request): Promise<void> {
     await this.passwordReset.confirm(body, requestMetadataFrom(request));
+  }
+
+  @Post("auth/activation-card")
+  @Public()
+  @PlatformScope("MyHealth activation from a card")
+  @HttpCode(200)
+  @Throttle(CREDENTIAL_THROTTLE)
+  @ApiOperation({ summary: "A scanned patient card with a MyHealth link names the patient number to activate (open invitations only; nothing is granted)" })
+  activationCard(@Body() body: PortalCardDto, @Req() request: Request) {
+    return this.qr.activationFromCard(body.organizationCode, body.payload, requestMetadataFrom(request));
   }
 
   @Post("auth/activate")

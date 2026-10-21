@@ -669,7 +669,8 @@ async function seedToday(
       );
       booked.push(result[0]!.id);
     } catch (error) {
-      if (!(error instanceof ApiError && error.status === 409)) throw error;
+      // Already booked by an earlier run (the next open slot has moved on, so the same key now names another request).
+      if (!(error instanceof ApiError && (error.status === 409 || error.code === "idempotency_key_reused"))) throw error;
     }
   }
   // Tomorrow and the day after: a few more bookings so the schedule and calendar look alive.
@@ -723,27 +724,39 @@ async function seedToday(
     });
   }
 
+  // A patient still open in the queue from an earlier day is left as it is (`already_in_queue`).
+  const unlessQueued = async (work: () => Promise<unknown>) => {
+    try {
+      await work();
+    } catch (error) {
+      if (!(error instanceof ApiError && error.code === "already_in_queue")) throw error;
+    }
+  };
   if (!visitOf(patients.delacruz!)) {
-    const walkIn = await call<{ id: string }>(desk, "POST", "/queue/walk-ins", {
-      patientId: patients.delacruz!.id,
-      visitTypeId: config.visitTypes.consult,
-      priority: "urgent",
-      chiefComplaint: "Chest pain since this morning",
-    });
-    await call(nurse, "POST", `/queue/visits/${walkIn.id}/triage`, {
-      chiefComplaint: "Chest pain radiating to the left arm",
-      priority: "emergency",
-      riskFlags: ["cardiac"],
-      vitals: { systolicMmhg: 162, diastolicMmhg: 98, heartRateBpm: 108, temperatureC: 36.9, spo2Percent: 95 },
-      servicePointId: config.servicePoints.er,
+    await unlessQueued(async () => {
+      const walkIn = await call<{ id: string }>(desk, "POST", "/queue/walk-ins", {
+        patientId: patients.delacruz!.id,
+        visitTypeId: config.visitTypes.consult,
+        priority: "urgent",
+        chiefComplaint: "Chest pain since this morning",
+      });
+      await call(nurse, "POST", `/queue/visits/${walkIn.id}/triage`, {
+        chiefComplaint: "Chest pain radiating to the left arm",
+        priority: "emergency",
+        riskFlags: ["cardiac"],
+        vitals: { systolicMmhg: 162, diastolicMmhg: 98, heartRateBpm: 108, temperatureC: 36.9, spo2Percent: 95 },
+        servicePointId: config.servicePoints.er,
+      });
     });
   }
   if (!visitOf(patients.dizon!)) {
-    await call(desk, "POST", "/queue/walk-ins", {
-      patientId: patients.dizon!.id,
-      visitTypeId: config.visitTypes.consult,
-      chiefComplaint: "Cough and colds, 3 days",
-    });
+    await unlessQueued(() =>
+      call(desk, "POST", "/queue/walk-ins", {
+        patientId: patients.dizon!.id,
+        visitTypeId: config.visitTypes.consult,
+        chiefComplaint: "Cough and colds, 3 days",
+      }),
+    );
   }
 
   // The consultation: Dr. Santos sees Maria Santos — note, diagnosis, prescription, laboratory order — and signs.

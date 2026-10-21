@@ -295,6 +295,50 @@ export const visitRouteStep = pgTable("visit_route_step", {
 });
 export type VisitRouteStepRecord = typeof visitRouteStep.$inferSelect;
 
+/**
+ * A route a facility plans again and again (migration 0116): its stops in order. Only a recipe — applying it writes an
+ * ordinary visit route, and editing it never changes a route already planned.
+ */
+export const routeTemplate = pgTable("route_template", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type RouteTemplateRecord = typeof routeTemplate.$inferSelect;
+
+export const routeTemplateStep = pgTable(
+  "route_template_step",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    facilityId: uuid("facility_id").notNull(),
+    routeTemplateId: uuid("route_template_id").notNull(),
+    position: integer("position").notNull(),
+    servicePointId: uuid("service_point_id").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.routeTemplateId, table.position] })],
+);
+
+/** The template offered first for a visit type at a facility (migration 0116). */
+export const routeTemplateDefault = pgTable(
+  "route_template_default",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    facilityId: uuid("facility_id").notNull(),
+    visitTypeId: uuid("visit_type_id").notNull(),
+    routeTemplateId: uuid("route_template_id").notNull(),
+    updatedBy: uuid("updated_by").notNull(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.facilityId, table.visitTypeId] })],
+);
+
 /** One move of a visit between service points (from null = the consultation line it started on); append-only. */
 export const visitRouting = pgTable("visit_routing", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -52,7 +52,7 @@ export async function portalPage(browser: Browser, email: string, errors: string
   watchErrors(page, email, errors);
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PATIENT_PASSWORD);
+  await page.getByLabel("Password", { exact: true }).fill(PATIENT_PASSWORD);
   await Promise.all([page.waitForURL((url) => !url.pathname.startsWith("/login")), page.getByRole("button", { name: "Sign in" }).click()]);
   return page;
 }

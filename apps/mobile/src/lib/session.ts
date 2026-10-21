@@ -85,6 +85,23 @@ export class PatientSession {
     return "signed_in";
   }
 
+  /**
+   * A scanned patient card: which patient number it is for (only while the clinic's invitation is open). Grants nothing:
+   * `activate` still needs the date of birth and the clinic's one-time code.
+   */
+  async activationCard(key: string): Promise<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }> {
+    return this.postPublic<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }>("/portal/auth/activation-card", {
+      organizationCode: this.options.organizationCode,
+      payload: key,
+    });
+  }
+
+  /** First sign-in with the clinic's activation code: sets the patient's own email and password, and signs in. */
+  async activate(input: { patientNumber: string; birthDate: string; activationCode: string; email: string; password: string }): Promise<void> {
+    const tokens = await this.postPublic<PortalTokenResponse>("/portal/auth/activate", { organizationCode: this.options.organizationCode, ...input });
+    await this.start(tokens);
+  }
+
   /** The second step: a code from the authenticator app, or a recovery code. */
   async verifyCode(code: string): Promise<void> {
     if (!this.challenge) throw new ApiError(401, "challenge_missing", "Your sign-in took too long. Enter your password again.");

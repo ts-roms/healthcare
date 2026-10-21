@@ -196,6 +196,38 @@ export interface RegisteredPatient {
   id: string;
   patientNumber: string;
   version: number;
+  /** A QR code was issued with the registration (the organization's setting, unless the registering person declined). */
+  qrCodeIssued?: boolean;
+}
+
+// ---- Patient QR codes (docs/domains/patient.md) ------------------------------------------------------------------------
+
+export type PatientQrContent = "token" | "patient_number" | "portal_link";
+
+export interface PatientQrSetting {
+  enabled: boolean;
+  issueAtRegistration: boolean;
+  inviteAtRegistration: boolean;
+  content: PatientQrContent;
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface PatientQrCode {
+  id: string;
+  status: "active" | "revoked";
+  content: PatientQrContent;
+  issuedVia: "registration" | "patient_record";
+  issuedAt: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+}
+
+export interface PatientQrState {
+  enabled: boolean;
+  /** `payload` is what the code encodes; draw it, never log it. */
+  active: (PatientQrCode & { payload: string }) | null;
+  history: PatientQrCode[];
 }
 
 // ---- Patient 360 summary (GET /patients/:id/summary; needs patient.read + clinical.read) -----------
@@ -427,7 +459,7 @@ export interface QueueVisit {
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint" | "route">;
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint" | "route"> & { visitTypeId: string };
 
 // ---- Service points (migration 0113) -----------------------------------------------------------------
 
@@ -449,6 +481,23 @@ export interface ServicePoint {
 }
 
 export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind" | "location">;
+
+/** `GET /clinic/route-templates` (migration 0116): the stops a facility plans again and again, applied to a visit's route by a person. */
+export interface RouteTemplate {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  steps: ServicePointBrief[];
+  /** Active, and every stop is still an active service point. */
+  usable: boolean;
+  /** Visit types this template is offered first for at the facility. */
+  defaultForVisitTypeIds: string[];
+}
 
 /** `GET /clinic/service-point-settings` (migration 0115); `version` is null while the facility uses the defaults. */
 export interface ServicePointSettings {

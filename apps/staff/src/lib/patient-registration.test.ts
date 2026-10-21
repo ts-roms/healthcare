@@ -50,6 +50,12 @@ describe("toRegisterPayload", () => {
     const override = { reviewedCandidateIds: ["8c7b1a6e-1111-4c2b-9d9e-000000000001"], reason: "Twin brother" };
     expect(toRegisterPayload(base, override).duplicateOverride).toEqual(override);
   });
+
+  it("asks for a QR code only when the form says so, so the organization's setting applies otherwise", () => {
+    expect(toRegisterPayload(base)).not.toHaveProperty("issueQrCode");
+    expect(toRegisterPayload({ ...base, issueQrCode: false }).issueQrCode).toBe(false);
+    expect(toRegisterPayload({ ...base, issueQrCode: true }).issueQrCode).toBe(true);
+  });
 });
 
 describe("fieldErrorsFromApi", () => {

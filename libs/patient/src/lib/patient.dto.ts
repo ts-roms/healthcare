@@ -118,6 +118,8 @@ export const registerPatientSchema = demographics.extend({
    * a different person, send the reviewed candidate ids and a reason.
    */
   duplicateOverride: z.object({ reviewedCandidateIds: z.array(z.string().uuid()).min(1), reason }).optional(),
+  /** Issue a QR code with the registration: leave out to follow the organization's setting; ignored while QR codes are off. */
+  issueQrCode: z.boolean().optional(),
 });
 export class RegisterPatientDto extends createZodDto(registerPatientSchema) {}
 
