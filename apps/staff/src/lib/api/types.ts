@@ -5396,3 +5396,16 @@ export interface ConsentSignatureRequest {
   signedDocumentId: string | null;
   cancelReason: string | null;
 }
+
+/** The signed-in practitioner's own signature (GET /me/practitioner-signature). */
+export interface MyPractitionerSignature {
+  practitioner: { id: string; displayName: string } | null;
+  enabled: boolean;
+  signature: { id: string; drawnAt: string; strokes: number[][][] } | null;
+}
+
+/** Whether certificates and referral letters print the issuing practitioner's signature. */
+export interface PractitionerSignatureSetting {
+  enabled: boolean;
+  version: number;
+}

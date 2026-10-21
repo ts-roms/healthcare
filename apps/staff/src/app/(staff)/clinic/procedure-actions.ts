@@ -4,7 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { ClinicProcedure, ConsentSignatureRequest, ConsentSigningSetting, ProcedureConsentWording, ProcedureDefinition, SupplyUse } from "@/lib/api/types";
+import type {
+  ClinicProcedure,
+  ConsentSignatureRequest,
+  ConsentSigningSetting,
+  PractitionerSignatureSetting,
+  ProcedureConsentWording,
+  ProcedureDefinition,
+  SupplyUse,
+} from "@/lib/api/types";
 import {
   type ConsentWordingForm,
   consentPayload,
@@ -264,5 +272,13 @@ export async function cancelConsentSignatureRequest(requestId: string, patientId
     api<ConsentSignatureRequest>(`/consent-signature-requests/${requestId}/cancel`, { method: "POST", body: { reason: trimmed } }),
   );
   if (result.ok) revalidatePath(`/patients/${patientId}/procedures`);
+  return result;
+}
+
+/** Turns printing practitioners' signatures on certificates and referral letters on or off (clinic.configure). */
+export async function savePractitionerSignatureSetting(input: { enabled: boolean; version: number }): Promise<ActionResult<PractitionerSignatureSetting>> {
+  if (typeof input.enabled !== "boolean" || !Number.isInteger(input.version) || input.version < 0) return { ok: false, message: "Check the setting." };
+  const result = await actionResult(() => api<PractitionerSignatureSetting>("/clinic/practitioner-signature/settings", { method: "PUT", body: input }));
+  if (result.ok) revalidatePath("/clinic/signatures");
   return result;
 }

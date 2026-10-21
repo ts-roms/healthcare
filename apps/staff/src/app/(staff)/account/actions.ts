@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
+import type { MyPractitionerSignature } from "@/lib/api/types";
 import { normalizeSecondFactor, SECOND_FACTOR_HINT } from "@/lib/second-factor";
 
 // The signed-in person's own credentials. Shapes are checked here only to fail fast; the API checks the current
@@ -67,4 +68,30 @@ export async function turnOffTwoStep(password: string, input: string): Promise<A
   const result = await actionResult(() => api<void>("/auth/mfa/disable", { method: "POST", body: { password, code: secondFactor } }));
   if (result.ok) revalidatePath("/", "layout");
   return result.ok ? { ok: true, data: null } : result;
+}
+
+const strokesSchema = z
+  .array(
+    z
+      .array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]))
+      .min(1)
+      .max(3000),
+  )
+  .min(1, "Draw your signature first.")
+  .max(64);
+
+/** Saves the signed-in practitioner's own signature (replacing the one in force; documents already issued keep theirs). */
+export async function drawMySignature(strokes: number[][][]): Promise<ActionResult<MyPractitionerSignature>> {
+  const parsed = strokesSchema.safeParse(strokes);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Draw your signature again." };
+  const result = await actionResult(() => api<MyPractitionerSignature>("/me/practitioner-signature", { method: "PUT", body: { strokes: parsed.data } }));
+  if (result.ok) revalidatePath("/account");
+  return result;
+}
+
+/** Removes the signed-in practitioner's signature: documents issued from now on print none. */
+export async function withdrawMySignature(): Promise<ActionResult<MyPractitionerSignature>> {
+  const result = await actionResult(() => api<MyPractitionerSignature>("/me/practitioner-signature/withdraw", { method: "POST" }));
+  if (result.ok) revalidatePath("/account");
+  return result;
 }
