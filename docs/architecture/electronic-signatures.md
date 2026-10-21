@@ -1,6 +1,6 @@
 # Electronic signatures — scope (proposal)
 
-Status: **phases 1 and 2 built** (migrations `0120`, `0121`; phase 3 is a proposal). No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
+Status: **phases 1, 2 and 3 built** (migrations `0120`, `0121`, `0122`). No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
 or a typed acknowledgement is valid for a given document is the organization's decision with its legal adviser (register it in
 `docs/security/compliance-dependencies.md` when the first phase is built).
 
@@ -41,11 +41,15 @@ Patient reviews and signs the same document in MyHealth when the clinic sends it
 `portal_account`, with the portal session and a fresh password or passkey check as identity evidence. Reuses the dental online-decision pattern (the
 organization's own acknowledgement text, channel and account recorded).
 
-## Phase 3 — practitioner signature on certificates and letters
+## Phase 3 — practitioner signature on certificates and letters (built, migration `0122`)
 
-Store a practitioner's signature image (their own, uploaded once, `document` of category `signature`) and print it on medical certificates and referral letters
-at issue time. Cosmetic only unless the organization decides otherwise: the authentication of the issuer remains the real control. Decide with the organization
-before building; some may prefer none.
+A practitioner draws their own signature once under **My account** (strokes in a 3:1 box, like phase 1; no image upload, so no file to scan or store) — only
+they set, see or remove it (`GET|PUT /me/practitioner-signature`, `POST /me/practitioner-signature/withdraw`; audited `practitioner.signature-draw|withdraw`,
+ids only). The organization decides whether documents print it (`practitioner_signature_setting`, off by default; `GET|PUT /clinic/practitioner-signature/settings`,
+`clinic.configure`; staff `/clinic/signatures`). When it is on, the medical certificates and referral letters a practitioner issues carry the signature in force **at
+the moment they are issued**: its id is recorded on the certificate or referral (`practitioner_signature_id`, kept immutable by the tables' guards) and the stored copy
+is drawn from that record, so a new or withdrawn signature never changes an issued document (earlier signatures stay, withdrawn, for the documents that printed
+them). The mark is cosmetic — who issued each document is recorded either way, and nothing here is a cryptographic or legally qualified signature.
 
 ## Risks and decisions needed
 

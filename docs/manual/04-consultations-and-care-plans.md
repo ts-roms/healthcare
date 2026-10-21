@@ -193,6 +193,9 @@ Certificates are issued once the consultation is signed — in person or online 
 4. Select **Issue certificate**. It gets a number (`MC########`); select **Print** for the printed copy with your name and license number. The
    patient can also download it in MyHealth (**Documents**) and gets a message that it is ready — without the findings.
 
+If your clinic prints signatures and you drew yours under **My account**, the certificate (and the referral letters you issue) shows it above your name;
+it is the one you had when the document was issued, so drawing a new one later does not change earlier documents.
+
 An issued certificate cannot be edited. If it is wrong, select **Void…**, give the reason and issue a new one. The issuing practitioner, or staff
 who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
 an employer, school or agency may require — write what they need in your own words.

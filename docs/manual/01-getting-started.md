@@ -94,6 +94,8 @@ Open the **Account menu** (your initials in the top bar) and choose **My account
   phone, and click **I have saved them**. From then on, signing in also asks for a code. Each code works once: if a code is refused, wait for the
   next one the app shows. To turn it off, click **Turn off…** and enter your password and a current code (or a recovery code). If your
   organization requires two-step verification, the page says so and it cannot be turned off.
+- **My signature** (practitioners only): draw your signature in the box with a finger, a pen or the mouse and click **Save signature**; **Remove it** takes it away.
+  When your clinic prints signatures, the medical certificates and referral letters you issue from then on carry it above your name.
 - **Recovery codes:** without your phone, type a recovery code instead of the 6 digits when signing in; each works once. **My account** shows how
   many are left. **New recovery codes…** (your password and a code from the app) makes a new set, and the old ones stop working.
 
