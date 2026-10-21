@@ -57,6 +57,6 @@ test("the desk captures a registration, a walk-in and vital signs offline and th
   await expect(admin.getByText(/patient no\. /)).toBeVisible();
 
   await admin.goto("/queue");
-  await expect(admin.getByText("OFFLINE, Oscar")).toBeVisible();
+  await expect(admin.getByRole("button", { name: /OFFLINE, Oscar/ })).toBeVisible();
   expect(errors).toEqual([]);
 });

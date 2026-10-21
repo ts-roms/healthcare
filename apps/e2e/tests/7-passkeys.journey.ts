@@ -76,7 +76,7 @@ test("a patient adds a passkey and signs in with it instead of a code", async ({
   await page.context().clearCookies();
   await page.goto("/login");
   await page.getByLabel("Email").fill(patient.email);
-  await page.getByLabel("Password").fill(PATIENT_PASSWORD);
+  await page.getByLabel("Password", { exact: true }).fill(PATIENT_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText(/Now use your passkey/)).toBeVisible();
   await Promise.all([page.waitForURL((url) => !url.pathname.startsWith("/login")), page.getByRole("button", { name: "Use a passkey" }).click()]);
