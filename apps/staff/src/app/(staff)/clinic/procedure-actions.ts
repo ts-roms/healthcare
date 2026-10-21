@@ -82,6 +82,41 @@ export async function recordProcedureConsent(input: z.input<typeof consentSchema
   return result;
 }
 
+const signSchema = z
+  .object({
+    definitionId: z.uuid(),
+    patientId: z.uuid(),
+    requestId: z.uuid(),
+    signerKind: z.enum(["patient", "representative"]),
+    signerName: z.string().trim().min(2, "Give the signer's name.").max(200),
+    signerRelationship: z.string().trim().min(2).max(100).optional(),
+    identityCheck: z.string().trim().min(3, "Say how the signer was identified.").max(500),
+    strokes: z
+      .array(
+        z
+          .array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]))
+          .min(1)
+          .max(3000),
+      )
+      .min(1)
+      .max(64),
+  })
+  .refine((v) => v.signerKind === "patient" || v.signerRelationship, { message: "Give the representative's relationship.", path: ["signerRelationship"] });
+/** Signs the consent form on screen: the signed form is stored as a consent form document of the patient (procedure.record). */
+export async function signConsentForm(input: z.input<typeof signSchema>): Promise<ActionResult<{ documentId: string; signatureId: string; signedAt: string }>> {
+  const parsed = signSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the signature." };
+  const { definitionId, ...body } = parsed.data;
+  const result = await actionResult(() =>
+    api<{ documentId: string; signatureId: string; signedAt: string }>(`/clinic/procedure-definitions/${definitionId}/consent-form/sign`, {
+      method: "POST",
+      body,
+    }),
+  );
+  // Nothing is revalidated here: the form is still open and links the new document; recording the procedure refreshes the page.
+  return result;
+}
+
 /** Publishes the next version of the organization's consent wording for a catalogue entry (clinic.configure). */
 export async function publishConsentWording(definitionId: string, form: ConsentWordingForm): Promise<ActionResult<ProcedureConsentWording>> {
   if (!uuid.safeParse(definitionId).success) return { ok: false, message: "Invalid request." };

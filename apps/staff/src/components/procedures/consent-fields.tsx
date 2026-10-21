@@ -6,6 +6,7 @@ import { Button, Checkbox, DateTimeInput, Input, Label, NativeSelect, Textarea }
 import type { ConsentFormDocument } from "@/lib/api/procedures";
 import type { ProcedureConsentWording } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
+import { ConsentSigning } from "./consent-signing";
 import type { ProcedureForm } from "@/lib/procedure-form";
 
 export const CAPTURED_VIA_LABEL = { paper: "Signed on paper", electronic: "Electronically (wording shown)", verbal: "In words (verbal)" } as const;
@@ -24,6 +25,7 @@ export function ConsentFields({
   documents,
   required,
   showToggle = true,
+  signing = null,
 }: {
   id: string;
   form: ProcedureForm;
@@ -36,6 +38,8 @@ export function ConsentFields({
   documents: ConsentFormDocument[] | null;
   required: boolean;
   showToggle?: boolean;
+  /** Offer to sign the form on screen: the catalogue entry (with a published wording) and the patient. */
+  signing?: { definitionId: string; patientId: string } | null;
 }) {
   const given = form.consentGiven || required;
   return (
@@ -115,6 +119,7 @@ export function ConsentFields({
               </div>
             </>
           ) : null}
+          {signing && wording ? <ConsentSigning id={id} definitionId={signing.definitionId} patientId={signing.patientId} form={form} set={set} /> : null}
           <div className="grid gap-1 sm:col-span-3">
             <Label htmlFor={`${id}-consent-when`}>When obtained</Label>
             <DateTimeInput id={`${id}-consent-when`} value={form.consentObtainedAt} onValueChange={(v) => set("consentObtainedAt", v)} />
@@ -134,6 +139,9 @@ export function ConsentFields({
                   {d.title}
                 </option>
               ))}
+              {form.consentDocumentId && !(documents ?? []).some((d) => d.id === form.consentDocumentId) ? (
+                <option value={form.consentDocumentId}>Signed on screen just now</option>
+              ) : null}
             </NativeSelect>
             <span className="text-meta text-muted-foreground">Upload the signed form as a consent form document on the patient record, then link it here.</span>
           </div>
