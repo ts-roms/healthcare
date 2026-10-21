@@ -1,0 +1,320 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
+import {
+  type Actor,
+  BusinessRuleError,
+  ConflictError,
+  DATABASE,
+  type Database,
+  type DbExecutor,
+  DomainEventPublisher,
+  NotFoundError,
+  VersionConflictError,
+} from "@healthcare/core";
+import { OrganizationService } from "@healthcare/organization";
+import { CARD_STOCK, renderQrCards } from "@healthcare/pdf";
+import { and, desc, eq } from "drizzle-orm";
+import type { z } from "zod";
+import { patient, type PatientRecord } from "../patient.schema";
+import { displayName, type PatientSummary, toSummary } from "../patient.views";
+import type { patientQrSettingSchema } from "./qr.dto";
+import { encodeQrPayload, generateQrToken, parseQrPayload } from "./qr.rules";
+import {
+  type PatientQrCodeRecord,
+  type PatientQrContent,
+  type PatientQrIssuedVia,
+  patientQrCode,
+  patientQrSetting,
+  type PatientQrSettingRecord,
+} from "./qr.schema";
+
+export interface PatientQrSettingView {
+  enabled: boolean;
+  issueAtRegistration: boolean;
+  content: PatientQrContent;
+  version: number;
+  updatedAt: Date | null;
+}
+
+export interface PatientQrView {
+  id: string;
+  status: "active" | "revoked";
+  content: PatientQrContent;
+  issuedVia: PatientQrIssuedVia;
+  issuedAt: Date;
+  revokedAt: Date | null;
+  revokeReason: string | null;
+}
+
+/** What a member of staff sees of a patient's codes. `payload` is what the active code encodes, for drawing it. */
+export interface PatientQrState {
+  enabled: boolean;
+  active: (PatientQrView & { payload: string }) | null;
+  history: PatientQrView[];
+}
+
+const DEFAULT_SETTING: PatientQrSettingView = { enabled: false, issueAtRegistration: true, content: "token", version: 0, updatedAt: null };
+
+function settingView(row: PatientQrSettingRecord | undefined): PatientQrSettingView {
+  if (!row) return DEFAULT_SETTING;
+  return { enabled: row.enabled, issueAtRegistration: row.issueAtRegistration, content: row.content, version: row.version, updatedAt: row.updatedAt };
+}
+
+function codeView(row: PatientQrCodeRecord): PatientQrView {
+  return {
+    id: row.id,
+    status: row.status,
+    content: row.content,
+    issuedVia: row.issuedVia,
+    issuedAt: row.issuedAt,
+    revokedAt: row.revokedAt,
+    revokeReason: row.revokeReason,
+  };
+}
+
+/**
+ * Patient QR codes: the organization's setting, issuing at registration or from the record, revoking, printing a card
+ * and resolving a scan. A code encodes only a key (an opaque token or the patient number): a scan tells an
+ * authenticated, authorized member of staff which record to open and grants nothing. Neither payloads nor tokens are
+ * written to the audit trail.
+ */
+@Injectable()
+export class PatientQrService {
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly audit: AuditService,
+    private readonly events: DomainEventPublisher,
+    private readonly organizations: OrganizationService,
+  ) {}
+
+  async setting(organizationId: string, executor: DbExecutor = this.db): Promise<PatientQrSettingView> {
+    const [row] = await executor.select().from(patientQrSetting).where(eq(patientQrSetting.organizationId, organizationId));
+    return settingView(row);
+  }
+
+  async setSetting(actor: Actor, input: z.infer<typeof patientQrSettingSchema>): Promise<PatientQrSettingView> {
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(patientQrSetting).where(eq(patientQrSetting.organizationId, actor.organizationId)).for("update");
+      if ((current?.version ?? 0) !== input.version) throw new VersionConflictError("Patient QR setting", input.version);
+      const values = {
+        enabled: input.enabled,
+        issueAtRegistration: input.issueAtRegistration,
+        content: input.content,
+        updatedBy: actor.userId,
+        updatedAt: new Date(),
+      };
+      if (current)
+        await tx
+          .update(patientQrSetting)
+          .set({ ...values, version: current.version + 1 })
+          .where(eq(patientQrSetting.organizationId, actor.organizationId));
+      else await tx.insert(patientQrSetting).values({ organizationId: actor.organizationId, ...values });
+      const before = settingView(current);
+      await this.audit.record(tx, actor, {
+        action: "patient.qr-setting.update",
+        resourceType: "organization",
+        resourceId: actor.organizationId,
+        changes: {
+          enabled: { from: before.enabled, to: input.enabled },
+          issueAtRegistration: { from: before.issueAtRegistration, to: input.issueAtRegistration },
+          content: { from: before.content, to: input.content },
+        },
+      });
+    });
+    return this.setting(actor.organizationId);
+  }
+
+  /** Issues the patient's first code in the registration's transaction when the organization's setting (and the registering person) say so. */
+  async issueAtRegistration(tx: DbExecutor, actor: Actor, created: PatientRecord, requested: boolean | undefined): Promise<boolean> {
+    const setting = await this.setting(actor.organizationId, tx);
+    if (!setting.enabled || !(requested ?? setting.issueAtRegistration)) return false;
+    await this.insertCode(tx, actor, created.id, setting.content, "registration");
+    return true;
+  }
+
+  async state(actor: Actor, patientId: string): Promise<PatientQrState> {
+    const record = await this.findPatient(this.db, actor.organizationId, patientId);
+    const setting = await this.setting(actor.organizationId);
+    const rows = await this.db
+      .select()
+      .from(patientQrCode)
+      .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, patientId)))
+      .orderBy(desc(patientQrCode.issuedAt));
+    const active = rows.find((r) => r.status === "active");
+    await this.audit.recordStandalone(actor, { action: "patient.qr.view", resourceType: "patient_qr_code", resourceId: active?.id, patientId: record.id });
+    return {
+      enabled: setting.enabled,
+      active: active ? { ...codeView(active), payload: encodeQrPayload(active.content, active.token, record.patientNumber) } : null,
+      history: rows.filter((r) => r.status === "revoked").map(codeView),
+    };
+  }
+
+  async issue(actor: Actor, patientId: string): Promise<PatientQrView> {
+    return this.db.transaction(async (tx) => {
+      const record = await this.findPatient(tx, actor.organizationId, patientId);
+      const setting = await this.setting(actor.organizationId, tx);
+      if (!setting.enabled) throw new BusinessRuleError("Patient QR codes are not turned on for this organization", "qr_disabled");
+      const row = await this.insertCode(tx, actor, record.id, setting.content, "patient_record");
+      return codeView(row);
+    });
+  }
+
+  async revoke(actor: Actor, patientId: string, reason: string): Promise<PatientQrView> {
+    return this.db.transaction(async (tx) => {
+      const record = await this.findPatient(tx, actor.organizationId, patientId);
+      const [active] = await tx
+        .select()
+        .from(patientQrCode)
+        .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, record.id), eq(patientQrCode.status, "active")))
+        .for("update");
+      if (!active) throw new NotFoundError("Active QR code");
+      const [revoked] = await tx
+        .update(patientQrCode)
+        .set({ status: "revoked", revokedBy: actor.userId, revokedAt: new Date(), revokeReason: reason })
+        .where(eq(patientQrCode.id, active.id))
+        .returning();
+      if (!revoked) throw new Error("QR revoke returned no row");
+      await this.audit.record(tx, actor, {
+        action: "patient.qr.revoke",
+        resourceType: "patient_qr_code",
+        resourceId: revoked.id,
+        patientId: record.id,
+        reason,
+      });
+      await this.events.record(tx, {
+        type: "PatientQrRevoked",
+        organizationId: actor.organizationId,
+        aggregateType: "patient",
+        aggregateId: record.id,
+        patientId: record.id,
+        payload: { qrCodeId: revoked.id, patientId: record.id },
+      });
+      return codeView(revoked);
+    });
+  }
+
+  /** Resolves what a scanner delivered to a patient summary. A retired (merged) record resolves to its survivor. */
+  async scan(actor: Actor, payload: string): Promise<{ patient: PatientSummary; qrCodeId: string }> {
+    const deny = async (code: string, qrCodeId?: string, patientId?: string): Promise<void> => {
+      await this.audit.recordStandalone(actor, {
+        action: "patient.qr.scan",
+        resourceType: "patient_qr_code",
+        resourceId: qrCodeId,
+        patientId,
+        outcome: "denied",
+        metadata: { reason: code },
+      });
+    };
+    const parsed = parseQrPayload(payload);
+    if (!parsed) {
+      await deny("qr_not_recognised");
+      throw new BusinessRuleError("This is not a patient QR code", "qr_not_recognised");
+    }
+    const setting = await this.setting(actor.organizationId);
+    if (!setting.enabled) {
+      await deny("qr_disabled");
+      throw new BusinessRuleError("Patient QR codes are not turned on", "qr_disabled");
+    }
+
+    const found =
+      parsed.kind === "token"
+        ? await this.db
+            .select({ code: patientQrCode, patient })
+            .from(patientQrCode)
+            .innerJoin(patient, and(eq(patient.organizationId, patientQrCode.organizationId), eq(patient.id, patientQrCode.patientId)))
+            .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.token, parsed.token)))
+        : await this.db
+            .select({ code: patientQrCode, patient })
+            .from(patient)
+            .innerJoin(patientQrCode, and(eq(patientQrCode.organizationId, patient.organizationId), eq(patientQrCode.patientId, patient.id)))
+            .where(and(eq(patient.organizationId, actor.organizationId), eq(patient.patientNumber, parsed.patientNumber)))
+            .orderBy(desc(patientQrCode.issuedAt));
+    // A patient-number code is accepted while the patient has an active code; otherwise the newest (revoked) one decides.
+    const hit = found.find((r) => r.code.status === "active") ?? found[0];
+    if (!hit) {
+      await deny("qr_not_found");
+      throw new NotFoundError("QR code");
+    }
+    if (hit.code.status === "revoked") {
+      await deny("qr_revoked", hit.code.id, hit.patient.id);
+      throw new BusinessRuleError("This QR code was revoked. Ask the patient for another form of identification.", "qr_revoked");
+    }
+
+    let target = hit.patient;
+    let resolvedFrom: PatientSummary["resolvedFrom"] = null;
+    if (target.mergedIntoPatientId) {
+      const survivor = await this.findPatient(this.db, actor.organizationId, target.mergedIntoPatientId);
+      resolvedFrom = { id: target.id, patientNumber: target.patientNumber };
+      target = survivor;
+    }
+    await this.audit.recordStandalone(actor, { action: "patient.qr.scan", resourceType: "patient_qr_code", resourceId: hit.code.id, patientId: target.id });
+    return { patient: { ...toSummary(target), resolvedFrom }, qrCodeId: hit.code.id };
+  }
+
+  /** The patient card as a PDF (QR code, name, number); printing is audited. */
+  async cardPdf(actor: Actor, patientId: string): Promise<Buffer> {
+    const record = await this.findPatient(this.db, actor.organizationId, patientId);
+    const [active] = await this.db
+      .select()
+      .from(patientQrCode)
+      .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, record.id), eq(patientQrCode.status, "active")));
+    if (!active) throw new NotFoundError("Active QR code");
+    const organization = await this.organizations.getOrganization(actor.organizationId);
+    const pdf = await renderQrCards(
+      CARD_STOCK,
+      [
+        {
+          qr: encodeQrPayload(active.content, active.token, record.patientNumber),
+          heading: organization.name,
+          lines: [
+            { text: displayName(record), bold: true, size: 9, maxLines: 2 },
+            { text: record.patientNumber, bold: true, size: 11 },
+          ],
+          footer: "Show this card at the front desk. Tell the clinic if it is lost.",
+        },
+      ],
+      { title: "Patient card" },
+    );
+    await this.audit.recordStandalone(actor, { action: "patient.qr.print", resourceType: "patient_qr_code", resourceId: active.id, patientId: record.id });
+    return pdf;
+  }
+
+  private async insertCode(tx: DbExecutor, actor: Actor, patientId: string, content: PatientQrContent, via: PatientQrIssuedVia): Promise<PatientQrCodeRecord> {
+    const [existing] = await tx
+      .select({ id: patientQrCode.id })
+      .from(patientQrCode)
+      .where(and(eq(patientQrCode.organizationId, actor.organizationId), eq(patientQrCode.patientId, patientId), eq(patientQrCode.status, "active")));
+    if (existing) throw new ConflictError("The patient already has an active QR code. Revoke it first to issue another.", undefined, "qr_already_active");
+    const [row] = await tx
+      .insert(patientQrCode)
+      .values({ organizationId: actor.organizationId, patientId, content, token: generateQrToken(), issuedVia: via, issuedBy: actor.userId })
+      .returning();
+    if (!row) throw new Error("QR insert returned no row");
+    await this.audit.record(tx, actor, {
+      action: "patient.qr.issue",
+      resourceType: "patient_qr_code",
+      resourceId: row.id,
+      patientId,
+      metadata: { content, via },
+    });
+    await this.events.record(tx, {
+      type: "PatientQrIssued",
+      organizationId: actor.organizationId,
+      aggregateType: "patient",
+      aggregateId: patientId,
+      patientId,
+      payload: { qrCodeId: row.id, patientId },
+    });
+    return row;
+  }
+
+  private async findPatient(executor: DbExecutor, organizationId: string, patientId: string): Promise<PatientRecord> {
+    const [row] = await executor
+      .select()
+      .from(patient)
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)));
+    if (!row) throw new NotFoundError("Patient");
+    if (row.status === "merged") throw new BusinessRuleError("This record was merged into another; use the surviving record", "patient_merged");
+    return row;
+  }
+}

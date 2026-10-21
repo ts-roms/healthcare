@@ -838,16 +838,25 @@ importers:
       '@healthcare/organization':
         specifier: workspace:*
         version: link:../organization
+      '@healthcare/pdf':
+        specifier: workspace:*
+        version: link:../pdf
 
   libs/pdf:
     dependencies:
       pdfkit:
         specifier: ^0.20.2
         version: 0.20.2
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
     devDependencies:
       '@types/pdfkit':
         specifier: '*'
         version: 0.17.6
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
 
   libs/philhealth:
     dependencies:
