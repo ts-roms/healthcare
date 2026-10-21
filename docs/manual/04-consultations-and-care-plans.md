@@ -221,6 +221,9 @@ nebulization, an injection and the like (dental work and vaccines have their own
    it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and any notes. **Print consent form** opens a
    form with your clinic's wording for this patient to sign; upload the signed form as a document and link it here or later with
    **Record consent…** under the procedure (once).
+   To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
+   and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
+   patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the

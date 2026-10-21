@@ -350,6 +350,9 @@ under **Clinic → Procedures**. Staff who may record procedures (physicians and
    or in words), **Given by** the patient or a representative (name and relationship), **When obtained** (leave empty for the time of the
    procedure; never after it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and notes.
    **Print consent form** opens the form with your clinic's current wording for this patient to sign.
+   To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
+   and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
+   patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 The visit must be open and in person. If the patient is seen by a doctor in the same visit, procedures done in the consultation are recorded in

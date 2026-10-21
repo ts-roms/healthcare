@@ -1,17 +1,17 @@
 # Electronic signatures — scope (proposal)
 
-Status: **proposal, nothing built.** No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
+Status: **phase 1 built** (migration `0120`; phases 2 and 3 are proposals). No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
 or a typed acknowledgement is valid for a given document is the organization's decision with its legal adviser (register it in
 `docs/security/compliance-dependencies.md` when the first phase is built).
 
 ## What exists today
 
-| Document                              | How agreement is recorded now                                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Procedure consent                     | `clinic_procedure_consent` (migration 0095): `captured_via` paper / electronic / verbal, who gave it, who obtained it, wording version, optional scan (`consent_form` document) |
-| Patient consents (MyHealth)           | Electronic acknowledgement by the portal account against the organization's wording version                                           |
-| Dental estimate                       | Optional `dental_written_estimate` flag: a signed copy exists                                                                         |
-| Medical certificate, referral letter  | Issued by an authenticated practitioner; the PDF names them and their license number; no signature mark                               |
+| Document                             | How agreement is recorded now                                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Procedure consent                    | `clinic_procedure_consent` (migration 0095): `captured_via` paper / electronic / verbal, who gave it, who obtained it, wording version, optional scan (`consent_form` document) |
+| Patient consents (MyHealth)          | Electronic acknowledgement by the portal account against the organization's wording version                                                                                     |
+| Dental estimate                      | Optional `dental_written_estimate` flag: a signed copy exists                                                                                                                   |
+| Medical certificate, referral letter | Issued by an authenticated practitioner; the PDF names them and their license number; no signature mark                                                                         |
 
 `captured_via = 'electronic'` today means "recorded electronically", not "signed electronically": there is no signature evidence behind it.
 
@@ -25,7 +25,7 @@ signed, how they were identified, when, and the strokes. Append-only, never edit
 - **Flow:** staff open the procedure's consent form (existing `consent-form.pdf` content) on a tablet → the patient (or named representative) reads the wording →
   draws a signature → staff confirm identity was checked → the signed PDF is rendered once and stored as a `consent_form` document → linked through the existing
   `POST /procedures/:id/consent` (`captured_via = 'electronic'`).
-- **Table `document_signature`** (append-only trigger): `document_id` (the stored signed PDF), `document_sha256` (of the PDF *before* the mark was added, i.e.
+- **Table `document_signature`** (append-only trigger): `document_id` (the stored signed PDF), `document_sha256` (of the PDF _before_ the mark was added, i.e.
   what was shown), `signer_kind` patient | representative | practitioner, `signer_name`, `signer_relationship`, `identity_check` (free text: what staff checked),
   `method` drawn | typed | portal_account, `strokes` (compact vector data, JSONB), `signed_at`, `witness_user_id`, `device` (user agent only), `recorded_by`.
 - **PDF:** `libs/pdf` places the signature image, name, date and a short verification footer (document id + hash prefix) on the consent page.
