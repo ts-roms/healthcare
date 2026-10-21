@@ -314,6 +314,17 @@ export interface PortalOnlinePayment {
 // ---- Dental records (GET /portal/dental/*; only when the clinic shares them — libs/dental/src/lib/portal/dental-patient-access.ts) ----
 
 /** For the navigation: the clinic shares dental records in MyHealth and there is something to show. */
+/** A consent form the clinic asked the patient (or their guardian) to sign (GET /portal/forms). */
+export interface PortalForm {
+  id: string;
+  procedureName: string;
+  facilityName: string;
+  wording: { title: string; body: string; version: number };
+  representativeRequired: boolean;
+  requestedAt: string;
+  expiresAt: string;
+}
+
 export interface PortalDentalAvailability {
   available: boolean;
 }

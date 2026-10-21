@@ -14,7 +14,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   // While the clinic requires two-step verification this account has not set up, only Sign-in security and the profile
   // answer; the rest is not asked for (the API would refuse it and the client would redirect).
   const gated = me.mfaPolicy.enrollmentRequired;
-  const [{ unread }, dental, dependents] = await Promise.all([
+  const [{ unread }, dental, dependents, forms] = await Promise.all([
     gated ? { unread: 0 } : portalApi<{ unread: number }>("/portal/messages/unread-count"),
     // "Dental" appears only when the clinic shares dental records and there is something to show; an API error hides it.
     gated
@@ -28,6 +28,13 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       ? ([] as PortalDependent[])
       : portalApi<PortalDependent[]>("/portal/proxy/dependents").catch((e: unknown) => {
           if (e instanceof ApiError) return [];
+          throw e;
+        }),
+    // "Forms" appears only while the clinic has asked this person to sign something.
+    gated
+      ? { count: 0 }
+      : portalApi<{ count: number }>("/portal/forms/count").catch((e: unknown) => {
+          if (e instanceof ApiError) return { count: 0 };
           throw e;
         }),
   ]);
@@ -45,6 +52,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       timeZone={me.timeZone}
       unreadMessages={unread}
       dental={dental.available}
+      forms={forms.count}
       acting={acting}
       hasDependents={dependents.length > 0}
       signOut={signOut}
