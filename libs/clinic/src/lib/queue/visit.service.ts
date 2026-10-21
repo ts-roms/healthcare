@@ -421,6 +421,8 @@ export class VisitService {
       return {
         changes: {
           status: input.status,
+          // The patient has moved on: the call to the previous place no longer applies (nor on the waiting-room display).
+          ...(input.status !== current.status ? { calledAt: null, calledTo: null } : {}),
           ...(input.status === "in_triage" && !current.triageStartedAt ? { triageStartedAt: new Date() } : {}),
           ...(closing ? { completedAt: new Date(), closedReason: input.reason ?? null } : {}),
         },
@@ -577,7 +579,7 @@ export class VisitService {
     if (row.status !== status && !canTransition(row.status, status)) throw invalidMove(row.status, status);
     const [updated] = await tx
       .update(visit)
-      .set({ status, ...extra, updatedAt: new Date(), version: sql`${visit.version} + 1` })
+      .set({ status, ...(row.status !== status ? { calledAt: null, calledTo: null } : {}), ...extra, updatedAt: new Date(), version: sql`${visit.version} + 1` })
       .where(eq(visit.id, row.id))
       .returning();
     const result = found(updated, "Visit");

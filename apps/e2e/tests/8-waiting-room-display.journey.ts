@@ -31,10 +31,8 @@ test("reception calls a ticket and the waiting-room display shows it, without th
   await desk.getByRole("button", { name: "Check in" }).click();
   const ticket = /ticket (A-\d{3})/.exec(await toast(desk, /Checked in — ticket A-\d{3}/))![1]!;
   await desk.waitForURL(/\/queue$/);
-  await desk
-    .getByText(/DISPLAY, Teodoro/i)
-    .first()
-    .click();
+  // The ticket card (the figure tiles above the board can name the longest wait too).
+  await desk.getByRole("button", { name: /A-\d+.*DISPLAY, Teodoro/i }).click();
   await desk.locator("#called-to").fill("Room 5");
   await desk.getByRole("button", { name: "Call" }).click();
   await toast(desk, `${ticket} called to Room 5`);
