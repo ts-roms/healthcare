@@ -1,6 +1,6 @@
 # Electronic signatures — scope (proposal)
 
-Status: **phase 1 built** (migration `0120`; phases 2 and 3 are proposals). No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
+Status: **phases 1 and 2 built** (migrations `0120`, `0121`; phase 3 is a proposal). No Philippine rule on the legal effect of an electronic signature on clinical consent is encoded; whether a drawn signature
 or a typed acknowledgement is valid for a given document is the organization's decision with its legal adviser (register it in
 `docs/security/compliance-dependencies.md` when the first phase is built).
 

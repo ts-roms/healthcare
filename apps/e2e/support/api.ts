@@ -7,13 +7,14 @@ import { API_URL, STAFF_PASSWORD } from "./env";
 export interface StaffApi {
   get<T = unknown>(path: string): Promise<T>;
   post<T = unknown>(path: string, body?: unknown): Promise<T>;
+  put<T = unknown>(path: string, body?: unknown): Promise<T>;
   patch<T = unknown>(path: string, body?: unknown): Promise<T>;
   dispose(): Promise<void>;
 }
 
 async function call<T>(
   context: APIRequestContext,
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH",
   path: string,
   headers: Record<string, string>,
   body?: unknown,
@@ -41,6 +42,7 @@ export async function staffApi(email: string, facilityId?: string): Promise<Staf
   return {
     get: (path) => call(context, "GET", path, headers),
     post: (path, body = {}) => call(context, "POST", path, headers, body),
+    put: (path, body = {}) => call(context, "PUT", path, headers, body),
     patch: (path, body = {}) => call(context, "PATCH", path, headers, body),
     dispose: () => context.dispose(),
   };

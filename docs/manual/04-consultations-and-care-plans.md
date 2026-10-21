@@ -224,6 +224,10 @@ nebulization, an injection and the like (dental work and vaccines have their own
    To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
    and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
    patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
+   To let the patient sign at home, open the patient's **Procedures** page and use **Ask the patient to sign** (when your clinic turned on
+   signing in MyHealth): the patient is told, reads the wording in MyHealth and signs there after confirming their password. When the form is
+   signed it appears as a **Signed form** you can link here. For a patient under your clinic's age (18 unless your administrator set another),
+   a parent or guardian signs: at the clinic as the representative, or in MyHealth by opening the child's MyHealth.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the

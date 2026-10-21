@@ -492,6 +492,18 @@ If the clinic changes the wording while you are reading you see "The clinic chan
 wording. You can give **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth** and **Research** here if your clinic offers them;
 consent to the use of your information, to general treatment and to MyHealth itself is given at the clinic.
 
+## How to sign a form your clinic sends you
+
+When the clinic asks you to sign a consent form you get a message, and **Forms** appears in the menu.
+
+1. Open **Forms**. Read the form carefully.
+2. Tick **I have read this form and I agree to it.**
+3. Draw your signature in the box with your finger or a pen. Select **Clear** to start again.
+4. Enter your password to confirm it is you, then select **Sign and send**.
+
+The signed form is kept on your record. A form stays open for a few days: if it has expired, ask the clinic to send it again.
+If the patient is a child, a parent or guardian signs: open the child's MyHealth (**People**) and sign there.
+
 ## How to act for a child or a family member
 
 Some people can open another person's MyHealth, for example a parent for a child. This only works after the clinic has given you access: the front desk

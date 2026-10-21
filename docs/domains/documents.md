@@ -47,7 +47,10 @@ witnessing member of staff checked, method `drawn`, the strokes, the device's us
 agreed to. One per signer kind per document; the signed PDF has its own `sha256` in `document` and falls under the
 integrity review. `DocumentsService.signatures` / `GET /documents/:id/signatures` (`document.read`) return the
 evidence without the strokes and audit the read. Capturing is the calling domain's job (the clinic signs consent
-forms: `docs/domains/clinic.md`, "Procedures"). Design and later phases: `docs/architecture/electronic-signatures.md`.
+forms: `docs/domains/clinic.md`, "Procedures"). A form signed in MyHealth (migration `0121`) is witnessed by nobody:
+`identity_method = 'portal_password'` records the MyHealth account that confirmed its password and, when a guardian
+signed for a dependent, the grant (`portal_account_id`, `proxy_grant_id`, `request_id`). Design and later phases:
+`docs/architecture/electronic-signatures.md`.
 
 ## Queries for other domains
 
