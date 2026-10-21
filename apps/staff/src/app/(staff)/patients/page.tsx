@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SearchIcon, UserPlusIcon } from "lucide-react";
+import { QrCodeIcon, SearchIcon, UserPlusIcon } from "lucide-react";
 import {
   Badge,
   Button,
@@ -80,13 +80,22 @@ export default async function PatientsPage({
         title="Patients"
         description="All patients A–Z, or look up by name, patient number, mobile number or an ID number, optionally with birth date."
         actions={
-          can(session, "patient.register") ? (
-            <Button asChild size="sm">
-              <Link href="/patients/new">
-                <UserPlusIcon /> Register patient
-              </Link>
-            </Button>
-          ) : null
+          <>
+            {can(session, "patient.search") ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/patients/scan">
+                  <QrCodeIcon /> Scan QR code
+                </Link>
+              </Button>
+            ) : null}
+            {can(session, "patient.register") ? (
+              <Button asChild size="sm">
+                <Link href="/patients/new">
+                  <UserPlusIcon /> Register patient
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <form role="search" className="flex flex-wrap items-end gap-2 border-b bg-card px-4 py-3" action="/patients">

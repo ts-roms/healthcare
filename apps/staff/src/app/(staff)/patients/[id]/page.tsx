@@ -55,6 +55,7 @@ import { PatientLabResults } from "./lab-results";
 import { PhilHealthEligibility } from "./philhealth-eligibility";
 import { PhilHealthYakap } from "./philhealth-yakap";
 import { ConsentList } from "./consent-list";
+import { PatientQrCard } from "./patient-qr-card";
 import { PortalAccess } from "./portal-access";
 import { ProxyAccess } from "./proxy-access";
 import { SendPortalMessage } from "./send-portal-message";
@@ -858,6 +859,12 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               ) : null}
             </CardContent>
           </Card>
+        </div>
+      ) : null}
+
+      {tab === "portal" && can(session, "patient.qr.issue") && can(session, "patient.read") && p.status !== "merged" ? (
+        <div className="px-4 pb-4">
+          <PatientQrCard patientId={p.id} />
         </div>
       ) : null}
 

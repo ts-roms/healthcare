@@ -158,9 +158,23 @@ A `patient_consent` decision is recorded by exactly one of a staff user (`record
 history and withdraws those in `PATIENT_WITHDRAWABLE_CONSENTS` while in effect; withdrawing `portal_access` revokes the account's
 sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `myhealth`).
 
+## Patient QR codes (migration 0117)
+
+A QR code on a patient card or wristband that staff scan to open the record or check the patient in. `libs/patient/src/lib/qr`.
+
+- **Setting** (`patient_qr_setting`, per organization, versioned; `GET|PUT /patient-qr/setting`, read with `patient.search`, changed with `patient.qr.manage`, org_admin; audited `patient.qr-setting.update`): `enabled` (**off by default**), `issueAtRegistration`, and `content`: `token` (an opaque random key of 128 bits, the default) or `patient_number`. The choice applies to codes issued from then on; each code records what it holds.
+- **What a code holds** is only a key, in a version-tagged text (`HPQ1:T:<26 base32 characters>` or `HPQ1:N:<patient number>`). Never a name, birth date, contact, PhilHealth PIN, diagnosis or result, and no URL (so nothing reaches browser history, access logs or referrers). Nobody can read patient details from a card; a scan only helps a signed-in member of staff find the record. **A code grants no access by itself**, to staff screens or to MyHealth.
+- **Codes** (`patient_qr_code`, append-only; the one allowed change is active → revoked, by trigger; one active code per patient; refused under a merged record): issued at registration (`RegisterPatientDto.issueQrCode`, default the organization's setting, ignored while QR codes are off; the response says `qrCodeIssued`) or from the patient record (`POST /patient-qr/patients/:id`, `patient.qr.issue` + `patient.read`: org_admin, receptionist, records_officer, nurse), revoked with a reason (`POST …/revoke`; a lost card), replaced by issuing again. History stays on the record. The stored key is meaningless without access to the platform; a patient-number code is accepted by a scan only while the patient has an active code (revoking stops the platform accepting it, but anyone can make a number code from the number, which is why the key is the default).
+- **Card**: `GET /patient-qr/patients/:id/card.pdf` (`libs/pdf` `renderQrCards`, ID-1 size; organization name, patient name and number; the QR symbol; `qrcode` supplies the matrix) is audited `patient.qr.print`; staff patient record, **MyHealth** tab → **Patient QR code** (view, print, revoke, issue).
+- **Scan**: `POST /patient-qr/scan` (`patient.search`; body `{ payload }`) answers the minimal patient summary (a merged record resolves to its survivor, with `resolvedFrom`) or `qr_not_recognised`, `qr_disabled`, `qr_revoked` (422) / 404. Audited `patient.qr.scan` (success, or denied with the reason). **Neither payloads nor keys are written to the audit trail, logs or events.** Staff `/patients/scan` (hand-held scanner into the field, or the browser's camera where `BarcodeDetector` exists) lands on **Open record** and **Check in**; **Scan QR code** on `/patients`.
+- Events (outbox, ids only): `PatientQrIssued`, `PatientQrRevoked` (`qrCodeId`, `patientId`).
+- Staff: `/admin/patient-qr` (setting), the **Patient card** choice on `/patients/new` (shown only while on).
+- **Next step, not built: linking to MyHealth.** The card is meant to start activation at the front desk or in the portal and mobile apps (scan to prefill the patient number; the one-time activation code and the birth-date check still apply, nothing is granted by the QR alone). That needs a way for an unauthenticated screen to use a key without learning who it belongs to (the key in a URL fragment, resolved only together with the activation code), a decision for the organization with its Data Protection Officer; until then activation stays as in "Patient portal".
+- Rules the organization decides: who may carry a card for a patient (a minor, a dependent), how cards are handed out and replaced, whether wristbands are used, and how an unrevoked lost card is treated; no national identifier or card format is assumed.
+
 ## Events
 
-`PortalProxyGranted` / `PortalProxyEnded` (guardian access; ids only). `PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+`PortalProxyGranted` / `PortalProxyEnded` (guardian access; ids only). `PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientQrIssued` and `PatientQrRevoked` (ids only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
 survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
@@ -168,7 +182,7 @@ survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegis
 `patient.search`, `patient.read`, `patient.register` (+ facility context),
 `patient.update`, `patient.consent.manage`, `patient.portal.manage` (invite and
 disable portal accounts; org admin, receptionist, records officer), `patient.portal.proxy.manage` (give and end guardian access; same roles; migration 0080), `patient.merge`
-(merge and unmerge; org admin, records officer; migration 0068).
+(merge and unmerge; org admin, records officer; migration 0068), `patient.qr.issue` (issue, print and revoke a patient QR code; org admin, receptionist, records officer, nurse) and `patient.qr.manage` (the organization's QR setting; org admin; migration 0117).
 
 ## Integration points
 

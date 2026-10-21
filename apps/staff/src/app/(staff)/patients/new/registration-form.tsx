@@ -36,11 +36,20 @@ const REASONS: Record<string, string> = {
   similar_name_and_birth_year: "Similar name, same birth year",
 };
 
-export function RegistrationFormView() {
+export function RegistrationFormView({ qr }: { qr?: { issueAtRegistration: boolean } }) {
   const router = useRouter();
   const form = useForm<RegistrationForm>({
     resolver: zodResolver(registrationFormSchema),
-    defaultValues: { familyName: "", givenName: "", sex: undefined, birthDate: "", mobile: "", email: "", philhealthPin: "" },
+    defaultValues: {
+      familyName: "",
+      givenName: "",
+      sex: undefined,
+      birthDate: "",
+      mobile: "",
+      email: "",
+      philhealthPin: "",
+      ...(qr ? { issueQrCode: qr.issueAtRegistration } : {}),
+    },
   });
   const [candidates, setCandidates] = React.useState<DuplicateCandidate[] | null>(null);
   const [reviewed, setReviewed] = React.useState<Set<string>>(new Set());
@@ -155,6 +164,34 @@ export function RegistrationFormView() {
               {field("province", "Province", <Input id="province" {...form.register("province")} />)}
             </CardContent>
           </Card>
+          {qr ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Patient card</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-1">
+                <label className="flex items-center gap-2 text-table">
+                  <Controller
+                    control={form.control}
+                    name="issueQrCode"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="issueQrCode"
+                        checked={!!field.value}
+                        onCheckedChange={(v) => field.onChange(v === true)}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    )}
+                  />{" "}
+                  Issue a patient QR code
+                </label>
+                <p className="text-meta text-muted-foreground">
+                  The code is printed on a card from the patient record. It holds no health or contact details, only a key that staff scan to find the record.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
         </fieldset>
         {error ? (
           <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2 text-table text-danger-foreground">

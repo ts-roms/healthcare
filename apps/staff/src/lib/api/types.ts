@@ -196,6 +196,37 @@ export interface RegisteredPatient {
   id: string;
   patientNumber: string;
   version: number;
+  /** A QR code was issued with the registration (the organization's setting, unless the registering person declined). */
+  qrCodeIssued?: boolean;
+}
+
+// ---- Patient QR codes (docs/domains/patient.md) ------------------------------------------------------------------------
+
+export type PatientQrContent = "token" | "patient_number";
+
+export interface PatientQrSetting {
+  enabled: boolean;
+  issueAtRegistration: boolean;
+  content: PatientQrContent;
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface PatientQrCode {
+  id: string;
+  status: "active" | "revoked";
+  content: PatientQrContent;
+  issuedVia: "registration" | "patient_record";
+  issuedAt: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+}
+
+export interface PatientQrState {
+  enabled: boolean;
+  /** `payload` is what the code encodes; draw it, never log it. */
+  active: (PatientQrCode & { payload: string }) | null;
+  history: PatientQrCode[];
 }
 
 // ---- Patient 360 summary (GET /patients/:id/summary; needs patient.read + clinical.read) -----------
