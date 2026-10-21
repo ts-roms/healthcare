@@ -2,15 +2,33 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRightIcon, BellRingIcon, MaximizeIcon, Play, UsersIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  BellRingIcon,
+  ClockIcon,
+  MaximizeIcon,
+  Play,
+  RadioIcon,
+  RefreshCwIcon,
+  UsersIcon,
+  Volume2Icon,
+  VolumeXIcon,
+  WifiOffIcon,
+} from "lucide-react";
+import { cn } from "@healthcare/ui/lib/utils";
 import { Button, Popover, PopoverContent, PopoverTrigger, ToggleGroup, ToggleGroupItem } from "@healthcare/ui/primitives";
-import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
+import { useQueueUpdates } from "@/components/live-queue";
+import type { LiveStatus } from "@/lib/live-queue";
 import type { QueueDisplay } from "@/lib/api/types";
 import {
   announcements,
+  CALL_HIGHLIGHT_MS,
+  callAnnouncement,
   currentCallKey,
+  displayStatusLabel,
   type DisplaySoundSettings,
   parseSoundSettings,
+  RECENT_CALLS_SHOWN,
   shouldChime,
   SOUND_LEVEL_GAIN,
   SOUND_SETTINGS_KEY,
@@ -20,8 +38,9 @@ import {
 import { canSpeak, playChime, speak, stopSpeaking } from "@/lib/queue-display-sound";
 
 /**
- * The waiting-room display: the ticket being called now and where to go, the tickets called before it, and how many
- * wait. Kept current by the live queue socket (polling every 15 s when it is down). Never a patient detail.
+ * The waiting-room display: the ticket being served now and where to go, the tickets called before it, and how many
+ * wait. Kept current by the live queue socket (polling every 15 s when it is down). Never a patient detail, and never
+ * the order of those waiting (priority would make it appear to jump).
  */
 export function DisplayBoard({
   display,
@@ -37,94 +56,163 @@ export function DisplayBoard({
   const [now, setNow] = React.useState(() => new Date());
   const status = useQueueUpdates(() => setNow(new Date()));
   const [current, ...earlier] = display?.calls ?? [];
-  const sound = useDisplaySound(currentCallKey(display), current ?? null);
+  const callKey = currentCallKey(display);
+  const sound = useDisplaySound(callKey, current ?? null);
+  const highlighted = useCallHighlight(callKey);
   useWakeLock();
+
+  // The clock moves on the minute's scale, not every second (the queue's own updates refresh it too).
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const time = (iso: string | Date) => new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   const today = new Intl.DateTimeFormat("en-PH", { timeZone, weekday: "long", month: "long", day: "numeric" }).format(now);
+  const recent = earlier.slice(0, RECENT_CALLS_SHOWN);
 
   return (
-    <div className="flex min-h-dvh flex-col gap-4 p-4 sm:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-page font-semibold sm:text-3xl">{facilityName}</h1>
-          <p className="text-body text-muted-foreground sm:text-lg">
-            {today} · {time(now)}
-          </p>
+    <div className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-7 overflow-hidden px-12 py-10">
+      <header className="flex items-center justify-between gap-6">
+        <div className="min-w-0">
+          <h1 className="text-qd-ink truncate text-[clamp(28px,2.3vw,44px)] leading-tight font-semibold">{facilityName}</h1>
+          <p className="text-qd-muted text-[clamp(16px,1.15vw,22px)]">{today}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <LiveIndicator status={status} />
-          <SoundMenu sound={sound} />
-          <Button variant="outline" size="sm" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
-            <MaximizeIcon /> Full screen
-          </Button>
-          {canLeave ? (
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/queue">Back to the queue</Link>
+        <div className="flex shrink-0 items-center gap-6">
+          <div className="flex items-center gap-2">
+            <SoundMenu sound={sound} />
+            <Button
+              variant="outline"
+              className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
+              aria-label="Full screen"
+              onClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}
+            >
+              <MaximizeIcon aria-hidden />
             </Button>
-          ) : null}
+            {canLeave ? (
+              <Button asChild variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5">
+                <Link href="/queue">Back to the queue</Link>
+              </Button>
+            ) : null}
+          </div>
+          <div className="border-qd-divider border-l pl-6 text-right">
+            <p className="text-qd-ink text-[clamp(32px,2.7vw,52px)] leading-none font-semibold tabular-nums">{time(now)}</p>
+            <ConnectionStatus status={status} />
+          </div>
         </div>
       </header>
 
       {display === null ? (
-        <main className="flex flex-1 items-center justify-center rounded-lg border bg-card p-8 text-center">
-          <p className="text-section text-muted-foreground sm:text-2xl">Reconnecting… This screen will update by itself.</p>
+        <main className="border-qd-border bg-qd-card flex flex-1 items-center justify-center rounded-xl border-2 p-8 text-center">
+          <p className="text-qd-muted text-[clamp(22px,2vw,36px)]">Reconnecting… This screen will update by itself.</p>
         </main>
       ) : (
-        <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section aria-labelledby="now-calling" className="flex flex-col justify-center rounded-lg border bg-card p-6 text-center sm:p-10">
-            <h2 id="now-calling" className="flex items-center justify-center gap-2 text-section font-medium text-muted-foreground sm:text-3xl">
-              <BellRingIcon className="size-6 sm:size-8" aria-hidden /> Now calling
+        <main className="grid min-h-0 flex-1 gap-7 lg:grid-cols-[1.7fr_1fr]">
+          <section
+            aria-labelledby="now-serving"
+            className={cn(
+              "bg-qd-card flex min-h-0 flex-col rounded-xl border-2 p-10",
+              highlighted ? "qd-call-highlight border-qd-accent" : "border-qd-border",
+            )}
+          >
+            <h2 id="now-serving" className="text-qd-muted flex items-center gap-3 text-[clamp(20px,1.6vw,30px)] font-semibold tracking-wide uppercase">
+              <BellRingIcon className="size-[1.1em]" aria-hidden /> {current ? "Now serving" : "First number to be called"}
             </h2>
-            <div aria-live="polite" aria-atomic="true">
-              {current ? (
-                <>
-                  <p className="mt-4 text-[min(22vw,10rem)] leading-none font-bold tabular-nums">{current.ticket}</p>
-                  <p className="mt-4 flex items-center justify-center gap-3 text-[min(9vw,3.5rem)] leading-tight font-semibold text-primary">
-                    <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
-                    <span className="sr-only">Please go to</span>
-                    {current.calledTo}
-                  </p>
-                  <p className="mt-3 text-body text-muted-foreground sm:text-lg">Called at {time(current.calledAt)}</p>
-                </>
-              ) : (
-                <p className="mt-6 text-section text-muted-foreground sm:text-3xl">Please wait for your number to be called.</p>
-              )}
-            </div>
+            {current ? (
+              <>
+                <p className="text-qd-accent flex-1 content-center text-[clamp(150px,15.6vw,300px)] leading-none font-semibold tracking-tighter tabular-nums">
+                  {current.ticket}
+                </p>
+                <div className="border-qd-divider flex items-end justify-between gap-6 border-t pt-6">
+                  <div className="min-w-0">
+                    <p className="text-qd-muted text-[clamp(18px,1.6vw,30px)]">Please proceed to</p>
+                    <p className="text-qd-accent flex items-center gap-4 text-[clamp(48px,5vw,96px)] leading-tight font-semibold break-words">
+                      <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
+                      {current.calledTo}
+                    </p>
+                  </div>
+                  <p className="text-qd-muted shrink-0 pb-2 text-[clamp(16px,1.15vw,22px)] tabular-nums">Called at {time(current.calledAt)}</p>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col justify-center gap-4">
+                <p className="text-qd-accent text-[clamp(56px,6vw,120px)] leading-tight font-semibold">Please have a seat</p>
+                <p className="text-qd-muted max-w-[28ch] text-[clamp(22px,2vw,36px)] leading-snug">Your number and counter will appear here, with a chime.</p>
+              </div>
+            )}
           </section>
 
-          <aside className="flex flex-col gap-4">
-            <section aria-labelledby="recently-called" className="flex-1 rounded-lg border bg-card p-4 sm:p-6">
-              <h2 id="recently-called" className="text-section font-medium text-muted-foreground sm:text-2xl">
+          <aside className="flex min-h-0 flex-col gap-7">
+            <section aria-labelledby="recently-called" className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col rounded-xl border-2 p-8">
+              <h2 id="recently-called" className="text-qd-ink text-[clamp(20px,1.6vw,30px)] font-semibold">
                 Recently called
               </h2>
-              {earlier.length ? (
-                <ul className="mt-3 divide-y">
-                  {earlier.map((call) => (
-                    <li key={`${call.ticket}-${call.calledAt}`} className="flex items-baseline justify-between gap-3 py-2 sm:py-3">
-                      <span className="text-2xl font-bold tabular-nums sm:text-4xl">{call.ticket}</span>
-                      <span className="text-right">
-                        <span className="block text-section font-semibold sm:text-2xl">{call.calledTo}</span>
-                        <span className="text-meta text-muted-foreground sm:text-body">{time(call.calledAt)}</span>
-                      </span>
+              {recent.length ? (
+                <ul className="divide-qd-divider mt-4 divide-y">
+                  {recent.map((call) => (
+                    <li key={`${call.ticket}-${call.calledAt}`} className="grid grid-cols-[auto_1fr_auto] items-baseline gap-5 py-3">
+                      <span className="text-qd-ink text-[clamp(24px,1.8vw,34px)] font-semibold tabular-nums">{call.ticket}</span>
+                      <span className="truncate text-[clamp(16px,1.25vw,24px)]">{call.calledTo}</span>
+                      <span className="text-qd-muted text-[clamp(14px,1.05vw,20px)] tabular-nums">{time(call.calledAt)}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 text-body text-muted-foreground sm:text-lg">No one else called yet today.</p>
+                <div className="text-qd-muted flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                  <ClockIcon className="size-12" aria-hidden />
+                  <p className="text-[clamp(16px,1.25vw,24px)]">No numbers called yet today</p>
+                </div>
               )}
             </section>
-            <section aria-label="Waiting" className="flex items-center gap-3 rounded-lg border bg-card p-4 sm:p-6">
-              <UsersIcon className="size-8 text-muted-foreground" aria-hidden />
-              <p className="text-section sm:text-2xl">
-                <span className="font-bold tabular-nums">{display.waiting}</span> waiting
+            <section aria-label="Waiting" className="border-qd-border bg-qd-card flex items-center gap-5 rounded-xl border-2 p-8">
+              <UsersIcon className="text-qd-muted size-12 shrink-0" aria-hidden />
+              <p className="text-qd-muted flex items-baseline gap-3 text-[clamp(18px,1.6vw,30px)]">
+                <span className="text-qd-ink text-[clamp(48px,3.8vw,72px)] leading-none font-semibold tabular-nums">{display.waiting}</span> waiting
               </p>
             </section>
           </aside>
         </main>
       )}
+
+      <footer className="text-qd-muted text-center text-[clamp(16px,1.25vw,24px)]">Please keep your ticket and ID ready.</footer>
+
+      {/* New calls are announced to screen readers; the visual call is not repeated here. */}
+      <p className="sr-only" aria-live="assertive" aria-atomic="true">
+        {current ? callAnnouncement(current) : ""}
+      </p>
     </div>
   );
+}
+
+/** Connection text with its own icon (a dropped feed never changes only a colour). */
+function ConnectionStatus({ status }: { status: LiveStatus }) {
+  const Icon = status === "live" ? RadioIcon : status === "connecting" ? RefreshCwIcon : WifiOffIcon;
+  return (
+    <p
+      role="status"
+      className={cn("mt-1 inline-flex items-center gap-2 text-[clamp(14px,1.05vw,20px)] font-medium", status === "live" ? "text-qd-live-text" : "text-qd-ink")}
+    >
+      {status === "live" ? <span className="bg-qd-live-dot size-2.5 rounded-full" aria-hidden /> : null}
+      <Icon className={cn("size-[1em]", status === "connecting" && "motion-safe:animate-spin")} aria-hidden />
+      {displayStatusLabel(status)}
+    </p>
+  );
+}
+
+/** True for a few seconds after a new call replaces the one shown (not on the page's first render). */
+function useCallHighlight(callKey: string | null): boolean {
+  const [highlighted, setHighlighted] = React.useState(false);
+  const previous = React.useRef<string | null | undefined>(undefined);
+  React.useEffect(() => {
+    const changed = previous.current !== undefined && callKey !== null && callKey !== previous.current;
+    previous.current = callKey;
+    if (!changed) return;
+    // Starting the highlight is the point of this effect: a new call arrived from the live feed.
+    setHighlighted(true);
+    const timer = setTimeout(() => setHighlighted(false), CALL_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [callKey]);
+  return highlighted;
 }
 
 interface DisplaySound {
@@ -142,7 +230,7 @@ function SoundMenu({ sound }: { sound: DisplaySound }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" aria-pressed={sound.on}>
+        <Button variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5" aria-pressed={sound.on}>
           {sound.on ? <Volume2Icon /> : <VolumeXIcon />} {sound.on ? "Sound on" : "Sound off"}
         </Button>
       </PopoverTrigger>

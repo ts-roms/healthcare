@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { announcements, currentCallKey, isDisplayOnly, parseSoundSettings, shouldChime, spellTicket } from "./queue-display";
+import {
+  announcements,
+  callAnnouncement,
+  currentCallKey,
+  displayStatusLabel,
+  isDisplayOnly,
+  parseSoundSettings,
+  shouldChime,
+  spellTicket,
+} from "./queue-display";
 
 describe("waiting-room display", () => {
   it("recognises a display-only account", () => {
@@ -41,5 +50,17 @@ describe("waiting-room display sound", () => {
     expect(announcements(call, "en")).toEqual([{ lang: "en-PH", text: "Number A 0 0 7, please proceed to Room 2." }]);
     expect(announcements(call, "fil")).toEqual([{ lang: "fil-PH", text: "Numero A 0 0 7, pumunta po sa Room 2." }]);
     expect(announcements(call, "both").map((a) => a.lang)).toEqual(["en-PH", "fil-PH"]);
+  });
+});
+
+describe("waiting-room display wording", () => {
+  it("says the connection in words, never only a colour", () => {
+    expect(displayStatusLabel("live")).toBe("Live");
+    expect(displayStatusLabel("connecting")).toBe("Reconnecting�");
+    expect(displayStatusLabel("offline")).toBe("Offline");
+  });
+
+  it("announces a new call to screen readers", () => {
+    expect(callAnnouncement({ ticket: "A-024", calledTo: "Counter 3" })).toBe("Ticket A-024, please proceed to Counter 3");
   });
 });

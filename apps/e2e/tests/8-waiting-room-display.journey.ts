@@ -38,7 +38,7 @@ test("reception calls a ticket and the waiting-room display shows it, without th
   await toast(desk, `${ticket} called to Room 5`);
 
   // Live: the call reaches the screen without reloading it.
-  const nowCalling = screen.getByRole("region", { name: "Now calling" });
+  const nowCalling = screen.getByRole("region", { name: "Now serving" });
   await expect(nowCalling.getByText(ticket, { exact: true })).toBeVisible();
   await expect(nowCalling.getByText("Room 5")).toBeVisible();
   await expect(screen.getByText(/Teodoro|DISPLAY,/)).toHaveCount(0);

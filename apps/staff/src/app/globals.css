@@ -4,3 +4,53 @@
 :root {
   --font-sans-face: "Plus Jakarta Sans Variable";
 }
+
+/*
+ * The waiting-room display's own palette (a TV in a bright room, always light): scoped to the display so the staff
+ * theme is untouched. Muted text keeps at least 5:1 on the page and card fills.
+ */
+.queue-display {
+  color-scheme: light;
+  --qd-bg: #eef3f3;
+  --qd-card: #ffffff;
+  --qd-border: #c3d1d0;
+  --qd-divider: #e3eae9;
+  --qd-ink: #1c2b30;
+  --qd-text: #2f4246;
+  --qd-muted: #536a6d;
+  --qd-accent: #0f5c57;
+  --qd-live-dot: #1f8a63;
+  --qd-live-text: #1d6b4f;
+}
+
+@theme inline {
+  --color-qd-bg: var(--qd-bg);
+  --color-qd-card: var(--qd-card);
+  --color-qd-border: var(--qd-border);
+  --color-qd-divider: var(--qd-divider);
+  --color-qd-ink: var(--qd-ink);
+  --color-qd-text: var(--qd-text);
+  --color-qd-muted: var(--qd-muted);
+  --color-qd-accent: var(--qd-accent);
+  --color-qd-live-dot: var(--qd-live-dot);
+  --color-qd-live-text: var(--qd-live-text);
+}
+
+/* A new call: an accent ring around the Now serving card for a few seconds (static when motion is reduced). */
+.qd-call-highlight {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--qd-accent) 35%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .qd-call-highlight {
+    animation: qd-ring 1.2s ease-in-out infinite;
+  }
+}
+@keyframes qd-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--qd-accent) 20%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--qd-accent) 45%, transparent);
+  }
+}
