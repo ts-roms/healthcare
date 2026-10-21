@@ -6,8 +6,8 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api
 
 /** Pages that work without a session. */
 const PUBLIC_PATHS = ["/login", "/activate", "/forgot-password"];
-/** Pages for everyone, signed in or not (the MyHealth guide; the reset link, whose token must survive), passed through without touching the session. */
-const OPEN_PATHS = ["/help", "/reset-password"];
+/** Pages for everyone, signed in or not (the MyHealth guide; the reset and opt-out links, whose tokens must survive), passed through without touching the session. */
+const OPEN_PATHS = ["/help", "/reset-password", "/outreach/opt-out"];
 
 /**
  * Session gate for every portal page (same model as the staff app).

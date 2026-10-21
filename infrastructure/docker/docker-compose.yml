@@ -28,6 +28,8 @@ services:
       RUSTFS_ACCESS_KEY: healthcare
       RUSTFS_SECRET_KEY: healthcare-dev-secret
       RUSTFS_CONSOLE_ENABLE: "true"
+      # The app stores objects with SSE-S3 (AES256); RustFS needs a master key for that (dev-only value, 32 bytes, base64).
+      RUSTFS_SSE_S3_MASTER_KEY: "ZGV2LW9ubHktc3NlLW1hc3Rlci1rZXktMzJieXRlcyE="
     ports: ["9000:9000", "9001:9001"]
     volumes: [object-storage-data:/data]
 

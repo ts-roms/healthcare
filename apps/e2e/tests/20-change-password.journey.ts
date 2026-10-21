@@ -18,7 +18,7 @@ const NEW_PASSWORD = "A-Brand-New-Passphrase-2";
 let admin: Page;
 let other: Page;
 
-async function signIn(browser: Browser, password: string): Promise<{ page: Page; failed: string | null }> {
+async function signIn(browser: Browser, password: string, retried = false): Promise<{ page: Page; failed: string | null }> {
   const context = await browser.newContext({ baseURL: STAFF_URL });
   const page = await context.newPage();
   watchErrors(page, EMAIL, errors);
@@ -35,7 +35,14 @@ async function signIn(browser: Browser, password: string): Promise<{ page: Page;
       .waitFor({ timeout: 20_000 })
       .then(() => "refused" as const),
   ]);
-  return { page, failed: outcome === "refused" ? await page.getByRole("alert").filter({ hasText: /\S/ }).first().innerText() : null };
+  const failed = outcome === "refused" ? await page.getByRole("alert").filter({ hasText: /\S/ }).first().innerText() : null;
+  // The API allows about 10 credential attempts a minute per client; wait the window out once instead of failing on it.
+  if (failed && /too many requests/i.test(failed) && !retried) {
+    await context.close();
+    await new Promise((resolve) => setTimeout(resolve, 61_000));
+    return signIn(browser, password, true);
+  }
+  return { page, failed };
 }
 
 test.beforeAll(async ({ browser }) => {
