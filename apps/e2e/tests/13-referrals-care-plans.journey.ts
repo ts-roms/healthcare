@@ -105,8 +105,8 @@ test("the doctor refers the patient to a colleague, to be cancelled later, and t
   await panel.getByLabel("Urgency").selectOption({ label: "Urgent" });
   await panel.getByLabel("Reason for referral").fill("Review of neuropathic symptoms and glycaemic control");
   await panel.getByLabel("Clinical summary (optional)").fill("Three months of tingling in both feet; fasting sugar pending.");
-  // The consultation's diagnosis goes on the letter (ticked here: a diagnosis added after the page opened is not pre-ticked).
-  await panel.getByLabel(/E11\.9/).check();
+  // The consultation's diagnosis is on the letter without ticking it, though it was added after the page opened.
+  await expect(panel.getByLabel(/E11\.9/)).toBeChecked();
   referrals.internal = await sendReferral(doctor);
   expect(referrals.internal.number).toMatch(/^RF\d{8}$/);
   await expect(panel.getByText("Awaiting answer").first()).toBeVisible();
@@ -238,19 +238,18 @@ test("the recall list shows the plan's activities that fall due", async () => {
 });
 
 test("the follow-up is booked from the plan and the appointment is linked", async () => {
-  // From the consultation's care-plan panel, which knows the practitioner (a plan made in the UI records no author, so the
-  // plan page's Book link opens the booking form without a doctor chosen).
-  await doctor.goto(encounterPath);
-  const activity = doctor.getByRole("region", { name: "Care plans" }).locator("li").filter({ hasText: "Review sugar diary with the doctor" }).first();
+  // From the plan's own page: a plan made in the UI records its author (the consultation's doctor), so the booking
+  // form opens with that doctor chosen.
+  await doctor.goto(`/clinic/care-plans/${planId}`);
+  const activity = doctor.locator("li").filter({ hasText: "Review sugar diary with the doctor" }).first();
   await activity.getByRole("link", { name: "Book" }).click();
   await doctor.waitForURL(/\/appointments\/new\?/);
-  await expect(doctor.locator("#practitioner")).toHaveValue(/.+/);
+  await expect(doctor.locator("#practitioner option:checked")).toHaveText(DOCTOR_NAME);
   await doctor.locator("#visitType").selectOption({ label: "Consultation · 15 min" });
   await doctor.waitForURL(/visitTypeId=/);
   await doctor.getByRole("radiogroup", { name: "Open slots" }).getByRole("radio").first().click();
   await doctor.getByRole("button", { name: /^Book \d/ }).click();
   await toast(doctor, new RegExp(`Booked ${patient.family}`, "i"));
-  await doctor.waitForURL(new RegExp(`${encounterPath}$`));
 
   await doctor.goto(`/clinic/care-plans/${planId}`);
   const scheduled = doctor.locator("li").filter({ hasText: "Review sugar diary with the doctor" }).first();
@@ -293,12 +292,21 @@ test("the plan is on Patient 360, then completed and gone from the recall list",
   await expect(doctor.getByRole("row").filter({ hasText: PLAN_TITLE })).toHaveCount(0);
 });
 
+test("a note typed and not saved is kept when the doctor leaves through the menu", async () => {
+  await doctor.goto(encounterPath);
+  await doctor.getByLabel("Plan", { exact: true }).fill("Referrals sent; care plan started.");
+  await expect(doctor.getByText("Unsaved changes")).toBeVisible();
+  // A link in the menu is a client-side navigation: the draft is saved on the way out, not lost.
+  await doctor.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Patients" }).click();
+  await doctor.waitForURL(/\/patients$/);
+  await doctor.goto(encounterPath);
+  await expect(doctor.getByLabel("Plan", { exact: true })).toHaveValue("Referrals sent; care plan started.");
+});
+
 test("the consultation is signed and nothing broke along the way", async () => {
   await doctor.goto(encounterPath);
-  // The note was never saved as a draft while the doctor moved between screens: write it again and sign.
   await doctor.getByLabel("Subjective", { exact: true }).fill("Tingling in both feet for three months, blurred vision.");
   await doctor.getByLabel("Assessment", { exact: true }).fill("Type 2 diabetes mellitus with neuropathic symptoms.");
-  await doctor.getByLabel("Plan", { exact: true }).fill("Referrals sent; care plan started.");
   await doctor.getByRole("button", { name: "Sign encounter" }).click();
   await toast(doctor, "Encounter signed");
   // The referral list in the signed consultation keeps all three with their numbers.

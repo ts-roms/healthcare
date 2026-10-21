@@ -8,14 +8,23 @@ import { carePlanPayloadSchema } from "@/lib/care-plan-form";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
-const createSchema = z.object({ patientId: z.uuid(), sourceEncounterId: z.uuid().optional(), plan: carePlanPayloadSchema });
-/** Creates an active care plan (problems, goals, activities) from the encounter. */
+const createSchema = z.object({
+  patientId: z.uuid(),
+  sourceEncounterId: z.uuid().optional(),
+  authorPractitionerId: z.uuid().optional(),
+  plan: carePlanPayloadSchema,
+});
+/** Creates an active care plan (problems, goals, activities) from the encounter; the consultation's practitioner is its author. */
 export async function createCarePlan(input: z.input<typeof createSchema>, idempotencyKey: string): Promise<ActionResult<CarePlanDetail>> {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
-  const { patientId, sourceEncounterId, plan } = parsed.data;
+  const { patientId, sourceEncounterId, authorPractitionerId, plan } = parsed.data;
   return actionResult(() =>
-    api<CarePlanDetail>("/care-plans", { method: "POST", body: { ...plan, patientId, sourceEncounterId, status: "active" }, idempotencyKey }),
+    api<CarePlanDetail>("/care-plans", {
+      method: "POST",
+      body: { ...plan, patientId, sourceEncounterId, authorPractitionerId, status: "active" },
+      idempotencyKey,
+    }),
   );
 }
 

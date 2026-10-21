@@ -48,8 +48,10 @@ export function ReferralsPanel({
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [form, setForm] = React.useState<typeof blank | null>(null);
-  const [chosen, setChosen] = React.useState<Set<string>>(new Set(diagnoses.map((d) => d.id)));
+  // What the doctor unticked: every diagnosis is on the letter unless left out, including one added after the panel opened.
+  const [leftOut, setLeftOut] = React.useState<Set<string>>(new Set());
   if (referrals === null) return null;
+  const chosen = diagnoses.filter((d) => !leftOut.has(d.id)).map((d) => d.id);
   const targets = practitioners.filter((p) => p.status === "active" && p.id !== currentPractitionerId);
   const set = (key: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => (f ? { ...f, [key]: e.target.value } : f));
@@ -68,11 +70,12 @@ export function ReferralsPanel({
         urgency: form.urgency,
         reason: form.reason,
         clinicalSummary: form.clinicalSummary,
-        diagnosisIds: [...chosen],
+        diagnosisIds: chosen,
       });
       if (result.ok) {
         toast.success(`Referral ${result.data.referralNumber} sent`);
         setForm(null);
+        setLeftOut(new Set());
         router.refresh();
       } else toast.error(result.message);
     });
@@ -192,8 +195,8 @@ export function ReferralsPanel({
               {diagnoses.map((d) => (
                 <label key={d.id} className="flex items-center gap-2">
                   <Checkbox
-                    checked={chosen.has(d.id)}
-                    onCheckedChange={() => setChosen((prev) => (prev.has(d.id) ? new Set([...prev].filter((x) => x !== d.id)) : new Set([...prev, d.id])))}
+                    checked={!leftOut.has(d.id)}
+                    onCheckedChange={() => setLeftOut((prev) => (prev.has(d.id) ? new Set([...prev].filter((x) => x !== d.id)) : new Set([...prev, d.id])))}
                   />
                   {d.label}
                 </label>
