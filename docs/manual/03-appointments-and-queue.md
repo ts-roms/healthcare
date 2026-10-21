@@ -277,7 +277,7 @@ leaves the display when the visit is closed (done, cancelled or left without bei
 7. When the facility has service points, a **Route** card follows. Under **Send to** choose where the patient goes next — **Consultation**,
    **Emergency room**, **X-ray** or whatever your facility has set up. The list starts on the service point the patient is already at, otherwise on the
    facility's consultation line. Leave it on **Choose…** to keep the ordinary consultation queue. When the patient has more stops ahead — the
-   laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes one). From the queue board, **Done here, send on** then moves the
+   laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes one), or pick a **Route template** (say **Annual check-up**) at the top of the card to fill in **Send to** and **Then** at once; you can still change them. Your facility may offer a template first for a visit type. From the queue board, **Done here, send on** then moves the
    patient from stop to stop (see "How to work a patient's route" above). Without service points the bar at the bottom says **No service points set
    up yet** with **Set up rooms** (administrators), and the patient stays on the consultation line.
 8. The bar at the bottom says **Next:** where the patient goes, and has the buttons:

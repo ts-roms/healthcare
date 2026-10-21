@@ -439,8 +439,36 @@ announces it ("A-002 → Laboratory, 2nd floor") with no change to the display i
 step: every move is a person's click, so the person at the station confirms the patient really is done there. Automatic
 completion from clinical events is a documented follow-up (each event would need its own rule about what "done here"
 means — a specimen collected is not a laboratory visit finished); so are a timer on a step, routes planned at check-in
-or from an appointment's visit type, and route templates per visit type. Who may plan or change a route is the
+or from an appointment's visit type. Who may plan or change a route is the
 organization's policy ([compliance register](../security/compliance-dependencies.md)).
+
+## Route templates
+
+Migration `0116`. A facility names the routes it plans again and again — "Annual check-up: Triage Room → Laboratory → X-ray
+→ Consultation" — so the nurse picks one instead of adding each stop by hand.
+
+- **A recipe, not a route.** `route_template` (code and name per facility, status, version) with `route_template_step`
+  (the service points in order, at most 10; the same one may return later but never twice in a row — the same
+  `routePlanProblem` rule as a visit's own route). Applying a template writes the ordinary `visit_route_step` rows through
+  triage (`servicePointId` + `route`) or `PUT /queue/visits/:id/route-plan`, so the progress, the announcements and every
+  rule above are unchanged, and editing a template later never changes a route already planned.
+- **Offered, never imposed.** `route_template_default` names the template offered first for a visit type at a facility
+  (one per visit type and facility; visit types belong to the organization, routes to a facility). At triage it is
+  pre-selected only while the visit has no service point or planned stops yet, and the nurse can change or clear it. Nothing
+  clinical chooses a template.
+- **Usable.** A template whose stop was deactivated since is `usable: false`: listed for the administrator with a warning,
+  not offered to nurses, and it cannot be saved with an inactive stop.
+- **API.** `GET /clinic/route-templates?facilityId=&includeInactive=` (`clinic.queue.read`; steps as the service points are
+  named now, `usable`, `defaultForVisitTypeIds`), `POST /clinic/route-templates` (`clinic.configure`; `409 route_template_exists`,
+  `422 route_step_repeated | service_point_unknown | service_point_inactive | visit_type_unknown`), `PATCH
+/clinic/route-templates/:id` (name, status, the whole list of stops, the visit types it is offered for; optimistic
+  `version`). Audited `route-template.create` and `route-template.update` (stops before and after). No domain event: nothing
+  else reacts to a template.
+- **Staff.** `/admin/service-points` → **Route templates** (add, edit, deactivate; **Offer first for these visit types**);
+  triage's **Route** card has a **Route template** select that fills **Send to** and **Then**; the ticket panel's **Plan
+  route…** has **Fill in from a template…** (the first stop is dropped when the patient is already there).
+- **Not built.** Completing a step from a clinical event, conditional or branching routes, and suggesting a route from the
+  complaint or the vitals (that would be decision support and needs its own labelling and override rules).
 
 ## Automatic no-shows and online check-in
 

@@ -3,10 +3,11 @@ import { clinicalTime } from "@healthcare/ui/healthcare";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
-import { getPractitioners, getServicePoints } from "@/lib/api/clinic";
+import { getPractitioners, getRouteTemplates, getServicePoints } from "@/lib/api/clinic";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { AppointmentItem, Page, QueueVisit, ServicePointSettings } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
+import { usableTemplates } from "@/lib/route-template";
 import type { TodayAppointments } from "./queue-empty";
 import { QueueWorkspace } from "./queue-workspace";
 
@@ -35,6 +36,8 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   const canManage = can(session, "clinic.queue.manage");
   // Whether a route sending a patient on calls them (migration 0115): the panel says so before the click.
   const routing = servicePoints.length > 0 ? await api<ServicePointSettings>("/clinic/service-point-settings", { query: { facilityId: facility.id } }) : null;
+  // Templates for planning a route from the ticket panel (migration 0116); none is not worth failing the queue for.
+  const templates = servicePoints.length > 0 && canManage ? usableTemplates(await getRouteTemplates(facility.id).catch(() => [])) : [];
   const facilities = await getFacilities();
   // Names for "Assigned" on the ticket, and today's appointments for the empty board; neither is worth failing the queue for.
   const canSeeAppointments = can(session, "appointment.read");
@@ -48,6 +51,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
     <QueueWorkspace
       visits={visits}
       servicePoints={servicePoints}
+      templates={templates}
       autoCall={routing?.autoCallOnRoute ?? false}
       chrome={{
         facilities: facilities.map((f) => ({ id: f.id, name: f.name })),

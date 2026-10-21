@@ -6,9 +6,10 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientSummaryResponse, RouteStep, ServicePoint, Visit } from "@/lib/api/types";
+import type { PatientDetail, PatientSummaryResponse, RouteStep, RouteTemplate, ServicePoint, Visit } from "@/lib/api/types";
 import { canTriage, visitStatusLabel } from "@/lib/clinic-mapping";
 import { toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { defaultTemplateFor, usableTemplates } from "@/lib/route-template";
 import { minutesSince } from "@/lib/triage-flags";
 import { TriageForm } from "./triage-form";
 import { TriageHeader } from "./triage-header";
@@ -42,14 +43,17 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
   const visit = await load<Visit>(`/queue/visits/${id}`);
   if (visit.facilityId !== facility.id) notFound();
   // Allergies and alerts must be visible at triage (clinic rules); they need clinical access.
-  const [patient, summary, servicePoints, route] = await Promise.all([
+  const [patient, summary, servicePoints, route, templates] = await Promise.all([
     load<PatientDetail>(`/patients/${visit.patientId}`),
     can(session, "clinical.read") ? load<PatientSummaryResponse>(`/patients/${visit.patientId}/summary`) : Promise.resolve(null),
     // Inactive ones too: the visit may already be at a service point that was deactivated since.
     api<ServicePoint[]>("/clinic/service-points", { query: { facilityId: facility.id, includeInactive: "true" } }),
     // The stops already planned (migration 0115), so a repeat triage starts from them.
     api<RouteStep[]>(`/queue/visits/${id}/route`),
+    // Route templates (migration 0116) only fill the route in; a facility without any simply has none to offer.
+    api<RouteTemplate[]>("/clinic/route-templates", { query: { facilityId: facility.id } }).catch(() => [] as RouteTemplate[]),
   ]);
+  const offered = usableTemplates(templates);
   const latest = summary?.latestVitals[0];
   const banner = toBannerPatient(patient, summary?.allergies);
 
@@ -97,6 +101,8 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
             plannedStops: route.filter((s) => s.status === "planned").map((s) => s.servicePointId),
           }}
           servicePoints={servicePoints.filter((s) => s.status === "active" || s.id === visit.servicePointId)}
+          templates={offered}
+          offeredTemplateId={defaultTemplateFor(offered, visit.visitTypeId)?.id ?? null}
           canConfigureServicePoints={can(session, "clinic.configure")}
           ageYears={patient.age}
           aside={aside}

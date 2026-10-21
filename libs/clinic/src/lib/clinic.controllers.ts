@@ -25,7 +25,10 @@ import {
   CreatePractitionerDto,
   CreateRoomDto,
   CreateScheduleDto,
+  CreateRouteTemplateDto,
   CreateServicePointDto,
+  RouteTemplatesQueryDto,
+  UpdateRouteTemplateDto,
   UpdateServicePointDto,
   ServicePointsQueryDto,
   ServicePointSettingsQueryDto,
@@ -61,6 +64,7 @@ import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
+import { RouteTemplateService } from "./config/route-template.service";
 import { ServicePointService } from "./config/service-point.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
@@ -88,6 +92,7 @@ export class ClinicConfigController {
     private readonly bookingRules: BookingRulesService,
     private readonly waitlistRules: WaitlistRulesService,
     private readonly servicePoints: ServicePointService,
+    private readonly routeTemplates: RouteTemplateService,
   ) {}
 
   // ---- service points (migration 0113) ---------------------------------------------------------------------
@@ -125,6 +130,29 @@ export class ClinicConfigController {
   @ApiOperation({ summary: "Set a facility's routing settings (audited)" })
   updateServicePointSettings(@CurrentActor() actor: Actor, @Body() body: UpdateServicePointSettingsDto) {
     return this.servicePoints.updateSettings(actor, body);
+  }
+
+  // ---- route templates (migration 0116) --------------------------------------------------------------------
+
+  @Get("route-templates")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "A facility's route templates: named lists of service points a nurse can apply to a visit's route, with the visit types each is offered for" })
+  listRouteTemplates(@CurrentActor() actor: Actor, @Query() query: RouteTemplatesQueryDto) {
+    return this.routeTemplates.list(actor, query.facilityId, query.includeInactive === "true");
+  }
+
+  @Post("route-templates")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Add a route template (409 route_template_exists on a duplicate code; a stop may not follow itself; audited)" })
+  createRouteTemplate(@CurrentActor() actor: Actor, @Body() body: CreateRouteTemplateDto) {
+    return this.routeTemplates.create(actor, body);
+  }
+
+  @Patch("route-templates/:routeTemplateId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Rename a route template, change its stops (routes already planned keep theirs), deactivate it, or set the visit types it is offered for (audited)" })
+  updateRouteTemplate(@CurrentActor() actor: Actor, @Param("routeTemplateId", ParseUUIDPipe) id: string, @Body() body: UpdateRouteTemplateDto) {
+    return this.routeTemplates.update(actor, id, body);
   }
 
   @Get("waitlist-rules")
