@@ -16,6 +16,11 @@ function laboratoryRoom(facilityId: string): string {
   return `laboratory:${facilityId}`;
 }
 
+/** A staff member's own room: their notices, never anyone else's. */
+function userRoom(userId: string): string {
+  return `user:${userId}`;
+}
+
 /** Conversation updates go only to sockets allowed to read patients' MyHealth conversations. */
 function messagesRoom(facilityId: string): string {
   return `messages:${facilityId}`;
@@ -28,7 +33,9 @@ function messagesRoom(facilityId: string): string {
  * clients may use { auth: { token, facilityId } }. Either way the session and
  * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
  * `queue.updated` with clinic.queue.read or clinic.queue.display (the waiting-room display, migration 0112),
- * `lab.updated` with lab.order.read, `messages.updated` with patient.message.read (a socket with none is refused).
+ * `lab.updated` with lab.order.read, `messages.updated` with patient.message.read, and `notices.updated` for every
+ * staff member with any permission at the facility (their own in-app notices only, so the top bar's unread count
+ * moves at once); a socket with no permission there is refused.
  * Messages carry ids and statuses only — clients refetch details through the authorized REST API.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
@@ -44,6 +51,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     this.handlers.on("QueueEntryUpdated", "realtime.queue", async (event) => this.broadcastQueue(event));
     this.handlers.on([...LAB_REALTIME_EVENTS], "realtime.laboratory", async (event) => this.broadcastLaboratory(event));
     this.handlers.on("PatientMessageSent", "realtime.messages", async (event) => this.broadcastMessages(event));
+    this.handlers.on("StaffNoticeCreated", "realtime.notices", async (event) => this.broadcastNotice(event));
   }
 
   async handleConnection(client: Socket): Promise<void> {
@@ -67,11 +75,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
         ...(actor.permissions.has("clinic.queue.read") || actor.permissions.has("clinic.queue.display") ? ["queue" as const] : []),
         ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
         ...(actor.permissions.has("patient.message.read") ? ["messages" as const] : []),
+        // Anyone who holds a permission at this facility hears their own notices; someone with none here is refused.
+        ...(actor.permissions.size > 0 ? ["notices" as const] : []),
       ];
       if (!actor.facilityId || channels.length === 0) throw new Error("Not permitted");
       if (channels.includes("queue")) await client.join(facilityRoom(actor.facilityId));
       if (channels.includes("laboratory")) await client.join(laboratoryRoom(actor.facilityId));
       if (channels.includes("messages")) await client.join(messagesRoom(actor.facilityId));
+      await client.join(userRoom(actor.userId));
       client.emit("ready", { facilityId: actor.facilityId, channels });
     } catch (error) {
       client.emit("unauthorized", { message: error instanceof Error ? error.message : "Unauthorized" });
@@ -86,6 +97,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
       occurredAt: event.occurredAt,
       ...event.payload,
     });
+  }
+
+  /** A staff member got an in-app notice: only their own sockets hear it, and only that something new arrived. */
+  private async broadcastNotice(event: DomainEventRecord): Promise<void> {
+    const userId = event.payload["userId"];
+    if (typeof userId !== "string" || !this.server) return;
+    this.server.to(userRoom(userId)).emit("notices.updated", { occurredAt: event.occurredAt });
   }
 
   /** A message was sent in a conversation: ids and who sent it, never the text — the page re-reads through the REST API. */

@@ -24,7 +24,7 @@ import {
  * Messages carry ids and statuses only; the refresh re-reads through the
  * authorized API. Callers keep polling as a fallback while not "live".
  */
-export function useLiveUpdates(events: readonly string[], onRefresh?: () => void): LiveStatus {
+export function useLiveUpdates(events: readonly string[], onRefresh?: () => void, options: { refreshPage?: boolean } = {}): LiveStatus {
   const router = useRouter();
   const [status, setStatus] = React.useState<LiveStatus>("connecting");
   const refreshed = React.useRef(onRefresh);
@@ -33,6 +33,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
   });
 
   const eventKey = events.join(",");
+  const refreshPage = options.refreshPage ?? true;
 
   React.useEffect(() => {
     const subscribed = eventKey.split(",").filter(Boolean);
@@ -45,7 +46,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         refreshed.current?.();
-        router.refresh();
+        if (refreshPage) router.refresh();
       }, LIVE_REFRESH_DEBOUNCE_MS);
     };
     const retryLater = () => {
@@ -96,7 +97,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
       window.clearTimeout(retryTimer);
       socket?.close();
     };
-  }, [router, eventKey]);
+  }, [router, eventKey, refreshPage]);
 
   return status;
 }

@@ -33,5 +33,7 @@ export function liveStatusLabel(status: LiveStatus): string {
 export const QUEUE_EVENTS = ["queue.updated"] as const;
 /** Socket messages that mean a patient conversation has a new message (sent only to users who may read conversations). */
 export const MESSAGE_EVENTS = ["messages.updated"] as const;
+/** Socket messages that mean the signed-in user has a new in-app notice (sent to that user's sockets only). */
+export const NOTICE_EVENTS = ["notices.updated"] as const;
 /** Socket messages that mean the facility laboratory changed (sent only to users who may read laboratory orders). */
 export const LAB_EVENTS = ["lab.updated"] as const;

@@ -3,6 +3,7 @@ import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
   actorUserId,
+  DomainEventPublisher,
   BusinessRuleError,
   DATABASE,
   type Database,
@@ -128,6 +129,7 @@ export class NotificationService {
     @Inject(NOTIFICATION_QUEUE) private readonly queue: NotificationQueue,
     private readonly audit: AuditService,
     private readonly pushPreferences: StaffPushPreferenceService,
+    private readonly events: DomainEventPublisher,
   ) {}
 
   /**
@@ -211,6 +213,17 @@ export class NotificationService {
         reason: row.suppressionReason ?? undefined,
         metadata: { channel: row.channel, templateKey: row.templateKey, category: row.category, resentFrom: options.resentFrom, facilityId: row.facilityId },
       });
+      // A staff member's in-app notice is new: their open pages show it at once (the realtime gateway; ids only).
+      if (row.channel === "in_app" && row.status === "delivered" && row.recipientUserId) {
+        await this.events.record(tx, {
+          type: "StaffNoticeCreated",
+          organizationId: row.organizationId,
+          facilityId: row.facilityId,
+          aggregateType: "notification",
+          aggregateId: row.id,
+          payload: { userId: row.recipientUserId },
+        });
+      }
       return row;
     });
     if (!created) {
