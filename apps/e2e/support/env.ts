@@ -45,6 +45,11 @@ export const STAFF = {
   cashier: "cashier@e2e.ph",
   /** The waiting-room display's account (role queue_display only; journey 8). */
   display: "display@e2e.ph",
+  /** A dentist (practitioner), a nurse, a pharmacist and a records officer, for the module journeys. */
+  dentist: "dentist@e2e.ph",
+  nurse: "nurse@e2e.ph",
+  pharmacist: "pharmacist@e2e.ph",
+  records: "records@e2e.ph",
 } as const;
 
 export const DOCTOR_NAME = "Dr. Maria Santos";

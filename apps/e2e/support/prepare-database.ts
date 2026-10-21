@@ -45,6 +45,10 @@ async function seed(url: string): Promise<void> {
       { email: STAFF.pathologist, name: "Dr. Lea Pathologist", role: "pathologist" },
       { email: STAFF.cashier, name: "Nina Cashier", role: "cashier" },
       { email: STAFF.display, name: "Waiting-room screen", role: "queue_display" },
+      { email: STAFF.dentist, name: "Dr. Dino Dentista", role: "dentist", profession: "dentist" },
+      { email: STAFF.nurse, name: "Nora Nurse", role: "nurse" },
+      { email: STAFF.pharmacist, name: "Paolo Pharmacist", role: "pharmacist" },
+      { email: STAFF.records, name: "Rita Records", role: "records_officer" },
     ];
     for (const s of staff) {
       const user = await client.query<{ id: string }>(`INSERT INTO app_user (email, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id`, [
