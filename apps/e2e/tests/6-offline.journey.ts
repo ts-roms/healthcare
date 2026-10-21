@@ -50,7 +50,8 @@ test("the desk captures a registration, a walk-in and vital signs offline and th
   await context.setOffline(false);
   // The outbox sends on its own when the connection returns; Send now is for when it has not started yet.
   const send = admin.getByRole("button", { name: "Send now" });
-  if (await send.isEnabled()) await send.click();
+  // It may already be sending (the button is disabled then): a short try is enough, the toasts below prove the result.
+  await send.click({ timeout: 3_000 }).catch(() => undefined);
   await toast(admin, "Sent: OFFLINE, Oscar");
   await toast(admin, "Sent: Walk-in · OFFLINE, Oscar");
   await toast(admin, "Sent: Vitals · Walk-in · OFFLINE, Oscar");
