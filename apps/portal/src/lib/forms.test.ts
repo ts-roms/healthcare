@@ -60,7 +60,7 @@ describe("loginFormSchema", () => {
 describe("patientMessage", () => {
   it("passes through the API's patient-facing message with a support reference", () => {
     const error = new ApiError(401, "invalid_credentials", "Invalid email or password", undefined, "0123456789abcdef");
-    expect(patientMessage(error)).toBe("Invalid email or password (ref 01234567)");
+    expect(patientMessage(error)).toBe("Invalid email or password");
   });
 
   it("uses plain language for rate limits, validation, server and network failures", () => {

@@ -32,10 +32,8 @@ export async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, `http_${response.status}`, response.statusText || "Request failed");
 }
 
-/** A message safe to show to staff, with the request id for support when available. */
+/** A message safe to show to staff. The request id stays in the API response and its logs, never on screen. */
 export function userMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.requestId ? `${error.message} (ref ${error.requestId.slice(0, 8)})` : error.message;
-  }
+  if (error instanceof ApiError) return error.message;
   return "The server could not be reached. Try again.";
 }

@@ -11,7 +11,7 @@ describe("toApiError", () => {
     );
     const e = await toApiError(res);
     expect(e).toMatchObject({ status: 409, code: "possible_duplicates", message: "Review them", requestId: "abcdef12-3456" });
-    expect(userMessage(e)).toBe("Review them (ref abcdef12)");
+    expect(userMessage(e)).toBe("Review them");
   });
 
   it("falls back for non-JSON bodies (e.g. a proxy error page)", async () => {

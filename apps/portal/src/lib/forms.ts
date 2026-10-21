@@ -63,12 +63,11 @@ export function parseForm<S extends z.ZodType>(
   return { ok: false, errors };
 }
 
-/** A message for patients: plain language, with a support reference when the API gave one. */
+/** A message for patients: plain language, never a request id. */
 export function patientMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "We couldn't reach MyHealth. Check your connection and try again.";
-  const ref = error.requestId ? ` (ref ${error.requestId.slice(0, 8)})` : "";
   if (error.status === 429) return "Too many attempts. Wait a minute, then try again.";
-  if (error.code === "validation_failed") return `Some details were not accepted. Check them and try again.${ref}`;
-  if (error.status >= 500) return `Something went wrong on our side. Try again in a few minutes.${ref}`;
-  return `${error.message}${ref}`;
+  if (error.code === "validation_failed") return "Some details were not accepted. Check them and try again.";
+  if (error.status >= 500) return "Something went wrong on our side. Try again in a few minutes.";
+  return error.message;
 }
