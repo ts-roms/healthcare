@@ -114,3 +114,7 @@ patient record (starts a conversation) with a link to all conversations with tha
 Notification platform (in-app to staff; SMS/email to patients), documents platform (patient uploads are
 `clinical_attachment` documents of the record; signed links), the staff directory (`UsersService.holdersOfRole` for
 routed roles), patient merge (links, not moves), audit. No external system.
+
+## Live updates
+
+Staff conversation pages stay current without a reload: the realtime gateway sends `messages.updated` (thread id, message id and who sent it, never the text) to sockets of users holding `patient.message.read` at the facility, whenever a `PatientMessageSent` event is published; the staff pages refresh through the REST API (polling every 15 seconds while the socket is down). MyHealth has no socket for patients, so its conversation and message list re-read every 10 seconds while the tab is visible (`AutoRefresh`).

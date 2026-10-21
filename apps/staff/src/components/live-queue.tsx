@@ -10,6 +10,7 @@ import {
   LIVE_REFRESH_DEBOUNCE_MS,
   type LiveStatus,
   liveStatusLabel,
+  MESSAGE_EVENTS,
   QUEUE_EVENTS,
   QUEUE_TICK_MS,
   RECONNECT_DELAY_MS,
@@ -143,6 +144,12 @@ export function LiveIndicator({ status }: { status: LiveStatus }) {
 /** For pages that show the queue without managing it (the dashboard): keeps it current and shows the indicator. */
 export function LiveQueueRefresh({ events = QUEUE_EVENTS }: { events?: readonly string[] }) {
   return <LiveIndicator status={useQueueUpdates(undefined, events)} />;
+}
+
+/** Keeps a conversation or the message list current: live when a message is sent, polling while the socket is down. */
+export function LiveMessagesRefresh() {
+  useQueueUpdates(undefined, MESSAGE_EVENTS);
+  return null;
 }
 
 /** Keeps a laboratory screen (worklists, critical results) current and shows the indicator. */

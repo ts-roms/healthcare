@@ -31,5 +31,7 @@ export function liveStatusLabel(status: LiveStatus): string {
 // values imported from a client module are client references on the server, not arrays.
 /** Socket messages that mean the queue changed. */
 export const QUEUE_EVENTS = ["queue.updated"] as const;
+/** Socket messages that mean a patient conversation has a new message (sent only to users who may read conversations). */
+export const MESSAGE_EVENTS = ["messages.updated"] as const;
 /** Socket messages that mean the facility laboratory changed (sent only to users who may read laboratory orders). */
 export const LAB_EVENTS = ["lab.updated"] as const;
