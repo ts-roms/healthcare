@@ -1,7 +1,7 @@
+import { ModulePage } from "@/components/module-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
 import { PatientPicker } from "@/components/patient-picker";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { ApiError, userMessage } from "@healthcare/web-session";
@@ -37,20 +37,18 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
   if (!can(session, "appointment.manage")) redirect("/appointments");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Book appointment" />
+      <ModulePage title="Book appointment">
         <FacilityRequired action="Appointments are booked at a facility." />
-      </>
+      </ModulePage>
     );
   }
   // Opened without a patient (a bookmark, a typed address): find the patient first, keeping the rest of the request.
   if (!params.patientId) {
     const { patientId: _patientId, q = "", ...keep } = params;
     return (
-      <>
-        <PageHeader title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`} />
+      <ModulePage title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`}>
         <PatientPicker action="/appointments/new" q={q} keep={keep} verb="Book" canRegister={can(session, "patient.register")} />
-      </>
+      </ModulePage>
     );
   }
   const [patient, allPractitioners, visitTypes, schedules] = await Promise.all([
@@ -87,8 +85,7 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
   }
 
   return (
-    <>
-      <PageHeader title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`} />
+    <ModulePage title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`}>
       <BookingForm
         facilityId={facility.id}
         today={today}
@@ -111,6 +108,6 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
         availabilityError={availabilityError}
         schedule={schedule}
       />
-    </>
+    </ModulePage>
   );
 }

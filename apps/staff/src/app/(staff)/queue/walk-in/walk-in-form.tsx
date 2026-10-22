@@ -55,7 +55,7 @@ export function WalkInForm({
   };
 
   return (
-    <form onSubmit={submit} className="flex max-w-2xl flex-col gap-4 p-4">
+    <form onSubmit={submit} className="flex max-w-2xl flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>{patient.displayName}</CardTitle>

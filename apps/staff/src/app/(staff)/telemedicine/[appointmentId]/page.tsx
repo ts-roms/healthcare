@@ -1,6 +1,6 @@
+import { ModulePage } from "@/components/module-page";
 import { notFound, redirect } from "next/navigation";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { TelemedicineConsultation } from "@/lib/api/types";
@@ -24,9 +24,8 @@ export default async function ConsultationPage({ params }: { params: Promise<{ a
   }
   if (consultation.session.encounterId) redirect(`/clinic/encounters/${consultation.session.encounterId}`);
   return (
-    <>
-      <PageHeader title="Online consultation" description={`${consultation.appointment.visitType} with ${consultation.appointment.practitionerName}`} />
+    <ModulePage title="Online consultation" description={`${consultation.appointment.visitType} with ${consultation.appointment.practitionerName}`}>
       <PreConsult consultation={consultation} canConduct={can(session, "telemedicine.conduct") && can(session, "encounter.write")} />
-    </>
+    </ModulePage>
   );
 }

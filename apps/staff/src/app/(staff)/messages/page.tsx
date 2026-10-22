@@ -1,9 +1,9 @@
+import { LiveMessagesRefresh } from "@/components/live-queue";
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
-import { LiveMessagesRefresh } from "@/components/live-queue";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientThread } from "@/lib/api/types";
@@ -33,89 +33,87 @@ export default async function PatientMessagesPage({ searchParams }: { searchPara
     return q.size ? `/messages?${q}` : "/messages";
   };
   return (
-    <>
+    <ModulePage
+      title="Patient messages"
+      description="Conversations patients start in MyHealth. Read during clinic hours and reply in plain words. Patients are told this is not for emergencies; if a message describes one, call the patient."
+    >
       <LiveMessagesRefresh />
-      <PageHeader
-        title="Patient messages"
-        description="Conversations patients start in MyHealth. Read during clinic hours and reply in plain words. Patients are told this is not for emergencies; if a message describes one, call the patient."
-      />
-      <div className="flex flex-col gap-3 p-4">
-        <nav aria-label="View" className="flex flex-wrap items-center gap-1">
-          {MESSAGE_VIEWS.map((v) => (
-            <Button key={v.key} asChild size="sm" variant={view === v.key ? "default" : "outline"}>
-              <Link href={link({ view: v.key })} aria-current={view === v.key ? "page" : undefined}>
-                {v.label}
-              </Link>
-            </Button>
-          ))}
-          <Button asChild size="sm" variant={mine ? "default" : "outline"} className="ml-2">
-            <Link href={link({ mine: !mine })} aria-pressed={mine}>
-              Assigned to me
+
+      <nav aria-label="View" className="flex flex-wrap items-center gap-1">
+        {MESSAGE_VIEWS.map((v) => (
+          <Button key={v.key} asChild size="sm" variant={view === v.key ? "default" : "outline"}>
+            <Link href={link({ view: v.key })} aria-current={view === v.key ? "page" : undefined}>
+              {v.label}
             </Link>
           </Button>
-          {patientId ? (
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/messages">Clear patient filter</Link>
-            </Button>
-          ) : null}
-          <Button asChild size="sm" variant="ghost" className="ml-auto">
-            <Link href="/messages/settings">Routing and response targets</Link>
+        ))}
+        <Button asChild size="sm" variant={mine ? "default" : "outline"} className="ml-2">
+          <Link href={link({ mine: !mine })} aria-pressed={mine}>
+            Assigned to me
+          </Link>
+        </Button>
+        {patientId ? (
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/messages">Clear patient filter</Link>
           </Button>
-        </nav>
-        <Card className="py-0">
-          {threads.length === 0 ? (
-            <p className="p-4 text-body text-muted-foreground">{view === "awaiting" ? "Nothing is waiting for a reply." : "No conversations."}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Assigned</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {threads.map((t) => {
-                  const status = threadStatus(t);
-                  const due = dueState(t);
-                  return (
-                    <TableRow key={t.id}>
-                      <TableCell>
-                        {t.patientName} <span className="text-muted-foreground">· {t.patientNumber}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium">{t.subject}</span>
-                        <span className="block text-meta text-muted-foreground">
-                          {TOPIC_LABEL[t.topic]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"}
-                          {t.noteCount ? ` · ${t.noteCount} ${t.noteCount === 1 ? "note" : "notes"}` : ""} · {clinicalDateTime(t.lastMessageAt)}
+        ) : null}
+        <Button asChild size="sm" variant="ghost" className="ml-auto">
+          <Link href="/messages/settings">Routing and response targets</Link>
+        </Button>
+      </nav>
+      <Card className="py-0">
+        {threads.length === 0 ? (
+          <p className="p-4 text-body text-muted-foreground">{view === "awaiting" ? "Nothing is waiting for a reply." : "No conversations."}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Patient</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {threads.map((t) => {
+                const status = threadStatus(t);
+                const due = dueState(t);
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      {t.patientName} <span className="text-muted-foreground">· {t.patientNumber}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{t.subject}</span>
+                      <span className="block text-meta text-muted-foreground">
+                        {TOPIC_LABEL[t.topic]} · {t.messageCount} {t.messageCount === 1 ? "message" : "messages"}
+                        {t.noteCount ? ` · ${t.noteCount} ${t.noteCount === 1 ? "note" : "notes"}` : ""} · {clinicalDateTime(t.lastMessageAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                      {t.awaitingClinic ? <span className="block text-meta text-muted-foreground">waiting {waitingFor(t.lastMessageAt)}</span> : null}
+                      {due ? (
+                        <span className={`block text-meta ${due.overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
+                          {due.overdue ? "⚠ " : ""}
+                          {due.label}
                         </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                        {t.awaitingClinic ? <span className="block text-meta text-muted-foreground">waiting {waitingFor(t.lastMessageAt)}</span> : null}
-                        {due ? (
-                          <span className={`block text-meta ${due.overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
-                            {due.overdue ? "⚠ " : ""}
-                            {due.label}
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-meta">{t.assignedTo?.displayName ?? "—"}</TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild size="xs" variant="outline">
-                          <Link href={`/messages/${t.id}`}>{t.awaitingClinic ? "Reply" : "Open"}</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      </div>
-    </>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-meta">{t.assignedTo?.displayName ?? "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild size="xs" variant="outline">
+                        <Link href={`/messages/${t.id}`}>{t.awaitingClinic ? "Reply" : "Open"}</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+    </ModulePage>
   );
 }

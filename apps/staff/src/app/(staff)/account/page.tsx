@@ -1,6 +1,6 @@
+import { ModulePage } from "@/components/module-page";
 import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { MyPractitionerSignature } from "@/lib/api/types";
@@ -15,9 +15,8 @@ export default async function AccountPage() {
   // Practitioners draw their own signature for the certificates and letters they issue.
   const signature = can(session, "encounter.read") ? await api<MyPractitionerSignature>("/me/practitioner-signature").catch(() => null) : null;
   return (
-    <>
-      <PageHeader title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`} />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <ModulePage title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`}>
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
@@ -62,6 +61,6 @@ export default async function AccountPage() {
           </Card>
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }
