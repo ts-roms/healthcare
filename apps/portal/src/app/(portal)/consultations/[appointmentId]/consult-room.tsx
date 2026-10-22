@@ -3,14 +3,17 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertOctagonIcon, CheckCircle2Icon, ClockIcon, HospitalIcon, LoaderIcon, PhoneIcon, VideoIcon } from "lucide-react";
-import { VideoCall } from "@healthcare/ui/healthcare";
+import { ConsultChat, type ConsultChatMessage, VideoCall } from "@healthcare/ui/healthcare";
 import { Button, Checkbox, Input, Label, Textarea } from "@healthcare/ui/primitives";
-import type { PortalTeleconsult, VideoJoin } from "@/lib/api/types";
+import Link from "next/link";
+import type { PortalTeleconsult, TeleconsultAcknowledgement, TeleconsultPayment, VideoJoin } from "@/lib/api/types";
+import { peso } from "@/lib/billing";
 import { visitTime } from "@/lib/records";
 import { BLANK_QUESTIONNAIRE, consultStage, type QuestionnaireForm, RED_FLAGS } from "@/lib/teleconsult";
-import { enterWaitingRoom, joinVideo, submitQuestionnaire } from "../actions";
+import { enterWaitingRoom, joinVideo, listChat, requestPayment, sendChat, submitQuestionnaire } from "../actions";
 
 const POLL_MS = 5_000;
+const CHAT_POLL_MS = 4_000;
 
 /** One online consultation, step by step: questions → waiting room → video → instructions. */
 export function ConsultRoom({ consult }: { consult: PortalTeleconsult }) {
@@ -36,13 +39,15 @@ export function ConsultRoom({ consult }: { consult: PortalTeleconsult }) {
           {consult.practitionerName} · {visitTime({ startsAt: consult.startsAt, timeZone: consult.timeZone })}
         </p>
       </header>
-      {stage === "questionnaire" ? <Questionnaire appointmentId={consult.appointmentId} onDone={() => router.refresh()} /> : null}
+      {stage === "questionnaire" ? (
+        <Questionnaire appointmentId={consult.appointmentId} acknowledgement={consult.acknowledgement ?? null} onDone={() => router.refresh()} />
+      ) : null}
       {stage === "early" ? (
         <Panel icon={ClockIcon} title="Your answers are with your doctor">
           The waiting room opens at {visitTime({ startsAt: consult.waitingRoomOpensAt, timeZone: consult.timeZone })}. Keep this page open or come back then.
         </Panel>
       ) : null}
-      {stage === "ready" ? <EnterWaitingRoom appointmentId={consult.appointmentId} onDone={() => router.refresh()} /> : null}
+      {stage === "ready" ? <EnterWaitingRoom appointmentId={consult.appointmentId} payment={consult.payment ?? null} onDone={() => router.refresh()} /> : null}
       {stage === "waiting" ? (
         <Panel icon={LoaderIcon} title="You are in the waiting room" spin>
           {consult.practitionerName} will start the consultation shortly. Keep this page open; it updates by itself. If the video does not work, your doctor
@@ -66,6 +71,7 @@ export function ConsultRoom({ consult }: { consult: PortalTeleconsult }) {
           To book another consultation, contact the clinic.
         </Panel>
       ) : null}
+      {["waiting", "in_call", "ended", "escalated"].includes(stage) ? <Chat appointmentId={consult.appointmentId} /> : null}
     </div>
   );
 }
@@ -104,7 +110,16 @@ function Instructions({ text }: { text: string | null }) {
   );
 }
 
-function Questionnaire({ appointmentId, onDone }: { appointmentId: string; onDone: () => void }) {
+function Questionnaire({
+  appointmentId,
+  acknowledgement,
+  onDone,
+}: {
+  appointmentId: string;
+  /** The organization's own wording, when it has written one; otherwise the platform's plain statement is shown. */
+  acknowledgement: TeleconsultAcknowledgement | null;
+  onDone: () => void;
+}) {
   const [form, setForm] = React.useState<QuestionnaireForm>(BLANK_QUESTIONNAIRE);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [message, setMessage] = React.useState<string | null>(null);
@@ -115,10 +130,12 @@ function Questionnaire({ appointmentId, onDone }: { appointmentId: string; onDon
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     start(async () => {
-      const result = await submitQuestionnaire(appointmentId, form);
+      const result = await submitQuestionnaire(appointmentId, { ...form, acknowledgementTextId: acknowledgement?.id });
       if (result.ok) return onDone();
       setMessage(result.message);
       setErrors(result.fields ?? {});
+      // The clinic changed its wording while the patient read: reload to show the new one before they confirm.
+      if (acknowledgement && /changed/i.test(result.message)) onDone();
     });
   };
 
@@ -203,11 +220,19 @@ function Questionnaire({ appointmentId, onDone }: { appointmentId: string; onDon
         {errors.callbackNumber ? <p className="text-meta text-danger-foreground">{errors.callbackNumber}</p> : null}
       </div>
 
+      {acknowledgement ? (
+        <div className="flex flex-col gap-1.5 rounded-lg border p-3">
+          <h3 className="font-semibold">{acknowledgement.title}</h3>
+          <p className="max-h-48 overflow-y-auto text-body whitespace-pre-wrap text-muted-foreground" tabIndex={0}>
+            {acknowledgement.body}
+          </p>
+        </div>
+      ) : null}
       <label className="flex items-start gap-2 rounded-lg bg-muted p-3 text-body">
         <Checkbox className="mt-0.5" checked={form.acknowledgesOnlineConsultation} onCheckedChange={(c) => set("acknowledgesOnlineConsultation", c === true)} />
         <span>
-          I understand that an online consultation cannot include a physical examination, that my doctor may ask me to come to the clinic, and that I should use
-          a private place for the call. The call is not recorded.
+          {acknowledgement?.statement ??
+            "I understand that an online consultation cannot include a physical examination, that my doctor may ask me to come to the clinic, and that I should use a private place for the call. The call is not recorded."}
         </span>
       </label>
       {message ? (
@@ -222,31 +247,107 @@ function Questionnaire({ appointmentId, onDone }: { appointmentId: string; onDon
   );
 }
 
-function EnterWaitingRoom({ appointmentId, onDone }: { appointmentId: string; onDone: () => void }) {
+function EnterWaitingRoom({ appointmentId, payment, onDone }: { appointmentId: string; payment: TeleconsultPayment | null; onDone: () => void }) {
   const [pending, start] = React.useTransition();
   const [message, setMessage] = React.useState<string | null>(null);
+  const [bill, setBill] = React.useState<TeleconsultPayment | null>(payment);
+  // The clinic asks for payment first: the bill is requested once, paid in MyHealth or at the clinic, then the room opens. When
+  // requesting it shows nothing is charged for this visit, the patient goes straight on.
+  const [checked, setChecked] = React.useState(false);
+  const unpaid = bill?.required === true && bill.state === "unpaid";
+  const needsBill = bill?.required === true && bill.state === "not_required" && !checked;
   return (
     <Panel icon={VideoIcon} title="Ready when you are">
       Find a quiet, private place with good signal. When you enter the waiting room, the clinic knows you are here.
+      {unpaid ? (
+        <p className="rounded-lg border bg-background p-3" role="status">
+          Your clinic asks you to pay before the consultation: <strong>{peso(bill.balance)}</strong>
+          {bill.invoiceNumber ? ` (bill ${bill.invoiceNumber})` : ""}. Pay in{" "}
+          <Link href="/billing" className="font-medium text-primary underline">
+            Bills
+          </Link>{" "}
+          when online payment is offered, or at the clinic. Then come back here.
+        </p>
+      ) : null}
       {message ? (
         <p role="alert" className="text-danger-foreground">
           {message}
         </p>
       ) : null}
-      <Button
-        size="lg"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const result = await enterWaitingRoom(appointmentId);
-            if (result.ok) onDone();
-            else setMessage(result.message);
-          })
-        }
-      >
-        Enter the waiting room
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        {needsBill ? (
+          <Button
+            size="lg"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const result = await requestPayment(appointmentId);
+                if (result.ok) {
+                  setBill(result.data);
+                  setChecked(true);
+                  setMessage(null);
+                } else setMessage(result.message);
+              })
+            }
+          >
+            Get my bill
+          </Button>
+        ) : (
+          <Button
+            size="lg"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const result = await enterWaitingRoom(appointmentId);
+                if (result.ok) return onDone();
+                setMessage(result.message);
+                // Not paid yet: show the bill that was just made out.
+                if (result.code === "payment_required") onDone();
+              })
+            }
+          >
+            {unpaid ? "I have paid: enter the waiting room" : "Enter the waiting room"}
+          </Button>
+        )}
+      </div>
     </Panel>
+  );
+}
+
+/** The consultation's chat with the clinician: open from the waiting room until the call ends, readable afterwards. */
+function Chat({ appointmentId }: { appointmentId: string }) {
+  const [messages, setMessages] = React.useState<ConsultChatMessage[]>([]);
+  const [open, setOpen] = React.useState(false);
+  const lastId = React.useRef<string | undefined>(undefined);
+
+  const load = React.useCallback(async () => {
+    const result = await listChat(appointmentId, lastId.current);
+    if (!result.ok) return;
+    setOpen(result.data.open);
+    if (result.data.messages.length) {
+      lastId.current = result.data.messages[result.data.messages.length - 1]!.id;
+      setMessages((current) => [...current, ...result.data.messages.filter((m) => !current.some((c) => c.id === m.id))]);
+    }
+  }, [appointmentId]);
+
+  React.useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), CHAT_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  return (
+    <ConsultChat
+      messages={messages}
+      mine="patient"
+      open={open}
+      onSend={async (text) => {
+        const result = await sendChat(appointmentId, text);
+        if (!result.ok) return result.message;
+        await load();
+        return null;
+      }}
+    />
   );
 }
 

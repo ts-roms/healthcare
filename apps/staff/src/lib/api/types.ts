@@ -1225,6 +1225,15 @@ export interface TelemedicineAppointment {
   visitType: string;
 }
 
+/** `GET /telemedicine/consultations/video-status`: whether video is set up and the video server answers right now. */
+export interface VideoReadiness {
+  configured: boolean;
+  /** Null when not configured. */
+  reachable: boolean | null;
+  checkedAt: string;
+  detail: string | null;
+}
+
 /** `GET /telemedicine/consultations` */
 export interface TelemedicineDay {
   date: string;
@@ -1251,8 +1260,43 @@ export interface TelemedicineQuestionnaire {
 }
 
 /** `GET /telemedicine/consultations/:appointmentId` and the actions' responses. */
+/** `GET /telemedicine/settings` (`clinic.configure`). */
+export interface TelemedicineSetting {
+  /** An online visit must be paid for before the patient may enter the waiting room. */
+  paymentRequired: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+
+/** Where payment for an online visit stands, on the consultation detail. Amounts in centavos. */
+export interface TelemedicinePayment {
+  required: boolean;
+  state: "not_required" | "unpaid" | "paid";
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  amount: number;
+  balance: number;
+}
+
+/** `GET /telemedicine/consultations/:id/messages` */
+export interface TelemedicineChat {
+  messages: Array<{ id: string; sender: "patient" | "staff"; name: string; body: string; sentAt: string }>;
+  open: boolean;
+}
+
+/** Which acknowledgement the patient confirmed: the organization's own wording (a version) or the platform's plain statement. */
+export interface TelemedicineAcknowledgement {
+  source: "organization" | "platform";
+  version: number | null;
+  title: string | null;
+}
+
 export interface TelemedicineConsultation {
   appointment: TelemedicineAppointment;
+  /** Only on `GET /telemedicine/consultations/:id`. */
+  acknowledgement?: TelemedicineAcknowledgement | null;
+  /** Only on `GET /telemedicine/consultations/:id`. */
+  payment?: TelemedicinePayment;
   session: TelemedicineSessionSummary & {
     questionnaire: TelemedicineQuestionnaire | null;
     redFlagLabels: string[];
@@ -1329,7 +1373,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package" | "appointment";
   description: string;
   quantity: number;
   unitPrice: number;

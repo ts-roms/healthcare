@@ -124,6 +124,33 @@ export interface PortalCarePlan {
 }
 
 /** `GET /portal/teleconsults[/:appointmentId]` */
+/** The organization's own wording of the online-consultation acknowledgement (migration 0125); absent = the platform's plain statement. */
+export interface TeleconsultAcknowledgement {
+  id: string;
+  version: number;
+  title: string;
+  body: string;
+  /** The statement the patient confirms. */
+  statement: string;
+}
+
+/** Where payment for an online visit stands, when the clinic asks for it before the waiting room. Amounts in centavos. */
+export interface TeleconsultPayment {
+  required: boolean;
+  /** `not_required`: nothing is asked for (yet, or for this visit). */
+  state: "not_required" | "unpaid" | "paid";
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  amount: number;
+  balance: number;
+}
+
+/** `GET /portal/teleconsults/:id/messages` */
+export interface TeleconsultChat {
+  messages: Array<{ id: string; sender: "patient" | "staff"; name: string; body: string; sentAt: string }>;
+  open: boolean;
+}
+
 export interface PortalTeleconsult {
   appointmentId: string;
   startsAt: string;
@@ -139,6 +166,9 @@ export interface PortalTeleconsult {
   videoConfigured: boolean;
   patientInstructions: string | null;
   escalated: boolean;
+  /** Only on a single consultation (`GET /portal/teleconsults/:id`). */
+  acknowledgement?: TeleconsultAcknowledgement | null;
+  payment?: TeleconsultPayment;
 }
 
 /** `POST /portal/teleconsults/:appointmentId/video` */

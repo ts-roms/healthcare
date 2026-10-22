@@ -175,6 +175,7 @@ export class ClinicQueries {
         status: encounter.status,
         at: sql<Date>`coalesce(${encounter.completedAt}, ${encounter.startedAt})`,
         visitTypeCode: visitType.code,
+        appointmentId: visit.appointmentId,
         timeZone: facility.timezone,
       })
       .from(encounter)
@@ -189,6 +190,7 @@ export class ClinicQueries {
       facilityId: row.facilityId,
       status: row.status,
       visitTypeCode: row.visitTypeCode,
+      appointmentId: row.appointmentId,
       serviceDate: localDate(new Date(row.at), row.timeZone),
     };
   }

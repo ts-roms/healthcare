@@ -132,6 +132,40 @@ When the patient needs to be examined in person (or sent to emergency care):
 5. Select **Book the in-person visit** to book the patient with you (needs `appointment.manage`). You return to the encounter after booking.
 6. Sign the encounter when your documentation is complete.
 
+## Chat during the consultation
+
+Beside the video there is a **Chat**: a plain text conversation between you and the patient, open from the moment the patient enters the waiting room
+until the call ends, and readable afterwards. Use it when video fails, or to share a number or a spelling. You find it on the consultation page and in the
+encounter workspace's **Online consultation** panel.
+
+- Anyone with `telemedicine.read` can read it; only someone who can conduct online consultations (`telemedicine.conduct`) can write.
+- A message is never edited or removed, and at most 20 messages a minute can be sent by one side. Sending is recorded without the text.
+- The chat is not your clinical note. Document what matters in the encounter as usual.
+
+## Payment before the waiting room (administrators)
+
+Under **Settings → Clinical → Online consultations** (`clinic.configure`) an organization can **require payment before the waiting room**. It is off by
+default.
+
+- When it is on, the patient's request for the waiting room charges the online visit once, using the service your billing settings map to the visit type
+  (**Billing → Settings → Services**, source "Visit type"), and issues the invoice. A visit type with no priced service is not charged.
+- The patient pays in MyHealth when online payment is set up, or at the cashier like any invoice. The waiting room opens when the invoice is settled.
+- The consultation page shows **Payment before the call: paid / not paid yet / not asked yet**, with a link to the invoice.
+- The signed consultation does not charge the visit again. A refund for a visit that did not take place is the cashier's, with the usual refund or void.
+
+## Video status
+
+On **Telemedicine**, a notice appears when video is **not set up** (an administrator sets `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`) or when the
+video server is **not answering**. Call patients on the callback number from their answers until it is back. **Settings → Clinical → Online consultations**
+shows the same status.
+
+## The acknowledgement the patient confirms
+
+The patient confirms a statement about how online consultations work before sending their answers. If your organization has written its own wording under
+**Settings → Security & privacy → Consent wording** (telemedicine), the patient reads that text and confirms its statement, and the consultation records which
+version they saw (shown beside the answers). Without it, a plain platform statement is shown. Whether either satisfies DOH and NPC requirements is for your
+organization and its data protection officer to confirm.
+
 ## Rules the system enforces
 
 - The patient must answer the pre-consult questions before entering the waiting room.

@@ -20,7 +20,16 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { type Questionnaire, questionnaireSchema, RED_FLAGS } from "./questionnaire";
 import { telemedicineSession, type TelemedicineSessionRecord } from "./telemedicine.schema";
 import { canMove, roomName, videoOpen } from "./telemedicine.rules";
-import { type OnlineAppointment, TELEMEDICINE_CLINIC, type TelemedicineClinic } from "./ports";
+import {
+  type AcknowledgementWording,
+  type OnlineAppointment,
+  type PrepaymentView,
+  TELEMEDICINE_CLINIC,
+  TELEMEDICINE_PAYMENTS,
+  type TelemedicineClinic,
+  type TelemedicinePayments,
+} from "./ports";
+import { TelemedicineSettingService } from "./telemedicine-setting.service";
 import { VIDEO_PROVIDER, type VideoJoin, type VideoProvider } from "./video";
 
 /** The patient acting through the portal, as the API hands it over (audited with actor type "patient"). */
@@ -71,7 +80,9 @@ export class TelemedicineService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(TELEMEDICINE_CLINIC) private readonly clinic: TelemedicineClinic,
+    @Inject(TELEMEDICINE_PAYMENTS) private readonly payments: TelemedicinePayments,
     @Inject(VIDEO_PROVIDER) private readonly video: VideoProvider,
+    private readonly settings: TelemedicineSettingService,
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
@@ -79,6 +90,11 @@ export class TelemedicineService {
 
   get videoConfigured(): boolean {
     return this.video.configured;
+  }
+
+  /** Whether video can be used now (set up and answering); no patient data. */
+  videoReadiness() {
+    return this.video.check();
   }
 
   // ---- Staff ------------------------------------------------------------------------------
@@ -130,7 +146,11 @@ export class TelemedicineService {
       resourceId: session.id,
       patientId: appointment.patientId,
     });
-    return this.staffView(appointment, session);
+    return {
+      ...this.staffView(appointment, session),
+      acknowledgement: await this.acknowledgementShown(session),
+      payment: await this.paymentView(appointment),
+    };
   }
 
   /**
@@ -260,7 +280,46 @@ export class TelemedicineService {
   async patientConsultation(patient: PatientContext, appointmentId: string) {
     const appointment = await this.requireOwn(patient, appointmentId);
     const session = await this.ensureSession(this.db, appointment);
-    return this.patientView(appointment, session);
+    const wording = await this.clinic.currentAcknowledgement(patient.organizationId);
+    return { ...this.patientView(appointment, session), acknowledgement: wording, payment: await this.paymentView(appointment) };
+  }
+
+  /**
+   * Where payment for the visit stands, when the organization requires it before the waiting room. `required` false: the
+   * organization does not ask for payment up front (or nothing is charged for this visit type). Reading never charges.
+   */
+  private async paymentView(appointment: OrgAppointment): Promise<{ required: boolean } & PrepaymentView> {
+    const setting = await this.settings.get(appointment.organizationId);
+    if (!setting.paymentRequired) return { required: false, state: "not_required", invoiceId: null, invoiceNumber: null, amount: 0, balance: 0 };
+    const status = await this.payments.status(appointment.organizationId, appointment.id);
+    // Nothing charged yet: the amount is only known once the visit is invoiced, which the patient asks for (patientPayment).
+    return { required: true, ...status };
+  }
+
+  /**
+   * The patient asks to pay for the visit: it is charged and invoiced (once) and they are told where to pay. The invoice
+   * is also payable at the cashier; the waiting room opens when it is settled by either way.
+   */
+  async patientPayment(patient: PatientContext, appointmentId: string) {
+    const appointment = await this.requireOwn(patient, appointmentId);
+    const setting = await this.settings.get(patient.organizationId);
+    if (!setting.paymentRequired) throw new BusinessRuleError("Your clinic does not ask for payment before the consultation", "payment_not_required");
+    const status = await this.payments.ensure({
+      organizationId: patient.organizationId,
+      facilityId: appointment.facilityId,
+      patientId: appointment.patientId,
+      appointmentId: appointment.id,
+      visitTypeCode: appointment.visitTypeCode,
+      serviceDate: localDate(appointment.startsAt, appointment.timeZone),
+    });
+    await this.audit.recordStandalone(patient.audit, {
+      action: "portal.teleconsult-payment",
+      resourceType: "telemedicine_session",
+      resourceId: appointment.id,
+      patientId: patient.patientId,
+      metadata: { state: status.state, invoiceId: status.invoiceId },
+    });
+    return { required: true, ...status };
   }
 
   /**
@@ -279,6 +338,12 @@ export class TelemedicineService {
     }
     const answers: Questionnaire = parsed.data;
     const appointment = await this.requireOwn(patient, appointmentId);
+    // While the organization has its own wording, the patient must confirm the version offered now (if it changed while they
+    // read, they are shown the new one first); without one, the platform's plain statement stands.
+    const wording = await this.clinic.currentAcknowledgement(patient.organizationId);
+    if (wording && answers.acknowledgementTextId !== wording.id) {
+      throw new BusinessRuleError("The statement you are asked to confirm has changed; please read it again", "acknowledgement_wording_changed");
+    }
     return this.db.transaction(async (tx) => {
       const session = await this.lock(tx, (await this.ensureSession(tx, appointment)).id);
       if (session.status !== "scheduled" && session.status !== "waiting") {
@@ -292,6 +357,7 @@ export class TelemedicineService {
           questionnaireSubmittedAt: now,
           redFlags: answers.redFlags,
           consentAcknowledgedAt: session.consentAcknowledgedAt ?? now,
+          acknowledgementTextId: wording?.id ?? null,
           updatedAt: now,
           version: sql`${telemedicineSession.version} + 1`,
         })
@@ -302,7 +368,7 @@ export class TelemedicineService {
         resourceType: "telemedicine_session",
         resourceId: session.id,
         patientId: patient.patientId,
-        metadata: { redFlags: answers.redFlags.length, acknowledgedOnlineConsultation: true },
+        metadata: { redFlags: answers.redFlags.length, acknowledgedOnlineConsultation: true, wordingVersion: wording?.version ?? null },
       });
       await this.events.record(tx, sessionEvent("TelemedicineQuestionnaireSubmitted", row!, { redFlags: answers.redFlags.length }));
       return this.patientView(appointment, row!);
@@ -316,6 +382,22 @@ export class TelemedicineService {
     if (session.status === "waiting" || session.status === "in_consultation") return this.patientView(appointment, session);
     if (session.status !== "scheduled") throw new BusinessRuleError(`The consultation has ${session.status}`, "session_closed");
     if (!session.questionnaireSubmittedAt) throw new BusinessRuleError("Please answer the questions before the consultation first", "questionnaire_required");
+    // When payment is required, asking for the waiting room charges and invoices the visit (once); it opens when that is settled.
+    if ((await this.settings.get(patient.organizationId)).paymentRequired) {
+      const payment = await this.payments.ensure({
+        organizationId: patient.organizationId,
+        facilityId: appointment.facilityId,
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        visitTypeCode: appointment.visitTypeCode,
+        serviceDate: localDate(appointment.startsAt, appointment.timeZone),
+      });
+      if (payment.state === "unpaid") {
+        throw new BusinessRuleError("Please pay for the consultation first; you can pay online or at the clinic", "payment_required", [
+          { path: "invoiceId", message: payment.invoiceId ?? "" },
+        ]);
+      }
+    }
     const visit = await this.clinic.checkIn(patient.organizationId, appointmentId);
     return this.db.transaction(async (tx) => {
       const locked = await this.lock(tx, session.id);
@@ -444,6 +526,16 @@ export class TelemedicineService {
 
   private assertFacility(actor: Actor, appointment: OnlineAppointment): void {
     if (requireFacilityId(actor) !== appointment.facilityId) throw new NotFoundError("Online consultation");
+  }
+
+  /** Which acknowledgement the patient saw: the organization's wording version, or the platform's plain statement. */
+  private async acknowledgementShown(
+    session: TelemedicineSessionRecord,
+  ): Promise<{ source: "organization" | "platform"; version: number | null; title: string | null } | null> {
+    if (!session.consentAcknowledgedAt) return null;
+    if (!session.acknowledgementTextId) return { source: "platform", version: null, title: null };
+    const wording: AcknowledgementWording | null = await this.clinic.acknowledgementById(session.organizationId, session.acknowledgementTextId);
+    return { source: "organization", version: wording?.version ?? null, title: wording?.title ?? null };
   }
 
   private staffView(appointment: OnlineAppointment, session: TelemedicineSessionRecord) {

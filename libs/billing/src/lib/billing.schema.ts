@@ -13,7 +13,7 @@ export const PAYER_STATUSES = ["pending", "submitted", "settled", "denied"] as c
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export type ChargeStatus = "pending" | "invoiced" | "cancelled";
 export type InvoiceStatus = "draft" | "issued" | "void";
-export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package";
+export type ChargeSourceType = "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package" | "appointment";
 /** What captures a service automatically: a visit type (signed encounter), a laboratory test (ordering) or a dental procedure (performed). */
 export const SERVICE_SOURCE_KINDS = ["visit_type", "lab_test", "dental_procedure", "clinic_procedure"] as const;
 export type ServiceSourceKind = (typeof SERVICE_SOURCE_KINDS)[number];
@@ -136,7 +136,9 @@ export const billingInvoice = pgTable("billing_invoice", {
   payerTotal: money("payer_total").notNull().default(0),
   patientTotal: money("patient_total").notNull().default(0),
   notes: text("notes"),
-  createdBy: uuid("created_by").notNull(),
+  /** The staff member who prepared it; null for an invoice the system made (a prepaid online visit, migration 0126). */
+  createdBy: uuid("created_by"),
+  createdVia: text("created_via").$type<"staff" | "system">().notNull().default("staff"),
   createdAt: ts("created_at").notNull().defaultNow(),
   issuedAt: ts("issued_at"),
   issuedBy: uuid("issued_by"),

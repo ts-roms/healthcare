@@ -43,6 +43,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "Whether issued certificates and referrals carry the practitioner's drawn signature.",
       },
       {
+        label: "Online consultations",
+        href: "/telemedicine/settings",
+        permissions: ["clinic.configure"],
+        description: "Whether the video server answers, and whether an online visit is paid for before the waiting room.",
+      },
+      {
         label: "Dental",
         href: "/dental/settings",
         permissions: ["dental.record.read"],

@@ -3,12 +3,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertOctagonIcon, ClockIcon, VideoIcon } from "lucide-react";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, Callout, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { LiveQueueRefresh } from "@/components/live-queue";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { TelemedicineDay } from "@/lib/api/types";
+import type { TelemedicineDay, VideoReadiness } from "@/lib/api/types";
 import { consultationOrder, sessionLabel } from "@/lib/telemedicine-mapping";
 
 export const metadata = { title: "Online consultations" };
@@ -23,7 +23,11 @@ export default async function TelemedicinePage() {
       </ModulePage>
     );
   }
-  const day = await api<TelemedicineDay>("/telemedicine/consultations");
+  const [day, video] = await Promise.all([
+    api<TelemedicineDay>("/telemedicine/consultations"),
+    // A failed probe never takes the page down: it only means no notice.
+    api<VideoReadiness>("/telemedicine/consultations/video-status").catch(() => null),
+  ]);
   const rows = consultationOrder(day.consultations);
   return (
     <ModulePage
@@ -31,6 +35,21 @@ export default async function TelemedicinePage() {
       description={`${facility.name} · today${day.videoConfigured ? "" : " · video is not configured: call patients on their callback number"}`}
       actions={can(session, "clinic.queue.read") ? <LiveQueueRefresh /> : null}
     >
+      {video && (!video.configured || video.reachable === false) ? (
+        <Callout tone={video.configured ? "danger" : "warning"} className="mb-4">
+          {video.configured ? (
+            <>
+              <strong className="font-semibold">Video is not answering.</strong> {video.detail} Patients cannot join a video call until it is back; call them on
+              the callback number from their answers, or ask your administrator to check the video server.
+            </>
+          ) : (
+            <>
+              <strong className="font-semibold">Video is not set up.</strong> Everything else works: call each patient on the callback number from their
+              answers. An administrator sets up video with LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET.
+            </>
+          )}
+        </Callout>
+      ) : null}
       {rows.length === 0 ? (
         <p className="text-body text-muted-foreground">No online consultations today. Book them as appointments with an online visit type.</p>
       ) : (

@@ -38,3 +38,4 @@ export * from "./stat-card";
 export * from "./stat-tile";
 export * from "./practitioner-card";
 export * from "./agenda-rail";
+export * from "./consult-chat";

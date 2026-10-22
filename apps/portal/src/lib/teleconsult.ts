@@ -41,6 +41,8 @@ export interface QuestionnaireForm {
   locationCity: string;
   callbackNumber: string;
   acknowledgesOnlineConsultation: boolean;
+  /** The version of the organization's wording shown (when it has one). */
+  acknowledgementTextId?: string;
 }
 
 export const BLANK_QUESTIONNAIRE: QuestionnaireForm = {
@@ -68,5 +70,6 @@ export function questionnairePayload(f: QuestionnaireForm) {
     locationCity: f.locationCity.trim(),
     callbackNumber: f.callbackNumber.trim(),
     acknowledgesOnlineConsultation: f.acknowledgesOnlineConsultation,
+    acknowledgementTextId: f.acknowledgementTextId,
   };
 }

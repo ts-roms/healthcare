@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { TelemedicineConsultation } from "@/lib/api/types";
+import type { TelemedicineChat, TelemedicineConsultation } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const id = z.uuid();
@@ -60,5 +60,19 @@ export async function saveInstructions(input: z.input<typeof instructionsSchema>
       method: "PUT",
       body: { patientInstructions: parsed.data.patientInstructions },
     }),
+  );
+}
+
+/** The consultation's chat; `after` is the id of the last message already shown. */
+export async function listConsultationChat(appointmentId: string, after?: string): Promise<ActionResult<TelemedicineChat>> {
+  if (!id.safeParse(appointmentId).success || (after !== undefined && !id.safeParse(after).success)) return { ok: false, message: "Invalid request." };
+  return actionResult(() => api<TelemedicineChat>(`/telemedicine/consultations/${appointmentId}/messages`, { query: after ? { after } : undefined }));
+}
+
+export async function sendConsultationChat(appointmentId: string, body: string): Promise<ActionResult<TelemedicineChat["messages"][number]>> {
+  const text = body.trim();
+  if (!id.safeParse(appointmentId).success || !text || text.length > 1000) return { ok: false, message: "Write a message of up to 1,000 characters." };
+  return actionResult(() =>
+    api<TelemedicineChat["messages"][number]>(`/telemedicine/consultations/${appointmentId}/messages`, { method: "POST", body: { body: text } }),
   );
 }

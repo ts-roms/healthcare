@@ -114,6 +114,7 @@ export class OnlineVisitService {
         reason: appointment.reason,
         modality: visitType.modality,
         visitTypeName: visitType.name,
+        visitTypeCode: visitType.code,
         timeZone: facility.timezone,
       })
       .from(appointment)

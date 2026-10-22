@@ -39,6 +39,7 @@ export const CHARGE_SOURCE_LABEL: Record<BillingCharge["sourceType"], string> = 
   clinic_procedure: "Clinic procedure",
   manual: "Added by staff",
   package: "Package sale",
+  appointment: "Online visit (paid before the call)",
 };
 
 export const CATEGORY_LABEL: Record<BillingCategory, string> = {

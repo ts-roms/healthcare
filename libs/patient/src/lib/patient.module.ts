@@ -83,6 +83,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
   ],
   exports: [
     PatientRecordService,
+    ConsentTextService,
     PatientTimelineQueries,
     PatientReportingQueries,
     PatientRegistrationService,

@@ -499,11 +499,16 @@ export const TOURS: TourDef[] = [
   {
     id: "telemedicine",
     title: "Online consultations",
-    description: "Waiting room, questionnaire answers and video.",
-    version: 1,
-    matches: (p) => under(p, "/telemedicine"),
+    description: "Waiting room, questionnaire answers, video and chat.",
+    version: 2,
+    matches: (p) => under(p, "/telemedicine") && !under(p, "/telemedicine/settings"),
     permissions: ["telemedicine.read"],
     steps: [
+      {
+        title: "Video status",
+        body: "If a notice appears at the top, video is not set up or the video server is not answering. Until it is back, call patients on the callback number from their answers. During a call the consultation has a chat for the same reason.",
+        target: '[data-slot="callout"]',
+      },
       {
         title: "Today's online consultations",
         body: "Each row shows the patient, how far they have got (questionnaire, waiting room) and who will see them.",
