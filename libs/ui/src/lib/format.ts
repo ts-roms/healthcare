@@ -79,6 +79,16 @@ export function ageFrom(birthDate: string, at: Date = new Date()) {
   return differenceInYears(at, parseISO(birthDate));
 }
 
+/** Age at which a patient is flagged as a senior citizen; an indicator for staff, the discount itself needs the ID (billing). */
+export const SENIOR_AGE = 60;
+
+/** True when the birth date (YYYY-MM-DD) makes the patient `SENIOR_AGE` or older; false for a missing or invalid date. */
+export function isSenior(birthDate: string | undefined | null, at: Date = new Date()) {
+  if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return false;
+  const age = ageFrom(birthDate, at);
+  return Number.isFinite(age) && age >= SENIOR_AGE;
+}
+
 export function sexLabel(sex: Sex, short = false) {
   const map: Record<Sex, [string, string]> = {
     female: ["Female", "F"],
