@@ -1,8 +1,8 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PatientDetail } from "@/lib/api/types";
@@ -46,17 +46,16 @@ export default async function EditPatientPage({ params }: { params: Promise<{ id
   if (p.status === "merged") redirect(p.mergedIntoPatientId ? `/patients/${p.mergedIntoPatientId}/edit` : `/patients/${id}`);
 
   return (
-    <>
-      <PageHeader
-        title="Edit patient details"
-        description={`${p.displayName} · ${p.patientNumber}`}
-        actions={
-          <Link className="text-table text-primary hover:underline" href={`/patients/${p.id}`}>
-            Back to the record
-          </Link>
-        }
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-2">
+    <ModulePage
+      title="Edit patient details"
+      description={`${p.displayName} · ${p.patientNumber}`}
+      actions={
+        <Link className="text-table text-primary hover:underline" href={`/patients/${p.id}`}>
+          Back to the record
+        </Link>
+      }
+    >
+      <div className="grid gap-4 xl:grid-cols-2">
         {canUpdate ? (
           <>
             <Card>
@@ -187,7 +186,7 @@ export default async function EditPatientPage({ params }: { params: Promise<{ id
       <p className="px-4 pb-4 text-meta text-muted-foreground">
         Every change is recorded in the audit trail with who made it and why. Removed entries are kept in the record&apos;s history, never deleted.
       </p>
-    </>
+    </ModulePage>
   );
 }
 

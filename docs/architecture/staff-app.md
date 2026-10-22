@@ -384,6 +384,10 @@ The cashier's desk, invoices, an invoice, a patient's billing and the daily repo
 
 The consultations list, care-plan recall list, referrals (and a referral), prescriptions, dental (and a dental record) and pharmacy (and a dispense) pages use `ModulePage`: the plain page header with the existing title, description and actions, and the page-level padding from the template. The encounter workspace (`/clinic/encounters/[id]`) and the care-plan page keep their own patient-banner layouts; they move with the patient-record and workspace phase. Notes, prescribing, drug-allergy decision support, signing, dental charting, referrals and dispensing are untouched.
 
+### Patient record sub-pages (UI redesign, phase 9)
+
+The record's sub-pages (timeline, history, immunizations, procedures, communications, edit details, merge and its comparison, YAKAP consultation) and patient registration and QR scanning use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the registration form and the scan field lost their own outer padding). The patient record itself and Patient 360 (`/patients/[id]`, `/patients/[id]/360`) are phase 3 and keep their identity card / banner. Pages that stack a `PatientHeader` banner above their content (the encounter workspace, the care-plan page, a visit's procedures, Patient 360) are unchanged: the banner component is shared with the doctor's workspace and moves with a redesign of that workspace.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

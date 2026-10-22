@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { ImmunizationHistory, RecordImmunizationButtons } from "@/components/immunizations/immunization-panel";
 import { api } from "@/lib/api/client";
 import { loadImmunizationData, loadLinkableDocuments } from "@/lib/api/immunizations";
@@ -36,55 +36,52 @@ export default async function PatientImmunizationsPage({ params }: { params: Pro
   const active = patient.status === "active";
 
   return (
-    <>
-      <PageHeader
-        title="Immunizations"
-        description={
-          <>
-            {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
-            {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
-          </>
-        }
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/patients/${id}`}>
-              <ArrowLeftIcon aria-hidden /> Patient record
-            </Link>
-          </Button>
-        }
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <p className="flex items-start gap-2 text-table text-muted-foreground">
-          <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-          This is the record of doses given, not given and reported. It does not work out which vaccine or dose is due: follow your clinical judgement and your
-          organization&apos;s protocol.
-        </p>
-        {data.canRecord && active ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Record</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RecordImmunizationButtons
-                patientId={id}
-                vaccines={data.vaccines}
-                lots={data.lots}
-                documents={documents}
-                canUpload={can(session, "document.upload")}
-                facilitySelected={data.facilitySelected}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
+    <ModulePage
+      title="Immunizations"
+      description={
+        <>
+          {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
+          {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
+        </>
+      }
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/patients/${id}`}>
+            <ArrowLeftIcon aria-hidden /> Patient record
+          </Link>
+        </Button>
+      }
+    >
+      <p className="flex items-start gap-2 text-table text-muted-foreground">
+        <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        This is the record of doses given, not given and reported. It does not work out which vaccine or dose is due: follow your clinical judgement and your
+        organization&apos;s protocol.
+      </p>
+      {data.canRecord && active ? (
         <Card>
           <CardHeader>
-            <CardTitle>History</CardTitle>
+            <CardTitle>Record</CardTitle>
           </CardHeader>
           <CardContent>
-            <ImmunizationHistory patientId={id} records={records} canRecord={data.canRecord} linkedRecords={patient.mergedRecords} />
+            <RecordImmunizationButtons
+              patientId={id}
+              vaccines={data.vaccines}
+              lots={data.lots}
+              documents={documents}
+              canUpload={can(session, "document.upload")}
+              facilitySelected={data.facilitySelected}
+            />
           </CardContent>
         </Card>
-      </div>
-    </>
+      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ImmunizationHistory patientId={id} records={records} canRecord={data.canRecord} linkedRecords={patient.mergedRecords} />
+        </CardContent>
+      </Card>
+    </ModulePage>
   );
 }
