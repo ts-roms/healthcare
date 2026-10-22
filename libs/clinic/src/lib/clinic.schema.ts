@@ -266,6 +266,10 @@ export const servicePointSetting = pgTable("service_point_setting", {
   autoCallOnRoute: boolean("auto_call_on_route").notNull().default(false),
   /** List routine visits of seniors before other routine visits (migration 0123). */
   seniorsFirst: boolean("seniors_first").notNull().default(false),
+  /** Where to call the patient when staff open each step (migration 0127); null = nothing is called for that step. */
+  callOnTriageTo: text("call_on_triage_to"),
+  callOnConsultationTo: text("call_on_consultation_to"),
+  callOnProcedureTo: text("call_on_procedure_to"),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),

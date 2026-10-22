@@ -12,7 +12,16 @@ import { startEncounter } from "./actions";
  * Starts the consultation for a queue visit and opens the encounter workspace. An online visit is started from
  * Telemedicine instead, which also brings the patient from the MyHealth waiting room into the call.
  */
-export function StartConsultationButton({ visit, size = "sm" }: { visit: Pick<QueueVisit, "id" | "modality" | "appointmentId">; size?: "sm" | "xs" }) {
+export function StartConsultationButton({
+  visit,
+  size = "sm",
+  beforeStart,
+}: {
+  visit: Pick<QueueVisit, "id" | "modality" | "appointmentId">;
+  size?: "sm" | "xs";
+  /** Runs first (e.g. calling the patient to the consultation room); the consultation starts whatever it does. */
+  beforeStart?: () => Promise<void>;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   if (visit.modality === "telemedicine" && visit.appointmentId) {
@@ -31,6 +40,7 @@ export function StartConsultationButton({ visit, size = "sm" }: { visit: Pick<Qu
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
+          await beforeStart?.().catch(() => undefined);
           const result = await startEncounter({ visitId });
           if (result.ok) {
             router.push(`/clinic/encounters/${result.data.id}`);

@@ -25,6 +25,10 @@ export interface ServicePointSettingsView {
   facilityId: string;
   autoCallOnRoute: boolean;
   seniorsFirst: boolean;
+  /** Where to call the patient when staff open each step; null = nothing is called for that step (migration 0127). */
+  callOnTriageTo: string | null;
+  callOnConsultationTo: string | null;
+  callOnProcedureTo: string | null;
   version: number | null;
   updatedAt: Date | null;
 }
@@ -138,6 +142,9 @@ export class ServicePointService {
       facilityId,
       autoCallOnRoute: row?.autoCallOnRoute ?? false,
       seniorsFirst: row?.seniorsFirst ?? false,
+      callOnTriageTo: row?.callOnTriageTo ?? null,
+      callOnConsultationTo: row?.callOnConsultationTo ?? null,
+      callOnProcedureTo: row?.callOnProcedureTo ?? null,
       version: row?.version ?? null,
       updatedAt: row?.updatedAt ?? null,
     };
@@ -159,6 +166,10 @@ export class ServicePointService {
         .for("update");
       if (current) assertVersion(current.version, input.version ?? current.version, "Routing settings");
       const seniorsFirst = input.seniorsFirst ?? current?.seniorsFirst ?? false;
+      // An omitted place keeps the current one; empty or null clears it.
+      const callOnTriageTo = input.callOnTriageTo === undefined ? (current?.callOnTriageTo ?? null) : input.callOnTriageTo;
+      const callOnConsultationTo = input.callOnConsultationTo === undefined ? (current?.callOnConsultationTo ?? null) : input.callOnConsultationTo;
+      const callOnProcedureTo = input.callOnProcedureTo === undefined ? (current?.callOnProcedureTo ?? null) : input.callOnProcedureTo;
       const [row] = await tx
         .insert(servicePointSetting)
         .values({
@@ -166,6 +177,9 @@ export class ServicePointService {
           organizationId: actor.organizationId,
           autoCallOnRoute: input.autoCallOnRoute,
           seniorsFirst,
+          callOnTriageTo,
+          callOnConsultationTo,
+          callOnProcedureTo,
           updatedBy: actor.userId,
         })
         .onConflictDoUpdate({
@@ -173,6 +187,9 @@ export class ServicePointService {
           set: {
             autoCallOnRoute: input.autoCallOnRoute,
             seniorsFirst,
+            callOnTriageTo,
+            callOnConsultationTo,
+            callOnProcedureTo,
             updatedBy: actor.userId,
             updatedAt: new Date(),
             version: sql`${servicePointSetting.version} + 1`,
@@ -187,6 +204,9 @@ export class ServicePointService {
         changes: {
           autoCallOnRoute: { from: current?.autoCallOnRoute ?? false, to: saved.autoCallOnRoute },
           seniorsFirst: { from: current?.seniorsFirst ?? false, to: saved.seniorsFirst },
+          callOnTriageTo: { from: current?.callOnTriageTo ?? null, to: saved.callOnTriageTo },
+          callOnConsultationTo: { from: current?.callOnConsultationTo ?? null, to: saved.callOnConsultationTo },
+          callOnProcedureTo: { from: current?.callOnProcedureTo ?? null, to: saved.callOnProcedureTo },
         },
         metadata: { facilityId: input.facilityId },
       });
@@ -194,6 +214,9 @@ export class ServicePointService {
         facilityId: saved.facilityId,
         autoCallOnRoute: saved.autoCallOnRoute,
         seniorsFirst: saved.seniorsFirst,
+        callOnTriageTo: saved.callOnTriageTo,
+        callOnConsultationTo: saved.callOnConsultationTo,
+        callOnProcedureTo: saved.callOnProcedureTo,
         version: saved.version,
         updatedAt: saved.updatedAt,
       };

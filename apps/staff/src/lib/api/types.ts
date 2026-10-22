@@ -511,6 +511,10 @@ export interface ServicePointSettings {
   facilityId: string;
   autoCallOnRoute: boolean;
   seniorsFirst: boolean;
+  /** Where to call the patient when staff open each step (migration 0127); null = nothing is called for that step. */
+  callOnTriageTo: string | null;
+  callOnConsultationTo: string | null;
+  callOnProcedureTo: string | null;
   version: number | null;
   updatedAt: string | null;
 }

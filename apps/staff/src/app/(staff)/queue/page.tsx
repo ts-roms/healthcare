@@ -52,6 +52,11 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
       servicePoints={servicePoints}
       templates={templates}
       autoCall={routing?.autoCallOnRoute ?? false}
+      callOn={{
+        triage: routing?.callOnTriageTo ?? null,
+        consultation: routing?.callOnConsultationTo ?? null,
+        procedure: routing?.callOnProcedureTo ?? null,
+      }}
       chrome={{
         facilities: facilities.map((f) => ({ id: f.id, name: f.name })),
         facilityId: facility.id,
