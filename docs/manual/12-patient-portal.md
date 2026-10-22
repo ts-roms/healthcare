@@ -456,7 +456,7 @@ You can use up to 5 devices. If the browser says notifications are blocked, allo
 If your clinic has the MyHealth app, install it from the app store the clinic points you to: the MyHealth sign-in page shows **Get the MyHealth
 app** with a QR code for each store once the clinic has published it — point your phone's camera at the code, or tap the link under it. The
 clinic's own website may show the same codes. Some clinics give out the Android app directly (**Android app (APK)**): the phone then asks to
-allow installing from this source; allow it only for a link the clinic gave you. The app shows your **released results** and can tell you when something is waiting in MyHealth.
+allow installing from this source; allow it only for a link the clinic gave you. The app shows your **released results**, lets you **sign forms** the clinic sent you and **open a child's MyHealth** if the clinic gave you access, and can tell you when something is waiting in MyHealth.
 Visits, bills, messages and everything else are on the MyHealth website.
 
 1. Open the app and sign in with your MyHealth email and password (and the code from your authenticator app, if you use two-step verification). To activate a
@@ -466,6 +466,11 @@ Visits, bills, messages and everything else are on the MyHealth website.
    test notification** to check it works.
 4. From now on a short notice appears on your phone when a result, message, document or dental item is waiting. It never says what it is. With notifications on
    in the app you get the notice there **instead of** a text message or email. Tapping a results notice opens your results.
+
+5. If a form is waiting for your signature, a yellow note at the top of **Your results** says so: tap it. Read the form, switch on **I have read this form and I agree to it**, draw your
+   signature with your finger, type your password and tap **Sign and send**.
+6. If the clinic gave you access to a child's MyHealth, tap **Open a child's or family member's MyHealth** and choose the child. A yellow banner shows whose MyHealth you are
+   looking at; tap **Back to my own MyHealth** to return. For a child under your clinic's age, a parent or guardian signs the form this way.
 
 To stop notifications on a phone, choose **Turn off on this phone**, or remove it from another device. **Sign out** also turns notifications off on that
 phone. You can use up to 5 devices in total, browsers included. If the app says notifications are blocked, turn them on for MyHealth in the phone's settings.

@@ -1,6 +1,7 @@
 import { type PortalTrend, resultDate, resultValue, usualRange } from "@healthcare/domain/portal-results";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActingBanner } from "@/components/acting-banner";
 import { ResultMeaning } from "@/components/result-meaning";
 import { ErrorState, Loading } from "@/components/screen-states";
 import { useSession } from "@/components/session-provider";
@@ -17,8 +18,8 @@ export default function ResultScreen() {
 }
 
 function Trend({ testId }: { testId: string }) {
-  const { state } = useSession();
-  const trend = usePortal<PortalTrend>(`/portal/results/trend?testId=${encodeURIComponent(testId)}`);
+  const { state, acting } = useSession();
+  const trend = usePortal<PortalTrend>(`/portal/results/trend?testId=${encodeURIComponent(testId)}`, acting?.patientId ?? null);
   if (state.status !== "signed_in") return null;
   const { timeZone } = state.me;
 
@@ -30,6 +31,7 @@ function Trend({ testId }: { testId: string }) {
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: trend.data.testName }} />
+      <ActingBanner />
       <View style={styles.card}>
         <Text style={styles.title} accessibilityRole="header">
           {trend.data.testName}

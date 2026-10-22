@@ -5,7 +5,7 @@ import { session } from "@/lib/session-instance";
 type Resource<T> = { status: "loading" } | { status: "ready"; data: T; refreshing: boolean } | { status: "error"; message: string };
 
 /** Loads a MyHealth API resource for a screen. A refused session is handled by the session provider (back to sign-in). */
-export function usePortal<T>(path: string): Resource<T> & { reload: () => void } {
+export function usePortal<T>(path: string, scope: string | null = null): Resource<T> & { reload: () => void } {
   const [state, setState] = useState<Resource<T>>({ status: "loading" });
 
   const load = useCallback(
@@ -18,7 +18,8 @@ export function usePortal<T>(path: string): Resource<T> & { reload: () => void }
         setState({ status: "error", message: patientMessage(error) });
       }
     },
-    [path],
+    // `scope` changes when the person being looked at changes (acting for someone): the same path then answers differently.
+    [path, scope],
   );
 
   useEffect(() => {
