@@ -48,7 +48,13 @@ export function PractitionerCard({
     .join("")
     .toUpperCase();
   return (
-    <article className={cn("flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0", className)} aria-label={name}>
+    <article
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        className,
+      )}
+      aria-label={name}
+    >
       <header className="flex items-start gap-3">
         <Avatar className="size-12 shrink-0 text-section">
           {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
@@ -99,7 +105,7 @@ export function PractitionerCard({
           {note.label}
         </p>
       ) : null}
-      {actions ? <footer className="mt-auto flex items-center gap-2 pt-1">{actions}</footer> : null}
+      {actions ? <footer className="mt-auto flex flex-wrap items-center gap-2 pt-1">{actions}</footer> : null}
     </article>
   );
 }

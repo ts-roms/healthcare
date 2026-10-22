@@ -7,7 +7,16 @@ import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { AppointmentItem, Availability, Page, PractitionerDetail, PractitionerScheduleRow, ScheduleExceptionRow, StaffUser } from "@/lib/api/types";
+import type {
+  AppointmentItem,
+  Availability,
+  ClinicRoom,
+  Page,
+  PractitionerDetail,
+  PractitionerScheduleRow,
+  ScheduleExceptionRow,
+  StaffUser,
+} from "@/lib/api/types";
 import { shiftDate, todayIn, zonedLocalToIso } from "@/lib/clinic-mapping";
 import {
   closedDaysIn,
@@ -26,6 +35,7 @@ import {
   weeklyHours,
 } from "@/lib/doctor-profile";
 import { labelOf, PROFESSIONS, WEEKDAYS } from "../../appointments/schedules/labels";
+import { SetSchedule } from "../set-schedule";
 import { DoctorCalendar } from "./doctor-calendar";
 import { EditProfileButton, EditStep, PractitionerEditor } from "./practitioner-editor";
 
@@ -53,10 +63,13 @@ export default async function DoctorPage({ params, searchParams }: { params: Pro
   const thisMonth = monthRange(today.slice(0, 7));
   const shown = monthRange(month);
 
-  const [practitioners, schedules, visitTypes] = await Promise.all([
+  const [practitioners, schedules, visitTypes, rooms] = await Promise.all([
     api<PractitionerDetail[]>("/clinic/practitioners"),
     api<PractitionerScheduleRow[]>("/clinic/schedules"),
     getVisitTypes(),
+    configure
+      ? api<ClinicRoom[]>("/clinic/rooms", { query: { facilityId: facility.id } }).catch(() => [] as ClinicRoom[])
+      : Promise.resolve([] as ClinicRoom[]),
   ]);
   const p = practitioners.find((x) => x.id === id);
   if (!p) notFound();
@@ -237,9 +250,24 @@ export default async function DoctorPage({ params, searchParams }: { params: Pro
               <CardHeader>
                 <CardTitle className="text-section-lg">Weekly schedule</CardTitle>
                 {configure ? (
-                  <Button asChild variant="secondary" size="sm" className="ml-auto">
-                    <Link href="/appointments/schedules">Edit hours</Link>
-                  </Button>
+                  <SetSchedule
+                    practitionerId={p.id}
+                    practitionerName={p.displayName}
+                    facilityId={facility.id}
+                    today={today}
+                    rooms={rooms.filter((r) => r.status === "active").map((r) => ({ id: r.id, name: r.name }))}
+                    rows={rows.map((s) => ({
+                      id: s.id,
+                      dayOfWeek: s.dayOfWeek,
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                      slotMinutes: s.slotMinutes,
+                      roomName: rooms.find((r) => r.id === s.roomId)?.name ?? null,
+                    }))}
+                    label="Edit hours"
+                    variant="secondary"
+                    className="ml-auto"
+                  />
                 ) : null}
               </CardHeader>
               <CardContent>

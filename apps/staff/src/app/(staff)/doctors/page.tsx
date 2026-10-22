@@ -7,9 +7,10 @@ import { Button, Input } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { PractitionerDetail, PractitionerScheduleRow } from "@/lib/api/types";
+import type { ClinicRoom, PractitionerDetail, PractitionerScheduleRow } from "@/lib/api/types";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
 import { labelOf, PROFESSIONS } from "../appointments/schedules/labels";
+import { SetSchedule } from "./set-schedule";
 
 export const metadata = { title: "Doctors" };
 
@@ -31,10 +32,16 @@ export default async function DoctorsPage({ searchParams }: { searchParams: Prom
   }
   const today = todayIn(facility.timezone);
   const todayDow = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const [practitioners, schedules] = await Promise.all([
+  const configure = can(session, "clinic.configure");
+  const [practitioners, schedules, rooms] = await Promise.all([
     api<PractitionerDetail[]>("/clinic/practitioners"),
     api<PractitionerScheduleRow[]>("/clinic/schedules"),
+    configure
+      ? api<ClinicRoom[]>("/clinic/rooms", { query: { facilityId: facility.id } }).catch(() => [] as ClinicRoom[])
+      : Promise.resolve([] as ClinicRoom[]),
   ]);
+  const activeRooms = rooms.filter((r) => r.status === "active").map((r) => ({ id: r.id, name: r.name }));
+  const roomName = (id: string | null) => rooms.find((r) => r.id === id)?.name ?? null;
   const here = schedules.filter((s) => s.facilityId === facility.id && s.status === "active" && (!s.validUntil || s.validUntil >= today));
   const active = practitioners.filter((p) => p.status === "active");
   const rowsOf = (id: string) => here.filter((s) => s.practitionerId === id);
@@ -143,6 +150,24 @@ export default async function DoctorsPage({ searchParams }: { searchParams: Prom
                   <Button asChild variant="outline" size="sm" className="flex-1">
                     <Link href={`/appointments?practitionerId=${p.id}`}>Schedule</Link>
                   </Button>
+                  {configure ? (
+                    <SetSchedule
+                      practitionerId={p.id}
+                      practitionerName={p.displayName}
+                      facilityId={facility.id}
+                      today={today}
+                      rooms={activeRooms}
+                      rows={rows.map((s) => ({
+                        id: s.id,
+                        dayOfWeek: s.dayOfWeek,
+                        startTime: s.startTime,
+                        endTime: s.endTime,
+                        slotMinutes: s.slotMinutes,
+                        roomName: roomName(s.roomId),
+                      }))}
+                      className="w-full"
+                    />
+                  ) : null}
                 </>
               }
             />
