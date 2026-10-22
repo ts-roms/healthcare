@@ -368,6 +368,10 @@ audited `coding-system.update`); the encounter workspace offers the active ones 
 
 Every page listed in `SETTINGS_GROUPS` (`apps/staff/src/lib/settings-navigation.ts`) now renders through `StaffSettingsPage` (`components/settings-page.tsx`, over `SettingsPage`): breadcrumbs `Settings › <group>`, the title, ONE sentence of description, and the longer explanation in a "How this works" disclosure (`details`). Sections that used to be stacked full-bleed blocks sit in one card (`SettingsStack`), separated by a rule; the Staff users table is a `ResponsiveTable` (cards on phones). Presentation only: each page keeps its data, permission checks and server actions. Create forms that stay permanently open inside their section components (service points, visit types, prices, laboratory catalog, …) move into side sheets one module at a time with that module's phase; `/clinic/procedures` (phase 3) is the worked example.
 
+### Laboratory module (UI redesign, phase 5)
+
+The laboratory's working pages (critical results, send-outs, instrument results, quality control, reagent use, temperatures, nonconformances, proficiency testing, competency) use `ModulePage` (`components/module-page.tsx`): the plain page header, one sentence of description with the rest under "How this works", and the sections in one card; the module tabs sit above (phase 2). The worklist keeps its workbench (`LaboratoryLayout`): a plain title with live status, a danger callout while STAT samples are waiting to be collected (`statPendingCollection`), the stage pills and scan field, the list and the detail panel as two cards; STAT rows get a danger edge in addition to the STAT badge, and an empty stage shows an empty state. Nothing about collection, receipt, result entry or sign-off changed.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

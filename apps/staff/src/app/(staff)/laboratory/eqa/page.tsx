@@ -1,6 +1,7 @@
+import { ModulePage } from "@/components/module-page";
+import { SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabEqaScheme, LabEqaSurvey, LabTest } from "@/lib/api/types";
@@ -13,10 +14,9 @@ export default async function EqaPage() {
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Proficiency testing" />
+      <ModulePage title="Proficiency testing">
         <FacilityRequired action="EQA rounds are recorded per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [schemes, surveys, tests] = await Promise.all([
@@ -25,12 +25,14 @@ export default async function EqaPage() {
     api<LabTest[]>("/laboratory/tests"),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Proficiency testing (EQA)"
-        description={`External quality assessment rounds at ${facility.name}: the results reported and the provider's evaluation, as the provider gave it. An unacceptable result opens a nonconformance.`}
-      />
-      <EqaBoard schemes={schemes} surveys={surveys} tests={tests} canEnter={can(session, "lab.qc.enter")} canManage={can(session, "lab.qc.manage")} />
-    </>
+    <ModulePage
+      title="Proficiency testing (EQA)"
+      description={`External quality assessment rounds at ${facility.name}: the results reported and the provider's evaluation, as the provider gave it.`}
+      details={["An unacceptable result opens a nonconformance."]}
+    >
+      <SettingsStack>
+        <EqaBoard schemes={schemes} surveys={surveys} tests={tests} canEnter={can(session, "lab.qc.enter")} canManage={can(session, "lab.qc.manage")} />
+      </SettingsStack>
+    </ModulePage>
   );
 }
