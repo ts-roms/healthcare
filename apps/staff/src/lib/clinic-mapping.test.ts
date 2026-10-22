@@ -104,6 +104,13 @@ describe("toQueueEntry", () => {
     expect(toQueueEntry({ ...visit, checkedInVia: "patient_portal", modality: "telemedicine" }).station).not.toContain("online");
   });
 
+  it("marks a senior on the board without overriding a triage priority", () => {
+    const senior = { ...visit, patient: { ...visit.patient!, age: 60 } };
+    expect(toQueueEntry(senior).priority).toBe("senior");
+    expect(toQueueEntry({ ...senior, priority: "urgent" }).priority).toBe("urgent");
+    expect(toQueueEntry({ ...visit, patient: { ...visit.patient!, age: 59 } }).priority).toBeUndefined();
+  });
+
   it("shows where a called patient should go, and non-routine priority", () => {
     expect(toQueueEntry({ ...visit, calledTo: "Room 2", priority: "emergency" })).toMatchObject({ station: "Called to Room 2", priority: "emergency" });
   });

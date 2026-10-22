@@ -264,6 +264,8 @@ export const servicePointSetting = pgTable("service_point_setting", {
   facilityId: uuid("facility_id").primaryKey(),
   organizationId: uuid("organization_id").notNull(),
   autoCallOnRoute: boolean("auto_call_on_route").notNull().default(false),
+  /** List routine visits of seniors before other routine visits (migration 0123). */
+  seniorsFirst: boolean("seniors_first").notNull().default(false),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),

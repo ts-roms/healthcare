@@ -1,3 +1,4 @@
+import { SENIOR_AGE } from "@healthcare/ui/healthcare";
 import type { Appointment, AppointmentStatus, QueueEntry, QueueStatus } from "@healthcare/domain";
 import type {
   AppointmentItem,
@@ -60,7 +61,8 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
           .join(" · "),
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
-    priority: v.priority === "routine" ? undefined : v.priority,
+    // A senior is marked on the board; the order of the queue is the API's (priority, then arrival) and does not change.
+    priority: v.priority !== "routine" ? v.priority : v.patient && v.patient.age >= SENIOR_AGE ? "senior" : undefined,
     arrival: v.arrivalMode === "appointment" ? "appointment" : "walk-in",
     detail: v.calledTo
       ? [`Called to ${v.calledTo}`, v.servicePoint?.name, nextStopLabel(v.route)].filter(Boolean).join(" · ")

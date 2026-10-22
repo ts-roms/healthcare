@@ -1,6 +1,19 @@
 import { AlertTriangleIcon } from "lucide-react";
 import { DateInput, Input, Label, PasswordInput } from "@healthcare/ui/primitives";
 
+/** The sheet a signed-out page's heading, explanation and form sit on. */
+export function AuthCard({ title, description, children }: { title: string; description?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-5 rounded-2xl border bg-card p-5 shadow-sm">
+      <div>
+        <h1 className="text-page-lg font-semibold tracking-tight">{title}</h1>
+        {description ? <p className="mt-1 text-muted-foreground">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export function FormError({ message }: { message?: string }) {
   if (!message) return null;
   return (

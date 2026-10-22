@@ -129,6 +129,8 @@ export const updateServicePointSettingsSchema = z.object({
   facilityId: z.string().uuid(),
   /** Call the patient to the next service point's location whenever a route sends them on. */
   autoCallOnRoute: z.boolean(),
+  /** List routine visits of seniors before other routine visits; the current value when omitted. */
+  seniorsFirst: z.boolean().optional(),
   /** The version read; not needed the first time a facility gets its own settings. */
   version: z.number().int().positive().optional(),
 });

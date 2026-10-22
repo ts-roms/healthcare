@@ -100,8 +100,15 @@ test("a nurse has no signature to draw, and a certificate issued now carries the
 
   // A signed consultation and its certificate, through the doctor's own API session.
   const client = await request.newContext();
-  const login = await client.post(`${API_URL}/auth/login`, { data: { email: STAFF.doctor, password: STAFF_PASSWORD } });
-  const headers = { authorization: `Bearer ${((await login.json()) as { accessToken: string }).accessToken}`, "x-facility-id": state.facilityId };
+  // The API allows about 10 credential attempts a minute per client; late in a long run this one can be refused: wait out the window.
+  let accessToken = "";
+  for (let attempt = 1; !accessToken; attempt += 1) {
+    const login = await client.post(`${API_URL}/auth/login`, { data: { email: STAFF.doctor, password: STAFF_PASSWORD } });
+    if (login.ok()) accessToken = ((await login.json()) as { accessToken: string }).accessToken;
+    else if (attempt >= 3 || login.status() !== 429) throw new Error(`Sign-in as the doctor was refused: ${login.status()}`);
+    else await new Promise((resolve) => setTimeout(resolve, 61_000));
+  }
+  const headers = { authorization: `Bearer ${accessToken}`, "x-facility-id": state.facilityId };
   const call = async <T>(method: "GET" | "POST" | "PUT", path: string, data?: unknown): Promise<T> => {
     const response = await client.fetch(`${API_URL}${path}`, { method, headers, data });
     if (!response.ok()) throw new Error(`${method} ${path} → ${response.status()}: ${await response.text()}`);
