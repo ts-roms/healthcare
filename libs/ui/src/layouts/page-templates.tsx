@@ -27,7 +27,11 @@ const WIDTH = {
 
 /** The page column: the redesign's width, padding and vertical rhythm. Wrap a page's content in it. */
 export function PageShell({ width = "wide", className, children }: { width?: keyof typeof WIDTH; className?: string; children: React.ReactNode }) {
-  return <div className={cn("mx-auto flex w-full flex-col gap-4 p-4 md:p-6", WIDTH[width], className)}>{children}</div>;
+  return (
+    <div className={cn("mx-auto flex w-full animate-in flex-col gap-4 p-4 duration-300 fade-in slide-in-from-bottom-1 md:p-6", WIDTH[width], className)}>
+      {children}
+    </div>
+  );
 }
 
 interface HeaderProps {

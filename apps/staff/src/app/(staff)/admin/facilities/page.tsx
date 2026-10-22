@@ -77,7 +77,7 @@ export default async function FacilitiesPage() {
             <article
               key={facility.id}
               aria-label={facility.name}
-              className="flex flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs"
+              className="flex flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-shadow duration-200 hover:shadow-md"
             >
               <header className="flex items-start gap-3 border-b bg-primary-subtle/50 p-4">
                 <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-card text-primary-deep shadow-xs">

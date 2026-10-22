@@ -3,6 +3,7 @@ export * from "./laboratory-layout";
 export * from "./link";
 export * from "./module-tabs";
 export * from "./page-header";
+export * from "./page-skeleton";
 export * from "./page-templates";
 export * from "./patient-layout";
 export * from "./staff-layout";
