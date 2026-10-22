@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { PatientProcedures } from "./patient-procedures";
 import { SignatureRequests } from "./signature-requests";
 import { api } from "@/lib/api/client";
@@ -40,47 +40,44 @@ export default async function PatientProceduresPage({ params }: { params: Promis
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Procedures"
-        description={
-          <>
-            {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
-            {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
-          </>
-        }
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/patients/${id}`}>
-              <ArrowLeftIcon aria-hidden /> Patient record
-            </Link>
-          </Button>
-        }
+    <ModulePage
+      title="Procedures"
+      description={
+        <>
+          {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
+          {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
+        </>
+      }
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/patients/${id}`}>
+            <ArrowLeftIcon aria-hidden /> Patient record
+          </Link>
+        </Button>
+      }
+    >
+      <p className="flex items-start gap-2 text-table text-muted-foreground">
+        <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        Procedures done at the clinic, in consultations and outside them. New ones are recorded from the consultation&apos;s encounter workspace or, for
+        procedures your clinic allows outside a consultation, from the visit on the queue.
+      </p>
+      <SignatureRequests
+        patientId={id}
+        requests={signatureRequests}
+        definitions={definitions}
+        canRequest={can(session, "procedure.record") && patient.status === "active"}
+        portalEnabled={signingSetting?.portalSigningEnabled ?? false}
       />
-      <div className="flex flex-col gap-4 p-4">
-        <p className="flex items-start gap-2 text-table text-muted-foreground">
-          <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Procedures done at the clinic, in consultations and outside them. New ones are recorded from the consultation&apos;s encounter workspace or, for
-          procedures your clinic allows outside a consultation, from the visit on the queue.
-        </p>
-        <SignatureRequests
-          patientId={id}
-          requests={signatureRequests}
-          definitions={definitions}
-          canRequest={can(session, "procedure.record") && patient.status === "active"}
-          portalEnabled={signingSetting?.portalSigningEnabled ?? false}
-        />
-        <PatientProcedures
-          patientId={id}
-          procedures={procedures}
-          definitions={definitions}
-          documents={documents}
-          canAddConsent={(can(session, "encounter.write") || can(session, "procedure.record")) && patient.status === "active"}
-          canAmend={can(session, "encounter.amend")}
-          currentUserId={session.user.id}
-          canMarkOwn={can(session, "encounter.write") || can(session, "procedure.record")}
-        />
-      </div>
-    </>
+      <PatientProcedures
+        patientId={id}
+        procedures={procedures}
+        definitions={definitions}
+        documents={documents}
+        canAddConsent={(can(session, "encounter.write") || can(session, "procedure.record")) && patient.status === "active"}
+        canAmend={can(session, "encounter.amend")}
+        currentUserId={session.user.id}
+        canMarkOwn={can(session, "encounter.write") || can(session, "procedure.record")}
+      />
+    </ModulePage>
   );
 }

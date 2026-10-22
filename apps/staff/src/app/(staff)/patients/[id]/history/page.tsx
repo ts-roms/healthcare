@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button, Card, CardContent } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { HistorySections } from "@/components/history/history-panels";
 import { api } from "@/lib/api/client";
 import { loadPatientHistory } from "@/lib/api/history";
@@ -36,35 +36,32 @@ export default async function PatientHistoryPage({ params }: { params: Promise<{
   if (!history) notFound();
 
   return (
-    <>
-      <PageHeader
-        title="Medical history"
-        description={
-          <>
-            {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
-            {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
-          </>
-        }
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/patients/${id}`}>
-              <ArrowLeftIcon aria-hidden /> Patient record
-            </Link>
-          </Button>
-        }
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <p className="flex items-start gap-2 text-table text-muted-foreground">
-          <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-          What the patient, a relative or another provider reported, or what you documented from records you saw. Past conditions here are not diagnoses of this
-          clinic (those are on the problem list) and are never billed or reported. Nothing here is scored.
-        </p>
-        <Card>
-          <CardContent className="pt-4">
-            <HistorySections patientId={id} history={history} canRecord={canRecord && patient.status === "active"} linkedRecords={patient.mergedRecords} />
-          </CardContent>
-        </Card>
-      </div>
-    </>
+    <ModulePage
+      title="Medical history"
+      description={
+        <>
+          {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span>
+          {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
+        </>
+      }
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/patients/${id}`}>
+            <ArrowLeftIcon aria-hidden /> Patient record
+          </Link>
+        </Button>
+      }
+    >
+      <p className="flex items-start gap-2 text-table text-muted-foreground">
+        <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        What the patient, a relative or another provider reported, or what you documented from records you saw. Past conditions here are not diagnoses of this
+        clinic (those are on the problem list) and are never billed or reported. Nothing here is scored.
+      </p>
+      <Card>
+        <CardContent className="pt-4">
+          <HistorySections patientId={id} history={history} canRecord={canRecord && patient.status === "active"} linkedRecords={patient.mergedRecords} />
+        </CardContent>
+      </Card>
+    </ModulePage>
   );
 }

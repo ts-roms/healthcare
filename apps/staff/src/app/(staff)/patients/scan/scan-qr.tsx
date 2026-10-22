@@ -73,7 +73,7 @@ export function ScanQr({ canOpenRecord, canCheckIn }: { canOpenRecord: boolean; 
   }, [camera, resolve]);
 
   return (
-    <div className="flex max-w-2xl flex-col gap-4 p-4">
+    <div className="flex max-w-2xl flex-col gap-4">
       <form
         className="grid gap-2"
         onSubmit={(e) => {

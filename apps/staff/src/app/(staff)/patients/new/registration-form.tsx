@@ -129,7 +129,7 @@ export function RegistrationFormView({
 
   if (done) {
     return (
-      <div className="flex max-w-2xl flex-col gap-4 p-4">
+      <div className="flex max-w-2xl flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>
@@ -169,7 +169,7 @@ export function RegistrationFormView({
   }
 
   return (
-    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <fieldset disabled={pending || candidates !== null} className="flex flex-col gap-4">
           <Card>
