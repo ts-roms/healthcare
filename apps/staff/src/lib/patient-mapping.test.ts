@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PatientDetail } from "./api/types";
-import { bannerSeverity, currentConsents, formatAddress, label, toBannerPatient, toVitalSigns } from "./patient-mapping";
+import { bannerSeverity, currentConsents, initialsOf, formatAddress, label, toBannerPatient, toVitalSigns } from "./patient-mapping";
 
 const detail = {
   id: "8c7b1a6e-1111-4c2b-9d9e-000000000001",
@@ -126,5 +126,11 @@ describe("helpers", () => {
       { consentType: "data_processing", decision: "granted", recordedAt: "2026-01-01T00:00:00Z" },
     ]);
     expect(c.map((x) => `${x.consentType}:${x.decision}`)).toEqual(["data_processing:granted", "telemedicine:withdrawn"]);
+  });
+
+  it("takes avatar initials from the given and family names", () => {
+    expect(initialsOf("DELA CRUZ, Juan Garcia")).toBe("JD");
+    expect(initialsOf("Santos")).toBe("S");
+    expect(initialsOf("")).toBe("?");
   });
 });

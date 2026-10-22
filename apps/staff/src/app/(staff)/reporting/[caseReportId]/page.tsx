@@ -1,6 +1,6 @@
+import { ModulePage } from "@/components/module-page";
 import { notFound, redirect } from "next/navigation";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { CaseReportDetail } from "@/lib/api/types";
@@ -21,13 +21,12 @@ export default async function CaseReportPage({ params }: { params: Promise<{ cas
   });
   const p = detail.report.patient;
   return (
-    <>
-      <PageHeader
-        title={`${detail.category} — case report`}
-        description={`${p.familyName.toUpperCase()}, ${p.givenName} · ${p.patientNumber}`}
-        actions={<ReportingNav canConfigure={can(session, "doh.settings.manage")} />}
-      />
+    <ModulePage
+      title={`${detail.category} — case report`}
+      description={`${p.familyName.toUpperCase()}, ${p.givenName} · ${p.patientNumber}`}
+      actions={<ReportingNav canConfigure={can(session, "doh.settings.manage")} />}
+    >
       <CaseReview detail={detail} />
-    </>
+    </ModulePage>
   );
 }

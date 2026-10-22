@@ -295,7 +295,14 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 
 ## Administration and My account
 
-`/admin` lists the administration pages open to the user (the same list as the menu, from `navigationForPermissions`).
+`/admin` is the Settings home: it lists every settings page open to the user, grouped (the same list as the Settings menu, from `settingsForPermissions`).
+
+### Navigation, module tabs and Settings (UI redesign, phase 2)
+
+- **Sidebar** (`libs/ui/src/layouts/staff-navigation.ts`, `staff-layout.tsx`): items carry a `group` (`NAV_GROUPS`: Today, Patients, Clinical, Operations, Engagement) and `placement: "footer"` pins **Settings** and **Help** to the bottom. A module is one entry; `match` lets an entry stay current on pages it owns (Appointments on `/doctors`; Consultations on `/clinic/prescriptions`). A count may be an alert (`countAlert`, danger colours with a "need attention" label; the laboratory's unacknowledged critical results). The rail collapses to icons and the choice is kept in local storage; the mobile drawer is unchanged. Only counts from `GET /me/badges` are shown; queue and STAT counts are not in badges today (needs API).
+- **Permissions** decide the menu (`apps/staff/src/lib/navigation.ts`, `MODULE_PERMISSIONS`): the same checks as each page. `navigationForPermissions` shows Settings when at least one settings page is open.
+- **Module tabs** (`apps/staff/src/lib/module-tabs.ts`, `ModuleTabs` in `libs/ui/src/layouts`, drawn by `StaffShell` through `ModuleTabsBar` under the top bar): Laboratory, Billing, Inventory, Consultations (+ Prescriptions), Appointments (+ Waiting list, Doctors), Records and Management. Each tab is gated by its page's permission; a module with fewer than two tabs open to the user shows none. They replace the sidebar sub-items and the header button rows (`BillingNav`, `InventoryNav` are gone).
+- **Settings area** (`apps/staff/src/lib/settings-navigation.ts`, `components/settings-frame.tsx`): every configuration page keeps its address and its own permission check; pages listed in `SETTINGS_GROUPS` (and everything under `/admin`) are drawn inside `SettingsFrame`, a grouped sub-navigation of the pages open to the user beside the page (a "Settings section" list on a phone). No route moved, so no redirect was needed.
 
 - `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
@@ -343,6 +350,55 @@ role's `version`; `PUT /roles/:id`, `role.manage`; permissions the editor does n
 them; built-in roles are read-only; no delete). `/clinic/coding-systems` (**Clinic → Coding systems**; `encounter.read` to see, `clinic.configure`
 to change) registers diagnosis coding systems, renames them, changes the edition and stops offering them (`PATCH /clinic/coding-systems/:id`,
 audited `coding-system.update`); the encounter workspace offers the active ones and points here when none is.
+
+### Page templates (UI redesign, phase 3)
+
+`libs/ui/src/layouts/page-templates.tsx` composes the phase 1 components into one template per kind of screen. They are layout only; data, permission checks and server actions stay in the page.
+
+| Template        | For                                                             | Used by              |
+| --------------- | --------------------------------------------------------------- | -------------------- |
+| `ListPage`      | header + actions, a card with a filter toolbar, rows, `Pager`   | `/patients`          |
+| `DetailPage`    | identity card, banners, section tabs, main column + side rail   | `/patients/[id]`     |
+| `SettingsPage`  | header, "How this works", tabs, sections; `AddSheet` for create | `/clinic/procedures` |
+| `DashboardPage` | greeting header, urgent callouts, `StatTile` row, cards         | `/`                  |
+
+`PageShell` is the shared column (wide, medium or narrow). Lists use `ResponsiveTable` (cards below `md`) and `EmptyState`; the add/edit forms of a catalogue open in a side sheet (`/clinic/procedures`: `ProcedureForm` inside `AddSheet`, one for the header button and one per row). `NextLink` (`components/next-link.tsx`) passes `next/link` to templates and tiles from server components. The old `FigureTiles` is replaced by `StatTile`; the dashboard shows STAT samples and unacknowledged critical results as danger callouts first. Screens not yet moved keep the earlier full-width `PageHeader` bar until their module is redesigned.
+
+### Settings pages (UI redesign, phase 4)
+
+Every page listed in `SETTINGS_GROUPS` (`apps/staff/src/lib/settings-navigation.ts`) now renders through `StaffSettingsPage` (`components/settings-page.tsx`, over `SettingsPage`): breadcrumbs `Settings › <group>`, the title, ONE sentence of description, and the longer explanation in a "How this works" disclosure (`details`). Sections that used to be stacked full-bleed blocks sit in one card (`SettingsStack`), separated by a rule; the Staff users table is a `ResponsiveTable` (cards on phones). Presentation only: each page keeps its data, permission checks and server actions. Create forms that stay permanently open inside their section components (service points, visit types, prices, laboratory catalog, …) move into side sheets one module at a time with that module's phase; `/clinic/procedures` (phase 3) is the worked example.
+
+### Laboratory module (UI redesign, phase 5)
+
+The laboratory's working pages (critical results, send-outs, instrument results, quality control, reagent use, temperatures, nonconformances, proficiency testing, competency) use `ModulePage` (`components/module-page.tsx`): the plain page header, one sentence of description with the rest under "How this works", and the sections in one card; the module tabs sit above (phase 2). The worklist keeps its workbench (`LaboratoryLayout`): a plain title with live status, a danger callout while STAT samples are waiting to be collected (`statPendingCollection`), the stage pills and scan field, the list and the detail panel as two cards; STAT rows get a danger edge in addition to the STAT badge, and an empty stage shows an empty state. Nothing about collection, receipt, result entry or sign-off changed.
+
+### Inventory module (UI redesign, phase 6)
+
+Stock, movements, purchase orders (and an order), supplier invoices (and an invoice), valuation, controlled register and tax and procurement use `ModulePage`: one sentence of description in the plain header, the longer text under "How this works" (valuation), and the compliance notes (controlled register, tax and procurement) as information callouts. The module tabs sit above; the catalog is in Settings. Data, permission checks, filters and the movement form are unchanged.
+
+### Billing module (UI redesign, phase 7)
+
+The cashier's desk, invoices, an invoice, a patient's billing and the daily report use `ModulePage` (their headers, descriptions and actions are unchanged; the page-level padding moved into the page template). The module tabs (Cashier, Invoices, Daily report) replace the header button rows; prices and discounts are under Settings. Charges, packages, deposits, discounts, payments, refunds, credit and debit notes, the PhilHealth claim panel and every permission check are untouched.
+
+### Clinical module (UI redesign, phase 8)
+
+The consultations list, care-plan recall list, referrals (and a referral), prescriptions, dental (and a dental record) and pharmacy (and a dispense) pages use `ModulePage`: the plain page header with the existing title, description and actions, and the page-level padding from the template. The encounter workspace (`/clinic/encounters/[id]`) and the care-plan page keep their own patient-banner layouts; they move with the patient-record and workspace phase. Notes, prescribing, drug-allergy decision support, signing, dental charting, referrals and dispensing are untouched.
+
+### Patient record sub-pages (UI redesign, phase 9)
+
+The record's sub-pages (timeline, history, immunizations, procedures, communications, edit details, merge and its comparison, YAKAP consultation) and patient registration and QR scanning use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the registration form and the scan field lost their own outer padding). The patient record itself and Patient 360 (`/patients/[id]`, `/patients/[id]/360`) are phase 3 and keep their identity card / banner. Pages that stack a `PatientHeader` banner above their content (the encounter workspace, the care-plan page, a visit's procedures, Patient 360) are unchanged: the banner component is shared with the doctor's workspace and moves with a redesign of that workspace.
+
+### Front desk (UI redesign, phase 10)
+
+Appointments (and booking, the waiting list), the calendar, online consultations (and one), doctors, patient messages, notifications, My account and the walk-in check-in use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the day schedule, calendar board, waiting-list tables, booking form, walk-in form, pre-consult panel and notice list lost their own outer padding). The queue board (`/queue`: lanes, live updates, calls, routing), triage and vitals, and a doctor's profile keep their own full-width layouts: they are live working surfaces that need their own pass, and nothing about calling, moving, routing or the waiting-room display changed.
+
+### Role dashboards (UI redesign, phase 11)
+
+There is one dashboard (`/`); each part appears by permission, not by role name, so every role's view follows from what it may see. Added for the cashier and the desk: billing figures and panels (`_dashboard/billing-today.tsx`: **To invoice**, **Balances owed**, **Collected today**; `billing.charge.read`, the day's collections `billing.report.read`; figures from `/billing/worklist`, unpaid `/billing/invoices` and `/billing/reports/daily`, derived in `lib/dashboard-billing.ts` with tests), a **Queue now** card (the five lanes from `/clinic/dashboard` `queue.byStatus`), and the header's **Create invoice** and **End-of-day report**. Someone with no clinic figures (a cashier) gets the money tiles instead; others who bill get a **To invoice** tile beside the clinic's. The page body is two columns (what to do on the left; the schedule, money and calendar on the right) and the stat row adapts to its number of tiles. Not built because the API has no data for them: the mockups' reception **To do** list (reply to a message, confirm tomorrow's appointments, invoice) and a receipt list with times and invoice numbers.
+
+### Remaining staff pages (UI redesign, phase 12)
+
+Records (requests and a request, FHIR imports and an import, integrity, retention), disease reporting (cases and a case), the management dashboard and its scheduled reports, communications, outreach (and a campaign), Help (and a chapter), Offline and a laboratory nonconformance use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the case review, nonconformance workspace, offline workspace and the manual's layout lost their own outer padding). After this phase the pages still on the earlier header are those that stack a `PatientHeader` banner or are live working surfaces (queue board, triage and vitals, the encounter workspace, a patient message thread, a doctor's profile, Patient 360), plus the placeholder route.
 
 ## Integrations (administration)
 

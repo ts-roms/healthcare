@@ -6,7 +6,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { AlertOctagonIcon, ScanBarcodeIcon, TruckIcon, ZapIcon } from "lucide-react";
 import { LaboratoryLayout } from "@healthcare/ui/layouts";
 import { clinicalTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Input, Kbd, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Callout,
+  Input,
+  Kbd,
+  NativeSelect,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  toast,
+} from "@healthcare/ui/primitives";
 import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, LabWorklistStage, ReferenceLaboratory } from "@/lib/api/types";
 import { LiveIndicator, useLabUpdates } from "@/components/live-queue";
 import { PRIORITY_LABEL, STAGES } from "@/lib/lab-mapping";
@@ -116,6 +130,23 @@ export function LabWorkbench({
           ) : null}
         </>
       }
+      notice={
+        dashboard && dashboard.statPendingCollection > 0 ? (
+          <Callout
+            tone="danger"
+            title={`${dashboard.statPendingCollection} STAT ${dashboard.statPendingCollection === 1 ? "sample is" : "samples are"} not yet collected`}
+            actions={
+              stage !== "collect" ? (
+                <Button asChild variant="destructive" size="sm">
+                  <Link href={href({ stage: "collect" })}>Open collection</Link>
+                </Button>
+              ) : undefined
+            }
+          >
+            STAT orders come first.
+          </Callout>
+        ) : null
+      }
       toolbar={
         <>
           <nav aria-label="Worklist stage" className="flex flex-wrap gap-1">
@@ -177,7 +208,7 @@ export function LabWorkbench({
                 <TableRow
                   key={row.key}
                   data-state={selected?.key === row.key ? "selected" : undefined}
-                  className="cursor-pointer"
+                  className={`cursor-pointer ${row.order.priority === "stat" ? "shadow-[inset_3px_0_0_var(--danger)]" : ""}`}
                   onClick={() => {
                     setScanned(null);
                     setSelectedKey(row.key);

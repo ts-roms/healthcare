@@ -1,7 +1,7 @@
+import { ModulePage } from "@/components/module-page";
 import { redirect } from "next/navigation";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getRouteTemplates, getServicePoints } from "@/lib/api/clinic";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -20,10 +20,9 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   if (!can(session, "clinic.queue.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Queue" />
+      <ModulePage title="Queue">
         <FacilityRequired action="The queue belongs to a facility." />
-      </>
+      </ModulePage>
     );
   }
   // One service point of the facility (migration 0113), or the whole queue; an unknown id falls back to the whole queue.

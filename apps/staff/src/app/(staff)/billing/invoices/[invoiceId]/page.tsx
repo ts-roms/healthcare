@@ -1,10 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import { notFound, redirect } from "next/navigation";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { BillingPayer, BillingService, DiscountRule, InvoiceFull, PatientAccount, PhilHealthClaimPreview, SharedAccount } from "@/lib/api/types";
-import { BillingNav } from "../../billing-nav";
 import { InvoiceWorkspace } from "./invoice-workspace";
 import { PhilHealthClaim } from "./philhealth-claim";
 
@@ -32,12 +31,10 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
     claimable && can(session, "philhealth.claim.submit") ? api<PhilHealthClaimPreview>(`/philhealth/claims/invoices/${invoiceId}`) : Promise.resolve(null),
   ]);
   return (
-    <>
-      <PageHeader
-        title={invoice.invoiceNumber ?? "Draft invoice"}
-        description={invoice.patient ? `${invoice.patient.displayName} · ${invoice.patient.patientNumber}` : undefined}
-        actions={<BillingNav canReport={can(session, "billing.report.read")} canConfigure={can(session, "billing.pricelist.manage")} />}
-      />
+    <ModulePage
+      title={invoice.invoiceNumber ?? "Draft invoice"}
+      description={invoice.patient ? `${invoice.patient.displayName} · ${invoice.patient.patientNumber}` : undefined}
+    >
       <InvoiceWorkspace
         invoice={invoice}
         rules={rules.filter((r) => r.status === "active")}
@@ -56,6 +53,6 @@ export default async function InvoicePage({ params }: { params: Promise<{ invoic
         }}
         aside={philhealth ? <PhilHealthClaim preview={philhealth} canSubmit /> : null}
       />
-    </>
+    </ModulePage>
   );
 }

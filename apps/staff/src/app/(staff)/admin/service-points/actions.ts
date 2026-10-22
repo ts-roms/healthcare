@@ -61,9 +61,12 @@ export async function updateServicePoint(
 export async function saveServicePointSettings(input: {
   facilityId: string;
   autoCallOnRoute: boolean;
+  seniorsFirst?: boolean;
   version?: number;
 }): Promise<ActionResult<ServicePointSettings>> {
-  const parsed = z.object({ facilityId: z.uuid(), autoCallOnRoute: z.boolean(), version: z.number().int().positive().optional() }).safeParse(input);
+  const parsed = z
+    .object({ facilityId: z.uuid(), autoCallOnRoute: z.boolean(), seniorsFirst: z.boolean().optional(), version: z.number().int().positive().optional() })
+    .safeParse(input);
   if (!parsed.success) return { ok: false, message: "Invalid request." };
   const result = await actionResult(() => api<ServicePointSettings>("/clinic/service-point-settings", { method: "PUT", body: parsed.data }));
   revalidatePath("/admin/service-points");

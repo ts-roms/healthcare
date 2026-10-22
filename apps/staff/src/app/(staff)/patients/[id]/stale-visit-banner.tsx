@@ -28,7 +28,7 @@ export interface StaleVisit {
 export function StaleVisitBanner({ visits, canManage }: { visits: StaleVisit[]; canManage: boolean }) {
   if (visits.length === 0) return null;
   return (
-    <div role="alert" className="flex flex-col gap-3 border-b border-warning/40 bg-warning-subtle px-4 py-3 text-warning-foreground">
+    <div role="alert" className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning-subtle px-4 py-3 text-warning-foreground">
       <p className="flex items-center gap-2 text-body font-semibold">
         <ClockAlertIcon className="size-4" aria-hidden />
         {visits.length === 1 ? "A visit from an earlier day is still open" : `${visits.length} visits from earlier days are still open`}

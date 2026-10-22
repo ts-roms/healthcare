@@ -24,6 +24,7 @@ export interface ServicePointBrief {
 export interface ServicePointSettingsView {
   facilityId: string;
   autoCallOnRoute: boolean;
+  seniorsFirst: boolean;
   version: number | null;
   updatedAt: Date | null;
 }
@@ -133,7 +134,13 @@ export class ServicePointService {
       .select()
       .from(servicePointSetting)
       .where(and(eq(servicePointSetting.organizationId, organizationId), eq(servicePointSetting.facilityId, facilityId)));
-    return { facilityId, autoCallOnRoute: row?.autoCallOnRoute ?? false, version: row?.version ?? null, updatedAt: row?.updatedAt ?? null };
+    return {
+      facilityId,
+      autoCallOnRoute: row?.autoCallOnRoute ?? false,
+      seniorsFirst: row?.seniorsFirst ?? false,
+      version: row?.version ?? null,
+      updatedAt: row?.updatedAt ?? null,
+    };
   }
 
   async getSettings(actor: Actor, facilityId: string): Promise<ServicePointSettingsView> {
@@ -151,12 +158,25 @@ export class ServicePointService {
         .where(and(eq(servicePointSetting.organizationId, actor.organizationId), eq(servicePointSetting.facilityId, input.facilityId)))
         .for("update");
       if (current) assertVersion(current.version, input.version ?? current.version, "Routing settings");
+      const seniorsFirst = input.seniorsFirst ?? current?.seniorsFirst ?? false;
       const [row] = await tx
         .insert(servicePointSetting)
-        .values({ facilityId: input.facilityId, organizationId: actor.organizationId, autoCallOnRoute: input.autoCallOnRoute, updatedBy: actor.userId })
+        .values({
+          facilityId: input.facilityId,
+          organizationId: actor.organizationId,
+          autoCallOnRoute: input.autoCallOnRoute,
+          seniorsFirst,
+          updatedBy: actor.userId,
+        })
         .onConflictDoUpdate({
           target: servicePointSetting.facilityId,
-          set: { autoCallOnRoute: input.autoCallOnRoute, updatedBy: actor.userId, updatedAt: new Date(), version: sql`${servicePointSetting.version} + 1` },
+          set: {
+            autoCallOnRoute: input.autoCallOnRoute,
+            seniorsFirst,
+            updatedBy: actor.userId,
+            updatedAt: new Date(),
+            version: sql`${servicePointSetting.version} + 1`,
+          },
         })
         .returning();
       const saved = found(row, "Routing settings");
@@ -164,10 +184,19 @@ export class ServicePointService {
         action: "service-point-setting.update",
         resourceType: "service_point_setting",
         resourceId: input.facilityId,
-        changes: { autoCallOnRoute: { from: current?.autoCallOnRoute ?? false, to: saved.autoCallOnRoute } },
+        changes: {
+          autoCallOnRoute: { from: current?.autoCallOnRoute ?? false, to: saved.autoCallOnRoute },
+          seniorsFirst: { from: current?.seniorsFirst ?? false, to: saved.seniorsFirst },
+        },
         metadata: { facilityId: input.facilityId },
       });
-      return { facilityId: saved.facilityId, autoCallOnRoute: saved.autoCallOnRoute, version: saved.version, updatedAt: saved.updatedAt };
+      return {
+        facilityId: saved.facilityId,
+        autoCallOnRoute: saved.autoCallOnRoute,
+        seniorsFirst: saved.seniorsFirst,
+        version: saved.version,
+        updatedAt: saved.updatedAt,
+      };
     });
   }
 }

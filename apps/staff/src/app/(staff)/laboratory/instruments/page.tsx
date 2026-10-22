@@ -1,6 +1,6 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryLocation, LabAvailableReagentLot, LabCatalogEntry, LabInstrument, LabReagentLoad, LabReagentYield, LabTest } from "@/lib/api/types";
@@ -13,10 +13,9 @@ export default async function InstrumentsPage({ searchParams }: { searchParams: 
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Instruments" />
+      <StaffSettingsPage group="Laboratory" title="Instruments">
         <FacilityRequired action="Instruments belong to a facility's laboratory." />
-      </>
+      </StaffSettingsPage>
     );
   }
   const includeRetired = params.show === "retired";
@@ -34,23 +33,26 @@ export default async function InstrumentsPage({ searchParams }: { searchParams: 
     canLog ? api<LabReagentYield[]>("/laboratory/reagents/yields") : Promise.resolve([]),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Instruments"
-        description={`Analyzers and equipment at ${facility.name}, with their maintenance and calibration log. An instrument out of service cannot be used for QC or patient results.`}
-      />
-      <InstrumentRegister
-        instruments={instruments}
-        departments={departments}
-        reagents={reagents}
-        availableLots={available}
-        stockLocations={stockLocations.filter((l) => l.status === "active")}
-        tests={tests}
-        yields={yields}
-        includeRetired={includeRetired}
-        canLog={canLog}
-        canManage={can(session, "lab.qc.manage")}
-      />
-    </>
+    <StaffSettingsPage
+      group="Laboratory"
+      title="Instruments"
+      description={`Analyzers and equipment at ${facility.name}, with their maintenance and calibration log.`}
+      details={["An instrument out of service cannot be used for QC or patient results."]}
+    >
+      <SettingsStack>
+        <InstrumentRegister
+          instruments={instruments}
+          departments={departments}
+          reagents={reagents}
+          availableLots={available}
+          stockLocations={stockLocations.filter((l) => l.status === "active")}
+          tests={tests}
+          yields={yields}
+          includeRetired={includeRetired}
+          canLog={canLog}
+          canManage={can(session, "lab.qc.manage")}
+        />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

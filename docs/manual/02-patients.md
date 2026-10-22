@@ -11,7 +11,7 @@ timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and any
 ## How to find a patient
 
 1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there). The page lists all active
-   patients A–Z, 25 a page, until you search.
+   patients A–Z, 25 a page, until you search. Each row has **Open** (the record) and **360** (the Patient 360 view); on a phone every patient is a card.
 2. In **Name, patient no. or mobile**, type at least 2 characters. Examples: `dela cruz juan`, a patient number such as `P00001234`, or a mobile number in any
    Philippine format. Accents don't matter: "pena" finds "Peña".
 3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.
@@ -55,7 +55,7 @@ default).
 ## How to use patient QR codes
 
 A QR code on a card or wristband lets you find a patient by scanning instead of typing. The code holds only a random key: no name, health or contact details, and it
-opens nothing by itself. Your clinic decides whether to use codes (**Administration → Patient QR codes**, administrators).
+opens nothing by itself. Your clinic decides whether to use codes (**Settings → Patient QR codes**, administrators).
 
 - **Print a card.** Open the patient, choose the **MyHealth** tab, then **Print card** under **Patient QR code**. Give the card to the patient. If the patient has no
   code yet (registered before codes were turned on, or declined), select **Issue QR code** first.
@@ -257,7 +257,7 @@ verification**, write the reason (at least 5 characters) and confirm: the patien
 If your clinic requires two-step verification and a patient cannot use an authenticator app (no smartphone, for example), select **Exempt from required
 two-step verification…**, write the reason and confirm. The card then shows **Exempt from required two-step verification**, the patient is no longer asked
 to set it up, and they are told by email. **End two-step verification exemption…** reverses it, with a reason; the patient is then asked to set it up at
-their next visit to MyHealth. Who may be exempted is your organization's decision. Exempt patients are listed under **Administration → Sign-in
+their next visit to MyHealth. Who may be exempted is your organization's decision. Exempt patients are listed under **Settings → Sign-in
 security**.
 
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).

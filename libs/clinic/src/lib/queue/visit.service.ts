@@ -44,6 +44,7 @@ import {
   canRouteVisit,
   canTransition,
   compareQueueOrder,
+  SENIOR_AGE,
   type QueueDisplayCall,
   queueDisplay,
   queueTicket,
@@ -373,15 +374,23 @@ export class VisitService {
       resourceType: "visit",
       metadata: { facilityId, date, count: rows.length, ...(options.servicePointId ? { servicePointId: options.servicePointId } : {}) },
     });
-    return rows.sort(compareQueueOrder).map((row) => ({
-      ...toVisitView(row),
-      patient: patients.get(row.patientId) ?? null,
-      encounterId: encounterByVisit.get(row.id) ?? null,
-      modality: modalityByType.get(row.visitTypeId) ?? "in_person",
-      servicePoint: (row.servicePointId && servicePoints.get(row.servicePointId)) || null,
-      route: toRouteStepViews(routes.get(row.id) ?? [], servicePoints),
-      waitingMinutes: Math.max(0, Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000)),
-    }));
+    const seniorsFirst = (await this.servicePoints.settings(actor.organizationId, facilityId)).seniorsFirst;
+    const isSenior = (patientId: string) => seniorsFirst && (patients.get(patientId)?.age ?? 0) >= SENIOR_AGE;
+    return rows
+      .map((row) => ({ row, senior: isSenior(row.patientId) }))
+      .sort((a, b) => compareQueueOrder({ ...a.row, senior: a.senior }, { ...b.row, senior: b.senior }))
+      .map(({ row }) => ({
+        ...toVisitView(row),
+        patient: patients.get(row.patientId) ?? null,
+        encounterId: encounterByVisit.get(row.id) ?? null,
+        modality: modalityByType.get(row.visitTypeId) ?? "in_person",
+        servicePoint: (row.servicePointId && servicePoints.get(row.servicePointId)) || null,
+        route: toRouteStepViews(routes.get(row.id) ?? [], servicePoints),
+        waitingMinutes: Math.max(
+          0,
+          Math.round(((row.consultationStartedAt ?? row.completedAt ?? new Date(now)).getTime() - row.checkedInAt.getTime()) / 60_000),
+        ),
+      }));
   }
 
   /**

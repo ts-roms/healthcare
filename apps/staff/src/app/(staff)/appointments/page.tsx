@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon, GlobeIcon, SearchIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -21,10 +21,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   if (!can(session, "appointment.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Appointments" />
+      <ModulePage title="Appointments">
         <FacilityRequired action="Schedules are kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const today = todayIn(facility.timezone);
@@ -39,48 +38,47 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const href = (d: string) => `/appointments?date=${d}${practitionerId ? `&practitionerId=${practitionerId}` : ""}${byRoom ? "&view=room" : ""}`;
 
   return (
-    <>
-      <PageHeader
-        title="Appointments"
-        description={`${facility.name} · ${clinicalDate(date)}${date === today ? " (today)" : ""}`}
-        actions={
-          <>
-            <nav aria-label="Change day" className="flex items-center gap-1">
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={href(shiftDate(date, -1))} aria-label="Previous day">
-                  <ChevronLeftIcon />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href={href(today)}>Today</Link>
-              </Button>
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={href(shiftDate(date, 1))} aria-label="Next day">
-                  <ChevronRightIcon />
-                </Link>
-              </Button>
-            </nav>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/appointments/waitlist">Waiting list</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/appointments/schedules">Schedules</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/appointments/visit-types">
-                <GlobeIcon /> Online booking
+    <ModulePage
+      title="Appointments"
+      description={`${facility.name} · ${clinicalDate(date)}${date === today ? " (today)" : ""}`}
+      actions={
+        <>
+          <nav aria-label="Change day" className="flex items-center gap-1">
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={href(shiftDate(date, -1))} aria-label="Previous day">
+                <ChevronLeftIcon />
               </Link>
             </Button>
-            {can(session, "appointment.manage") && can(session, "patient.search") ? (
-              <Button asChild size="sm">
-                <Link href="/patients">
-                  <SearchIcon /> Find patient to book
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+            <Button asChild variant="outline" size="sm">
+              <Link href={href(today)}>Today</Link>
+            </Button>
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={href(shiftDate(date, 1))} aria-label="Next day">
+                <ChevronRightIcon />
+              </Link>
+            </Button>
+          </nav>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/appointments/waitlist">Waiting list</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/appointments/schedules">Schedules</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/appointments/visit-types">
+              <GlobeIcon /> Online booking
+            </Link>
+          </Button>
+          {can(session, "appointment.manage") && can(session, "patient.search") ? (
+            <Button asChild size="sm">
+              <Link href="/patients">
+                <SearchIcon /> Find patient to book
+              </Link>
+            </Button>
+          ) : null}
+        </>
+      }
+    >
       <AppointmentsDay
         items={page.items}
         truncated={page.hasMore}
@@ -97,6 +95,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         rooms={rooms}
         byRoom={byRoom}
       />
-    </>
+    </ModulePage>
   );
 }

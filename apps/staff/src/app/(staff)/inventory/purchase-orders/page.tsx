@@ -1,14 +1,13 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier, PurchaseOrder, ReorderSuggestion, ProcurementMethod } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { InventoryNav } from "../inventory-nav";
 import { NewPurchaseOrder } from "./new-purchase-order";
 import { PurchaseOrderStatusBadge } from "./status-badge";
 
@@ -18,19 +17,11 @@ export const metadata = { title: "Purchase orders" };
 export default async function PurchaseOrdersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Purchase orders" actions={nav} />
+      <ModulePage title="Purchase orders">
         <FacilityRequired action="Purchase orders are placed per facility." />
-      </>
+      </ModulePage>
     );
   }
   const show = params.show === "all" ? "all" : "open";
@@ -44,13 +35,8 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
     canManage ? api<ProcurementMethod[]>("/inventory/procurement-methods") : Promise.resolve([]),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Purchase orders"
-        description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`}
-        actions={nav}
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage title="Purchase orders" description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`}>
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex gap-1">
             {(["open", "all"] as const).map((key) => (
@@ -139,6 +125,6 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           />
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

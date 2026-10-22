@@ -23,7 +23,7 @@ export function WaitlistTable({ rows, canManage }: { rows: Row[]; canManage: boo
       } else toast.error(result.message);
     });
   return (
-    <div className="p-4">
+    <div>
       <Card className="py-0">
         {rows.length === 0 ? (
           <p className="p-4 text-body text-muted-foreground">Nobody is waiting.</p>

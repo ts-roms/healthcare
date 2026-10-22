@@ -123,9 +123,14 @@ The menu has:
 | **Messages** | Notices and messages from the clinic. A number shows how many are new            |
 | **Profile**  | Your name, patient number, date of birth, sex, clinic and sign-in email          |
 
-On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills**, **Documents**,
-**Immunizations** and **Health history**. Your care plan, medicines
-and bills are opened from these buttons. **See all** next to **Upcoming** or **Recent results** opens the full list.
+On a phone the menu is the bar at the bottom: **Home**, **Visits**, **Results**, **Messages** and **More**. **More** opens a list with the other pages
+(**Dental** and **Forms** when you have them, and **Profile**) and with **People** (if you may look after someone), **Help** and **Sign out**. On a larger
+screen all of these are in the bar at the top.
+
+On **Home**, the four quick buttons are **Book a visit**, **Results**, **Bills** and **Ask the clinic**. **Your next visit** shows what is coming (with
+**Change or cancel** and check-in where they apply), **Recent results** your latest values, and **My records** opens your **Prescriptions**,
+**Care plan**, **Documents & certificates**, **Immunizations** and **Health history**. **See all** opens the full list. If you have not confirmed your email
+yet, a yellow note at the top says so, with **Confirm now**.
 
 Times of visits are shown in the clinic's local time (Philippine time for most clinics).
 

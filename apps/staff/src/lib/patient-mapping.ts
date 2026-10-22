@@ -91,6 +91,14 @@ export function label(value: string | null | undefined): string {
   return LABELS[value] ?? value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " ");
 }
 
+/** Initials for an avatar from a "FAMILY, Given Middle" display name: the first letter of the given name and of the family name. */
+export function initialsOf(displayName: string): string {
+  const [family = "", given = ""] = displayName.split(",").map((part) => part.trim());
+  const first = (given || family).charAt(0);
+  const last = given ? family.charAt(0) : "";
+  return `${first}${last}`.toUpperCase() || "?";
+}
+
 /** Latest decision per consent type (the API keeps consents append-only). */
 export function currentConsents<T extends { consentType: string; recordedAt: string }>(consents: T[]): T[] {
   const latest = new Map<string, T>();

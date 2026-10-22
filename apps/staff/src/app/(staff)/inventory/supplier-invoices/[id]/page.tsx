@@ -1,16 +1,15 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { SupplierInvoiceDetail, WithholdingCode } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { quantityWithUnit, supplierInvoiceActions } from "@/lib/inventory-mapping";
-import { InventoryNav } from "../../inventory-nav";
 import { SupplierInvoiceStatusBadge } from "../status-badge";
 import { SupplierInvoiceActions } from "./invoice-actions";
 
@@ -21,19 +20,11 @@ const day = (d: string) => clinicalDate(`${d}T12:00:00Z`);
 export default async function SupplierInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Supplier invoice" actions={nav} />
+      <ModulePage title="Supplier invoice">
         <FacilityRequired action="Supplier invoices are kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [invoice, withholdingCodes] = await Promise.all([
@@ -49,13 +40,11 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
     { label: "Voided", at: invoice.voidedAt, note: invoice.voidReason },
   ].filter((h) => h.at);
   return (
-    <>
-      <PageHeader
-        title={`Supplier invoice ${invoice.invoiceNumber}`}
-        description={`${invoice.supplier?.name ?? "—"} · dated ${day(invoice.invoiceDate)}${invoice.dueDate ? ` · due ${day(invoice.dueDate)}` : ""}`}
-        actions={nav}
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage
+      title={`Supplier invoice ${invoice.invoiceNumber}`}
+      description={`${invoice.supplier?.name ?? "—"} · dated ${day(invoice.invoiceDate)}${invoice.dueDate ? ` · due ${day(invoice.dueDate)}` : ""}`}
+    >
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <SupplierInvoiceStatusBadge invoice={invoice} />
@@ -172,6 +161,6 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
           />
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

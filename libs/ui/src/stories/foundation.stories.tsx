@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { FlaskConicalIcon, InboxIcon, PrinterIcon } from "lucide-react";
 import { StatTile } from "../healthcare/stat-tile";
 import { ModuleTabs } from "../layouts/module-tabs";
+import { DashboardPage, DetailPage, ListPage, Pager, SettingsPage } from "../layouts/page-templates";
 import { PageHeader } from "../layouts/page-header";
 import {
   AddSheet,
@@ -303,6 +304,118 @@ export const AddSheetPhone: Story = {
     </Phone>
   ),
 };
+
+// ---- Page templates ---------------------------------------------------------------------------------------------
+
+const templateHeader = { title: "Patients", description: "All patients A–Z, or look up by name or number." };
+const listRows = (
+  <ResponsiveTable caption="Laboratory worklist" columns={COLUMNS} rows={ROWS} getRowKey={(r) => r.id} urgent={(r) => r.stat} className="px-2 pb-1" />
+);
+function ListTemplate() {
+  return (
+    <ListPage
+      {...templateHeader}
+      actions={<Button>Register patient</Button>}
+      toolbar={
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="grid min-w-56 flex-1 gap-1">
+            <Label htmlFor="tpl-search">Name, patient no. or mobile</Label>
+            <Input id="tpl-search" placeholder="e.g. dela cruz juan" />
+          </div>
+          <Button>Search</Button>
+        </div>
+      }
+      footer={<Pager page={1} hasMore nextHref="#next" summary="Page 1" />}
+    >
+      {listRows}
+    </ListPage>
+  );
+}
+export const ListPageTemplate: Story = { parameters: { layout: "fullscreen" }, render: () => <ListTemplate /> };
+export const ListPageTemplateDark: Story = { globals: dark, parameters: { layout: "fullscreen" }, render: () => <ListTemplate /> };
+export const ListPageTemplatePhone: Story = {
+  parameters: { layout: "fullscreen" },
+  render: () => (
+    <Phone>
+      <ListTemplate />
+    </Phone>
+  ),
+};
+
+function DetailTemplate() {
+  return (
+    <DetailPage
+      identity={
+        <div className="flex flex-col gap-1">
+          <p className="text-table text-muted-foreground">Patients › Maria Reyes Santos</p>
+          <h1 className="text-page font-semibold">Maria Reyes Santos</h1>
+          <Badge variant="success">Active</Badge>
+        </div>
+      }
+      notices={<Callout tone="warning" title="Allergies not recorded — ask the patient" />}
+      tabs={<ModuleTabs tabs={TABS} pathname="/billing/invoices" label="Sections of the record" />}
+      rail={
+        <Card className="p-4">
+          <p className="font-semibold">Clinical summary</p>
+          <p className="text-table text-muted-foreground">No active problems recorded.</p>
+        </Card>
+      }
+    >
+      <Card className="p-4">Demographics</Card>
+      <Card className="p-4">Recent activity</Card>
+    </DetailPage>
+  );
+}
+export const DetailPageTemplate: Story = { parameters: { layout: "fullscreen" }, render: () => <DetailTemplate /> };
+export const DetailPageTemplateDark: Story = { globals: dark, parameters: { layout: "fullscreen" }, render: () => <DetailTemplate /> };
+
+function SettingsTemplate() {
+  return (
+    <SettingsPage
+      title="Procedures"
+      description="The procedures your clinic performs."
+      breadcrumbs={[{ label: "Settings", href: "/admin" }, { label: "Clinical" }]}
+      actions={
+        <AddSheet label="Add procedure">
+          <ProcedureForm />
+        </AddSheet>
+      }
+      explain={<Explain summary="How procedures work">Codes are your organization&apos;s own.</Explain>}
+    >
+      <Card>
+        <EmptyState icon={InboxIcon} title="No procedures yet" description="Add the procedures your clinicians perform." />
+      </Card>
+    </SettingsPage>
+  );
+}
+export const SettingsPageTemplate: Story = { parameters: { layout: "fullscreen" }, render: () => <SettingsTemplate /> };
+export const SettingsPageTemplateDark: Story = { globals: dark, parameters: { layout: "fullscreen" }, render: () => <SettingsTemplate /> };
+
+function DashboardTemplate() {
+  return (
+    <DashboardPage
+      title="Good morning, Dr. Santos"
+      description="Thursday, 22 October · Main Clinic"
+      actions={<Button>Check in patient</Button>}
+      alert={
+        <Callout
+          tone="danger"
+          title="2 STAT lab samples are not yet collected"
+          actions={
+            <Button size="sm" variant="destructive">
+              Open worklist
+            </Button>
+          }
+        />
+      }
+      tiles={tiles.props.children}
+    >
+      {callouts}
+    </DashboardPage>
+  );
+}
+export const DashboardPageTemplate: Story = { parameters: { layout: "fullscreen" }, render: () => <DashboardTemplate /> };
+export const DashboardPageTemplateDark: Story = { globals: dark, parameters: { layout: "fullscreen" }, render: () => <DashboardTemplate /> };
 
 /** Everything on one page, for a quick visual pass. */
 export const Everything: Story = {

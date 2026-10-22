@@ -37,36 +37,45 @@ the facility you choose with everything you do.
 
 ## How to find your way around
 
-The dark **sidebar** on the left lists the modules you may use. It is built from your permissions, so two people can see different menus. On a small screen,
-open it with the menu button (**Open navigation**) at the top left.
+The **sidebar** on the left lists the modules you may use, in sections: **Today** (Queue, Appointments, Calendar), **Patients** (Patients, Patient messages,
+Telemedicine), **Clinical** (Consultations, Care plans, Referrals, Laboratory, Dental, Pharmacy), **Operations** (Billing, Inventory, Records, Disease
+reporting, Management) and **Engagement** (Communications, Outreach). **Settings** and **Help** stay at the bottom. It is built from your permissions, so two
+people can see different menus. On a small screen, open it with the menu button (**Open navigation**) at the top left. On a wide screen, the round button on the
+sidebar's edge narrows it to icons; your choice is remembered in this browser.
 
-- Selecting a module that has sub-pages (for example **Laboratory**) opens its first sub-page. The sub-pages appear under the module while you are in it.
 - **Dashboard** is always shown.
-- Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
-  reach is not shown at all.
+- A module with several pages (for example **Laboratory** or **Billing**) shows them as **tabs** under the top bar. Tabs you cannot open are not listed (for
+  example **Quality control** needs `lab.qc.read`), and a number on a tab (such as **Critical results**) counts what is waiting for you.
+- A module whose pages are all out of reach is not shown at all. **Doctors** and **Waiting list** are tabs of **Appointments**; **Prescriptions** is a tab of
+  **Consultations**.
+- **Settings** gathers every configuration page in one place: your organization (company, facilities, service points, staff users, roles), security and privacy
+  (sign-in security, data privacy, consent wording, patient QR codes, audit log, compliance, integrations), scheduling, and each module's own settings
+  (procedures, vaccines, laboratory catalog, billing prices, inventory catalog, and so on). A menu on the left lists the ones you may open; on a phone it is a
+  **Settings section** list above the page. Settings appears when at least one of those pages is open to you, and each page still needs its own permission. In this
+  manual, **Settings → Staff users** means the **Staff users** page in that menu.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
-- **Help** at the end of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
+- **Help** at the bottom of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
   contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, the lifebuoy button in the top bar) opens a small **Need a hand?**
   window instead: the chapter about the screen you are on comes first (**About this screen**), then every chapter, and **Open the user manual**
   opens the manual's contents page. Press Escape or the × to close it. Hover over the button or move to it with the keyboard to see its name.
 
 What each default role usually sees in the sidebar, besides **Dashboard**:
 
-| Role                       | Modules in the sidebar                                                                                                                                            |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organization administrator | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Billing, Pharmacy, Inventory, Communications, Disease reporting, Records, Administration |
-| Physician, Dentist         | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Communications, Disease reporting                                                        |
-| Nurse                      | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Pharmacy, Inventory                                                                      |
-| Dental assistant           | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Inventory                                                                                |
-| Receptionist               | Patients, Appointments, Queue, Telemedicine, Billing, Communications                                                                                              |
-| Medical records officer    | Patients, Appointments, Clinic, Laboratory, Disease reporting, Records                                                                                            |
-| Medical technologist       | Patients, Laboratory, Inventory                                                                                                                                   |
-| Pathologist, Phlebotomist  | Patients, Laboratory                                                                                                                                              |
-| Pharmacist                 | Patients, Pharmacy, Inventory                                                                                                                                     |
-| Cashier                    | Patients, Billing                                                                                                                                                 |
-| Inventory officer          | Inventory                                                                                                                                                         |
-| Auditor                    | Dashboard only                                                                                                                                                    |
+| Role                       | Modules in the sidebar                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organization administrator | Patients, Appointments, Queue, Consultations, Care plans, Referrals, Laboratory, Dental, Telemedicine, Billing, Pharmacy, Inventory, Communications, Disease reporting, Records, Settings |
+| Physician, Dentist         | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Communications, Disease reporting                                                                                |
+| Nurse                      | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Pharmacy, Inventory                                                                                              |
+| Dental assistant           | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Inventory                                                                                                        |
+| Receptionist               | Patients, Appointments, Queue, Telemedicine, Billing, Communications                                                                                                                      |
+| Medical records officer    | Patients, Appointments, Clinic, Laboratory, Disease reporting, Records                                                                                                                    |
+| Medical technologist       | Patients, Laboratory, Inventory                                                                                                                                                           |
+| Pathologist, Phlebotomist  | Patients, Laboratory                                                                                                                                                                      |
+| Pharmacist                 | Patients, Pharmacy, Inventory                                                                                                                                                             |
+| Cashier                    | Patients, Billing                                                                                                                                                                         |
+| Inventory officer          | Inventory                                                                                                                                                                                 |
+| Auditor                    | Dashboard only                                                                                                                                                                            |
 
 Your organization may give you a custom role, or more than one role, so your menu can differ. Seeing a menu entry does not mean you can do everything in it:
 buttons you may not use are hidden, and the server checks every action again. The full list of roles and permissions is in
@@ -136,6 +145,11 @@ the selected facility. What you see depends on your permissions and needs a sele
 - **Figures** (with `clinic.dashboard.read`; select one to open its screen): **Appointments** (with how many arrived and how many did not come),
   **Waiting** (with the average wait), **Longest wait** (red with a warning icon from 30 minutes, with the patient and ticket when you may open the
   queue), **With provider** and **Seen** (compared with the same weekday last week).
+- **Cashier figures and panels** (with `billing.charge.read`; the day's collections need `billing.report.read`): **To invoice** (patients with charges
+  waiting and the amount), and for someone who has no clinic figures also **Balances owed**, **Collected today** and **Invoices today**; the panels **To invoice**
+  (each patient with **Create invoice**), **Balances owed** (the largest unpaid invoices) and **Collected today** by payment method. **Create invoice**
+  and **End-of-day report** buttons sit at the top.
+- **Queue now** (with the queue permission): how many are **Waiting**, in **Triage**, **Ready**, **With provider** and **Done**; **Open queue** opens the board.
 - **Needs attention**: the urgent and soon things of the day, each with a tag (**Urgent**, **Soon**, **Info**, **Setup**) and a button to where it is dealt
   with. The chips **All**, **Patients**, **Lab** and **Setup** narrow the list. It shows, for example, a patient waiting 30 minutes or more ("Call now"),
   unsigned consultations, patients who left without being seen, overdue care-plan activities, critical laboratory results not yet acknowledged, tests

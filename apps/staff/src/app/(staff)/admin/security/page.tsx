@@ -1,9 +1,9 @@
+import { StaffSettingsPage } from "@/components/settings-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { AuditRetention as AuditRetentionView, MfaPolicy, PatientMfaPolicy, RateLimitRefusals as RateLimitRefusalsView } from "@/lib/api/types";
@@ -27,9 +27,8 @@ export default async function SignInSecurityPage() {
   ]);
   const manage = can(session, "user.mfa.manage");
   return (
-    <>
-      <PageHeader title="Sign-in security" description="Two-step verification for staff and patients" />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <StaffSettingsPage group="Security & privacy" title="Sign-in security" description="Two-step verification for staff and patients">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Two-step verification for staff</CardTitle>
@@ -186,6 +185,6 @@ export default async function SignInSecurityPage() {
         {refusals ? <RateLimitRefusals view={refusals} /> : null}
         {retention ? <AuditRetention view={retention} /> : null}
       </div>
-    </>
+    </StaffSettingsPage>
   );
 }

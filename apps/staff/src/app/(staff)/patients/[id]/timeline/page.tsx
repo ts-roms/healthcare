@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon, CheckIcon, FilterXIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button, DateInput, Label } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { WithheldNote } from "@/components/patient-timeline-view";
 import { api } from "@/lib/api/client";
 import type { PatientDetail, PatientTimelinePage } from "@/lib/api/types";
@@ -39,67 +39,64 @@ export default async function PatientTimelinePage({ params, searchParams }: { pa
   const filtered = filters.groups.length > 0 || filters.from !== null || filters.to !== null;
 
   return (
-    <>
-      <PageHeader
-        title="Timeline"
-        description={
-          <>
-            {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span> · newest first, times in the facility&apos;s time zone
-            {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
-          </>
-        }
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/patients/${id}`}>
-              <ArrowLeftIcon aria-hidden /> Patient record
-            </Link>
-          </Button>
-        }
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <div className="flex flex-col gap-3 rounded-md border bg-card p-3">
-          <nav aria-label="Show kinds of records" className="flex flex-wrap gap-1.5">
-            {TIMELINE_GROUPS.map((g) => {
-              const on = filters.groups.includes(g.key);
-              return (
-                <Button key={g.key} asChild size="sm" variant={on ? "default" : "outline"}>
-                  <Link href={timelineHref(id, toggleGroup(filters, g.key))} aria-pressed={on}>
-                    {on ? <CheckIcon aria-hidden /> : null}
-                    {g.label}
-                  </Link>
-                </Button>
-              );
-            })}
-          </nav>
-          <form method="get" action={`/patients/${id}/timeline`} className="flex flex-wrap items-end gap-3">
-            {filters.groups.length ? <input type="hidden" name="groups" value={filters.groups.join(",")} /> : null}
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="timeline-from">From</Label>
-              <DateInput id="timeline-from" name="from" defaultValue={filters.from ?? ""} className="w-40" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="timeline-to">To</Label>
-              <DateInput id="timeline-to" name="to" defaultValue={filters.to ?? ""} className="w-40" />
-            </div>
-            <Button type="submit" size="sm" variant="outline">
-              Apply dates
-            </Button>
-            {filtered ? (
-              <Button asChild size="sm" variant="ghost">
-                <Link href={timelineHref(id, { groups: [], from: null, to: null })}>
-                  <FilterXIcon aria-hidden /> Clear filters
+    <ModulePage
+      title="Timeline"
+      description={
+        <>
+          {patient.displayName} · <span className="font-mono">{patient.patientNumber}</span> · newest first, times in the facility&apos;s time zone
+          {patient.mergedRecords?.length ? ` · includes records of ${patient.mergedRecords.map((r) => r.patientNumber).join(", ")}` : ""}
+        </>
+      }
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/patients/${id}`}>
+            <ArrowLeftIcon aria-hidden /> Patient record
+          </Link>
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-3 rounded-md border bg-card p-3">
+        <nav aria-label="Show kinds of records" className="flex flex-wrap gap-1.5">
+          {TIMELINE_GROUPS.map((g) => {
+            const on = filters.groups.includes(g.key);
+            return (
+              <Button key={g.key} asChild size="sm" variant={on ? "default" : "outline"}>
+                <Link href={timelineHref(id, toggleGroup(filters, g.key))} aria-pressed={on}>
+                  {on ? <CheckIcon aria-hidden /> : null}
+                  {g.label}
                 </Link>
               </Button>
-            ) : null}
-          </form>
-        </div>
-        <WithheldNote withheld={page.withheld} />
-        <TimelineList key={timelineHref(id, filters)} patientId={id} filters={filters} initial={page} />
-        <p className="text-meta text-muted-foreground">
-          Each entry is a summary; open it for the full record. Records entered in error, cancelled or voided stay listed and are marked. Viewing the timeline
-          is recorded in the audit trail.
-        </p>
+            );
+          })}
+        </nav>
+        <form method="get" action={`/patients/${id}/timeline`} className="flex flex-wrap items-end gap-3">
+          {filters.groups.length ? <input type="hidden" name="groups" value={filters.groups.join(",")} /> : null}
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="timeline-from">From</Label>
+            <DateInput id="timeline-from" name="from" defaultValue={filters.from ?? ""} className="w-40" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="timeline-to">To</Label>
+            <DateInput id="timeline-to" name="to" defaultValue={filters.to ?? ""} className="w-40" />
+          </div>
+          <Button type="submit" size="sm" variant="outline">
+            Apply dates
+          </Button>
+          {filtered ? (
+            <Button asChild size="sm" variant="ghost">
+              <Link href={timelineHref(id, { groups: [], from: null, to: null })}>
+                <FilterXIcon aria-hidden /> Clear filters
+              </Link>
+            </Button>
+          ) : null}
+        </form>
       </div>
-    </>
+      <WithheldNote withheld={page.withheld} />
+      <TimelineList key={timelineHref(id, filters)} patientId={id} filters={filters} initial={page} />
+      <p className="text-meta text-muted-foreground">
+        Each entry is a summary; open it for the full record. Records entered in error, cancelled or voided stay listed and are marked. Viewing the timeline is
+        recorded in the audit trail.
+      </p>
+    </ModulePage>
   );
 }

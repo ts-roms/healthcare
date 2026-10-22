@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import { notFound, redirect } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DispensableStock, DispensingView } from "@/lib/api/types";
@@ -22,10 +22,9 @@ export default async function DispensePage({ params }: { params: Promise<{ presc
   if (!UUID.test(prescriptionId)) notFound();
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Dispense" />
+      <ModulePage title="Dispense">
         <FacilityRequired action="Dispensing takes stock from this facility's locations." />
-      </>
+      </ModulePage>
     );
   }
   let view: DispensingView;
@@ -40,12 +39,11 @@ export default async function DispensePage({ params }: { params: Promise<{ presc
   const rx = view.prescription;
   const active = rx.status === "active";
   return (
-    <>
-      <PageHeader
-        title={`Prescription ${rx.prescriptionNumber}`}
-        description={`Issued ${clinicalDateTime(rx.issuedAt)}${view.patient ? ` · ${view.patient.displayName} (${view.patient.patientNumber}), ${view.patient.age} y, ${view.patient.sex}` : ""}`}
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-[3fr_2fr]">
+    <ModulePage
+      title={`Prescription ${rx.prescriptionNumber}`}
+      description={`Issued ${clinicalDateTime(rx.issuedAt)}${view.patient ? ` · ${view.patient.displayName} (${view.patient.patientNumber}), ${view.patient.age} y, ${view.patient.sex}` : ""}`}
+    >
+      <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-3">
           {!active ? (
             <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle p-3 text-body text-danger-foreground">
@@ -128,6 +126,6 @@ export default async function DispensePage({ params }: { params: Promise<{ presc
         </div>
         {active && canMove ? <DispenseForm prescriptionId={rx.id} items={rx.items} stock={stock} /> : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

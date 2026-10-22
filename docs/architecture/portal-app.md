@@ -262,3 +262,11 @@ A person with their own MyHealth account may act for another person's record (a 
 An address that matches no screen renders `(portal)/[...slug]` ("Coming soon"); every link in MyHealth resolves to a screen or route
 handler, so it is reached only by typing an address. Not built:
 guardian access and everything but results and notifications in the mobile app (`apps/mobile`: sign-in, results and push — [mobile-app.md](mobile-app.md); browser push is built too).
+
+## UI redesign (phase 13)
+
+`PatientLayout` (`libs/ui/src/layouts/patient-layout.tsx`) keeps the top navigation from `md` up. On a phone the bottom bar holds four primary items (`phonePrimary`, default the first four; MyHealth passes Home, Visits, Results, Messages) and a **More** tab (a bottom sheet) with the remaining items, a count badge when one of them has something new (Forms), and `headerEnd` (People, Help, Sign out), so the phone header is just the brand. The "acting for another person" banner and the home page's messages are `Callout`s. Home (`app/(portal)/page.tsx`): the next visit first (the same `VisitCard`, with check-in and Change or cancel), four quick actions (Book a visit, Results, Bills, Ask the clinic), recent results, and **My records** (Prescriptions, Care plan, Documents & certificates, Immunizations, Health history); nothing the old eight tiles reached is lost. The other portal pages keep their layouts; their phone layouts were already single-column.
+
+### Signed-out pages (UI redesign, phase 14)
+
+The MyHealth signed-out pages (`app/(auth)`: sign in, set up your account, forgot and reset password, outreach opt-out) sit on a soft background with the brand and a **Help** link on top; each page's heading, explanation and form are one `AuthCard` (`form-parts.tsx`), the sign-in page shows **First time here?** as a row with a **Set up** button, and every page ends with the reminder that MyHealth is not for emergencies (the same 911 / emergency room wording the messages pages use). Forms, fields and actions are unchanged. The staff sign-in pages already use the redesign's two-column layout (a dark panel with what the platform does, the form beside it) and are unchanged.

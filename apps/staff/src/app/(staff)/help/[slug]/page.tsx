@@ -1,5 +1,5 @@
+import { ModulePage } from "@/components/module-page";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { manualSections } from "@healthcare/ui/primitives";
 import { withoutTitle } from "@/lib/manual";
 import { loadManual } from "@/lib/manual-content";
@@ -22,9 +22,8 @@ export default async function HelpChapterPage({ params }: { params: Promise<{ sl
   if (!found) notFound();
   const { chapter, number, chapters } = found;
   return (
-    <>
-      <PageHeader title={`${number}. ${chapter.title}`} description="User manual" />
+    <ModulePage title={`${number}. ${chapter.title}`} description="User manual">
       <HelpShell chapters={chapters} sections={manualSections(chapters)} active={chapter.slug} source={withoutTitle(chapter.source)} />
-    </>
+    </ModulePage>
   );
 }

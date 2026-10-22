@@ -301,7 +301,7 @@ fee estimate says how long a printed estimate holds.
 
 Administrators set, under **Settings → Fee estimates**, how many days a printed estimate holds and whether a signed estimate is required.
 Decisions patients make in MyHealth confirm your acknowledgement text instead. What a written estimate must contain is not built in: have it
-checked and record the review under **Admin → Compliance**.
+checked and record the review under **Settings → Compliance**.
 
 ## Rules the system enforces
 

@@ -1,7 +1,7 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabDashboard, LabSendOut, LabSendOutDispatchSummary, ReferenceLabSubmissionStatus } from "@/lib/api/types";
@@ -21,10 +21,9 @@ export default async function SendOutsPage({ searchParams }: { searchParams: Pro
   if (!can(session, "lab.order.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Send-outs" />
+      <ModulePage title="Send-outs">
         <FacilityRequired action="Send-outs belong to a facility's laboratory." />
-      </>
+      </ModulePage>
     );
   }
   const view: View = VIEWS.some((v) => v.view === params.view) ? (params.view as View) : "awaiting";
@@ -35,45 +34,43 @@ export default async function SendOutsPage({ searchParams }: { searchParams: Pro
     api<ReferenceLabSubmissionStatus["integration"]>("/integrations/reference-laboratories"),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Send-outs"
-        description={`${facility.name} · tests referred to reference laboratories: dispatch with a manifest, record the results coming back, then enter and sign them off as usual`}
-        actions={
-          <Link href="/laboratory/catalog#reference-laboratories" className="text-meta text-primary hover:underline">
-            Reference laboratories and referred tests
-          </Link>
-        }
+    <ModulePage
+      title="Send-outs"
+      description={`${facility.name} · tests referred to reference laboratories.`}
+      details={["Dispatch with a manifest, record the results coming back, then enter and sign them off as usual."]}
+      actions={
+        <Link href="/laboratory/catalog#reference-laboratories" className="text-meta text-primary hover:underline">
+          Reference laboratories and referred tests
+        </Link>
+      }
+    >
+      <nav aria-label="Send-out view" className="mb-3 flex flex-wrap gap-1">
+        {VIEWS.map((v) => {
+          const count = dashboard ? v.count(dashboard) : null;
+          return (
+            <Link
+              key={v.view}
+              href={`/laboratory/send-outs?view=${v.view}`}
+              aria-current={v.view === view ? "page" : undefined}
+              className={`rounded-md border px-2.5 py-1 text-table ${v.view === view ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}
+            >
+              {v.label}
+              {count !== null ? <span className="tabular ml-1.5 opacity-80">{count}</span> : null}
+            </Link>
+          );
+        })}
+        {dashboard?.sendOutsOverdue ? (
+          <span className="self-center text-meta font-semibold text-critical">{dashboard.sendOutsOverdue} past the expected turnaround</span>
+        ) : null}
+      </nav>
+      <SendOutsView
+        key={view}
+        view={view}
+        rows={rows}
+        dispatches={dispatches}
+        integration={integration}
+        permissions={{ handle: can(session, "lab.specimen.receive"), reject: can(session, "lab.specimen.reject") }}
       />
-      <div className="gap-4 p-4">
-        <nav aria-label="Send-out view" className="mb-3 flex flex-wrap gap-1">
-          {VIEWS.map((v) => {
-            const count = dashboard ? v.count(dashboard) : null;
-            return (
-              <Link
-                key={v.view}
-                href={`/laboratory/send-outs?view=${v.view}`}
-                aria-current={v.view === view ? "page" : undefined}
-                className={`rounded-md border px-2.5 py-1 text-table ${v.view === view ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}
-              >
-                {v.label}
-                {count !== null ? <span className="tabular ml-1.5 opacity-80">{count}</span> : null}
-              </Link>
-            );
-          })}
-          {dashboard?.sendOutsOverdue ? (
-            <span className="self-center text-meta font-semibold text-critical">{dashboard.sendOutsOverdue} past the expected turnaround</span>
-          ) : null}
-        </nav>
-        <SendOutsView
-          key={view}
-          view={view}
-          rows={rows}
-          dispatches={dispatches}
-          integration={integration}
-          permissions={{ handle: can(session, "lab.specimen.receive"), reject: can(session, "lab.specimen.reject") }}
-        />
-      </div>
-    </>
+    </ModulePage>
   );
 }

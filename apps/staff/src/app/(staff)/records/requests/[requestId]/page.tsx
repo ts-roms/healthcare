@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { RecordsRequestDetail, RecordsRequestSetting } from "@/lib/api/types";
@@ -32,9 +32,8 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
   const open = request.status === "submitted" || request.status === "in_review";
   const setting = await settingPromise;
   return (
-    <>
-      <PageHeader title={`Records request ${request.requestNumber}`} description="What the patient asked for in MyHealth, and your answer." />
-      <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1.4fr]">
+    <ModulePage title={`Records request ${request.requestNumber}`} description="What the patient asked for in MyHealth, and your answer.">
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
         <Card>
           <CardHeader>
             <CardTitle>The request</CardTitle>
@@ -132,6 +131,6 @@ export default async function RecordsRequestPage({ params }: { params: Promise<{
         )}
         {(request.kind ?? "access") === "access" ? <RecordCopyCard request={request} open={open} /> : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

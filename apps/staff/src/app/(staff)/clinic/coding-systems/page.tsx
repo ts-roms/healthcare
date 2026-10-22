@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { CodingSystem } from "@/lib/api/types";
@@ -17,12 +17,18 @@ export default async function CodingSystemsPage() {
   if (!can(session, "encounter.read")) redirect("/");
   const systems = await api<CodingSystem[]>("/clinic/coding-systems");
   return (
-    <>
-      <PageHeader
-        title="Coding systems"
-        description="Where diagnosis codes come from, as your organization names them (for example the ICD-10 edition in use). No code list is built in and no code is checked against one; a deactivated system is no longer offered for new diagnoses, and recorded diagnoses keep theirs."
-      />
-      <CodingSystems systems={systems} canConfigure={can(session, "clinic.configure")} />
-    </>
+    <StaffSettingsPage
+      group="Clinical"
+      title="Coding systems"
+      description="Where diagnosis codes come from, as your organization names them (for example the ICD-10 edition in use)."
+      details={[
+        "No code list is built in and no code is checked against one.",
+        "A deactivated system is no longer offered for new diagnoses, and recorded diagnoses keep theirs.",
+      ]}
+    >
+      <SettingsStack>
+        <CodingSystems systems={systems} canConfigure={can(session, "clinic.configure")} />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

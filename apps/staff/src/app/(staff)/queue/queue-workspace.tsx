@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExternalLinkIcon, HandIcon, MegaphoneIcon, SendIcon, StethoscopeIcon, XIcon } from "lucide-react";
-import { clinicalTime, QueueBoard, sexLabel, WaitPill } from "@healthcare/ui/healthcare";
+import { clinicalTime, QueueBoard, SENIOR_AGE, sexLabel, WaitPill } from "@healthcare/ui/healthcare";
 import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
 import type { QueueVisit, RouteTemplate, ServicePoint } from "@/lib/api/types";
@@ -253,6 +253,10 @@ function VisitPanel({
         {visit.priority !== "routine" ? (
           <Badge className="mt-2" variant={visit.priority === "emergency" ? "critical" : "danger"}>
             {visit.priority === "emergency" ? "Emergency" : "Urgent"}
+          </Badge>
+        ) : visit.patient && visit.patient.age >= SENIOR_AGE ? (
+          <Badge className="mt-2" variant="info">
+            Senior
           </Badge>
         ) : null}
         {waiting ? <WaitPill minutes={waitMinutes} thresholds={WAIT_THRESHOLDS} className="mt-2 ml-auto" /> : null}

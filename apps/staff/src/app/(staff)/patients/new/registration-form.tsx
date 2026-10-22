@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangleIcon, ExternalLinkIcon, UserPlusIcon } from "lucide-react";
-import { clinicalDate, clinicalDateTime, sexLabel } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime, isSenior, sexLabel } from "@healthcare/ui/healthcare";
 import {
   Badge,
   Button,
@@ -76,6 +76,7 @@ export function RegistrationFormView({
   const errors = form.formState.errors;
   // DateInput takes string min/max; register() also types them as numbers, which it never sets here.
   const { min: _min, max: _max, ...birthDateField } = form.register("birthDate");
+  const senior = isSenior(form.watch("birthDate"));
 
   const submit = (values: RegistrationForm, override?: { reviewedCandidateIds: string[]; reason: string }) => {
     setError(null);
@@ -129,7 +130,7 @@ export function RegistrationFormView({
 
   if (done) {
     return (
-      <div className="flex max-w-2xl flex-col gap-4 p-4">
+      <div className="flex max-w-2xl flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>
@@ -169,7 +170,7 @@ export function RegistrationFormView({
   }
 
   return (
-    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <fieldset disabled={pending || candidates !== null} className="flex flex-col gap-4">
           <Card>
@@ -211,6 +212,12 @@ export function RegistrationFormView({
                   />{" "}
                   Estimated (exact date unknown)
                 </label>
+                {senior ? (
+                  <p role="status" className="flex flex-wrap items-center gap-2 text-table">
+                    <Badge variant="info">Senior citizen</Badge>
+                    <span className="text-muted-foreground">60 or older. Record the Senior citizen ID on the patient record; the discount needs it.</span>
+                  </p>
+                ) : null}
               </div>
             </CardContent>
           </Card>

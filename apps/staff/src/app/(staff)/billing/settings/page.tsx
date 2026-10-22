@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type {
@@ -16,7 +16,6 @@ import type {
   VisitType,
   YakapParticipation,
 } from "@/lib/api/types";
-import { BillingNav } from "../billing-nav";
 import { BillingSettings } from "./billing-settings";
 
 export const metadata = { title: "Prices and discounts" };
@@ -46,27 +45,28 @@ export default async function BillingSettingsPage() {
     can(session, "encounter.read") ? api<ProcedureDefinition[]>("/clinic/procedure-definitions").catch(() => []) : Promise.resolve([]),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Prices and discounts"
-        description="Billable services and their prices, packages, HMO and other payers, discount rules, tax settings and document numbers."
-        actions={<BillingNav canReport={can(session, "billing.report.read")} canConfigure={false} />}
-      />
-      <BillingSettings
-        services={services.filter((s) => !s.isPackage)}
-        payers={payers}
-        rules={rules}
-        settings={settings}
-        taxProfile={taxProfile}
-        packages={packages}
-        visitTypes={visitTypes.filter((v) => v.status === "active").map((v) => ({ code: v.code, name: v.name }))}
-        labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
-        dentalProcedures={(dental?.procedureTypes ?? []).filter((t) => t.status === "active").map((t) => ({ code: t.code, name: t.name }))}
-        clinicProcedures={procedures.map((p) => ({ code: p.code, name: p.name }))}
-        canManage={can(session, "billing.pricelist.manage")}
-        philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}
-        yakap={canAccredit ? { facilityId: facility.id, facilityName: facility.name, participation: yakap } : null}
-      />
-    </>
+    <StaffSettingsPage
+      group="Operations"
+      title="Prices and discounts"
+      description="Billable services and their prices, packages, HMO and other payers, discount rules, tax settings and document numbers."
+    >
+      <SettingsStack>
+        <BillingSettings
+          services={services.filter((s) => !s.isPackage)}
+          payers={payers}
+          rules={rules}
+          settings={settings}
+          taxProfile={taxProfile}
+          packages={packages}
+          visitTypes={visitTypes.filter((v) => v.status === "active").map((v) => ({ code: v.code, name: v.name }))}
+          labTests={labTests.map((t) => ({ code: t.code, name: t.name }))}
+          dentalProcedures={(dental?.procedureTypes ?? []).filter((t) => t.status === "active").map((t) => ({ code: t.code, name: t.name }))}
+          clinicProcedures={procedures.map((p) => ({ code: p.code, name: p.name }))}
+          canManage={can(session, "billing.pricelist.manage")}
+          philhealth={canAccredit ? { facilityId: facility.id, facilityName: facility.name, accreditation } : null}
+          yakap={canAccredit ? { facilityId: facility.id, facilityName: facility.name, participation: yakap } : null}
+        />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

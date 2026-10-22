@@ -295,7 +295,7 @@ describe("service points", () => {
       points.xray.version = 3;
       // Defaults: nothing is called automatically; the setting is per facility and audited.
       const defaults = await ctx.http().get("/api/v1/clinic/service-point-settings").set(as(nurse)).query({ facilityId: tenant.facilityId }).expect(200);
-      expect(defaults.body).toEqual({ facilityId: tenant.facilityId, autoCallOnRoute: false, version: null, updatedAt: null });
+      expect(defaults.body).toEqual({ facilityId: tenant.facilityId, autoCallOnRoute: false, seniorsFirst: false, version: null, updatedAt: null });
       await ctx.http().put("/api/v1/clinic/service-point-settings").set(as(nurse)).send({ facilityId: tenant.facilityId, autoCallOnRoute: true }).expect(403);
       const on = await ctx
         .http()

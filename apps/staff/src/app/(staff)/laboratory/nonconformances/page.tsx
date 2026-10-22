@@ -1,7 +1,8 @@
+import { ModulePage } from "@/components/module-page";
+import { SettingsStack } from "@/components/settings-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabInstrument, LabNonconformance } from "@/lib/api/types";
@@ -14,10 +15,9 @@ export default async function NonconformancesPage({ searchParams }: { searchPara
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Nonconformances" />
+      <ModulePage title="Nonconformances">
         <FacilityRequired action="Nonconformances are recorded per facility." />
-      </>
+      </ModulePage>
     );
   }
   const show = params.show === "closed" || params.show === "all" ? params.show : "open";
@@ -26,21 +26,23 @@ export default async function NonconformancesPage({ searchParams }: { searchPara
     api<LabInstrument[]>("/laboratory/instruments"),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Nonconformances"
-        description="Incidents and nonconformities with their investigation and corrective action. Temperature excursions and unacceptable EQA results open one automatically."
-        actions={
-          <span className="flex gap-3 text-meta">
-            {(["open", "closed", "all"] as const).map((s) => (
-              <Link key={s} href={`/laboratory/nonconformances?show=${s}`} className={s === show ? "font-semibold" : "text-primary hover:underline"}>
-                {s === "open" ? "Open" : s === "closed" ? "Closed" : "All"}
-              </Link>
-            ))}
-          </span>
-        }
-      />
-      <NonconformanceList records={records} instruments={instruments} canReport={can(session, "lab.qc.enter")} />
-    </>
+    <ModulePage
+      title="Nonconformances"
+      description="Incidents and nonconformities with their investigation and corrective action."
+      details={["Temperature excursions and unacceptable EQA results open one automatically."]}
+      actions={
+        <span className="flex gap-3 text-meta">
+          {(["open", "closed", "all"] as const).map((s) => (
+            <Link key={s} href={`/laboratory/nonconformances?show=${s}`} className={s === show ? "font-semibold" : "text-primary hover:underline"}>
+              {s === "open" ? "Open" : s === "closed" ? "Closed" : "All"}
+            </Link>
+          ))}
+        </span>
+      }
+    >
+      <SettingsStack>
+        <NonconformanceList records={records} instruments={instruments} canReport={can(session, "lab.qc.enter")} />
+      </SettingsStack>
+    </ModulePage>
   );
 }

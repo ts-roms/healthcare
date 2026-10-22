@@ -32,7 +32,7 @@ export function NoticeList({ notices }: { notices: StaffNotice[] }) {
       else router.refresh();
     });
   return (
-    <ul className="flex flex-col gap-2 p-4">
+    <ul className="flex flex-col gap-2">
       {notices.map((n) => (
         <li key={n.id}>
           <Card className={n.readAt ? "opacity-80" : "border-primary/40"}>

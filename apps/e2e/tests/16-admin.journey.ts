@@ -46,12 +46,12 @@ const roleCard = (page: Page, name: string): Locator =>
   page.locator('section[data-slot="card"]').filter({ has: page.getByRole("heading", { name, exact: true }) });
 const nav = (page: Page): Locator => page.getByRole("navigation", { name: "Main" });
 
-/** The administration pages in the menu (the module opens on a click when it is not the current one). */
+/** The administration pages in the Settings menu (the Settings home lists what the member may open; nothing when they may open none). */
 async function adminMenu(page: Page): Promise<string[]> {
-  const toggle = nav(page).getByRole("button", { name: "Administration" });
-  if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-  return nav(page)
-    .locator('a[href^="/admin"]')
+  await page.goto("/admin");
+  return page
+    .getByRole("navigation", { name: "Settings" })
+    .locator('a[href^="/admin/"]')
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
@@ -223,10 +223,10 @@ test("editing the role changes what its holder can open at the next request, and
 
   // The holder gains the staff list without signing in again.
   await hire!.goto("/");
-  await expect.poll(() => adminMenu(hire!)).toEqual(["/admin/users", "/admin/security", "/admin/roles", "/admin/audit"]);
+  await expect.poll(() => adminMenu(hire!)).toEqual(["/admin/users", "/admin/roles", "/admin/security", "/admin/audit"]);
   await hire!.goto("/admin/users");
   await expect(hire!.getByRole("heading", { name: "Staff users" })).toBeVisible();
-  await expect(hire!.getByText(NEWHIRE.name)).toBeVisible();
+  await expect(hire!.getByText(NEWHIRE.name).first()).toBeVisible();
   // They can read but not manage: no button to add staff.
   await expect(hire!.getByRole("button", { name: "Add staff member" })).toHaveCount(0);
 
@@ -436,7 +436,7 @@ test("a cashier cannot open the administration pages, and nothing broke along th
     await expect(cashier).toHaveURL((url) => url.pathname === "/");
   }
   await expect(cashier.getByRole("heading", { name: "Staff users" })).toHaveCount(0);
-  await expect(nav(cashier).getByRole("button", { name: "Administration" })).toHaveCount(0);
+  await expect(nav(cashier).locator('a[href^="/admin/"]')).toHaveCount(0);
   await cashier.context().close();
 
   expect(errors).toEqual([]);
