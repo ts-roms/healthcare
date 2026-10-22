@@ -181,6 +181,12 @@ Only check in when you are at the clinic. The button appears from a set time bef
 in here from … on the day." Soon after your visit's start time, online check-in closes and you check in at the desk. If your clinic does not offer it,
 there is no button — check in at the desk as usual. Online consultations do not use this: you join them from their own page.
 
+**Your QR code.** If your clinic uses QR codes, choose **Profile → My QR code** to show your check-in code on your phone. Staff at the front desk scan it to find
+your record and check you in. It holds only a key, never your name or any detail, and opens nothing by itself. Turn your screen brightness up and keep the
+code in full view. You cannot create or change it yourself: if the page says the clinic has not issued one, ask at the desk; if you lose your phone or card,
+tell the clinic so they can replace the code. If your clinic does not use QR codes, the page says so and you check in with your name or patient number.
+A parent or guardian acting for a child (see "How to act for a child or a family member") sees the child's code.
+
 Some clinics mark visits nobody came to as **Missed** at the end of the day. If you cannot come, cancel your visit or call the clinic.
 
 ## How to change or cancel a visit

@@ -134,6 +134,14 @@ export interface TeleconsultAcknowledgement {
   statement: string;
 }
 
+/** `GET /portal/qr`: the patient's own check-in QR code. `payload` is the key to draw; null until the clinic uses codes and has issued one. */
+export interface PortalQr {
+  enabled: boolean;
+  issued: boolean;
+  payload: string | null;
+  patientNumber: string;
+}
+
 /** Where payment for an online visit stands, when the clinic asks for it before the waiting room. Amounts in centavos. */
 export interface TeleconsultPayment {
   required: boolean;
