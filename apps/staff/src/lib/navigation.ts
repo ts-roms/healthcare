@@ -10,6 +10,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/patients": ["patient.search"],
   "/calendar": ["calendar.read"],
   "/appointments": ["appointment.read"],
+  "/doctors": ["appointment.read"],
   "/queue": ["clinic.queue.read"],
   "/clinic/encounters": ["encounter.read"],
   "/clinic/care-plans": ["care-plan.read"],

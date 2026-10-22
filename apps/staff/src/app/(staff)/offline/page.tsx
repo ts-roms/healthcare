@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/page-header";
+import { ModulePage } from "@/components/module-page";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -42,12 +42,11 @@ export default async function OfflinePage() {
     practitioners: practitioners.map((p) => ({ id: p.id, name: p.displayName })),
   };
   return (
-    <>
-      <PageHeader
-        title="Offline"
-        description="When the connection is down: capture registrations, walk-in check-ins and vital signs here; they are sent, in order, as soon as the connection returns, and anything the system refuses waits for you to resolve."
-      />
+    <ModulePage
+      title="Offline"
+      description="When the connection is down: capture registrations, walk-in check-ins and vital signs here; they are sent, in order, as soon as the connection returns, and anything the system refuses waits for you to resolve."
+    >
       <OfflineWorkspace snapshot={snapshot} permissions={permissions} />
-    </>
+    </ModulePage>
   );
 }

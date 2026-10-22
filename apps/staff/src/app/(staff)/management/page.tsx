@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, DateInput, Label, NativeSelect } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { SimpleTable } from "@/components/simple-table";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -54,15 +54,14 @@ export default async function ManagementPage({
     unstable_rethrow(error);
     if (!(error instanceof ApiError) || error.status >= 500) throw error;
     return (
-      <>
-        <PageHeader title="Management dashboard" />
-        <p className="p-4 text-body text-danger">{error.message}</p>
+      <ModulePage title="Management dashboard">
+        <p className="text-body text-danger">{error.message}</p>
         <p className="px-4">
           <Link href="/management" className="text-primary hover:underline">
             Back to the last 30 days
           </Link>
         </p>
-      </>
+      </ModulePage>
     );
   }
   const scope =
@@ -87,414 +86,411 @@ export default async function ManagementPage({
   const withheld = data.withheld;
 
   return (
-    <>
-      <PageHeader
-        title="Management dashboard"
-        description={`${scope} · ${clinicalDate(`${data.from}T12:00:00Z`)} to ${clinicalDate(`${data.to}T12:00:00Z`)}. Operational figures, not official or BIR reports.`}
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filters">
-          <div className="grid gap-1">
-            <Label htmlFor="mgmt-from">From</Label>
-            <DateInput id="mgmt-from" name="from" defaultValue={data.from} className="w-40" />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="mgmt-to">To</Label>
-            <DateInput id="mgmt-to" name="to" defaultValue={data.to} className="w-40" />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="mgmt-facility">Facility</Label>
-            <NativeSelect id="mgmt-facility" name="facilityId" defaultValue={query.facilityId ?? (data.wholeOrganization ? "" : (selected?.id ?? ""))}>
-              {data.wholeOrganization ? <option value="">All facilities</option> : null}
-              {data.facilities.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="mgmt-comparison">Compare with</Label>
-            <NativeSelect id="mgmt-comparison" name="comparison" defaultValue={data.previous.mode}>
-              {COMPARISON_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <Button type="submit" size="sm">
-            Apply
-          </Button>
-          <nav aria-label="Quick ranges" className="flex flex-wrap gap-1">
-            {rangePresets(today).map((p) => {
-              const active = p.from === data.from && p.to === data.to;
-              return (
-                <Button key={p.key} asChild size="sm" variant={active ? "secondary" : "ghost"}>
-                  <Link href={`/management?from=${p.from}&to=${p.to}${facilityParam}`} aria-current={active ? "true" : undefined}>
-                    {p.label}
-                  </Link>
-                </Button>
-              );
-            })}
-          </nav>
-        </form>
+    <ModulePage
+      title="Management dashboard"
+      description={`${scope} · ${clinicalDate(`${data.from}T12:00:00Z`)} to ${clinicalDate(`${data.to}T12:00:00Z`)}. Operational figures, not official or BIR reports.`}
+    >
+      <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filters">
+        <div className="grid gap-1">
+          <Label htmlFor="mgmt-from">From</Label>
+          <DateInput id="mgmt-from" name="from" defaultValue={data.from} className="w-40" />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="mgmt-to">To</Label>
+          <DateInput id="mgmt-to" name="to" defaultValue={data.to} className="w-40" />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="mgmt-facility">Facility</Label>
+          <NativeSelect id="mgmt-facility" name="facilityId" defaultValue={query.facilityId ?? (data.wholeOrganization ? "" : (selected?.id ?? ""))}>
+            {data.wholeOrganization ? <option value="">All facilities</option> : null}
+            {data.facilities.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="mgmt-comparison">Compare with</Label>
+          <NativeSelect id="mgmt-comparison" name="comparison" defaultValue={data.previous.mode}>
+            {COMPARISON_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <Button type="submit" size="sm">
+          Apply
+        </Button>
+        <nav aria-label="Quick ranges" className="flex flex-wrap gap-1">
+          {rangePresets(today).map((p) => {
+            const active = p.from === data.from && p.to === data.to;
+            return (
+              <Button key={p.key} asChild size="sm" variant={active ? "secondary" : "ghost"}>
+                <Link href={`/management?from=${p.from}&to=${p.to}${facilityParam}`} aria-current={active ? "true" : undefined}>
+                  {p.label}
+                </Link>
+              </Button>
+            );
+          })}
+        </nav>
+      </form>
 
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
-          <span>Download CSV:</span>
-          {EXPORT_TABLES.filter((t) => !t.section || !withheld.includes(t.section)).map((t) => (
-            <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
-              {t.label}
-            </a>
-          ))}
-          <span>·</span>
-          <a href={`/management/export.pdf?${exportQuery}`} download className="text-primary hover:underline">
-            Download as PDF
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted-foreground">
+        <span>Download CSV:</span>
+        {EXPORT_TABLES.filter((t) => !t.section || !withheld.includes(t.section)).map((t) => (
+          <a key={t.key} href={`/management/export?table=${t.key}&${exportQuery}`} download className="text-primary hover:underline">
+            {t.label}
           </a>
-          <span>·</span>
-          <Link href="/management/reports" className="text-primary hover:underline">
-            Scheduled reports
-          </Link>
-        </p>
-        <p className="text-meta text-muted-foreground">
-          Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.
-        </p>
+        ))}
+        <span>·</span>
+        <a href={`/management/export.pdf?${exportQuery}`} download className="text-primary hover:underline">
+          Download as PDF
+        </a>
+        <span>·</span>
+        <Link href="/management/reports" className="text-primary hover:underline">
+          Scheduled reports
+        </Link>
+      </p>
+      <p className="text-meta text-muted-foreground">
+        Patient counts under {data.suppressionThreshold} are shown as “&lt;{data.suppressionThreshold}” to protect privacy; rates built on them are withheld.
+      </p>
 
-        {withheld.length > 0 ? (
-          <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
-            Not shown for lack of access on every facility in scope:{" "}
-            {withheld
-              .map((w) => ({ billing: "revenue, collections and service revenue", inventory: "stock received and used", dispensing: "dispensing" })[w])
-              .join("; ")}
-            . Each {withheld.map((w) => SECTION_NEEDS[w].replace("needs ", "")).join(", ")}.
-          </p>
+      {withheld.length > 0 ? (
+        <p role="note" className="rounded-md border border-border bg-muted p-3 text-body">
+          Not shown for lack of access on every facility in scope:{" "}
+          {withheld
+            .map((w) => ({ billing: "revenue, collections and service revenue", inventory: "stock received and used", dispensing: "dispensing" })[w])
+            .join("; ")}
+          . Each {withheld.map((w) => SECTION_NEEDS[w].replace("needs ", "")).join(", ")}.
+        </p>
+      ) : null}
+
+      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Figure
+          label="Patients seen"
+          value={countLabel(k.patientsSeen)}
+          change={comparison(k.patientsSeen, prev.patientsSeen, "count")}
+          assessment={verdict(changes.patientsSeen)}
+          versus={versus}
+          definition={d.patientsSeen}
+        >
+          {countLabel(data.patients.registered)} new · {patientRateLabel(data.patients.returningRate, data.patients.returningRateSuppressed)} returning
+        </Figure>
+        <Figure
+          label="Consultations"
+          value={k.consultations.toLocaleString("en-PH")}
+          change={comparison(k.consultations, prev.consultations, "count")}
+          assessment={verdict(changes.consultations)}
+          versus={versus}
+          definition={d.consultations}
+        >
+          {c.encounters.telemedicine.toLocaleString("en-PH")} online · {data.dental.procedures.toLocaleString("en-PH")} dental procedures
+        </Figure>
+        <Figure
+          label="No-show rate"
+          value={percentOf(k.noShowRate)}
+          change={comparison(k.noShowRate, prev.noShowRate, "rate")}
+          assessment={verdict(changes.noShowRate)}
+          versus={versus}
+          definition={d.noShowRate}
+        >
+          {c.appointments.noShow} of {c.appointments.booked} booked · {c.appointments.cancelled} cancelled
+        </Figure>
+        <Figure
+          label="Average wait"
+          value={minutesLabel(k.averageWaitMinutes)}
+          change={comparison(k.averageWaitMinutes, prev.averageWaitMinutes, "minutes")}
+          assessment={verdict(changes.averageWaitMinutes)}
+          versus={versus}
+          definition={d.averageWait}
+        >
+          check-in to consultation · {spreadLabel(c.visits.medianWaitMinutes, c.visits.p90WaitMinutes)} · {c.visits.checkedIn} checked in,{" "}
+          {c.visits.leftWithoutBeingSeen} left unseen
+        </Figure>
+        {b ? (
+          <>
+            <Figure
+              label="Invoiced (net)"
+              value={peso(b.invoices.netTotal)}
+              change={comparison(k.netInvoiced, prev.netInvoiced, "count")}
+              assessment={verdict(changes.netInvoiced)}
+              versus={versus}
+              definition={d.invoicedNet}
+            >
+              {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
+            </Figure>
+            <Figure
+              label="Collected"
+              value={peso(b.netCollected)}
+              change={comparison(k.netCollected, prev.netCollected, "count")}
+              assessment={verdict(changes.netCollected)}
+              versus={versus}
+              definition={d.collected}
+            >
+              {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
+            </Figure>
+          </>
         ) : null}
+        <Figure
+          label="Lab tests released"
+          value={k.labTestsReleased.toLocaleString("en-PH")}
+          change={comparison(k.labTestsReleased, prev.labTestsReleased, "count")}
+          assessment={verdict(changes.labTestsReleased)}
+          versus={versus}
+          definition={d.labReleased}
+        >
+          {l.testsOrdered} ordered · {l.corrections} corrections
+        </Figure>
+        <Figure
+          label="Lab turnaround"
+          value={minutesLabel(k.labTurnaroundMinutes)}
+          change={comparison(k.labTurnaroundMinutes, prev.labTurnaroundMinutes, "minutes")}
+          assessment={verdict(changes.labTurnaroundMinutes)}
+          versus={versus}
+          definition={d.labTurnaround}
+        >
+          collection to release · {spreadLabel(l.medianTurnaroundMinutes, l.p90TurnaroundMinutes)} · {percentOf(l.withinTargetRate)} within the test&apos;s
+          target
+        </Figure>
+        <Figure
+          label="Specimen rejection"
+          value={percentOf(k.specimenRejectionRate)}
+          change={comparison(k.specimenRejectionRate, prev.specimenRejectionRate, "rate")}
+          assessment={verdict(changes.specimenRejectionRate)}
+          versus={versus}
+          definition={d.specimenRejectionRate}
+        >
+          {l.specimens.rejected} of {l.specimens.collected} collected
+        </Figure>
+        <Figure
+          label="Retention"
+          value={patientRateLabel(r.retentionRate, r.retentionRateSuppressed)}
+          change={comparison(k.retentionRate, prev.retentionRate, "rate")}
+          assessment={verdict(changes.retentionRate)}
+          versus={versus}
+          definition={d.retentionRate}
+        >
+          seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
+        </Figure>
+        {stock ? (
+          <Figure
+            label="Stock used at cost"
+            value={peso(stock.used.value)}
+            change={comparison(k.stockUsed, prev.stockUsed, "count")}
+            assessment={verdict(changes.stockUsed)}
+            versus={versus}
+            definition={d.stock}
+          >
+            {peso(stock.received.value)} received · {peso(stock.writtenOff.value)} written off
+            {stock.used.unvaluedQuantity ? ` · ${stock.used.unvaluedQuantity.toLocaleString("en-PH")} units used without a recorded cost` : ""}
+          </Figure>
+        ) : null}
+        {rx ? (
+          <Figure
+            label="Dispenses"
+            value={rx.dispenses.toLocaleString("en-PH")}
+            change={comparison(k.dispenses, prev.dispenses, "count")}
+            assessment={verdict(changes.dispenses)}
+            versus={versus}
+            definition={d.dispensing}
+          >
+            {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions · {countLabel(rx.patients)} patients · {rx.reversed} reversed ·{" "}
+            {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued
+          </Figure>
+        ) : null}
+        <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
+          {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
+        </Figure>
+        <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={`${d.telemedicine} ${d.telemedicineWait}`}>
+          {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress · waiting room {minutesLabel(t.averageWaitMinutes)}{" "}
+          on average, {spreadLabel(t.medianWaitMinutes, t.p90WaitMinutes)} · {countLabel(t.joinedNotSeen)} joined but never seen
+        </Figure>
+      </section>
 
-        <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Figure
-            label="Patients seen"
-            value={countLabel(k.patientsSeen)}
-            change={comparison(k.patientsSeen, prev.patientsSeen, "count")}
-            assessment={verdict(changes.patientsSeen)}
-            versus={versus}
-            definition={d.patientsSeen}
-          >
-            {countLabel(data.patients.registered)} new · {patientRateLabel(data.patients.returningRate, data.patients.returningRateSuppressed)} returning
-          </Figure>
-          <Figure
-            label="Consultations"
-            value={k.consultations.toLocaleString("en-PH")}
-            change={comparison(k.consultations, prev.consultations, "count")}
-            assessment={verdict(changes.consultations)}
-            versus={versus}
-            definition={d.consultations}
-          >
-            {c.encounters.telemedicine.toLocaleString("en-PH")} online · {data.dental.procedures.toLocaleString("en-PH")} dental procedures
-          </Figure>
-          <Figure
-            label="No-show rate"
-            value={percentOf(k.noShowRate)}
-            change={comparison(k.noShowRate, prev.noShowRate, "rate")}
-            assessment={verdict(changes.noShowRate)}
-            versus={versus}
-            definition={d.noShowRate}
-          >
-            {c.appointments.noShow} of {c.appointments.booked} booked · {c.appointments.cancelled} cancelled
-          </Figure>
-          <Figure
-            label="Average wait"
-            value={minutesLabel(k.averageWaitMinutes)}
-            change={comparison(k.averageWaitMinutes, prev.averageWaitMinutes, "minutes")}
-            assessment={verdict(changes.averageWaitMinutes)}
-            versus={versus}
-            definition={d.averageWait}
-          >
-            check-in to consultation · {spreadLabel(c.visits.medianWaitMinutes, c.visits.p90WaitMinutes)} · {c.visits.checkedIn} checked in,{" "}
-            {c.visits.leftWithoutBeingSeen} left unseen
-          </Figure>
-          {b ? (
-            <>
-              <Figure
-                label="Invoiced (net)"
-                value={peso(b.invoices.netTotal)}
-                change={comparison(k.netInvoiced, prev.netInvoiced, "count")}
-                assessment={verdict(changes.netInvoiced)}
-                versus={versus}
-                definition={d.invoicedNet}
-              >
-                {b.invoices.issued} invoices · {peso(b.invoices.discountTotal)} discounts
-              </Figure>
-              <Figure
-                label="Collected"
-                value={peso(b.netCollected)}
-                change={comparison(k.netCollected, prev.netCollected, "count")}
-                assessment={verdict(changes.netCollected)}
-                versus={versus}
-                definition={d.collected}
-              >
-                {peso(b.collectedTotal)} received · {peso(b.refundedTotal)} refunded
-              </Figure>
-            </>
-          ) : null}
-          <Figure
-            label="Lab tests released"
-            value={k.labTestsReleased.toLocaleString("en-PH")}
-            change={comparison(k.labTestsReleased, prev.labTestsReleased, "count")}
-            assessment={verdict(changes.labTestsReleased)}
-            versus={versus}
-            definition={d.labReleased}
-          >
-            {l.testsOrdered} ordered · {l.corrections} corrections
-          </Figure>
-          <Figure
-            label="Lab turnaround"
-            value={minutesLabel(k.labTurnaroundMinutes)}
-            change={comparison(k.labTurnaroundMinutes, prev.labTurnaroundMinutes, "minutes")}
-            assessment={verdict(changes.labTurnaroundMinutes)}
-            versus={versus}
-            definition={d.labTurnaround}
-          >
-            collection to release · {spreadLabel(l.medianTurnaroundMinutes, l.p90TurnaroundMinutes)} · {percentOf(l.withinTargetRate)} within the test&apos;s
-            target
-          </Figure>
-          <Figure
-            label="Specimen rejection"
-            value={percentOf(k.specimenRejectionRate)}
-            change={comparison(k.specimenRejectionRate, prev.specimenRejectionRate, "rate")}
-            assessment={verdict(changes.specimenRejectionRate)}
-            versus={versus}
-            definition={d.specimenRejectionRate}
-          >
-            {l.specimens.rejected} of {l.specimens.collected} collected
-          </Figure>
-          <Figure
-            label="Retention"
-            value={patientRateLabel(r.retentionRate, r.retentionRateSuppressed)}
-            change={comparison(k.retentionRate, prev.retentionRate, "rate")}
-            assessment={verdict(changes.retentionRate)}
-            versus={versus}
-            definition={d.retentionRate}
-          >
-            seen in the {r.lookbackMonths} months before · {countLabel(r.retained)} of {countLabel(r.seen)}
-          </Figure>
-          {stock ? (
-            <Figure
-              label="Stock used at cost"
-              value={peso(stock.used.value)}
-              change={comparison(k.stockUsed, prev.stockUsed, "count")}
-              assessment={verdict(changes.stockUsed)}
-              versus={versus}
-              definition={d.stock}
-            >
-              {peso(stock.received.value)} received · {peso(stock.writtenOff.value)} written off
-              {stock.used.unvaluedQuantity ? ` · ${stock.used.unvaluedQuantity.toLocaleString("en-PH")} units used without a recorded cost` : ""}
-            </Figure>
-          ) : null}
-          {rx ? (
-            <Figure
-              label="Dispenses"
-              value={rx.dispenses.toLocaleString("en-PH")}
-              change={comparison(k.dispenses, prev.dispenses, "count")}
-              assessment={verdict(changes.dispenses)}
-              versus={versus}
-              definition={d.dispensing}
-            >
-              {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions · {countLabel(rx.patients)} patients · {rx.reversed} reversed ·{" "}
-              {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued
-            </Figure>
-          ) : null}
-          <Figure label="Schedule utilization" value={percentOf(c.utilization.rate)} definition={d.utilization}>
-            {c.utilization.bookedMinutes.toLocaleString("en-PH")} of {c.utilization.availableMinutes.toLocaleString("en-PH")} scheduled minutes booked
-          </Figure>
-          <Figure label="Online consultations" value={t.started.toLocaleString("en-PH")} definition={`${d.telemedicine} ${d.telemedicineWait}`}>
-            {t.escalated} escalated ({percentOf(t.escalationRate)} of finished) · {t.inProgress} in progress · waiting room {minutesLabel(t.averageWaitMinutes)}{" "}
-            on average, {spreadLabel(t.medianWaitMinutes, t.p90WaitMinutes)} · {countLabel(t.joinedNotSeen)} joined but never seen
-          </Figure>
-        </section>
+      <ManagementCharts daily={data.daily} revenue={b !== null} />
 
-        <ManagementCharts daily={data.daily} revenue={b !== null} />
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {b ? (
-            <>
-              <Section title="Top services by revenue">
-                <SimpleTable
-                  empty="No invoiced services."
-                  head={["Service", "Qty", "Patients", "Net"]}
-                  rows={b.topServices.map((s) => [
-                    <span key="n">
-                      {s.name} <span className="text-meta text-muted-foreground">· {CATEGORY_LABEL[s.category]}</span>
-                    </span>,
-                    s.quantity.toLocaleString("en-PH"),
-                    countLabel(s.patients),
-                    peso(s.net),
-                  ])}
-                />
-              </Section>
-              <Section title="Revenue by category">
-                <SimpleTable
-                  empty="No invoiced services."
-                  head={["Category", "Qty", "Net"]}
-                  rows={b.byCategory.map((row) => [CATEGORY_LABEL[row.category], row.quantity.toLocaleString("en-PH"), peso(row.net)])}
-                />
-                <SimpleTable
-                  empty="No payments recorded."
-                  head={["Payment method", "Payments", "Received", "Refunded"]}
-                  rows={b.collections.map((row) => [METHOD_LABEL[row.method], row.payments.toLocaleString("en-PH"), peso(row.collected), peso(row.refunded)])}
-                />
-                <p className="text-meta text-muted-foreground">
-                  Credit notes {peso(b.creditNotesTotal)} · debit notes {peso(b.debitNotesTotal)} · payer share of invoices {peso(b.invoices.payerTotal)} ·{" "}
-                  {b.invoices.voided} voided
-                </p>
-              </Section>
-            </>
-          ) : null}
-          <Section title="Providers" definition={d.utilization}>
-            <SimpleTable
-              empty="No consultations, appointments or schedules."
-              head={["Practitioner", "Consultations", "Patients", "Booked", "No-shows", "Utilization"]}
-              rows={c.providers.map((p) => [
-                p.displayName,
-                p.encounters.toLocaleString("en-PH"),
-                countLabel(p.patients),
-                p.appointments.toLocaleString("en-PH"),
-                p.noShows.toLocaleString("en-PH"),
-                percentOf(p.utilization),
-              ])}
-            />
-          </Section>
-          <Section title="Laboratory" definition={d.resultsPerInstrument}>
-            <SimpleTable
-              empty="No tests ordered."
-              head={["Most ordered tests", "Ordered"]}
-              rows={l.topTests.map((test) => [test.name, test.ordered.toLocaleString("en-PH")])}
-            />
-            <SimpleTable
-              empty="No results entered."
-              head={["Instrument", "First results entered"]}
-              rows={l.byInstrument.map((i) => [i.name ?? "No instrument recorded", i.results.toLocaleString("en-PH")])}
-            />
-            <p className="text-meta text-muted-foreground">
-              {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
-            </p>
-          </Section>
-          <Section title="Laboratory by department" definition={d.labDepartments}>
-            <SimpleTable
-              empty="No results released."
-              head={["Department", "Released", "Average turnaround", "Median", "Within target"]}
-              rows={l.byDepartment.map((x) => [
-                x.name,
-                x.released.toLocaleString("en-PH"),
-                minutesLabel(x.averageTurnaroundMinutes),
-                minutesLabel(x.medianTurnaroundMinutes),
-                percentOf(x.withinTargetRate),
-              ])}
-            />
-          </Section>
-          <Section title="Dental procedures" definition={d.dentalProcedures}>
-            <SimpleTable
-              empty="No dental procedures."
-              head={["Procedure", "Done", "Patients"]}
-              rows={data.dental.byProcedure.map((p) => [`${p.name} (${p.code})`, p.procedures.toLocaleString("en-PH"), countLabel(p.patients)])}
-            />
-            <p className="text-meta text-muted-foreground">
-              {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
-            </p>
-          </Section>
-          <Section title="Online consultations" definition={`${d.telemedicine} ${d.telemedicineWait}`}>
-            <SimpleTable
-              empty="No online consultations."
-              head={["Started", "Ended", "Escalated", "In progress", "Escalation rate", "Wait (avg)", "Wait (median)", "Wait (90th pct)", "Never seen"]}
-              rows={
-                t.started || t.joinedNotSeen
-                  ? [
-                      [
-                        String(t.started),
-                        String(t.ended),
-                        String(t.escalated),
-                        String(t.inProgress),
-                        percentOf(t.escalationRate),
-                        minutesLabel(t.averageWaitMinutes),
-                        minutesLabel(t.medianWaitMinutes),
-                        minutesLabel(t.p90WaitMinutes),
-                        countLabel(t.joinedNotSeen),
-                      ],
-                    ]
-                  : []
-              }
-            />
-          </Section>
-          {stock ? (
-            <Section title="Stock received and used" definition={d.stock}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {b ? (
+          <>
+            <Section title="Top services by revenue">
               <SimpleTable
-                empty="No stock moved."
-                head={["Movement", "Quantity", "Value at cost"]}
-                rows={[
-                  ["Received", stock.received.quantity.toLocaleString("en-PH"), peso(stock.received.value)],
-                  ["Used (net of returns)", stock.used.quantity.toLocaleString("en-PH"), peso(stock.used.value)],
-                  ...stock.usedBySource.map((u): [string, string, string] => [
-                    `· ${stockUseLabel(u.sourceType, u.kind)}`,
-                    u.quantity.toLocaleString("en-PH"),
-                    peso(u.value),
-                  ]),
-                ]}
+                empty="No invoiced services."
+                head={["Service", "Qty", "Patients", "Net"]}
+                rows={b.topServices.map((s) => [
+                  <span key="n">
+                    {s.name} <span className="text-meta text-muted-foreground">· {CATEGORY_LABEL[s.category]}</span>
+                  </span>,
+                  s.quantity.toLocaleString("en-PH"),
+                  countLabel(s.patients),
+                  peso(s.net),
+                ])}
+              />
+            </Section>
+            <Section title="Revenue by category">
+              <SimpleTable
+                empty="No invoiced services."
+                head={["Category", "Qty", "Net"]}
+                rows={b.byCategory.map((row) => [CATEGORY_LABEL[row.category], row.quantity.toLocaleString("en-PH"), peso(row.net)])}
               />
               <SimpleTable
-                empty="Nothing used."
-                head={["Items that used the most value", "Qty", "Value"]}
-                rows={stock.topItems.map((i) => [`${i.name} (${i.code})`, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, peso(i.value)])}
+                empty="No payments recorded."
+                head={["Payment method", "Payments", "Received", "Refunded"]}
+                rows={b.collections.map((row) => [METHOD_LABEL[row.method], row.payments.toLocaleString("en-PH"), peso(row.collected), peso(row.refunded)])}
               />
               <p className="text-meta text-muted-foreground">
-                {peso(stock.writtenOff.value)} written off · transfers between locations are not counted
-                {stock.received.unvaluedQuantity + stock.used.unvaluedQuantity
-                  ? ` · ${(stock.received.unvaluedQuantity + stock.used.unvaluedQuantity).toLocaleString("en-PH")} units moved without a recorded cost`
-                  : ""}
+                Credit notes {peso(b.creditNotesTotal)} · debit notes {peso(b.debitNotesTotal)} · payer share of invoices {peso(b.invoices.payerTotal)} ·{" "}
+                {b.invoices.voided} voided
               </p>
             </Section>
-          ) : null}
-          {rx ? (
-            <Section title="Dispensing" definition={d.dispensing}>
-              <SimpleTable
-                empty="Nothing dispensed."
-                head={["Items dispensed most", "Quantity", "Dispenses"]}
-                rows={rx.topItems.map((i) => [i.name, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, i.dispenses.toLocaleString("en-PH")])}
-              />
-              <p className="text-meta text-muted-foreground">
-                {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued ({rx.prescriptionsCancelled} cancelled or replaced) ·{" "}
-                {rx.dispenses.toLocaleString("en-PH")} dispenses ({rx.reversed} reversed) · {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions
-                dispensed · {countLabel(rx.patients)} patients served
-              </p>
-            </Section>
-          ) : null}
-          <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>
+          </>
+        ) : null}
+        <Section title="Providers" definition={d.utilization}>
+          <SimpleTable
+            empty="No consultations, appointments or schedules."
+            head={["Practitioner", "Consultations", "Patients", "Booked", "No-shows", "Utilization"]}
+            rows={c.providers.map((p) => [
+              p.displayName,
+              p.encounters.toLocaleString("en-PH"),
+              countLabel(p.patients),
+              p.appointments.toLocaleString("en-PH"),
+              p.noShows.toLocaleString("en-PH"),
+              percentOf(p.utilization),
+            ])}
+          />
+        </Section>
+        <Section title="Laboratory" definition={d.resultsPerInstrument}>
+          <SimpleTable
+            empty="No tests ordered."
+            head={["Most ordered tests", "Ordered"]}
+            rows={l.topTests.map((test) => [test.name, test.ordered.toLocaleString("en-PH")])}
+          />
+          <SimpleTable
+            empty="No results entered."
+            head={["Instrument", "First results entered"]}
+            rows={l.byInstrument.map((i) => [i.name ?? "No instrument recorded", i.results.toLocaleString("en-PH")])}
+          />
+          <p className="text-meta text-muted-foreground">
+            {l.orders.orders} orders ({l.orders.stat} STAT, {l.orders.cancelled} cancelled) · {l.specimensRejected} specimens rejected in the period
+          </p>
+        </Section>
+        <Section title="Laboratory by department" definition={d.labDepartments}>
+          <SimpleTable
+            empty="No results released."
+            head={["Department", "Released", "Average turnaround", "Median", "Within target"]}
+            rows={l.byDepartment.map((x) => [
+              x.name,
+              x.released.toLocaleString("en-PH"),
+              minutesLabel(x.averageTurnaroundMinutes),
+              minutesLabel(x.medianTurnaroundMinutes),
+              percentOf(x.withinTargetRate),
+            ])}
+          />
+        </Section>
+        <Section title="Dental procedures" definition={d.dentalProcedures}>
+          <SimpleTable
+            empty="No dental procedures."
+            head={["Procedure", "Done", "Patients"]}
+            rows={data.dental.byProcedure.map((p) => [`${p.name} (${p.code})`, p.procedures.toLocaleString("en-PH"), countLabel(p.patients)])}
+          />
+          <p className="text-meta text-muted-foreground">
+            {data.dental.procedures.toLocaleString("en-PH")} procedures · {countLabel(data.dental.patients)} patients treated
+          </p>
+        </Section>
+        <Section title="Online consultations" definition={`${d.telemedicine} ${d.telemedicineWait}`}>
+          <SimpleTable
+            empty="No online consultations."
+            head={["Started", "Ended", "Escalated", "In progress", "Escalation rate", "Wait (avg)", "Wait (median)", "Wait (90th pct)", "Never seen"]}
+            rows={
+              t.started || t.joinedNotSeen
+                ? [
+                    [
+                      String(t.started),
+                      String(t.ended),
+                      String(t.escalated),
+                      String(t.inProgress),
+                      percentOf(t.escalationRate),
+                      minutesLabel(t.averageWaitMinutes),
+                      minutesLabel(t.medianWaitMinutes),
+                      minutesLabel(t.p90WaitMinutes),
+                      countLabel(t.joinedNotSeen),
+                    ],
+                  ]
+                : []
+            }
+          />
+        </Section>
+        {stock ? (
+          <Section title="Stock received and used" definition={d.stock}>
             <SimpleTable
-              empty="No patients seen."
-              head={["", "Patients", "Of them", "Rate"]}
+              empty="No stock moved."
+              head={["Movement", "Quantity", "Value at cost"]}
               rows={[
-                [
-                  `Also seen in the ${r.lookbackMonths} months before`,
-                  countLabel(r.seen),
-                  countLabel(r.retained),
-                  patientRateLabel(r.retentionRate, r.retentionRateSuppressed),
-                ],
-                [
-                  `Returned within ${r.returnWindowDays} days`,
-                  countLabel(r.returnCohort),
-                  countLabel(r.returned),
-                  patientRateLabel(r.returnRate, r.returnRateSuppressed),
-                ],
+                ["Received", stock.received.quantity.toLocaleString("en-PH"), peso(stock.received.value)],
+                ["Used (net of returns)", stock.used.quantity.toLocaleString("en-PH"), peso(stock.used.value)],
+                ...stock.usedBySource.map((u): [string, string, string] => [
+                  `· ${stockUseLabel(u.sourceType, u.kind)}`,
+                  u.quantity.toLocaleString("en-PH"),
+                  peso(u.value),
+                ]),
               ]}
             />
+            <SimpleTable
+              empty="Nothing used."
+              head={["Items that used the most value", "Qty", "Value"]}
+              rows={stock.topItems.map((i) => [`${i.name} (${i.code})`, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, peso(i.value)])}
+            />
+            <p className="text-meta text-muted-foreground">
+              {peso(stock.writtenOff.value)} written off · transfers between locations are not counted
+              {stock.received.unvaluedQuantity + stock.used.unvaluedQuantity
+                ? ` · ${(stock.received.unvaluedQuantity + stock.used.unvaluedQuantity).toLocaleString("en-PH")} units moved without a recorded cost`
+                : ""}
+            </p>
           </Section>
-        </div>
-
-        <details className="text-meta text-muted-foreground">
-          <summary className="cursor-pointer">About these figures</summary>
-          <p className="mt-1">{d.comparison}</p>
-          <p className="mt-1">{d.suppression}</p>
-        </details>
+        ) : null}
+        {rx ? (
+          <Section title="Dispensing" definition={d.dispensing}>
+            <SimpleTable
+              empty="Nothing dispensed."
+              head={["Items dispensed most", "Quantity", "Dispenses"]}
+              rows={rx.topItems.map((i) => [i.name, `${i.quantity.toLocaleString("en-PH")} ${i.stockUnit}`, i.dispenses.toLocaleString("en-PH")])}
+            />
+            <p className="text-meta text-muted-foreground">
+              {rx.prescriptionsIssued.toLocaleString("en-PH")} prescriptions issued ({rx.prescriptionsCancelled} cancelled or replaced) ·{" "}
+              {rx.dispenses.toLocaleString("en-PH")} dispenses ({rx.reversed} reversed) · {rx.prescriptionsDispensed.toLocaleString("en-PH")} prescriptions
+              dispensed · {countLabel(rx.patients)} patients served
+            </p>
+          </Section>
+        ) : null}
+        <Section title="Patient retention" definition={`${d.retentionRate} ${d.returnRate}`}>
+          <SimpleTable
+            empty="No patients seen."
+            head={["", "Patients", "Of them", "Rate"]}
+            rows={[
+              [
+                `Also seen in the ${r.lookbackMonths} months before`,
+                countLabel(r.seen),
+                countLabel(r.retained),
+                patientRateLabel(r.retentionRate, r.retentionRateSuppressed),
+              ],
+              [
+                `Returned within ${r.returnWindowDays} days`,
+                countLabel(r.returnCohort),
+                countLabel(r.returned),
+                patientRateLabel(r.returnRate, r.returnRateSuppressed),
+              ],
+            ]}
+          />
+        </Section>
       </div>
-    </>
+
+      <details className="text-meta text-muted-foreground">
+        <summary className="cursor-pointer">About these figures</summary>
+        <p className="mt-1">{d.comparison}</p>
+        <p className="mt-1">{d.suppression}</p>
+      </details>
+    </ModulePage>
   );
 }
 

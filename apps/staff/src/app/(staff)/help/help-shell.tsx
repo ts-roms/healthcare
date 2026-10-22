@@ -20,7 +20,7 @@ export function HelpShell({
   source: string;
 }) {
   return (
-    <div className="grid gap-6 p-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <StaffHelpSearch sections={sections} className="lg:col-span-2" />
       <nav aria-label="Manual chapters" className="lg:sticky lg:top-4 lg:self-start">
         <ol className="flex flex-wrap gap-1 text-table lg:flex-col">
