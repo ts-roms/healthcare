@@ -136,7 +136,9 @@ export class ClinicConfigController {
 
   @Get("route-templates")
   @RequirePermissions("clinic.queue.read")
-  @ApiOperation({ summary: "A facility's route templates: named lists of service points a nurse can apply to a visit's route, with the visit types each is offered for" })
+  @ApiOperation({
+    summary: "A facility's route templates: named lists of service points a nurse can apply to a visit's route, with the visit types each is offered for",
+  })
   listRouteTemplates(@CurrentActor() actor: Actor, @Query() query: RouteTemplatesQueryDto) {
     return this.routeTemplates.list(actor, query.facilityId, query.includeInactive === "true");
   }
@@ -150,7 +152,10 @@ export class ClinicConfigController {
 
   @Patch("route-templates/:routeTemplateId")
   @RequirePermissions("clinic.configure")
-  @ApiOperation({ summary: "Rename a route template, change its stops (routes already planned keep theirs), deactivate it, or set the visit types it is offered for (audited)" })
+  @ApiOperation({
+    summary:
+      "Rename a route template, change its stops (routes already planned keep theirs), deactivate it, or set the visit types it is offered for (audited)",
+  })
   updateRouteTemplate(@CurrentActor() actor: Actor, @Param("routeTemplateId", ParseUUIDPipe) id: string, @Body() body: UpdateRouteTemplateDto) {
     return this.routeTemplates.update(actor, id, body);
   }
