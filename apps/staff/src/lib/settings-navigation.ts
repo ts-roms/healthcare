@@ -147,6 +147,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         permissions: ["clinic.configure"],
         description: "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
       },
+      {
+        label: "Guided tour",
+        href: "/admin/guided-tour",
+        permissions: ["organization.manage"],
+        description: "Whether staff are offered the walk-through of the app.",
+      },
       { label: "Company", href: "/admin/organization", permissions: ["organization.read"], description: "Your organization's name and identifier." },
     ],
   },

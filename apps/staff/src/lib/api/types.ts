@@ -204,6 +204,13 @@ export interface RegisteredPatient {
 
 export type PatientQrContent = "token" | "patient_number" | "portal_link";
 
+/** Whether the organization offers the staff app's guided tour (`GET /organization/tour-setting`). */
+export interface StaffTourSetting {
+  enabled: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+
 export interface PatientQrSetting {
   enabled: boolean;
   issueAtRegistration: boolean;

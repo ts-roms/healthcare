@@ -24,6 +24,7 @@ import { moduleTabsFor } from "@/lib/module-tabs";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
 import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
+import { GuidedTour } from "./guided-tour";
 import { HelpFab, type HelpChapter } from "./help-fab";
 import { useLiveUpdates } from "./live-queue";
 import { ModuleTabsBar } from "./module-tabs-bar";
@@ -45,6 +46,8 @@ export interface StaffShellProps {
   unreadNotices: number;
   /** Counts for the navigation (`GET /me/badges`); refreshed every minute from `/badges`. */
   badges: StaffBadges | null;
+  /** Whether the organization offers the guided tour (Settings → Guided tour); off = it never starts. */
+  tourEnabled?: boolean;
   /** The user manual's chapters, for the floating help button's dialog. */
   manualChapters: HelpChapter[];
   /** Every section of the manual, for the dialog's search box. */
@@ -63,6 +66,7 @@ export function StaffShell({
   timeZone,
   unreadNotices,
   badges,
+  tourEnabled = true,
   manualChapters,
   manualSections = [],
   children,
@@ -210,6 +214,7 @@ export function StaffShell({
         children
       )}
       <HelpFab chapters={manualChapters} sections={manualSections} />
+      {tourEnabled ? <GuidedTour /> : null}
     </StaffLayout>
   );
 }
