@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuditService } from "@healthcare/audit";
+import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   type Actor,
   APP_CONFIG,
@@ -64,6 +64,16 @@ export interface PatientQrState {
   enabled: boolean;
   active: (PatientQrView & { payload: string }) | null;
   history: PatientQrView[];
+}
+
+/** What MyHealth shows the patient of their own code: whether the clinic uses codes, whether theirs was issued, and what to draw. */
+export interface PortalQrView {
+  enabled: boolean;
+  /** An active code exists (issued by the clinic); the patient cannot issue their own. */
+  issued: boolean;
+  /** The check-in key to draw as a QR code; null while not enabled or not issued. */
+  payload: string | null;
+  patientNumber: string;
 }
 
 const DEFAULT_SETTING: PatientQrSettingView = {
@@ -188,6 +198,35 @@ export class PatientQrService {
       enabled: setting.enabled,
       active: active ? { ...codeView(active), payload: this.payload(active, record.patientNumber) } : null,
       history: rows.filter((r) => r.status === "revoked").map(codeView),
+    };
+  }
+
+  /**
+   * The patient's own active code for MyHealth, to show at the front desk. It is the check-in key itself (never the activation
+   * link a `portal_link` card carries), drawn from the same code staff scan; the patient cannot issue, replace or revoke it
+   * (the clinic does, from the record). Viewing is audited without the key.
+   */
+  async portalCode(audit: PatientAuditContext, organizationId: string, patientId: string): Promise<PortalQrView> {
+    const record = await this.findPatient(this.db, organizationId, patientId);
+    const setting = await this.setting(organizationId);
+    const [active] = setting.enabled
+      ? await this.db
+          .select()
+          .from(patientQrCode)
+          .where(and(eq(patientQrCode.organizationId, organizationId), eq(patientQrCode.patientId, patientId), eq(patientQrCode.status, "active")))
+      : [];
+    await this.audit.recordStandalone(audit, {
+      action: "portal.qr-view",
+      resourceType: "patient_qr_code",
+      resourceId: active?.id,
+      patientId: record.id,
+    });
+    const content = active?.content === "portal_link" ? "token" : active?.content;
+    return {
+      enabled: setting.enabled,
+      issued: Boolean(active),
+      payload: active && content ? encodeQrPayload(content, active.token, record.patientNumber) : null,
+      patientNumber: record.patientNumber,
     };
   }
 

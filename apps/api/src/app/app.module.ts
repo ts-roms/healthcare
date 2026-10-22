@@ -90,6 +90,7 @@ import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalFormsController } from "./portal/portal-forms.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
+import { PortalQrController } from "./portal/portal-qr.controller";
 import { PortalHistoryController } from "./portal/portal-history.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
 import { PortalRecordsController } from "./portal/portal-records.controller";
@@ -260,6 +261,7 @@ export class AppModule implements NestModule {
         PortalFormsController,
         PortalDocumentsController,
         PortalImmunizationsController,
+        PortalQrController,
         PortalHistoryController,
         PortalMessagesController,
         PortalRecordsController,
