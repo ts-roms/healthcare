@@ -139,6 +139,71 @@ describe("realtime queue and laboratory updates", () => {
     expect(heard).toEqual([]);
   });
 
+  it("tells a patient, and only that patient, that the clinic replied: the thread id and nothing else", async () => {
+    const admin = (await login(ctx, "admin@example.ph")).accessToken;
+    const staff = (path: string, body: object = {}) => ctx.http().post(`/api/v1${path}`).set(as(admin, tenant.facilityId)).send(body);
+    const patient = async (familyName: string, email: string) => {
+      const id = (await staff("/patients", { familyName, givenName: "Pasyente", sex: "female", birthDate: "1982-04-09" }).expect(201)).body.id as string;
+      await staff(`/patients/${id}/consents`, { consentType: "portal_access", decision: "granted", capturedVia: "paper" }).expect(201);
+      const code = (await staff(`/patients/${id}/portal-account/invitations`).expect(201)).body.activationCode as string;
+      const row = (await ctx.pool.query<{ patient_number: string }>("SELECT patient_number FROM patient WHERE id = $1", [id])).rows[0]!;
+      const token = (
+        await ctx
+          .http()
+          .post("/api/v1/portal/auth/activate")
+          .send({
+            organizationCode: "realtime-org",
+            patientNumber: row.patient_number,
+            birthDate: "1982-04-09",
+            activationCode: code,
+            email,
+            password: "Pahintulot-ko-2026",
+          })
+          .expect(200)
+      ).body.accessToken as string;
+      return { id, token };
+    };
+    const maria = await patient("Matatag", "matatag@example.ph");
+    const jose = await patient("Marahan", "marahan@example.ph");
+    const ticketFor = (token: string) => ctx.http().post("/api/v1/portal/realtime-tickets").set("Authorization", `Bearer ${token}`);
+
+    const mine = connect({ patientTicket: (await ticketFor(maria.token).expect(201)).body.ticket });
+    await expect(next(mine, "ready")).resolves.toEqual({ channels: ["messages"] });
+    const theirs = connect({ patientTicket: (await ticketFor(jose.token).expect(201)).body.ticket });
+    await next(theirs, "ready");
+    const heard: unknown[] = [];
+    theirs.on("messages.updated", (message) => heard.push(message));
+
+    const threadId = randomUUID();
+    const update = next<Record<string, unknown>>(mine, "messages.updated");
+    // The event the messaging service records when the clinic replies; a patient's own message does not echo back to them.
+    const record = (sender: string, patientId: string) =>
+      ctx.pool.query(
+        `INSERT INTO domain_event (organization_id, facility_id, patient_id, event_type, aggregate_type, aggregate_id, payload)
+         VALUES ($1, $2, $3, 'PatientMessageSent', 'patient_message_thread', $4, $5)`,
+        [
+          tenant.organizationId,
+          tenant.facilityId,
+          patientId,
+          threadId,
+          JSON.stringify({ threadId, messageId: randomUUID(), sender, body: "A private sentence." }),
+        ],
+      );
+    await record("staff", maria.id);
+    await drainEvents(ctx);
+
+    const message = await update;
+    expect(Object.keys(message).sort()).toEqual(["occurredAt", "threadId"]);
+    expect(message).toMatchObject({ threadId });
+    expect(heard).toEqual([]);
+
+    // Not a staff token, a staff ticket or a patient's access token in place of a ticket.
+    const staffToken = connect({ patientTicket: admin });
+    await expect(next(staffToken, "unauthorized")).resolves.toMatchObject({ message: expect.any(String) });
+    const accessToken = connect({ patientTicket: maria.token });
+    await expect(next(accessToken, "unauthorized")).resolves.toMatchObject({ message: expect.any(String) });
+  });
+
   it("rejects connections without a valid token or without queue access at that facility", async () => {
     const anonymous = connect({ token: "not-a-token", facilityId: tenant.facilityId });
     await expect(next(anonymous, "unauthorized")).resolves.toMatchObject({ message: expect.any(String) });

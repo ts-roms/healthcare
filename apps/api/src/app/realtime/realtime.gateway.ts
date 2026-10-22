@@ -1,6 +1,7 @@
 import { type OnModuleInit } from "@nestjs/common";
 import { type OnGatewayConnection, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { ActorResolver } from "@healthcare/auth";
+import { PortalAccountService } from "@healthcare/patient";
 import { asPlatform, DomainEventHandlers, type DomainEventRecord } from "@healthcare/core";
 import type { Namespace, Socket } from "socket.io";
 import { LAB_REALTIME_EVENTS, labUpdate } from "./lab-updates";
@@ -14,6 +15,11 @@ function facilityRoom(facilityId: string): string {
 /** Laboratory updates go only to sockets allowed to read the facility's laboratory orders. */
 function laboratoryRoom(facilityId: string): string {
   return `laboratory:${facilityId}`;
+}
+
+/** A patient's own room: the conversation updates of their own MyHealth account, never anyone else's. */
+function patientRoom(patientId: string): string {
+  return `patient:${patientId}`;
 }
 
 /** A staff member's own room: their notices, never anyone else's. */
@@ -44,6 +50,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
 
   constructor(
     private readonly actors: ActorResolver,
+    private readonly portal: PortalAccountService,
     private readonly handlers: DomainEventHandlers,
   ) {}
 
@@ -55,8 +62,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
   }
 
   async handleConnection(client: Socket): Promise<void> {
-    const { ticket, token, facilityId } = (client.handshake.auth ?? {}) as { ticket?: unknown; token?: unknown; facilityId?: unknown };
+    const { ticket, token, facilityId, patientTicket } = (client.handshake.auth ?? {}) as {
+      ticket?: unknown;
+      token?: unknown;
+      facilityId?: unknown;
+      patientTicket?: unknown;
+    };
     const request = { ipAddress: client.handshake.address, userAgent: client.handshake.headers["user-agent"] };
+    if (typeof patientTicket === "string") return this.connectPatient(client, patientTicket, request);
     try {
       // The session is looked up before the organization is known (row-level security, migration 0111), as in the
       // access guard; a socket reads nothing else from the database.
@@ -90,6 +103,27 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     }
   }
 
+  /**
+   * MyHealth: a patient's browser opens the socket with a ticket from `POST /portal/realtime-tickets`. The session, the
+   * account and the portal consent are checked as for any portal request; the socket joins the patient's own room only and
+   * hears that a conversation of theirs has a new message (`messages.updated`: thread id, no text).
+   */
+  private async connectPatient(client: Socket, ticket: string, request: { ipAddress?: string; userAgent?: string | string[] }): Promise<void> {
+    try {
+      const principal = await asPlatform("resolve the realtime connection of a patient", () =>
+        this.portal.authenticateRealtimeTicket(ticket, {
+          ipAddress: request.ipAddress,
+          userAgent: Array.isArray(request.userAgent) ? request.userAgent[0] : request.userAgent,
+        }),
+      );
+      await client.join(patientRoom(principal.patientId));
+      client.emit("ready", { channels: ["messages"] });
+    } catch (error) {
+      client.emit("unauthorized", { message: error instanceof Error ? error.message : "Unauthorized" });
+      client.disconnect(true);
+    }
+  }
+
   private async broadcastQueue(event: DomainEventRecord): Promise<void> {
     if (!event.facilityId || !this.server) return;
     this.server.to(facilityRoom(event.facilityId)).emit("queue.updated", {
@@ -111,6 +145,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     if (!event.facilityId || !this.server) return;
     const { threadId, messageId, sender } = event.payload as { threadId?: string; messageId?: string; sender?: string };
     this.server.to(messagesRoom(event.facilityId)).emit("messages.updated", { threadId, messageId, sender, occurredAt: event.occurredAt });
+    // The patient hears the clinic's reply on their own open page (their own room; the thread id only).
+    if (sender === "staff" && event.patientId)
+      this.server.to(patientRoom(event.patientId)).emit("messages.updated", { threadId, occurredAt: event.occurredAt });
   }
 
   private async broadcastLaboratory(event: DomainEventRecord): Promise<void> {

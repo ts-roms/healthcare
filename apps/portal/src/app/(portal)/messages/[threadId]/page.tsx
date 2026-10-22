@@ -2,7 +2,7 @@ import { ChevronLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiError } from "@healthcare/web-session";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { LiveRefresh } from "@/components/live-refresh";
 import { portalApi } from "@/lib/api/client";
 import { getMe } from "@/lib/api/session";
 import type { PortalThreadDetail } from "@/lib/api/types";
@@ -27,7 +27,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ t
   }
   return (
     <div className="flex flex-col gap-5">
-      <AutoRefresh />
+      <LiveRefresh />
       <Link href="/messages" className="flex items-center gap-1 text-body font-medium text-primary hover:underline">
         <ChevronLeftIcon className="size-4" aria-hidden /> Messages
       </Link>

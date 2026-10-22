@@ -5,8 +5,8 @@ import { portalPage, staffPage } from "../support/pages";
 
 /**
  * A conversation shows the other side's new message while the page is open, without a reload: the clinic sees the
- * patient's reply (pushed over the realtime socket) and the patient sees the clinic's (the page re-reads every few
- * seconds), each from a page that was already open.
+ * patient's reply (pushed over the realtime socket) and the patient sees the clinic's (pushed over the patient's own
+ * realtime socket), each from a page that was already open.
  */
 test("a message appears on the other side's open page without refreshing it", async ({ browser }) => {
   const errors: string[] = [];
@@ -30,7 +30,8 @@ test("a message appears on the other side's open page without refreshing it", as
   await staff.getByLabel("Reply").fill("Second message from the clinic.");
   await staff.getByRole("button", { name: "Send reply" }).click();
   await expect(staff.getByRole("list", { name: "Messages" }).getByText("Second message from the clinic.")).toBeVisible();
-  await expect(patient.getByText("Second message from the clinic.")).toBeVisible({ timeout: 30_000 });
+  // Under the page's 10-second polling interval: the clinic's reply reaches the patient over the realtime socket.
+  await expect(patient.getByText("Second message from the clinic.")).toBeVisible({ timeout: 7_000 });
 
   // The patient answers: the clinic's open page shows it without a reload.
   await patient.locator("textarea").first().fill("Third message from the patient.");

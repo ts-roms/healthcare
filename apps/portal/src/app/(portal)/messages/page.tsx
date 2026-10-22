@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRightIcon, MessageSquareIcon, PhoneIcon, PlusIcon } from "lucide-react";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { LiveRefresh } from "@/components/live-refresh";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
 import { getMe } from "@/lib/api/session";
@@ -18,7 +18,7 @@ export default async function MessagesPage() {
   const unread = messages.filter((m) => !m.readAt).map((m) => m.id);
   return (
     <div className="flex flex-col gap-5">
-      <AutoRefresh />
+      <LiveRefresh />
       <div>
         <h1 className="text-page-lg font-semibold">Messages</h1>
         <p className="text-body text-muted-foreground">Write to your clinic, and read its notices.</p>
