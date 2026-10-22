@@ -2,17 +2,18 @@ import Link from "next/link";
 import {
   CalendarIcon,
   CalendarPlusIcon,
-  CheckCircle2Icon,
-  MailWarningIcon,
   ClipboardListIcon,
+  ChevronRightIcon,
   FileTextIcon,
   FlaskConicalIcon,
+  MessageCirclePlusIcon,
   PillIcon,
   ReceiptIcon,
   SyringeIcon,
   NotebookTextIcon,
   type LucideIcon,
 } from "lucide-react";
+import { Callout } from "@healthcare/ui/primitives";
 import { EmptyState } from "@/components/empty-state";
 import { ResultMeaning } from "@/components/result-meaning";
 import { VisitCard } from "@/components/visit-card";
@@ -22,15 +23,19 @@ import type { PortalAppointments, PortalResult } from "@/lib/api/types";
 import { greeting } from "@/lib/greeting";
 import { latestPerTest, resultDate, resultValue } from "@/lib/records";
 
-const ACTIONS: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
-  { label: "Book appointment", href: "/appointments/book", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
-  { label: "Care plan", href: "/care-plan", icon: ClipboardListIcon, tone: "bg-secondary text-secondary-foreground" },
-  { label: "Lab results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
-  { label: "Prescriptions", href: "/prescriptions", icon: PillIcon, tone: "bg-success-subtle text-success-foreground" },
+const QUICK: { label: string; href: string; icon: LucideIcon; tone: string }[] = [
+  { label: "Book a visit", href: "/appointments/book", icon: CalendarPlusIcon, tone: "bg-primary-subtle text-primary" },
+  { label: "Results", href: "/results", icon: FlaskConicalIcon, tone: "bg-info-subtle text-info-foreground" },
   { label: "Bills", href: "/billing", icon: ReceiptIcon, tone: "bg-warning-subtle text-warning-foreground" },
-  { label: "Documents", href: "/documents", icon: FileTextIcon, tone: "bg-muted text-foreground" },
-  { label: "Immunizations", href: "/immunizations", icon: SyringeIcon, tone: "bg-primary-subtle text-primary" },
-  { label: "Health history", href: "/health-history", icon: NotebookTextIcon, tone: "bg-secondary text-secondary-foreground" },
+  { label: "Ask the clinic", href: "/messages/new", icon: MessageCirclePlusIcon, tone: "bg-secondary text-secondary-foreground" },
+];
+
+const RECORDS: { label: string; hint: string; href: string; icon: LucideIcon }[] = [
+  { label: "Prescriptions", hint: "Medicines prescribed to you", href: "/prescriptions", icon: PillIcon },
+  { label: "Care plan", hint: "Goals and follow-ups", href: "/care-plan", icon: ClipboardListIcon },
+  { label: "Documents & certificates", hint: "Copies of your records", href: "/documents", icon: FileTextIcon },
+  { label: "Immunizations", hint: "Vaccines you have had", href: "/immunizations", icon: SyringeIcon },
+  { label: "Health history", hint: "Tell the clinic about past illnesses", href: "/health-history", icon: NotebookTextIcon },
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
@@ -45,19 +50,19 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const next = appointments.upcoming.filter((v) => v.status !== "cancelled" && v.status !== "no_show");
   return (
     <div className="flex flex-col gap-7">
-      {welcome ? (
-        <p role="status" className="flex items-start gap-2 rounded-xl border border-success/30 bg-success-subtle p-4 text-body text-success-foreground">
-          <CheckCircle2Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
-          Your account is ready. Next time, sign in with {me.account.email}.
-        </p>
-      ) : null}
+      {welcome ? <Callout tone="success">Your account is ready. Next time, sign in with {me.account.email}.</Callout> : null}
       {!me.account.emailVerified ? (
-        <Link href="/security" className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning-subtle p-4 text-body text-warning-foreground">
-          <MailWarningIcon className="mt-0.5 size-5 shrink-0" aria-hidden />
-          <span>
-            <span className="font-semibold">Confirm your email.</span> We have not checked that {me.account.email} is yours. It takes a minute.
-          </span>
-        </Link>
+        <Callout
+          tone="warning"
+          title="Confirm your email"
+          actions={
+            <Link href="/security" className="rounded-md border border-warning/50 bg-card px-3 py-1.5 text-body font-medium text-foreground">
+              Confirm now
+            </Link>
+          }
+        >
+          We have not checked that {me.account.email} is yours. It takes a minute.
+        </Callout>
       ) : null}
       <section>
         <h1 className="text-page-lg font-semibold tracking-tight">
@@ -66,23 +71,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <p className="text-muted-foreground">{me.organization.name} · How can we help today?</p>
       </section>
 
-      <nav aria-label="Quick actions" className="grid grid-cols-2 gap-3">
-        {ACTIONS.map(({ label, href, icon: Icon, tone }, i) => (
-          <Link
-            key={href}
-            href={href}
-            className={`${ACTIONS.length % 2 && i === ACTIONS.length - 1 ? "col-span-2" : ""}flex min-h-28 flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50`}
-          >
-            <span className={`flex size-11 items-center justify-center rounded-xl ${tone}`}>
-              <Icon className="size-5" aria-hidden />
-            </span>
-            <span className="leading-tight font-semibold">{label}</span>
-          </Link>
-        ))}
-      </nav>
-
       <section className="flex flex-col gap-3">
-        <SectionTitle title="Upcoming" href="/appointments" />
+        <SectionTitle title="Your next visit" href="/appointments" />
         {next.length ? (
           next.slice(0, 2).map((v) => <VisitCard key={v.id} visit={v} upcoming />)
         ) : (
@@ -91,6 +81,21 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </EmptyState>
         )}
       </section>
+
+      <nav aria-label="Quick actions" className="grid grid-cols-4 gap-2">
+        {QUICK.map(({ label, href, icon: Icon, tone }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex flex-col items-center gap-2 rounded-xl border bg-card px-1 py-3 text-center shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <span className={`flex size-11 items-center justify-center rounded-xl ${tone}`}>
+              <Icon className="size-5" aria-hidden />
+            </span>
+            <span className="text-body leading-tight font-semibold">{label}</span>
+          </Link>
+        ))}
+      </nav>
 
       <section className="flex flex-col gap-3">
         <SectionTitle title="Recent results" href="/results" />
@@ -116,6 +121,31 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             Results appear here after the laboratory releases them to you.
           </EmptyState>
         )}
+      </section>
+
+      <section aria-labelledby="my-records" className="flex flex-col gap-3">
+        <h2 id="my-records" className="border-b pb-1.5 text-section-lg font-semibold">
+          My records
+        </h2>
+        <ul className="overflow-hidden rounded-xl border bg-card">
+          {RECORDS.map(({ label, hint, href, icon: Icon }) => (
+            <li key={href} className="border-b last:border-b-0">
+              <Link
+                href={href}
+                className="flex items-center gap-3 px-3 py-3 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-subtle text-primary">
+                  <Icon className="size-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{label}</span>
+                  <span className="block truncate text-body text-muted-foreground">{hint}</span>
+                </span>
+                <ChevronRightIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

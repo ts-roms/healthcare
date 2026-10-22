@@ -2,7 +2,7 @@ import * as React from "react";
 import { BadgeCheckIcon, BadgeXIcon, DropletIcon, EyeOffIcon, PhoneIcon } from "lucide-react";
 import { Badge } from "../primitives/badge";
 import type { Patient } from "@healthcare/domain";
-import { ageFrom, clinicalDate, fullName, sexLabel } from "../lib/format";
+import { ageFrom, clinicalDate, fullName, isSenior, sexLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { AllergyList } from "./allergy-badge";
 import { PatientAvatar } from "./patient-avatar";
@@ -32,6 +32,7 @@ export interface PatientHeaderProps {
  */
 export function PatientHeader({ patient, variant = "full", aside, allergiesRecorded = true, allergiesHidden = false, details, className }: PatientHeaderProps) {
   const age = ageFrom(patient.birthDate);
+  const senior = isSenior(patient.birthDate);
   const name = fullName(patient);
 
   if (variant === "compact") {
@@ -43,6 +44,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
           <span className="tabular text-body text-muted-foreground">
             {age} {sexLabel(patient.sex, true)}
           </span>
+          {senior ? <Badge variant="info">Senior</Badge> : null}
           <PatientIdentifier mrn={patient.mrn} />
         </div>
         {allergiesHidden ? <AllergiesHidden /> : <AllergyList allergies={patient.allergies} recorded={allergiesRecorded} />}
@@ -61,6 +63,7 @@ export function PatientHeader({ patient, variant = "full", aside, allergiesRecor
           <span className="tabular text-body text-muted-foreground">
             {age} years • {sexLabel(patient.sex)}
           </span>
+          {senior ? <Badge variant="info">Senior citizen</Badge> : null}
           <PatientIdentifier mrn={patient.mrn} />
         </div>
         <dl className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-table">
