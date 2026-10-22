@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PrinterIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { ReferralOverdueBadge } from "@/components/referral-overdue-badge";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -52,21 +52,20 @@ export default async function ReferralPage({ params }: { params: Promise<{ id: s
     can(session, "encounter.write") && (referral.kind === "internal" ? referral.status === "accepted" && referral.forYou : referral.status === "sent");
   const canCancel = open && (referral.byYou || can(session, "encounter.amend"));
   return (
-    <>
-      <PageHeader
-        title={`Referral ${referral.referralNumber}`}
-        description={`${referral.referringPractitioner?.displayName ?? "—"} → ${referralRecipient(referral)}`}
-        actions={
-          referral.status !== "cancelled" ? (
-            <Button asChild size="sm" variant="outline">
-              <a href={fileHref.referralLetter(referral.id)} target="_blank" rel="noreferrer">
-                <PrinterIcon /> Letter
-              </a>
-            </Button>
-          ) : null
-        }
-      />
-      <div className="grid gap-4 p-4 lg:grid-cols-[1.4fr_1fr]">
+    <ModulePage
+      title={`Referral ${referral.referralNumber}`}
+      description={`${referral.referringPractitioner?.displayName ?? "—"} → ${referralRecipient(referral)}`}
+      actions={
+        referral.status !== "cancelled" ? (
+          <Button asChild size="sm" variant="outline">
+            <a href={fileHref.referralLetter(referral.id)} target="_blank" rel="noreferrer">
+              <PrinterIcon /> Letter
+            </a>
+          </Button>
+        ) : null
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>The referral</CardTitle>
@@ -134,6 +133,6 @@ export default async function ReferralPage({ params }: { params: Promise<{ id: s
           }
         />
       </div>
-    </>
+    </ModulePage>
   );
 }
