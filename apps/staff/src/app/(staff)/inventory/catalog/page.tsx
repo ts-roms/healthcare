@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier } from "@/lib/api/types";
@@ -16,9 +16,10 @@ export default async function InventoryCatalogPage() {
     api<InventoryLocation[]>("/inventory/locations"),
   ]);
   return (
-    <>
-      <PageHeader title="Inventory catalog" description="Items, suppliers, storage locations and reorder levels." />
-      <InventoryCatalog items={items} suppliers={suppliers} locations={locations} facility={facility ? { id: facility.id, name: facility.name } : null} />
-    </>
+    <StaffSettingsPage group="Operations" title="Inventory catalog" description="Items, suppliers, storage locations and reorder levels.">
+      <SettingsStack>
+        <InventoryCatalog items={items} suppliers={suppliers} locations={locations} facility={facility ? { id: facility.id, name: facility.name } : null} />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

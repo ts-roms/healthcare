@@ -364,6 +364,10 @@ audited `coding-system.update`); the encounter workspace offers the active ones 
 
 `PageShell` is the shared column (wide, medium or narrow). Lists use `ResponsiveTable` (cards below `md`) and `EmptyState`; the add/edit forms of a catalogue open in a side sheet (`/clinic/procedures`: `ProcedureForm` inside `AddSheet`, one for the header button and one per row). `NextLink` (`components/next-link.tsx`) passes `next/link` to templates and tiles from server components. The old `FigureTiles` is replaced by `StatTile`; the dashboard shows STAT samples and unacknowledged critical results as danger callouts first. Screens not yet moved keep the earlier full-width `PageHeader` bar until their module is redesigned.
 
+### Settings pages (UI redesign, phase 4)
+
+Every page listed in `SETTINGS_GROUPS` (`apps/staff/src/lib/settings-navigation.ts`) now renders through `StaffSettingsPage` (`components/settings-page.tsx`, over `SettingsPage`): breadcrumbs `Settings › <group>`, the title, ONE sentence of description, and the longer explanation in a "How this works" disclosure (`details`). Sections that used to be stacked full-bleed blocks sit in one card (`SettingsStack`), separated by a rule; the Staff users table is a `ResponsiveTable` (cards on phones). Presentation only: each page keeps its data, permission checks and server actions. Create forms that stay permanently open inside their section components (service points, visit types, prices, laboratory catalog, …) move into side sheets one module at a time with that module's phase; `/clinic/procedures` (phase 3) is the worked example.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

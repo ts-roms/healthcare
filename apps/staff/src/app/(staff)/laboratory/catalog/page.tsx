@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabCatalogEntry, LabPanel, LabPolicy, LabSpecimenType, LabTest, LabTestReferral, ReferenceLaboratory } from "@/lib/api/types";
@@ -21,29 +21,32 @@ export default async function CatalogPage() {
     facility ? api<LabTestReferral[]>("/laboratory/referrals") : Promise.resolve(null),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Laboratory catalog"
-        description="Tests, reference ranges, panels and this facility's laboratory policy. Ranges are versioned: results keep the range they were read against."
-      />
-      <LabCatalog
-        tests={tests}
-        departments={departments}
-        specimenTypes={specimenTypes}
-        panels={panels}
-        policy={policy}
-        facilityName={facility?.name ?? null}
-        canManage={can(session, "lab.catalog.manage")}
-      />
-      <div className="mt-4">
-        <ReferenceLabSettings
-          referenceLabs={referenceLabs}
-          referrals={referrals}
+    <StaffSettingsPage
+      group="Laboratory"
+      title="Laboratory catalog"
+      description="Tests, reference ranges, panels and this facility's laboratory policy."
+      details={["Ranges are versioned: results keep the range they were read against."]}
+    >
+      <SettingsStack>
+        <LabCatalog
           tests={tests}
+          departments={departments}
+          specimenTypes={specimenTypes}
+          panels={panels}
+          policy={policy}
           facilityName={facility?.name ?? null}
           canManage={can(session, "lab.catalog.manage")}
         />
-      </div>
-    </>
+        <div>
+          <ReferenceLabSettings
+            referenceLabs={referenceLabs}
+            referrals={referrals}
+            tests={tests}
+            facilityName={facility?.name ?? null}
+            canManage={can(session, "lab.catalog.manage")}
+          />
+        </div>
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

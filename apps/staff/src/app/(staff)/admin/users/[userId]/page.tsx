@@ -1,9 +1,9 @@
+import { StaffSettingsPage } from "@/components/settings-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { KeyRoundIcon, ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { MfaPolicy, StaffRoleDefinition, StaffUser } from "@/lib/api/types";
@@ -40,17 +40,17 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
   // Only roles whose every permission the administrator holds can be handed out (the API refuses the others).
   const grantable = roles.filter((r) => session.user.isPlatformAdmin || r.permissions.every((p) => session.permissions.includes(p)));
   return (
-    <>
-      <PageHeader
-        title={user.displayName}
-        description={user.email}
-        actions={
-          <Link className="text-table text-primary hover:underline" href="/admin/users">
-            All staff users
-          </Link>
-        }
-      />
-      <div className="grid gap-4 p-4 lg:grid-cols-[2fr_1fr]">
+    <StaffSettingsPage
+      group="Organization"
+      title={user.displayName}
+      description={user.email}
+      actions={
+        <Link className="text-table text-primary hover:underline" href="/admin/users">
+          All staff users
+        </Link>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>Roles</CardTitle>
@@ -135,6 +135,6 @@ export default async function StaffUserPage({ params }: { params: Promise<{ user
           </CardContent>
         </Card>
       </div>
-    </>
+    </StaffSettingsPage>
   );
 }

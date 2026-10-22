@@ -1,10 +1,10 @@
+import { StaffSettingsPage } from "@/components/settings-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { PrivacyIncidentDetail } from "@/lib/api/types";
@@ -28,17 +28,18 @@ export default async function PrivacyIncidentPage({ params }: { params: Promise<
   }
   const clock = notificationClock(incident);
   return (
-    <>
-      <PageHeader
-        title={`${incident.incidentNumber} · ${incident.title}`}
-        description="Everything recorded about this incident, in order. Nothing here is edited or deleted; add what happened next."
-        actions={
-          <Link className="text-table text-primary hover:underline" href="/admin/privacy">
-            Back to the register
-          </Link>
-        }
-      />
-      <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1.2fr]">
+    <StaffSettingsPage
+      group="Security & privacy"
+      title={`${incident.incidentNumber} · ${incident.title}`}
+      description="Everything recorded about this incident, in order."
+      details={["Nothing here is edited or deleted; add what happened next."]}
+      actions={
+        <Link className="text-table text-primary hover:underline" href="/admin/privacy">
+          Back to the register
+        </Link>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
@@ -116,6 +117,6 @@ export default async function PrivacyIncidentPage({ params }: { params: Promise<
         </div>
         <IncidentWorkbench incident={incident} />
       </div>
-    </>
+    </StaffSettingsPage>
   );
 }
