@@ -15,7 +15,7 @@ export default async function CompanySettingsPage() {
   const organization = await api<Organization>("/organization");
   const manage = can(session, "organization.manage");
   return (
-    <StaffSettingsPage group="Organization" title="Company settings" description="Your organization's details, shown across the platform." width="narrow">
+    <StaffSettingsPage group="Organization" title="Company settings" description="Your organization's details, shown across the platform.">
       <Card>
         <CardHeader>
           <CardTitle>Organization</CardTitle>

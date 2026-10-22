@@ -231,8 +231,8 @@ describe("settingsForPermissions", () => {
     expect(pages(["integration.exchange.manage"])).toEqual(["/admin/integrations"]);
     expect(pages(["audit.read"])).toEqual(["/admin/audit"]);
     // Service points are clinic configuration; a clinic administrator without user.read still reaches them.
-    expect(pages(["clinic.configure"])).toEqual(["/admin/service-points", "/clinic/signatures", "/clinic/referrals/settings"]);
-    expect(pages(["user.read", "organization.read"])).toEqual(["/admin/organization", "/admin/facilities", "/admin/users", "/admin/roles", "/admin/security"]);
+    expect(pages(["clinic.configure"])).toEqual(["/clinic/referrals/settings", "/clinic/signatures", "/admin/service-points"]);
+    expect(pages(["user.read", "organization.read"])).toEqual(["/admin/users", "/admin/roles", "/admin/facilities", "/admin/organization", "/admin/security"]);
     expect(settingsForPermissions(["lab.order.read"]).map((g) => g.label)).toEqual(["Laboratory"]);
   });
 

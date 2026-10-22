@@ -78,6 +78,8 @@ export default async function SchedulesPage() {
                 specialty={p.specialty ?? labelOf(PROFESSIONS, p.profession)}
                 hours={rows.length === 0 ? "No schedule here" : `${hours}${rows.length > 3 ? ` · +${rows.length - 3} more` : ""}`}
                 available={worksToday}
+                week={Array.from({ length: 7 }, (_, d) => rows.some((s) => s.dayOfWeek === d))}
+                today={todayDow}
                 availableLabel="Scheduled today"
                 unavailableLabel="Not scheduled today"
               />

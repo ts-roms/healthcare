@@ -20,90 +20,6 @@ export interface SettingsGroup {
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
-    label: "Organization",
-    pages: [
-      { label: "Company", href: "/admin/organization", permissions: ["organization.read"], description: "Your organization's name and identifier." },
-      {
-        label: "Facilities",
-        href: "/admin/facilities",
-        permissions: ["organization.read"],
-        description: "Clinics, laboratories and other sites, and their departments.",
-      },
-      {
-        label: "Service points",
-        href: "/admin/service-points",
-        permissions: ["clinic.configure"],
-        description: "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
-      },
-      {
-        label: "Staff users",
-        href: "/admin/users",
-        permissions: ["user.read"],
-        description: "Who can sign in, their roles and where each applies; suspend and reactivate.",
-      },
-      { label: "Roles & permissions", href: "/admin/roles", permissions: ["user.read"], description: "What each role allows; your organization's own roles." },
-    ],
-  },
-  {
-    label: "Security & privacy",
-    pages: [
-      {
-        label: "Sign-in security",
-        href: "/admin/security",
-        permissions: ["user.read"],
-        description: "Whether staff must use two-step verification, who still needs it, and exempt integration accounts.",
-      },
-      {
-        label: "Data privacy",
-        href: "/admin/privacy",
-        permissions: ["privacy.incident.manage"],
-        description: "The personal data breach register, your notification window and your Data Protection Officer.",
-      },
-      {
-        label: "Consent wording",
-        href: "/admin/consent-wording",
-        permissions: ["consent.wording.manage"],
-        description: "The wording patients agree to when they give consent online.",
-      },
-      {
-        label: "Patient QR codes",
-        href: "/admin/patient-qr",
-        permissions: ["patient.qr.manage"],
-        description: "Whether patients get a QR code on a card, when it is issued and what it holds.",
-      },
-      { label: "Audit log", href: "/admin/audit", permissions: ["audit.read"], description: "Who did what, when and to which record." },
-      {
-        label: "Compliance",
-        href: "/admin/compliance",
-        permissions: ["compliance.review.manage"],
-        description: "Your organization's own compliance configuration and who validated it.",
-      },
-      {
-        label: "Integrations",
-        href: "/admin/integrations",
-        permissions: ["integration.exchange.manage"],
-        description: "Outbound exchanges that failed or stalled.",
-      },
-    ],
-  },
-  {
-    label: "Scheduling",
-    pages: [
-      {
-        label: "Visit types & booking",
-        href: "/appointments/visit-types",
-        permissions: ["appointment.read"],
-        description: "Which visit types patients may book online, and each clinic's booking rules.",
-      },
-      {
-        label: "Schedules",
-        href: "/appointments/schedules",
-        permissions: ["appointment.read"],
-        description: "Weekly schedules, closures, practitioners and rooms.",
-      },
-    ],
-  },
-  {
     label: "Clinical",
     pages: [
       {
@@ -115,22 +31,39 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { label: "Vaccines", href: "/clinic/vaccines", permissions: ["immunization.read"], description: "The vaccines this clinic gives." },
       { label: "Coding systems", href: "/clinic/coding-systems", permissions: ["encounter.read"], description: "The diagnosis coding systems in use." },
       {
-        label: "Signatures",
-        href: "/clinic/signatures",
-        permissions: ["clinic.configure"],
-        description: "Whether issued certificates and referrals carry the practitioner's drawn signature.",
-      },
-      {
         label: "Referral follow-up",
         href: "/clinic/referrals/settings",
         permissions: ["clinic.configure"],
         description: "When a referral still awaiting the recipient counts as overdue.",
       },
       {
+        label: "Signatures",
+        href: "/clinic/signatures",
+        permissions: ["clinic.configure"],
+        description: "Whether issued certificates and referrals carry the practitioner's drawn signature.",
+      },
+      {
         label: "Dental",
         href: "/dental/settings",
         permissions: ["dental.record.read"],
         description: "Dental procedure codes, supplies and estimate settings.",
+      },
+    ],
+  },
+  {
+    label: "Scheduling",
+    pages: [
+      {
+        label: "Schedules",
+        href: "/appointments/schedules",
+        permissions: ["appointment.read"],
+        description: "Weekly schedules, closures, practitioners and rooms.",
+      },
+      {
+        label: "Visit types & booking",
+        href: "/appointments/visit-types",
+        permissions: ["appointment.read"],
+        description: "Which visit types patients may book online, and each clinic's booking rules.",
       },
     ],
   },
@@ -173,6 +106,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "Items, suppliers, locations and reorder levels.",
       },
       {
+        label: "Patient messages",
+        href: "/messages/settings",
+        permissions: ["patient.message.read"],
+        description: "Who receives each topic of patient messages and how fast they answer.",
+      },
+      {
         label: "Records requests",
         href: "/records/requests/settings",
         permissions: ["patient.records-request.manage"],
@@ -184,11 +123,72 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         permissions: ["doh.settings.manage"],
         description: "Reportable conditions and your reporting deadlines.",
       },
+    ],
+  },
+  {
+    label: "Organization",
+    pages: [
       {
-        label: "Patient messages",
-        href: "/messages/settings",
-        permissions: ["patient.message.read"],
-        description: "Who receives each topic of patient messages and how fast they answer.",
+        label: "Staff users",
+        href: "/admin/users",
+        permissions: ["user.read"],
+        description: "Who can sign in, their roles and where each applies; suspend and reactivate.",
+      },
+      { label: "Roles & permissions", href: "/admin/roles", permissions: ["user.read"], description: "What each role allows; your organization's own roles." },
+      {
+        label: "Facilities",
+        href: "/admin/facilities",
+        permissions: ["organization.read"],
+        description: "Clinics, laboratories and other sites, and their departments.",
+      },
+      {
+        label: "Service points",
+        href: "/admin/service-points",
+        permissions: ["clinic.configure"],
+        description: "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
+      },
+      { label: "Company", href: "/admin/organization", permissions: ["organization.read"], description: "Your organization's name and identifier." },
+    ],
+  },
+  {
+    label: "Security & privacy",
+    pages: [
+      {
+        label: "Sign-in security",
+        href: "/admin/security",
+        permissions: ["user.read"],
+        description: "Whether staff must use two-step verification, who still needs it, and exempt integration accounts.",
+      },
+      { label: "Audit log", href: "/admin/audit", permissions: ["audit.read"], description: "Who did what, when and to which record." },
+      {
+        label: "Consent wording",
+        href: "/admin/consent-wording",
+        permissions: ["consent.wording.manage"],
+        description: "The wording patients agree to when they give consent online.",
+      },
+      {
+        label: "Data privacy",
+        href: "/admin/privacy",
+        permissions: ["privacy.incident.manage"],
+        description: "The personal data breach register, your notification window and your Data Protection Officer.",
+      },
+      {
+        label: "Patient QR codes",
+        href: "/admin/patient-qr",
+        permissions: ["patient.qr.manage"],
+        description: "Whether patients get a QR code on a card, when it is issued and what it holds.",
+      },
+      {
+        label: "Compliance",
+        href: "/admin/compliance",
+        permissions: ["compliance.review.manage"],
+        description: "Your organization's own compliance configuration and who validated it.",
+      },
+      {
+        label: "Integrations",
+        href: "/admin/integrations",
+        permissions: ["integration.exchange.manage"],
+        description: "Outbound exchanges that failed or stalled.",
       },
     ],
   },

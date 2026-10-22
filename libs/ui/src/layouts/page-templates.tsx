@@ -17,8 +17,8 @@ import { PageHeader, type Breadcrumb } from "./page-header";
  */
 
 const WIDTH = {
-  /** Lists, dashboards, records: the full working width. */
-  wide: "max-w-[90rem]",
+  /** Lists, dashboards, records, boards: the whole working width, no cap. */
+  wide: "max-w-none",
   /** Settings pages: a readable column beside the settings menu. */
   medium: "max-w-5xl",
   /** One short form. */
@@ -164,7 +164,7 @@ export function SettingsPage({
   explain,
   tabs,
   children,
-  width = "medium",
+  width = "wide",
 }: HeaderProps & { explain?: React.ReactNode; tabs?: React.ReactNode; children: React.ReactNode; width?: keyof typeof WIDTH }) {
   return (
     <PageShell width={width}>

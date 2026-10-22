@@ -22,7 +22,7 @@ export interface LaboratoryLayoutProps {
  */
 export function LaboratoryLayout({ title = "Laboratory", toolbar, list, detail, status, notice, className }: LaboratoryLayoutProps) {
   return (
-    <div className={cn("mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col gap-3 p-4 md:p-6", className)}>
+    <div className={cn("mx-auto flex h-full min-h-0 w-full flex-col gap-3 p-4 md:p-6", className)}>
       <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1">
         <h1 className="text-page-lg font-semibold tracking-tight">{title}</h1>
         {status ? <div className="flex flex-wrap items-center gap-3 text-table text-muted-foreground">{status}</div> : null}
