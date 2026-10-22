@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier, PurchaseOrder, ReorderSuggestion, ProcurementMethod } from "@/lib/api/types";
@@ -19,10 +19,9 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
   if (!can(session, "inventory.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Purchase orders" />
+      <ModulePage title="Purchase orders">
         <FacilityRequired action="Purchase orders are placed per facility." />
-      </>
+      </ModulePage>
     );
   }
   const show = params.show === "all" ? "all" : "open";
@@ -36,9 +35,8 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
     canManage ? api<ProcurementMethod[]>("/inventory/procurement-methods") : Promise.resolve([]),
   ]);
   return (
-    <>
-      <PageHeader title="Purchase orders" description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`} />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage title="Purchase orders" description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`}>
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex gap-1">
             {(["open", "all"] as const).map((key) => (
@@ -127,6 +125,6 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           />
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }
