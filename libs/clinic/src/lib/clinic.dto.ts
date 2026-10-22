@@ -125,12 +125,23 @@ export class UpdateRouteTemplateDto extends createZodDto(updateRouteTemplateSche
 export const servicePointSettingsQuerySchema = z.object({ facilityId: z.string().uuid() });
 export class ServicePointSettingsQueryDto extends createZodDto(servicePointSettingsQuerySchema) {}
 
+/** A place as the waiting-room display says it ("Triage", "Room 2"); an empty text means none. */
+const place = z
+  .string()
+  .trim()
+  .max(60)
+  .transform((v) => (v === "" ? null : v));
+
 export const updateServicePointSettingsSchema = z.object({
   facilityId: z.string().uuid(),
   /** Call the patient to the next service point's location whenever a route sends them on. */
   autoCallOnRoute: z.boolean(),
   /** List routine visits of seniors before other routine visits; the current value when omitted. */
   seniorsFirst: z.boolean().optional(),
+  /** Where to call the patient when staff open Triage & vitals, Start consultation or Procedures; empty or null clears it, omitted keeps the current one. */
+  callOnTriageTo: place.nullable().optional(),
+  callOnConsultationTo: place.nullable().optional(),
+  callOnProcedureTo: place.nullable().optional(),
   /** The version read; not needed the first time a facility gets its own settings. */
   version: z.number().int().positive().optional(),
 });

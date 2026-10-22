@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label } from "@healthcare/ui/primitives";
 import type { ServicePointSettings } from "@/lib/api/types";
 import { useServerAction } from "@/lib/use-server-action";
 import { saveServicePointSettings } from "./actions";
@@ -10,6 +10,15 @@ import { saveServicePointSettings } from "./actions";
 export function RoutingSettings({ settings }: { settings: ServicePointSettings }) {
   const [autoCall, setAutoCall] = React.useState(settings.autoCallOnRoute);
   const [seniorsFirst, setSeniorsFirst] = React.useState(settings.seniorsFirst);
+  const [triageTo, setTriageTo] = React.useState(settings.callOnTriageTo ?? "");
+  const [consultationTo, setConsultationTo] = React.useState(settings.callOnConsultationTo ?? "");
+  const [procedureTo, setProcedureTo] = React.useState(settings.callOnProcedureTo ?? "");
+  const changed =
+    autoCall !== settings.autoCallOnRoute ||
+    seniorsFirst !== settings.seniorsFirst ||
+    triageTo.trim() !== (settings.callOnTriageTo ?? "") ||
+    consultationTo.trim() !== (settings.callOnConsultationTo ?? "") ||
+    procedureTo.trim() !== (settings.callOnProcedureTo ?? "");
   const { pending, run } = useServerAction();
   return (
     <Card className="mx-4">
@@ -23,7 +32,15 @@ export function RoutingSettings({ settings }: { settings: ServicePointSettings }
             e.preventDefault();
             run(
               () =>
-                saveServicePointSettings({ facilityId: settings.facilityId, autoCallOnRoute: autoCall, seniorsFirst, version: settings.version ?? undefined }),
+                saveServicePointSettings({
+                  facilityId: settings.facilityId,
+                  autoCallOnRoute: autoCall,
+                  seniorsFirst,
+                  callOnTriageTo: triageTo,
+                  callOnConsultationTo: consultationTo,
+                  callOnProcedureTo: procedureTo,
+                  version: settings.version ?? undefined,
+                }),
               "Queue settings saved",
             );
           }}
@@ -49,8 +66,42 @@ export function RoutingSettings({ settings }: { settings: ServicePointSettings }
             A routine visit of a patient aged 60 or older is listed before other routine visits, in arrival order. Urgent and emergency visits always stay
             ahead. Off: the queue goes by priority and arrival only. Check this against your own policy before turning it on.
           </p>
+          <fieldset className="flex flex-col gap-2 rounded-md border p-3">
+            <legend className="px-1 text-body font-medium">Call the patient when staff open a step</legend>
+            <p className="text-meta text-muted-foreground">
+              When staff select <strong>Triage &amp; vitals</strong>, <strong>Start consultation</strong> or <strong>Procedures</strong> on a ticket, the
+              patient is called to the place you name here, as if typed under <strong>Call patient to</strong>, so the waiting-room display shows and announces
+              it. Leave a place empty for no automatic call at that step; calling by hand always stays available.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-1">
+                <Label htmlFor="call-triage">Triage &amp; vitals</Label>
+                <Input id="call-triage" value={triageTo} maxLength={60} placeholder="e.g. Triage" onChange={(e) => setTriageTo(e.target.value)} />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="call-consultation">Start consultation</Label>
+                <Input
+                  id="call-consultation"
+                  value={consultationTo}
+                  maxLength={60}
+                  placeholder="e.g. Consultation room"
+                  onChange={(e) => setConsultationTo(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="call-procedure">Procedures</Label>
+                <Input
+                  id="call-procedure"
+                  value={procedureTo}
+                  maxLength={60}
+                  placeholder="e.g. Procedure room"
+                  onChange={(e) => setProcedureTo(e.target.value)}
+                />
+              </div>
+            </div>
+          </fieldset>
           <div>
-            <Button type="submit" size="sm" disabled={pending || (autoCall === settings.autoCallOnRoute && seniorsFirst === settings.seniorsFirst)}>
+            <Button type="submit" size="sm" disabled={pending || !changed}>
               Save
             </Button>
           </div>

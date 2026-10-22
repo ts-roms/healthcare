@@ -39,11 +39,20 @@ const STILL_WAITING = ["waiting", "in_triage", "awaiting_consultation"];
 /** The ticket panel beside the board (20rem); below this screen size it sits under the board. */
 const PANEL_CLASS = "xl:w-[20rem] xl:shrink-0";
 
+/** Where to call the patient when staff open Triage & vitals, Start consultation or Procedures (the facility's own text). */
+export interface CallOn {
+  triage: string | null;
+  consultation: string | null;
+  procedure: string | null;
+}
+const NO_CALL_ON: CallOn = { triage: null, consultation: null, procedure: null };
+
 export function QueueWorkspace({
   visits,
   servicePoints = [],
   templates = [],
   autoCall = false,
+  callOn = NO_CALL_ON,
   chrome,
   practitionerNames = {},
   today = null,
@@ -61,6 +70,8 @@ export function QueueWorkspace({
   templates?: RouteTemplate[];
   /** The facility calls the patient automatically when a route sends them on (migration 0115). */
   autoCall?: boolean;
+  /** Where the patient is called when staff open each step (migration 0127); null = not called at that step. */
+  callOn?: CallOn;
   /** The header's facility, day and buttons. */
   chrome: QueueChrome;
   /** Display names of the practitioners, by id, for "Assigned" on the ticket. */
@@ -142,6 +153,7 @@ export function QueueWorkspace({
                   templates={templates}
                   practitionerNames={practitionerNames}
                   autoCall={autoCall}
+                  callOn={callOn}
                   canManage={canManage}
                   canTriage={mayTriage}
                   canOpenRecord={canOpenRecord}
@@ -196,6 +208,7 @@ function VisitPanel({
   templates,
   practitionerNames,
   autoCall,
+  callOn,
   canManage,
   canTriage: mayTriage,
   canOpenRecord,
@@ -217,6 +230,7 @@ function VisitPanel({
   templates: RouteTemplate[];
   practitionerNames: Record<string, string>;
   autoCall: boolean;
+  callOn: CallOn;
   canManage: boolean;
   canTriage: boolean;
   canOpenRecord: boolean;
@@ -232,6 +246,7 @@ function VisitPanel({
   onSkip: (stepId: string, reason: string) => void;
   onPlan: (servicePointIds: string[]) => void;
 }) {
+  const router = useRouter();
   const [calledTo, setCalledTo] = React.useState(visit.calledTo ?? "");
   const [sendTo, setSendTo] = React.useState("");
   const sendToPoint = servicePoints.find((s) => s.id === sendTo);
@@ -241,6 +256,22 @@ function VisitPanel({
   const [reason, setReason] = React.useState("");
   const moves = queueMoves(visit.status);
   const open = moves.length > 0;
+  /**
+   * Opening a step calls the patient to the place the facility named for it, when staff may call and the patient is not already
+   * called there; the manual call below stays. A failed call is shown but never stops the step: care comes first.
+   */
+  const callFor = async (place: string | null) => {
+    if (!place || !canManage || !open || visit.calledTo === place) return;
+    const result = await callVisit({ visitId: visit.id, calledTo: place, version: visit.version });
+    if (result.ok) toast.success(`${visit.ticket} called to ${place}`);
+    else toast.error(`Could not call the patient: ${result.message}`);
+  };
+  /** A plain click calls first, then opens the step; a modified click (new tab) just opens it. */
+  const openStep = (place: string | null, href: string) => (e: React.MouseEvent) => {
+    if (!place || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    void callFor(place).finally(() => router.push(href));
+  };
   const waiting = STILL_WAITING.includes(visit.status);
   const waitMinutes = Math.max(0, Math.floor((now.getTime() - new Date(visit.checkedInAt).getTime()) / 60_000));
   const assigned = visit.assignedPractitionerId ? (practitionerNames[visit.assignedPractitionerId] ?? "Assigned provider") : "Any provider";
@@ -331,18 +362,22 @@ function VisitPanel({
             </Link>
           </Button>
         ) : canConsult && canStartConsultation(visit.status) ? (
-          <StartConsultationButton visit={visit} />
+          <StartConsultationButton visit={visit} beforeStart={() => callFor(callOn.consultation)} />
         ) : null}
         {mayTriage && canTriage(visit.status) ? (
           <Button asChild size="sm" variant={visit.status === "awaiting_consultation" ? "outline" : "default"}>
-            <Link href={`/queue/visits/${visit.id}/triage`}>
+            <Link
+              href={`/queue/visits/${visit.id}/triage`}
+              // Updating the triage of a patient already waiting for the provider does not call them back.
+              onClick={openStep(visit.status === "awaiting_consultation" ? null : callOn.triage, `/queue/visits/${visit.id}/triage`)}
+            >
               <StethoscopeIcon /> {visit.status === "awaiting_consultation" ? "Update triage" : "Triage & vitals"}
             </Link>
           </Button>
         ) : null}
         {canRecordProcedure && !["completed", "cancelled", "left_without_being_seen"].includes(visit.status) && visit.modality === "in_person" ? (
           <Button asChild size="sm" variant="outline">
-            <Link href={`/queue/visits/${visit.id}/procedures`}>
+            <Link href={`/queue/visits/${visit.id}/procedures`} onClick={openStep(callOn.procedure, `/queue/visits/${visit.id}/procedures`)}>
               <HandIcon /> Procedures
             </Link>
           </Button>

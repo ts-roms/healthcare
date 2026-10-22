@@ -295,7 +295,16 @@ describe("service points", () => {
       points.xray.version = 3;
       // Defaults: nothing is called automatically; the setting is per facility and audited.
       const defaults = await ctx.http().get("/api/v1/clinic/service-point-settings").set(as(nurse)).query({ facilityId: tenant.facilityId }).expect(200);
-      expect(defaults.body).toEqual({ facilityId: tenant.facilityId, autoCallOnRoute: false, seniorsFirst: false, version: null, updatedAt: null });
+      expect(defaults.body).toEqual({
+        facilityId: tenant.facilityId,
+        autoCallOnRoute: false,
+        seniorsFirst: false,
+        callOnTriageTo: null,
+        callOnConsultationTo: null,
+        callOnProcedureTo: null,
+        version: null,
+        updatedAt: null,
+      });
       await ctx.http().put("/api/v1/clinic/service-point-settings").set(as(nurse)).send({ facilityId: tenant.facilityId, autoCallOnRoute: true }).expect(403);
       const on = await ctx
         .http()
@@ -552,6 +561,38 @@ describe("service points", () => {
       expect(sent.body).toMatchObject({ called: false });
       expect(sent.body.visit).toMatchObject({ servicePointId: labId, calledTo: null });
       expect(sent.body.route.map((s: { status: string }) => s.status)).toEqual(["current", "planned"]);
+    });
+
+    // Keep last: it moves the settings' version on.
+    it("keeps the place to call the patient at each step the facility names: omitted keeps it, empty clears it, audited", async () => {
+      const put = (body: object) =>
+        ctx
+          .http()
+          .put("/api/v1/clinic/service-point-settings")
+          .set(as(admin))
+          .send({ facilityId: tenant.facilityId, ...body });
+      const current = (await ctx.http().get("/api/v1/clinic/service-point-settings").set(as(admin)).query({ facilityId: tenant.facilityId }).expect(200)).body;
+      const set = await put({
+        autoCallOnRoute: current.autoCallOnRoute,
+        callOnTriageTo: "  Triage  ",
+        callOnConsultationTo: "Room 2",
+        callOnProcedureTo: "Procedure room",
+        version: current.version,
+      }).expect(200);
+      expect(set.body).toMatchObject({ callOnTriageTo: "Triage", callOnConsultationTo: "Room 2", callOnProcedureTo: "Procedure room" });
+      // Omitted places stay as they are; an empty one is cleared; too long a text is refused.
+      const partial = await put({ autoCallOnRoute: current.autoCallOnRoute, callOnTriageTo: "", version: set.body.version }).expect(200);
+      expect(partial.body).toMatchObject({ callOnTriageTo: null, callOnConsultationTo: "Room 2", callOnProcedureTo: "Procedure room" });
+      await put({ autoCallOnRoute: current.autoCallOnRoute, callOnProcedureTo: "x".repeat(61), version: partial.body.version }).expect(400);
+      await ctx
+        .http()
+        .put("/api/v1/clinic/service-point-settings")
+        .set(as(nurse))
+        .send({ facilityId: tenant.facilityId, autoCallOnRoute: false, callOnTriageTo: "Anywhere" })
+        .expect(403);
+      const audits = await auditRows(ctx.pool, "action = 'service-point-setting.update'");
+      // The first save of the earlier tests, then these two changes.
+      expect(audits.length).toBeGreaterThanOrEqual(3);
     });
   });
 });

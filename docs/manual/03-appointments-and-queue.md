@@ -168,7 +168,9 @@ Select the refresh button next to the connection state to reload at any time.
 ### Call a patient and move them along
 
 1. Select a ticket. A panel opens on the right with the ticket in large type and how long the patient has waited, the patient's name, number, age and sex, the complaint, and four details: **Stage**, **Arrived**, **Visit** (appointment or walk-in) and **Assigned** (the provider, or **Any provider**). It also shows where they were called to, and a **Timeline** of check-in, calls and the current stage. On a narrow screen the panel opens under the board.
-2. To call the patient, type the place in **Call patient to** (for example "Triage 1" or "Room 3") and select **Call**.
+2. To call the patient, type the place in **Call patient to** (for example "Triage 1" or "Room 3") and select **Call**. If your facility has named a place for
+   a step (see "Call the patient when staff open a step" below), selecting **Triage & vitals**, **Start consultation** or **Procedures** on the ticket calls
+   the patient there for you, then opens the step; the manual call is always still available.
 3. To move the patient, use the buttons shown for their current status:
    - From **Waiting**: **Move to Triage / Vitals**, **Cancel visit…**, **Left without being seen…**
    - From **Triage / Vitals**: **Move to Ready for provider**, **Left without being seen…**
@@ -228,6 +230,12 @@ top bar:
    already sent there stay there until moved, and the history keeps the name. **Reactivate** brings it back.
 3. Under **Routes**, tick **Call the patient when a route sends them on** and **Save** if the display should announce each move of a route by
    itself. Off (the default), **Done here, send on** moves the patient and staff call them with **Call patient to** as usual.
+
+4. Under **Call the patient when staff open a step**, type the place for **Triage & vitals**, **Start consultation** and **Procedures** (for example
+   "Triage", "Room 2") and **Save**. Then selecting that button on a ticket calls the patient to that place as if typed under **Call patient to**, so the
+   waiting-room display shows and announces it. Leave a place empty for no automatic call at that step. The patient is not called again if they were already
+   called to the same place, and **Update triage** (for a patient already waiting for the provider) does not call them back. Only staff who may call patients
+   (queue management) trigger the call; if it fails you see a message and the step still opens.
 
 A facility without service points works as before: one consultation queue. The waiting-room display is unchanged either way — it shows the ticket
 and the place you type (or the location configured) when the patient is called, never the service point or the route.
