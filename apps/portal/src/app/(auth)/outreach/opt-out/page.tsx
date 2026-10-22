@@ -1,3 +1,4 @@
+import { AuthCard } from "@/app/(auth)/form-parts";
 import Link from "next/link";
 import { headers as requestHeaders } from "next/headers";
 import { forwardedHeaders } from "@healthcare/web-session";
@@ -27,14 +28,14 @@ export default async function OutreachOptOutPage({ searchParams }: { searchParam
   }
   return (
     <>
-      <div>
-        <h1 className="text-page-lg font-semibold tracking-tight">{recorded ? "You will not get these messages any more" : "This link no longer works"}</h1>
-        <p className="text-muted-foreground">
-          {recorded
+      <AuthCard
+        title={recorded ? "You will not get these messages any more" : "This link no longer works"}
+        description={
+          recorded
             ? "We have recorded that you do not want outreach messages on this channel. Messages about your own care, appointments and bills are not affected. You can change this any time under Notification settings in MyHealth."
-            : "The link may have been used already or has expired. You can change what you receive any time under Notification settings in MyHealth, or tell the clinic."}
-        </p>
-      </div>
+            : "The link may have been used already or has expired. You can change what you receive any time under Notification settings in MyHealth, or tell the clinic."
+        }
+      />
       <Link href="/login" className="text-center text-body font-medium text-primary underline-offset-4 hover:underline">
         Go to MyHealth
       </Link>

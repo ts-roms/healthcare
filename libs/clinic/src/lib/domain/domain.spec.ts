@@ -119,6 +119,18 @@ describe("queue state", () => {
     expect(queueTicket(7)).toBe("A-007");
   });
 
+  it("puts seniors after urgent and before other routine visits only when flagged, arrival order within each", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 5, 0, minute));
+    const routine = { priority: "routine" as const, checkedInAt: at(0) };
+    const seniorLate = { priority: "routine" as const, checkedInAt: at(30), senior: true };
+    const seniorEarly = { priority: "routine" as const, checkedInAt: at(10), senior: true };
+    const urgentSenior = { priority: "urgent" as const, checkedInAt: at(40), senior: true };
+    const urgent = { priority: "urgent" as const, checkedInAt: at(20) };
+    expect([routine, seniorLate, urgentSenior, seniorEarly, urgent].sort(compareQueueOrder)).toEqual([urgent, urgentSenior, seniorEarly, seniorLate, routine]);
+    // Without the flag nothing changes: arrival order.
+    expect([routine, { ...seniorEarly, senior: false }].sort(compareQueueOrder)[0]).toBe(routine);
+  });
+
   it("shows the waiting room the open in-person calls, newest first, and how many wait — nothing else", () => {
     const at = (minute: number) => new Date(Date.UTC(2026, 9, 9, 1, minute));
     const row = (queueNumber: number, status: Parameters<typeof canTransition>[0], calledAt: Date | null, calledTo: string | null, inPerson = true) => ({

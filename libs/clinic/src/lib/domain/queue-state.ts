@@ -21,11 +21,25 @@ export function requiresReason(to: VisitStatus): boolean {
   return to === "cancelled" || to === "left_without_being_seen";
 }
 
-const PRIORITY_RANK: Record<VisitPriority, number> = { emergency: 0, urgent: 1, routine: 2 };
+/** Age from which a patient counts as a senior for the optional senior lane (an indicator for staff, not a legal test). */
+export const SENIOR_AGE = 60;
 
-/** Queue order: priority first, then arrival time. */
-export function compareQueueOrder(a: { priority: VisitPriority; checkedInAt: Date }, b: { priority: VisitPriority; checkedInAt: Date }): number {
-  return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.checkedInAt.getTime() - b.checkedInAt.getTime();
+/** A senior routine visit ranks between urgent and other routine visits when the facility has the senior lane on. */
+const PRIORITY_RANK: Record<VisitPriority, number> = { emergency: 0, urgent: 1, routine: 3 };
+const SENIOR_RANK = 2;
+
+interface Orderable {
+  priority: VisitPriority;
+  checkedInAt: Date;
+  /** The facility's senior lane is on and the patient is a senior; never moves an urgent or emergency visit. */
+  senior?: boolean;
+}
+
+const rankOf = (v: Orderable) => (v.priority === "routine" && v.senior ? SENIOR_RANK : PRIORITY_RANK[v.priority]);
+
+/** Queue order: priority first (seniors after urgent when `senior` is set), then arrival time. */
+export function compareQueueOrder(a: Orderable, b: Orderable): number {
+  return rankOf(a) - rankOf(b) || a.checkedInAt.getTime() - b.checkedInAt.getTime();
 }
 
 /**

@@ -503,6 +503,7 @@ export interface RouteTemplate {
 export interface ServicePointSettings {
   facilityId: string;
   autoCallOnRoute: boolean;
+  seniorsFirst: boolean;
   version: number | null;
   updatedAt: string | null;
 }
