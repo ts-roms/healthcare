@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { PurchaseOrder, PurchaseOrderInvoicing, SupplierInvoice } from "@/lib/api/types";
@@ -21,10 +21,9 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
   if (!can(session, "inventory.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Purchase order" />
+      <ModulePage title="Purchase order">
         <FacilityRequired action="Purchase orders are placed per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [order, invoicing, invoices] = await Promise.all([
@@ -42,16 +41,15 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
     { label: order.status === "cancelled" ? "Cancelled" : "Closed short", at: order.endedAt, note: order.endReason },
   ].filter((h) => h.at);
   return (
-    <>
-      <PageHeader
-        title={`Purchase order ${order.poNumber}`}
-        description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}${
-          order.procurementMethod
-            ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
-            : ""
-        }`}
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage
+      title={`Purchase order ${order.poNumber}`}
+      description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}${
+        order.procurementMethod
+          ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
+          : ""
+      }`}
+    >
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <PurchaseOrderStatusBadge status={order.status} />
@@ -145,6 +143,6 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
           {canInvoice ? <RecordSupplierInvoice invoicing={invoicing} /> : null}
         </div>
       </div>
-    </>
+    </ModulePage>
   );
 }
