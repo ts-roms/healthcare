@@ -2,15 +2,46 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRightIcon, BellRingIcon, MaximizeIcon, UsersIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
-import { Button } from "@healthcare/ui/primitives";
-import { LiveIndicator, useQueueUpdates } from "@/components/live-queue";
+import {
+  ActivityIcon,
+  ArrowRightIcon,
+  ClockIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+  Play,
+  RadioIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+  Volume2Icon,
+  VolumeXIcon,
+  WifiOffIcon,
+} from "lucide-react";
+import { cn } from "@healthcare/ui/lib/utils";
+import { Button, Popover, PopoverContent, PopoverTrigger, ToggleGroup, ToggleGroupItem } from "@healthcare/ui/primitives";
+import { useQueueUpdates } from "@/components/live-queue";
+import type { LiveStatus } from "@/lib/live-queue";
 import type { QueueDisplay } from "@/lib/api/types";
-import { currentCallKey, shouldChime } from "@/lib/queue-display";
+import {
+  announcements,
+  CALL_HIGHLIGHT_MS,
+  callAnnouncement,
+  currentCallKey,
+  displayStatusLabel,
+  type DisplaySoundSettings,
+  parseSoundSettings,
+  RECENT_CALLS_SHOWN,
+  shouldChime,
+  SOUND_LEVEL_GAIN,
+  SOUND_SETTINGS_KEY,
+  type SoundLevel,
+  type VoiceLanguage,
+} from "@/lib/queue-display";
+import { canSpeak, playChime, speak, stopSpeaking } from "@/lib/queue-display-sound";
 
 /**
- * The waiting-room display: the ticket being called now and where to go, the tickets called before it, and how many
- * wait. Kept current by the live queue socket (polling every 15 s when it is down). Never a patient detail.
+ * The waiting-room display: the ticket being served now and where to go, the tickets called before it, and how many
+ * wait. Kept current by the live queue socket (polling every 15 s when it is down). Never a patient detail, and never
+ * the order of those waiting (priority would make it appear to jump).
  */
 export function DisplayBoard({
   display,
@@ -25,138 +56,390 @@ export function DisplayBoard({
 }) {
   const [now, setNow] = React.useState(() => new Date());
   const status = useQueueUpdates(() => setNow(new Date()));
-  const sound = useChime(currentCallKey(display));
+  const [current, ...earlier] = display?.calls ?? [];
+  const callKey = currentCallKey(display);
+  const sound = useDisplaySound(callKey, current ?? null);
+  const highlighted = useCallHighlight(callKey);
   useWakeLock();
+  const fullscreen = React.useSyncExternalStore(subscribeToFullscreen, isFullscreen, () => false);
+
+  // The clock moves on the minute's scale, not every second (the queue's own updates refresh it too).
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const time = (iso: string | Date) => new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   const today = new Intl.DateTimeFormat("en-PH", { timeZone, weekday: "long", month: "long", day: "numeric" }).format(now);
-  const [current, ...earlier] = display?.calls ?? [];
+  const recent = earlier.slice(0, RECENT_CALLS_SHOWN);
 
   return (
-    <div className="flex min-h-dvh flex-col gap-4 p-4 sm:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-page font-semibold sm:text-3xl">{facilityName}</h1>
-          <p className="text-body text-muted-foreground sm:text-lg">
-            {today} · {time(now)}
-          </p>
+    <div className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-6 overflow-hidden px-10 py-8">
+      <header className="flex items-center justify-between gap-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="bg-qd-accent grid size-[clamp(40px,3vw,56px)] shrink-0 place-items-center rounded-xl text-white" aria-hidden>
+            <ActivityIcon className="size-[55%]" />
+          </span>
+          <h1 className="text-qd-ink truncate text-[clamp(24px,2.1vw,40px)] leading-tight font-semibold">{facilityName}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <LiveIndicator status={status} />
-          <Button variant="outline" size="sm" onClick={sound.toggle} aria-pressed={sound.on}>
-            {sound.on ? <Volume2Icon /> : <VolumeXIcon />} {sound.on ? "Sound on" : "Turn on sound"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
-            <MaximizeIcon /> Full screen
-          </Button>
-          {canLeave ? (
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/queue">Back to the queue</Link>
-            </Button>
-          ) : null}
+        <div className="shrink-0 text-right">
+          <p className="text-qd-ink text-[clamp(32px,2.7vw,52px)] leading-none font-semibold tabular-nums">{time(now)}</p>
+          <p className="text-qd-muted mt-1 text-[clamp(14px,1.05vw,20px)]">{today}</p>
         </div>
       </header>
 
       {display === null ? (
-        <main className="flex flex-1 items-center justify-center rounded-lg border bg-card p-8 text-center">
-          <p className="text-section text-muted-foreground sm:text-2xl">Reconnecting… This screen will update by itself.</p>
+        <main className="border-qd-border bg-qd-card flex flex-1 items-center justify-center rounded-3xl border-2 p-8 text-center">
+          <p className="text-qd-muted text-[clamp(22px,2vw,36px)]">Reconnecting… This screen will update by itself.</p>
         </main>
       ) : (
-        <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section aria-labelledby="now-calling" className="flex flex-col justify-center rounded-lg border bg-card p-6 text-center sm:p-10">
-            <h2 id="now-calling" className="flex items-center justify-center gap-2 text-section font-medium text-muted-foreground sm:text-3xl">
-              <BellRingIcon className="size-6 sm:size-8" aria-hidden /> Now calling
+        <main className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2fr_1fr]">
+          <section
+            aria-labelledby="now-serving"
+            className={cn(
+              "bg-qd-accent relative flex min-h-0 flex-col justify-center gap-[2vh] overflow-hidden rounded-3xl border-2 border-transparent p-[clamp(32px,4vw,72px)] text-white",
+              highlighted && "qd-call-highlight border-white/70",
+            )}
+          >
+            <span className="pointer-events-none absolute -top-[18%] -right-[8%] size-[45%] rounded-full bg-white/10" aria-hidden />
+            <h2 id="now-serving" className="relative flex items-center gap-3 text-[clamp(18px,1.5vw,28px)] font-semibold tracking-widest uppercase">
+              <span className="size-[0.7em] rounded-full bg-white" aria-hidden />
+              {current ? "Now calling · Tinatawag na" : "First number to be called"}
             </h2>
-            <div aria-live="polite" aria-atomic="true">
-              {current ? (
-                <>
-                  <p className="mt-4 text-[min(22vw,10rem)] leading-none font-bold tabular-nums">{current.ticket}</p>
-                  <p className="mt-4 flex items-center justify-center gap-3 text-[min(9vw,3.5rem)] leading-tight font-semibold text-primary">
-                    <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
-                    <span className="sr-only">Please go to</span>
-                    {current.calledTo}
-                  </p>
-                  <p className="mt-3 text-body text-muted-foreground sm:text-lg">Called at {time(current.calledAt)}</p>
-                </>
-              ) : (
-                <p className="mt-6 text-section text-muted-foreground sm:text-3xl">Please wait for your number to be called.</p>
-              )}
-            </div>
+            {current ? (
+              <>
+                <p className="relative text-[clamp(120px,14vw,280px)] leading-none font-semibold tracking-tighter tabular-nums">{current.ticket}</p>
+                <p className="relative flex items-center gap-4 text-[clamp(40px,4.4vw,88px)] leading-tight font-semibold break-words">
+                  <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
+                  {current.calledTo}
+                </p>
+                <p className="relative text-[clamp(16px,1.4vw,26px)] text-white/85">
+                  Please proceed to the room. Keep your ticket and ID ready. <span className="tabular-nums">Called at {time(current.calledAt)}.</span>
+                </p>
+              </>
+            ) : (
+              <div className="relative flex flex-col gap-4">
+                <p className="text-[clamp(56px,6vw,120px)] leading-tight font-semibold">Please have a seat</p>
+                <p className="max-w-[28ch] text-[clamp(22px,2vw,36px)] leading-snug text-white/85">Your number and place will appear here, with a chime.</p>
+              </div>
+            )}
           </section>
 
-          <aside className="flex flex-col gap-4">
-            <section aria-labelledby="recently-called" className="flex-1 rounded-lg border bg-card p-4 sm:p-6">
-              <h2 id="recently-called" className="text-section font-medium text-muted-foreground sm:text-2xl">
-                Recently called
+          <aside className="flex min-h-0 flex-col gap-6">
+            <section
+              aria-labelledby="recently-called"
+              className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col rounded-3xl border-2 p-[clamp(20px,2vw,36px)]"
+            >
+              <h2 id="recently-called" className="text-qd-muted text-[clamp(14px,1.1vw,20px)] font-semibold tracking-widest uppercase">
+                Earlier calls
               </h2>
-              {earlier.length ? (
-                <ul className="mt-3 divide-y">
-                  {earlier.map((call) => (
-                    <li key={`${call.ticket}-${call.calledAt}`} className="flex items-baseline justify-between gap-3 py-2 sm:py-3">
-                      <span className="text-2xl font-bold tabular-nums sm:text-4xl">{call.ticket}</span>
-                      <span className="text-right">
-                        <span className="block text-section font-semibold sm:text-2xl">{call.calledTo}</span>
-                        <span className="text-meta text-muted-foreground sm:text-body">{time(call.calledAt)}</span>
+              {recent.length ? (
+                <ul className="divide-qd-divider mt-3 divide-y">
+                  {recent.map((call, i) => (
+                    <li key={`${call.ticket}-${call.calledAt}`} className="flex items-baseline justify-between gap-5 py-3">
+                      <span className={cn("text-[clamp(24px,2vw,38px)] font-semibold tabular-nums", i === 0 ? "text-qd-accent" : "text-qd-ink")}>
+                        {call.ticket}
                       </span>
+                      <span className="truncate text-[clamp(16px,1.3vw,26px)]">{call.calledTo}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 text-body text-muted-foreground sm:text-lg">No one else called yet today.</p>
+                <div className="text-qd-muted flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                  <ClockIcon className="size-12" aria-hidden />
+                  <p className="text-[clamp(16px,1.25vw,24px)]">No numbers called yet today</p>
+                </div>
               )}
             </section>
-            <section aria-label="Waiting" className="flex items-center gap-3 rounded-lg border bg-card p-4 sm:p-6">
-              <UsersIcon className="size-8 text-muted-foreground" aria-hidden />
-              <p className="text-section sm:text-2xl">
-                <span className="font-bold tabular-nums">{display.waiting}</span> waiting
+            <section aria-label="Waiting" className="border-qd-border bg-qd-card flex items-center gap-5 rounded-3xl border-2 p-[clamp(20px,2vw,36px)]">
+              <span className="text-qd-accent text-[clamp(56px,4.6vw,88px)] leading-none font-semibold tabular-nums">{display.waiting}</span>
+              <p className="text-qd-muted text-[clamp(16px,1.3vw,26px)] leading-snug">
+                {display.waiting === 1 ? "person waiting." : "people waiting."}
+                <br />
+                Please have a seat. Your number will appear here with a chime.
               </p>
             </section>
           </aside>
         </main>
       )}
+
+      <footer className="flex items-center justify-between gap-6">
+        <div className="min-w-0">
+          <p className="text-qd-muted flex items-center gap-2 text-[clamp(14px,1.15vw,22px)]">
+            <Volume2Icon className="size-[1.1em] shrink-0" aria-hidden />
+            {spokenNote(sound)}
+          </p>
+          <ConnectionStatus status={status} />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canLeave ? (
+            <Button asChild variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5">
+              <Link href="/queue">Back to the queue</Link>
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
+            aria-label={sound.on ? "Turn sound off" : "Turn sound on"}
+            aria-pressed={sound.on}
+            onClick={sound.toggle}
+          >
+            {sound.on ? <Volume2Icon aria-hidden /> : <VolumeXIcon aria-hidden />}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
+            aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+            aria-pressed={fullscreen}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? <MinimizeIcon aria-hidden /> : <MaximizeIcon aria-hidden />}
+          </Button>
+          <SettingsMenu sound={sound} />
+        </div>
+      </footer>
+
+      {/* New calls are announced to screen readers; the visual call is not repeated here. */}
+      <p className="sr-only" aria-live="assertive" aria-atomic="true">
+        {current ? callAnnouncement(current) : ""}
+      </p>
     </div>
   );
 }
 
-/**
- * A short two-tone chime when the call shown changes. Off until someone turns it on at the screen (browsers only play
- * sound after a click there); never on the first render.
- */
-function useChime(callKey: string | null): { on: boolean; toggle: () => void } {
-  const [on, setOn] = React.useState(false);
-  const audio = React.useRef<AudioContext | null>(null);
-  const previous = React.useRef<string | null | undefined>(undefined);
-
-  React.useEffect(() => {
-    if (on && audio.current && shouldChime(previous.current, callKey)) playChime(audio.current);
-    previous.current = callKey;
-  }, [callKey, on]);
-
-  const toggle = () => {
-    if (!on) {
-      audio.current ??= new AudioContext();
-      void audio.current.resume();
-      playChime(audio.current);
-    }
-    setOn(!on);
-  };
-  return { on, toggle };
+/** The footer's one line about what the screen does when a number is called. */
+function spokenNote(sound: DisplaySound): string {
+  if (!sound.on) return "Sound is off. Tap the speaker to hear calls.";
+  switch (sound.settings.voice) {
+    case "en":
+      return "Calls are read out in English.";
+    case "fil":
+      return "Calls are read out in Filipino.";
+    case "both":
+      return "Calls are read out in English and Filipino.";
+    default:
+      return "A chime sounds when a number is called.";
+  }
 }
 
-function playChime(context: AudioContext) {
-  const start = context.currentTime;
-  [660, 880].forEach((frequency, i) => {
-    const at = start + i * 0.35;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.3, at + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.6);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(at);
-    oscillator.stop(at + 0.65);
+/** Connection text with its own icon (a dropped feed never changes only a colour). */
+function ConnectionStatus({ status }: { status: LiveStatus }) {
+  const Icon = status === "live" ? RadioIcon : status === "connecting" ? RefreshCwIcon : WifiOffIcon;
+  return (
+    <p
+      role="status"
+      className={cn(
+        "mt-0.5 inline-flex items-center gap-2 text-[clamp(12px,0.95vw,18px)] font-medium",
+        status === "live" ? "text-qd-live-text" : "text-qd-ink",
+      )}
+    >
+      {status === "live" ? <span className="bg-qd-live-dot size-2.5 rounded-full" aria-hidden /> : null}
+      <Icon className={cn("size-[1em]", status === "connecting" && "motion-safe:animate-spin")} aria-hidden />
+      {displayStatusLabel(status)}
+    </p>
+  );
+}
+
+/** True for a few seconds after a new call replaces the one shown (not on the page's first render). */
+function useCallHighlight(callKey: string | null): boolean {
+  const [highlighted, setHighlighted] = React.useState(false);
+  const previous = React.useRef<string | null | undefined>(undefined);
+  React.useEffect(() => {
+    const changed = previous.current !== undefined && callKey !== null && callKey !== previous.current;
+    previous.current = callKey;
+    if (!changed) return;
+    // Starting the highlight is the point of this effect: a new call arrived from the live feed.
+    setHighlighted(true);
+    const timer = setTimeout(() => setHighlighted(false), CALL_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [callKey]);
+  return highlighted;
+}
+
+interface DisplaySound {
+  on: boolean;
+  settings: DisplaySoundSettings;
+  speechAvailable: boolean;
+  toggle: () => void;
+  setLevel: (level: SoundLevel) => void;
+  setVoice: (voice: VoiceLanguage) => void;
+  test: () => void;
+}
+
+/** The settings: a gear in the footer that opens sound on/off, volume, whether the call is read out, and a test of what the screen will do. */
+function SettingsMenu({ sound }: { sound: DisplaySound }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0" aria-label="Settings">
+          <SettingsIcon aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="top" className="w-80 space-y-4">
+        <div className="space-y-1">
+          <p className="text-body font-medium">Sound</p>
+          <p className="text-meta text-muted-foreground">A chime when a ticket is called. Browsers play sound only after a click on this screen.</p>
+          <Button variant={sound.on ? "outline" : "default"} size="sm" onClick={sound.toggle} aria-pressed={sound.on}>
+            {sound.on ? <VolumeXIcon /> : <Volume2Icon />} {sound.on ? "Turn off sound" : "Turn on sound"}
+          </Button>
+        </div>
+        <fieldset className="space-y-1.5">
+          <legend className="text-body font-medium">Volume</legend>
+          <ToggleGroup type="single" value={sound.settings.level} onValueChange={(value) => value && sound.setLevel(value as SoundLevel)} aria-label="Volume">
+            <ToggleGroupItem value="quiet">Quiet</ToggleGroupItem>
+            <ToggleGroupItem value="normal">Normal</ToggleGroupItem>
+            <ToggleGroupItem value="loud">Loud</ToggleGroupItem>
+          </ToggleGroup>
+        </fieldset>
+        <fieldset className="space-y-1.5">
+          <legend className="text-body font-medium">Read the call out</legend>
+          <ToggleGroup
+            type="single"
+            value={sound.settings.voice}
+            onValueChange={(value) => value && sound.setVoice(value as VoiceLanguage)}
+            aria-label="Read the call out"
+            disabled={!sound.speechAvailable}
+          >
+            <ToggleGroupItem value="off">Off</ToggleGroupItem>
+            <ToggleGroupItem value="en">English</ToggleGroupItem>
+            <ToggleGroupItem value="fil">Filipino</ToggleGroupItem>
+            <ToggleGroupItem value="both">Both</ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-meta text-muted-foreground">
+            {sound.speechAvailable
+              ? "After the chime: “Number A 0 0 7, please proceed to Room 2”, with the voices installed on this device (a Filipino voice is not available everywhere)."
+              : "This browser cannot read text out."}
+          </p>
+        </fieldset>
+        <Button variant="outline" size="sm" onClick={sound.test} disabled={!sound.on}>
+          <Play /> Test
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ---- this browser's sound settings as an external store ---------------------------------------------------------------
+
+const soundSettingsListeners = new Set<() => void>();
+/** Settings kept for this page load when storage is blocked (private window). */
+let memorySettings: string | null = null;
+
+function subscribeToSoundSettings(listener: () => void): () => void {
+  soundSettingsListeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    soundSettingsListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+function notifySoundSettings(): void {
+  for (const listener of soundSettingsListeners) listener();
+}
+
+/** The stored settings text (a string, so equal values are the same snapshot); null when nothing is stored or storage is blocked. */
+function readStoredSoundSettings(): string | null {
+  try {
+    return window.localStorage.getItem(SOUND_SETTINGS_KEY) ?? memorySettings;
+  } catch {
+    return memorySettings;
+  }
+}
+
+const subscribeNever = () => () => undefined;
+
+/**
+ * The chime (and, when chosen, the spoken call) whenever the call shown changes. Off until someone turns it on at the
+ * screen (browsers only play sound after a click there); never on the first render. Volume and voice are kept in this
+ * browser's storage, so the screen keeps them across reloads; whether sound is on is not — it needs the click.
+ */
+function useDisplaySound(callKey: string | null, current: { ticket: string; calledTo: string } | null): DisplaySound {
+  const [on, setOn] = React.useState(false);
+  // Read from this browser's storage without a render-then-effect round trip: the server render (and hydration) use the defaults.
+  const storedSettings = React.useSyncExternalStore(subscribeToSoundSettings, readStoredSoundSettings, () => null);
+  const settings = React.useMemo(() => parseSoundSettings(storedSettings), [storedSettings]);
+  const speechAvailable = React.useSyncExternalStore(subscribeNever, canSpeak, () => false);
+  const audio = React.useRef<AudioContext | null>(null);
+  const previous = React.useRef<string | null | undefined>(undefined);
+  const speakTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = React.useRef({ settings, current });
+  // Refs are written after the render commits, never during it.
+  React.useEffect(() => {
+    latest.current = { settings, current };
   });
+
+  React.useEffect(() => {
+    // Chrome loads voices after the first ask; asking now has them ready for the first announcement.
+    if (canSpeak()) window.speechSynthesis.getVoices();
+    return () => {
+      if (speakTimer.current) clearTimeout(speakTimer.current);
+      stopSpeaking();
+    };
+  }, []);
+
+  const play = React.useCallback((call: { ticket: string; calledTo: string } | null) => {
+    const context = audio.current;
+    if (!context) return;
+    const { settings: now } = latest.current;
+    const gain = SOUND_LEVEL_GAIN[now.level];
+    const seconds = playChime(context, gain);
+    if (speakTimer.current) clearTimeout(speakTimer.current);
+    stopSpeaking();
+    const lines = call ? announcements(call, now.voice) : [];
+    if (lines.length) speakTimer.current = setTimeout(() => speak(lines, gain), seconds * 1000 - 400);
+  }, []);
+
+  React.useEffect(() => {
+    // The call read out is the one the key names: it changes together with the key.
+    if (on && shouldChime(previous.current, callKey)) play(latest.current.current);
+    previous.current = callKey;
+  }, [callKey, on, play]);
+
+  const save = (next: DisplaySoundSettings) => {
+    try {
+      window.localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage blocked: kept for this page load only.
+      memorySettings = JSON.stringify(next);
+    }
+    notifySoundSettings();
+  };
+
+  return {
+    on,
+    settings,
+    speechAvailable,
+    toggle: () => {
+      if (!on) {
+        audio.current ??= new AudioContext();
+        void audio.current.resume();
+        play(null);
+      } else {
+        if (speakTimer.current) clearTimeout(speakTimer.current);
+        stopSpeaking();
+      }
+      setOn(!on);
+    },
+    setLevel: (level) => save({ ...latest.current.settings, level }),
+    setVoice: (voice) => save({ ...latest.current.settings, voice }),
+    test: () => play(latest.current.current ?? { ticket: "A-001", calledTo: "Room 1" }),
+  };
+}
+
+// ---- full screen, as the browser reports it (Esc or the button can end it) ---------------------------------------------------
+
+function subscribeToFullscreen(listener: () => void): () => void {
+  document.addEventListener("fullscreenchange", listener);
+  return () => document.removeEventListener("fullscreenchange", listener);
+}
+
+const isFullscreen = () => document.fullscreenElement !== null;
+
+/** Enters full screen, or leaves it when already there. */
+function toggleFullscreen(): void {
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  else void document.documentElement.requestFullscreen?.().catch(() => undefined);
 }
 
 /** Keeps the screen from sleeping while the display is shown (where the browser supports it). */

@@ -1,13 +1,12 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier, StockRow } from "@/lib/api/types";
-import { InventoryNav } from "./inventory-nav";
 import { MovementForm } from "./movement-form";
 import { ExpiryStatus, StockStatus } from "./stock-status";
 
@@ -22,19 +21,11 @@ const FILTERS = [
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ show?: string; location?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Inventory" actions={nav} />
+      <ModulePage title="Inventory">
         <FacilityRequired action="Stock is kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const show = FILTERS.find((f) => f.key === params.show)?.key ?? "all";
@@ -52,9 +43,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const canAdjust = can(session, "inventory.adjust");
   const href = (key: string) => `/inventory?show=${key}${params.location ? `&location=${params.location}` : ""}`;
   return (
-    <>
-      <PageHeader title="Inventory" description={`${facility.name} · medicines, supplies and reagents by location, lot and expiry`} actions={nav} />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage title="Inventory" description={`${facility.name} · medicines, supplies and reagents by location, lot and expiry`}>
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex flex-wrap items-center gap-1">
             {FILTERS.map((f) => (
@@ -77,7 +67,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <Card className="py-0">
             {stock.rows.length === 0 ? (
               <p className="p-4 text-body text-muted-foreground">
-                {locations.length === 0 ? "No storage locations at this facility yet (see Catalog)." : "Nothing to show."}
+                {locations.length === 0 ? "No storage locations at this facility yet (see Settings → Inventory catalog)." : "Nothing to show."}
               </p>
             ) : (
               <Table>
@@ -141,6 +131,6 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           />
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

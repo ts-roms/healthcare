@@ -26,6 +26,8 @@ Appointment (or walk-in) → check-in → queue (visit) → triage + vitals → 
 | `appointment`                                       | `booked → confirmed → checked_in → completed`, or `cancelled` / `no_show`. **Exclusion constraints** prevent double-booking a practitioner or a room                                                                                                                                                                                           |
 | `appointment_waitlist_entry`                        | Waiting list, fulfilled by booking                                                                                                                                                                                                                                                                                                             |
 | `visit` (+ `facility_queue_counter`)                | One arrival = one queue entry. Daily ticket per facility (`A-001`). One active visit per patient per facility                                                                                                                                                                                                                                  |
+| `service_point`, `visit_routing`                    | The facility's own service points (consultation, emergency, imaging, other) and the append-only history of a visit's moves between them; `visit.service_point_id` null = the ordinary consultation line (migration `0113`, "Service points" below)                                                                                             |
+| `visit_route_step`, `service_point_setting`         | A visit's planned sequence of service points (one row per stop; the planning never rewritten, each step's progress forward only — trigger) and the facility's routing settings (call the patient automatically when a route sends them on); migration `0115`, "Visit routes" below                                                             |
 | `triage_assessment`, `vital_sign_set`               | Corrections mark entered-in-error; never deleted                                                                                                                                                                                                                                                                                               |
 | `allergy_intolerance`, `allergy_review`             | Active allergies; "no known allergies" is a recorded review, distinct from "not reviewed". It holds only if asserted after the last change to the allergy list (a later allergy, even resolved or entered in error, makes it "not reviewed" again)                                                                                             |
 | `encounter`, `encounter_note_revision`, `diagnosis` | Note revisions are append-only (trigger): drafts, the signed revision, amendments with reason                                                                                                                                                                                                                                                  |
@@ -124,7 +126,7 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
   consent (`consent_required`). A printable form for one patient — letterhead, identification, the procedure, the current
   wording and its version, signature lines — comes from `GET /clinic/procedure-definitions/:id/consent-form.pdf?patientId=`
   (`encounter.read` + `patient.read`, audited `clinic.procedure-consent-form.print`, not stored; the signed form is
-  uploaded as a `consent_form` document). The consent is recorded against the procedure (`clinic_procedure_consent`, one
+  uploaded as a `consent_form` document, or signed on screen — below). The consent is recorded against the procedure (`clinic_procedure_consent`, one
   per procedure, append-only): captured on paper, electronically (the wording version shown is required) or verbally;
   by the patient or a representative named as written with the relationship; who obtained it (the performer by default)
   and when (the performed time by default; never after it, `consent_after_procedure`); an optional scan (a `consent_form`
@@ -134,6 +136,9 @@ a consultation and the like; not dental work (`libs/dental`) or vaccinations (im
   how captured, wording version, whether a scan is linked — never names or notes). Refusals are not recorded: a procedure
   not performed has no record. What a valid informed consent must say and who may consent for a minor or an
   incapacitated patient are compliance dependencies; nothing here decides them.
+- **Signing the consent form on screen** (electronic signatures phase 1, migration `0120`, `docs/architecture/electronic-signatures.md`): `POST /clinic/procedure-definitions/:id/consent-form/sign` (`procedure.record` + `patient.read`, facility) takes the patient, a client-chosen `requestId` (the document id; a retry finds the same document), who signed (`patient`, or `representative` with the relationship as written), the signer's name as printed, what the member of staff checked to identify them, and the drawn strokes (polylines of [x, y] in 0..1; some real ink, at most 64 strokes and 3000 points: `signature_empty`, `signature_too_large`). The same form is rendered with the mark, the name, the time, the witness and a verification line, stored once as a `consent_form` document of the patient (`DocumentsService.storeGenerated`), and the evidence is kept append-only in `document_signature` in the same transaction: signer, identity check, method `drawn`, the strokes, the witness, the device's user agent and the SHA-256 of the text agreed to (wording id, version, title and text, patient number, procedure code — recomputable from the records). The document id is then linked as the consent's `documentId` (captured electronically); nothing is signed or decided otherwise. Audited `document.sign` (ids and kinds only; never the strokes, names or what was checked). `GET /documents/:id/signatures` (`document.read`, audited `document.signatures.view`) lists the evidence without the strokes. Staff: **Sign on screen** in the consent part of the procedure form and of **Record consent…**; the paper route stays. Whether a drawn signature is valid for a given document, and who may sign for whom, are the organization's decisions (compliance register).
+- **Signing in MyHealth and for minors** (electronic signatures phase 2, migration `0121`): the organization's choices (`consent_signing_setting`, `GET|PUT /clinic/consent-signing/settings`, `clinic.configure`, versioned, audited `clinic.consent-signing-settings.update`; staff `/clinic/procedures`) are the age under which a parent or guardian signs (`minor_age_years`, 18 as a reference until the organization confirms its own; null = no rule), whether patients sign in MyHealth (off by default) and how many days a request stays open (default 14). A **signature request** (`consent_signature_request`; `POST|GET /patients/:id/consent-signature-requests`, `POST /consent-signature-requests/:id/cancel` with a reason, `procedure.record`; staff patient **Procedures** page) fixes the wording version it asks the patient to read, records whether a representative must sign (`representative_required`, from the patient's age on the organization's rule), is open for one patient and procedure at a time (`request_already_open`) and moves only pending → signed or cancelled (trigger). The patient (and, with live guardian grants that allow "act", each guardian) is told in MyHealth, by SMS or email and push without detail (`records.update` kind `form-ready`, `ConsentSignatureRequested`). MyHealth `/forms` (`GET /portal/forms`, `/portal/forms/count`, `POST /portal/forms/:id/sign`, `@ProxyAllowed()`, audited `portal.consent-forms-view`, `portal.consent-form-sign`) shows the fixed wording and signs by drawing after the API has confirmed the account holder's password again (a wrong one counts toward the sign-in lockout; `invalid_credentials`). A minor's form is refused to the patient's own account and signed by a guardian acting for them (`minor_requires_representative`; the same rule applies to signing at the clinic, where the patient is refused as signer); a view-only guardian cannot sign. The signed form is stored as a `consent_form` document whose id is the request's ("signed in MyHealth"), the evidence records the account, the guardian grant and `identity_method = portal_password` (no witness) in `document_signature`, the request becomes `signed` in the same transaction, `ConsentSignatureSigned` (ids only). Expired requests are neither listed nor signable. Who may sign for whom stays the clinic's own guardian grant; nothing here decides age of majority, guardianship or validity (compliance register).
+- **Practitioner signature on certificates and referral letters** (electronic signatures phase 3, migration `0122`, `docs/architecture/electronic-signatures.md`): a practitioner draws their own signature under My account (`GET|PUT /me/practitioner-signature`, `POST …/withdraw`; strokes, no upload; only they see or change it); the organization turns printing on (`practitioner_signature_setting`, off by default, `clinic.configure`; staff `/clinic/signatures`). The signature in force when a certificate or referral is issued is recorded on it (`practitioner_signature_id`, immutable) and the stored PDF is drawn from that record above the practitioner's name and license line, so a later change never alters an issued document; voiding or cancelling re-renders from the recorded one. Cosmetic: the issuer's authentication is the control.
 - **Note template** (migration `0095`): the organization's own text per catalogue entry (`note_template`, ≤ 2000) that
   prefills the notes when the entry is chosen; the stored note is what the clinician submitted (an untouched template is
   replaced when another entry is chosen; typed text stays). No placeholders, no clinical rule.
@@ -222,8 +227,9 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
 
 ## Rules
 
-- Queue order: priority (`emergency`, `urgent`, `routine`), then arrival. Transitions are a state machine
-  (`domain/queue-state.ts`); closing without care requires a reason.
+- Queue order: priority (`emergency`, `urgent`, `routine`), then arrival — within a service point too. Transitions are a state machine
+  (`domain/queue-state.ts`); closing without care requires a reason. A visit is routed to a service point only from
+  `in_triage` or `awaiting_consultation` ("Service points" below).
 - Vital signs are validated against wide plausibility limits (`domain/vital-signs.ts`): impossible values are rejected,
   never corrected. The platform does **not** label values normal/abnormal. BMI is computed for display.
 - Only a practitioner linked to the signed-in account (physician, dentist, midwife) can start an encounter; only the
@@ -245,7 +251,7 @@ cancelled`, `accepted → completed | cancelled`; declined, completed and cancel
 ## Events
 
 `AppointmentBooked`, `AppointmentConfirmed`, `AppointmentRescheduled`, `AppointmentCancelled`, `AppointmentNoShow`,
-`AppointmentCheckedIn`, `QueueEntryUpdated`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
+`AppointmentCheckedIn`, `QueueEntryUpdated`, `VisitRouted`, `TriageCompleted`, `EncounterStarted`, `EncounterCompleted`,
 `EncounterAmended`, `DiagnosisRecorded`, `ClinicProcedurePerformed`, `ClinicProcedureEnteredInError` (billing charges and
 cancels). Consumers: appointment reminders (SMS 24 h before, withdrawn on
 cancel/reschedule/no-show), the no-show follow-up (`AppointmentNoShow` → SMS + MyHealth "we missed you, book again" — skipped when the patient
@@ -262,8 +268,8 @@ booked, moved or cancelled in MyHealth; payload flags `bookedByPatient` / `chang
 
 `/clinic/{practitioners,rooms,visit-types,coding-systems,schedules,schedule-exceptions}`,
 `/appointments` (+ `availability`, `:id/{confirm,reschedule,cancel,no-show,check-in}`), `/waitlist`,
-`/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
-`/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`.
+`/clinic/service-points` (+ `:id`), `/queue` (+ `walk-ins`, `display`, `visits/:id/{move,call,assign,triage,route,routing}`), `/vital-signs`, `/patients/:id/{allergies,allergy-reviews}`,
+`/encounters` (+ `:id/{note,sign,amendments,revisions,entered-in-error,diagnoses}`), `/clinic/dashboard`, `/clinic/dashboard/load` (`clinic.dashboard.read`, facility; `from`/`to` local dates, at most 62 days: per day the appointments scheduled and holding a slot against the slots the schedules offer less leave and closures; counts only, for the dashboard's calendar and week).
 Realtime: Socket.IO namespace `/realtime`, event `queue.updated` (ids and status only; laboratory updates share the socket, see `docs/domains/laboratory.md`); browsers connect with a ticket from `POST /auth/realtime-tickets` (see `docs/security/access-control.md`).
 Queue rows also carry the visit's `encounterId` once a consultation starts (entered-in-error encounters are ignored). Queue and schedule rows (`GET /queue`, `GET /appointments`) include a minimal patient brief (patient number, display name, sex, age) and
 no contact or clinical details; listing a schedule is audited as `appointment.list`.
@@ -318,10 +324,154 @@ before it and how many wait (migration `0112`).
   Where staff two-step verification is required, the account is exempted with a reason. Receptionists and
   organization administrators hold the permission too and open the display from the queue page.
 - Staff app `/display/queue`: no navigation; current call in large type, earlier calls, the waiting count, the
-  facility's local time, an optional two-tone chime (Web Audio, turned on with one click at the screen), a screen
-  wake lock and full screen. English labels; the room text is whatever staff typed.
-- Not built: separate queues per service point, ticket printing or a kiosk, spoken announcements, and priority lanes
-  (which the organization would first confirm against current rules).
+  facility's local time, an optional bell-like chime (Web Audio, turned on with one click at the screen; quiet, normal or
+  loud) and an optional spoken announcement after it through the browser's speech synthesis — "Number A 0 0 7, please
+  proceed to Room 2", in English, Filipino or both, the ticket spelled out character by character and the place as
+  typed; the device's installed voices, nothing sent anywhere — with the level and voice choice kept in the screen's
+  browser storage (`apps/staff/src/lib/queue-display.ts`, `queue-display-sound.ts`), a screen wake lock and full screen.
+  English labels; the room text is whatever staff typed.
+- Not built: ticket printing or a kiosk, announcements over a public-address system, and priority lanes (which the organization would first
+  confirm against current rules). Service points (below) do not change the display: a call still shows the ticket and the
+  place typed, never the service point.
+
+## Service points
+
+Migration `0113` (ADR-0014). An LGU hospital's outpatient department is not one line: after triage a patient goes to
+the consultation line, the emergency room, X-ray or another station. The organization defines its own **service
+points** per facility; a visit is sent to one at the end of triage (or later from the queue board) and the board shows
+one service point at a time. Nothing national is assumed: no ESI or Manchester triage scale, no emergency-care rule, no
+list of stations.
+
+- `service_point` (per facility): `code` (lower-case, fixed), `name`, `kind` `consultation` | `emergency` | `imaging` |
+  `other` (how the staff app labels and orders it; nothing else hangs on it), `status` active/inactive, `version`.
+  `GET /clinic/service-points?facilityId=` (`clinic.queue.read`; `includeInactive=true` for all), `POST
+/clinic/service-points` and `PATCH /clinic/service-points/:id` (name, kind, status; `clinic.configure`; audited
+  `service-point.create` / `service-point.update` with before and after). Deactivating one keeps every visit that
+  names it; it only refuses new routing (`service_point_inactive`). Staff `/admin/service-points` (the selected
+  facility's list; add, rename, change the kind, deactivate, reactivate).
+- `visit.service_point_id` (nullable, same facility by composite key). **Null is the single consultation line that
+  existed before** — every earlier visit and every screen keeps working, and an organization that never sets up
+  service points sees no change.
+- `visit_routing` (append-only, trigger): one row per move — visit, from and to service point (from null for the
+  first), who routed, an optional reason, when. The visit's past is never rewritten; `GET /queue/visits/:id/routing`
+  (`clinic.queue.read`) lists it with the service points' names.
+- Routing: `POST /queue/visits/:id/route` `{ servicePointId, reason?, version }` (`clinic.queue.manage`, the
+  permission that moves and calls visits), or `servicePointId` on `POST /queue/visits/:id/triage`
+  (`clinic.triage.write`): triage records the assessment, advances the visit and routes it in **one transaction**.
+  Allowed from `in_triage` and `awaiting_consultation` only (`canRouteVisit` in `domain/queue-state.ts`): a waiting
+  patient is triaged first, a patient with the provider is not moved, a closed visit cannot be routed
+  (`visit_not_routable`). The target must be an active service point of the visit's facility; routing to the one
+  the visit is already at is refused by the command (`already_at_service_point`) and skipped by triage (the picker
+  shows the current one). Audited `visit.route` (from → to, reason); `VisitRouted` event (ids only) beside
+  `QueueEntryUpdated`, whose payload now carries `servicePointId`.
+- The queue of a service point is the facility queue filtered to it, in the same service order — priority
+  (`emergency`, `urgent`, `routine`), then arrival (`servicePointQueue` in `domain/queue-state.ts`). `GET
+/queue?servicePointId=` returns one service point's visits; without it, the whole facility. Rows carry
+  `servicePointId` and `servicePoint { id, code, name, kind }`. Staff `/queue` has a service-point switcher (**All
+  service points** or one of them, kept in the URL so live refreshes keep it), the ticket panel shows where the
+  patient was sent and offers **Send to** for routable visits, and the triage page ends with **Send to**
+  (defaulting to the visit's service point, else the first `consultation` service point, else the ordinary
+  consultation line).
+- The waiting-room display is unchanged: ticket and the place typed at the call, never the service point.
+
+Out of scope for this slice, each its own decision later: imaging orders and a radiology worklist (a service point of
+kind `imaging` is a queue, not an order), triage scales (ESI, Manchester) and any rule about who goes to the
+emergency room, beds and observation, a ticket series per service point, kiosks, and routing on check-in (a visit
+always starts on the facility's line; the nurse decides at triage). Who may send a patient where is the
+organization's policy, recorded in the [compliance register](../security/compliance-dependencies.md).
+
+## Visit routes
+
+Migration `0115`. After triage a patient often has more than one stop ahead — the laboratory, then X-ray, then back
+to the doctor — and the desk had to remember the sequence and move the ticket by hand each time. A **route** is the
+planned sequence of service points for one visit. Finishing the step at the current service point is a person's click
+(**Done here, send on**): the visit moves to the next planned service point through the ordinary routing history, and
+the facility may choose to have the patient **called there automatically**, so the waiting-room display shows and
+announces it ("A-002 → Laboratory, 2nd floor") with no change to the display itself.
+
+- `service_point.location` (≤ 60 characters, optional): what the display says when a route sends a patient to the
+  service point; the name when unset. Set with the service point (`POST`/`PATCH /clinic/service-points`; audited with
+  before and after).
+- `service_point_setting` (per facility; defaults without a row): `auto_call_on_route`, off by default; `seniors_first` (migration `0123`), off by default: a routine visit of a patient aged 60 or older (`SENIOR_AGE`, an indicator, not a legal test) is listed before other routine visits, urgent and emergency visits stay ahead, arrival order within each group (`compareQueueOrder` with `senior`; only the order of `GET /queue` changes, the waiting-room display shows no order). Staff see a Senior badge on tickets of patients 60 or older whether or not the lane is on. `GET
+/clinic/service-point-settings?facilityId=` (`clinic.queue.read`; the queue page reads it to say what "send on"
+  will do) and `PUT /clinic/service-point-settings` `{ facilityId, autoCallOnRoute, version? }` (`clinic.configure`;
+  audited `service-point-setting.update`; stale `version` → `409`). Staff `/admin/service-points`, **Routes**.
+- `visit_route_step`: visit, `position`, service point, `status` `planned` | `current` | `done` | `skipped` |
+  `removed`, who planned it and when, `started_at` (the visit arrived there), `completed_at` / `completed_by`, and
+  `note` — the note left at "done here" or the reason for skipping (required then). A trigger keeps the planning
+  itself immutable (which service point, where in the order, by whom) and lets a step's progress move forward only:
+  planned → current → done; planned or current → skipped; planned → removed (dropped from the plan by a re-plan,
+  never a current or finished step); done, skipped and removed are final; never deleted. Positions are unique among
+  the steps still in the plan (a removed step frees its position); one `current` step per visit. Rules in
+  `domain/queue-state.ts`: `currentRouteStep`, `nextRouteStep` (the planned step with the lowest position),
+  `routeInPlan`, `routeComplete`, `canAdvanceRoute` and `routePlanProblem` (unit-tested).
+- Planning. At triage: `servicePointId` is the first stop and `route` (≤ 10 service point ids, in order) the stops
+  after it — `POST /queue/visits/:id/triage` routes to the first stop, makes it the route's `current` step and plans
+  the rest in the same transaction (a `route` without `servicePointId` is a validation error). From the queue board:
+  `PUT /queue/visits/:id/route-plan` `{ servicePointIds, version }` (`clinic.queue.manage`) sets the stops still
+  ahead — planned steps become `removed`, done, skipped and the current step stay — allowed in the routable states
+  only (`visit_not_routable`); each stop must be an active service point of the facility (`service_point_inactive`)
+  and may not repeat the stop before it, nor the one the visit is at (`route_step_repeated`). Audited
+  `visit.route-plan` (step ids and codes); event `VisitRoutePlanned` (ids). `GET /queue/visits/:id/route` lists the
+  steps in plan order with their service points (removed ones left out); `GET /queue` rows carry the same as `route`.
+- **Done here, send on**: `POST /queue/visits/:id/route/next` `{ note?, version }` (`clinic.queue.manage`). The
+  current step (if the visit is at one) is marked `done` with the note; the next planned step's service point is
+  routed to through `VisitService.routeIn` — so `visit_routing`, `VisitRouted`, the `visit.route` audit and
+  `QueueEntryUpdated` stay the single record of where a visit went — and becomes `current`; when the facility's
+  `auto_call_on_route` is on, the patient is called there (`called_at` / `called_to` = the service point's
+  `location` or name, audited `visit.call` with `automatic: true`, the same `QueueEntryUpdated`), so the display
+  announces it. At the last stop the step is marked done and the visit stays (`called: false`); with nothing current
+  or planned the command is refused (`route_complete`; `no_route` when nothing was ever planned). A visit on a line
+  that is not in its plan (say, the consultation line with a plan made from the board) is sent to its first planned
+  stop. Audited `visit.route-advance`; event `VisitRouteAdvanced` `{ doneStepId, nextStepId, called }`. The answer
+  carries the visit, the route and `called`.
+- **Skip**: `POST /queue/visits/:id/route/skip` `{ stepId, reason, version }` — a planned step is marked `skipped`
+  and nothing moves; the current step is marked `skipped` and the visit moves on to the next planned stop exactly as
+  "done here" would (with the call when the facility calls automatically). A finished step cannot be skipped
+  (`route_step_final`). Audited `visit.route-skip` with the reason.
+- Staff `/queue`: cards show "next: X-ray" while a stop is ahead; the ticket panel's **Route** section lists the stops
+  (done, skipped, here, planned — colour, icon and text) and offers **Done here, send on** (with an optional note and
+  a line saying where the patient goes and whether they will be called), **Skip step…** (step and reason) and
+  **Plan route…** / **Change next stops…** (`route-panel.tsx`, `components/route-stops-editor.tsx`). The triage
+  **Send to** card is now **Route**: the first stop plus **Then** the stops after it (the existing single-stop
+  behaviour is unchanged when none is added; a repeat triage starts from the stops already planned).
+- The waiting-room display is unchanged: a call made by a route is a call like any other (ticket and the location
+  typed or configured), never the route.
+
+**Nothing clinical moves a patient.** A specimen collected, a procedure recorded or an encounter signed completes no
+step: every move is a person's click, so the person at the station confirms the patient really is done there. Automatic
+completion from clinical events is a documented follow-up (each event would need its own rule about what "done here"
+means — a specimen collected is not a laboratory visit finished); so are a timer on a step, routes planned at check-in
+or from an appointment's visit type. Who may plan or change a route is the
+organization's policy ([compliance register](../security/compliance-dependencies.md)).
+
+## Route templates
+
+Migration `0116`. A facility names the routes it plans again and again — "Annual check-up: Triage Room → Laboratory → X-ray
+→ Consultation" — so the nurse picks one instead of adding each stop by hand.
+
+- **A recipe, not a route.** `route_template` (code and name per facility, status, version) with `route_template_step`
+  (the service points in order, at most 10; the same one may return later but never twice in a row — the same
+  `routePlanProblem` rule as a visit's own route). Applying a template writes the ordinary `visit_route_step` rows through
+  triage (`servicePointId` + `route`) or `PUT /queue/visits/:id/route-plan`, so the progress, the announcements and every
+  rule above are unchanged, and editing a template later never changes a route already planned.
+- **Offered, never imposed.** `route_template_default` names the template offered first for a visit type at a facility
+  (one per visit type and facility; visit types belong to the organization, routes to a facility). At triage it is
+  pre-selected only while the visit has no service point or planned stops yet, and the nurse can change or clear it. Nothing
+  clinical chooses a template.
+- **Usable.** A template whose stop was deactivated since is `usable: false`: listed for the administrator with a warning,
+  not offered to nurses, and it cannot be saved with an inactive stop.
+- **API.** `GET /clinic/route-templates?facilityId=&includeInactive=` (`clinic.queue.read`; steps as the service points are
+  named now, `usable`, `defaultForVisitTypeIds`), `POST /clinic/route-templates` (`clinic.configure`; `409 route_template_exists`,
+  `422 route_step_repeated | service_point_unknown | service_point_inactive | visit_type_unknown`), `PATCH
+/clinic/route-templates/:id` (name, status, the whole list of stops, the visit types it is offered for; optimistic
+  `version`). Audited `route-template.create` and `route-template.update` (stops before and after). No domain event: nothing
+  else reacts to a template.
+- **Staff.** `/admin/service-points` → **Route templates** (add, edit, deactivate; **Offer first for these visit types**);
+  triage's **Route** card has a **Route template** select that fills **Send to** and **Then**; the ticket panel's **Plan
+  route…** has **Fill in from a template…** (the first stop is dropped when the patient is already there).
+- **Not built.** Completing a step from a clinical event, conditional or branching routes, and suggesting a route from the
+  complaint or the vitals (that would be decision support and needs its own labelling and override rules).
 
 ## Automatic no-shows and online check-in
 

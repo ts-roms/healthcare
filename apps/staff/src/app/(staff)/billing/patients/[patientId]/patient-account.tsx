@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { PiggyBankIcon, PlusIcon, PrinterIcon, RotateCcwIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { AccountEntry, PatientAccount, PaymentMethod, SharedAccount } from "@/lib/api/types";
 import { ACCOUNT_ENTRY_LABEL, addsToAccount, METHOD_LABEL, parsePesos, peso, pesoInput } from "@/lib/billing-mapping";
 import { fileHref } from "@/lib/files";
+import { useServerAction } from "@/lib/use-server-action";
 import { recordDeposit, refundAccount } from "../../actions";
 
 /**
@@ -113,23 +113,8 @@ function Entry({ entry: e }: { entry: AccountEntry }) {
   );
 }
 
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, submit };
-}
-
 function DepositForm({ patientId }: { patientId: string }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [amount, setAmount] = React.useState("");
   const [method, setMethod] = React.useState<PaymentMethod>("cash");
@@ -155,7 +140,7 @@ function DepositForm({ patientId }: { patientId: string }) {
           toast.error("Enter the amount in pesos, e.g. 1000.00");
           return;
         }
-        submit(
+        run(
           () => recordDeposit({ patientId, amount: centavos, method, reference: reference.trim() || undefined, idempotencyKey: key }),
           `Deposit of ${peso(centavos)} recorded`,
           () => {
@@ -201,7 +186,7 @@ function DepositForm({ patientId }: { patientId: string }) {
 }
 
 function RefundForm({ patientId, balance }: { patientId: string; balance: number }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [amount, setAmount] = React.useState(pesoInput(balance));
   const [method, setMethod] = React.useState<PaymentMethod>("cash");
@@ -226,7 +211,7 @@ function RefundForm({ patientId, balance }: { patientId: string; balance: number
           toast.error("Enter the amount in pesos");
           return;
         }
-        submit(
+        run(
           () => refundAccount({ patientId, amount: centavos, method, reason, idempotencyKey: key }),
           "Refund recorded",
           () => {

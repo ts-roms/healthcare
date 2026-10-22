@@ -9,6 +9,7 @@ import { SendOutBadge } from "@/components/send-out-badge";
 import type { LabSendOut, LabSendOutDispatchSummary, ReferenceLabSubmissionStatus } from "@/lib/api/types";
 import { fileHref } from "@/lib/files";
 import { byReferenceLaboratory, formatDuration } from "@/lib/lab-mapping";
+import { type RunServerAction, useServerAction } from "@/lib/use-server-action";
 import { cancelSendOut, dispatchSendOuts, recordSendOutRejected, recordSendOutResultsReceived, submitDispatchElectronically } from "../actions";
 
 interface Permissions {
@@ -65,20 +66,6 @@ export function SendOutsView({
 
 function Empty({ text }: { text: string }) {
   return <p className="rounded-md border bg-card p-4 text-body text-muted-foreground">{text}</p>;
-}
-
-function useRun(onChanged: () => void) {
-  const [pending, start] = React.useTransition();
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        onChanged();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
 }
 
 function PatientCell({ row }: { row: LabSendOut }) {
@@ -329,7 +316,7 @@ function AwaitingTable({ rows, permissions, onChanged }: { rows: LabSendOut[]; p
 }
 
 function ResultsBackForm({ row, onDone, onChanged }: { row: LabSendOut; onDone: () => void; onChanged: () => void }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [accession, setAccession] = React.useState("");
   return (
     <form
@@ -373,11 +360,11 @@ function ReasonForm({
   submitLabel: string;
   destructive?: boolean;
   withAccession?: boolean;
-  onSubmit: (reason: string, run: ReturnType<typeof useRun>["run"], accession?: string) => void;
+  onSubmit: (reason: string, run: RunServerAction, accession?: string) => void;
   onDone: () => void;
   onChanged: () => void;
 }) {
-  const { pending, run } = useRun(onChanged);
+  const { pending, run } = useServerAction({ refresh: onChanged });
   const [reason, setReason] = React.useState("");
   const [accession, setAccession] = React.useState("");
   const id = React.useId();

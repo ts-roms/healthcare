@@ -8,10 +8,6 @@
 
 import type { ToothFinding, ToothNotation, ToothSurface } from "@healthcare/domain";
 
-export interface ApiErrorBody {
-  error: { code: string; message: string; details?: unknown; requestId?: string };
-}
-
 export interface TokenResponse {
   status: "authenticated";
   accessToken: string;
@@ -200,6 +196,45 @@ export interface RegisteredPatient {
   id: string;
   patientNumber: string;
   version: number;
+  /** A QR code was issued with the registration (the organization's setting, unless the registering person declined). */
+  qrCodeIssued?: boolean;
+}
+
+// ---- Patient QR codes (docs/domains/patient.md) ------------------------------------------------------------------------
+
+export type PatientQrContent = "token" | "patient_number" | "portal_link";
+
+/** Whether the organization offers the staff app's guided tour (`GET /organization/tour-setting`). */
+export interface StaffTourSetting {
+  enabled: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface PatientQrSetting {
+  enabled: boolean;
+  issueAtRegistration: boolean;
+  inviteAtRegistration: boolean;
+  content: PatientQrContent;
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface PatientQrCode {
+  id: string;
+  status: "active" | "revoked";
+  content: PatientQrContent;
+  issuedVia: "registration" | "patient_record";
+  issuedAt: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+}
+
+export interface PatientQrState {
+  enabled: boolean;
+  /** `payload` is what the code encodes; draw it, never log it. */
+  active: (PatientQrCode & { payload: string }) | null;
+  history: PatientQrCode[];
 }
 
 // ---- Patient 360 summary (GET /patients/:id/summary; needs patient.read + clinical.read) -----------
@@ -423,10 +458,95 @@ export interface QueueVisit {
   encounterId: string | null;
   /** From the visit type; an online visit is started from Telemedicine. */
   modality: "in_person" | "telemedicine";
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePointId: string | null;
+  servicePoint: ServicePointBrief | null;
+  /** The visit's route (migration 0115), in order; empty when none was planned. */
+  route: RouteStep[];
 }
 
-/** A visit as returned by the queue commands (walk-in, check-in, move, call). */
-export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality">;
+/** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
+export type Visit = Omit<QueueVisit, "patient" | "waitingMinutes" | "encounterId" | "modality" | "servicePoint" | "route"> & { visitTypeId: string };
+
+// ---- Service points (migration 0113) -----------------------------------------------------------------
+
+export type ServicePointKind = "consultation" | "emergency" | "imaging" | "other";
+
+/** `GET /clinic/service-points` row: a queue line of the facility as the organization names it. */
+export interface ServicePoint {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  kind: ServicePointKind;
+  status: "active" | "inactive";
+  /** What the waiting-room display says when a route sends a patient here (migration 0115); the name when null. */
+  location: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type ServicePointBrief = Pick<ServicePoint, "id" | "code" | "name" | "kind" | "location">;
+
+/** `GET /clinic/route-templates` (migration 0116): the stops a facility plans again and again, applied to a visit's route by a person. */
+export interface RouteTemplate {
+  id: string;
+  facilityId: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  steps: ServicePointBrief[];
+  /** Active, and every stop is still an active service point. */
+  usable: boolean;
+  /** Visit types this template is offered first for at the facility. */
+  defaultForVisitTypeIds: string[];
+}
+
+/** `GET /clinic/service-point-settings` (migration 0115); `version` is null while the facility uses the defaults. */
+export interface ServicePointSettings {
+  facilityId: string;
+  autoCallOnRoute: boolean;
+  seniorsFirst: boolean;
+  version: number | null;
+  updatedAt: string | null;
+}
+
+export type RouteStepStatus = "planned" | "current" | "done" | "skipped";
+
+/** One stop of a visit's route (migration 0115), as `GET /queue` rows and `GET /queue/visits/:id/route` list them. */
+export interface RouteStep {
+  id: string;
+  position: number;
+  status: RouteStepStatus;
+  servicePointId: string;
+  servicePoint: ServicePointBrief | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** The note left at "done here", or the reason for skipping. */
+  note: string | null;
+}
+
+/** What the route commands answer (`PUT …/route-plan`, `POST …/route/next`, `POST …/route/skip`). */
+export interface VisitRouteResult {
+  visit: Visit;
+  route: RouteStep[];
+  /** The patient was called to the next stop's location (the facility calls automatically). */
+  called: boolean;
+}
+
+/** `GET /queue/visits/:id/routing` row: one move between service points (from null = the consultation line). */
+export interface VisitRouting {
+  id: string;
+  from: ServicePointBrief | null;
+  to: ServicePointBrief | null;
+  routedBy: string;
+  reason: string | null;
+  routedAt: string;
+}
 
 export type AppointmentStatusApi = "booked" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
 
@@ -756,6 +876,24 @@ export interface ClinicDashboard {
   providerWorkload: Array<{ practitionerId: string; displayName: string; booked: number; seen: number; waiting: number }>;
 }
 
+/** GET /clinic/dashboard/load: appointments and schedule slots per local day at the selected facility (counts only). */
+export interface ClinicLoadDay {
+  date: string;
+  /** Appointments that day, cancelled ones left out (no-shows count). */
+  scheduled: number;
+  /** Of them, the ones holding a slot (no-shows do not). */
+  booked: number;
+  /** Slots the weekly schedules offer that day, less leave and closures. */
+  slots: number;
+}
+export interface ClinicLoad {
+  facilityId: string;
+  timeZone: string;
+  from: string;
+  to: string;
+  days: ClinicLoadDay[];
+}
+
 /** GET /care-plans/activities/due row (recall list). */
 export interface DueCareActivity {
   id: string;
@@ -990,6 +1128,8 @@ export interface LabDashboard {
   facilityId: string;
   date: string;
   pendingCollection: number;
+  /** Of `pendingCollection`, the tests of STAT orders. */
+  statPendingCollection: number;
   awaitingReceipt: number;
   awaitingEntry: number;
   awaitingVerification: number;
@@ -1085,6 +1225,15 @@ export interface TelemedicineAppointment {
   visitType: string;
 }
 
+/** `GET /telemedicine/consultations/video-status`: whether video is set up and the video server answers right now. */
+export interface VideoReadiness {
+  configured: boolean;
+  /** Null when not configured. */
+  reachable: boolean | null;
+  checkedAt: string;
+  detail: string | null;
+}
+
 /** `GET /telemedicine/consultations` */
 export interface TelemedicineDay {
   date: string;
@@ -1111,8 +1260,43 @@ export interface TelemedicineQuestionnaire {
 }
 
 /** `GET /telemedicine/consultations/:appointmentId` and the actions' responses. */
+/** `GET /telemedicine/settings` (`clinic.configure`). */
+export interface TelemedicineSetting {
+  /** An online visit must be paid for before the patient may enter the waiting room. */
+  paymentRequired: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+
+/** Where payment for an online visit stands, on the consultation detail. Amounts in centavos. */
+export interface TelemedicinePayment {
+  required: boolean;
+  state: "not_required" | "unpaid" | "paid";
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  amount: number;
+  balance: number;
+}
+
+/** `GET /telemedicine/consultations/:id/messages` */
+export interface TelemedicineChat {
+  messages: Array<{ id: string; sender: "patient" | "staff"; name: string; body: string; sentAt: string }>;
+  open: boolean;
+}
+
+/** Which acknowledgement the patient confirmed: the organization's own wording (a version) or the platform's plain statement. */
+export interface TelemedicineAcknowledgement {
+  source: "organization" | "platform";
+  version: number | null;
+  title: string | null;
+}
+
 export interface TelemedicineConsultation {
   appointment: TelemedicineAppointment;
+  /** Only on `GET /telemedicine/consultations/:id`. */
+  acknowledgement?: TelemedicineAcknowledgement | null;
+  /** Only on `GET /telemedicine/consultations/:id`. */
+  payment?: TelemedicinePayment;
   session: TelemedicineSessionSummary & {
     questionnaire: TelemedicineQuestionnaire | null;
     redFlagLabels: string[];
@@ -1189,7 +1373,7 @@ export interface BillingCharge {
   serviceId: string;
   serviceCode: string;
   category: BillingCategory;
-  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package";
+  sourceType: "encounter" | "lab_order_item" | "dental_procedure" | "clinic_procedure" | "manual" | "package" | "appointment";
   description: string;
   quantity: number;
   unitPrice: number;
@@ -3894,10 +4078,14 @@ export type RecordsRequestScope = "consultations" | "laboratory" | "prescription
 export type RecordsRequestStatus = "submitted" | "in_review" | "fulfilled" | "declined" | "withdrawn";
 
 /** GET /records-requests */
+/** What the patient asks (migration 0114): copies, a correction, erasure or blocking, or an objection to a use. */
+export type RecordsRequestKind = "access" | "rectification" | "erasure" | "objection";
+
 export interface RecordsRequest {
   id: string;
   patientId: string;
   requestNumber: string;
+  kind: RecordsRequestKind;
   scope: RecordsRequestScope[];
   periodFrom: string | null;
   periodTo: string | null;
@@ -3934,6 +4122,56 @@ export interface RecordsRequestDetail extends RecordsRequest {
 
 export type RecordCopySection =
   "allergies" | "consultations" | "laboratory" | "prescriptions" | "care_plans" | "dental" | "certificates" | "documents" | "immunizations" | "history";
+
+// ---- Data privacy: the breach register and privacy settings (migration 0114) ---------------------------
+
+export type PrivacyDataCategory = "identifiers" | "contact" | "health" | "financial" | "credentials" | "other";
+export type PrivacyAssessment = "pending" | "notifiable" | "not_notifiable";
+export type PrivacyEntryKind = "reported" | "note" | "containment" | "assessment" | "npc_notified" | "subjects_notified" | "closed";
+
+/** `GET /privacy/setting`: the organization's own notification window and its DPO as named. */
+export interface PrivacySetting {
+  breachNotificationHours: number;
+  dpoName: string | null;
+  dpoContact: string | null;
+  /** 0 when never set. */
+  version: number;
+  updatedAt: string | null;
+}
+
+/** `GET /privacy/incidents` row. */
+export interface PrivacyIncident {
+  id: string;
+  incidentNumber: string;
+  title: string;
+  description: string;
+  discoveredAt: string;
+  occurredAt: string | null;
+  dataCategories: PrivacyDataCategory[];
+  affectedEstimate: number | null;
+  notifyBy: string;
+  status: "open" | "closed";
+  assessment: PrivacyAssessment;
+  assessmentReason: string | null;
+  assessedAt: string | null;
+  npcNotifiedAt: string | null;
+  npcReference: string | null;
+  subjectsNotifiedAt: string | null;
+  subjectsNotificationMethod: string | null;
+  closedAt: string | null;
+  closureNote: string | null;
+  reportedBy: string;
+  createdAt: string;
+  version: number;
+  notificationPending: boolean;
+  notificationOverdue: boolean;
+  /** Hours left in the window (negative once passed); null when none is pending. */
+  hoursLeft: number | null;
+}
+
+export interface PrivacyIncidentDetail extends PrivacyIncident {
+  entries: Array<{ id: string; kind: PrivacyEntryKind; note: string; recordedBy: string; recordedAt: string }>;
+}
 
 /** A copy of the record prepared for a records request (POST /records-requests/:id/copies). */
 export interface RecordCopy {
@@ -5184,4 +5422,44 @@ export interface AuditRetention {
   /** AUDIT_RETENTION_MONTHS; null: nothing is ever removed. */
   retentionMonths: number | null;
   partitions: AuditPartition[];
+}
+
+/** The organization's choices for signing consent forms (GET /clinic/consent-signing/settings). */
+export interface ConsentSigningSetting {
+  minorAgeYears: number | null;
+  portalSigningEnabled: boolean;
+  requestValidDays: number;
+  version: number;
+}
+
+/** A request to sign a consent form in MyHealth (GET /patients/:id/consent-signature-requests). */
+export interface ConsentSignatureRequest {
+  id: string;
+  patientId: string;
+  definitionId: string;
+  procedureCode: string;
+  procedureName: string;
+  wordingVersion: number;
+  representativeRequired: boolean;
+  status: "pending" | "signed" | "cancelled";
+  expired: boolean;
+  requestedAt: string;
+  requestedByName: string | null;
+  expiresAt: string;
+  signedAt: string | null;
+  signedDocumentId: string | null;
+  cancelReason: string | null;
+}
+
+/** The signed-in practitioner's own signature (GET /me/practitioner-signature). */
+export interface MyPractitionerSignature {
+  practitioner: { id: string; displayName: string } | null;
+  enabled: boolean;
+  signature: { id: string; drawnAt: string; strokes: number[][][] } | null;
+}
+
+/** Whether certificates and referral letters print the issuing practitioner's signature. */
+export interface PractitionerSignatureSetting {
+  enabled: boolean;
+  version: number;
 }

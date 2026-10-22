@@ -25,9 +25,22 @@ import {
   CreatePractitionerDto,
   CreateRoomDto,
   CreateScheduleDto,
+  CreateRouteTemplateDto,
+  CreateServicePointDto,
+  RouteTemplatesQueryDto,
+  UpdateRouteTemplateDto,
+  UpdateServicePointDto,
+  ServicePointsQueryDto,
+  ServicePointSettingsQueryDto,
+  UpdateServicePointSettingsDto,
+  RouteVisitDto,
+  PlanRouteDto,
+  AdvanceRouteDto,
+  SkipRouteStepDto,
   CreateVisitTypeDto,
   UpdateVisitTypeDto,
   CreateWaitlistDto,
+  DashboardLoadQueryDto,
   DashboardQueryDto,
   EnteredInErrorDto,
   ListAppointmentsDto,
@@ -51,8 +64,11 @@ import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
+import { RouteTemplateService } from "./config/route-template.service";
+import { ServicePointService } from "./config/service-point.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
+import { VisitRouteService } from "./queue/visit-route.service";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -75,7 +91,74 @@ export class ClinicConfigController {
     private readonly config: ClinicConfigService,
     private readonly bookingRules: BookingRulesService,
     private readonly waitlistRules: WaitlistRulesService,
+    private readonly servicePoints: ServicePointService,
+    private readonly routeTemplates: RouteTemplateService,
   ) {}
+
+  // ---- service points (migration 0113) ---------------------------------------------------------------------
+
+  @Get("service-points")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "A facility's service points (consultation line, emergency room, X-ray …) as the organization defines them" })
+  listServicePoints(@CurrentActor() actor: Actor, @Query() query: ServicePointsQueryDto) {
+    return this.servicePoints.list(actor, query.facilityId, query.includeInactive === "true");
+  }
+
+  @Post("service-points")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Add a service point to a facility (409 service_point_exists on a duplicate code; audited)" })
+  createServicePoint(@CurrentActor() actor: Actor, @Body() body: CreateServicePointDto) {
+    return this.servicePoints.create(actor, body);
+  }
+
+  @Patch("service-points/:servicePointId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Rename a service point, change its kind or location, deactivate or reactivate it (the code never changes; audited)" })
+  updateServicePoint(@CurrentActor() actor: Actor, @Param("servicePointId", ParseUUIDPipe) id: string, @Body() body: UpdateServicePointDto) {
+    return this.servicePoints.update(actor, id, body);
+  }
+
+  @Get("service-point-settings")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "A facility's routing settings (migration 0115): whether a route sending a patient on calls them automatically" })
+  servicePointSettings(@CurrentActor() actor: Actor, @Query() query: ServicePointSettingsQueryDto) {
+    return this.servicePoints.getSettings(actor, query.facilityId);
+  }
+
+  @Put("service-point-settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set a facility's routing settings (audited)" })
+  updateServicePointSettings(@CurrentActor() actor: Actor, @Body() body: UpdateServicePointSettingsDto) {
+    return this.servicePoints.updateSettings(actor, body);
+  }
+
+  // ---- route templates (migration 0116) --------------------------------------------------------------------
+
+  @Get("route-templates")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({
+    summary: "A facility's route templates: named lists of service points a nurse can apply to a visit's route, with the visit types each is offered for",
+  })
+  listRouteTemplates(@CurrentActor() actor: Actor, @Query() query: RouteTemplatesQueryDto) {
+    return this.routeTemplates.list(actor, query.facilityId, query.includeInactive === "true");
+  }
+
+  @Post("route-templates")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Add a route template (409 route_template_exists on a duplicate code; a stop may not follow itself; audited)" })
+  createRouteTemplate(@CurrentActor() actor: Actor, @Body() body: CreateRouteTemplateDto) {
+    return this.routeTemplates.create(actor, body);
+  }
+
+  @Patch("route-templates/:routeTemplateId")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({
+    summary:
+      "Rename a route template, change its stops (routes already planned keep theirs), deactivate it, or set the visit types it is offered for (audited)",
+  })
+  updateRouteTemplate(@CurrentActor() actor: Actor, @Param("routeTemplateId", ParseUUIDPipe) id: string, @Body() body: UpdateRouteTemplateDto) {
+    return this.routeTemplates.update(actor, id, body);
+  }
 
   @Get("waitlist-rules")
   @RequirePermissions("appointment.read")
@@ -332,15 +415,16 @@ export class AppointmentController {
 export class QueueController {
   constructor(
     private readonly visits: VisitService,
+    private readonly routes: VisitRouteService,
     private readonly triage: TriageService,
   ) {}
 
   @Get()
   @RequirePermissions("clinic.queue.read")
   @RequireFacility()
-  @ApiOperation({ summary: "The facility queue in service order (priority, then arrival)" })
+  @ApiOperation({ summary: "The facility queue in service order (priority, then arrival); servicePointId narrows it to one service point" })
   queue(@CurrentActor() actor: Actor, @Query() query: QueueQueryDto) {
-    return this.visits.queue(actor, { date: query.date, includeClosed: query.includeClosed === "true" });
+    return this.visits.queue(actor, { date: query.date, includeClosed: query.includeClosed === "true", servicePointId: query.servicePointId });
   }
 
   @Get("display")
@@ -377,6 +461,55 @@ export class QueueController {
   @RequirePermissions("clinic.queue.manage")
   call(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: CallVisitDto) {
     return this.visits.call(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Send the patient to a service point of the facility (from in triage or awaiting consultation; kept in the routing history)" })
+  route(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RouteVisitDto) {
+    return this.visits.route(actor, id, body);
+  }
+
+  @Get("visits/:visitId/routing")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "The visit's moves between service points, oldest first" })
+  routing(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string) {
+    return this.visits.routingHistory(actor, id);
+  }
+
+  // ---- visit routes (migration 0115) -----------------------------------------------------------------------
+
+  @Get("visits/:visitId/route")
+  @RequirePermissions("clinic.queue.read")
+  @ApiOperation({ summary: "The visit's route: its planned stops in order, with each step's progress" })
+  routePlan(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string) {
+    return this.routes.route(actor, id);
+  }
+
+  @Put("visits/:visitId/route-plan")
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Set the stops still ahead of the visit (replaces the planned ones; the current step stays)" })
+  planRoute(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: PlanRouteDto) {
+    return this.routes.plan(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route/next")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({
+    summary: "Done here, send on: finish the current step and send the patient to the next planned service point (called there when the facility asks)",
+  })
+  advanceRoute(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: AdvanceRouteDto) {
+    return this.routes.advance(actor, id, body);
+  }
+
+  @Post("visits/:visitId/route/skip")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @ApiOperation({ summary: "Skip a planned step, or the current one (the patient then moves on); a reason is required" })
+  skipRouteStep(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: SkipRouteStepDto) {
+    return this.routes.skip(actor, id, body);
   }
 
   @Post("visits/:visitId/assign")
@@ -539,5 +672,13 @@ export class ClinicDashboardController {
   @RequireFacility()
   get(@CurrentActor() actor: Actor, @Query() query: DashboardQueryDto) {
     return this.dashboard.forFacility(actor, query.date);
+  }
+
+  @Get("load")
+  @RequirePermissions("clinic.dashboard.read")
+  @RequireFacility()
+  @ApiOperation({ summary: "Appointments booked and schedule slots offered per local day (counts only), for the dashboard calendar and week" })
+  load(@CurrentActor() actor: Actor, @Query() query: DashboardLoadQueryDto) {
+    return this.dashboard.dailyLoad(actor, query);
   }
 }

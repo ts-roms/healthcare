@@ -21,6 +21,7 @@ import { allergyIntolerance, allergyReview, triageAssessment, vitalSignSet, type
 import { assertVersion, found, publicView } from "../clinic-support";
 import { ACTIVE_VISIT_STATUSES } from "../domain/queue-state";
 import { bodyMassIndex, implausibleVitals } from "../domain/vital-signs";
+import { VisitRouteService } from "../queue/visit-route.service";
 import { toVisitView, VisitService } from "../queue/visit.service";
 
 export type VitalsView = Omit<VitalSignSetRecord, "organizationId"> & { bmi: number | null };
@@ -36,6 +37,7 @@ export class TriageService {
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
     private readonly visits: VisitService,
+    private readonly routes: VisitRouteService,
   ) {}
 
   /** Records triage (and optional vitals) and advances the queue entry. */
@@ -70,6 +72,15 @@ export class TriageService {
         current = await this.visits.setStatus(tx, current, "in_triage", { ...details, triageStartedAt: current.triageStartedAt ?? new Date() });
       }
       current = await this.visits.setStatus(tx, current, input.completeTriage ? "awaiting_consultation" : "in_triage", details);
+      // Where the patient goes next (migration 0113): routed in the same transaction; the current service point is kept silently.
+      if (input.servicePointId && input.servicePointId !== current.servicePointId) {
+        current = await this.visits.routeIn(tx, actor, current, input.servicePointId);
+      }
+      // The stops after it (migration 0115): the first stop becomes the route's current step, the rest its plan.
+      if (input.servicePointId && input.route?.length) {
+        await this.routes.arriveIn(tx, actor, current);
+        await this.routes.planIn(tx, actor, current, input.route);
+      }
 
       const triage = found(assessment, "Triage assessment");
       await this.audit.record(tx, actor, {
@@ -77,7 +88,7 @@ export class TriageService {
         resourceType: "triage_assessment",
         resourceId: triage.id,
         patientId: current.patientId,
-        metadata: { visitId, priority: input.priority, riskFlags: input.riskFlags, vitalsId: vitals?.id },
+        metadata: { visitId, priority: input.priority, riskFlags: input.riskFlags, vitalsId: vitals?.id, servicePointId: current.servicePointId },
       });
       await this.events.record(tx, {
         type: "TriageCompleted",

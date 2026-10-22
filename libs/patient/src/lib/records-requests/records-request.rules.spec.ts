@@ -1,6 +1,15 @@
-import { copySectionsForScope, daysWaiting, recordsRequestOpen, recordsRequestOverdue, respondByDate } from "./records-request.rules";
+import { copySectionsForScope, daysWaiting, fulfilmentRefusal, recordsRequestOpen, recordsRequestOverdue, respondByDate } from "./records-request.rules";
 
 describe("records request rules", () => {
+  it("answers copies with documents, and a correction, erasure or objection with a note of what was done", () => {
+    expect(fulfilmentRefusal("access", 0, "Here you are")).toBe("Choose the documents to share");
+    expect(fulfilmentRefusal("access", 1, undefined)).toBeNull();
+    expect(fulfilmentRefusal("rectification", 0, undefined)).toMatch(/what was done/);
+    expect(fulfilmentRefusal("rectification", 0, "Corrected your birth date as asked")).toBeNull();
+    expect(fulfilmentRefusal("erasure", 1, undefined)).toMatch(/what was done/);
+    expect(fulfilmentRefusal("objection", 0, "Outreach stopped")).toBeNull();
+  });
+
   it("is open while submitted or in review", () => {
     expect(recordsRequestOpen("submitted")).toBe(true);
     expect(recordsRequestOpen("in_review")).toBe(true);

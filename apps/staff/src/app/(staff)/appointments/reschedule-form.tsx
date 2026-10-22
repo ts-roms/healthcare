@@ -87,6 +87,9 @@ export function RescheduleForm({
               setPractitionerId(e.target.value);
             }}
           >
+            {practitioners.some((p) => p.id === appointment.practitionerId) ? null : (
+              <option value={appointment.practitionerId}>Current practitioner (no longer active)</option>
+            )}
             {practitioners
               .filter((p) => p.status === "active" || p.id === appointment.practitionerId)
               .map((p) => (

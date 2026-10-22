@@ -10,6 +10,7 @@ import type { AllergyRecord, AllergySummary } from "@/lib/api/types";
 import { type AllergyForm, type AllergyStatusChange, BLANK_ALLERGY, CATEGORY_LABEL, reviewState, STATUS_CHANGE_LABEL } from "@/lib/allergy-form";
 import { bannerSeverity, label, sortByDanger } from "@/lib/patient-mapping";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
+import { useServerAction } from "@/lib/use-server-action";
 
 /**
  * The patient's allergies with recording and review (allergy.manage). Used on
@@ -30,7 +31,9 @@ export function AllergiesPanel({
 }) {
   const filedUnder = filedUnderLookup(linkedRecords);
   const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const { pending: running, run } = useServerAction();
+  const [addingAllergy, startTransition] = React.useTransition();
+  const pending = running || addingAllergy;
   const [adding, setAdding] = React.useState(false);
   const [form, setForm] = React.useState<AllergyForm>(BLANK_ALLERGY);
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -38,16 +41,6 @@ export function AllergiesPanel({
   const [reason, setReason] = React.useState("");
   const review = reviewState(summary);
   const sorted = sortByDanger(summary.allergies.map((a) => ({ severity: bannerSeverity(a), allergy: a }))).map((x) => x.allergy);
-
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
 
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault();

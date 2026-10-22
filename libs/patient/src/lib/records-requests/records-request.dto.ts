@@ -1,13 +1,15 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
-import { RECORD_COPY_SECTIONS, RECORDS_REQUEST_SCOPES } from "./records-request.schema";
+import { RECORD_COPY_SECTIONS, RECORDS_REQUEST_KINDS, RECORDS_REQUEST_SCOPES } from "./records-request.schema";
 
 const calendarDate = z.iso.date();
 const version = z.number().int().positive();
 
 export const submitRecordsRequestSchema = z
   .object({
-    scope: z.array(z.enum(RECORDS_REQUEST_SCOPES)).min(1, "Choose what you need copies of").max(RECORDS_REQUEST_SCOPES.length),
+    /** Copies (default), a correction, erasure or blocking, or an objection (migration 0114). */
+    kind: z.enum(RECORDS_REQUEST_KINDS).default("access"),
+    scope: z.array(z.enum(RECORDS_REQUEST_SCOPES)).min(1, "Choose which records this is about").max(RECORDS_REQUEST_SCOPES.length),
     periodFrom: calendarDate.optional(),
     periodTo: calendarDate.optional(),
     /** Anything that helps the records office find what is needed. */
@@ -16,7 +18,11 @@ export const submitRecordsRequestSchema = z
     purpose: z.string().trim().max(300).optional(),
   })
   .refine((v) => !v.periodFrom || !v.periodTo || v.periodTo >= v.periodFrom, { message: "The period ends before it starts", path: ["periodTo"] })
-  .refine((v) => !v.scope.includes("other") || (v.details?.length ?? 0) >= 3, { message: "Say what else you need", path: ["details"] });
+  .refine((v) => !v.scope.includes("other") || (v.details?.length ?? 0) >= 3, { message: "Say what else you need", path: ["details"] })
+  .refine((v) => v.kind === "access" || (v.details?.length ?? 0) >= 10, {
+    message: "Say what you want corrected, removed or stopped, and why",
+    path: ["details"],
+  });
 export class SubmitRecordsRequestDto extends createZodDto(submitRecordsRequestSchema) {}
 
 export const recordsRequestQuerySchema = z.object({ status: z.enum(["open", "closed", "all"]).default("open") });
@@ -26,11 +32,11 @@ export const startReviewSchema = z.object({ version });
 export class StartReviewDto extends createZodDto(startReviewSchema) {}
 
 export const fulfilRecordsRequestSchema = z.object({
-  /** Documents of the patient's record to share (at least one). */
-  documentIds: z.array(z.uuid()).min(1, "Choose the documents to share").max(50),
+  /** Documents of the patient's record to share: at least one for a request for copies; optional for the other kinds. */
+  documentIds: z.array(z.uuid()).max(50).default([]),
   /** How the requester's identity was confirmed (required when the organization's procedure says so). */
   identityCheckMethod: z.string().trim().min(3).max(200).optional(),
-  /** A note to the patient (optional). */
+  /** A note to the patient (optional for copies; for the other kinds, what was done — required). */
   note: z.string().trim().min(3).max(1000).optional(),
   version,
 });

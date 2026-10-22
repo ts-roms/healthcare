@@ -3,18 +3,20 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SendIcon } from "lucide-react";
-import { Button, Checkbox, DateInput, Input, Textarea } from "@healthcare/ui/primitives";
-import type { PortalRecordsScope } from "@/lib/api/types";
-import { SCOPE_TEXT } from "@/lib/documents";
+import { Button, Checkbox, DateInput, Input, NativeSelect, Textarea } from "@healthcare/ui/primitives";
+import type { PortalRecordsKind, PortalRecordsScope } from "@/lib/api/types";
+import { KIND_TEXT, SCOPE_TEXT } from "@/lib/documents";
 import { submitRecordsRequest } from "./actions";
 
 const SCOPES = Object.keys(SCOPE_TEXT) as PortalRecordsScope[];
+const KINDS = Object.keys(KIND_TEXT) as PortalRecordsKind[];
 
-/** Asking the records office for copies: what, for which period, and why (optional). */
+/** Asking the records office for copies, a correction, erasure or blocking, or objecting to a use: what, which records, and why. */
 export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSubmit: boolean; notice: string | null; responseDays: number | null }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
+  const [kind, setKind] = React.useState<PortalRecordsKind>("access");
   const [scope, setScope] = React.useState<Set<PortalRecordsScope>>(new Set());
   const [f, setF] = React.useState({ periodFrom: "", periodTo: "", details: "", purpose: "" });
   const [error, setError] = React.useState<string | null>(null);
@@ -32,8 +34,9 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
           </p>
         ) : null}
         <Button type="button" onClick={() => setOpen(true)} className="h-10 w-fit gap-2 px-4">
-          Ask for copies of my records
+          Ask the records office
         </Button>
+        <p className="text-meta text-muted-foreground">Copies of your records, a correction, removing or blocking data, or objecting to a use of it.</p>
       </div>
     );
   }
@@ -57,6 +60,7 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
         startTransition(async () => {
           setError(null);
           const result = await submitRecordsRequest({
+            kind,
             scope: [...scope],
             periodFrom: f.periodFrom || undefined,
             periodTo: f.periodTo || undefined,
@@ -66,6 +70,7 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
           if (result.ok) {
             setSent(result.data.requestNumber);
             setOpen(false);
+            setKind("access");
             setScope(new Set());
             setF({ periodFrom: "", periodTo: "", details: "", purpose: "" });
             router.refresh();
@@ -74,8 +79,19 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
       }}
     >
       {procedure}
+      <label className="flex flex-col gap-1 text-meta">
+        What do you want to ask?
+        <NativeSelect className="h-10" value={kind} onChange={(e) => setKind(e.target.value as PortalRecordsKind)}>
+          {KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_TEXT[k].label}
+            </option>
+          ))}
+        </NativeSelect>
+        <span className="text-muted-foreground">{KIND_TEXT[kind].help}</span>
+      </label>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 font-semibold">What do you need copies of?</legend>
+        <legend className="mb-1 font-semibold">{kind === "access" ? "What do you need copies of?" : "Which records is this about?"}</legend>
         {SCOPES.map((s) => (
           <label key={s} className="flex items-center gap-2 text-body">
             <Checkbox checked={scope.has(s)} onCheckedChange={() => toggle(s)} />
@@ -94,8 +110,8 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
         </label>
       </div>
       <label className="flex flex-col gap-1 text-meta">
-        Details {scope.has("other") ? "(say what else you need)" : "(optional)"}
-        <Textarea rows={2} maxLength={1000} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} />
+        {kind === "access" ? `Details ${scope.has("other") ? "(say what else you need)" : "(optional)"}` : `${KIND_TEXT[kind].details} (required)`}
+        <Textarea rows={kind === "access" ? 2 : 3} maxLength={1000} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} />
       </label>
       <label className="flex flex-col gap-1 text-meta">
         What you need them for (optional)
@@ -107,7 +123,7 @@ export function RecordsRequestForm({ canSubmit, notice, responseDays }: { canSub
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending || scope.size === 0} className="h-10 gap-2 px-4">
+        <Button type="submit" disabled={pending || scope.size === 0 || (kind !== "access" && f.details.trim().length < 10)} className="h-10 gap-2 px-4">
           <SendIcon className="size-4" aria-hidden /> Send request
         </Button>
         <Button type="button" variant="ghost" className="h-10 px-4" onClick={() => setOpen(false)}>

@@ -23,6 +23,21 @@ export interface PatientMfaChallengeClaims {
   typ: "patient_mfa_challenge";
 }
 
+/**
+ * A short-lived ticket to open the realtime socket for the signed-in patient (never an access token): the browser
+ * never holds those. Bound to the portal session and account; the gateway re-checks both on connect.
+ */
+export interface PatientRealtimeTicketClaims {
+  sub: string; // portal account id
+  sid: string; // portal session id
+  org: string;
+  pat: string; // patient id
+  typ: "patient_realtime";
+}
+
+/** Tickets are exchanged immediately for a socket connection. */
+export const PATIENT_REALTIME_TICKET_TTL_SECONDS = 60;
+
 /** A password was right; the second step must follow within this time. */
 const MFA_CHALLENGE_TTL_SECONDS = 300;
 
@@ -42,6 +57,29 @@ export class PortalTokenService {
       { ...claims, typ: "patient_access" },
       { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: this.config.JWT_ACCESS_TTL_SECONDS },
     );
+  }
+
+  signRealtimeTicket(claims: Omit<PatientRealtimeTicketClaims, "typ">): Promise<string> {
+    return this.jwt.signAsync(
+      { ...claims, typ: "patient_realtime" },
+      { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: PATIENT_REALTIME_TICKET_TTL_SECONDS },
+    );
+  }
+
+  async verifyRealtimeTicket(token: string): Promise<PatientRealtimeTicketClaims> {
+    let claims: PatientRealtimeTicketClaims;
+    try {
+      claims = await this.jwt.verifyAsync<PatientRealtimeTicketClaims>(token, {
+        secret: this.config.JWT_ACCESS_SECRET,
+        algorithms: ["HS256"],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+    } catch {
+      throw new UnauthenticatedError("Invalid or expired ticket", "invalid_token");
+    }
+    if (claims.typ !== "patient_realtime") throw new UnauthenticatedError("Invalid token type", "invalid_token");
+    return claims;
   }
 
   signMfaChallenge(claims: Omit<PatientMfaChallengeClaims, "typ">): Promise<string> {

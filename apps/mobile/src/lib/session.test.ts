@@ -138,11 +138,35 @@ describe("requests", () => {
     await session.signIn("ana@example.com", "right");
   });
 
-  it("sends only the bearer token — no acting-for header", async () => {
+  it("sends only the bearer token — no acting-for header — until someone chooses to act for another person", async () => {
     await session.get("/portal/results");
     const request = api.requests.at(-1)!;
     expect(request.authorization).toBe(`Bearer ${api.access}`);
     expect(Object.keys(request.headers).map((h) => h.toLowerCase())).not.toContain("x-acting-for");
+  });
+
+  it("acts for a dependent only on the routes about their record, and never on the account holder's own", async () => {
+    const child = "3f0c1d52-7a44-4c1e-9d6e-0b1f2a3c4d5e";
+    session.setActingFor(child);
+    await session.get("/portal/forms");
+    expect(api.requests.at(-1)!.headers["x-acting-for"]).toBe(child);
+    await session.post("/portal/forms/abc/sign", { password: "right" });
+    expect(api.requests.at(-1)!.headers["x-acting-for"]).toBe(child);
+    // The signed-in person's own account: the dependents list and the phone's notifications.
+    await session.get("/portal/proxy/dependents");
+    expect(api.requests.at(-1)!.headers["x-acting-for"]).toBeUndefined();
+    await session.post("/portal/push/mobile-devices", {});
+    expect(api.requests.at(-1)!.headers["x-acting-for"]).toBeUndefined();
+    // Back to their own record.
+    session.setActingFor(null);
+    await session.get("/portal/forms");
+    expect(api.requests.at(-1)!.headers["x-acting-for"]).toBeUndefined();
+  });
+
+  it("forgets who it was acting for when the session ends", async () => {
+    session.setActingFor("3f0c1d52-7a44-4c1e-9d6e-0b1f2a3c4d5e");
+    await session.signOut();
+    expect(session.acting).toBeNull();
   });
 
   it("refreshes before the access token expires", async () => {
@@ -266,9 +290,7 @@ describe("restore and sign-out", () => {
 it("words errors for patients as MyHealth on the web does", () => {
   expect(patientMessage(new TypeError("Network request failed"))).toBe("We couldn't reach MyHealth. Check your connection and try again.");
   expect(patientMessage(new ApiError(429, "rate_limited", "x"))).toBe("Too many attempts. Wait a minute, then try again.");
-  expect(patientMessage(new ApiError(401, "invalid_credentials", "Invalid email or password", "abcdef1234"))).toBe("Invalid email or password (ref abcdef12)");
-  expect(patientMessage(new ApiError(503, "unavailable", "x", "abcdef1234"))).toBe(
-    "Something went wrong on our side. Try again in a few minutes. (ref abcdef12)",
-  );
+  expect(patientMessage(new ApiError(401, "invalid_credentials", "Invalid email or password", "abcdef1234"))).toBe("Invalid email or password");
+  expect(patientMessage(new ApiError(503, "unavailable", "x", "abcdef1234"))).toBe("Something went wrong on our side. Try again in a few minutes.");
   expect(patientMessage(new SessionEndedError())).toBe("Your session has ended. Sign in again.");
 });

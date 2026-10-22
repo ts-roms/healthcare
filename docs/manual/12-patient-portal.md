@@ -123,9 +123,14 @@ The menu has:
 | **Messages** | Notices and messages from the clinic. A number shows how many are new            |
 | **Profile**  | Your name, patient number, date of birth, sex, clinic and sign-in email          |
 
-On **Home**, the quick buttons are **Book appointment**, **Care plan**, **Lab results**, **Prescriptions**, **Bills**, **Documents**,
-**Immunizations** and **Health history**. Your care plan, medicines
-and bills are opened from these buttons. **See all** next to **Upcoming** or **Recent results** opens the full list.
+On a phone the menu is the bar at the bottom: **Home**, **Visits**, **Results**, **Messages** and **More**. **More** opens a list with the other pages
+(**Dental** and **Forms** when you have them, and **Profile**) and with **People** (if you may look after someone), **Help** and **Sign out**. On a larger
+screen all of these are in the bar at the top.
+
+On **Home**, the four quick buttons are **Book a visit**, **Results**, **Bills** and **Ask the clinic**. **Your next visit** shows what is coming (with
+**Change or cancel** and check-in where they apply), **Recent results** your latest values, and **My records** opens your **Prescriptions**,
+**Care plan**, **Documents & certificates**, **Immunizations** and **Health history**. **See all** opens the full list. If you have not confirmed your email
+yet, a yellow note at the top says so, with **Confirm now**.
 
 Times of visits are shown in the clinic's local time (Philippine time for most clinics).
 
@@ -231,8 +236,14 @@ Open the online visit from **Home** or **Visits** (it says "Answer the questions
 **2. Wait for the waiting room to open.** You see "Your answers are with your doctor". The waiting room opens 30 minutes before your visit time. Keep the
 page open or come back then.
 
+**2a. Payment, if your clinic asks for it.** Some clinics ask you to pay before the consultation. You then see **Get my bill**; choose it to see the
+amount. Pay it in **Bills** (when online payment is offered) or at the clinic, then come back and choose **I have paid: enter the waiting room**.
+
 **3. Enter the waiting room.** When you see **Ready when you are**, go to a quiet, private place with good signal and choose **Enter the waiting
 room**. The clinic now knows you are there. The page updates by itself while you wait.
+
+**3a. Chat.** From the waiting room until the call ends you can write to your doctor in the **Chat** box under the page, for example if the video does
+not work. Messages stay readable afterwards. It is not for emergencies: call 911 or go to the nearest emergency room.
 
 **4. Join the call.** When the doctor starts, you see "… is ready". Choose **Join the video call** and allow your browser to use your camera and
 microphone. If video is not available, you see "Your doctor will call you" — keep your phone nearby; the doctor calls the number you gave.
@@ -376,11 +387,18 @@ Choose **Documents** on **Home**.
 - **Referrals** — when your doctor refers you to another doctor or clinic: who it is to, the date and where it stands (for example "Sent — bring the
   letter when you go"). Choose **Letter** to open the referral letter to bring or send. You get a message when a new one is ready. A referral your
   doctor cancelled stays listed as cancelled, without its letter.
-- **Copies of your records** — to ask the clinic's records office for copies:
-  1. Choose **Ask for copies of my records**.
-  2. Tick what you need (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical certificates or
-     something else — then say what in **Details**), and optionally the period and what you need them for.
-  3. Choose **Send request**. It gets a number (`RR########`).
+- **Asking the records office** — to ask for copies of your records, or to use your rights under the Data Privacy Act:
+  1. Choose **Ask the records office**.
+  2. Under **What do you want to ask?** choose **Copies of my records**, **Correct something in my records**, **Remove or block some of my data**
+     or **Object to a use of my data**.
+  3. Tick which records it is about (consultation records, laboratory results, prescriptions, dental records, X-rays and images, medical
+     certificates or something else — then say what in **Details**), and optionally the period and what you need them for. For a correction,
+     removal or objection, **Details** is required: say what is wrong and what it should be, which data and why, or which use and why.
+  4. Choose **Send request**. It gets a number (`RR########`).
+
+  The clinic checks and answers in MyHealth: copies appear under the request with **Download**; for the other requests the answer says what the
+  clinic did or why it could not (medical records may have to be kept by law). You can also change your message settings and some consents
+  yourself (see below). The clinic's data protection officer, when the clinic names one, is shown under **Privacy and consents**.
 
   The clinic may show a note above the form (for example its fees or what identification to bring) and how many days it aims to take to answer;
   each waiting request then shows the date the clinic aims to answer by.
@@ -446,8 +464,11 @@ You can use up to 5 devices. If the browser says notifications are blocked, allo
 
 ## How to use the MyHealth app on your phone
 
-If your clinic has the MyHealth app, install it from the app store the clinic points you to. The app shows your **released results** and can tell you
-when something is waiting in MyHealth. Visits, bills, messages and everything else are on the MyHealth website.
+If your clinic has the MyHealth app, install it from the app store the clinic points you to: the MyHealth sign-in page shows **Get the MyHealth
+app** with a QR code for each store once the clinic has published it — point your phone's camera at the code, or tap the link under it. The
+clinic's own website may show the same codes. Some clinics give out the Android app directly (**Android app (APK)**): the phone then asks to
+allow installing from this source; allow it only for a link the clinic gave you. The app shows your **released results**, lets you **sign forms** the clinic sent you and **open a child's MyHealth** if the clinic gave you access, and can tell you when something is waiting in MyHealth.
+Visits, bills, messages and everything else are on the MyHealth website.
 
 1. Open the app and sign in with your MyHealth email and password (and the code from your authenticator app, if you use two-step verification). To activate a
    new account, or if you forgot your password, use the MyHealth website first.
@@ -456,6 +477,11 @@ when something is waiting in MyHealth. Visits, bills, messages and everything el
    test notification** to check it works.
 4. From now on a short notice appears on your phone when a result, message, document or dental item is waiting. It never says what it is. With notifications on
    in the app you get the notice there **instead of** a text message or email. Tapping a results notice opens your results.
+
+5. If a form is waiting for your signature, a yellow note at the top of **Your results** says so: tap it. Read the form, switch on **I have read this form and I agree to it**, draw your
+   signature with your finger, type your password and tap **Sign and send**.
+6. If the clinic gave you access to a child's MyHealth, tap **Open a child's or family member's MyHealth** and choose the child. A yellow banner shows whose MyHealth you are
+   looking at; tap **Back to my own MyHealth** to return. For a child under your clinic's age, a parent or guardian signs the form this way.
 
 To stop notifications on a phone, choose **Turn off on this phone**, or remove it from another device. **Sign out** also turns notifications off on that
 phone. You can use up to 5 devices in total, browsers included. If the app says notifications are blocked, turn them on for MyHealth in the phone's settings.
@@ -481,6 +507,18 @@ to the use of your information and to general treatment is changed with the clin
 If the clinic changes the wording while you are reading you see "The clinic changed the wording while you were reading. Please read it again." and the new
 wording. You can give **Online consultations**, **Sharing with your HMO**, **Sharing with PhilHealth** and **Research** here if your clinic offers them;
 consent to the use of your information, to general treatment and to MyHealth itself is given at the clinic.
+
+## How to sign a form your clinic sends you
+
+When the clinic asks you to sign a consent form you get a message, and **Forms** appears in the menu.
+
+1. Open **Forms**. Read the form carefully.
+2. Tick **I have read this form and I agree to it.**
+3. Draw your signature in the box with your finger or a pen. Select **Clear** to start again.
+4. Enter your password to confirm it is you, then select **Sign and send**.
+
+The signed form is kept on your record. A form stays open for a few days: if it has expired, ask the clinic to send it again.
+If the patient is a child, a parent or guardian signs: open the child's MyHealth (**People**) and sign there.
 
 ## How to act for a child or a family member
 

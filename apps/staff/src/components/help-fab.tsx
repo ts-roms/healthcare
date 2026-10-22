@@ -1,0 +1,133 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { BookOpenIcon, CircleHelpIcon, LifeBuoyIcon } from "lucide-react";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@healthcare/ui/primitives";
+import type { ManualSection } from "@healthcare/ui/primitives";
+import { chapterForPath, type ManualChapter } from "@/lib/manual";
+import { StaffHelpSearch } from "./help-search";
+
+export type HelpChapter = Pick<ManualChapter, "slug" | "title">;
+
+/**
+ * The help button of every signed-in staff page. It opens a dialog with the manual's chapters (the one about the
+ * current screen first) and a button to the full manual (`/help`, the same page as **Help** in the menu).
+ *
+ * `floating` (from `md` up): round, fixed at the bottom-right with a 16px gutter, below dialogs, sheets and toasts
+ * (`z-30`); the content area keeps enough bottom padding that it never covers a form's last buttons.
+ * `topbar` (below `md`): an icon button in the top bar, because on a phone a floating button sits on the right-hand
+ * column of tables and on row actions while the page scrolls under it.
+ * Rendered by `StaffShell`, so the waiting-room display and the signed-out pages never show it.
+ */
+export function HelpFab({
+  chapters,
+  sections = [],
+  placement = "floating",
+}: {
+  chapters: HelpChapter[];
+  sections?: ManualSection[];
+  placement?: "floating" | "topbar";
+}) {
+  const pathname = usePathname();
+  const [open, setOpen] = React.useState(false);
+  const suggestedSlug = chapterForPath(pathname);
+  const suggestedIndex = chapters.findIndex((c) => c.slug === suggestedSlug);
+  const suggested = suggestedIndex >= 0 ? chapters[suggestedIndex] : undefined;
+  const close = () => setOpen(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            {placement === "topbar" ? (
+              <Button variant="ghost" size="icon" aria-label="Open the user manual" className="md:hidden">
+                <LifeBuoyIcon aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                size="icon"
+                aria-label="Open the user manual"
+                className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden size-11 shadow-lg md:inline-flex"
+              >
+                <LifeBuoyIcon className="size-5" aria-hidden />
+              </Button>
+            )}
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side={placement === "topbar" ? "bottom" : "left"}>Open the user manual</TooltipContent>
+      </Tooltip>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-full bg-primary-subtle text-primary" aria-hidden>
+              <LifeBuoyIcon className="size-4" />
+            </span>
+            Need a hand?
+          </DialogTitle>
+          <DialogDescription>Step-by-step guides for every role, from registration to billing. Search the manual, or open a chapter.</DialogDescription>
+        </DialogHeader>
+        {sections.length ? <StaffHelpSearch sections={sections} onNavigate={close} /> : null}
+        <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
+          <div className="flex flex-col gap-3">
+            {suggested ? (
+              <Link
+                href={`/help/${suggested.slug}`}
+                onClick={close}
+                className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary-subtle px-3 py-2 text-table outline-none hover:bg-primary-subtle/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <BookOpenIcon className="size-4 shrink-0 text-primary" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-meta text-muted-foreground">About this screen</span>
+                  <span className="block truncate font-semibold">
+                    {suggestedIndex + 1}. {suggested.title}
+                  </span>
+                </span>
+              </Link>
+            ) : null}
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/help/glossary-and-faq#faq" onClick={close}>
+                <CircleHelpIcon aria-hidden /> Frequently asked questions
+              </Link>
+            </Button>
+            <Button asChild className="w-full">
+              <Link href="/help" onClick={close}>
+                <BookOpenIcon aria-hidden /> Open the user manual
+              </Link>
+            </Button>
+          </div>
+          <nav aria-label="Manual chapters" className="max-h-[60dvh] overflow-y-auto rounded-lg border p-1">
+            <ol className="flex flex-col gap-0.5 text-table">
+              {chapters.map((chapter, i) => (
+                <li key={chapter.slug}>
+                  <Link
+                    href={`/help/${chapter.slug}`}
+                    onClick={close}
+                    aria-current={chapter.slug === suggested?.slug ? "true" : undefined}
+                    className="block rounded-md px-2 py-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:font-semibold"
+                  >
+                    <span className="mr-1 text-muted-foreground tabular-nums">{i + 1}.</span>
+                    {chapter.title}
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -6,7 +6,18 @@ const P = "3f1f7c1e-5b36-4a51-9a51-0d6a4c1f0b11";
 describe("communication log filters", () => {
   it("defaults to the last 7 days and ignores unknown values", () => {
     const { filters, adjusted } = readCommunicationFilters({ channel: "fax", status: "lost", template: "Bad Key!", patient: "x" }, "2026-09-30");
-    expect(filters).toEqual({ from: "2026-09-24", to: "2026-09-30", channel: "", category: "", status: "", template: "", patient: "", facility: "", page: 1 });
+    expect(filters).toEqual({
+      from: "2026-09-24",
+      to: "2026-09-30",
+      channel: "",
+      category: "",
+      status: "",
+      template: "",
+      patient: "",
+      facility: "",
+      page: 1,
+      pageSize: 50,
+    });
     expect(adjusted).toBe(false);
   });
 
@@ -38,6 +49,11 @@ describe("communication log filters", () => {
     );
     expect(communicationHref(filters, 3)).toContain("page=3");
     expect(communicationHref(filters, 3, "/communications/export")).not.toContain("page=");
+    const wide = readCommunicationFilters({ pageSize: "100", page: "2" }, "2026-09-30").filters;
+    expect(communicationApiQuery(wide)).toMatchObject({ page: 2, pageSize: 100 });
+    expect(communicationHref(wide, 2)).toContain("pageSize=100");
+    expect(communicationHref(wide, 2, "/communications/export")).not.toContain("pageSize");
+    expect(readCommunicationFilters({ pageSize: "7" }, "2026-09-30").filters.pageSize).toBe(50);
   });
 });
 

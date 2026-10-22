@@ -6,9 +6,6 @@
  */
 import * as fx from "@healthcare/domain/fixtures";
 
-export async function getPatients() {
-  return fx.patients;
-}
 export async function getPatient(id: string) {
   return fx.patients.find((p) => p.id === id || p.mrn === id);
 }
@@ -27,10 +24,4 @@ export async function getPatientChart(id: string) {
     dental: patient.id === fx.mariaSantos.id ? fx.dentalChart : {},
     audit: fx.auditHistory,
   };
-}
-export async function getLabWorklist() {
-  return fx.labWorklist;
-}
-export async function getAppointments() {
-  return fx.appointments;
 }

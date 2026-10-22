@@ -9,6 +9,7 @@ import {
   REFERRAL_KINDS,
   REFERRAL_URGENCIES,
   ROOM_TYPES,
+  SERVICE_POINT_KINDS,
   VISIT_PRIORITIES,
 } from "./clinic.schema";
 
@@ -62,6 +63,90 @@ export const updateVisitTypeSchema = z.object({
   version: z.number().int().positive(),
 });
 export class UpdateVisitTypeDto extends createZodDto(updateVisitTypeSchema) {}
+
+// ---- Service points (migration 0113) -------------------------------------------
+
+export const servicePointsQuerySchema = z.object({ facilityId: z.string().uuid(), includeInactive: z.enum(["true", "false"]).optional() });
+export class ServicePointsQueryDto extends createZodDto(servicePointsQuerySchema) {}
+
+/** What the waiting-room display says when a route sends a patient to the service point (migration 0115); the name when null. */
+const location = z.string().trim().min(1).max(60).nullable();
+
+export const createServicePointSchema = z.object({
+  facilityId: z.string().uuid(),
+  code,
+  name: text(120),
+  kind: z.enum(SERVICE_POINT_KINDS),
+  location: location.optional(),
+});
+export class CreateServicePointDto extends createZodDto(createServicePointSchema) {}
+
+/** Rename, change the kind or the location, deactivate or reactivate a service point; the code never changes. */
+export const updateServicePointSchema = z.object({
+  name: text(120).optional(),
+  kind: z.enum(SERVICE_POINT_KINDS).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  location: location.optional(),
+  version: z.number().int().positive(),
+});
+export class UpdateServicePointDto extends createZodDto(updateServicePointSchema) {}
+
+// ---- Route templates (migration 0116) ------------------------------------------------------------------
+
+export const routeTemplatesQuerySchema = z.object({ facilityId: z.string().uuid(), includeInactive: z.enum(["true", "false"]).optional() });
+export class RouteTemplatesQueryDto extends createZodDto(routeTemplatesQuerySchema) {}
+
+const templateStops = z.array(z.string().uuid()).min(1).max(10);
+const templateDefaults = z.array(z.string().uuid()).max(100);
+
+export const createRouteTemplateSchema = z.object({
+  facilityId: z.string().uuid(),
+  code,
+  name: text(120),
+  /** The stops in order: the first is where the patient is sent, the others follow it. */
+  servicePointIds: templateStops,
+  /** Visit types this template is offered first for at the facility. */
+  defaultForVisitTypeIds: templateDefaults.optional(),
+});
+export class CreateRouteTemplateDto extends createZodDto(createRouteTemplateSchema) {}
+
+/** Rename, change the stops (they replace the list; routes already planned are untouched), deactivate, or set the visit types it is offered for. */
+export const updateRouteTemplateSchema = z.object({
+  name: text(120).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  servicePointIds: templateStops.optional(),
+  defaultForVisitTypeIds: templateDefaults.optional(),
+  version: z.number().int().positive(),
+});
+export class UpdateRouteTemplateDto extends createZodDto(updateRouteTemplateSchema) {}
+
+// ---- Routing settings per facility and visit routes (migration 0115) -------------------------------------
+
+export const servicePointSettingsQuerySchema = z.object({ facilityId: z.string().uuid() });
+export class ServicePointSettingsQueryDto extends createZodDto(servicePointSettingsQuerySchema) {}
+
+export const updateServicePointSettingsSchema = z.object({
+  facilityId: z.string().uuid(),
+  /** Call the patient to the next service point's location whenever a route sends them on. */
+  autoCallOnRoute: z.boolean(),
+  /** List routine visits of seniors before other routine visits; the current value when omitted. */
+  seniorsFirst: z.boolean().optional(),
+  /** The version read; not needed the first time a facility gets its own settings. */
+  version: z.number().int().positive().optional(),
+});
+export class UpdateServicePointSettingsDto extends createZodDto(updateServicePointSettingsSchema) {}
+
+/** The stops still ahead of the visit, in order (replaces the planned ones; done, skipped and current steps stay). */
+export const planRouteSchema = z.object({ servicePointIds: z.array(z.string().uuid()).min(1).max(10), version: z.number().int().positive() });
+export class PlanRouteDto extends createZodDto(planRouteSchema) {}
+
+/** "Done here, send on": finish the current step and move to the next planned service point. */
+export const advanceRouteSchema = z.object({ note: text(500).optional(), version: z.number().int().positive() });
+export class AdvanceRouteDto extends createZodDto(advanceRouteSchema) {}
+
+/** Skip a planned step, or the current one (the visit then moves on); a reason is required. */
+export const skipRouteStepSchema = z.object({ stepId: z.string().uuid(), reason, version: z.number().int().positive() });
+export class SkipRouteStepDto extends createZodDto(skipRouteStepSchema) {}
 
 export const createCodingSystemSchema = z.object({ key: code, name: text(120), version: text(40).optional() });
 export class CreateCodingSystemDto extends createZodDto(createCodingSystemSchema) {}
@@ -210,6 +295,8 @@ export class CheckInDto extends createZodDto(checkInSchema) {}
 export const queueQuerySchema = z.object({
   date: z.iso.date().optional(),
   includeClosed: z.enum(["true", "false"]).optional(),
+  /** Only the visits at this service point (migration 0113); the whole facility when omitted. */
+  servicePointId: z.string().uuid().optional(),
 });
 export class QueueQueryDto extends createZodDto(queueQuerySchema) {}
 
@@ -222,6 +309,14 @@ export class MoveVisitDto extends createZodDto(moveVisitSchema) {}
 
 export const callVisitSchema = z.object({ calledTo: text(60), version: z.number().int().positive() });
 export class CallVisitDto extends createZodDto(callVisitSchema) {}
+
+/** Send a visit to a service point of its facility (migration 0113); allowed from in_triage and awaiting_consultation. */
+export const routeVisitSchema = z.object({
+  servicePointId: z.string().uuid(),
+  reason: reason.optional(),
+  version: z.number().int().positive(),
+});
+export class RouteVisitDto extends createZodDto(routeVisitSchema) {}
 
 export const assignVisitSchema = z.object({
   practitionerId: z.string().uuid().nullable(),
@@ -253,7 +348,6 @@ export const vitalsSchema = z
       ),
     { message: "Record at least one measurement" },
   );
-export class VitalsDto extends createZodDto(vitalsSchema) {}
 
 export const recordVitalsSchema = z.object({
   patientId: z.string().uuid(),
@@ -263,7 +357,7 @@ export const recordVitalsSchema = z.object({
 });
 export class RecordVitalsDto extends createZodDto(recordVitalsSchema) {}
 
-export const triageSchema = z.object({
+const triageBaseSchema = z.object({
   chiefComplaint: text(500),
   painScore: z.number().int().min(0).max(10).optional(),
   priority: z.enum(VISIT_PRIORITIES),
@@ -272,6 +366,14 @@ export const triageSchema = z.object({
   vitals: vitalsSchema.optional(),
   /** Move the patient to "awaiting consultation" (default) or keep them in triage. */
   completeTriage: z.boolean().default(true),
+  /** Where the patient goes next (an active service point of the facility, migration 0113); unchanged when omitted. */
+  servicePointId: z.string().uuid().optional(),
+  /** The stops after that one (migration 0115), in order; only with `servicePointId`. Replaces the planned stops. */
+  route: z.array(z.string().uuid()).max(10).optional(),
+});
+export const triageSchema = triageBaseSchema.refine((v) => !v.route?.length || !!v.servicePointId, {
+  message: "A route needs its first stop",
+  path: ["servicePointId"],
 });
 export class TriageDto extends createZodDto(triageSchema) {}
 
@@ -357,6 +459,13 @@ export class ListEncountersDto extends createZodDto(listEncountersSchema) {}
 
 export const dashboardQuerySchema = z.object({ date: z.iso.date().optional() });
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
+
+/** The days to count appointments and schedule slots for: local dates in the facility's zone, `from` included and `to` not, at most 62 days. */
+export const dashboardLoadQuerySchema = z
+  .object({ from: z.iso.date(), to: z.iso.date() })
+  .refine((v) => v.to > v.from, { message: "to must be after from", path: ["to"] })
+  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 62, { message: "Ask for at most 62 days", path: ["to"] });
+export class DashboardLoadQueryDto extends createZodDto(dashboardLoadQuerySchema) {}
 
 export type BookAppointmentInput = z.infer<typeof bookAppointmentSchema>;
 export type VitalsInput = z.infer<typeof vitalsSchema>;

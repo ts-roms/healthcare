@@ -39,6 +39,8 @@ export const questionnaireSchema = z.object({
   /** A number to call if the video connection fails. */
   callbackNumber: text(20).regex(/^[+0-9 ()-]{7,20}$/, "Enter a phone number we can call"),
   /** The patient's acknowledgement of an online consultation's limits (electronic, recorded with the time). */
+  /** The version of the organization's own acknowledgement wording the patient was shown (required while the organization has one). */
+  acknowledgementTextId: z.string().uuid().optional(),
   acknowledgesOnlineConsultation: z.literal(true, { error: "Please confirm you understand how online consultations work" }),
 });
 

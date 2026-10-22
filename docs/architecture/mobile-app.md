@@ -82,6 +82,10 @@ Open points found by the trace, for the decisions below (not changes made):
 - **Absolute session length.** A refresh never extends `refreshTokenExpiresAt`, so the app signs the patient out after
   `REFRESH_TOKEN_TTL_DAYS` (14) whatever their activity — kept (decision recorded below).
 - **Password reset** links open `PORTAL_BASE_URL/reset-password#token=…` in the browser (D7); the reset itself works from any client.
+- **Getting the app**: the organization sets its store listings per deployment (`MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL`); the staff
+  landing page (`/welcome`, "MyHealth, on the phone") and the MyHealth sign-in page ("Get the MyHealth app") show a QR code per listing, drawn on
+  the server with `qrcode` (`AppDownload` in `@healthcare/ui/healthcare`; `apps/staff/src/lib/mobile-app.ts`, `apps/portal/src/lib/mobile-app.ts`).
+  Until a listing is set, the landing page's code opens MyHealth on the web (`PORTAL_BASE_URL`) and the sign-in page shows nothing.
 
 ### Patient data endpoints (VERIFIED, [portal-app.md](portal-app.md#data))
 
@@ -212,17 +216,21 @@ MyHealth ([portal-app.md](portal-app.md#guardians-and-dependents)); whether the 
 Expo SDK 57 (React Native 0.86, React 19.2.3), expo-router, TypeScript strict. Nx project `mobile`, tags `scope:mobile`, `type:app`; it may
 import only `type:domain` libraries (`eslint.config.mjs`), i.e. `@healthcare/domain/portal-results`, never backend or web-only code.
 
-| Screen                           | API                                                                                                    | Notes                                                                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in (`/sign-in`)             | `POST /portal/auth/login`, `POST /portal/auth/mfa/verify`                                              | Password, then the authenticator or recovery code when the account uses two-step verification. Errors worded as on the web. |
-| Your results (`/`)               | `GET /portal/me` (clinic time zone), `GET /portal/results`                                             | Latest result per test, same wording as MyHealth (icon + words + colour). Pull to refresh.                                  |
-| Result history (`/results/[id]`) | `GET /portal/results/trend?testId=`                                                                    | Every visible value with the range it had at the time. No chart yet.                                                        |
-| Notifications (`/notifications`) | `GET /portal/push`, `POST /portal/push/mobile-devices`, `/push/test`, `/push/subscriptions/:id/remove` | Turn push on or off for this phone, send a test, remove other devices (§8).                                                 |
-| Sign out (header)                | `POST /portal/auth/logout`                                                                             | Unregisters this phone from push (best effort), ends the session at the API (best effort) and clears the device.            |
+| Screen                           | API                                                                                                    | Notes                                                                                                                                                                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in (`/sign-in`)             | `POST /portal/auth/login`, `POST /portal/auth/mfa/verify`                                              | Password, then the authenticator or recovery code when the account uses two-step verification. Errors worded as on the web.                                                                                                                                                       |
+| Your results (`/`)               | `GET /portal/me` (clinic time zone), `GET /portal/results`                                             | Latest result per test, same wording as MyHealth (icon + words + colour). Pull to refresh.                                                                                                                                                                                        |
+| Result history (`/results/[id]`) | `GET /portal/results/trend?testId=`                                                                    | Every visible value with the range it had at the time. No chart yet.                                                                                                                                                                                                              |
+| Notifications (`/notifications`) | `GET /portal/push`, `POST /portal/push/mobile-devices`, `/push/test`, `/push/subscriptions/:id/remove` | Turn push on or off for this phone, send a test, remove other devices (§8).                                                                                                                                                                                                       |
+| Sign out (header)                | `POST /portal/auth/logout`                                                                             | Unregisters this phone from push (best effort), ends the session at the API (best effort) and clears the device.                                                                                                                                                                  |
+| Forms to sign (`/forms`)         | `GET /portal/forms`, `GET /portal/forms/count`, `POST /portal/forms/:id/sign`                          | The clinic's consent forms (electronic signatures, phase 2): the fixed wording, a read tick, a signature drawn with a finger (`SignaturePad`: `PanResponder`, strokes in 0..1 as on the web) and the password again; a guardian acting for a child signs as their representative. |
+| People (`/people`)               | `GET /portal/proxy/dependents`                                                                         | The people the clinic lets the holder act for (guardian access, D2). Choosing one shows that person's results and forms until "Back to my own MyHealth" (a banner on every screen).                                                                                               |
 
 **Session** (`src/lib/session.ts`, platform-neutral): access token in memory, refresh token in `expo-secure-store`; refreshes 30 s before
 expiry and **single-flight** (a second use of a rotated token would revoke the session); retries a request once after a 401; signs the patient
-out only when the API refuses the session — a 422, 403, 429, server error or no network keeps it; never sends `X-Acting-For`.
+out only when the API refuses the session — a 422, 403, 429, server error or no network keeps it; sends `X-Acting-For` only while the signed-in person has chosen to
+act for someone the clinic gave them access to (`setActingFor`, in memory, ended with the session) and never on their own-account routes (`@healthcare/domain/proxy-access`,
+shared with the web portal).
 
 **Configuration** (build time, readable in the binary — not secrets): `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_ORGANIZATION_CODE`
 (`apps/mobile/.env.example`). Without them the app says it is not set up.
@@ -238,8 +246,12 @@ out only when the API refuses the session — a 422, 403, 429, server error or n
 - The screens rendered through React Native for Web in Chromium against the same API (sign-in with an error, results, history, sign-out),
   as a stand-in: **not yet run on an iOS or Android device or simulator.**
 
+**Guardian access and form signing in the app** (D2 and electronic signatures phase 2): added after the first slice; unit-tested (`X-Acting-For` rules, pad geometry) and
+bundled by Metro for Android, **not yet run on a device or simulator** — nor is the scan-to-activate screen (`/activate`). A new native build is needed to try either
+(`pnpm mobile:apk`); drawing with a finger in particular should be tried on real hardware.
+
 **Not built (each needs its decision):** activation and password reset in the app (D7), deep links (D7), charts and printable
-reports, guardian access (D2), offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
+reports, offline caching (D10), any actual store build or submission (configured, not yet run — D13), end-to-end journeys through the
 app (D14). The shared-IP rate limit (§2) is unchanged.
 
 ## 8. Push to the app (D6)

@@ -15,6 +15,7 @@ import {
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
 import { facilityLetterhead, pdfDate, pdfDateTime, renderPdf } from "@healthcare/pdf";
+import { PractitionerSignatureService } from "../signatures/practitioner-signature.service";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { issueCertificateSchema } from "../clinic.dto";
@@ -47,6 +48,7 @@ export class MedicalCertificateService {
     private readonly organizations: OrganizationService,
     private readonly documents: DocumentsService,
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
+    private readonly signatures: PractitionerSignatureService,
   ) {}
 
   async issue(actor: Actor, encounterId: string, input: z.infer<typeof issueCertificateSchema>): Promise<MedicalCertificateView> {
@@ -90,6 +92,8 @@ export class MedicalCertificateService {
           restFrom: input.rest?.from ?? null,
           restTo: input.rest?.to ?? null,
           issuedBy: actor.userId,
+          // The signature in force now (when the organization prints them): the stored copy is drawn from this record.
+          practitionerSignatureId: await this.signatures.forIssue(tx, actor.organizationId, consultation.practitionerId),
         })
         .returning();
       const certificate = found(inserted, "Medical certificate");
@@ -253,6 +257,7 @@ export class MedicalCertificateService {
     const patient = patients.get(certificate.patientId);
     const days = restDays(certificate.restFrom, certificate.restTo);
     const online = consultation?.modality === "telemedicine";
+    const strokes = await this.signatures.strokesOf(certificate.organizationId, certificate.practitionerSignatureId);
     return renderPdf(
       {
         title: "Medical Certificate",
@@ -291,12 +296,12 @@ export class MedicalCertificateService {
           );
         }
         w.space();
-        w.signatures([
-          {
-            name: clinician?.displayName ?? " ",
-            role: clinician?.licenseNumber ? `License no. ${clinician.licenseNumber}` : "Attending practitioner",
-          },
-        ]);
+        const signer = {
+          name: clinician?.displayName ?? " ",
+          role: clinician?.licenseNumber ? `License no. ${clinician.licenseNumber}` : "Attending practitioner",
+        };
+        if (strokes) w.signatureMark({ strokes, ...signer });
+        else w.signatures([signer]);
       },
     );
   }

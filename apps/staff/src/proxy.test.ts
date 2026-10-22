@@ -19,6 +19,11 @@ describe("staff proxy", () => {
     expect(response.headers.get("location")).toBe("http://localhost:3000/login?next=%2Fpatients");
   });
 
+  it("sends a signed-out visit to the site root to the landing page, and keeps a signed-in one on the dashboard", async () => {
+    expect((await proxy(request("/"))).headers.get("location")).toBe("http://localhost:3000/welcome");
+    expect((await proxy(request("/", SIGNED_IN))).headers.get("location")).toBeNull();
+  });
+
   it("lets signed-out users reach sign-in", async () => {
     for (const path of ["/login"]) expect((await proxy(request(path))).headers.get("location")).toBeNull();
   });

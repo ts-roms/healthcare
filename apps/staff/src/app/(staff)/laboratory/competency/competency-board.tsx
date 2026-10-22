@@ -23,7 +23,7 @@ import {
 } from "@healthcare/ui/primitives";
 import type { CompetencyMethod, LabCatalogEntry, LabCompetencyOverview, LabTest } from "@/lib/api/types";
 import { recordCompetency } from "../quality-management-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 type Area = LabCompetencyOverview["staff"][number]["areas"][number];
 
@@ -133,7 +133,7 @@ export function CompetencyBoard({
 }
 
 function AssessmentForm({ staff, tests, departments }: { staff: LabCompetencyOverview["staff"]; tests: LabTest[]; departments: LabCatalogEntry[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const empty = {
     userId: "",
     area: "",

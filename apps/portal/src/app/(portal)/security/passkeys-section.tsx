@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
 import { KeyRoundIcon } from "lucide-react";
-import { Button, Input, Label } from "@healthcare/ui/primitives";
+import { Button, Input, Label, PasswordInput } from "@healthcare/ui/primitives";
 import type { PortalPasskeyList } from "@/lib/api/types";
 import { resultDate } from "@/lib/records";
 import { securityMessage } from "@/lib/security";
@@ -89,7 +89,7 @@ export function PasskeysSection({ list, timeZone }: { list: PortalPasskeyList; t
             <form onSubmit={add} className="flex flex-col gap-3" noValidate>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="passkey-password">Your password</Label>
-                <Input id="passkey-password" name="password" type="password" autoComplete="current-password" required autoFocus className="h-11" />
+                <PasswordInput id="passkey-password" name="password" autoComplete="current-password" required autoFocus className="h-11" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="passkey-code">Code from your authenticator app, or a recovery code</Label>

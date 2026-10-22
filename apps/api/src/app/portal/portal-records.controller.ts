@@ -6,6 +6,7 @@ import { ClinicQueries } from "@healthcare/clinic";
 import { pdfFile, Public } from "@healthcare/core";
 import { LabPatientAccess, LabReportService } from "@healthcare/laboratory";
 import { CurrentPatient, PatientAccessGuard, ProxyAllowed, patientAuditContext, type PortalPrincipal } from "@healthcare/patient";
+import { PrivacyIncidentService } from "@healthcare/organization";
 import { PrescriptionService } from "@healthcare/prescription";
 
 /**
@@ -30,7 +31,15 @@ export class PortalRecordsController {
     private readonly prescriptions: PrescriptionService,
     private readonly carePlans: CarePlanService,
     private readonly audit: AuditService,
+    private readonly privacy: PrivacyIncidentService,
   ) {}
+
+  @Get("privacy")
+  @ApiOperation({ summary: "The organization's Data Protection Officer as it names them (name and contact), for the patient's questions" })
+  async privacyContact(@CurrentPatient() patient: PortalPrincipal) {
+    const setting = await this.privacy.setting(patient.organizationId);
+    return { dpoName: setting.dpoName, dpoContact: setting.dpoContact };
+  }
 
   @Get("appointments")
   @ApiOperation({ summary: "The patient's upcoming appointments and those of the past year" })

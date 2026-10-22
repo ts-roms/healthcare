@@ -1,4 +1,10 @@
-import { RECORD_COPY_SECTIONS, type RecordCopySection, type RecordsRequestScope, type RecordsRequestStatus } from "./records-request.schema";
+import {
+  RECORD_COPY_SECTIONS,
+  type RecordCopySection,
+  type RecordsRequestKind,
+  type RecordsRequestScope,
+  type RecordsRequestStatus,
+} from "./records-request.schema";
 
 /** Open requests a patient may have at once (a new one waits until the records office answers or they withdraw one). */
 export const MAX_OPEN_RECORDS_REQUESTS = 3;
@@ -35,6 +41,17 @@ export function respondByDate(submittedOn: string, responseDays: number | null |
   const d = new Date(`${submittedOn}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + responseDays);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * What answering a request needs (migration 0114): copies are answered by sharing at least one document; a correction,
+ * erasure or objection is answered with a note saying what was done (documents may still be shared, e.g. a corrected
+ * certificate). The platform changes no record by itself: staff correct, mark in error or archive through the ordinary
+ * screens, then answer.
+ */
+export function fulfilmentRefusal(kind: RecordsRequestKind, documents: number, note: string | undefined): string | null {
+  if (kind === "access") return documents === 0 ? "Choose the documents to share" : null;
+  return note && note.length >= 3 ? null : "Say what was done about the request, in words the patient will read";
 }
 
 /** An open request past the organization's own response date. */

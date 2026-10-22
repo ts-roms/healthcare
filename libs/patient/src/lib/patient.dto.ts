@@ -118,6 +118,8 @@ export const registerPatientSchema = demographics.extend({
    * a different person, send the reviewed candidate ids and a reason.
    */
   duplicateOverride: z.object({ reviewedCandidateIds: z.array(z.string().uuid()).min(1), reason }).optional(),
+  /** Issue a QR code with the registration: leave out to follow the organization's setting; ignored while QR codes are off. */
+  issueQrCode: z.boolean().optional(),
 });
 export class RegisterPatientDto extends createZodDto(registerPatientSchema) {}
 
@@ -188,7 +190,7 @@ export const patientSearchSchema = pageQuerySchema
     identifierValue: z.string().trim().min(1).max(64).optional(),
     includeInactive: z.enum(["true", "false"]).optional(),
   })
-  .refine((v) => v.q || v.birthDate || v.identifierValue, { message: "Provide q, birthDate or identifierValue" })
+  // Without any criterion the lookup lists the organization's patients in name order (paged, the same minimal fields).
   .refine((v) => !v.identifierValue || v.identifierType, {
     message: "identifierType is required with identifierValue",
     path: ["identifierType"],

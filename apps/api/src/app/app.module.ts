@@ -46,7 +46,7 @@ import { AppLaboratoryContext } from "./adapters/laboratory-adapters";
 import { AppPhilHealthBillingSink, AppPhilHealthClaimSources, AppPhilHealthYakapSources } from "./adapters/philhealth-adapters";
 import { AppReferenceLabSink, AppReferenceLabSources } from "./adapters/reference-lab-adapters";
 import { AppPatientMergeContext } from "./adapters/patient-merge-adapters";
-import { AppTelemedicineClinic } from "./adapters/telemedicine-adapters";
+import { AppTelemedicineClinic, AppTelemedicinePayments } from "./adapters/telemedicine-adapters";
 import { FhirController } from "./fhir/fhir.controller";
 import { FhirImportReceiveController } from "./fhir/fhir-import.controller";
 import { FhirRecordComposer } from "./fhir/fhir-record";
@@ -87,6 +87,7 @@ import { PortalBookingController } from "./portal/portal-booking.controller";
 import { PatientPush } from "./portal/patient-push";
 import { PortalPushController, PortalPushDevices } from "./portal/portal-push.controller";
 import { PortalDentalController } from "./portal/portal-dental.controller";
+import { PortalFormsController } from "./portal/portal-forms.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
 import { PortalHistoryController } from "./portal/portal-history.controller";
@@ -205,7 +206,7 @@ export class AppModule implements NestModule {
         // Phase 3 — laboratory.
         laboratory,
         // Phase 5 — telemedicine.
-        TelemedicineModule.forRoot({ imports: [PatientModule], clinic: AppTelemedicineClinic }),
+        TelemedicineModule.forRoot({ imports: [PatientModule, billing], clinic: AppTelemedicineClinic, payments: AppTelemedicinePayments }),
         // Phase 6 — dental: chart, examinations, treatment plans, procedures, imaging.
         dental,
         // Phase 7 — billing: charges from clinical events, invoices, payments.
@@ -256,6 +257,7 @@ export class AppModule implements NestModule {
         PortalBookingController,
         PortalPushController,
         PortalDentalController,
+        PortalFormsController,
         PortalDocumentsController,
         PortalImmunizationsController,
         PortalHistoryController,

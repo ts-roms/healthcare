@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { Button } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { YakapPackagePreview } from "@/lib/api/types";
@@ -28,21 +28,18 @@ export default async function YakapPackagePage({ params }: { params: Promise<{ i
   });
   if (preview.patientId !== id) notFound();
   return (
-    <>
-      <PageHeader
-        title="YAKAP encounter package"
-        description="Prepared from this platform's records. Not a PhilHealth form."
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/patients/${id}`}>
-              <ArrowLeftIcon aria-hidden /> Patient record
-            </Link>
-          </Button>
-        }
-      />
-      <div className="p-4">
-        <YakapPackage preview={preview} />
-      </div>
-    </>
+    <ModulePage
+      title="YAKAP encounter package"
+      description="Prepared from this platform's records. Not a PhilHealth form."
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/patients/${id}`}>
+            <ArrowLeftIcon aria-hidden /> Patient record
+          </Link>
+        </Button>
+      }
+    >
+      <YakapPackage preview={preview} />
+    </ModulePage>
   );
 }

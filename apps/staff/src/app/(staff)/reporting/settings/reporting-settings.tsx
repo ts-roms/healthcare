@@ -20,25 +20,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  toast,
 } from "@healthcare/ui/primitives";
 import type { DohFacilityCode, DohRescan, DohRescanStatus, ReportableRule } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { createRule, deactivateRule, recordFacilityCode, requestRescan } from "../actions";
-
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
-  return { pending, submit };
-}
 
 export function ReportingSettings({
   rules,
@@ -67,7 +52,7 @@ export function ReportingSettings({
 }
 
 function Rules({ rules }: { rules: ReportableRule[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const empty = { codePrefix: "", category: "", sourceNote: "", reportWithinDays: "" };
   const [f, setF] = React.useState(empty);
   return (
@@ -107,7 +92,7 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
                         size="xs"
                         variant="outline"
                         disabled={pending}
-                        onClick={() => submit(() => deactivateRule({ ruleId: r.id }), "Rule deactivated")}
+                        onClick={() => run(() => deactivateRule({ ruleId: r.id }), "Rule deactivated")}
                       >
                         Deactivate
                       </Button>
@@ -127,7 +112,7 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
           aria-label="Add a reportable condition"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(
+            run(
               () =>
                 createRule({
                   codePrefix: f.codePrefix,
@@ -172,7 +157,7 @@ function Rules({ rules }: { rules: ReportableRule[] }) {
 }
 
 function FacilityCode({ facility }: { facility: { id: string; name: string; code: DohFacilityCode | null } }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [code, setCode] = React.useState(facility.code?.facilityCode ?? "");
   return (
     <Card>
@@ -185,7 +170,7 @@ function FacilityCode({ facility }: { facility: { id: string; name: string; code
           className="flex items-end gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(() => recordFacilityCode({ facilityId: facility.id, facilityCode: code, version: facility.code?.version }), "Facility code saved");
+            run(() => recordFacilityCode({ facilityId: facility.id, facilityCode: code, version: facility.code?.version }), "Facility code saved");
           }}
         >
           <div className="flex flex-1 flex-col gap-1">
@@ -222,7 +207,7 @@ const RESCAN_REFRESH_MS = 5_000;
 
 function EarlierDiagnoses({ rescans, today, timeZone, hasActiveRules }: { rescans: DohRescan[]; today: string; timeZone: string; hasActiveRules: boolean }) {
   const router = useRouter();
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction();
   const [range, setRange] = React.useState({ from: addDays(today, -29), to: today });
   const inProgress = rescans.some((r) => r.status === "queued" || r.status === "running");
   // Follow a check while it runs; stops by itself once none is waiting or running.
@@ -246,7 +231,7 @@ function EarlierDiagnoses({ rescans, today, timeZone, hasActiveRules }: { rescan
           aria-label="Check earlier diagnoses"
           onSubmit={(e) => {
             e.preventDefault();
-            submit(() => requestRescan(range), "Check started — it runs in the background");
+            run(() => requestRescan(range), "Check started — it runs in the background");
           }}
         >
           <div className="flex flex-col gap-1">

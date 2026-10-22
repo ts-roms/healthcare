@@ -79,7 +79,7 @@ Select **N revisions** at the top of the note to open **Note history**: every dr
    stored as you type them; the platform does not check them against a code list. If no code system is configured, the diagnosis is recorded as
    text.
 
-   Code systems are registered under **Clinic → Coding systems** (`/clinic/coding-systems`; changes need `clinic.configure`): a key (how diagnoses
+   Code systems are registered under **Settings → Coding systems** (`/clinic/coding-systems`; changes need `clinic.configure`): a key (how diagnoses
    name it, never changed), a name and an optional edition. **Stop offering** takes a system off the list for new diagnoses; diagnoses already
    recorded keep their code and system. No code list is built in.
 
@@ -193,6 +193,9 @@ Certificates are issued once the consultation is signed — in person or online 
 4. Select **Issue certificate**. It gets a number (`MC########`); select **Print** for the printed copy with your name and license number. The
    patient can also download it in MyHealth (**Documents**) and gets a message that it is ready — without the findings.
 
+If your clinic prints signatures and you drew yours under **My account**, the certificate (and the referral letters you issue) shows it above your name;
+it is the one you had when the document was issued, so drawing a new one later does not change earlier documents.
+
 An issued certificate cannot be edited. If it is wrong, select **Void…**, give the reason and issue a new one. The issuing practitioner, or staff
 who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
 an employer, school or agency may require — write what they need in your own words.
@@ -207,7 +210,7 @@ history. It works the same as on the patient record (see [Patients](02-patients.
 
 The encounter workspace has a **Procedures** section for what you did to the patient in this visit — dressing, suturing, incision and drainage,
 nebulization, an injection and the like (dental work and vaccines have their own sections). Your clinic lists the procedures it performs under
-**Clinic → Procedures**; an administrator adds them.
+**Settings → Procedures**; an administrator adds them with **Add procedure** at the top right (the form opens at the side; **Edit** on a row opens the same form). The page has four tabs: **Catalog**, **Consent wording**, **Signing** and **Supply templates**.
 
 1. Select **Record procedure**.
 2. Choose the **Procedure**, who **Performed by** (you, or another practitioner such as the nurse who did it), **When** (leave empty for now),
@@ -221,11 +224,18 @@ nebulization, an injection and the like (dental work and vaccines have their own
    it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and any notes. **Print consent form** opens a
    form with your clinic's wording for this patient to sign; upload the signed form as a document and link it here or later with
    **Record consent…** under the procedure (once).
+   To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
+   and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
+   patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
+   To let the patient sign at home, open the patient's **Procedures** page and use **Ask the patient to sign** (when your clinic turned on
+   signing in MyHealth): the patient is told, reads the wording in MyHealth and signs there after confirming their password. When the form is
+   signed it appears as a **Signed form** you can link here. For a patient under your clinic's age (18 unless your administrator set another),
+   a parent or guardian signs: at the clinic as the representative, or in MyHealth by opening the child's MyHealth.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the
 system records what you enter and decides nothing about it. An administrator writes the consent wording and note template per procedure under
-**Clinic → Procedures** (**Consent wording**: each published version is kept, and a recorded consent names the version shown).
+**Settings → Procedures** (the **Consent wording** tab: each published version is kept, and a recorded consent names the version shown).
 
 Procedures are not recorded in online consultations. After the consultation is signed, only staff who may amend consultations can add one, and
 they must say **why it is recorded after signing**; it is marked **Recorded after signing**. A mistake: **Entered in error…** with a reason (the
@@ -244,7 +254,7 @@ listed for traceability. To record more later, use the form again. To give back 
 many of each lot come back and a reason, then **Return to stock** — this also works after a procedure was entered in error, which never returns
 supplies by itself.
 
-An administrator lists the supplies each procedure usually uses under **Clinic → Procedures**, **Supplies per procedure** (**Edit**, **Add supply**,
+An administrator lists the supplies each procedure usually uses under **Settings → Procedures**, on the **Supply templates** tab (**Edit**, **Add supply**,
 **Save**). This is only a starting list. Only medical supplies, medicines, PPE and other items can be used; dental supplies, reagents and vaccines
 cannot.
 

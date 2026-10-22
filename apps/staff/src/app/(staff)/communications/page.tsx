@@ -1,13 +1,14 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DownloadIcon, InfoIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, DownloadIcon, InfoIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, DateInput, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { DeliveryStatus } from "@/components/communications/delivery-status";
 import { MessageActions } from "@/components/communications/message-actions";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getFacilities, getSession } from "@/lib/api/session";
+import type { CommunicationFilters } from "@/lib/communications";
 import type { CommunicationLogEntry, CommunicationSummary, Page } from "@/lib/api/types";
 import {
   CATEGORY_LABEL,
@@ -15,6 +16,7 @@ import {
   communicationApiQuery,
   communicationHref,
   MAX_DAYS,
+  PAGE_SIZES,
   readCommunicationFilters,
   shareText,
   STATUS_FILTERS,
@@ -31,6 +33,62 @@ function Figure({ label, value, hint }: { label: string; value: string | number;
       <span className="text-page font-semibold">{value}</span>
       {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
     </div>
+  );
+}
+
+/** Where the list stands, and how to move: first, newer, older, and how many rows to a page. The log has no total, so "older" shows while more exist. */
+function Pager({ filters, page }: { filters: CommunicationFilters; page: Page<CommunicationLogEntry> }) {
+  const first = (filters.page - 1) * filters.pageSize + 1;
+  const last = first + page.items.length - 1;
+  return (
+    <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3 text-table">
+      <p className="text-muted-foreground">
+        Showing{" "}
+        <span className="tabular font-medium text-foreground">
+          {first}–{last}
+        </span>
+        {page.hasMore ? " · more beyond" : " · end of list"}
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1" role="group" aria-label="Rows per page">
+          <span className="mr-1 text-muted-foreground">Rows</span>
+          {PAGE_SIZES.map((n) => (
+            <Link
+              key={n}
+              href={communicationHref({ ...filters, pageSize: n }, 1)}
+              aria-current={n === filters.pageSize ? "true" : undefined}
+              className={`tabular rounded-md border px-2 py-0.5 ${n === filters.pageSize ? "border-primary bg-primary-subtle font-semibold text-primary-deep" : "bg-card text-muted-foreground hover:text-foreground"}`}
+            >
+              {n}
+            </Link>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          {filters.page > 1 ? (
+            <>
+              <Button asChild size="icon-sm" variant="outline">
+                <Link href={communicationHref(filters, 1)} aria-label="First page">
+                  <ChevronsLeftIcon />
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href={communicationHref(filters, filters.page - 1)}>
+                  <ChevronLeftIcon /> Newer
+                </Link>
+              </Button>
+            </>
+          ) : null}
+          <span className="px-2 text-muted-foreground">Page {filters.page}</span>
+          {page.hasMore ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={communicationHref(filters, filters.page + 1)}>
+                Older <ChevronRightIcon />
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </nav>
   );
 }
 
@@ -56,173 +114,180 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
     : [...summary.byTemplate, ...(filters.template ? [{ templateKey: filters.template, templateLabel: filters.template, total: 0, notSent: 0 }] : [])];
 
   return (
-    <>
-      <PageHeader
-        title="Communications"
-        description="Messages the clinic sent, or could not send, to patients: reminders, notices and MyHealth alerts. The content of messages is never shown here."
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-7">
-          <div className="grid gap-1">
-            <Label htmlFor="comm-from">From (day)</Label>
-            <DateInput id="comm-from" name="from" defaultValue={filters.from} />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-to">To (day)</Label>
-            <DateInput id="comm-to" name="to" defaultValue={filters.to} />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-facility">Facility</Label>
-            <NativeSelect id="comm-facility" name="facility" defaultValue={filters.facility} emptyText="No facility">
-              <option value="">{summary.scope ? "Your facilities" : "Any facility"}</option>
-              {facilities
-                .filter((f) => !summary.scope || summary.scope.includes(f.id))
-                .map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-status">Status</Label>
-            <NativeSelect id="comm-status" name="status" defaultValue={filters.status}>
-              {STATUS_FILTERS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
+    <ModulePage
+      title="Communications"
+      description="Messages the clinic sent, or could not send, to patients: reminders, notices and MyHealth alerts. The content of messages is never shown here."
+    >
+      <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-7">
+        <div className="grid gap-1">
+          <Label htmlFor="comm-from">From (day)</Label>
+          <DateInput id="comm-from" name="from" defaultValue={filters.from} />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-to">To (day)</Label>
+          <DateInput id="comm-to" name="to" defaultValue={filters.to} />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-facility">Facility</Label>
+          <NativeSelect id="comm-facility" name="facility" defaultValue={filters.facility} emptyText="No facility">
+            <option value="">{summary.scope ? "Your facilities" : "Any facility"}</option>
+            {facilities
+              .filter((f) => !summary.scope || summary.scope.includes(f.id))
+              .map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
                 </option>
               ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-channel">Channel</Label>
-            <NativeSelect id="comm-channel" name="channel" defaultValue={filters.channel}>
-              <option value="">Any channel</option>
-              {Object.entries(CHANNEL_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-category">Kind</Label>
-            <NativeSelect id="comm-category" name="category" defaultValue={filters.category}>
-              <option value="">Any kind</option>
-              {Object.entries(CATEGORY_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="comm-template">Message</Label>
-            <NativeSelect id="comm-template" name="template" defaultValue={filters.template} emptyText="None in this period">
-              <option value="">Any message</option>
-              {templates.map((t) => (
-                <option key={t.templateKey} value={t.templateKey}>
-                  {t.templateLabel}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          {filters.patient ? <input type="hidden" name="patient" value={filters.patient} /> : null}
-          <div className="flex flex-wrap items-center gap-2 sm:col-span-3 lg:col-span-7">
-            <Button type="submit" size="sm">
-              Show
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/communications">Clear</Link>
-            </Button>
-            {filters.patient ? (
-              <span className="text-meta text-muted-foreground">
-                One patient only ·{" "}
-                <Link className="text-primary hover:underline" href={communicationHref({ ...filters, patient: "" }, 1)}>
-                  show everyone
-                </Link>
-              </span>
-            ) : null}
-            {canSeePatients ? (
-              <Button asChild size="sm" variant="outline" className="ml-auto">
-                <a href={communicationHref(filters, 1, "/communications/export")}>
-                  <DownloadIcon aria-hidden /> Download CSV
-                </a>
-              </Button>
-            ) : null}
-          </div>
-          {adjusted ? (
-            <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-3 lg:col-span-7">
-              <InfoIcon className="size-3.5" aria-hidden /> A period is at most {MAX_DAYS} days; showing the last {MAX_DAYS} days to {filters.to}.
-            </p>
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-status">Status</Label>
+          <NativeSelect id="comm-status" name="status" defaultValue={filters.status}>
+            {STATUS_FILTERS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-channel">Channel</Label>
+          <NativeSelect id="comm-channel" name="channel" defaultValue={filters.channel}>
+            <option value="">Any channel</option>
+            {Object.entries(CHANNEL_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-category">Kind</Label>
+          <NativeSelect id="comm-category" name="category" defaultValue={filters.category}>
+            <option value="">Any kind</option>
+            {Object.entries(CATEGORY_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="comm-template">Message</Label>
+          <NativeSelect id="comm-template" name="template" defaultValue={filters.template} emptyText="None in this period">
+            <option value="">Any message</option>
+            {templates.map((t) => (
+              <option key={t.templateKey} value={t.templateKey}>
+                {t.templateLabel}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        {filters.patient ? <input type="hidden" name="patient" value={filters.patient} /> : null}
+        {filters.pageSize !== 50 ? <input type="hidden" name="pageSize" value={filters.pageSize} /> : null}
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-3 lg:col-span-7">
+          <Button type="submit" size="sm">
+            Show
+          </Button>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/communications">Clear</Link>
+          </Button>
+          {filters.patient ? (
+            <span className="text-meta text-muted-foreground">
+              One patient only ·{" "}
+              <Link className="text-primary hover:underline" href={communicationHref({ ...filters, patient: "" }, 1)}>
+                show everyone
+              </Link>
+            </span>
           ) : null}
-        </form>
-
-        <section aria-label="Summary" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Figure
-            label="Messages to patients"
-            value={summary.total}
-            hint={`${filters.from} to ${filters.to}${summary.scope ? " · your facilities only" : ""}`}
-          />
-          <Figure label="Sent or delivered" value={reached} hint={shareText(reached, summary.total)} />
-          <Figure label="Not sent, failed or cancelled" value={notSent} hint={shareText(notSent, summary.total)} />
-          <Figure label="Waiting to send" value={waiting} />
-        </section>
-
-        {summary.suppressedByReason.length || summary.byChannel.length ? (
-          <section aria-label="Breakdown" className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded-md border bg-card p-3">
-              <h2 className="mb-1 text-table font-semibold">By channel</h2>
-              <ul className="flex flex-col gap-0.5 text-table">
-                {summary.byChannel.map((c) => (
-                  <li key={c.channel} className="flex justify-between gap-2">
-                    <span>{CHANNEL_LABEL[c.channel]}</span>
-                    <span className="text-muted-foreground">
-                      {c.total} · {c.sent} sent · {c.notSent} not sent
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-md border bg-card p-3">
-              <h2 className="mb-1 text-table font-semibold">Why messages were not sent</h2>
-              {summary.suppressedByReason.length ? (
-                <ul className="flex flex-col gap-0.5 text-table">
-                  {summary.suppressedByReason.map((r) => (
-                    <li key={r.reason} className="flex justify-between gap-2">
-                      <span>{suppressionReasonText(r.reason)}</span>
-                      <span className="text-muted-foreground">{r.total}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-table text-muted-foreground">None held back by consent or preferences.</p>
-              )}
-            </div>
-            <div className="rounded-md border bg-card p-3">
-              <h2 className="mb-1 text-table font-semibold">By message</h2>
-              <ul className="flex flex-col gap-0.5 text-table">
-                {summary.byTemplate.slice(0, 8).map((t) => (
-                  <li key={t.templateKey} className="flex justify-between gap-2">
-                    <Link className="text-primary hover:underline" href={communicationHref({ ...filters, template: t.templateKey, page: 1 }, 1)}>
-                      {t.templateLabel}
-                    </Link>
-                    <span className="text-muted-foreground">
-                      {t.total}
-                      {t.notSent ? ` · ${t.notSent} not sent` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
+          {canSeePatients ? (
+            <Button asChild size="sm" variant="outline" className="ml-auto">
+              <a href={communicationHref(filters, 1, "/communications/export")}>
+                <DownloadIcon aria-hidden /> Download CSV
+              </a>
+            </Button>
+          ) : null}
+        </div>
+        {adjusted ? (
+          <p className="flex items-center gap-1.5 text-meta text-muted-foreground sm:col-span-3 lg:col-span-7">
+            <InfoIcon className="size-3.5" aria-hidden /> A period is at most {MAX_DAYS} days; showing the last {MAX_DAYS} days to {filters.to}.
+          </p>
         ) : null}
+      </form>
 
-        {page === null ? (
-          <p className="text-table text-muted-foreground">The list of messages names patients; it is shown to staff who may read patient records.</p>
-        ) : page.items.length === 0 ? (
-          <p className="text-table text-muted-foreground">No messages match.</p>
-        ) : (
+      <section aria-label="Summary" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Figure label="Messages to patients" value={summary.total} hint={`${filters.from} to ${filters.to}${summary.scope ? " · your facilities only" : ""}`} />
+        <Figure label="Sent or delivered" value={reached} hint={shareText(reached, summary.total)} />
+        <Figure label="Not sent, failed or cancelled" value={notSent} hint={shareText(notSent, summary.total)} />
+        <Figure label="Waiting to send" value={waiting} />
+      </section>
+
+      {summary.suppressedByReason.length || summary.byChannel.length ? (
+        <section aria-label="Breakdown" className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-md border bg-card p-3">
+            <h2 className="mb-1 text-table font-semibold">By channel</h2>
+            <ul className="flex flex-col gap-0.5 text-table">
+              {summary.byChannel.map((c) => (
+                <li key={c.channel} className="flex justify-between gap-2">
+                  <span>{CHANNEL_LABEL[c.channel]}</span>
+                  <span className="text-muted-foreground">
+                    {c.total} · {c.sent} sent · {c.notSent} not sent
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-md border bg-card p-3">
+            <h2 className="mb-1 text-table font-semibold">Why messages were not sent</h2>
+            {summary.suppressedByReason.length ? (
+              <ul className="flex flex-col gap-0.5 text-table">
+                {summary.suppressedByReason.map((r) => (
+                  <li key={r.reason} className="flex justify-between gap-2">
+                    <span>{suppressionReasonText(r.reason)}</span>
+                    <span className="text-muted-foreground">{r.total}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-table text-muted-foreground">None held back by consent or preferences.</p>
+            )}
+          </div>
+          <div className="rounded-md border bg-card p-3">
+            <h2 className="mb-1 text-table font-semibold">By message</h2>
+            <ul className="flex flex-col gap-0.5 text-table">
+              {summary.byTemplate.slice(0, 8).map((t) => (
+                <li key={t.templateKey} className="flex justify-between gap-2">
+                  <Link className="text-primary hover:underline" href={communicationHref({ ...filters, template: t.templateKey, page: 1 }, 1)}>
+                    {t.templateLabel}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    {t.total}
+                    {t.notSent ? ` · ${t.notSent} not sent` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+
+      {page === null ? (
+        <p className="text-table text-muted-foreground">The list of messages names patients; it is shown to staff who may read patient records.</p>
+      ) : page.items.length === 0 ? (
+        <p className="text-table text-muted-foreground">
+          No messages match.
+          {filters.page > 1 ? (
+            <>
+              {" "}
+              <Link className="text-primary hover:underline" href={communicationHref(filters, 1)}>
+                Back to the first page
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : (
+        <>
+          <Pager filters={filters} page={page} />
           <Table>
             <TableHeader>
               <TableRow>
@@ -278,23 +343,9 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
               ))}
             </TableBody>
           </Table>
-        )}
-        {page ? (
-          <nav aria-label="Pages" className="flex items-center gap-2 text-table">
-            {filters.page > 1 ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href={communicationHref(filters, filters.page - 1)}>Newer</Link>
-              </Button>
-            ) : null}
-            <span className="text-muted-foreground">Page {filters.page}</span>
-            {page.hasMore ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href={communicationHref(filters, filters.page + 1)}>Older</Link>
-              </Button>
-            ) : null}
-          </nav>
-        ) : null}
-      </div>
-    </>
+        </>
+      )}
+      {page && page.items.length > 0 ? <Pager filters={filters} page={page} /> : null}
+    </ModulePage>
   );
 }

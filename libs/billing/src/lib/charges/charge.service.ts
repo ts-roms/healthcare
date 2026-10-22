@@ -69,6 +69,8 @@ export class ChargeService {
   async captureEncounter(organizationId: string, encounterId: string): Promise<void> {
     const encounter = await this.sources.encounter(organizationId, encounterId);
     if (!encounter?.visitTypeCode) return;
+    // An online visit paid for before the call was charged at the waiting room (PrepaymentService): not a second time here.
+    if (encounter.appointmentId && (await this.appointmentCharged(organizationId, encounter.appointmentId))) return;
     await this.capture({
       organizationId,
       facilityId: encounter.facilityId,
@@ -81,6 +83,49 @@ export class ChargeService {
       description: "",
       serviceDate: encounter.serviceDate,
     });
+  }
+
+  /** An online visit charged before the call, from its appointment (once per appointment; migration 0126). Returns the charge's id. */
+  async captureAppointment(input: {
+    organizationId: string;
+    facilityId: string;
+    patientId: string;
+    appointmentId: string;
+    visitTypeCode: string;
+    serviceDate: string;
+  }): Promise<string | null> {
+    await this.capture({
+      organizationId: input.organizationId,
+      facilityId: input.facilityId,
+      patientId: input.patientId,
+      sourceType: "appointment",
+      sourceId: input.appointmentId,
+      sourceGroupId: null,
+      sourceKind: "visit_type",
+      sourceCode: input.visitTypeCode,
+      description: "",
+      serviceDate: input.serviceDate,
+    });
+    const [row] = await this.db
+      .select({ id: billingCharge.id })
+      .from(billingCharge)
+      .where(
+        and(
+          eq(billingCharge.organizationId, input.organizationId),
+          eq(billingCharge.sourceType, "appointment"),
+          eq(billingCharge.sourceId, input.appointmentId),
+        ),
+      );
+    return row?.id ?? null;
+  }
+
+  /** Whether the appointment has a charge that still stands (a cancelled one lets the signed consultation charge instead). */
+  private async appointmentCharged(organizationId: string, appointmentId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ status: billingCharge.status })
+      .from(billingCharge)
+      .where(and(eq(billingCharge.organizationId, organizationId), eq(billingCharge.sourceType, "appointment"), eq(billingCharge.sourceId, appointmentId)));
+    return rows.some((r) => r.status !== "cancelled");
   }
 
   async captureLabOrder(organizationId: string, orderId: string): Promise<void> {

@@ -22,6 +22,12 @@ answer; **no deadline, fee or disclosure rule is encoded** (compliance dependenc
   who took it into review and when; the answer (`response_note`: a note when shared, the **reason** when declined —
   required); who closed it and when; version. What the patient asked is never changed; a closed request never changes;
   nothing is deleted (trigger).
+- **Kind** (`kind`, migration `0114`): `access` (copies, the default) or a `rectification`, `erasure` (or blocking) or
+  `objection` request — the data-subject rights of the Data Privacy Act, answered under the organization's own
+  procedure. A request other than for copies must say what it is about (details ≥ 10 characters) and is answered
+  with a note of what was done (documents optional) or declined with a reason; the platform changes or deletes nothing
+  by itself (`fulfilmentRefusal` in `records-request.rules.ts`). MyHealth asks "What do you want to ask?" first; the
+  records office sees the kind on the list and the request.
 - **Shared document** (`records_request_document`, append-only) — a document of the patient's record shared in answer
   (who, when). Only ordinary documents (a domain that manages its documents, e.g. unreleased laboratory attachments,
   shares them itself), of the same patient (composite key), available when shared. An archived document is no longer
@@ -108,7 +114,7 @@ type `patient` (`portal.records-request.submit | withdraw`).
 
 Staff: `GET /records-requests?status=open|closed|all`, `GET /records-requests/:id`,
 `POST /records-requests/:id/{review,fulfil,decline}`, `POST /records-requests/:id/copies` (`{ sections, periodFrom?,
-periodTo? }` → the stored document's id). MyHealth: `GET /portal/documents`, `POST /portal/records-requests`,
+periodTo? }` → the stored document's id). MyHealth: `GET /portal/documents`, `POST /portal/records-requests` (`kind`, `scope`, period, `details`, `purpose`),
 `POST /portal/records-requests/:id/withdraw`, `GET /portal/records-requests/documents/:documentId/link` (a short-lived
 link to a document shared in a fulfilled request of this patient; audited as the patient's download).
 

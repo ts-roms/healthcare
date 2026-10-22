@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ActivityIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
+import { ActivityIcon, LayoutDashboardIcon, MenuIcon, SearchIcon, ChevronDownIcon } from "lucide-react";
 import type { StaffRole } from "@healthcare/domain";
 import { Kbd } from "../primitives/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../primitives/popover";
@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "../primitives/she
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../primitives/tooltip";
 import { cn } from "../lib/utils";
 import { DefaultLink, isActive, type LinkComponent } from "./link";
-import { navigationForRole, STAFF_NAVIGATION, type NavItem } from "./staff-navigation";
+import { NAV_GROUPS, navigationForRole, STAFF_NAVIGATION, type NavItem } from "./staff-navigation";
 
 const SIDEBAR_STORAGE_KEY = "staff.sidebar.collapsed";
 
@@ -25,8 +25,10 @@ export interface StaffLayoutProps {
   Link?: LinkComponent;
   navigation?: NavItem[];
   productName?: string;
-  /** Bottom of the sidebar (and mobile menu): a help card, sign-out. */
+  /** Bottom of the sidebar (and mobile menu): sign-out. */
   sidebarFooter?: React.ReactNode;
+  /** Extra classes on the scrolling content area, e.g. bottom padding that keeps a floating button off the page's last controls. */
+  contentClassName?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export function StaffLayout({
   navigation,
   productName = "Healthcare Platform",
   sidebarFooter,
+  contentClassName,
 }: StaffLayoutProps) {
   const items = role ? navigationForRole(role, navigation) : (navigation ?? STAFF_NAVIGATION);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -102,25 +105,14 @@ export function StaffLayout({
       <div className="flex h-dvh overflow-hidden bg-background">
         <aside
           className={cn(
-            "hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
+            "relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
             collapsed ? "w-14" : "w-60",
           )}
         >
           <Brand name={productName} collapsed={collapsed} />
+          <SidebarToggle collapsed={collapsed} onToggle={toggleCollapsed} />
           {railNav}
           {sidebarFooter && !collapsed ? <div className="flex shrink-0 flex-col gap-2 p-3">{sidebarFooter}</div> : null}
-          <div className="shrink-0 border-t border-sidebar-border p-2">
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-body font-medium text-sidebar-muted outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {collapsed ? <PanelLeftOpenIcon className="size-4 shrink-0" aria-hidden /> : <PanelLeftCloseIcon className="size-4 shrink-0" aria-hidden />}
-              {collapsed ? null : "Collapse"}
-            </button>
-          </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
@@ -155,10 +147,36 @@ export function StaffLayout({
             </form>
             <div className="ml-auto flex items-center gap-2">{topbarEnd}</div>
           </header>
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+          <main className={cn("min-h-0 flex-1 overflow-auto", contentClassName)}>{children}</main>
         </div>
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * Collapse or expand the desktop sidebar: a small round icon button floating on the sidebar's right edge, level with the brand,
+ * so it stays in the same place whichever way the sidebar is open.
+ */
+function SidebarToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const label = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  return (
+    <div className="absolute top-3.5 -right-3.5 z-20">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={!collapsed}
+            aria-label={label}
+            className="flex size-7 items-center justify-center rounded-full border border-sidebar-border bg-card text-sidebar-muted shadow-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LayoutDashboardIcon className="size-3.5" aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -175,11 +193,15 @@ function Brand({ name, collapsed = false }: { name: string; collapsed?: boolean 
 
 /** A group in the collapsed rail: its icon opens a pop-out beside the rail listing the sub-pages. */
 /** Items waiting in a module, as a number with an accessible label (never colour alone). */
-function NavCount({ count, label, className }: { count: number; label: string; className?: string }) {
+function NavCount({ count, label, alert = false, className }: { count: number; label: string; alert?: boolean; className?: string }) {
   return (
     <span
-      className={cn("ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold text-primary-foreground tabular-nums", className)}
-      aria-label={`${count} waiting in ${label}`}
+      className={cn(
+        "ml-auto min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums",
+        alert ? "bg-danger text-white" : "bg-primary text-primary-foreground",
+        className,
+      )}
+      aria-label={alert ? `${count} in ${label} need attention` : `${count} waiting in ${label}`}
     >
       {count > 99 ? "99+" : count}
     </span>
@@ -246,6 +268,8 @@ function CollapsedGroup({
   );
 }
 
+const itemActive = (item: NavItem, pathname: string) => (item.match ? item.match(pathname) : isActive(pathname, item.href));
+
 function SidebarNav({
   items,
   pathname,
@@ -268,98 +292,135 @@ function SidebarNav({
     setOpenedOn(pathname);
     setOpenGroup(undefined);
   }
-  return (
-    <nav aria-label="Main" className="flex-1 [scrollbar-width:none] overflow-y-auto px-3 py-2 [&::-webkit-scrollbar]:hidden">
-      <ul className="flex flex-col gap-0.5">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(pathname, item.href);
-          const exact = item.children ? pathname === item.href : active;
-          const expanded = openGroup === undefined ? active : openGroup === item.href;
+  const main = items.filter((i) => i.placement !== "footer");
+  const footer = items.filter((i) => i.placement === "footer");
+  // Sections in the declared order; items without a group come first, unlabelled.
+  const sections: { label: string | null; items: NavItem[] }[] = [];
+  const ungrouped = main.filter((i) => !i.group);
+  if (ungrouped.length > 0) sections.push({ label: null, items: ungrouped });
+  for (const group of NAV_GROUPS) {
+    const inGroup = main.filter((i) => i.group === group);
+    if (inGroup.length > 0) sections.push({ label: group, items: inGroup });
+  }
+
+  const renderItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = itemActive(item, pathname);
+    const exact = item.children ? pathname === item.href : active;
+    const expanded = openGroup === undefined ? active : openGroup === item.href;
+    const link = (
+      <Link
+        href={item.children?.[0]?.href ?? item.href}
+        aria-current={exact ? "page" : undefined}
+        aria-label={collapsed ? item.label : undefined}
+        onClick={onNavigate}
+        className={cn(
+          "flex h-9 items-center gap-2.5 rounded-full px-3 text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
+          collapsed && "justify-center px-0",
+          active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
+        )}
+      >
+        {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+        {collapsed ? null : item.label}
+        {item.badge && !collapsed ? (
+          <span className="ml-auto rounded-sm border border-sidebar-border px-1 text-[10px] font-medium tracking-wide text-sidebar-muted uppercase">
+            {item.badge}
+          </span>
+        ) : null}
+        {item.count && !collapsed ? <NavCount count={item.count} label={item.label} alert={item.countAlert} /> : null}
+      </Link>
+    );
+    if (item.children && !collapsed) {
+      return (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setOpenGroup(expanded ? null : item.href)}
+          className={cn(
+            "flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
+            active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
+          )}
+        >
+          {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+          {item.label}
+          {item.count ? <NavCount count={item.count} label={item.label} alert={item.countAlert} className="ml-auto" /> : null}
+          <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")} aria-hidden />
+        </button>
+      );
+    }
+    if (item.children && collapsed) {
+      return <CollapsedGroup item={item} pathname={pathname} Link={Link} active={active} onNavigate={onNavigate} />;
+    }
+    return collapsed ? (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right">{item.label}</TooltipContent>
+      </Tooltip>
+    ) : (
+      link
+    );
+  };
+
+  const renderChildren = (item: NavItem) => {
+    if (!item.children || collapsed) return null;
+    const expanded = openGroup === undefined ? itemActive(item, pathname) : openGroup === item.href;
+    if (!expanded) return null;
+    return (
+      <ul className="mt-0.5 ml-[18px] flex flex-col gap-0.5 border-l border-sidebar-border pl-2.5">
+        {item.children.map((c) => {
+          const cActive = isActive(pathname, c.href);
           return (
-            <li key={item.href}>
-              {(() => {
-                const link = (
-                  <Link
-                    href={item.children?.[0]?.href ?? item.href}
-                    aria-current={exact ? "page" : undefined}
-                    aria-label={collapsed ? item.label : undefined}
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex h-9 items-center gap-2.5 rounded-full px-3 text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
-                      collapsed && "justify-center px-0",
-                      active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
-                    )}
-                  >
-                    {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
-                    {collapsed ? null : item.label}
-                    {item.badge && !collapsed ? (
-                      <span className="ml-auto rounded-sm border border-sidebar-border px-1 text-[10px] font-medium tracking-wide text-sidebar-muted uppercase">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                    {item.count && !collapsed ? <NavCount count={item.count} label={item.label} /> : null}
-                  </Link>
-                );
-                if (item.children && !collapsed) {
-                  return (
-                    <button
-                      type="button"
-                      aria-expanded={expanded}
-                      onClick={() => setOpenGroup(expanded ? null : item.href)}
-                      className={cn(
-                        "flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-body font-medium transition-colors outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring",
-                        active && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent",
-                      )}
-                    >
-                      {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
-                      {item.label}
-                      {item.count ? <NavCount count={item.count} label={item.label} className="ml-auto" /> : null}
-                      <ChevronDownIcon
-                        className={cn("ml-auto size-3.5 shrink-0 text-sidebar-muted transition-transform", !expanded && "-rotate-90")}
-                        aria-hidden
-                      />
-                    </button>
-                  );
-                }
-                if (item.children && collapsed) {
-                  return <CollapsedGroup item={item} pathname={pathname} Link={Link} active={active} onNavigate={onNavigate} />;
-                }
-                return collapsed ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  link
-                );
-              })()}
-              {item.children && expanded && !collapsed ? (
-                <ul className="mt-0.5 ml-[18px] flex flex-col gap-0.5 border-l border-sidebar-border pl-2.5">
-                  {item.children.map((c) => {
-                    const cActive = isActive(pathname, c.href);
-                    return (
-                      <li key={c.href}>
-                        <Link
-                          href={c.href}
-                          aria-current={cActive ? "page" : undefined}
-                          onClick={onNavigate}
-                          className={cn(
-                            "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-primary-deep focus-visible:ring-2 focus-visible:ring-ring",
-                            cActive && "font-semibold text-primary-deep",
-                          )}
-                        >
-                          {c.label}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
+            <li key={c.href}>
+              <Link
+                href={c.href}
+                aria-current={cActive ? "page" : undefined}
+                onClick={onNavigate}
+                className={cn(
+                  "flex h-7 items-center rounded-md px-2 text-table text-sidebar-muted outline-none hover:text-primary-deep focus-visible:ring-2 focus-visible:ring-ring",
+                  cActive && "font-semibold text-primary-deep",
+                )}
+              >
+                {c.label}
+              </Link>
             </li>
           );
         })}
       </ul>
+    );
+  };
+
+  return (
+    <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 [scrollbar-width:none] overflow-y-auto px-3 py-2 [&::-webkit-scrollbar]:hidden">
+        {sections.map((section, i) => (
+          <section
+            key={section.label ?? "top"}
+            aria-label={section.label ?? undefined}
+            className={cn(i > 0 && (collapsed ? "mt-2 border-t border-sidebar-border pt-2" : "mt-3"))}
+          >
+            {section.label && !collapsed ? (
+              <p className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-sidebar-muted uppercase" aria-hidden>
+                {section.label}
+              </p>
+            ) : null}
+            <ul className="flex flex-col gap-0.5">
+              {section.items.map((item) => (
+                <li key={item.href}>
+                  {renderItem(item)}
+                  {renderChildren(item)}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      {footer.length > 0 ? (
+        <ul className="flex shrink-0 flex-col gap-0.5 border-t border-sidebar-border px-3 py-2">
+          {footer.map((item) => (
+            <li key={item.href}>{renderItem(item)}</li>
+          ))}
+        </ul>
+      ) : null}
     </nav>
   );
 }

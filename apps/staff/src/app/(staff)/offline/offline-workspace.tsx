@@ -109,11 +109,11 @@ export function OfflineWorkspace({
   const offlineWalkIns = actions.filter((a): a is Extract<OfflineAction, { kind: "walk_in" }> => a.kind === "walk_in" && a.status !== "parked");
 
   if (!supported) {
-    return <p className="p-4 text-table text-danger-foreground">This browser cannot keep an offline outbox (no IndexedDB, session storage or Web Crypto).</p>;
+    return <p className="text-table text-danger-foreground">This browser cannot keep an offline outbox (no IndexedDB, session storage or Web Crypto).</p>;
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4">
       <p role="status" className="text-table">
         {online ? "Connected." : "No connection."} Snapshot of {snapshot.facilityName ?? "no facility"} as of {clinicalDateTime(snapshot.takenAt)}
         {online ? " — reload this page for a fresh one." : "."} Captured actions stay in this browser tab only, encrypted; closing the tab discards what was not

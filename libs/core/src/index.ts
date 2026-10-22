@@ -12,6 +12,7 @@ export * from "./lib/http/exception.filter";
 export * from "./lib/http/request-id";
 export * from "./lib/http/access-log";
 export * from "./lib/health/health-server";
+export * from "./lib/health/worker-health";
 export * from "./lib/idempotency/idempotency.interceptor";
 export * from "./lib/pagination";
 export * from "./lib/ph/mobile";

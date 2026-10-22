@@ -126,11 +126,6 @@ export async function signResult(input: z.input<typeof signSchema>): Promise<Act
   return actionResult(() => api<LabResult>(`/laboratory/results/${parsed.data.resultId}/${parsed.data.step}`, { method: "POST" }));
 }
 
-export async function releaseOrder(orderId: string): Promise<ActionResult<LabResult[]>> {
-  if (!id.safeParse(orderId).success) return { ok: false, message: "Invalid request." };
-  return actionResult(() => api<LabResult[]>(`/laboratory/orders/${orderId}/release`, { method: "POST" }));
-}
-
 const correctSchema = z.object({ resultId: id, value: valueSchema, reason, comment: z.string().trim().max(2000).optional(), instrumentId: id.optional() });
 /** A corrected version supersedes the result; the old version stays in the history. */
 export async function correctResult(input: z.input<typeof correctSchema>): Promise<ActionResult<LabResult>> {
@@ -147,11 +142,6 @@ export async function cancelResult(input: z.input<typeof cancelResultSchema>): P
   const parsed = cancelResultSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   return actionResult(() => api<LabResult>(`/laboratory/results/${parsed.data.resultId}/cancel`, { method: "POST", body: { reason: parsed.data.reason } }));
-}
-
-export async function resultHistory(itemId: string): Promise<ActionResult<LabResult[]>> {
-  if (!id.safeParse(itemId).success) return { ok: false, message: "Invalid request." };
-  return actionResult(() => api<LabResult[]>(`/laboratory/order-items/${itemId}/results`));
 }
 
 // ---- Critical results --------------------------------------------------------------------------

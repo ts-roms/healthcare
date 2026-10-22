@@ -1,4 +1,4 @@
-import { bigint, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const DOCUMENT_CATEGORIES = [
   "consent_form",
@@ -131,3 +131,29 @@ export const documentIntegrityFinding = pgTable("document_integrity_finding", {
   resolutionNote: text("resolution_note"),
 });
 export type DocumentIntegrityFindingRecord = typeof documentIntegrityFinding.$inferSelect;
+
+/** Electronic signature evidence bound to one stored document (0120_document_signature.sql); append-only. */
+export const documentSignature = pgTable("document_signature", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  documentId: uuid("document_id").notNull(),
+  shownSha256: text("shown_sha256").notNull(),
+  signerKind: text("signer_kind").$type<"patient" | "representative">().notNull(),
+  signerName: text("signer_name").notNull(),
+  signerRelationship: text("signer_relationship"),
+  identityCheck: text("identity_check").notNull(),
+  method: text("method").$type<"drawn">().notNull(),
+  strokes: jsonb("strokes").$type<number[][][]>().notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The member of staff who was present; null when the account holder signed in MyHealth. */
+  witnessedBy: uuid("witnessed_by"),
+  device: text("device"),
+  /** The signature request this answered (0121), if any. */
+  requestId: uuid("request_id"),
+  /** The MyHealth account that signed, and the guardian grant when it signed for another (0121). */
+  portalAccountId: uuid("portal_account_id"),
+  proxyGrantId: uuid("proxy_grant_id"),
+  identityMethod: text("identity_method").$type<"staff_checked" | "portal_password">().notNull().default("staff_checked"),
+});
+export type DocumentSignatureRecord = typeof documentSignature.$inferSelect;

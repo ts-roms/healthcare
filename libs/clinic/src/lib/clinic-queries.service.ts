@@ -34,7 +34,7 @@ import {
 import { publicView } from "./clinic-support";
 import { referralOverdue } from "./referrals/referral.rules";
 import { canApply } from "./domain/appointment-state";
-import { type BookingRules, onlineCheckInWindow, patientMayChange } from "./domain/patient-booking";
+import { type BookingRules, isPastForPatient, onlineCheckInWindow, patientMayChange } from "./domain/patient-booking";
 import { ACTIVE_VISIT_STATUSES, queueTicket } from "./domain/queue-state";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
@@ -110,7 +110,7 @@ export class ClinicQueries {
     return {
       // What the patient may still do themselves in MyHealth (the API enforces the same rules).
       upcoming: rows
-        .filter((r) => r.endsAt >= now)
+        .filter((r) => !isPastForPatient(r.status, r.endsAt, now))
         .map(({ onlineBooking, ...r }) => ({
           ...r,
           queueTicket: tickets.get(r.id) ?? null,
@@ -123,7 +123,7 @@ export class ClinicQueries {
           checkInOpensAt: checkInOpensAt(r, now, rulesByFacility.get(r.facilityId)),
         })),
       past: rows
-        .filter((r) => r.endsAt < now)
+        .filter((r) => isPastForPatient(r.status, r.endsAt, now))
         .reverse()
         .map(({ onlineBooking: _onlineBooking, ...r }) => ({
           ...r,
@@ -175,6 +175,7 @@ export class ClinicQueries {
         status: encounter.status,
         at: sql<Date>`coalesce(${encounter.completedAt}, ${encounter.startedAt})`,
         visitTypeCode: visitType.code,
+        appointmentId: visit.appointmentId,
         timeZone: facility.timezone,
       })
       .from(encounter)
@@ -189,6 +190,7 @@ export class ClinicQueries {
       facilityId: row.facilityId,
       status: row.status,
       visitTypeCode: row.visitTypeCode,
+      appointmentId: row.appointmentId,
       serviceDate: localDate(new Date(row.at), row.timeZone),
     };
   }

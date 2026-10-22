@@ -197,6 +197,7 @@ function ProcedureRow({
             documents={documents}
             required
             showToggle={false}
+            signing={definition ? { definitionId: definition.id, patientId } : null}
           />
           {error ? (
             <p role="alert" className="flex items-start gap-2 text-table text-danger-foreground sm:col-span-6">

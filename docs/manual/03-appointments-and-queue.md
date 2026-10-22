@@ -11,17 +11,18 @@ selected in the top bar. Times are shown in that facility's time zone (Asia/Mani
 - **Receptionists** book, confirm, cancel and check patients in, and call patients from the queue.
 - **Nurses** run the queue and record triage and vital signs.
 - **Physicians and dentists** see the queue and start consultations from it (see [Consultations and care plans](04-consultations-and-care-plans.md)).
-- **Clinic administrators** choose which visit types patients may book online.
+- **Clinic administrators** set up the visit types, choose which of them patients may book online, and set up each facility's service points.
 
-| Screen               | Where                                            | Needs                                                    |
-| -------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| Day schedule         | **Appointments** (`/appointments`)               | `appointment.read`                                       |
-| Book appointment     | `/appointments/new` (from the record)            | `appointment.manage`                                     |
-| Visit types          | **Online booking** (`/appointments/visit-types`) | `appointment.read` to view, `clinic.configure` to change |
-| Queue board          | **Queue** (`/queue`)                             | `clinic.queue.read`; `clinic.queue.manage` to act        |
-| Check in walk-in     | `/queue/walk-in` (from the record)               | `clinic.queue.manage`                                    |
-| Triage               | `/queue/visits/[id]/triage`                      | `clinic.triage.write`                                    |
-| Waiting-room display | `/display/queue` (from **Queue**)                | `clinic.queue.display`                                   |
+| Screen               | Where                                                   | Needs                                                    |
+| -------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| Day schedule         | **Appointments** (`/appointments`)                      | `appointment.read`                                       |
+| Book appointment     | `/appointments/new` (from the record)                   | `appointment.manage`                                     |
+| Visit types          | **Online booking** (`/appointments/visit-types`)        | `appointment.read` to view, `clinic.configure` to change |
+| Queue board          | **Queue** (`/queue`)                                    | `clinic.queue.read`; `clinic.queue.manage` to act        |
+| Check in walk-in     | `/queue/walk-in` (from the record)                      | `clinic.queue.manage`                                    |
+| Triage               | `/queue/visits/[id]/triage`                             | `clinic.triage.write`                                    |
+| Waiting-room display | `/display/queue` (from **Queue**)                       | `clinic.queue.display`                                   |
+| Service points       | **Settings → Service points** (`/admin/service-points`) | `clinic.configure`                                       |
 
 By default, receptionists have `appointment.read`, `appointment.manage`, `clinic.queue.read` and `clinic.queue.manage`. Nurses have
 `appointment.read`, the queue permissions and `clinic.triage.write`, but not `appointment.manage`. Physicians (and dentists) have all of these.
@@ -48,7 +49,8 @@ Appointments are booked from the patient record, so you always book for the righ
 
 1. Select **Find patient to book** on the Appointments screen (or search under **Patients**), and open the patient record.
 2. Select **Book appointment**. (It appears only for active records and only if you have `appointment.manage`.)
-3. Choose the **Practitioner \***, the **Visit type \*** and the **Day \***. Online visit types are marked "online" in the list.
+3. Choose the **Practitioner \***, the **Visit type \*** and the **Day \***. Only practitioners with a current published schedule at this
+   facility are listed; online visit types are marked "online" in the list.
 4. Under **Open slots**, pick a time. Only open times in the practitioner's published schedule at this facility are offered — times already
    booked, and leave or facility closures, are left out. If you see "No open slots on this day. Try another day or practitioner.", change the
    day or practitioner.
@@ -75,7 +77,7 @@ case, after booking you return to where you started.
 3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
 4. Choose **Add event**.
 
-Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Appointments → Schedules** for that.
+Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Settings → Schedules** for that.
 
 ## How to confirm, cancel or mark a no-show
 
@@ -87,8 +89,8 @@ On the day schedule, each open appointment (**Booked** or **Confirmed**) shows t
   **Cancel appointment**. Select **Keep** to leave it booked.
 - **No-show** — appears only once the appointment's start time has passed. Marking a no-show may send the patient a "we missed you" message
   inviting them to book again (not if they already have another visit booked), subject to their communication preferences. Where the clinic turned
-  on **Automatic no-shows** (see "How to choose which visit types patients may book online"), appointments nobody attended are marked for you at the
-  end of the day.
+  on **Automatic no-shows** (see "How to set up visit types and choose which patients may book online"), appointments nobody attended are marked
+  for you at the end of the day.
 
 These actions need `appointment.manage`.
 
@@ -135,7 +137,7 @@ A double click adds the patient only once.
 
 ## How to use the queue board
 
-Open **Queue** (`/queue`). The board shows today's visits at the selected facility in five columns:
+Open **Queue** (`/queue`). At the top are the page title with the connection state, three chips (the **facility**, the **service point** and the day), and the two buttons a front desk uses most: **Waiting-room display** and **Check in patient**. Below them four figures sum up the queue: **In queue** (with how many are done), **Avg wait**, **Longest wait** (with the patient's name; it turns red with a warning icon at 30 minutes or more) and **With provider**. The board shows today's visits at the selected facility in five columns, filling the screen; each column scrolls on its own:
 
 | Column                 | Meaning                                             |
 | ---------------------- | --------------------------------------------------- |
@@ -145,28 +147,39 @@ Open **Queue** (`/queue`). The board shows today's visits at the selected facili
 | **With provider**      | Consultation in progress                            |
 | **Done**               | Seen, cancelled, or left without being seen         |
 
-Each card shows the ticket, the patient's name, a priority badge (**Urgent** or **Emergency**) when not routine, and where the patient was called
-to or what they are waiting for. In the waiting columns the card also shows minutes since arrival; waits over 45 minutes are highlighted with ⚠.
+**Done** is folded into a count with the last ticket; select **View list** to see who they were and **Hide list** to fold it again.
 
-The board updates by itself. Next to the count of active visits you see the connection state:
+Each card shows the ticket, the patient's name, the complaint or where the patient was called to, and tags: **Walk-in** or **Appointment**, and **Urgent**, **Emergency** or **Priority · …** when not routine. Once the patient has been sent to a service point, the card also shows its name, and **next: …** when their route has a stop ahead. In the waiting columns the card shows how long the patient has waited since arrival, as a coloured label with the minutes: green under 15 minutes, amber from 15, red with a warning icon from 30. These limits are only how the board is drawn; they are not a target set by the system. The selected ticket is outlined.
+
+When nobody has checked in yet, the columns fold into zero counts and the board says **No patients in the queue yet**, with **Check in patient**, **View today's appointments (…)** and who the first appointment of the day is.
+
+If your facility has service points (see below), the **service point** chip in the header shows **All service points** or one of them — for example
+only the emergency room's queue. The choice is kept in the page address, so a bookmarked link opens that service point's board and live updates keep
+it. Each service point's queue is in the same order as the whole board: emergency, then urgent, then routine, each by arrival.
+
+The board updates by itself. Next to the title you see the connection state and when the board was last updated:
 
 - **Live** — changes appear as they happen.
 - **Connecting…** — reconnecting.
 - **Updates every 15 s** — live updates are unavailable, so the board re-reads the queue every 15 seconds.
 
-Select **Refresh** to reload at any time.
+Select the refresh button next to the connection state to reload at any time.
 
 ### Call a patient and move them along
 
-1. Select a ticket. A panel opens on the right with the patient's name, number, age and sex, status, arrival time (appointment or walk-in),
-   complaint, and where they were called to.
+1. Select a ticket. A panel opens on the right with the ticket in large type and how long the patient has waited, the patient's name, number, age and sex, the complaint, and four details: **Stage**, **Arrived**, **Visit** (appointment or walk-in) and **Assigned** (the provider, or **Any provider**). It also shows where they were called to, and a **Timeline** of check-in, calls and the current stage. On a narrow screen the panel opens under the board.
 2. To call the patient, type the place in **Call patient to** (for example "Triage 1" or "Room 3") and select **Call**.
 3. To move the patient, use the buttons shown for their current status:
-   - From **Waiting**: **Send to triage**, **Cancel visit…**, **Left without being seen…**
-   - From **Triage / Vitals**: **Ready for provider**, **Left without being seen…**
-   - From **Ready for provider**: **Send to triage** (back to triage), **Left without being seen…**
+   - From **Waiting**: **Move to Triage / Vitals**, **Cancel visit…**, **Left without being seen…**
+   - From **Triage / Vitals**: **Move to Ready for provider**, **Left without being seen…**
+   - From **Ready for provider**: **Send back to Triage / Vitals**, **Left without being seen…**
 4. **Cancel visit…** and **Left without being seen…** need a reason (at least 3 characters); it is recorded in the audit trail. Select the
    button again to confirm, or **Keep in queue**.
+5. To send a triaged patient somewhere else — from the emergency room to X-ray, say — choose the place under **Send to** and select **Send**. This is
+   offered while the patient is **In triage** or **Ready for provider** and only when the facility has service points; the panel shows the
+   **Service point** the patient is at. Every move is kept in the visit's history and the audit trail.
+6. When the patient has several stops ahead, use the **Route** part of the panel instead of sending them one move at a time (see "How to work a
+   patient's route" below).
 
 Calling and moving need `clinic.queue.manage`. From the panel you can also open **Triage & vitals** (or **Update triage** once the patient is
 ready for the provider), **Start consultation** or **Open consultation**, **Patient 360** and **Open patient record** — each only if you have the permission
@@ -178,6 +191,47 @@ physician signs the encounter.
 Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
 panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
 
+### How to work a patient's route
+
+A route is the planned sequence of service points for one visit — say **Emergency room → Laboratory → X-ray**. It is planned at triage (the
+**Route** card) or from the ticket panel. The panel's **Route** section shows the stops in order: done ones ticked, a skipped one struck
+through, the one the patient is at marked **here**, and the stops still ahead; **Next:** says where the patient goes next and, if your facility
+calls patients automatically, that they will be called there.
+
+- **Done here, send on** — when the patient is finished at the current stop. Add a note if useful (for example "CBC sample taken") and select
+  **Send on**: the stop is marked done, the patient moves to the next stop, and — if your facility turned it on under **Settings → Service
+  points → Routes** — they are called there at once, so the waiting-room display shows and announces it ("A-002 → Laboratory, 2nd floor") just
+  as if you had typed it under **Call patient to**. At the last stop the button reads **Mark done**: the patient stays where they are and the
+  route shows **Complete**.
+- **Skip step…** — choose the stop to skip and give a reason (at least 3 characters). Skipping a stop still ahead changes nothing else; skipping
+  the stop the patient is at sends them on to the next one, as **Done here** would.
+- **Plan route…** / **Change next stops…** — choose the stops after the one the patient is at, in order (**Then** → **Add stop**, ✕ to remove one),
+  and select **Save route**. This replaces only the stops still ahead; what is done stays. A stop cannot be the same as the one before it. A
+  patient still on the ordinary consultation line can be given a route too: **Done here, send on** then takes them to its first stop.
+
+Nothing moves a patient on its own: a sample taken at the laboratory or a procedure recorded does not finish the stop — the person at the station
+selects **Done here, send on** when the patient really is done there. Routes need `clinic.queue.manage`, like calling and moving; every step is
+kept with the visit and in the audit trail.
+
+## How to set up service points
+
+A larger facility is not one line: after triage a patient may go to the consultation line, the emergency room, X-ray or another station. A clinic
+administrator (`clinic.configure`) sets these up under **Settings → Service points** (`/admin/service-points`) for the facility selected in the
+top bar:
+
+1. Select **Add a service point**: a **Code** (lower-case letters, digits and hyphens; it cannot change later), a **Name** as staff should see it,
+   a **Kind** — **Consultation**, **Emergency**, **Imaging** or **Other** — and optionally a **Location** (up to 60 characters, for example
+   "Laboratory, 2nd floor"): what the waiting-room display shows and reads out when a route sends a patient there; the name is used when it is
+   empty. The kind only labels and orders the service point at triage and on the board; it adds no rule, and no national list of stations or
+   triage scale is built in.
+2. **Edit** renames a service point or changes its kind or location. **Deactivate** takes it out of the lists at triage and on the board; patients
+   already sent there stay there until moved, and the history keeps the name. **Reactivate** brings it back.
+3. Under **Routes**, tick **Call the patient when a route sends them on** and **Save** if the display should announce each move of a route by
+   itself. Off (the default), **Done here, send on** moves the patient and staff call them with **Call patient to** as usual.
+
+A facility without service points works as before: one consultation queue. The waiting-room display is unchanged either way — it shows the ticket
+and the place you type (or the location configured) when the patient is called, never the service point or the route.
+
 ## How to set up the waiting-room display
 
 A screen in the waiting area can show the ticket being called and where to go — for example **A-007 → Room 2** — the tickets called before it,
@@ -188,8 +242,12 @@ those waiting (urgent patients are seen first, so the order would seem to jump).
    Clinic" — and gives it only the **Waiting-room display** role, for the facility where the screen hangs. If your organization requires
    two-step verification, exempt this account with a reason.
 2. On the screen's browser, sign in to the staff app with that account. It opens the display straight away and cannot open anything else.
-3. Select **Full screen**. To hear a chime when a ticket is called, select **Turn on sound** once (browsers only play sound after a click on the
-   screen). The display keeps the screen awake where the browser allows it.
+3. Select **Full screen**. To hear a chime when a ticket is called, open **Sound** and select **Turn on sound** once (browsers only play sound
+   after a click on the screen). There you also choose how loud it plays (**Quiet**, **Normal**, **Loud**) and whether the call is read out as
+   well — "Number A 0 0 7, please proceed to Room 2" — in **English**, **Filipino** or **Both**, using the voices installed on the screen's
+   device (a Filipino voice is not available on every device); **Test** plays what the display will do. The screen remembers the volume and
+   voice choice; sound itself is turned on again with one click after the page reloads. The display keeps the screen awake where the browser
+   allows it.
 4. Call patients from the queue board as usual (**Call patient to** → **Call**). The call appears on the display within a second while it shows
    **Live**; otherwise within 15 seconds.
 
@@ -199,28 +257,45 @@ leaves the display when the visit is closed (done, cancelled or left without bei
 ## How to record triage and vital signs
 
 1. On the queue board, select the ticket and then **Triage & vitals**.
-2. The page shows the patient banner with allergies, and on the right the patient's **Allergies** and **Previous vitals**. (These need
-   `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You can record allergies here; see
-   [Patients](02-patients.md).
-3. Under **Assessment**:
-   - **Chief complaint \*** — required.
+2. The top of the page shows the ticket, the patient's name, sex, age and patient number, their allergies, **Waiting … min** (amber from 15 minutes, red
+   from 30) and whether they walked in or had an appointment. **Open patient record** is on the right. On the right of the form are the patient's
+   **Allergies** and **Previous vitals**. (These need `clinical.read`; without it you see "Allergies and previous vitals need clinical access.") You
+   can record allergies here; see [Patients](02-patients.md).
+3. **1 · Chief complaint \*** — required. The **Common** buttons (Fever, Cough / colds, Headache, Abdominal pain, High blood pressure, Follow-up) add
+   those words to what you have written; they are wording only.
+4. **2 · Vital signs** — enter what you measured. Leave blank what was not measured. Under each field is the adult reference band until you type, then
+   where your reading sits (for example "High · normal 60–100"); a reading outside the band turns red, with the word as well as the colour.
+   **BMI** is calculated from weight and height and shown under **Height**. When any reading is outside the band, a **From these vitals** card lists
+   them and offers **Set priority to Urgent**. The bands are guidance beside the number; nothing changes the priority or blocks a save unless you press
+   that button, and the decision is the nurse's. The bands are for adults: for a patient under 18 the page says so, shows no bands and flags nothing (only the BMI figure), and you read the values against your own references.
+5. **3 · Priority & risk**:
    - **Priority \*** — **Routine**, **Urgent** or **Emergency**. Urgent and emergency patients are seen first.
-   - **Pain score (0–10)** — or **Not assessed**.
-   - **Risk flags** — comma-separated, for example "fall risk, pregnant, infectious symptoms".
-4. Under **Vital signs**, enter what you measured. Leave blank what was not measured. **BMI** is calculated from weight and height for display.
-5. Optionally add **Triage notes**.
-6. Choose how to save:
-   - **Complete triage — ready for provider** — saves and moves the patient to **Ready for provider**.
-   - **Save, keep in triage** — saves and leaves the patient in triage (for example while waiting for a repeat reading).
+   - **Pain score** — **N/A** or 0 to 10.
+   - **Risk flags** — choose from Fall risk, Pregnant, Infectious symptoms, Senior (60+), PWD, Needs interpreter and Wheelchair, or **+ Other** to type
+     your own, comma-separated.
+6. **4 · Notes for the provider** — optional.
+7. When the facility has service points, a **Route** card follows. Under **Send to** choose where the patient goes next — **Consultation**,
+   **Emergency room**, **X-ray** or whatever your facility has set up. The list starts on the service point the patient is already at, otherwise on the
+   facility's consultation line. Leave it on **Choose…** to keep the ordinary consultation queue. When the patient has more stops ahead — the
+   laboratory, then X-ray — add them in order under **Then** (**Add stop**; ✕ removes one), or pick a **Route template** (say **Annual check-up**) at the top of the card to fill in **Send to** and **Then** at once; you can still change them. Your facility may offer a template first for a visit type. From the queue board, **Done here, send on** then moves the
+   patient from stop to stop (see "How to work a patient's route" above). Without service points the bar at the bottom says **No service points set
+   up yet** with **Set up rooms** (administrators), and the patient stays on the consultation line.
+8. The bar at the bottom says **Next:** where the patient goes, and has the buttons:
+   - **Complete triage** — saves and moves the patient to **Ready for provider** (at the service point you chose).
+   - **Save draft** — saves and leaves the patient in triage (for example while waiting for a repeat reading); the service point is recorded all the
+     same.
    - **Cancel** — leaves without saving.
+
+The triage, the vital signs, the queue move and the service point are saved together: either all of it is recorded or none of it.
 
 You can triage again (for example to add a repeat blood pressure) until the consultation starts. After that the page says "Triage is closed for
 this visit".
 
 ### Vital-sign limits
 
-The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges, and the platform does not
-label vital signs normal or abnormal.
+The platform refuses values outside these wide limits. They catch typing errors only — they are **not** normal ranges. The adult reference bands shown
+beside your readings are a separate, display-only guide for the person reading the number; they are not a diagnosis, are not set per patient (a
+child's normal is different) and the platform never acts on them.
 
 | Field            | Unit  | Accepted range | Notes                                |
 | ---------------- | ----- | -------------- | ------------------------------------ |
@@ -265,7 +340,7 @@ label vital signs normal or abnormal.
 
 Some procedures — a wound dressing, an injection, a nebulization — are done by a nurse during a visit without the doctor seeing the patient.
 Your clinic decides which procedures these are: an administrator ticks **May be recorded under a visit without a consultation** for the entry
-under **Clinic → Procedures**. Staff who may record procedures (physicians and nurses) see **Procedures** on the queue ticket.
+under **Settings → Procedures**. Staff who may record procedures (physicians and nurses) see **Procedures** on the queue ticket.
 
 1. On the queue board, select the ticket and then **Procedures**. The page lists what was recorded in this visit outside a consultation.
 2. Select **Record procedure** and choose the **Procedure** (only entries your clinic allows outside a consultation are offered), who
@@ -275,20 +350,36 @@ under **Clinic → Procedures**. Staff who may record procedures (physicians and
    or in words), **Given by** the patient or a representative (name and relationship), **When obtained** (leave empty for the time of the
    procedure; never after it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and notes.
    **Print consent form** opens the form with your clinic's current wording for this patient to sign.
+   To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
+   and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
+   patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
+   To let the patient sign at home, open the patient's **Procedures** page and use **Ask the patient to sign** (when your clinic turned on
+   signing in MyHealth): the patient is told, reads the wording in MyHealth and signs there after confirming their password. When the form is
+   signed it appears as a **Signed form** you can link here. For a patient under your clinic's age (18 unless your administrator set another),
+   a parent or guardian signs: at the clinic as the representative, or in MyHealth by opening the child's MyHealth.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 The visit must be open and in person. If the patient is seen by a doctor in the same visit, procedures done in the consultation are recorded in
 the encounter workspace instead (see [Consultations](04-consultations-and-care-plans.md)). A mistake is marked **Entered in error…** with a reason.
 All of a patient's procedures, in and outside consultations, are listed under **Procedures done here** on the patient record.
 
-## How to choose which visit types patients may book online
+## How to set up visit types and choose which patients may book online
+
+Visit types (Consultation, Follow-up, Online consultation…) are what every appointment, walk-in and online booking is made with. A fresh
+organization has none: until a clinic administrator adds one, **Book appointment** and **Check in walk-in** say that no visit types are set up.
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
-2. The table lists each visit type with **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
-3. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
+3. To add one, select **Add a visit type…** and fill in the **Name** staff and patients see, a **Code** (2–49 letters, digits or hyphens, unique in
+   your organization; it can never be changed), **Where** the visit happens, its **Usual length** in minutes (5–480; the length of the slot offered
+   when booking), whether patients go through **Triage before the consultation**, and whether **Patients may book it themselves in MyHealth**. Select
+   **Add visit type**.
+4. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+5. To retire a visit type, select **Deactivate…** on its row and confirm. It is no longer offered for bookings, walk-ins or online booking;
+   appointments and visits already recorded keep it, and it stays in the list as **Inactive**. Visit types are never deleted.
 
-Only active visit types can be opened. Changing this needs `clinic.configure`; without it you see "Only clinic administrators can change these
-settings."
+Only active visit types can be opened. Adding and deactivating visit types and changing online booking need `clinic.configure` (clinic
+administrators); without it you see "Only clinic administrators can change these settings." Every change is audited.
 
 Patients book online only inside published schedules. Until a clinic sets its own rules they book at least 2 hours ahead and up to 60 days out, with at
 most 3 open bookings, and can change or cancel until 2 hours before. Their bookings appear on your day schedule marked **Booked online by the patient**.
@@ -362,6 +453,18 @@ changing it needs `clinic.configure` (organization administrators by default). E
 Visit types are set up under **Online booking** (`/appointments/visit-types`); diagnosis coding systems have no screen yet (see
 [Administration](13-administration.md)).
 
+## How to read a doctor's profile
+
+Select **Doctors** in the menu (`/doctors`) and **View profile** on a card. The profile shows one practitioner at the selected facility:
+
+- **Header** — the name, whether the practitioner is **Active**, profession, specialty and facility. **Edit profile** (needs `clinic.configure`) opens the same form as **Edit…** on the schedules page; **Book appointment** opens the booking screen with this doctor chosen (for staff who may book).
+- **Steps left to finish this doctor's profile** — a yellow bar that appears while something is missing: a **staff account** (without one the doctor cannot document or prescribe), the **PRC licence number** (printed on medical certificates and referral letters) or a **weekly schedule** (without one nobody can book the doctor). Each step opens the place where it is fixed. The platform does not check the licence number.
+- **Four figures** — **Next available**: the first open slot among the doctor's next clinic days at this facility, for the first in-person visit type; **Hours per week** and the number of clinic days; **Next week**: appointments booked in the coming Monday-to-Sunday week out of the slots the schedule offers that week (a day touched by leave or a closure counts as no slots, even when only part of it is closed); **Seen this month**: the patients with a completed appointment this month (with a **+** after 100 appointments).
+- **Weekly schedule** — Monday to Sunday, each with a bar of the hours in clinic within 08:00–20:00 (wider when a schedule starts earlier or ends later), the hours and the number of slots; days without a schedule say **Not in clinic**. **Edit hours** opens the schedules page.
+- **Credentials** — the licence number and its expiry, and the linked staff account; a missing one is a link that opens **Edit profile**. A PhilHealth accreditation number is not recorded for individual practitioners.
+- **Calendar** — the month with a dot under each clinic day and an orange dot under days of leave; today is filled and the day of the next open slot has a ring. The arrows move by month.
+- **Upcoming appointments** — the next days with booked or confirmed appointments (up to three days) with time, patient and reason, how many slots are still open on the first of them, and **See all**, which opens this doctor's schedule. It says when the doctor is not in clinic today.
+
 ## Rules the system enforces
 
 - A practitioner (or room) cannot be double-booked. The database refuses a second booking for the same time, even if two people book at once.
@@ -372,32 +475,44 @@ Visit types are set up under **Online booking** (`/appointments/visit-types`); d
 - A no-show can be recorded only after the start time.
 - Cancelling an appointment, cancelling a visit and "left without being seen" all need a reason.
 - Queue moves follow a fixed order (see the buttons above); a patient with the provider cannot be moved from the queue.
+- A patient can be sent to a service point only while **In triage** or **Ready for provider**: triage comes first, a patient with the provider is
+  not moved, and a closed visit cannot be sent anywhere. Only an active service point of the same facility can be chosen.
+- A route's stops follow the same rule; a stop cannot repeat the one before it; skipping a stop needs a reason; a finished or skipped stop cannot be
+  changed; nothing moves a patient along a route without someone selecting **Done here, send on** (or skipping the stop they are at).
 - Impossible vital signs are refused, never corrected. Systolic and diastolic pressure must be recorded together.
 - If someone else changed the appointment or visit a moment before you, your action is refused; the screen reloads so you can see the latest
   state.
 
 ## Troubleshooting / common messages
 
-| Message                                                                    | Meaning                                                 | What to do                                                             |
-| -------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
-| The practitioner is already booked at that time                            | Someone booked this slot first                          | Choose another open slot (the list reloads)                            |
-| The room is already booked at that time                                    | The room is taken                                       | Choose another time                                                    |
-| The time is outside the practitioner’s schedule at this facility           | No published schedule block covers that time            | Pick a time from **Open slots**, or ask the administrator to add hours |
-| The practitioner or facility is unavailable at that time                   | Leave or a closure day                                  | Choose another day                                                     |
-| Appointments cannot start in the past                                      | The chosen time has passed                              | Choose a later slot                                                    |
-| Only today’s appointments can be checked in                                | The appointment is on another day                       | Check the date; check the patient in as a walk-in if appropriate       |
-| The appointment is at another facility                                     | You selected a different facility in the top bar        | Switch facility, or book at this facility                              |
-| Cannot check in an appointment that is cancelled (or no show, completed…)  | The appointment is no longer open                       | Book a new appointment or check in as a walk-in                        |
-| The patient is already in this facility’s queue                            | The patient has an active visit here today              | Find their ticket on the board                                         |
-| A no-show can be recorded only after the start time                        | Too early                                               | Wait until the appointment time has passed                             |
-| A reason is required                                                       | Cancel / left without being seen needs a reason         | Enter a reason of at least 3 characters                                |
-| The visit is closed                                                        | The visit is already done, cancelled or left            | Refresh the board                                                      |
-| Some vital signs are not plausible; check the entries                      | A value is outside the limits; the field is highlighted | Re-measure or correct the typing                                       |
-| Triage is not possible while the visit is in consultation (or completed…)  | The consultation has started or the visit is closed     | Record findings in the encounter instead                               |
-| … was modified by someone else (expected version …). Reload and try again. | Another user changed it first                           | The screen refreshes; check and try again                              |
-| No in-person visit types are configured.                                   | Walk-ins need an in-person visit type                   | Ask your administrator to set one up                                   |
-| This procedure is recorded in a consultation (the catalogue does not…)     | The entry is not allowed outside a consultation         | Record it in the encounter workspace, or ask an administrator          |
-| Record the patient's consent with this procedure                           | The entry requires consent                              | Fill in the **Consent** part of the form                               |
+| Message                                                                                    | Meaning                                                                 | What to do                                                             |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| The practitioner is already booked at that time                                            | Someone booked this slot first                                          | Choose another open slot (the list reloads)                            |
+| The room is already booked at that time                                                    | The room is taken                                                       | Choose another time                                                    |
+| The time is outside the practitioner’s schedule at this facility                           | No published schedule block covers that time                            | Pick a time from **Open slots**, or ask the administrator to add hours |
+| The practitioner or facility is unavailable at that time                                   | Leave or a closure day                                                  | Choose another day                                                     |
+| Appointments cannot start in the past                                                      | The chosen time has passed                                              | Choose a later slot                                                    |
+| Only today’s appointments can be checked in                                                | The appointment is on another day                                       | Check the date; check the patient in as a walk-in if appropriate       |
+| The appointment is at another facility                                                     | You selected a different facility in the top bar                        | Switch facility, or book at this facility                              |
+| Cannot check in an appointment that is cancelled (or no show, completed…)                  | The appointment is no longer open                                       | Book a new appointment or check in as a walk-in                        |
+| The patient is already in this facility’s queue                                            | The patient has an active visit here today                              | Find their ticket on the board                                         |
+| A no-show can be recorded only after the start time                                        | Too early                                                               | Wait until the appointment time has passed                             |
+| A reason is required                                                                       | Cancel / left without being seen needs a reason                         | Enter a reason of at least 3 characters                                |
+| The visit is closed                                                                        | The visit is already done, cancelled or left                            | Refresh the board                                                      |
+| Some vital signs are not plausible; check the entries                                      | A value is outside the limits; the field is highlighted                 | Re-measure or correct the typing                                       |
+| Triage is not possible while the visit is in consultation (or completed…)                  | The consultation has started or the visit is closed                     | Record findings in the encounter instead                               |
+| A visit that is waiting (or in consultation, completed…) cannot be sent to a service point | Routing needs triage first, or the visit is with the provider or closed | Record triage, or leave the visit as it is                             |
+| The patient is already at that service point                                               | Nothing to change                                                       | Choose another service point                                           |
+| The visit has no route                                                                     | **Done here, send on** needs planned stops                              | **Plan route…** first, or use **Send to**                              |
+| The route is complete; the patient is at the last stop                                     | No stop is left                                                         | **Change next stops…** to add more, or **Send to**                     |
+| A stop cannot repeat the one before it                                                     | The same service point twice in a row, or the one the patient is at     | Remove the repeated stop                                               |
+| A step that is done (or skipped) cannot be skipped                                         | The step is finished                                                    | Nothing to do; plan further stops if needed                            |
+| … is no longer in use (service point)                                                      | The service point was deactivated                                       | Choose another, or ask an administrator to reactivate it               |
+| Service point code "…" is already in use at this facility                                  | Codes are unique per facility                                           | Choose another code                                                    |
+| … was modified by someone else (expected version …). Reload and try again.                 | Another user changed it first                                           | The screen refreshes; check and try again                              |
+| No in-person visit types are configured.                                                   | Walk-ins need an in-person visit type                                   | A clinic administrator adds one under **Online booking**               |
+| This procedure is recorded in a consultation (the catalogue does not…)                     | The entry is not allowed outside a consultation                         | Record it in the encounter workspace, or ask an administrator          |
+| Record the patient's consent with this procedure                                           | The entry requires consent                                              | Fill in the **Consent** part of the form                               |
 
 ## Related chapters
 

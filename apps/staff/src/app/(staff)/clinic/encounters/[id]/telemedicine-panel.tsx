@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CalendarPlusIcon, HospitalIcon, PhoneIcon, PhoneOffIcon, VideoIcon } from "lucide-react";
 import { VideoCall } from "@healthcare/ui/healthcare";
 import { Badge, Button, Input, Label, Textarea, toast } from "@healthcare/ui/primitives";
+import { ConsultChatPanel } from "@/components/consult-chat-panel";
 import { QuestionnaireSummary } from "@/components/questionnaire-summary";
 import type { TelemedicineConsultation, VideoJoin } from "@/lib/api/types";
 import { sessionLabel } from "@/lib/telemedicine-mapping";
@@ -84,10 +85,12 @@ export function TelemedicinePanel({
         )
       ) : null}
 
+      {session.status !== "scheduled" ? <ConsultChatPanel appointmentId={appointment.id} canWrite={canConduct} /> : null}
+
       <details className="rounded-md border bg-card p-2" open={session.redFlags.length > 0}>
         <summary className="cursor-pointer text-table font-medium">Pre-consult answers{session.redFlags.length ? " · red flags" : ""}</summary>
         <div className="mt-2">
-          <QuestionnaireSummary session={session} />
+          <QuestionnaireSummary session={session} acknowledgement={consultation.acknowledgement} />
         </div>
       </details>
 

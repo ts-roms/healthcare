@@ -43,7 +43,8 @@ survivor (see [Patient merge](#patient-merge-link-dont-move)).
 
 ## Queries
 
-- **Lookup** `GET /patients`: `q` is interpreted as patient number (`P123`),
+- **Lookup** `GET /patients`: without any criterion, the organization's patients in name order (paged; audited as
+  `queryKind: browse`); `q` is interpreted as patient number (`P123`),
   phone (any PH format) or name (trigram, accent-insensitive: "pena" finds
   "Peña"); plus birth date and identifier filters. Returns summaries with masked
   mobile only. Inactive and merged records are hidden unless `includeInactive=true`. A patient number, phone or
@@ -157,9 +158,25 @@ A `patient_consent` decision is recorded by exactly one of a staff user (`record
 history and withdraws those in `PATIENT_WITHDRAWABLE_CONSENTS` while in effect; withdrawing `portal_access` revokes the account's
 sessions in the same transaction. Staff views carry `recordedVia` (`staff` | `myhealth`).
 
+## Patient QR codes (migration 0117)
+
+A QR code on a patient card or wristband that staff scan to open the record or check the patient in. `libs/patient/src/lib/qr`.
+
+- **Setting** (`patient_qr_setting`, per organization, versioned; `GET|PUT /patient-qr/setting`, read with `patient.search`, changed with `patient.qr.manage`, org_admin; audited `patient.qr-setting.update`): `enabled` (**off by default**), `issueAtRegistration`, and `content`: `token` (an opaque random key of 128 bits, the default), `patient_number`, or `portal_link` (migration 0118; below). The choice applies to codes issued from then on; each code records what it holds.
+- **What a code holds** is only a key, in a version-tagged text (`HPQ1:T:<26 base32 characters>` or `HPQ1:N:<patient number>`). Never a name, birth date, contact, PhilHealth PIN, diagnosis or result, and no URL (so nothing reaches browser history, access logs or referrers). Nobody can read patient details from a card; a scan only helps a signed-in member of staff find the record. **A code grants no access by itself**, to staff screens or to MyHealth.
+- **Codes** (`patient_qr_code`, append-only; the one allowed change is active → revoked, by trigger; one active code per patient; refused under a merged record): issued at registration (`RegisterPatientDto.issueQrCode`, default the organization's setting, ignored while QR codes are off; the response says `qrCodeIssued`) or from the patient record (`POST /patient-qr/patients/:id`, `patient.qr.issue` + `patient.read`: org_admin, receptionist, records_officer, nurse), revoked with a reason (`POST …/revoke`; a lost card), replaced by issuing again, or **regenerated** in one step (`POST …/regenerate`, a reason: the active code is revoked and a new one issued in one transaction with what the setting holds now, so a damaged card or a changed setting needs no second step; the old card stops working at once). History stays on the record. The stored key is meaningless without access to the platform; a patient-number code is accepted by a scan only while the patient has an active code (revoking stops the platform accepting it, but anyone can make a number code from the number, which is why the key is the default).
+- **Card**: `GET /patient-qr/patients/:id/card.pdf` (`libs/pdf` `renderQrCards`, ID-1 size; organization name, patient name and number; the QR symbol; `qrcode` supplies the matrix) is audited `patient.qr.print`; staff patient record, **MyHealth** tab → **Patient QR code** (view, print, revoke, issue).
+- **Scan**: `POST /patient-qr/scan` (`patient.search`; body `{ payload }`) answers the minimal patient summary (a merged record resolves to its survivor, with `resolvedFrom`) or `qr_not_recognised`, `qr_disabled`, `qr_revoked` (422) / 404. Audited `patient.qr.scan` (success, or denied with the reason). **Neither payloads nor keys are written to the audit trail, logs or events.** Staff `/patients/scan` (hand-held scanner into the field, or the browser's camera where `BarcodeDetector` exists) lands on **Open record** and **Check in**; **Scan QR code** on `/patients`.
+- Events (outbox, ids only): `PatientQrIssued`, `PatientQrRevoked` (`qrCodeId`, `patientId`).
+- Staff: `/admin/patient-qr` (setting), the **Patient card** choice on `/patients/new` (shown only while on).
+- **MyHealth link** (content `portal_link`, migration 0118; needs `PORTAL_BASE_URL` for the API, else `422 portal_link_unavailable`): the QR symbol is `<portal>/activate#HPQ1:T:<key>`, the key in the URL fragment, which browsers never send to a server or log. The patient scans the card with their phone; MyHealth `/activate` reads the fragment (and clears it from the address), asks `POST /portal/auth/activation-card` (public, throttled, `{ organizationCode, payload }`) and shows "Hello, <first name>" with the patient number (read-only), the date of birth and the primary email on record filled in. That answers only while the clinic's invitation is open (the patient `invited`, the activation code unexpired) and only with the patient number, first name, date of birth and primary email (`{ patientNumber, givenName, birthDate, email }`); every other case is the same `404` (audited `portal.activation-card`, never the key). **The card alone opens nothing**: only the one-time activation code the clinic gives and the patient's own password are left to enter, and activation itself still verifies the date of birth and the code (`patient.portal.manage` invite, requires `portal_access` consent), and the patient then chooses their own email and password as before. Staff scanners read the same link. Passkeys, the mobile app and a card for a guardian are not covered.
+- **MyHealth access at registration** (`patient_qr_setting.inviteAtRegistration`, migration 0119, default off; staff setting **Offer MyHealth access at registration**): the registration form (for staff holding `patient.consent.manage` and `patient.portal.manage`) shows **Give MyHealth access now** (ticked by default when the setting is on; how the patient agreed: signed paper or verbal). Ticking it is the registering person's confirmation that the patient agreed: after the registration the staff app records the `portal_access` consent and issues the activation code through the ordinary endpoints (each checked on its own), and shows the code once next to **Print card**. If either step is refused the patient stays registered and the form says what to retry from the record. Nothing is recorded for a patient without that tick.
+- **In the mobile app** (`apps/mobile`, `/activate`, from "First time? Set up with your clinic card" on sign-in): the patient scans the card with the app's camera (`expo-camera`, QR only; the camera permission is asked when they tap **Scan**, used for nothing else), the app sends only the key to `POST /portal/auth/activation-card`, shows the patient number (locked), the first name, the date of birth and the email on record, and asks for the activation code and a new password (`POST /portal/auth/activate`, then signed in). The same refusals apply as on the web; the patient number can also be typed. Scanning the card with the phone's own camera app still opens MyHealth on the web (no deep link or universal link is registered). Needs a new native build (a camera plugin was added).
+- Rules the organization decides: who may carry a card for a patient (a minor, a dependent), how cards are handed out and replaced, whether wristbands are used, and how an unrevoked lost card is treated; no national identifier or card format is assumed.
+
 ## Events
 
-`PortalProxyGranted` / `PortalProxyEnded` (guardian access; ids only). `PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
+`PortalProxyGranted` / `PortalProxyEnded` (guardian access; ids only). `PatientConsentWithdrawn` (recorded in MyHealth; ids and the consent type only). `PatientQrIssued` and `PatientQrRevoked` (ids only). `PatientMerged` and `PatientUnmerged` (outbox; aggregate: the retired record; payload: merge/unmerge id, retired and
 survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegistered`, `PatientDemographicsChanged`.
 
 ## Permissions
@@ -167,7 +184,7 @@ survivor ids, re-pointed ids). No handler subscribes yet. Planned: `PatientRegis
 `patient.search`, `patient.read`, `patient.register` (+ facility context),
 `patient.update`, `patient.consent.manage`, `patient.portal.manage` (invite and
 disable portal accounts; org admin, receptionist, records officer), `patient.portal.proxy.manage` (give and end guardian access; same roles; migration 0080), `patient.merge`
-(merge and unmerge; org admin, records officer; migration 0068).
+(merge and unmerge; org admin, records officer; migration 0068), `patient.qr.issue` (issue, print and revoke a patient QR code; org admin, receptionist, records officer, nurse) and `patient.qr.manage` (the organization's QR setting; org admin; migration 0117).
 
 ## Integration points
 

@@ -251,6 +251,17 @@ payment is offered.
   payment in PayMongo's test mode end to end (checkout page, webhook delivery and signature), then switch to live keys.
   PayMongo recommends its newer v2 checkout API for new integrations; this adapter uses v1.
 
+## Prepaid online consultations (migration 0126)
+
+An organization may require payment before an online visit's waiting room opens (`telemedicine_setting.payment_required`, see
+[telemedicine](telemedicine.md#payment-before-the-waiting-room-migrations-0125-0126)). `PrepaymentService` (`libs/billing/src/lib/prepayments`) charges the
+visit from its appointment (charge source `appointment`, once per appointment; the service mapped to the visit type, at the price in force on the visit's
+local date), makes an invoice from that charge and issues it, as the system actor (`billing_invoice.created_by` is null and `created_via = 'system'`; audited
+as `system:prepayment`), and reports where payment stands (`not_required` | `unpaid` | `paid`, from the invoice balance). Patients pay it like any invoice (online
+when the provider port is configured, or at the cashier). The signed consultation's own capture skips an appointment already charged. The invoice is an
+ordinary issued invoice: voids, refunds and credit notes work as usual, and a refund for a visit that did not take place is the cashier's. BIR treatment is
+unchanged (compliance dependency).
+
 ## Screens
 
 Staff (`billing.charge.read`, facility selected): `/billing` — the cashier's desk; `/billing/patients/[id]` — pending

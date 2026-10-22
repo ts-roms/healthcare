@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
+import { visitTypeFormSchema, type VisitTypeFormInput } from "@/lib/visit-type-form";
 import type { AppointmentItem, Availability, FacilityBookingRules, Visit, VisitType, WaitlistOffer, WaitlistRule } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
@@ -116,6 +117,26 @@ export async function setOnlineBooking(input: z.input<typeof onlineBookingSchema
   if (!parsed.success) return { ok: false, message: "Invalid request." };
   const { visitTypeId, ...body } = parsed.data;
   const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
+/** Adds a visit type for the organization (needs clinic.configure; audited). The API refuses a code already in use (409). */
+export async function createVisitType(input: VisitTypeFormInput): Promise<ActionResult<VisitType>> {
+  const parsed = visitTypeFormSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the details." };
+  const result = await actionResult(() => api<VisitType>("/clinic/visit-types", { method: "POST", body: parsed.data }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
+const deactivateVisitTypeSchema = z.object({ visitTypeId: z.uuid(), version: z.number().int().positive() });
+/** Makes a visit type inactive: no new bookings or check-ins with it; appointments and visits already recorded keep it (needs clinic.configure; audited). */
+export async function deactivateVisitType(input: z.input<typeof deactivateVisitTypeSchema>): Promise<ActionResult<VisitType>> {
+  const parsed = deactivateVisitTypeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitTypeId, version } = parsed.data;
+  const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body: { status: "inactive", version } }));
   if (result.ok) revalidatePath("/appointments/visit-types");
   return result;
 }

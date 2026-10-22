@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import {
   type Actor,
+  actorUserId,
   BusinessRuleError,
   DATABASE,
   type Database,
@@ -78,7 +79,14 @@ export class InvoiceService {
       }
       const [created] = await tx
         .insert(billingInvoice)
-        .values({ organizationId: actor.organizationId, facilityId, patientId: input.patientId, notes: input.notes ?? null, createdBy: actor.userId })
+        .values({
+          organizationId: actor.organizationId,
+          facilityId,
+          patientId: input.patientId,
+          notes: input.notes ?? null,
+          createdBy: actorUserId(actor),
+          createdVia: actor.kind === "user" ? "staff" : "system",
+        })
         .returning();
       const invoice = found(created, "Invoice");
       await this.attachCharges(tx, invoice, pending);
@@ -241,7 +249,7 @@ export class InvoiceService {
           status: "issued",
           invoiceNumber: documentNumber(series.prefix, year, series.value),
           issuedAt: now,
-          issuedBy: actor.userId,
+          issuedBy: actorUserId(actor),
           ...tax,
           updatedAt: now,
           version: sql`${billingInvoice.version} + 1`,

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { guideHref, patientGuide } from "./guide";
+import { guideHref, patientFaq, patientGuide, patientGuideWithFaq } from "./guide";
 
 const CHAPTER = readFileSync(new URL("../../../../docs/manual/12-patient-portal.md", import.meta.url), "utf8");
+const FAQ = readFileSync(new URL("../../../../docs/manual/14-glossary-and-faq.md", import.meta.url), "utf8");
 
 describe("patient guide", () => {
   it("drops the title and the sections written for staff", () => {
@@ -17,6 +18,19 @@ describe("patient guide", () => {
     expect(guide).toContain("## How to set up your account");
     expect(guide).not.toContain("## For clinic staff");
     expect(guide).not.toMatch(/^# /m);
+  });
+
+  it("ends the guide with the manual's questions for patients, and only those", () => {
+    const faq = patientFaq("# 14. FAQ\n\n## FAQ\n\n### For staff\n\n**1. Staff?**\nAnswer.\n\n### For patients\n\n**2. Patients?**\nAnswer for patients.\n\n## Related chapters\n\n- x\n");
+    expect(faq).toBe("## Frequently asked questions\n\n**2. Patients?**\nAnswer for patients.");
+    expect(patientFaq("# Nothing\n\n## FAQ\n\n### For staff\n\nOnly staff\n")).toBe("");
+    const guide = patientGuideWithFaq(CHAPTER, FAQ);
+    expect(guide).toContain("## Frequently asked questions");
+    expect(guide).toContain("activation code");
+    expect(guide).not.toContain("### For staff");
+    expect(guide).not.toContain("separation of duties");
+    // Without a FAQ the guide is unchanged.
+    expect(patientGuideWithFaq(CHAPTER, "# 14\n")).toBe(patientGuide(CHAPTER));
   });
 
   it("keeps on-page anchors and shows links to staff chapters as text", () => {

@@ -15,6 +15,13 @@ export const portalActivateSchema = z.object({
 });
 export class PortalActivateDto extends createZodDto(portalActivateSchema) {}
 
+export const portalCardSchema = z.object({
+  organizationCode,
+  /** What the scanned card's link carried after "#" (the key). Never stored or audited. */
+  payload: z.string().trim().min(1).max(100),
+});
+export class PortalCardDto extends createZodDto(portalCardSchema) {}
+
 export const portalLoginSchema = z.object({
   organizationCode,
   email,

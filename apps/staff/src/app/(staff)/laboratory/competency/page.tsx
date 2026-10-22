@@ -1,6 +1,7 @@
+import { ModulePage } from "@/components/module-page";
+import { SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabCatalogEntry, LabCompetencyOverview, LabTest } from "@/lib/api/types";
@@ -13,10 +14,9 @@ export default async function CompetencyPage() {
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Staff competency" />
+      <ModulePage title="Staff competency">
         <FacilityRequired action="Competency is recorded per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [overview, tests, departments] = await Promise.all([
@@ -25,12 +25,20 @@ export default async function CompetencyPage() {
     api<LabCatalogEntry[]>("/laboratory/departments"),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Staff competency"
-        description={`Competency assessments of staff who enter results at ${facility.name}, per test or section. Areas and intervals follow your laboratory's programme.`}
-      />
-      <CompetencyBoard overview={overview} tests={tests} departments={departments} currentUserId={session.user.id} canAssess={can(session, "lab.qc.manage")} />
-    </>
+    <ModulePage
+      title="Staff competency"
+      description={`Competency assessments of staff who enter results at ${facility.name}, per test or section.`}
+      details={["Areas and intervals follow your laboratory's programme."]}
+    >
+      <SettingsStack>
+        <CompetencyBoard
+          overview={overview}
+          tests={tests}
+          departments={departments}
+          currentUserId={session.user.id}
+          canAssess={can(session, "lab.qc.manage")}
+        />
+      </SettingsStack>
+    </ModulePage>
   );
 }

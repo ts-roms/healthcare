@@ -9,6 +9,13 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 export const RECORDS_REQUEST_SCOPES = ["consultations", "laboratory", "prescriptions", "dental", "imaging", "certificates", "other"] as const;
 export type RecordsRequestScope = (typeof RECORDS_REQUEST_SCOPES)[number];
 export const RECORDS_REQUEST_STATUSES = ["submitted", "in_review", "fulfilled", "declined", "withdrawn"] as const;
+/**
+ * What the patient asks (migration 0114): copies of their records, a correction, erasure or blocking, or an objection
+ * to a use of their data — the data-subject rights of the Data Privacy Act, answered under the organization's own
+ * procedure. The platform records the request and the answer; it never changes or deletes a record by itself.
+ */
+export const RECORDS_REQUEST_KINDS = ["access", "rectification", "erasure", "objection"] as const;
+export type RecordsRequestKind = (typeof RECORDS_REQUEST_KINDS)[number];
 export type RecordsRequestStatus = (typeof RECORDS_REQUEST_STATUSES)[number];
 /** The sections a copy of the record may contain. */
 export const RECORD_COPY_SECTIONS = [
@@ -54,6 +61,8 @@ export const recordsRequest = pgTable("records_request", {
   identityCheckMethod: text("identity_check_method"),
   identityCheckedBy: uuid("identity_checked_by"),
   identityCheckedAt: ts("identity_checked_at"),
+  // 0114: copies (access), or a rectification, erasure or objection request.
+  kind: text("kind").$type<RecordsRequestKind>().notNull().default("access"),
 });
 export type RecordsRequestRecord = typeof recordsRequest.$inferSelect;
 

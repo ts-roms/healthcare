@@ -39,7 +39,8 @@ test.describe("registration to laboratory result in MyHealth", () => {
   });
 
   test("adds an emergency contact to the record", async () => {
-    await desk.getByRole("link", { name: "Edit details" }).click();
+    await desk.getByRole("button", { name: "More actions for this patient" }).click();
+    await desk.getByRole("menuitem", { name: "Edit details" }).click();
     await desk.waitForURL(/\/patients\/[0-9a-f-]{36}\/edit$/);
     await desk.getByRole("button", { name: "Add an emergency contact or guardian…" }).click();
     await desk.locator("#relationship-name").fill("Jose Bautista");
@@ -72,10 +73,8 @@ test.describe("registration to laboratory result in MyHealth", () => {
     const doctor = await staffPage(browser, STAFF.doctor, errors);
     // The visit type needs no triage: the patient waits on the queue board until the doctor starts the consultation.
     await doctor.goto("/queue");
-    await doctor
-      .getByText(/BAUTISTA, Carmen/i)
-      .first()
-      .click();
+    // The ticket card (the figure tiles above the board name the longest wait too).
+    await doctor.getByRole("button", { name: /A-\d+.*BAUTISTA, Carmen/i }).click();
     await doctor.getByRole("button", { name: "Start consultation" }).click();
     await doctor.waitForURL(/\/clinic\/encounters\/[0-9a-f-]{36}$/);
 
@@ -145,6 +144,7 @@ test.describe("registration to laboratory result in MyHealth", () => {
 
   test("the front desk enrolls the patient in MyHealth", async () => {
     await desk.goto(`/patients/${patientId}`);
+    await desk.getByRole("navigation", { name: "Sections of the patient record" }).getByRole("link", { name: "Consent & portal" }).click();
     await desk.getByRole("button", { name: "Record consent" }).click();
     await desk.locator("#consent-type").selectOption({ label: "Patient portal access (MyHealth)" });
     await desk.getByLabel("Granted").check();

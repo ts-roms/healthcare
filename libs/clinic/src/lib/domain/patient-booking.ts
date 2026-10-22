@@ -113,9 +113,6 @@ export function waitlistMatches(
   return true;
 }
 
-/** The old name, for callers that only need the platform's defaults. */
-export const PATIENT_BOOKING_RULES = DEFAULT_BOOKING_RULES;
-
 // ---- waiting-list rules per visit type or practitioner (migration 0096) ------------------------------------------
 
 /** What a patient's waiting-list request is allowed at this facility, for this visit type and practitioner. */
@@ -200,4 +197,13 @@ export function offerExpiry(now: Date, startsAt: Date, rules: Pick<BookingRules,
 /** Whether a time is still worth offering: the patient must be able to accept it before the lead time runs out. */
 export function offerable(now: Date, startsAt: Date, rules: Pick<BookingRules, "minLeadMinutes">): boolean {
   return startsAt.getTime() - rules.minLeadMinutes * 60_000 > now.getTime() + 60_000;
+}
+
+/**
+ * Whether MyHealth lists an appointment under the patient's past visits rather than upcoming ones: its scheduled end
+ * has passed, or it has already been attended (`completed`) or marked as missed (`no_show`) — a consultation finished
+ * before its booked end is not still "upcoming". Cancelled appointments stay where their time puts them.
+ */
+export function isPastForPatient(status: string, endsAt: Date, now: Date): boolean {
+  return endsAt < now || status === "completed" || status === "no_show";
 }

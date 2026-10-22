@@ -29,7 +29,6 @@ export const allergyFormSchema = z.object({
   verification: z.enum(["unconfirmed", "confirmed"]),
 });
 export type AllergyForm = z.input<typeof allergyFormSchema>;
-export type AllergyPayload = z.output<typeof allergyFormSchema>;
 
 export const BLANK_ALLERGY: AllergyForm = {
   category: "medication",

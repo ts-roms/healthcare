@@ -20,7 +20,7 @@ browser ──cookies──▶ staff app server (proxy.ts, server components, se
 | `hc_tz`  | Selected facility's time zone (display only) | httpOnly, SameSite=Lax                    | Session                                 |
 
 - **Sign-in** (`app/(auth)/login/actions.ts`): `POST /auth/login` → tokens, or `mfa_required` (then `POST /auth/mfa/verify`), or `organization_selection_required` (the user picks an organization and re-enters the password). The facility selector lists `GET /auth/me/facilities` (active facilities where the user holds a role, every one for an organization-wide role; no `organization.read` needed); when that is exactly one facility it is selected at sign-in.
-- **Public pages** (`PUBLIC_PATHS` in `src/proxy.ts`): only the landing page `/welcome` (`app/(public)/welcome`) renders without a session. It is static, never calls the API, and describes the platform from `components/platform-highlights.tsx`, which the split sign-in page (`app/(auth)/layout.tsx`) shares.
+- **Public pages** (`PUBLIC_PATHS` in `src/proxy.ts`): only the landing page `/welcome` (`app/(public)/welcome`) renders without a session, and a signed-out visit to the site root `/` is sent there (any other page goes to `/login` and back). It is static, never calls the API, and describes the platform from `components/platform-highlights.tsx`, which the split sign-in page (`app/(auth)/layout.tsx`) shares.
 - **Gate and refresh** (`src/proxy.ts`): no refresh token → `/login?next=…` (same-origin paths only). No access token (its cookie expired) → `POST /auth/refresh`, and the new tokens go to both the current render and the browser.
 - **Single-flight refresh** (`createRefresher` in `libs/web-session`, wired in `lib/api/tokens.ts`): the API rotates refresh tokens and **revokes the session when a rotated token is reused**. Parallel requests from one browser can all carry the same expired token, so concurrent refreshes of one token share a single API call, and the result is reused for 30 s. This is per process: running several staff-app instances needs sticky sessions or a shared store (e.g. Redis) for the same guarantee.
 - **Refresh failures:** only a definitive rejection (invalid, expired or revoked token) signs the user out. A rate limit (429), server error or network failure returns a 503 "service is busy" page that retries itself, and the session cookies are kept.
@@ -39,12 +39,29 @@ different zones never share one. In the browser, `StaffShell` sets it (`setClini
 `hc_tz` is written with `hc_fac` (facility selection, sign-in pre-selection) and is display-only: an unknown zone falls
 back to Asia/Manila.
 
+## Landing page
+
+`/welcome` (route group `(public)`, no session) presents the platform and links to the sign-in page. Its **MyHealth, on the phone** section
+(`components/myhealth-download.tsx`) shows a QR code per store listing of the MyHealth app (`MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL`) or,
+while none is set, one to MyHealth on the web (`PORTAL_BASE_URL`); nothing when no link is configured (`lib/mobile-app.ts`, tested). Codes are
+drawn on the server from the configured URLs only.
+
 ## Help (user manual)
 
 `/help` renders the user manual from `docs/manual/*.md` (the single source), read from the repository on the server by
 `lib/manual-content.ts` (walks up from the working directory to `docs/manual`; cached per process), with the design system's
 `Markdown` primitive. Links between chapters map to `/help/<slug>` (`lib/manual.ts`, the file name without its number);
-links to developer documentation are shown as text. The menu shows **Help** to every signed-in user.
+links to developer documentation are shown as text. A search box above the chapter list (`HelpSearch` in `@healthcare/ui/healthcare`)
+searches an index of every section built on the server from the Markdown (`manualSections` / `searchManual` in `@healthcare/ui/primitives`:
+sections at `##`/`###` headings, anchors as the `Markdown` view gives them, every query word must occur, heading matches first, a
+passage around the match); results link to `/help/<slug>#<anchor>`; the same box sits at the top of the help dialog (below), whose results close it. The menu shows **Help** to every signed-in user, and `StaffShell` renders
+`components/help-fab.tsx` on every signed-in page: a round **Open the user manual** button fixed at the bottom-right from `md` up (16px gutter and
+the safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
+screen** link to the chapter for the current route (`chapterForPath` in `lib/manual.ts`, longest route prefix first; nothing when no chapter
+fits, e.g. on `/help`), every chapter (the `(staff)` layout passes slugs and titles from `loadManual()` through `StaffShell`), and a button
+to `/help`; links close the dialog. The content area is padded at the bottom (`contentClassName` on `StaffLayout`) so the button never covers
+a form's last controls. Below `md` the same dialog opens from a lifebuoy icon button in the top bar instead (`placement="topbar"`), because a
+floating button sits on tables' right-hand column and row actions on a phone. The waiting-room display and the signed-out pages have their own layouts and never show it.
 
 ## Notifications
 
@@ -81,9 +98,15 @@ The record also has a **Patient portal (MyHealth)** card (`GET /patients/:id/por
 
 Response types are mirrored in `lib/api/types.ts` because `layer:ui` projects may not import backend libraries. Move them into `type:contract` libraries, or generate them from the OpenAPI document, as domains grow.
 
+**Server actions from client forms:** a client component runs a server action through `useServerAction` (`lib/use-server-action.ts`): `run(call, success, after?)` awaits the action inside a React transition and, when it answers `ok`, toasts `success`, calls `after` (close the form, clear the fields) and refreshes the page's server data with `router.refresh()` — or with the `refresh` callback a parent passed (the laboratory workbench and send-outs hand down `onChanged`); a refusal is toasted with the action's message. `refreshOnFailure` also refreshes after a refusal, for the scheduling set-up whose version-conflict message says the screen was refreshed. Forms that show field errors instead of a toast (patient edit, patient history) or do more with the answer (invoice actions, import review) keep their own transition. One hook replaced the copies the 2026-10-20 codebase audit counted (finding C-03).
+
+## Patient record (`/patients/[id]`)
+
+A header (`profile-header.tsx`: identity, allergies, **In queue** badge for today's open visit, **Start consultation** or **Check in (walk-in)**, **Book appointment**, **Billing** and a **More** menu), notices (merge, status, and the visits left open from an earlier day: `stale-visit-banner.tsx`, closing through the queue's own `moveVisit` action with the visit's version), and six sections chosen by `?tab=` (`lib/patient-profile.ts`: `overview`, `clinical`, `visits`, `labs`, `coverage`, `portal`; an unknown value is the overview). Each section reads only its own data (every clinical list read is audited by the API), so no tab count is shown. Open visits are found from the timeline's `queue_visit` entries and read one by one (`GET /queue/visits/:id`), limited to the selected facility; the day split uses the visit's `queueDate` against today in the facility's time zone. **Record % complete** (`recordCompleteness`) counts nine registration facts the desk can ask for; it is a prompt, not a rule, and uses no clinical data. Links that used an in-page anchor of another section carry the tab (`?tab=labs#laboratory`, `?tab=clinical#external-history`). Nothing here moves a visit to today's queue: no such command exists.
+
 ## Patient timeline
 
-The patient record has a **Timeline** button and a **Recent activity** card (the latest five entries) from `GET /patients/:id/timeline` ([patient-timeline.md](../domains/patient-timeline.md)). `/patients/[id]/timeline` is a page of its own rather than a tab of the record, because the record is one long server-rendered page and the timeline needs its own URL state (filters), paging and audit per view:
+The patient record has a **Timeline** button and a **Recent activity** card (the latest five entries) from `GET /patients/:id/timeline` ([patient-timeline.md](../domains/patient-timeline.md)). `/patients/[id]/timeline` is a page of its own rather than a tab of the record, because the timeline needs its own URL state (filters), paging and audit per view:
 
 - **Grouped by day**, newest first, times from the `libs/ui` format helpers (facility time zone), drawn by the design system's `RecordTimeline`.
 - **Filters in the URL**: kind chips (Visits, Allergies and consents, Prescriptions, Laboratory, Dental, Care plans, Billing, PhilHealth and DOH, Messages, Imported history, Documents and requests, Immunizations → the API's `kinds`; every kind in exactly one chip) and a date range (`from`/`to`, local dates). **Load more** fetches the next page by cursor in a server action (`timeline-actions.ts`).
@@ -133,17 +156,20 @@ form (`patient.register`, `clinic.queue.manage`, `clinic.triage.write`) and the 
 
 ## Queue and appointments
 
-Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule.
+Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule. Opened without a patient (a bookmark, a typed address), `/queue/walk-in` and `/appointments/new` start with **Find the patient** (`components/patient-picker.tsx`: search, then **Check in** / **Book** reopens the page with `patientId`, keeping its other parameters); a malformed or unknown `patientId` is still "not found".
 Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/visits/[id]/triage`) → "Complete triage" moves the patient to _Ready for provider_ ("Save, keep in triage" leaves them in triage).
 
 - **Facility-scoped.** `/queue`, `/queue/walk-in`, `/appointments` and `/appointments/new` need a facility selected in the top bar (the queue, check-in and schedule belong to a facility; the day and its time zone come from the facility).
 - **Server actions** (`app/(staff)/queue/actions.ts`, `app/(staff)/appointments/actions.ts`) call the API and return `{ ok, data } | { ok: false, message, code }` (`lib/api/action-result.ts`), so forms show API errors instead of crashing. Walk-ins and bookings send an `Idempotency-Key` per attempt.
 - **Rescheduling** (`appointments/reschedule-form.tsx`): **Move** on the day schedule offers the chosen practitioner's open slots (`GET /appointments/availability`, via a server action) or, deliberately, a time outside the schedule (`outsideSchedule`, typed as a wall-clock time in the facility's time zone — `zonedLocalToIso` in `lib/clinic-mapping.ts`); a reason is required (`POST /appointments/:id/reschedule`).
 - **Schedules** (`/appointments/schedules`, `appointment.read`; changes `clinic.configure`): weekly schedules at the selected facility (add, retire), closures for the next 90 days (whole facility or one practitioner), practitioners (add, edit, inactivate, link to a staff account when the viewer has `user.read`) and rooms. Closures do not move booked appointments.
+- **Dashboard** (`/`, `app/(staff)/_dashboard`): greeting and the two desk buttons, five figure tiles, **Needs attention** (rows built in `lib/dashboard-today.ts` for patients, laboratory and set-up, with filter chips), **Next up**, the laboratory in four steps, a month calendar of how full each day is (`GET /clinic/dashboard/load`, `?month=`) and the week's bars; each part appears only with the viewer's permissions. The wait, load and tag thresholds are display-only.
+- **Doctor profile** (`/doctors/[id]`, `appointment.read`; editing `clinic.configure`): header with **Edit profile** (one dialog, `practitioner-editor.tsx`, the schedules page's practitioner fields and `updatePractitioner`) and **Book appointment**; a bar of the steps left (`setupSteps`: staff account, licence number, weekly schedule); four figures (next open slot from `GET /appointments/availability` over the next clinic days, hours per week, booked against slots offered next week, patients with a completed appointment this month); the weekly schedule as bars; credentials; a month calendar (`doctor-calendar.tsx`, `?month=`) with clinic days, leave and the next open slot; and the upcoming appointments. The calculations are pure and tested in `lib/doctor-profile.ts`; leave and closures come from `GET /clinic/schedule-exceptions`. No PhilHealth accreditation is recorded per practitioner, so none is shown.
 - **Optimistic locking.** Every move, call, confirm, reschedule, cancel and no-show sends the row's `version`. A `409 version_conflict` (someone else acted first) shows a message and refreshes the screen.
 - **Rules stay in the API.** `lib/clinic-mapping.ts` maps API rows to the design system's `QueueBoard` and `AppointmentCard` and decides which buttons to offer by mirroring `libs/clinic` (queue transitions; check-in only on the appointment's day; no-show only after the start time). The API enforces the rules either way.
+- **Queue screen layout** (`app/(staff)/queue`): a header (title with the live state, the facility, service point and day chips, **Waiting-room display** and **Check in patient**), four figure tiles from the visits on the board (`queueFigures` in `lib/clinic-mapping.ts`: in queue, average and longest wait, with provider), the board (`QueueBoard` `layout="comfortable"`: fills the height, each column scrolls, larger cards with wait and tags, **Done** folded into a count) and the ticket panel (ticket, wait, details, actions, timeline). With no visits the board folds into zero counts and a call to action with today's appointments (`queue-empty.tsx`). The wait colours (15 and 30 minutes) are display thresholds only (`WAIT_WARN_MINUTES`, `WAIT_LONG_MINUTES`); the dashboard's panel keeps the compact layout.
 - **Minimal identification.** Queue and schedule rows carry only a patient brief (number, display name, sex, age), not contacts or clinical details. Listing a schedule is audited (`appointment.list`).
-- **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only.
+- **Triage** (`POST /queue/visits/:id/triage`, `clinic.triage.write`) records the assessment and optional vital signs in one API transaction. The page shows the allergy banner and previous vitals (needs `clinical.read`), as the clinic rules require allergies to be visible at triage. `lib/triage-form.ts` mirrors the API's plausibility limits so typos are caught before submitting (they are data-entry guards, not clinical reference ranges); the API re-checks and its `implausible_vital_signs` details are shown on the fields. Values are never auto-corrected. BMI is shown for display only. The screen (`triage-header.tsx`, `triage-form.tsx`) has four numbered sections, a sticky bottom bar with **Next:** and the buttons, and a right column whose first card, **From these vitals**, is drawn from the live form: `lib/triage-flags.ts` places each entered reading against the adult bands in `@healthcare/domain` `vital-bands` (one source, shared with the `VitalSigns` display; guidance only, to be sourced from configuration where a deployment needs other bands; not applied under 18, where the form shows only the BMI figure and flags nothing) and lists those outside; **Set priority to Urgent** only sets the form's priority, which the nurse can change. The common-complaint and risk-flag choices are wording helpers; the complaint is appended to the text and the flags join the same free-text list the API stores.
 - **Live updates.** The queue page and the dashboard's clinic section subscribe to the API's Socket.IO `/realtime` gateway (`components/live-queue.tsx`). The browser never holds an access token: a server action (`realtimeTicket`) calls `POST /auth/realtime-tickets` and hands the browser a 60-second ticket bound to the session and the selected facility, plus the socket URL; each reconnection fetches a fresh one. On `queue.updated` (ids and status only) the page re-renders from the server (`router.refresh()`, debounced), so details are always re-read through the authorized API. While the socket is not live the page polls every 15 s (visible tabs only); while live it re-reads every 2 minutes as a safety net. The indicator next to the board says "Live", "Connecting…" or "Updates every 15 s". The laboratory workbench and the critical-results page do the same on `lab.updated` (`useLabUpdates`), and the dashboard listens for both on one socket.
 
 ## Waiting-room display
@@ -269,7 +295,14 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 
 ## Administration and My account
 
-`/admin` lists the administration pages open to the user (the same list as the menu, from `navigationForPermissions`).
+`/admin` is the Settings home: it lists every settings page open to the user, grouped (the same list as the Settings menu, from `settingsForPermissions`).
+
+### Navigation, module tabs and Settings (UI redesign, phase 2)
+
+- **Sidebar** (`libs/ui/src/layouts/staff-navigation.ts`, `staff-layout.tsx`): items carry a `group` (`NAV_GROUPS`: Today, Patients, Clinical, Operations, Engagement) and `placement: "footer"` pins **Settings** and **Help** to the bottom. A module is one entry; `match` lets an entry stay current on pages it owns (Appointments on `/doctors`; Consultations on `/clinic/prescriptions`). A count may be an alert (`countAlert`, danger colours with a "need attention" label; the laboratory's unacknowledged critical results). The rail collapses to icons and the choice is kept in local storage; the mobile drawer is unchanged. Only counts from `GET /me/badges` are shown; queue and STAT counts are not in badges today (needs API).
+- **Permissions** decide the menu (`apps/staff/src/lib/navigation.ts`, `MODULE_PERMISSIONS`): the same checks as each page. `navigationForPermissions` shows Settings when at least one settings page is open.
+- **Module tabs** (`apps/staff/src/lib/module-tabs.ts`, `ModuleTabs` in `libs/ui/src/layouts`, drawn by `StaffShell` through `ModuleTabsBar` under the top bar): Laboratory, Billing, Inventory, Consultations (+ Prescriptions), Appointments (+ Waiting list, Doctors), Records and Management. Each tab is gated by its page's permission; a module with fewer than two tabs open to the user shows none. They replace the sidebar sub-items and the header button rows (`BillingNav`, `InventoryNav` are gone).
+- **Settings area** (`apps/staff/src/lib/settings-navigation.ts`, `components/settings-frame.tsx`): every configuration page keeps its address and its own permission check; pages listed in `SETTINGS_GROUPS` (and everything under `/admin`) are drawn inside `SettingsFrame`, a grouped sub-navigation of the pages open to the user beside the page (a "Settings section" list on a phone). No route moved, so no redirect was needed.
 
 - `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department
@@ -286,6 +319,22 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
   permissions the creator holds. Roles cannot be edited or retired (no API).
 - `/admin/facilities` (`organization.read`; changes `organization.manage`): facilities with address, licence number as recorded, departments;
   create, edit (optimistic lock) or inactivate a facility; add departments.
+- `/admin/privacy` (`privacy.incident.manage`): the personal data breach register (open, closed, all; record an incident) and the organization's
+  privacy settings (notification window, DPO); `/admin/privacy/[incidentId]`: the incident, its trail and the steps to record (note or containment,
+  assessment, NPC notified, affected people told, close). Server actions in `admin/privacy/actions.ts`; labels in `lib/privacy-mapping.ts`. The
+  staff layout mounts `IdleSignOut` (`STAFF_IDLE_MINUTES`, [access control](../security/access-control.md#idle-sign-out-staff-app)).
+- `/admin/service-points` (`clinic.configure`; facility selected in the top bar): the facility's service points (migration `0113`) — add (code,
+  name, kind), rename or change the kind, deactivate and reactivate (optimistic lock; `admin/service-points/actions.ts`). The queue board (`/queue`)
+  filters by service point through `?servicePoint=` (`service-point-switcher.tsx`; the API's `GET /queue?servicePointId=`), the ticket panel shows
+  the service point and offers **Send to** (`routeVisit` → `POST /queue/visits/:id/route`) for visits in triage or awaiting consultation, and the
+  triage form ends with **Send to** (`servicePointId` on the triage call; `defaultServicePoint` in `lib/clinic-mapping.ts` starts it on the visit's
+  own service point, else the first consultation one). See [clinic.md](../domains/clinic.md#service-points). **Visit routes** (migration `0115`):
+  the triage card is **Route** — the first stop plus **Then** stops (`components/route-stops-editor.tsx`; `route` on the triage call); the ticket
+  panel's **Route** section (`queue/route-panel.tsx`: **Done here, send on** → `advanceRoute` → `POST /queue/visits/:id/route/next`, **Skip step…**
+  → `skipRouteStep`, **Plan route…** → `planRoute` → `PUT …/route-plan`); cards show "next: X" (`nextStopLabel`); the page reads
+  `GET /clinic/service-point-settings` so the panel says whether the patient will be called; `/admin/service-points` edits each service point's
+  **Location** and the facility's **Routes** setting (`routing-settings.tsx`, `saveServicePointSettings`). See
+  [clinic.md](../domains/clinic.md#visit-routes).
 - `/admin/audit` (`audit.read`): the audit trail newest first, 50 a page, filtered by local days (Manila), action, record type, staff member and
   patient (`lib/audit-filters.ts`); each search is audited by the API (`audit.search`).
 - `/account` (every signed-in user; linked from the name in the top bar): change password (other sessions end) and turn TOTP two-step verification on
@@ -301,6 +350,55 @@ role's `version`; `PUT /roles/:id`, `role.manage`; permissions the editor does n
 them; built-in roles are read-only; no delete). `/clinic/coding-systems` (**Clinic → Coding systems**; `encounter.read` to see, `clinic.configure`
 to change) registers diagnosis coding systems, renames them, changes the edition and stops offering them (`PATCH /clinic/coding-systems/:id`,
 audited `coding-system.update`); the encounter workspace offers the active ones and points here when none is.
+
+### Page templates (UI redesign, phase 3)
+
+`libs/ui/src/layouts/page-templates.tsx` composes the phase 1 components into one template per kind of screen. They are layout only; data, permission checks and server actions stay in the page.
+
+| Template        | For                                                             | Used by              |
+| --------------- | --------------------------------------------------------------- | -------------------- |
+| `ListPage`      | header + actions, a card with a filter toolbar, rows, `Pager`   | `/patients`          |
+| `DetailPage`    | identity card, banners, section tabs, main column + side rail   | `/patients/[id]`     |
+| `SettingsPage`  | header, "How this works", tabs, sections; `AddSheet` for create | `/clinic/procedures` |
+| `DashboardPage` | greeting header, urgent callouts, `StatTile` row, cards         | `/`                  |
+
+`PageShell` is the shared column (wide, medium or narrow). Lists use `ResponsiveTable` (cards below `md`) and `EmptyState`; the add/edit forms of a catalogue open in a side sheet (`/clinic/procedures`: `ProcedureForm` inside `AddSheet`, one for the header button and one per row). `NextLink` (`components/next-link.tsx`) passes `next/link` to templates and tiles from server components. The old `FigureTiles` is replaced by `StatTile`; the dashboard shows STAT samples and unacknowledged critical results as danger callouts first. Screens not yet moved keep the earlier full-width `PageHeader` bar until their module is redesigned.
+
+### Settings pages (UI redesign, phase 4)
+
+Every page listed in `SETTINGS_GROUPS` (`apps/staff/src/lib/settings-navigation.ts`) now renders through `StaffSettingsPage` (`components/settings-page.tsx`, over `SettingsPage`): breadcrumbs `Settings › <group>`, the title, ONE sentence of description, and the longer explanation in a "How this works" disclosure (`details`). Sections that used to be stacked full-bleed blocks sit in one card (`SettingsStack`), separated by a rule; the Staff users table is a `ResponsiveTable` (cards on phones). Presentation only: each page keeps its data, permission checks and server actions. Create forms that stay permanently open inside their section components (service points, visit types, prices, laboratory catalog, …) move into side sheets one module at a time with that module's phase; `/clinic/procedures` (phase 3) is the worked example.
+
+### Laboratory module (UI redesign, phase 5)
+
+The laboratory's working pages (critical results, send-outs, instrument results, quality control, reagent use, temperatures, nonconformances, proficiency testing, competency) use `ModulePage` (`components/module-page.tsx`): the plain page header, one sentence of description with the rest under "How this works", and the sections in one card; the module tabs sit above (phase 2). The worklist keeps its workbench (`LaboratoryLayout`): a plain title with live status, a danger callout while STAT samples are waiting to be collected (`statPendingCollection`), the stage pills and scan field, the list and the detail panel as two cards; STAT rows get a danger edge in addition to the STAT badge, and an empty stage shows an empty state. Nothing about collection, receipt, result entry or sign-off changed.
+
+### Inventory module (UI redesign, phase 6)
+
+Stock, movements, purchase orders (and an order), supplier invoices (and an invoice), valuation, controlled register and tax and procurement use `ModulePage`: one sentence of description in the plain header, the longer text under "How this works" (valuation), and the compliance notes (controlled register, tax and procurement) as information callouts. The module tabs sit above; the catalog is in Settings. Data, permission checks, filters and the movement form are unchanged.
+
+### Billing module (UI redesign, phase 7)
+
+The cashier's desk, invoices, an invoice, a patient's billing and the daily report use `ModulePage` (their headers, descriptions and actions are unchanged; the page-level padding moved into the page template). The module tabs (Cashier, Invoices, Daily report) replace the header button rows; prices and discounts are under Settings. Charges, packages, deposits, discounts, payments, refunds, credit and debit notes, the PhilHealth claim panel and every permission check are untouched.
+
+### Clinical module (UI redesign, phase 8)
+
+The consultations list, care-plan recall list, referrals (and a referral), prescriptions, dental (and a dental record) and pharmacy (and a dispense) pages use `ModulePage`: the plain page header with the existing title, description and actions, and the page-level padding from the template. The encounter workspace (`/clinic/encounters/[id]`) and the care-plan page keep their own patient-banner layouts; they move with the patient-record and workspace phase. Notes, prescribing, drug-allergy decision support, signing, dental charting, referrals and dispensing are untouched.
+
+### Patient record sub-pages (UI redesign, phase 9)
+
+The record's sub-pages (timeline, history, immunizations, procedures, communications, edit details, merge and its comparison, YAKAP consultation) and patient registration and QR scanning use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the registration form and the scan field lost their own outer padding). The patient record itself and Patient 360 (`/patients/[id]`, `/patients/[id]/360`) are phase 3 and keep their identity card / banner. Pages that stack a `PatientHeader` banner above their content (the encounter workspace, the care-plan page, a visit's procedures, Patient 360) are unchanged: the banner component is shared with the doctor's workspace and moves with a redesign of that workspace.
+
+### Front desk (UI redesign, phase 10)
+
+Appointments (and booking, the waiting list), the calendar, online consultations (and one), doctors, patient messages, notifications, My account and the walk-in check-in use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the day schedule, calendar board, waiting-list tables, booking form, walk-in form, pre-consult panel and notice list lost their own outer padding). The queue board (`/queue`: lanes, live updates, calls, routing), triage and vitals, and a doctor's profile keep their own full-width layouts: they are live working surfaces that need their own pass, and nothing about calling, moving, routing or the waiting-room display changed.
+
+### Role dashboards (UI redesign, phase 11)
+
+There is one dashboard (`/`); each part appears by permission, not by role name, so every role's view follows from what it may see. Added for the cashier and the desk: billing figures and panels (`_dashboard/billing-today.tsx`: **To invoice**, **Balances owed**, **Collected today**; `billing.charge.read`, the day's collections `billing.report.read`; figures from `/billing/worklist`, unpaid `/billing/invoices` and `/billing/reports/daily`, derived in `lib/dashboard-billing.ts` with tests), a **Queue now** card (the five lanes from `/clinic/dashboard` `queue.byStatus`), and the header's **Create invoice** and **End-of-day report**. Someone with no clinic figures (a cashier) gets the money tiles instead; others who bill get a **To invoice** tile beside the clinic's. The page body is two columns (what to do on the left; the schedule, money and calendar on the right) and the stat row adapts to its number of tiles. Not built because the API has no data for them: the mockups' reception **To do** list (reply to a message, confirm tomorrow's appointments, invoice) and a receipt list with times and invoice numbers.
+
+### Remaining staff pages (UI redesign, phase 12)
+
+Records (requests and a request, FHIR imports and an import, integrity, retention), disease reporting (cases and a case), the management dashboard and its scheduled reports, communications, outreach (and a campaign), Help (and a chapter), Offline and a laboratory nonconformance use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the case review, nonconformance workspace, offline workspace and the manual's layout lost their own outer padding). After this phase the pages still on the earlier header are those that stack a `PatientHeader` banner or are live working surfaces (queue board, triage and vitals, the encounter workspace, a patient message thread, a doctor's profile, Patient 360), plus the placeholder route.
 
 ## Integrations (administration)
 

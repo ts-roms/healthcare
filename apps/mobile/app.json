@@ -6,8 +6,15 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
+      "./plugins/with-local-gradle-build.js",
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MyHealth uses the camera only to scan the QR code on your clinic card."
+        }
+      ],
       [
         "expo-notifications",
         {

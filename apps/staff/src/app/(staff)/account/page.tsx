@@ -1,18 +1,26 @@
+import { ModulePage } from "@/components/module-page";
 import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
-import { getSession } from "@/lib/api/session";
+import { api } from "@/lib/api/client";
+import { can, getSession } from "@/lib/api/session";
+import type { MyPractitionerSignature, StaffTourSetting } from "@/lib/api/types";
 import { PasswordForm, RecoveryCodesSettings, TwoStepSettings } from "./account-forms";
+import { MySignature } from "./my-signature";
+import { TourSetting } from "./tour-setting";
 
 export const metadata = { title: "My account" };
 
 /** The signed-in person's own sign-in settings: password and two-step verification. */
 export default async function AccountPage() {
   const session = await getSession();
+  // Practitioners draw their own signature for the certificates and letters they issue.
+  const signature = can(session, "encounter.read") ? await api<MyPractitionerSignature>("/me/practitioner-signature").catch(() => null) : null;
+  const tourOffered = await api<StaffTourSetting>("/organization/tour-setting")
+    .then((s) => s.enabled)
+    .catch(() => true);
   return (
-    <>
-      <PageHeader title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`} />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <ModulePage title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`}>
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
@@ -46,7 +54,18 @@ export default async function AccountPage() {
             {session.user.mfaEnabled ? <RecoveryCodesSettings remaining={session.user.recoveryCodesRemaining} /> : null}
           </CardContent>
         </Card>
+        {signature?.practitioner ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>My signature</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-table">
+              <MySignature mine={signature} />
+            </CardContent>
+          </Card>
+        ) : null}
+        <TourSetting offered={tourOffered} permissions={session.permissions} />
       </div>
-    </>
+    </ModulePage>
   );
 }

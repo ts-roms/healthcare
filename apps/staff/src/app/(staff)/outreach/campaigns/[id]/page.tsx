@@ -1,9 +1,9 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
@@ -30,21 +30,20 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const status = CAMPAIGN_STATUS[campaign.status];
 
   return (
-    <>
-      <PageHeader
-        title={campaign.name}
-        description={
-          <>
-            <Badge variant={status.tone}>{status.label}</Badge> · {campaign.segmentName} · {campaign.channels.map((ch) => CHANNEL_LABEL[ch]).join(", ")}
-          </>
-        }
-        actions={
-          <Link href="/outreach" className="text-table text-primary hover:underline">
-            All campaigns
-          </Link>
-        }
-      />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <ModulePage
+      title={campaign.name}
+      description={
+        <>
+          <Badge variant={status.tone}>{status.label}</Badge> · {campaign.segmentName} · {campaign.channels.map((ch) => CHANNEL_LABEL[ch]).join(", ")}
+        </>
+      }
+      actions={
+        <Link href="/outreach" className="text-table text-primary hover:underline">
+          All campaigns
+        </Link>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Message</CardTitle>
@@ -122,6 +121,6 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           </Card>
         ) : null}
       </div>
-    </>
+    </ModulePage>
   );
 }

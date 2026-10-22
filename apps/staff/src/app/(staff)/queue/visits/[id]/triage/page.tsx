@@ -1,15 +1,18 @@
 import { notFound, redirect } from "next/navigation";
-import { PatientHeader, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
+import { VitalSigns } from "@healthcare/ui/healthcare";
 import { AllergiesPanel } from "@/components/allergies-panel";
 import { FacilityRequired } from "@/components/facility-required";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { PatientDetail, PatientSummaryResponse, Visit } from "@/lib/api/types";
+import type { PatientDetail, PatientSummaryResponse, RouteStep, RouteTemplate, ServicePoint, Visit } from "@/lib/api/types";
 import { canTriage, visitStatusLabel } from "@/lib/clinic-mapping";
 import { toBannerPatient, toVitalSigns } from "@/lib/patient-mapping";
+import { defaultTemplateFor, usableTemplates } from "@/lib/route-template";
+import { minutesSince } from "@/lib/triage-flags";
 import { TriageForm } from "./triage-form";
+import { TriageHeader } from "./triage-header";
 
 // Never put patient names in the tab title.
 export const metadata = { title: "Triage" };
@@ -40,38 +43,70 @@ export default async function TriagePage({ params }: { params: Promise<{ id: str
   const visit = await load<Visit>(`/queue/visits/${id}`);
   if (visit.facilityId !== facility.id) notFound();
   // Allergies and alerts must be visible at triage (clinic rules); they need clinical access.
-  const [patient, summary] = await Promise.all([
+  const [patient, summary, servicePoints, route, templates] = await Promise.all([
     load<PatientDetail>(`/patients/${visit.patientId}`),
     can(session, "clinical.read") ? load<PatientSummaryResponse>(`/patients/${visit.patientId}/summary`) : Promise.resolve(null),
+    // Inactive ones too: the visit may already be at a service point that was deactivated since.
+    api<ServicePoint[]>("/clinic/service-points", { query: { facilityId: facility.id, includeInactive: "true" } }),
+    // The stops already planned (migration 0115), so a repeat triage starts from them.
+    api<RouteStep[]>(`/queue/visits/${id}/route`),
+    // Route templates (migration 0116) only fill the route in; a facility without any simply has none to offer.
+    api<RouteTemplate[]>("/clinic/route-templates", { query: { facilityId: facility.id } }).catch(() => [] as RouteTemplate[]),
   ]);
+  const offered = usableTemplates(templates);
   const latest = summary?.latestVitals[0];
   const banner = toBannerPatient(patient, summary?.allergies);
 
+  const allergyCount = summary?.allergies.allergies.length ?? 0;
+  const aside = summary ? (
+    <>
+      <section aria-label="Allergies" className="rounded-xl border bg-card p-4">
+        <h2 className={`mb-2 text-meta font-semibold tracking-wide uppercase ${allergyCount > 0 ? "text-danger-foreground" : "text-muted-foreground"}`}>
+          Allergies{allergyCount > 0 ? ` · ${allergyCount}` : ""}
+        </h2>
+        <AllergiesPanel patientId={visit.patientId} summary={summary.allergies} canManage={can(session, "allergy.manage")} />
+      </section>
+      <section aria-label="Previous vitals" className="rounded-xl border bg-card p-4">
+        <h2 className="mb-2 text-meta font-semibold tracking-wide text-muted-foreground uppercase">Previous vitals</h2>
+        {latest ? (
+          <VitalSigns vitals={toVitalSigns(latest)} />
+        ) : (
+          <p className="text-table text-muted-foreground">None on record. Today&apos;s readings become the baseline.</p>
+        )}
+      </section>
+    </>
+  ) : (
+    <p className="text-table text-muted-foreground">Allergies and previous vitals need clinical access.</p>
+  );
+
   return (
     <div className="flex min-h-full flex-col">
-      <PatientHeader patient={banner} allergiesHidden={!summary} allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true} />
-      <PageHeader title={`Triage · ${visit.ticket}`} description={`${facility.name} · ${visitStatusLabel(visit.status)}`} />
+      <TriageHeader
+        ticket={visit.ticket}
+        patient={banner}
+        patientHref={`/patients/${visit.patientId}`}
+        allergiesHidden={!summary}
+        allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
+        waitingMinutes={minutesSince(visit.checkedInAt)}
+        arrivalMode={visit.arrivalMode}
+      />
       {canTriage(visit.status) ? (
-        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <TriageForm
-            visit={{ id: visit.id, ticket: visit.ticket, chiefComplaint: visit.chiefComplaint ?? "", priority: visit.priority }}
-            patientId={visit.patientId}
-          />
-          <aside className="flex flex-col gap-3 self-start">
-            {summary ? (
-              <>
-                <SummarySection title="Allergies">
-                  <AllergiesPanel patientId={visit.patientId} summary={summary.allergies} canManage={can(session, "allergy.manage")} />
-                </SummarySection>
-                <SummarySection title="Previous vitals">
-                  {latest ? <VitalSigns vitals={toVitalSigns(latest)} /> : <p className="text-table text-muted-foreground">No vital signs recorded.</p>}
-                </SummarySection>
-              </>
-            ) : (
-              <p className="text-table text-muted-foreground">Allergies and previous vitals need clinical access.</p>
-            )}
-          </aside>
-        </div>
+        <TriageForm
+          visit={{
+            id: visit.id,
+            ticket: visit.ticket,
+            chiefComplaint: visit.chiefComplaint ?? "",
+            priority: visit.priority,
+            servicePointId: visit.servicePointId ?? null,
+            plannedStops: route.filter((s) => s.status === "planned").map((s) => s.servicePointId),
+          }}
+          servicePoints={servicePoints.filter((s) => s.status === "active" || s.id === visit.servicePointId)}
+          templates={offered}
+          offeredTemplateId={defaultTemplateFor(offered, visit.visitTypeId)?.id ?? null}
+          canConfigureServicePoints={can(session, "clinic.configure")}
+          ageYears={patient.age}
+          aside={aside}
+        />
       ) : (
         <p role="status" className="m-4 rounded-md border px-3 py-2 text-body">
           Triage is closed for this visit ({visitStatusLabel(visit.status).toLowerCase()}).

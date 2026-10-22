@@ -81,6 +81,72 @@ export class ClinicDashboardService {
       })),
     };
   }
+
+  /**
+   * How busy each local day is at the selected facility, as counts: the appointments scheduled (cancelled ones left out) and
+   * how many of them hold a slot (no-shows do not), against the slots the weekly schedules offer that day. The slots are what is left of each schedule after the
+   * practitioner's leave and the facility's closures, counted the way the availability search cuts a schedule into
+   * slots (a stretch shorter than a slot adds none). `to` is not included. No patient is named.
+   */
+  async dailyLoad(actor: Actor, range: { from: string; to: string }) {
+    const facilityId = requireFacilityId(actor);
+    const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
+    const timeZone = facility.timezone;
+    const start = localDayBounds(range.from, timeZone).start.toISOString();
+    const end = localDayBounds(range.to, timeZone).start.toISOString();
+
+    const [booked, capacity] = await Promise.all([
+      this.db.execute<{ day: string; scheduled: number; booked: number }>(sql`
+        SELECT ((starts_at AT TIME ZONE ${timeZone})::date)::text AS day,
+               count(*) FILTER (WHERE status <> 'cancelled')::int AS scheduled,
+               count(*) FILTER (WHERE status NOT IN ('cancelled', 'no_show'))::int AS booked
+        FROM ${appointment}
+        WHERE organization_id = ${actor.organizationId} AND facility_id = ${facilityId}
+          AND starts_at >= ${start}::timestamptz AND starts_at < ${end}::timestamptz
+        GROUP BY 1`),
+      this.db.execute<{ day: string; slots: number }>(sql`
+        WITH days AS (
+          SELECT d::date AS day FROM generate_series(${range.from}::date, ${range.to}::date - 1, interval '1 day') AS d
+        ),
+        scheduled AS (
+          SELECT d.day, s.facility_id, s.practitioner_id, s.slot_minutes,
+                 tstzrange((d.day + s.start_time) AT TIME ZONE ${timeZone}, (d.day + s.end_time) AT TIME ZONE ${timeZone}) AS r
+          FROM practitioner_schedule s
+          JOIN days d ON extract(dow FROM d.day) = s.day_of_week AND d.day >= s.valid_from AND (s.valid_until IS NULL OR d.day <= s.valid_until)
+          WHERE s.organization_id = ${actor.organizationId} AND s.facility_id = ${facilityId}
+            AND (s.retired_at IS NULL OR s.retired_at > (d.day::timestamp AT TIME ZONE ${timeZone}))
+        ),
+        open AS (
+          SELECT sc.day, sc.slot_minutes,
+                 tstzmultirange(sc.r) - coalesce((
+                   SELECT range_agg(tstzrange(x.starts_at, x.ends_at))
+                   FROM schedule_exception x
+                   WHERE x.organization_id = ${actor.organizationId} AND x.facility_id = sc.facility_id
+                     AND (x.practitioner_id IS NULL OR x.practitioner_id = sc.practitioner_id)
+                     AND tstzrange(x.starts_at, x.ends_at) && sc.r
+                 ), '{}'::tstzmultirange) AS m
+          FROM scheduled sc
+        )
+        SELECT o.day::text AS day,
+               coalesce(sum((SELECT coalesce(sum(floor(extract(epoch FROM upper(u) - lower(u)) / 60 / o.slot_minutes)), 0) FROM unnest(o.m) AS u)), 0)::int AS slots
+        FROM open o
+        GROUP BY 1`),
+    ]);
+
+    const countsByDay = new Map(booked.rows.map((r) => [r.day, { scheduled: Number(r.scheduled), booked: Number(r.booked) }]));
+    const slotsByDay = new Map(capacity.rows.map((r) => [r.day, Number(r.slots)]));
+    const days: Array<{ date: string; scheduled: number; booked: number; slots: number }> = [];
+    for (let date = range.from; date < range.to; date = nextDate(date)) {
+      days.push({ date, scheduled: countsByDay.get(date)?.scheduled ?? 0, booked: countsByDay.get(date)?.booked ?? 0, slots: slotsByDay.get(date) ?? 0 });
+    }
+    return { facilityId, timeZone, from: range.from, to: range.to, days };
+  }
+}
+
+/** The calendar date after `date` (both `YYYY-MM-DD`). */
+function nextDate(date: string): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 function toCounts(rows: Array<{ status: string; count: number }>): Record<string, number> {

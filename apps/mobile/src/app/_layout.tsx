@@ -42,9 +42,12 @@ function Screens() {
           <Stack.Screen name="index" options={{ title: "Your results", headerRight: () => <HeaderButtons /> }} />
           <Stack.Screen name="results/[testId]" options={{ title: "Result", headerBackTitle: "Results" }} />
           <Stack.Screen name="notifications" options={{ title: "Notifications", headerBackTitle: "Results" }} />
+          <Stack.Screen name="forms" options={{ title: "Forms to sign", headerBackTitle: "Results" }} />
+          <Stack.Screen name="people" options={{ title: "People", headerBackTitle: "Results" }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="activate" options={{ title: "Set up MyHealth", headerBackTitle: "Sign in" }} />
         </Stack.Protected>
       </Stack>
     </>

@@ -1,12 +1,13 @@
+import { ModulePage } from "@/components/module-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
+import { PatientPicker } from "@/components/patient-picker";
 import { api } from "@/lib/api/client";
 import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { Availability } from "@/lib/api/types";
-import { todayIn } from "@/lib/clinic-mapping";
+import type { Availability, PractitionerScheduleRow } from "@/lib/api/types";
+import { nextScheduledDate, scheduleDaysText, todayIn } from "@/lib/clinic-mapping";
 import { safeNextPath } from "@healthcare/web-session";
 import { BookingForm } from "./booking-form";
 
@@ -16,6 +17,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Search = {
   patientId?: string;
+  /** Patient search text while choosing the patient (only when opened without one). */
+  q?: string;
   practitionerId?: string;
   visitTypeId?: string;
   date?: string;
@@ -34,17 +37,40 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
   if (!can(session, "appointment.manage")) redirect("/appointments");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Book appointment" />
+      <ModulePage title="Book appointment">
         <FacilityRequired action="Appointments are booked at a facility." />
-      </>
+      </ModulePage>
     );
   }
-  const [patient, practitioners, visitTypes] = await Promise.all([getPatientForAction(params.patientId), getPractitioners(), getVisitTypes()]);
+  // Opened without a patient (a bookmark, a typed address): find the patient first, keeping the rest of the request.
+  if (!params.patientId) {
+    const { patientId: _patientId, q = "", ...keep } = params;
+    return (
+      <ModulePage title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`}>
+        <PatientPicker action="/appointments/new" q={q} keep={keep} verb="Book" canRegister={can(session, "patient.register")} />
+      </ModulePage>
+    );
+  }
+  const [patient, allPractitioners, visitTypes, schedules] = await Promise.all([
+    getPatientForAction(params.patientId),
+    getPractitioners(),
+    getVisitTypes(),
+    api<PractitionerScheduleRow[]>("/clinic/schedules"),
+  ]);
   const today = todayIn(facility.timezone);
+  // Only slots inside a published schedule are offered, so only practitioners with a current schedule at this facility are listed.
+  const scheduledHere = new Set(
+    schedules.filter((s) => s.facilityId === facility.id && s.status === "active" && (!s.validUntil || s.validUntil >= today)).map((s) => s.practitionerId),
+  );
+  const practitioners = allPractitioners.filter((p) => scheduledHere.has(p.id));
   const practitionerId = practitioners.find((p) => p.id === params.practitionerId)?.id ?? "";
   const visitTypeId = visitTypes.find((v) => v.id === params.visitTypeId)?.id ?? (visitTypes.length === 1 ? (visitTypes[0]?.id ?? "") : "");
   const date = params.date && DATE.test(params.date) && params.date >= today ? params.date : today;
+  // When a day has no slots: the practitioner's schedule days here, and the next day a block falls on (closures and
+  // bookings are the API's business once there).
+  const schedule = practitionerId
+    ? { days: scheduleDaysText(schedules, practitionerId, facility.id, today), nextDate: nextScheduledDate(schedules, practitionerId, facility.id, date) }
+    : null;
 
   // Slots come from the practitioner's published schedule minus bookings and closures (the API decides).
   let availability: Availability | null = null;
@@ -59,8 +85,7 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
   }
 
   return (
-    <>
-      <PageHeader title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`} />
+    <ModulePage title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`}>
       <BookingForm
         facilityId={facility.id}
         today={today}
@@ -81,7 +106,8 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
         }}
         slots={availability?.slots ?? null}
         availabilityError={availabilityError}
+        schedule={schedule}
       />
-    </>
+    </ModulePage>
   );
 }

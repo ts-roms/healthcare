@@ -1,9 +1,9 @@
+import { StaffSettingsPage } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { CalendarClockIcon, CircleAlertIcon, CircleCheckIcon, CircleDashedIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabLicenceOverview, LabLicenceState } from "@/lib/api/types";
@@ -27,19 +27,17 @@ export default async function LicencePage() {
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Laboratory licence" />
+      <StaffSettingsPage group="Laboratory" title="Laboratory licence">
         <FacilityRequired action="The licence is recorded per facility." />
-      </>
+      </StaffSettingsPage>
     );
   }
   const overview = await api<LabLicenceOverview>("/laboratory/licence");
   const state = STATE[overview.state];
   const current = overview.current;
   return (
-    <>
-      <PageHeader title="Laboratory licence" description={`${facility.name} · the licence as issued, recorded by your laboratory`} />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <StaffSettingsPage group="Laboratory" title="Laboratory licence" description={`${facility.name} · the licence as issued, recorded by your laboratory`}>
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Current licence</CardTitle>
@@ -115,6 +113,6 @@ export default async function LicencePage() {
           </Card>
         ) : null}
       </div>
-    </>
+    </StaffSettingsPage>
   );
 }

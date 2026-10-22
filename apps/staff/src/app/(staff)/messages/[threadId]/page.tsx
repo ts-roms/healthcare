@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
+import { LiveMessagesRefresh } from "@/components/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -32,6 +33,7 @@ export default async function PatientThreadPage({ params }: { params: Promise<{ 
   const canManage = can(session, "patient.message.manage");
   return (
     <>
+      <LiveMessagesRefresh />
       <PageHeader
         title={thread.subject}
         description={`${TOPIC_LABEL[thread.topic]} · started by the ${thread.startedBy === "patient" ? "patient" : "clinic"}`}

@@ -53,4 +53,43 @@ describe("pdf toolkit", () => {
     expect(pesoWords(100)).toBe("One peso only");
     expect(pesoWords(2_000_000_00)).toBe("Two million pesos only");
   });
+
+  it("draws a signature mark with its caption and survives stray points", async () => {
+    const pdf = await renderPdf(
+      {
+        title: "Consent",
+        letterhead: { organizationName: "Demo Health" },
+        printedAt: "Printed 28 Sep 2026, 14:05",
+        uncompressed: true,
+      },
+      (w) => {
+        w.paragraph("I agree.");
+        w.signatureMark({
+          strokes: [
+            [
+              [0.1, 0.5],
+              [0.4, 0.2],
+              [0.9, 0.7],
+            ],
+            [[0.5, 0.5]],
+            [
+              [-3, 9],
+              [0.2, 0.2],
+            ],
+          ],
+          name: "Juan Dela Cruz",
+          role: "Patient, signed on screen",
+          signedAt: "28 Sep 2026, 14:05",
+          verification: "Document abc. Text hash 0123456789abcdef.",
+        });
+      },
+    );
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    const text = extractPdfText(pdf);
+    expect(text).toContain("Juan Dela Cruz");
+    expect(text).toContain("Patient, signed on screen");
+    expect(text).toContain("Text hash 0123456789abcdef");
+    // The strokes are drawn as vector path operators on the page.
+    expect(pdf.toString("latin1")).toMatch(/ l\s/);
+  });
 });

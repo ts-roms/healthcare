@@ -1,3 +1,4 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangleIcon, CheckCircle2Icon, CircleHelpIcon, FileXIcon } from "lucide-react";
@@ -16,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { IntegrityFinding, IntegrityFindings, IntegrityRun, IntegrityRunList } from "@/lib/api/types";
@@ -126,88 +126,85 @@ export default async function IntegrityPage({ searchParams }: { searchParams: Pr
   ]);
   const active = runs.runs.find((r) => r.status === "queued" || r.status === "running");
   return (
-    <>
-      <PageHeader
-        title="Document integrity"
-        description="Checks that every stored document still matches the checksum recorded when it was stored, and what to do about the ones that do not."
-      />
-      <div className="flex flex-col gap-4 p-4">
-        <p className="rounded-md border border-dashed p-3 text-meta text-muted-foreground">
-          A review reads each available document back from storage and compares it with its recorded checksum. A document whose file has changed or is missing
-          is withheld from everyone — staff, MyHealth and other systems — until you record a decision here. The platform never repairs, replaces or deletes a
-          file: restoring one from a backup, or archiving the document with a reason, is your organization&apos;s own procedure. Documents stored before
-          checksums existed are given a baseline on their first review and verified from the next one.
-        </p>
+    <ModulePage
+      title="Document integrity"
+      description="Checks that every stored document still matches the checksum recorded when it was stored, and what to do about the ones that do not."
+    >
+      <p className="rounded-md border border-dashed p-3 text-meta text-muted-foreground">
+        A review reads each available document back from storage and compares it with its recorded checksum. A document whose file has changed or is missing is
+        withheld from everyone — staff, MyHealth and other systems — until you record a decision here. The platform never repairs, replaces or deletes a file:
+        restoring one from a backup, or archiving the document with a reason, is your organization&apos;s own procedure. Documents stored before checksums
+        existed are given a baseline on their first review and verified from the next one.
+      </p>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Reviews</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <StartRunForm disabled={Boolean(active)} />
-            {active ? <p className="text-meta text-muted-foreground">A review is in progress; start the next one when it has finished.</p> : null}
-            {runs.runs.length === 0 ? (
-              <p className="text-body text-muted-foreground">No review has been run yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Documents</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Checked</TableHead>
-                    <TableHead>Verified</TableHead>
-                    <TableHead>Baselined</TableHead>
-                    <TableHead>Changed</TableHead>
-                    <TableHead>Missing</TableHead>
-                    <TableHead>Not read</TableHead>
-                    <TableHead />
+      <Card>
+        <CardHeader>
+          <CardTitle>Reviews</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <StartRunForm disabled={Boolean(active)} />
+          {active ? <p className="text-meta text-muted-foreground">A review is in progress; start the next one when it has finished.</p> : null}
+          {runs.runs.length === 0 ? (
+            <p className="text-body text-muted-foreground">No review has been run yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Started</TableHead>
+                  <TableHead>Documents</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Checked</TableHead>
+                  <TableHead>Verified</TableHead>
+                  <TableHead>Baselined</TableHead>
+                  <TableHead>Changed</TableHead>
+                  <TableHead>Missing</TableHead>
+                  <TableHead>Not read</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.runs.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="whitespace-nowrap">{clinicalDateTime(r.requestedAt)}</TableCell>
+                    <TableCell>{label(r.category)}</TableCell>
+                    <TableCell>
+                      <Badge variant={RUN_STATUS[r.status].variant}>
+                        {r.status === "completed" ? <CheckCircle2Icon className="size-3" aria-hidden /> : null}
+                        {RUN_STATUS[r.status].text}
+                      </Badge>
+                      {r.status === "failed" && r.lastError ? <div className="text-meta text-muted-foreground">{r.lastError}</div> : null}
+                    </TableCell>
+                    <TableCell>{r.checked}</TableCell>
+                    <TableCell>{r.verified}</TableCell>
+                    <TableCell>{r.baselined}</TableCell>
+                    <TableCell>{r.mismatched}</TableCell>
+                    <TableCell>{r.missing}</TableCell>
+                    <TableCell>{r.unreadable}</TableCell>
+                    <TableCell className="text-right">{r.status === "queued" || r.status === "running" ? <CancelRunButton runId={r.id} /> : null}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.runs.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="whitespace-nowrap">{clinicalDateTime(r.requestedAt)}</TableCell>
-                      <TableCell>{label(r.category)}</TableCell>
-                      <TableCell>
-                        <Badge variant={RUN_STATUS[r.status].variant}>
-                          {r.status === "completed" ? <CheckCircle2Icon className="size-3" aria-hidden /> : null}
-                          {RUN_STATUS[r.status].text}
-                        </Badge>
-                        {r.status === "failed" && r.lastError ? <div className="text-meta text-muted-foreground">{r.lastError}</div> : null}
-                      </TableCell>
-                      <TableCell>{r.checked}</TableCell>
-                      <TableCell>{r.verified}</TableCell>
-                      <TableCell>{r.baselined}</TableCell>
-                      <TableCell>{r.mismatched}</TableCell>
-                      <TableCell>{r.missing}</TableCell>
-                      <TableCell>{r.unreadable}</TableCell>
-                      <TableCell className="text-right">{r.status === "queued" || r.status === "running" ? <CancelRunButton runId={r.id} /> : null}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{view === "open" ? `Open findings (${runs.openFindings})` : "Resolved findings"}</CardTitle>
-            <Button asChild size="xs" variant="ghost" className="ml-auto">
-              <Link href={view === "open" ? "/records/integrity?view=resolved" : "/records/integrity"}>{view === "open" ? "Show resolved" : "Show open"}</Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {findings.findings.length === 0 ? (
-              <p className="text-body text-muted-foreground">{view === "open" ? "Nothing to resolve." : "No finding has been resolved yet."}</p>
-            ) : (
-              <FindingsTable findings={findings.findings} resolved={view === "resolved"} />
-            )}
-            {findings.more ? <p className="text-meta text-muted-foreground">Showing the first 200.</p> : null}
-          </CardContent>
-        </Card>
-      </div>
-    </>
+      <Card>
+        <CardHeader>
+          <CardTitle>{view === "open" ? `Open findings (${runs.openFindings})` : "Resolved findings"}</CardTitle>
+          <Button asChild size="xs" variant="ghost" className="ml-auto">
+            <Link href={view === "open" ? "/records/integrity?view=resolved" : "/records/integrity"}>{view === "open" ? "Show resolved" : "Show open"}</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {findings.findings.length === 0 ? (
+            <p className="text-body text-muted-foreground">{view === "open" ? "Nothing to resolve." : "No finding has been resolved yet."}</p>
+          ) : (
+            <FindingsTable findings={findings.findings} resolved={view === "resolved"} />
+          )}
+          {findings.more ? <p className="text-meta text-muted-foreground">Showing the first 200.</p> : null}
+        </CardContent>
+      </Card>
+    </ModulePage>
   );
 }

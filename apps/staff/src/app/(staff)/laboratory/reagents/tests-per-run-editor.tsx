@@ -5,7 +5,7 @@ import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import type { LabReagentTestsPerRun } from "@/lib/api/types";
 import { setReagentTestsPerRun } from "../quality-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 /**
  * Tests one run of a test uses from a reagent, where more than 1 (duplicates, dilutions, blanks). Quality managers set
@@ -22,7 +22,7 @@ export function TestsPerRunEditor({
   tests: Array<{ id: string; name: string }>;
   canManage: boolean;
 }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const blank = { itemId: "", testId: "", testsPerRun: "2" };
   const [form, setForm] = React.useState(blank);
   const save = (itemId: string, testId: string, testsPerRun: number, done: string, after?: () => void) =>

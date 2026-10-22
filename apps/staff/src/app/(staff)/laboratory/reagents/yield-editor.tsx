@@ -5,7 +5,7 @@ import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import type { LabReagentYield } from "@/lib/api/types";
 import { setReagentYield } from "../quality-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 /** Tests one stock unit of each reagent holds; loads taken from stock get their capacity from it. */
 export function YieldEditor({
@@ -18,7 +18,7 @@ export function YieldEditor({
   reagents: Array<{ itemId: string; itemName: string; stockUnit: string }>;
   canManage: boolean;
 }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [editing, setEditing] = React.useState<{ itemId: string; tests: string } | null>(null);
   const unset = reagents.filter((r) => !yields.some((y) => y.inventoryItemId === r.itemId));
   const [adding, setAdding] = React.useState({ itemId: "", tests: "" });

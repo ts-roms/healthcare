@@ -57,6 +57,16 @@ have no internet access). A production API with it off logs a warning at start-u
 `api.pwnedpasswords.com`; Node's `fetch` does not use `HTTPS_PROXY`, so a host that reaches the internet only through a
 proxy refuses every new password until that is arranged.
 
+### Idle sign-out (staff app)
+
+A staff browser left alone is signed out after `STAFF_IDLE_MINUTES` without keyboard, pointer or touch activity
+(default 20; `0` turns it off; `apps/staff/src/components/idle-sign-out.tsx`, rules in `apps/staff/src/lib/idle.ts`):
+a dialog warns for the last minute ("Still there?") and **Stay signed in** resets the clock; at the limit the ordinary
+sign-out action runs (the session is revoked at the API, cookies cleared, `/login` shown). Activity in any tab of the
+staff app counts (the last activity is shared through `localStorage`), so a second tab does not sign the first out.
+The server-side session and refresh expiry remain the real limit; this protects the shared clinic computer, which the
+Data Privacy Act's security measures are about ([data privacy act](data-privacy-act.md)).
+
 ### Password reset by email
 
 Migration `0091` (`staff_password_reset`, `StaffPasswordResetService`). Signed out, staff use **Forgot your password?**
@@ -329,6 +339,8 @@ Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
   (`patient_portal_account`, migration `0013`; `PatientAccessGuard`), not as `app_user` rows.
 - Data retention periods and deletion/anonymization procedures must be defined
   with the organization's Data Protection Officer against current NPC guidance.
+- The breach register records assessments and notifications as the organization made them; the platform sends no
+  notification to the NPC or to patients, and encodes no notification rule ([data privacy act](data-privacy-act.md)).
 
 Nothing here constitutes a claim of Data Privacy Act compliance; compliance
 must be assessed against current official requirements (CLAUDE.md §36).

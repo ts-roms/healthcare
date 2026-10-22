@@ -41,8 +41,8 @@ Terms are grouped by area and sorted alphabetically within each group. Words in 
 | Past condition              | An illness diagnosed elsewhere, recorded in the patient's history with its status as reported. Not a diagnosis of this clinic: never on the problem list, billed or reported.                                                                                      |
 | Family history state        | Whether the family history was asked: "not recorded — ask the patient", "no known family history" (only after it was recorded), "not known" (adopted, not known, declined) or "recorded".                                                                          |
 | Social history version      | One saved snapshot of tobacco, alcohol, work, home, activity, diet (and the private parts); a change is a new version, earlier ones stay listed.                                                                                                                   |
-| Procedure catalogue         | Your organization's own list of procedures done in consultations (**Clinic → Procedures**), with its own codes. No national procedure code set or relative value scale is built in; billing charges a procedure when a service is mapped to its code.              |
-| Vaccine catalogue           | Your organization's own list of vaccines (**Clinic → Vaccines**): names, products, optional codes, route and site options. No national schedule or code set is built in.                                                                                           |
+| Procedure catalogue         | Your organization's own list of procedures done in consultations (**Settings → Procedures**), with its own codes. No national procedure code set or relative value scale is built in; billing charges a procedure when a service is mapped to its code.            |
+| Vaccine catalogue           | Your organization's own list of vaccines (**Settings → Vaccines**): names, products, optional codes, route and site options. No national schedule or code set is built in.                                                                                         |
 | Allergy review              | A recorded check of the patient's allergies. "No known allergies" appears only after a review; otherwise you see "Allergies not recorded — ask the patient".                                                                                                       |
 | Amendment                   | A change to a **signed** encounter note. It needs a reason and the `encounter.amend` permission. The original signed text stays in the revision history.                                                                                                           |
 | Appointment                 | A booked time with a practitioner for a **visit type**, at a facility or online. Statuses: booked, confirmed, checked in, completed, cancelled, no-show.                                                                                                           |
@@ -216,7 +216,7 @@ Expired lots are never issued — "…expired on …; write it off instead". Sto
 that expires first unless you name one. See [Pharmacy and inventory](09-pharmacy-and-inventory.md).
 
 **11a. How do I see how much of a reagent lot is left, or what it costs per test?**
-Open **Laboratory → Instruments**: each loaded lot shows the tests used and left ("42 of 100 tests used · 58 left"). Record repeats, calibration,
+Open **Settings → Instruments**: each loaded lot shows the tests used and left ("42 of 100 tests used · 58 left"). Record repeats, calibration,
 priming or waste with **Record use…**. **Laboratory → Reagent use** shows use over a period, lots running low, and the cost per patient run of lots
 already unloaded. See [Laboratory quality](07-laboratory-quality.md#how-to-follow-reagent-use-per-test-run).
 
@@ -228,6 +228,35 @@ person after checking their identity. The patient sets up the account again.
 
 **13. Why are times shown as they are?**
 Clinical times are shown in the facility's time zone (Asia/Manila by default), whatever the time zone of your computer.
+
+**13a. The Book button is greyed out and the day shows "No open slots". What now?**
+Only open slots inside the practitioner's published schedule are offered, and the Book button needs one chosen. The message names the days the
+practitioner is scheduled at this facility and offers **Next scheduled day**; a day may also be a closure or fully booked. To book outside the
+schedule, ask an administrator to add hours under **Settings → Schedules**. See [Appointments and queue](03-appointments-and-queue.md#how-to-book-an-appointment).
+
+**13b. How do I send a triaged patient to the emergency room or X-ray?**
+Set up **service points** for the facility (**Settings → Service points**). At the end of triage, choose where the patient goes under
+**Send to**; on the queue board, **Send to** moves a patient who is in triage or ready for the provider, and the **Service point** list shows one
+line at a time. Every move is kept in the visit's history. The waiting-room display still shows only the ticket and the place called. See
+[Appointments and queue](03-appointments-and-queue.md#how-to-set-up-service-points).
+
+**13c. Why was I signed out while I stepped away?**
+The staff app signs a browser out after 20 minutes without activity (a one-minute warning first) so a record is not left open on a shared
+computer. **Stay signed in** on the warning resets the clock; your deployment can change the period. See [Administration](13-administration.md#data-privacy-notes).
+
+**13d. Where do I record a data breach, or a patient's request to correct or delete their data?**
+A breach or security incident goes in the register under **Settings → Data privacy**: record it when discovered, assess it with your Data
+Protection Officer, record the NPC and patient notifications you make, and close it. Patients ask for copies, corrections, erasure or object to a
+use under MyHealth **Documents**; the records office answers under **Records → Requests**. The platform changes or deletes nothing on a request
+and notifies no one by itself. See [Administration](13-administration.md#how-to-keep-the-breach-register-data-privacy) and
+[Records](11-records-reporting-and-integrations.md#how-to-answer-a-patients-records-request).
+
+**13e. Where is the list of all patients?**
+**Patients** lists every active patient A–Z, 25 a page, until you search. Tick **Include inactive records** to see inactive and merged ones too.
+
+**13f. How do I find something in this manual?**
+Type a few words in the search box at the top of any Help page, or in the **Need a hand?** window (the round button at the bottom-right; on a phone, the lifebuoy in the top bar): the
+sections whose heading or text contain all the words are listed, best match first, each with a passage. Select one to open it.
 
 ### For patients
 
@@ -248,6 +277,26 @@ day, and are not for urgent problems: call the clinic, and 911 in an emergency. 
 
 **18. Why don't I see Dental in MyHealth?**
 Your clinic has not turned on sharing of dental records, or there is nothing to show yet. Ask the clinic if you need a copy of your dental record.
+
+**19. I can't see my password as I type. Is there a way to check it?**
+Yes — select the eye icon at the right of the password box to show what you typed, and again to hide it. The same works on every password box.
+
+**20. Something in my record is wrong. How do I get it corrected?**
+Under **Documents**, choose **Ask the records office**, pick **Correct something in my records**, say what is wrong and what it should be, and send.
+The clinic checks and tells you what it changed, in MyHealth. You can also ask for copies of your records, ask for some data to be removed or
+blocked (medical records may have to be kept by law), or object to a use of your data, such as reminders. See [MyHealth](12-patient-portal.md#how-to-get-your-medical-certificates-referral-letters-and-copies-of-your-records).
+
+**21. Who do I talk to about my personal information?**
+The clinic's data protection officer. When the clinic has named one, **Privacy and consents** in MyHealth shows the name and how to reach them;
+otherwise ask the clinic.
+
+**22. Why am I asked to set up two-step verification?**
+Your clinic requires it from a date it announced, to protect your records. Set it up under **Security** with an authenticator app (and passkeys if you
+like); until then you can only reach that set-up. If you cannot, ask the clinic — it can exempt you with a reason. See [MyHealth](12-patient-portal.md#how-to-make-your-sign-in-more-secure).
+
+**23. I searched the help and found nothing. What else?**
+The search needs every word you typed to appear in a section. Try fewer or different words — "result" instead of "lab test outcome". For anything the
+guide does not answer, write to the clinic under **Messages** (not for emergencies).
 
 ## Related chapters
 

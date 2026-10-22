@@ -129,6 +129,7 @@ export function CarePlansPanel({
       {creating ? (
         <NewCarePlanDialog
           patientId={followUp.patientId}
+          authorPractitionerId={followUp.practitionerId}
           encounterId={encounterId}
           today={followUp.today}
           diagnoses={diagnoses}
@@ -242,12 +243,15 @@ export function CareActivityItem({
 
 function NewCarePlanDialog({
   patientId,
+  authorPractitionerId,
   encounterId,
   today,
   diagnoses,
   onClose,
 }: {
   patientId: string;
+  /** The consultation's practitioner: the plan's author, so its follow-up booking opens with them selected. */
+  authorPractitionerId: string;
   encounterId: string;
   today: string;
   diagnoses: Array<{ id: string; label: string }>;
@@ -287,7 +291,7 @@ function NewCarePlanDialog({
     }
     setError(null);
     startTransition(async () => {
-      const result = await createCarePlan({ patientId, sourceEncounterId: encounterId, plan: built.payload }, attemptKey);
+      const result = await createCarePlan({ patientId, sourceEncounterId: encounterId, authorPractitionerId, plan: built.payload }, attemptKey);
       setAttemptKey(crypto.randomUUID());
       if (result.ok) {
         toast.success(`Care plan created: ${result.data.title}`);

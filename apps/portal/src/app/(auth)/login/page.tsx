@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { safeNextPath } from "@healthcare/web-session";
+import { TicketIcon } from "lucide-react";
+import { Button } from "@healthcare/ui/primitives";
+import { GetTheApp } from "@/components/app-download";
+import { AuthCard } from "../form-parts";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
@@ -15,18 +19,25 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { next, reason } = await searchParams;
   return (
     <>
-      <div>
-        <h1 className="text-page-lg font-semibold tracking-tight">Sign in</h1>
-        <p className="text-muted-foreground">See your visits and results, and message your care team.</p>
-      </div>
-      <LoginForm next={safeNextPath(next, "/", ["/login", "/activate", "/forgot-password", "/reset-password"])} notice={reason ? NOTICES[reason] : undefined} />
-      <section className="rounded-xl border bg-card p-4">
-        <h2 className="font-semibold">First time here?</h2>
-        <p className="text-body text-muted-foreground">Ask the clinic front desk for an activation code, then set up your account.</p>
-        <Link href="/activate" className="mt-2 inline-block font-medium text-primary underline-offset-4 hover:underline">
-          Set up your account
-        </Link>
+      <AuthCard title="Sign in" description="See your visits and results, and message your care team.">
+        <LoginForm
+          next={safeNextPath(next, "/", ["/login", "/activate", "/forgot-password", "/reset-password"])}
+          notice={reason ? NOTICES[reason] : undefined}
+        />
+      </AuthCard>
+      <section className="flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-xs">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-subtle text-primary">
+          <TicketIcon className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">First time here?</h2>
+          <p className="text-body text-muted-foreground">Ask the clinic front desk for an activation code, then set up your account.</p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/activate">Set up</Link>
+        </Button>
       </section>
+      <GetTheApp />
       <Link href="/help" className="text-center text-body font-medium text-primary underline-offset-4 hover:underline">
         How to use MyHealth
       </Link>

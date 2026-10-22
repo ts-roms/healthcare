@@ -9,10 +9,6 @@ const STATUS: Record<YakapRegistrationStatus, { label: string; variant: "success
   unknown: { label: "Unknown", variant: "warning", icon: CircleHelpIcon },
 };
 
-export const YAKAP_REGISTRATION_LABEL: Record<YakapRegistrationStatus, string> = Object.fromEntries(
-  Object.entries(STATUS).map(([k, v]) => [k, v.label]),
-) as Record<YakapRegistrationStatus, string>;
-
 /** PhilHealth's YAKAP registration answer as recorded: colour, icon and text (never colour alone). */
 export function YakapRegistrationBadge({ status }: { status: YakapRegistrationStatus }) {
   const { label, variant, icon: Icon } = STATUS[status];

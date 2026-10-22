@@ -10,7 +10,8 @@ timeline, Patient 360), cashiers and receptionists (PhilHealth answers), and any
 
 ## How to find a patient
 
-1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there).
+1. Select **Patients** in the sidebar, or type in the top-bar search box and press Enter (press `/` to jump there). The page lists all active
+   patients A–Z, 25 a page, until you search. Each row has **Open** (the record) and **360** (the Patient 360 view); on a phone every patient is a card.
 2. In **Name, patient no. or mobile**, type at least 2 characters. Examples: `dela cruz juan`, a patient number such as `P00001234`, or a mobile number in any
    Philippine format. Accents don't matter: "pena" finds "Peña".
 3. Optionally add the **Birth date** to narrow the list. You can also search by birth date alone.
@@ -40,14 +41,33 @@ Always search first. Registration also checks for existing records, but searchin
    and **Birth date \***. If the exact date is unknown, tick **Estimated (exact date unknown)**.
 4. Fill in **Contact & identifiers** if you have them: **Mobile** (e.g. `0917 123 4567`), **Email**, **PhilHealth PIN** (12 digits, e.g. `12-345678901-2`),
    **City / municipality**, **Barangay** and **Province**.
-5. Select **Register patient**.
-6. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
+5. If your clinic uses patient QR codes, the **Patient card** box offers **Issue a patient QR code** (ticked as your clinic set it). Untick it for a patient who does not want a card.
+6. Select **Register patient**.
+   If **MyHealth access** is shown, **Give MyHealth access now** records the patient's portal consent and shows an activation code once after registering: tick it only when the patient has agreed (signed paper form or verbal agreement).
+7. If no possible duplicate is found, the patient is registered. A message shows the new patient number and the record opens.
 
 If you don't see **Register patient**, you need the `patient.register` permission (receptionists, nurses, physicians, dentists and dental assistants have it by
 default).
 
 > An address needs its **City / municipality**. If you enter a barangay or province without one, the form asks for it ("Enter the city or
 > municipality to save the address") instead of registering the patient without the address.
+
+## How to use patient QR codes
+
+A QR code on a card or wristband lets you find a patient by scanning instead of typing. The code holds only a random key: no name, health or contact details, and it
+opens nothing by itself. Your clinic decides whether to use codes (**Settings → Patient QR codes**, administrators).
+
+- **Print a card.** Open the patient, choose the **MyHealth** tab, then **Print card** under **Patient QR code**. Give the card to the patient. If the patient has no
+  code yet (registered before codes were turned on, or declined), select **Issue QR code** first.
+- **Card with a MyHealth link.** If your clinic uses this kind, invite the patient to MyHealth first (see below) and give them the card and the activation code.
+  They scan the card with their phone: their date of birth and email are already filled in, and they enter the code and choose their own password.
+- **Scan.** On **Patients**, select **Scan QR code**. Scan with the hand-held scanner (click in the field first) or choose **Use the camera**. Select **Open record**
+  or **Check in**. Every scan is recorded.
+- **New code.** **Regenerate…** replaces the code in one step (give a reason): the old card stops working at once and the new one follows your clinic's current setting. Print the new card afterwards.
+- **Lost card.** On the same card select **Revoke (lost card)…**, give the reason, then **Issue QR code** for a new one. A revoked card is refused at the next
+  scan ("This QR code was revoked"); ask the patient for another form of identification.
+
+You need the `patient.qr.issue` permission to print, issue and revoke, and `patient.search` to scan.
 
 ## How to review possible duplicates
 
@@ -74,30 +94,44 @@ Registration never merges records by itself.
 
 ## How to read the patient record
 
-Open a patient from the search results. The record (`/patients/[id]`) shows:
+Open a patient from the search results. The record (`/patients/[id]`) has a header, a row of sections and the section you chose.
 
-- **Patient banner** at the top: name, patient number, age, sex and the allergy statement.
-- A yellow **Record status** line if the patient is not active (for example deceased, with the date). A merged (retired) record instead says **Merged into
-  P… on … by …** with a link to the surviving record; it is read only.
-- **Merged records** (on a surviving record): the patient numbers merged into this record, when, and the merge history. Everything filed under those
-  numbers — allergies, problems, prescriptions, consultations, results, dental work, bills — is shown on this record, each row marked **Filed under P…**.
-- **Action buttons** (each only if you have the permission):
-  - **Patient 360** — the doctor's one-screen workspace (see below).
-  - **Timeline** — the whole record in date order (see below).
-  - **Check in (walk-in)** — put the patient in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
+**The header**
+
+- Name, patient number, **Active** (or the record's status), age, sex, mobile number and the allergy statement. Allergies are always beside the name.
+- **In queue · Ready for provider · #9** when the patient has an open visit in today's queue at the facility you selected. Select it to open the queue.
+- Buttons, each only if you have the permission:
+  - **Start consultation** — shown when the patient is in today's queue and can be seen (`encounter.write`). An online visit opens in Telemedicine instead.
+  - **Check in (walk-in)** — shown when the patient is not in today's queue (`clinic.queue.manage`). See [Appointments and queue](03-appointments-and-queue.md).
   - **Book appointment** (`appointment.manage`).
   - **Billing** — the patient's charges and invoices (`billing.charge.read`). See [Billing](10-billing.md).
-  - **Dental record** (`dental.record.read`). See [Dental](08-dental.md).
-  - **Merge duplicate…** (`patient.merge`, records officers and organization administrators). See
-    [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records).
-- **Demographics**, **Contact & address**, **Identifiers** (PhilHealth PIN, PhilSys, SC/PWD ID, HMO) and **Emergency contacts & guardians**.
-- **Clinical summary** (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**, **Recent encounters**, **Upcoming
-  visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or physician before any clinical
-  decision.
-- **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
-- **Consent & communication**, **Recent activity**, **Referrals** (the patient's referrals with their status and **Overdue** when your organization flags
-  them; select one to open it), **Laboratory results**, **Archived laboratory reports**, **External history (imported)** and **Patient portal
-  (MyHealth)**.
+  - **More** — **Patient 360** (the doctor's one-screen workspace, see below), **Timeline** (the whole record in date order, see below), **Dental record**
+    (`dental.record.read`, see [Dental](08-dental.md)), **Edit details** and **Merge duplicate…** (`patient.merge`, records officers and organization
+    administrators; see [Records, reporting and integrations](11-records-reporting-and-integrations.md#how-to-merge-duplicate-patient-records)).
+
+**Notices under the header**
+
+- A yellow **Record status** line if the patient is not active (for example deceased, with the date). A merged (retired) record instead says **Merged into
+  P… on … by …** with a link to the surviving record; it is read only.
+- **A visit from an earlier day is still open** (queue access): a visit that was never closed keeps the patient shown as in the queue. Select **Close visit**,
+  choose **Patient left without being seen** (or **Checked in by mistake**, only before triage), add a note if you want, and confirm. A consultation under way
+  is not closed here: open it and finish it. The visit is not moved to today; check the patient in again if they are here now.
+
+**The sections** (the address keeps the section, `?tab=`, so you can come back to it)
+
+- **Overview** — **Record 56% complete** (what the front desk can still ask for: exact date of birth, civil status, nationality, occupation, a mobile
+  number, an address, an emergency contact, an ID and a consent decision; a prompt, not a rule), **Demographics**, **Contact & address**, **Identifiers**
+  (PhilHealth PIN, PhilSys, SC/PWD ID, HMO), **Emergency contacts & guardians**, **Merged records** (on a surviving record: the patient numbers merged into
+  this record, when, and the merge history; everything filed under those numbers is shown on this record, each row marked **Filed under P…**), **Recent
+  activity**, and the **Clinical summary** at the side (clinical staff only): **Allergies**, **Problems**, **Active prescriptions**, **Latest vitals**,
+  **Recent encounters**, **Upcoming visits** and **Care plans**. Without clinical access you see "No access to clinical information" instead. Ask a nurse or
+  physician before any clinical decision.
+- **Clinical** — **Medical, medication, family and social history**, **Immunizations** and **External history (imported)**.
+- **Visits** — appointments, queue visits, consultations, referrals, certificates and procedures in date order, **Referrals** (with their status and
+  **Overdue** when your organization flags them; select one to open it) and **Procedures done here**.
+- **Labs** — **Laboratory results** and **Archived laboratory reports**.
+- **Coverage** — **PhilHealth eligibility** and **PhilHealth YAKAP** (if you have the PhilHealth permissions).
+- **Consent & portal** — **Consent & communication** and **Patient portal (MyHealth)** with **Guardians and caregivers**.
 
 The footer shows when the record was registered and last updated. Opening a record is recorded in the audit trail.
 
@@ -223,7 +257,7 @@ verification**, write the reason (at least 5 characters) and confirm: the patien
 If your clinic requires two-step verification and a patient cannot use an authenticator app (no smartphone, for example), select **Exempt from required
 two-step verification…**, write the reason and confirm. The card then shows **Exempt from required two-step verification**, the patient is no longer asked
 to set it up, and they are told by email. **End two-step verification exemption…** reverses it, with a reason; the patient is then asked to set it up at
-their next visit to MyHealth. Who may be exempted is your organization's decision. Exempt patients are listed under **Administration → Sign-in
+their next visit to MyHealth. Who may be exempted is your organization's decision. Exempt patients are listed under **Settings → Sign-in
 security**.
 
 If you don't see **Invite to portal** or **Disable access**, you need the `patient.portal.manage` permission (receptionists and records officers by default).

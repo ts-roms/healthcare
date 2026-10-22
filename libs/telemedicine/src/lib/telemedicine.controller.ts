@@ -2,6 +2,8 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { DayDto, EndDto, EscalateDto, InstructionsDto } from "./telemedicine.dto";
+import { MessagesQueryDto, SendMessageDto, TelemedicineChatService } from "./telemedicine-chat.service";
+import { TelemedicineSettingDto, TelemedicineSettingService } from "./telemedicine-setting.service";
 import { TelemedicineService } from "./telemedicine.service";
 
 /** Staff side of online consultations, for the selected facility. */
@@ -10,7 +12,10 @@ import { TelemedicineService } from "./telemedicine.service";
 @RequireFacility()
 @Controller({ path: "telemedicine/consultations", version: "1" })
 export class TelemedicineController {
-  constructor(private readonly telemedicine: TelemedicineService) {}
+  constructor(
+    private readonly telemedicine: TelemedicineService,
+    private readonly chat: TelemedicineChatService,
+  ) {}
 
   @Get()
   @RequirePermissions("telemedicine.read")
@@ -19,11 +24,32 @@ export class TelemedicineController {
     return this.telemedicine.day(actor, query.date);
   }
 
+  @Get("video-status")
+  @RequirePermissions("telemedicine.read")
+  @ApiOperation({ summary: "Whether video is set up and the video server answers right now (a probe; no patient data)" })
+  videoStatus() {
+    return this.telemedicine.videoReadiness();
+  }
+
   @Get(":appointmentId")
   @RequirePermissions("telemedicine.read")
   @ApiOperation({ summary: "One online consultation with the pre-consult questionnaire (audited)" })
   get(@CurrentActor() actor: Actor, @Param("appointmentId", ParseUUIDPipe) appointmentId: string) {
     return this.telemedicine.get(actor, appointmentId);
+  }
+
+  @Get(":appointmentId/messages")
+  @RequirePermissions("telemedicine.read")
+  @ApiOperation({ summary: "The consultation's chat (oldest first); `after` is the id of the last message already shown" })
+  messages(@CurrentActor() actor: Actor, @Param("appointmentId", ParseUUIDPipe) appointmentId: string, @Query() query: MessagesQueryDto) {
+    return this.chat.staffMessages(actor, appointmentId, query.after);
+  }
+
+  @Post(":appointmentId/messages")
+  @RequirePermissions("telemedicine.conduct")
+  @ApiOperation({ summary: "Send a chat message to the patient (while they are in the waiting room or the consultation runs)" })
+  sendMessage(@CurrentActor() actor: Actor, @Param("appointmentId", ParseUUIDPipe) appointmentId: string, @Body() body: SendMessageDto) {
+    return this.chat.staffSend(actor, appointmentId, body.body);
   }
 
   @Post(":appointmentId/start")
@@ -62,5 +88,27 @@ export class TelemedicineController {
   @ApiOperation({ summary: "What the patient should do next (shown in MyHealth)" })
   instructions(@CurrentActor() actor: Actor, @Param("appointmentId", ParseUUIDPipe) appointmentId: string, @Body() body: InstructionsDto) {
     return this.telemedicine.setInstructions(actor, appointmentId, body.patientInstructions);
+  }
+}
+
+/** The organization's telemedicine policy (payment before the waiting room). */
+@ApiTags("telemedicine")
+@ApiBearerAuth()
+@Controller({ path: "telemedicine/settings", version: "1" })
+export class TelemedicineSettingController {
+  constructor(private readonly settings: TelemedicineSettingService) {}
+
+  @Get()
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Whether online visits must be paid for before the waiting room opens" })
+  get(@CurrentActor() actor: Actor) {
+    return this.settings.get(actor.organizationId);
+  }
+
+  @Put()
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Require (or stop requiring) payment before the waiting room (audited)" })
+  set(@CurrentActor() actor: Actor, @Body() body: TelemedicineSettingDto) {
+    return this.settings.set(actor, body);
   }
 }

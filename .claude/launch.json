@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["nx", "serve", "api"],
+      "port": 3333
+    },
+    {
+      "name": "staff",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "apps/staff", "exec", "next", "dev", "--port", "3005"],
+      "port": 3005
+    }
+  ]
+}

@@ -7,3 +7,5 @@ export * from "./lib/telemedicine.rules";
 export * from "./lib/telemedicine.schema";
 export * from "./lib/telemedicine.service";
 export * from "./lib/video";
+export * from "./lib/telemedicine-setting.service";
+export * from "./lib/telemedicine-chat.service";

@@ -24,7 +24,7 @@ import {
 } from "@healthcare/ui/primitives";
 import type { EqaEvaluation, LabEqaScheme, LabEqaSurvey, LabTest } from "@/lib/api/types";
 import { createEqaScheme, createEqaSurvey, recordEqaEvaluation, reportEqaResult } from "../quality-management-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 function EvaluationBadge({ evaluation }: { evaluation: EqaEvaluation | null }) {
   if (evaluation === "acceptable")
@@ -147,7 +147,7 @@ export function EqaBoard({
 }
 
 function SurveyForm({ schemes }: { schemes: LabEqaScheme[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ schemeId: "", roundCode: "", receivedOn: "", dueOn: "" });
   return (
     <Card>
@@ -194,7 +194,7 @@ function SurveyForm({ schemes }: { schemes: LabEqaScheme[] }) {
 }
 
 function ResultForm({ surveyId, tests }: { surveyId: string; tests: LabTest[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ testId: "", sampleCode: "", reportedValue: "" });
   return (
     <form
@@ -231,7 +231,7 @@ function ResultForm({ surveyId, tests }: { surveyId: string; tests: LabTest[] })
 }
 
 function EvaluationForm({ resultId }: { resultId: string }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [f, setF] = React.useState({ evaluation: "acceptable" as EqaEvaluation, targetValue: "", providerScore: "", note: "" });
   if (!open)
@@ -278,7 +278,7 @@ function EvaluationForm({ resultId }: { resultId: string }) {
 }
 
 function SchemeForm() {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ code: "", provider: "", name: "" });
   return (
     <form

@@ -24,9 +24,6 @@
       "path": "../../libs/interoperability/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/audit/tsconfig.lib.json"
-    },
-    {
       "path": "../../libs/core/tsconfig.lib.json"
     }
   ]

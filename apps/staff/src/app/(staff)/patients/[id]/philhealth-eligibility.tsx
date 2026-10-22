@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { PlugZapIcon, SendIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
-import { Button, DateInput, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, DateInput, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
 import { EligibilityBadge } from "@/components/eligibility-badge";
 import type { EligibilityCheck, EligibilityOverview } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { recordEligibility, requestEligibility } from "./eligibility-actions";
 
 /**
@@ -25,21 +25,10 @@ export function PhilHealthEligibility({
   today: string;
   facilitySelected: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const { pending, run } = useServerAction();
   const [f, setF] = React.useState({ serviceDate: today, answer: "eligible" as EligibilityCheck["status"], reference: "", note: "" });
   const [key, setKey] = React.useState(() => crypto.randomUUID());
   const connected = overview.integration.status !== "dependency";
-
-  const act = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
 
   return (
     <div className="flex flex-col gap-3 text-body">
@@ -73,7 +62,7 @@ export function PhilHealthEligibility({
             aria-label="Record PhilHealth's answer"
             onSubmit={(e) => {
               e.preventDefault();
-              act(
+              run(
                 () =>
                   recordEligibility({
                     patientId,
@@ -118,7 +107,7 @@ export function PhilHealthEligibility({
                   variant="outline"
                   disabled={pending}
                   onClick={() =>
-                    act(
+                    run(
                       () => requestEligibility({ patientId, serviceDate: f.serviceDate, idempotencyKey: key }),
                       "Asking PhilHealth",
                       () => setKey(crypto.randomUUID()),

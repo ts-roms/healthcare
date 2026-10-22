@@ -1,8 +1,8 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -18,10 +18,9 @@ export default async function WaitlistPage() {
   if (!can(session, "appointment.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Waiting list" />
+      <ModulePage title="Waiting list">
         <FacilityRequired action="The waiting list is kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [entries, offers, practitioners, visitTypes] = await Promise.all([
@@ -45,18 +44,17 @@ export default async function WaitlistPage() {
         : `${clinicalDate(`${e.earliestDate}T12:00:00Z`)} – ${clinicalDate(`${e.latestDate}T12:00:00Z`)}`,
   }));
   return (
-    <>
-      <PageHeader
-        title={`Waiting list — ${facility.name}`}
-        description="Patients waiting for a time, oldest and most urgent first. Patients who asked in MyHealth are texted or emailed when a matching time opens and book it themselves; nothing is booked for them. When you book one, close the entry with the reason."
-        actions={
-          <Link href="/appointments/visit-types" className="text-table text-primary hover:underline">
-            Online booking rules
-          </Link>
-        }
-      />
+    <ModulePage
+      title={`Waiting list — ${facility.name}`}
+      description="Patients waiting for a time, oldest and most urgent first. Patients who asked in MyHealth are texted or emailed when a matching time opens and book it themselves; nothing is booked for them. When you book one, close the entry with the reason."
+      actions={
+        <Link href="/appointments/visit-types" className="text-table text-primary hover:underline">
+          Online booking rules
+        </Link>
+      }
+    >
       <WaitlistTable rows={rows} canManage={can(session, "appointment.manage")} />
       <OffersTable rows={offerRows} canManage={can(session, "appointment.manage")} />
-    </>
+    </ModulePage>
   );
 }

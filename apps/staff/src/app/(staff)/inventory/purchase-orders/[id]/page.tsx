@@ -1,15 +1,14 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { PurchaseOrder, PurchaseOrderInvoicing, SupplierInvoice } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { purchaseOrderActions } from "@/lib/inventory-mapping";
-import { InventoryNav } from "../../inventory-nav";
 import { SupplierInvoiceStatusBadge } from "../../supplier-invoices/status-badge";
 import { PurchaseOrderStatusBadge } from "../status-badge";
 import { PurchaseOrderActions } from "./purchase-order-actions";
@@ -20,19 +19,11 @@ export const metadata = { title: "Purchase order" };
 export default async function PurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Purchase order" actions={nav} />
+      <ModulePage title="Purchase order">
         <FacilityRequired action="Purchase orders are placed per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [order, invoicing, invoices] = await Promise.all([
@@ -50,17 +41,15 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
     { label: order.status === "cancelled" ? "Cancelled" : "Closed short", at: order.endedAt, note: order.endReason },
   ].filter((h) => h.at);
   return (
-    <>
-      <PageHeader
-        title={`Purchase order ${order.poNumber}`}
-        description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}${
-          order.procurementMethod
-            ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
-            : ""
-        }`}
-        actions={nav}
-      />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage
+      title={`Purchase order ${order.poNumber}`}
+      description={`${order.supplier?.name ?? "—"} · deliver to ${order.location?.name ?? "—"}${order.expectedDate ? ` · expected ${clinicalDate(order.expectedDate)}` : ""}${
+        order.procurementMethod
+          ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
+          : ""
+      }`}
+    >
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <PurchaseOrderStatusBadge status={order.status} />
@@ -154,6 +143,6 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
           {canInvoice ? <RecordSupplierInvoice invoicing={invoicing} /> : null}
         </div>
       </div>
-    </>
+    </ModulePage>
   );
 }

@@ -11,14 +11,54 @@ D4 and D13 in [mobile-app.md](../architecture/mobile-app.md):
 
 Nothing here has been run against Expo's or the stores' services yet: no EAS build or submission exists. What was verified is listed at the end.
 
+## Distributing an APK directly (without Google Play)
+
+For a pilot, a demo, or an LGU facility that hands phones out, the organization may serve the Android build itself:
+
+1. Build the APK:
+
+   ```bash
+   pnpm mobile:apk            # Gradle on this machine: Android SDK + JDK, no Expo account; signed with the Android debug key
+   pnpm mobile:apk --eas      # EAS Build's local mode with the organization's key (macOS, Linux or WSL — not Windows)
+   pnpm mobile:apk --cloud    # on EAS Build's servers, then downloaded
+   pnpm mobile:apk --dry-run  # shows the commands only
+   ```
+
+   The script (`tools/mobile/build-apk.ts`) reads `apps/mobile/.env.local` (the shell wins) and writes the file to
+   `apps/portal/public/downloads/myhealth.apk` (`--output` for elsewhere; `--from <file>` only places an APK built another way).
+   Every path needs `MYHEALTH_ANDROID_PACKAGE` (or `--package <id>`), the package name the APK is signed for — permanent for the
+   installed app — and builds `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_ORGANIZATION_CODE` into the app.
+   - **Gradle (default):** `expo prebuild` generates the Android project under `apps/mobile/android` (ignored in git, rebuilt from
+     scratch each time) and `gradlew assembleRelease` builds it with `ANDROID_HOME` and `JAVA_HOME` (Android Studio's `jbr` folder is
+     found on its own). It is signed with the debug key Expo's template ships, so it installs on any phone for a demo or a pilot,
+     but a store build cannot update it later: users uninstall it first. The first run downloads Gradle and takes a while. On
+     Windows the checkout must be at a short path (`D:\hc`, not a folder named after the organization): the SDK's Ninja refuses
+     file paths of 260 characters or more, which a library's generated sources reach from a long path, and the script measures this
+     before it starts; a path with spaces is handled (`apps/mobile/plugins/with-local-gradle-build.js`).
+   - **EAS (`--eas`, `--cloud`):** the `apk` profile of `eas.json` (a `preview` release build with `buildType: apk`) signed with the
+     organization's Android key held by EAS; needs `EAS_PROJECT_ID` and an `eas-cli` sign-in to the Expo account that holds the
+     project. Use this for an APK that the store release should later update.
+
+2. The folder is served as-is by MyHealth at `/downloads/myhealth.apk`: deploy MyHealth with the file in place, or host it elsewhere over https.
+3. Set `MOBILE_APP_ANDROID_URL=/downloads/myhealth.apk` on the `portal` **and** `staff` services (an absolute https link also works). The
+   MyHealth sign-in page then shows **Get the MyHealth app** with a QR code labelled **Android app (APK)**, and the staff landing page's
+   **MyHealth, on the phone** section shows the same code; both resolve the path to the full MyHealth address (`PORTAL_BASE_URL`).
+4. Tell patients the phone will ask to allow installing from this source, and that iPhone users use MyHealth in the browser until the App
+   Store listing exists (`MOBILE_APP_IOS_URL`).
+
+A sideloaded app gets no store updates: publish a new APK and tell users, or move to the stores. Keep the signing key safe: a different key
+cannot update an installed app (a debug-signed Gradle build is replaced only by uninstalling it). The repository holds no APK (`apps/portal/public/downloads/` has only a README); add the file in the
+deployment, or commit it deliberately knowing its size.
+
 ## What is in the repository
 
-| File                        | What it holds                                                                                                                          |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/mobile/app.json`      | What every organization's build shares: plugins, orientation, version.                                                                 |
-| `apps/mobile/app.config.ts` | Each organization's values, read from the environment (table below); rejects a malformed identifier; never invents one.                |
-| `apps/mobile/eas.json`      | Build profiles `development`, `preview`, `production` and the `production` submit profile (validated with eas-cli 24.8's own checker). |
-| `apps/mobile/.env.example`  | The same variables for local use (`.env.local`, not committed).                                                                        |
+| File                                             | What it holds                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/mobile/app.json`                           | What every organization's build shares: plugins, orientation, version.                                                                                                                                                                                                                      |
+| `apps/mobile/app.config.ts`                      | Each organization's values, read from the environment (table below); rejects a malformed identifier; never invents one.                                                                                                                                                                     |
+| `apps/mobile/eas.json`                           | Build profiles `development`, `preview`, `apk` (a `preview` release built as an APK), `production` and the `production` submit profile (validated with eas-cli 24.8's own checker).                                                                                                         |
+| `apps/mobile/plugins/with-local-gradle-build.js` | Config plugin for a local Gradle build from a Windows checkout whose path has spaces: the Hermes compiler path in the generated `build.gradle` made relative, and each native library's CMake staging folder moved under `android/build/cxx` so its prefab files stay under 260 characters. |
+| `apps/mobile/.env.example`                       | The same variables for local use (`.env.local`, not committed).                                                                                                                                                                                                                             |
 
 ### Per-organization settings (not secrets)
 

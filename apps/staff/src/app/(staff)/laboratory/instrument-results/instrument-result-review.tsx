@@ -8,7 +8,7 @@ import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeade
 import type { LabInstrumentResultRow } from "@/lib/api/types";
 import { MATCH_PROBLEM, sentValue } from "@/lib/instrument-results";
 import { acceptInstrumentResult, dismissInstrumentResult } from "../instrument-interface-actions";
-import { useRun } from "../quality-ui";
+import { useServerAction } from "@/lib/use-server-action";
 
 const MATCHED: StatusSpec = { label: "Matched", icon: LinkIcon, variant: "info" };
 const UNMATCHED: StatusSpec = { label: "Not matched", icon: UnlinkIcon, variant: "warning" };
@@ -19,7 +19,7 @@ const STATE: Record<LabInstrumentResultRow["state"], StatusSpec> = {
 };
 
 export function InstrumentResultReview({ rows, canDecide, decided }: { rows: LabInstrumentResultRow[]; canDecide: boolean; decided: boolean }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [dismissing, setDismissing] = React.useState<{ id: string; reason: string } | null>(null);
   if (rows.length === 0) {
     return (
@@ -101,7 +101,7 @@ export function InstrumentResultReview({ rows, canDecide, decided }: { rows: Lab
               <TableCell className="text-right">
                 {decided ? (
                   r.state === "accepted" && r.patientId ? (
-                    <Link href={`/patients/${r.patientId}#laboratory`} className="text-meta text-primary hover:underline">
+                    <Link href={`/patients/${r.patientId}?tab=labs#laboratory`} className="text-meta text-primary hover:underline">
                       Open results
                     </Link>
                   ) : null

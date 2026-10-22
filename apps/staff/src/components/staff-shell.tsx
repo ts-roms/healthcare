@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, FlaskConicalIcon, LifeBuoyIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
-import { SidebarPromo, StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
+import { BellIcon, CompassIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
+import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import {
   Button,
@@ -19,8 +19,18 @@ import {
 } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import type { StaffBadges } from "@/lib/api/types";
+import { NOTICE_EVENTS } from "@/lib/live-queue";
+import { moduleTabsFor } from "@/lib/module-tabs";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
+import { TOUR_START_EVENT } from "@/lib/tour";
+import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
+import type { ManualSection } from "@healthcare/ui/primitives";
+import { GuidedTour } from "./guided-tour";
+import { HelpFab, type HelpChapter } from "./help-fab";
+import { useLiveUpdates } from "./live-queue";
+import { ModuleTabsBar } from "./module-tabs-bar";
 import { OfflineBanner } from "./offline-banner";
+import { SettingsFrame } from "./settings-frame";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
 
@@ -37,38 +47,69 @@ export interface StaffShellProps {
   unreadNotices: number;
   /** Counts for the navigation (`GET /me/badges`); refreshed every minute from `/badges`. */
   badges: StaffBadges | null;
+  /** Whether the organization offers the guided tour (Settings → Guided tour); off = it never starts. */
+  tourEnabled?: boolean;
+  /** The user manual's chapters, for the floating help button's dialog. */
+  manualChapters: HelpChapter[];
+  /** Every section of the manual, for the dialog's search box. */
+  manualSections?: ManualSection[];
   children: React.ReactNode;
 }
 
 const BADGES_REFRESH_MS = 60_000;
 
-export function StaffShell({ permissions, user, organizationName, facilities, facilityId, timeZone, unreadNotices, badges, children }: StaffShellProps) {
+export function StaffShell({
+  permissions,
+  user,
+  organizationName,
+  facilities,
+  facilityId,
+  timeZone,
+  unreadNotices,
+  badges,
+  tourEnabled = true,
+  manualChapters,
+  manualSections = [],
+  children,
+}: StaffShellProps) {
   // Set during render, before the page below renders, so every client component formats times in the facility's zone.
   setClinicTimeZone(timeZone);
   const pathname = usePathname();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   // Polled counts replace the server-rendered ones; a new server render (navigation) resets them through the prop.
-  const [polled, setPolled] = React.useState<{ from: StaffBadges | null; counts: StaffBadges | null }>({ from: badges, counts: null });
+  const [polled, setPolled] = React.useState<{ from: StaffBadges | null; counts: StaffBadges | null; unread: number | null }>({
+    from: badges,
+    counts: null,
+    unread: null,
+  });
   const counts = polled.from === badges && polled.counts ? polled.counts : badges;
-  React.useEffect(() => {
-    const timer = setInterval(async () => {
-      try {
-        const response = await fetch("/badges", { cache: "no-store" });
-        if (response.status === 200) {
-          const fresh = (await response.json()) as StaffBadges;
-          setPolled({ from: badges, counts: fresh });
-        }
-      } catch {
-        // Keep the last counts; the next tick tries again.
+  // The bell's count follows the same rule: the server-rendered number until a fresher one arrives for this render.
+  const unread = polled.from === badges && polled.unread !== null ? polled.unread : unreadNotices;
+  const refreshCounts = React.useCallback(async () => {
+    try {
+      const response = await fetch("/badges", { cache: "no-store" });
+      if (response.status === 200) {
+        const { unreadNotices: fresh, ...rest } = (await response.json()) as StaffBadges & { unreadNotices?: number };
+        setPolled({ from: badges, counts: rest, unread: typeof fresh === "number" ? fresh : null });
       }
-    }, BADGES_REFRESH_MS);
-    return () => clearInterval(timer);
+    } catch {
+      // Keep the last counts; the next tick (or notice) tries again.
+    }
   }, [badges]);
+  React.useEffect(() => {
+    const timer = setInterval(() => void refreshCounts(), BADGES_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [refreshCounts]);
+  // A new in-app notice reaches this browser over the realtime socket: update the bell and the counts at once (not the page).
+  useLiveUpdates(NOTICE_EVENTS, () => void refreshCounts(), { refreshPage: false });
   const navigation = React.useMemo(() => withBadgeCounts(navigationForPermissions(permissions), counts), [permissions, counts]);
 
-  // Company settings are the administration pages; staff without access to any of them only see their own account.
-  const canOpenCompanySettings = navigation.some((item) => item.href === "/admin" && item.children?.some((c) => c.href === "/admin/organization"));
+  // Settings: every configuration page open to the user, drawn beside a sub-navigation; a module's other pages are its tabs.
+  const settingsGroups = React.useMemo(() => settingsForPermissions(permissions), [permissions]);
+  const moduleTabs = moduleTabsFor(pathname, permissions, counts);
+  const inSettings = isSettingsPath(pathname);
+  const canOpenCompanySettings = settingsGroups.some((g) => g.pages.some((p) => p.href === "/admin/organization"));
 
   return (
     <StaffLayout
@@ -76,25 +117,8 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
       navigation={navigation}
       Link={NextLink}
       onSearch={(q) => router.push(`/patients?q=${encodeURIComponent(q)}`)}
-      sidebarFooter={
-        <>
-          <SidebarPromo
-            icon={LifeBuoyIcon}
-            title="Need a hand?"
-            description="Step-by-step guides for every role, from registration to billing."
-            action={
-              <Button asChild size="sm" className="w-full">
-                <Link href="/help">Open the user manual</Link>
-              </Button>
-            }
-          />
-          <form action={signOut}>
-            <Button type="submit" variant="ghost" className="w-full justify-start rounded-full px-3 text-sidebar-foreground" title={`Sign out ${user.email}`}>
-              <LogOutIcon /> Sign out
-            </Button>
-          </form>
-        </>
-      }
+      // Room under every page for the floating help button (from md up), so it never sits on a form's last controls.
+      contentClassName="md:pb-20"
       topbarEnd={
         <>
           {facilities.length > 0 ? (
@@ -127,16 +151,18 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
               ))}
             </NativeSelect>
           ) : null}
+          {/* On phones the help button lives here instead of floating over the page. */}
+          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
           <Button asChild variant="ghost" size="icon" className="relative">
             <Link
               href="/notifications"
-              aria-label={unreadNotices ? `Notifications, ${unreadNotices} unread` : "Notifications"}
-              title={unreadNotices ? `${unreadNotices} unread` : "Notifications"}
+              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+              title={unread ? `${unread} unread` : "Notifications"}
             >
               <BellIcon />
-              {unreadNotices ? (
+              {unread ? (
                 <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
-                  {unreadNotices > 99 ? "99+" : unreadNotices}
+                  {unread > 99 ? "99+" : unread}
                 </span>
               ) : null}
             </Link>
@@ -169,6 +195,11 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
                   </Link>
                 </DropdownMenuItem>
               ) : null}
+              {tourEnabled ? (
+                <DropdownMenuItem onSelect={() => window.dispatchEvent(new CustomEvent(TOUR_START_EVENT, { detail: {} }))}>
+                  <CompassIcon aria-hidden /> Tour this page
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void signOut()}>
                 <LogOutIcon aria-hidden /> Log out
@@ -180,7 +211,16 @@ export function StaffShell({ permissions, user, organizationName, facilities, fa
     >
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
       <OfflineBanner />
-      {children}
+      {moduleTabs ? <ModuleTabsBar label={moduleTabs.label} tabs={moduleTabs.tabs} pathname={pathname} /> : null}
+      {inSettings ? (
+        <SettingsFrame groups={settingsGroups} pathname={pathname}>
+          {children}
+        </SettingsFrame>
+      ) : (
+        children
+      )}
+      <HelpFab chapters={manualChapters} sections={manualSections} />
+      {tourEnabled ? <GuidedTour /> : null}
     </StaffLayout>
   );
 }

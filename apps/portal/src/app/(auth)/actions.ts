@@ -125,6 +125,23 @@ export async function passkeySignIn(input: { response: unknown; rememberDevice: 
 
 const ACTIVATE_FIELDS = ["patientNumber", "birthDate", "activationCode", "email", "password", "confirmPassword"] as const;
 
+/**
+ * A patient scanned the card the clinic gave them: its link carried a key after "#". Asks the API which patient number it
+ * is for (only while the clinic's invitation is open). Gives nothing else and grants nothing: activation still needs the
+ * date of birth and the one-time code.
+ */
+export async function lookupCard(payload: string): Promise<{ patientNumber: string; givenName: string; birthDate: string; email: string | null } | null> {
+  if (typeof payload !== "string" || payload.length > 100) return null;
+  try {
+    return await post<{ patientNumber: string; givenName: string; birthDate: string; email: string | null }>("/portal/auth/activation-card", {
+      organizationCode: PORTAL_ORGANIZATION_CODE,
+      payload,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** First sign-in: proves identity with the clinic's one-time code, then sets the email and password. */
 export async function activate(_prev: AuthFormState, form: FormData): Promise<AuthFormState> {
   const values = Object.fromEntries(["patientNumber", "birthDate", "activationCode", "email"].map((f) => [f, String(form.get(f) ?? "")]));

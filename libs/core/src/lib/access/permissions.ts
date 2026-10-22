@@ -17,6 +17,9 @@ export const PERMISSIONS = [
   "patient.portal.proxy.manage",
   // Patient merge (migration 0068)
   "patient.merge",
+  // Patient QR codes: issue, print and revoke; the organization setting (migration 0117)
+  "patient.qr.issue",
+  "patient.qr.manage",
   "document.read",
   "document.upload",
   "document.archive",
@@ -144,6 +147,8 @@ export const PERMISSIONS = [
   "compliance.review.manage",
   "inventory.controlled-register.read",
   "document.retention.manage",
+  // The personal data breach register and the organization's privacy settings (migration 0114; docs/security/data-privacy-act.md).
+  "privacy.incident.manage",
   // Integrity review of stored documents against their checksums, and its findings (migration 0105).
   "document.integrity.manage",
   // Analyzer interfaces: the instrument gateway's integration account submits result messages (migration 0075).

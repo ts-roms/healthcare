@@ -37,32 +37,45 @@ the facility you choose with everything you do.
 
 ## How to find your way around
 
-The dark **sidebar** on the left lists the modules you may use. It is built from your permissions, so two people can see different menus. On a small screen,
-open it with the menu button (**Open navigation**) at the top left.
+The **sidebar** on the left lists the modules you may use, in sections: **Today** (Queue, Appointments, Calendar), **Patients** (Patients, Patient messages,
+Telemedicine), **Clinical** (Consultations, Care plans, Referrals, Laboratory, Dental, Pharmacy), **Operations** (Billing, Inventory, Records, Disease
+reporting, Management) and **Engagement** (Communications, Outreach). **Settings** and **Help** stay at the bottom. It is built from your permissions, so two
+people can see different menus. On a small screen, open it with the menu button (**Open navigation**) at the top left. On a wide screen, the round button on the
+sidebar's edge narrows it to icons; your choice is remembered in this browser.
 
-- Selecting a module that has sub-pages (for example **Laboratory**) opens its first sub-page. The sub-pages appear under the module while you are in it.
 - **Dashboard** is always shown.
-- Sub-pages you cannot open are not listed (for example **Quality control** needs `lab.qc.read`), and a module whose sub-pages are all out of
-  reach is not shown at all.
+- A module with several pages (for example **Laboratory** or **Billing**) shows them as **tabs** under the top bar. Tabs you cannot open are not listed (for
+  example **Quality control** needs `lab.qc.read`), and a number on a tab (such as **Critical results**) counts what is waiting for you.
+- A module whose pages are all out of reach is not shown at all. **Doctors** and **Waiting list** are tabs of **Appointments**; **Prescriptions** is a tab of
+  **Consultations**.
+- **Settings** gathers every configuration page in one place: your organization (company, facilities, service points, staff users, roles), security and privacy
+  (sign-in security, data privacy, consent wording, patient QR codes, audit log, compliance, integrations), scheduling, and each module's own settings
+  (procedures, vaccines, laboratory catalog, billing prices, inventory catalog, and so on). A menu on the left lists the ones you may open; on a phone it is a
+  **Settings section** list above the page. Settings appears when at least one of those pages is open to you, and each page still needs its own permission. In this
+  manual, **Settings → Staff users** means the **Staff users** page in that menu.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
+- **Help** at the bottom of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
+  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, the lifebuoy button in the top bar) opens a small **Need a hand?**
+  window instead: the chapter about the screen you are on comes first (**About this screen**), then every chapter, and **Open the user manual**
+  opens the manual's contents page. Press Escape or the × to close it. Hover over the button or move to it with the keyboard to see its name.
 
 What each default role usually sees in the sidebar, besides **Dashboard**:
 
-| Role                       | Modules in the sidebar                                                                                                                                            |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organization administrator | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Billing, Pharmacy, Inventory, Communications, Disease reporting, Records, Administration |
-| Physician, Dentist         | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Communications, Disease reporting                                                        |
-| Nurse                      | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Pharmacy, Inventory                                                                      |
-| Dental assistant           | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Inventory                                                                                |
-| Receptionist               | Patients, Appointments, Queue, Telemedicine, Billing, Communications                                                                                              |
-| Medical records officer    | Patients, Appointments, Clinic, Laboratory, Disease reporting, Records                                                                                            |
-| Medical technologist       | Patients, Laboratory, Inventory                                                                                                                                   |
-| Pathologist, Phlebotomist  | Patients, Laboratory                                                                                                                                              |
-| Pharmacist                 | Patients, Pharmacy, Inventory                                                                                                                                     |
-| Cashier                    | Patients, Billing                                                                                                                                                 |
-| Inventory officer          | Inventory                                                                                                                                                         |
-| Auditor                    | Dashboard only                                                                                                                                                    |
+| Role                       | Modules in the sidebar                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organization administrator | Patients, Appointments, Queue, Consultations, Care plans, Referrals, Laboratory, Dental, Telemedicine, Billing, Pharmacy, Inventory, Communications, Disease reporting, Records, Settings |
+| Physician, Dentist         | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Communications, Disease reporting                                                                                |
+| Nurse                      | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Pharmacy, Inventory                                                                                              |
+| Dental assistant           | Patients, Appointments, Queue, Clinic, Laboratory, Dental, Telemedicine, Inventory                                                                                                        |
+| Receptionist               | Patients, Appointments, Queue, Telemedicine, Billing, Communications                                                                                                                      |
+| Medical records officer    | Patients, Appointments, Clinic, Laboratory, Disease reporting, Records                                                                                                                    |
+| Medical technologist       | Patients, Laboratory, Inventory                                                                                                                                                           |
+| Pathologist, Phlebotomist  | Patients, Laboratory                                                                                                                                                                      |
+| Pharmacist                 | Patients, Pharmacy, Inventory                                                                                                                                                             |
+| Cashier                    | Patients, Billing                                                                                                                                                                         |
+| Inventory officer          | Inventory                                                                                                                                                                                 |
+| Auditor                    | Dashboard only                                                                                                                                                                            |
 
 Your organization may give you a custom role, or more than one role, so your menu can differ. Seeing a menu entry does not mean you can do everything in it:
 buttons you may not use are hidden, and the server checks every action again. The full list of roles and permissions is in
@@ -76,12 +89,11 @@ From left to right:
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
-- Your **name** and **organization** (on wide screens; a person icon on narrow ones) — opens **My account** (see below).
-- **Sign out** button (the exit icon). Hover over it to see which email is signed in.
+- **Account menu** (your initials) — shows your name, email and organization, and has **My account** (see below), **Company settings** (when you may open them) and **Log out**.
 
 ## How to change your password or turn on two-step verification
 
-Click your name in the top bar to open **My account** (`/account`).
+Open the **Account menu** (your initials in the top bar) and choose **My account** (`/account`).
 
 - **Password:** enter your current password, then the new one twice (at least 12 characters, not repetitive), and click **Change password**.
   You stay signed in here; every other session of yours is signed out.
@@ -91,6 +103,8 @@ Click your name in the top bar to open **My account** (`/account`).
   phone, and click **I have saved them**. From then on, signing in also asks for a code. Each code works once: if a code is refused, wait for the
   next one the app shows. To turn it off, click **Turn off…** and enter your password and a current code (or a recovery code). If your
   organization requires two-step verification, the page says so and it cannot be turned off.
+- **My signature** (practitioners only): draw your signature in the box with a finger, a pen or the mouse and click **Save signature**; **Remove it** takes it away.
+  When your clinic prints signatures, the medical certificates and referral letters you issue from then on carry it above your name.
 - **Recovery codes:** without your phone, type a recovery code instead of the 6 digits when signing in; each works once. **My account** shows how
   many are left. **New recovery codes…** (your password and a code from the app) makes a new set, and the old ones stop working.
 
@@ -124,21 +138,37 @@ again to turn it back on. The test notice is always sent.
 
 ## How to use the dashboard
 
-The **Dashboard** (`/`) greets you by name and shows your organization and selected facility. What you see depends on your permissions and needs a selected
-facility.
+The **Dashboard** (`/`) greets you by name ("Good morning", "Good afternoon" or "Good evening" by the facility's clock) and shows the date, your organization and
+the selected facility. What you see depends on your permissions and needs a selected facility.
 
-- **Find patient** and **Register patient** buttons (with `patient.search` and `patient.register`).
-- **Clinic today** (with `clinic.dashboard.read`):
-  - Figures: **Appointments**, **Waiting**, **With provider**, **Seen**, **Average wait** and **No-show rate**. Select a figure to open its screen.
-  - **Attention required**: for example "Long wait in the queue" (someone waiting more than 45 minutes), "Unsigned encounters", "Left without being seen
-    today", "Overdue care-plan activities" and "Care-plan activities due this week". When the list is empty it says "Nothing needs your attention."
-  - **Your next patients** (if your account is linked to a practitioner) or **Next patients**, with a **Full schedule** link.
-  - **Provider workload** (Booked, Seen, Waiting per practitioner) and the live queue board.
-- **Laboratory** (with laboratory permissions): **To collect**, **Awaiting results**, **Awaiting sign-off**, **STAT open**, **Released today**, **Avg.
-  turnaround** and **Rejected today**, plus "Critical results not yet acknowledged" and "Tests past their turnaround time". Quality staff also see a
-  **Laboratory quality** list. See [Laboratory](06-laboratory.md) and [Laboratory quality](07-laboratory-quality.md).
+- **Register patient** and **Check in patient** buttons (with `patient.register`, and with `clinic.queue.manage` and `patient.search`).
+- **Figures** (with `clinic.dashboard.read`; select one to open its screen): **Appointments** (with how many arrived and how many did not come),
+  **Waiting** (with the average wait), **Longest wait** (red with a warning icon from 30 minutes, with the patient and ticket when you may open the
+  queue), **With provider** and **Seen** (compared with the same weekday last week).
+- **Cashier figures and panels** (with `billing.charge.read`; the day's collections need `billing.report.read`): **To invoice** (patients with charges
+  waiting and the amount), and for someone who has no clinic figures also **Balances owed**, **Collected today** and **Invoices today**; the panels **To invoice**
+  (each patient with **Create invoice**), **Balances owed** (the largest unpaid invoices) and **Collected today** by payment method. **Create invoice**
+  and **End-of-day report** buttons sit at the top.
+- **Queue now** (with the queue permission): how many are **Waiting**, in **Triage**, **Ready**, **With provider** and **Done**; **Open queue** opens the board.
+- **Needs attention**: the urgent and soon things of the day, each with a tag (**Urgent**, **Soon**, **Info**, **Setup**) and a button to where it is dealt
+  with. The chips **All**, **Patients**, **Lab** and **Setup** narrow the list. It shows, for example, a patient waiting 30 minutes or more ("Call now"),
+  unsigned consultations, patients who left without being seen, overdue care-plan activities, critical laboratory results not yet acknowledged, tests
+  past their turnaround time, samples not yet collected and the laboratory quality items — and, under **Setup**, a laboratory licence that was never
+  recorded and practitioners without a staff account or a licence number (for those who may change practitioners). When nothing needs attention it
+  says so. The orange and red numbers are only for reading the day; the system decides nothing from them.
+- **Next up** (or **Your next patients** if your account is linked to a practitioner): today's next appointments with the practitioner and reason, and
+  **Checked in**, **N min late** or **Expected**; **Full schedule** opens the appointments.
+- **Laboratory** (with laboratory permissions): the four steps **To collect**, **Awaiting results**, **Awaiting sign-off** and **Released today**, the
+  average turnaround, what was released and rejected today, and **STAT open** when there is one. Select a step to open that stage of the worklist.
+  Quality staff also see the laboratory quality items under **Needs attention**. See [Laboratory](06-laboratory.md) and
+  [Laboratory quality](07-laboratory-quality.md).
+- **Calendar**: the month with a bar under each day for how full it is — the appointments holding a slot against the slots the schedules offer, after leave and
+  closures: **Light**, **Busy** (from 40 %) or **Nearly full** (from 80 %); a day without a schedule has no bar. The arrows move by month and **Today** comes back. Under it,
+  today's appointments and open slots, and **Open day**.
+- **This week**: the appointments of each day from Monday (Sunday too when it has any), today in the dark bar, and how many follow-ups fall due in the
+  next 7 days (**Review** opens the recall list).
 
-The small indicator next to **Clinic today** tells you how the figures update:
+The small **Live** indicator under your name tells you how the figures update:
 
 | Indicator              | Meaning                                                                    |
 | ---------------------- | -------------------------------------------------------------------------- |
@@ -163,7 +193,7 @@ The small indicator next to **Clinic today** tells you how the figures update:
 
 ## How to sign out
 
-1. Select the **Sign out** icon at the right end of the top bar.
+1. Open the **Account menu** (your initials at the right end of the top bar) and choose **Log out**.
 2. You return to the sign-in page. Your session is ended on the server and your facility choice is cleared.
 
 Always sign out of a shared workstation. The staff app does not sign you out after a period of inactivity.

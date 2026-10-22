@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Button,
   DateInput,
@@ -14,33 +13,16 @@ import {
   Input,
   Label,
   NativeSelect,
-  toast,
 } from "@healthcare/ui/primitives";
-import type { ActionResult } from "@/lib/api/action-result";
 import type { PractitionerDetail } from "@/lib/api/types";
 import { zonedLocalToIso } from "@/lib/clinic-mapping";
+import { useServerAction } from "@/lib/use-server-action";
 import { addClosure, addPractitioner, addRoom, addSchedule, type PractitionerInput, retireSchedule, updatePractitioner } from "./actions";
 import { PROFESSIONS, ROOM_TYPES, WEEKDAYS } from "./labels";
 
 interface Option {
   id: string;
   name: string;
-}
-
-/** Runs a server action, reports the outcome and refreshes the page. */
-function useSubmit() {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const submit = (call: () => Promise<ActionResult<unknown>>, success: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-      } else toast.error(result.message);
-      router.refresh();
-    });
-  return { pending, submit };
 }
 
 function Toggle({ label, open, setOpen }: { label: string; open: boolean; setOpen: (v: boolean) => void }) {
@@ -52,7 +34,7 @@ function Toggle({ label, open, setOpen }: { label: string; open: boolean; setOpe
 }
 
 export function AddSchedule({ facilityId, today, practitioners, rooms }: { facilityId: string; today: string; practitioners: Option[]; rooms: Option[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [open, setOpen] = React.useState(false);
   const blank = { practitionerId: "", roomId: "", dayOfWeek: "1", startTime: "08:00", endTime: "12:00", slotMinutes: "15", validFrom: today, validUntil: "" };
   const [form, setForm] = React.useState(blank);
@@ -63,7 +45,7 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
       className="flex flex-col gap-2 rounded-md border p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(
+        run(
           () => addSchedule({ ...form, facilityId }),
           "Schedule added",
           () => {
@@ -140,7 +122,7 @@ export function AddSchedule({ facilityId, today, practitioners, rooms }: { facil
 
 /** Retiring stops the schedule offering new slots; appointments already booked in it stay. */
 export function RetireSchedule({ scheduleId, label }: { scheduleId: string; label: string }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [confirming, setConfirming] = React.useState(false);
   if (!confirming) {
     return (
@@ -152,7 +134,7 @@ export function RetireSchedule({ scheduleId, label }: { scheduleId: string; labe
   return (
     <span className="ml-auto flex items-center gap-1">
       <span className="text-meta">No new bookings in {label}; booked ones stay.</span>
-      <Button size="xs" variant="destructive" disabled={pending} onClick={() => submit(() => retireSchedule(scheduleId), "Schedule retired")}>
+      <Button size="xs" variant="destructive" disabled={pending} onClick={() => run(() => retireSchedule(scheduleId), "Schedule retired")}>
         Retire
       </Button>
       <Button size="xs" variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
@@ -163,7 +145,7 @@ export function RetireSchedule({ scheduleId, label }: { scheduleId: string; labe
 }
 
 export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId: string; timeZone: string; practitioners: Option[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [open, setOpen] = React.useState(false);
   const blank = { practitionerId: "", starts: "", ends: "", reason: "" };
   const [form, setForm] = React.useState(blank);
@@ -175,7 +157,7 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
       onSubmit={(e) => {
         e.preventDefault();
         if (!form.starts || !form.ends) return;
-        submit(
+        run(
           () =>
             addClosure({
               facilityId,
@@ -231,7 +213,7 @@ export function AddClosure({ facilityId, timeZone, practitioners }: { facilityId
 
 const BLANK_PRACTITIONER: PractitionerInput = { displayName: "", profession: "physician", specialty: "", licenseNumber: "", licenseValidUntil: "", userId: "" };
 
-function PractitionerFields({
+export function PractitionerFields({
   prefix,
   form,
   set,
@@ -288,7 +270,7 @@ function PractitionerFields({
 }
 
 export function AddPractitioner({ users }: { users: Option[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<PractitionerInput>(BLANK_PRACTITIONER);
   if (!open) return <Toggle label="Add a practitioner…" open={open} setOpen={setOpen} />;
@@ -297,7 +279,7 @@ export function AddPractitioner({ users }: { users: Option[] }) {
       className="flex flex-col gap-2 rounded-md border p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(
+        run(
           () => addPractitioner(form),
           "Practitioner added",
           () => {
@@ -321,7 +303,7 @@ export function AddPractitioner({ users }: { users: Option[] }) {
 }
 
 export function EditPractitioner({ practitioner, users }: { practitioner: PractitionerDetail; users: Option[] }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [open, setOpen] = React.useState(false);
   const initial = () => ({
     displayName: practitioner.displayName,
@@ -355,7 +337,7 @@ export function EditPractitioner({ practitioner, users }: { practitioner: Practi
             className="flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              submit(
+              run(
                 () => updatePractitioner(practitioner.id, { ...form, version: practitioner.version }),
                 "Practitioner saved",
                 () => setOpen(false),
@@ -385,7 +367,7 @@ export function EditPractitioner({ practitioner, users }: { practitioner: Practi
 }
 
 export function AddRoom({ facilityId }: { facilityId: string }) {
-  const { pending, submit } = useSubmit();
+  const { pending, run } = useServerAction({ refreshOnFailure: true });
   const [open, setOpen] = React.useState(false);
   const blank = { code: "", name: "", roomType: "consultation" };
   const [form, setForm] = React.useState(blank);
@@ -396,7 +378,7 @@ export function AddRoom({ facilityId }: { facilityId: string }) {
       className="flex flex-wrap items-end gap-2 rounded-md border p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(
+        run(
           () => addRoom({ ...form, facilityId }),
           "Room added",
           () => {

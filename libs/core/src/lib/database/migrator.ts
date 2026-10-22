@@ -34,10 +34,13 @@ export async function runMigrations(pool: Pool, directory: string): Promise<Migr
 
     for (const file of files) {
       const sql = await readFile(join(directory, file), "utf8");
-      const checksum = createHash("sha256").update(sql).digest("hex");
+      // The checksum is taken over LF line endings, so a Windows checkout (CRLF) matches what a Linux one recorded;
+      // a checksum recorded over the raw text (an earlier version of this check) is still accepted.
+      const checksum = createHash("sha256").update(sql.replaceAll("\r\n", "\n")).digest("hex");
+      const rawChecksum = createHash("sha256").update(sql).digest("hex");
       const previous = applied.get(file);
       if (previous !== undefined) {
-        if (previous !== checksum) {
+        if (previous !== checksum && previous !== rawChecksum) {
           throw new Error(`Migration ${file} was modified after being applied. Add a new migration instead.`);
         }
         result.skipped.push(file);

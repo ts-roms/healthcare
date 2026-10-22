@@ -2,6 +2,12 @@
 export const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:3333/api/v1").replace(/\/+$/, "");
 
 /**
+ * The realtime socket the patient's browser opens (a short-lived ticket from the portal server, never a token). Defaults to
+ * the API's origin; set it when the browser reaches the API under another address.
+ */
+export const REALTIME_URL = process.env.REALTIME_URL ?? `${new URL(API_BASE_URL).origin}/realtime`;
+
+/**
  * The organization this portal deployment serves (its `organization.code`).
  * Patients sign in to one organization's portal; they never pick an organization.
  */

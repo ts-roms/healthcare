@@ -11,13 +11,14 @@ import {
   HomeIcon,
   LogOutIcon,
   MessageSquareIcon,
+  PenLineIcon,
   SmileIcon,
   UserIcon,
   UsersIcon,
 } from "lucide-react";
 import { PatientLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
-import { Button } from "@healthcare/ui/primitives";
+import { Button, Callout } from "@healthcare/ui/primitives";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
 
@@ -26,6 +27,7 @@ const NAV = [
   { label: "Visits", href: "/appointments", icon: CalendarIcon },
   { label: "Results", href: "/results", icon: FlaskConicalIcon },
   { label: "Dental", href: "/dental", icon: SmileIcon },
+  { label: "Forms", href: "/forms", icon: PenLineIcon },
   { label: "Messages", href: "/messages", icon: MessageSquareIcon },
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];
@@ -35,6 +37,7 @@ export function PortalShell({
   timeZone,
   unreadMessages,
   dental,
+  forms,
   acting,
   hasDependents,
   signOut,
@@ -46,6 +49,8 @@ export function PortalShell({
   unreadMessages: number;
   /** The clinic shares dental records and there is something to show. */
   dental: boolean;
+  /** Forms the clinic asked this person to sign. */
+  forms: number;
   /** Acting for another person: who, how the signed-in person is related, and whether they may only look. */
   acting: { name: string; relationship: string; viewOnly: boolean } | null;
   /** The signed-in person may act for someone else. */
@@ -55,12 +60,15 @@ export function PortalShell({
 }) {
   // Set during render, before the page below renders (one patient per page).
   setClinicTimeZone(timeZone);
-  const nav = NAV.filter((n) => dental || n.href !== "/dental").map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
+  const nav = NAV.filter((n) => (dental || n.href !== "/dental") && (forms > 0 || n.href !== "/forms")).map((n) =>
+    n.href === "/messages" ? { ...n, count: unreadMessages } : n.href === "/forms" ? { ...n, count: forms } : n,
+  );
   return (
     <PatientLayout
       nav={nav}
       pathname={usePathname()}
       Link={NextLink}
+      phonePrimary={["/", "/appointments", "/results", "/messages"]}
       brand={
         <Link href="/" className="flex items-center gap-2 text-section font-semibold">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -93,19 +101,19 @@ export function PortalShell({
       }
     >
       {acting ? (
-        <div
-          role="status"
-          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/50 bg-warning-subtle p-3 text-body"
+        <Callout
+          tone="warning"
+          className="mb-4"
+          actions={
+            // No prefetch: this route ends the acting cookie, so a prefetch would end acting as soon as the page loaded.
+            <Link href="/people/stop" prefetch={false} className="font-medium text-primary underline">
+              Back to my own MyHealth
+            </Link>
+          }
         >
-          <span>
-            <UsersIcon className="mr-1.5 inline size-4" aria-hidden />
-            You are looking at <strong>{acting.name}</strong>&apos;s MyHealth as their {acting.relationship.toLowerCase()}.
-            {acting.viewOnly ? " You can look but not make changes." : ""}
-          </span>
-          <Link href="/people/stop" className="font-medium text-primary underline">
-            Back to my own MyHealth
-          </Link>
-        </div>
+          You are looking at <strong>{acting.name}</strong>&apos;s MyHealth as their {acting.relationship.toLowerCase()}.
+          {acting.viewOnly ? " You can look but not make changes." : ""}
+        </Callout>
       ) : null}
       {children}
     </PatientLayout>

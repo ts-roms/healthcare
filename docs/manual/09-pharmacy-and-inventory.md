@@ -236,7 +236,7 @@ Open **Tax and procurement** (`/inventory/compliance`). You need `inventory.proc
   orders under that method need one. Once any method is in use, every purchase order must name one before it is submitted.
 - **Stop using** retires a code or method; orders and payments that used it keep it.
 
-Have your accountant and procurement officer check these settings, then record the review under **Admin → Compliance**.
+Have your accountant and procurement officer check these settings, then record the review under **Settings → Compliance**.
 
 ### How to record a supplier payment with withholding
 
@@ -257,7 +257,7 @@ Open **Controlled register** (`/inventory/controlled-register`; pharmacists, inv
    platform does not verify them.
 
 This is the platform's own layout of the stock ledger. Confirm with your pharmacist or adviser that it serves as the register the regulator
-requires, and record the review under **Admin → Compliance**.
+requires, and record the review under **Settings → Compliance**.
 
 ### Stock used by other modules
 

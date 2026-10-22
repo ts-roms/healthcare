@@ -7,13 +7,14 @@ import { API_URL, STAFF_PASSWORD } from "./env";
 export interface StaffApi {
   get<T = unknown>(path: string): Promise<T>;
   post<T = unknown>(path: string, body?: unknown): Promise<T>;
+  put<T = unknown>(path: string, body?: unknown): Promise<T>;
   patch<T = unknown>(path: string, body?: unknown): Promise<T>;
   dispose(): Promise<void>;
 }
 
 async function call<T>(
   context: APIRequestContext,
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH",
   path: string,
   headers: Record<string, string>,
   body?: unknown,
@@ -26,11 +27,22 @@ async function call<T>(
 
 export async function staffApi(email: string, facilityId?: string): Promise<StaffApi> {
   const context = await request.newContext();
-  const { accessToken } = await call<{ accessToken: string }>(context, "POST", "/auth/login", {}, { email, password: STAFF_PASSWORD });
+  // The API allows about 10 credential attempts a minute per client; a long run of journeys can reach that: wait out the window.
+  let login: { accessToken: string } | undefined;
+  for (let attempt = 1; !login; attempt += 1) {
+    try {
+      login = await call<{ accessToken: string }>(context, "POST", "/auth/login", {}, { email, password: STAFF_PASSWORD });
+    } catch (error) {
+      if (attempt >= 3 || !String((error as Error).message).includes("→ 429")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 61_000));
+    }
+  }
+  const { accessToken } = login;
   const headers = { authorization: `Bearer ${accessToken}`, ...(facilityId ? { "x-facility-id": facilityId } : {}) };
   return {
     get: (path) => call(context, "GET", path, headers),
     post: (path, body = {}) => call(context, "POST", path, headers, body),
+    put: (path, body = {}) => call(context, "PUT", path, headers, body),
     patch: (path, body = {}) => call(context, "PATCH", path, headers, body),
     dispose: () => context.dispose(),
   };
@@ -47,7 +59,8 @@ export interface SeedState {
   onlinePatient: { id: string; email: string; displayName: string };
 }
 
-const STATE_FILE = join(__dirname, "../.state/seed.json");
+// E2E_STATE_FILE gives a run of its own (with its own ports and database) a seed file of its own.
+const STATE_FILE = process.env.E2E_STATE_FILE ?? join(__dirname, "../.state/seed.json");
 
 export function saveState(state: SeedState): void {
   mkdirSync(join(__dirname, "../.state"), { recursive: true });

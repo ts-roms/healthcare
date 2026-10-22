@@ -165,7 +165,7 @@ export function CalendarBoard({
     });
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         {canManage ? (
           <Button size="sm" onClick={() => setEditing({ event: null, date })}>

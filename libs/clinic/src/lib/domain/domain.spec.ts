@@ -1,6 +1,20 @@
 import { availableSlots } from "./availability";
 import { canApply, noShowAllowed } from "./appointment-state";
-import { canTransition, compareQueueOrder, queueDisplay, queueTicket, requiresReason } from "./queue-state";
+import {
+  canAdvanceRoute,
+  canRouteVisit,
+  canTransition,
+  compareQueueOrder,
+  currentRouteStep,
+  nextRouteStep,
+  queueDisplay,
+  queueTicket,
+  requiresReason,
+  routeComplete,
+  routeInPlan,
+  routePlanProblem,
+  servicePointQueue,
+} from "./queue-state";
 import { bodyMassIndex, implausibleVitals } from "./vital-signs";
 
 describe("appointment state", () => {
@@ -32,12 +46,89 @@ describe("queue state", () => {
     expect(requiresReason("in_triage")).toBe(false);
   });
 
+  it("routes to a service point only after triage has started, never from a closed visit", () => {
+    expect(canRouteVisit("waiting")).toBe(false);
+    expect(canRouteVisit("in_triage")).toBe(true);
+    expect(canRouteVisit("awaiting_consultation")).toBe(true);
+    expect(canRouteVisit("in_consultation")).toBe(false);
+    expect(canRouteVisit("completed")).toBe(false);
+    expect(canRouteVisit("cancelled")).toBe(false);
+    expect(canRouteVisit("left_without_being_seen")).toBe(false);
+  });
+
+  it("advances a route only from a routable visit, to the lowest planned step, and says when it is complete", () => {
+    const step = (position: number, status: "planned" | "current" | "done" | "skipped" | "removed", servicePointId = `sp${position}`) => ({
+      position,
+      status,
+      servicePointId,
+    });
+    const route = [step(1, "done"), step(2, "current"), step(3, "planned"), step(4, "planned")];
+    expect(currentRouteStep(route)?.position).toBe(2);
+    expect(nextRouteStep(route)?.position).toBe(3);
+    expect(canAdvanceRoute("awaiting_consultation", route)).toEqual({ ok: true, current: route[1], next: route[2] });
+    // The lowest planned step wins even when listed out of order; removed and skipped steps are passed over.
+    const shuffled = [step(5, "planned"), step(3, "removed"), step(4, "skipped"), step(2, "current"), step(6, "planned")];
+    expect(nextRouteStep(shuffled)?.position).toBe(5);
+    expect(routeInPlan(shuffled).map((s) => s.position)).toEqual([2, 4, 5, 6]);
+    // At the last stop the step is finished and the visit stays: next is null.
+    expect(canAdvanceRoute("in_triage", [step(1, "done"), step(2, "current")])).toEqual({
+      ok: true,
+      current: expect.objectContaining({ position: 2 }),
+      next: null,
+    });
+    // A visit on a line that is not in the plan is sent to the first planned step.
+    expect(canAdvanceRoute("awaiting_consultation", [step(1, "planned")])).toEqual({ ok: true, current: null, next: expect.objectContaining({ position: 1 }) });
+    expect(canAdvanceRoute("waiting", route)).toEqual({ ok: false, code: "visit_not_routable" });
+    expect(canAdvanceRoute("in_consultation", route)).toEqual({ ok: false, code: "visit_not_routable" });
+    expect(canAdvanceRoute("awaiting_consultation", [])).toEqual({ ok: false, code: "no_route" });
+    expect(canAdvanceRoute("awaiting_consultation", [step(1, "removed")])).toEqual({ ok: false, code: "no_route" });
+    expect(canAdvanceRoute("awaiting_consultation", [step(1, "done"), step(2, "skipped")])).toEqual({ ok: false, code: "route_complete" });
+    expect(routeComplete([step(1, "done"), step(2, "skipped")])).toBe(true);
+    expect(routeComplete([step(1, "done"), step(2, "planned")])).toBe(false);
+    expect(routeComplete([])).toBe(false);
+  });
+
+  it("refuses an empty plan, a stop repeated back to back, and a first stop the visit is already at", () => {
+    expect(routePlanProblem([], null)).toBe("route_empty");
+    expect(routePlanProblem(["lab", "xray", "lab"], null)).toBeNull();
+    expect(routePlanProblem(["lab", "lab"], null)).toBe("route_step_repeated");
+    expect(routePlanProblem(["lab", "xray"], "lab")).toBe("route_step_repeated");
+    expect(routePlanProblem(["xray", "lab"], "lab")).toBeNull();
+  });
+
+  it("lists a service point's queue by priority, then arrival, and the consultation line as the null service point", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 20, 1, minute));
+    const er = "er";
+    const rows = [
+      { id: "a", priority: "routine" as const, checkedInAt: at(0), servicePointId: er },
+      { id: "b", priority: "routine" as const, checkedInAt: at(5), servicePointId: null },
+      { id: "c", priority: "emergency" as const, checkedInAt: at(10), servicePointId: er },
+      { id: "d", priority: "urgent" as const, checkedInAt: at(15), servicePointId: er },
+      { id: "e", priority: "urgent" as const, checkedInAt: at(20), servicePointId: "xray" },
+    ];
+    expect(servicePointQueue(rows, er).map((r) => r.id)).toEqual(["c", "d", "a"]);
+    expect(servicePointQueue(rows, null).map((r) => r.id)).toEqual(["b"]);
+    expect(servicePointQueue(rows, "none")).toEqual([]);
+  });
+
   it("orders by priority, then arrival", () => {
     const early = { priority: "routine" as const, checkedInAt: new Date("2026-10-05T00:00:00Z") };
     const late = { priority: "routine" as const, checkedInAt: new Date("2026-10-05T00:10:00Z") };
     const urgent = { priority: "urgent" as const, checkedInAt: new Date("2026-10-05T00:20:00Z") };
     expect([late, urgent, early].sort(compareQueueOrder)).toEqual([urgent, early, late]);
     expect(queueTicket(7)).toBe("A-007");
+  });
+
+  it("puts seniors after urgent and before other routine visits only when flagged, arrival order within each", () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 5, 0, minute));
+    const routine = { priority: "routine" as const, checkedInAt: at(0) };
+    const seniorLate = { priority: "routine" as const, checkedInAt: at(30), senior: true };
+    const seniorEarly = { priority: "routine" as const, checkedInAt: at(10), senior: true };
+    const urgentSenior = { priority: "urgent" as const, checkedInAt: at(40), senior: true };
+    const urgent = { priority: "urgent" as const, checkedInAt: at(20) };
+    expect([routine, seniorLate, urgentSenior, seniorEarly, urgent].sort(compareQueueOrder)).toEqual([urgent, urgentSenior, seniorEarly, seniorLate, routine]);
+    // Without the flag nothing changes: arrival order.
+    expect([routine, { ...seniorEarly, senior: false }].sort(compareQueueOrder)[0]).toBe(routine);
   });
 
   it("shows the waiting room the open in-person calls, newest first, and how many wait — nothing else", () => {

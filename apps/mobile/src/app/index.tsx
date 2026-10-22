@@ -1,16 +1,22 @@
 import { latestPerTest, type PortalResult, resultDate, resultValue, usualRange } from "@healthcare/domain/portal-results";
 import { router } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActingBanner } from "@/components/acting-banner";
 import { ResultMeaning } from "@/components/result-meaning";
 import { ErrorState, Loading } from "@/components/screen-states";
 import { useSession } from "@/components/session-provider";
 import { colors } from "@/components/theme";
 import { usePortal } from "@/components/use-portal";
+import type { PortalDependent } from "@/lib/api-types";
 
 /** Only results the laboratory has released and allows patients to see are listed (the API decides). */
 export default function ResultsScreen() {
-  const { state } = useSession();
-  const results = usePortal<PortalResult[]>("/portal/results");
+  const { state, acting } = useSession();
+  // Everything below is about the person being looked at: the signed-in patient, or someone they act for.
+  const scope = acting?.patientId ?? null;
+  const results = usePortal<PortalResult[]>("/portal/results", scope);
+  const forms = usePortal<{ count: number }>("/portal/forms/count", scope);
+  const people = usePortal<PortalDependent[]>("/portal/proxy/dependents");
   if (state.status !== "signed_in") return null;
   // Dates are shown in the patient's clinic's time zone.
   const { timeZone } = state.me;
@@ -27,7 +33,23 @@ export default function ResultsScreen() {
       keyExtractor={(g) => g.latest.testId}
       refreshControl={<RefreshControl refreshing={results.refreshing} onRefresh={results.reload} />}
       ListHeaderComponent={
-        <Text style={styles.intro}>Results appear here after the laboratory releases them. Your doctor will explain what they mean for you.</Text>
+        <View style={styles.header}>
+          <ActingBanner />
+          {forms.status === "ready" && forms.data.count > 0 ? (
+            <Pressable onPress={() => router.push("/forms")} accessibilityRole="button" style={({ pressed }) => [styles.notice, pressed && styles.pressed]}>
+              <Text style={styles.noticeTitle}>
+                {forms.data.count === 1 ? "A form is waiting for a signature" : `${forms.data.count} forms are waiting for a signature`}
+              </Text>
+              <Text style={styles.noticeText}>Read and sign it here.</Text>
+            </Pressable>
+          ) : null}
+          {people.status === "ready" && people.data.length > 0 ? (
+            <Pressable onPress={() => router.push("/people")} accessibilityRole="button" style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+              <Text style={styles.linkText}>{acting ? "People you can act for" : "Open a child's or family member's MyHealth"}</Text>
+            </Pressable>
+          ) : null}
+          <Text style={styles.intro}>Results appear here after the laboratory releases them. Your doctor will explain what they mean for you.</Text>
+        </View>
       }
       ListEmptyComponent={
         <View style={styles.card}>
@@ -67,7 +89,13 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: colors.background },
   content: { gap: 12, padding: 16 },
+  header: { gap: 12 },
   intro: { fontSize: 15, color: colors.mutedForeground },
+  notice: { gap: 2, backgroundColor: colors.warningSubtle, borderRadius: 12, padding: 14 },
+  noticeTitle: { fontSize: 16, fontWeight: "600", color: colors.warningForeground },
+  noticeText: { fontSize: 14, color: colors.warningForeground },
+  link: { borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, backgroundColor: colors.card },
+  linkText: { fontSize: 15, fontWeight: "500", color: colors.primary },
   card: { gap: 6, backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 16 },
   pressed: { backgroundColor: colors.muted },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 },

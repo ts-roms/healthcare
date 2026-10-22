@@ -46,7 +46,7 @@ export function OffersTable({ rows, canManage }: { rows: Row[]; canManage: boole
       router.refresh();
     });
   return (
-    <div className="flex flex-col gap-2 p-4 pt-0">
+    <div className="flex flex-col gap-2">
       <h2 className="text-section font-semibold">Times being held</h2>
       <Card className="py-0">
         {rows.length === 0 ? (

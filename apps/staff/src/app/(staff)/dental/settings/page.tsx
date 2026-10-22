@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DentalPortalSetting, DentalSettings, DentalSupplyOptions } from "@/lib/api/types";
@@ -18,23 +18,26 @@ export default async function DentalSettingsPage() {
     api<DentalSupplyOptions>("/dental/supplies/options"),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Dental settings"
-        description="Procedures the clinic records (its own codes; billing prices them by code) and how teeth are numbered on screen."
-      />
-      <DentalSettingsForm
-        settings={settings}
-        portal={portal}
-        facility={facility ? { id: facility.id, name: facility.name } : null}
-        canManage={can(session, "dental.settings.manage")}
-      />
-      <SupplySettings
-        options={supplies}
-        procedureTypes={settings.procedureTypes.filter((t) => t.status === "active")}
-        facility={facility ? { id: facility.id, name: facility.name } : null}
-        canManage={can(session, "dental.settings.manage")}
-      />
-    </>
+    <StaffSettingsPage
+      group="Clinical"
+      title="Dental settings"
+      description="Procedures the clinic records and how teeth are numbered on screen."
+      details={["Procedures use the clinic's own codes; billing prices them by code."]}
+    >
+      <SettingsStack>
+        <DentalSettingsForm
+          settings={settings}
+          portal={portal}
+          facility={facility ? { id: facility.id, name: facility.name } : null}
+          canManage={can(session, "dental.settings.manage")}
+        />
+        <SupplySettings
+          options={supplies}
+          procedureTypes={settings.procedureTypes.filter((t) => t.status === "active")}
+          facility={facility ? { id: facility.id, name: facility.name } : null}
+          canManage={can(session, "dental.settings.manage")}
+        />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

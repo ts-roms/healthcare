@@ -1,5 +1,18 @@
+import { SENIOR_AGE } from "@healthcare/ui/healthcare";
 import type { Appointment, AppointmentStatus, QueueEntry, QueueStatus } from "@healthcare/domain";
-import type { AppointmentItem, AppointmentStatusApi, Practitioner, QueueVisit, VisitStatus, VisitType } from "./api/types";
+import type {
+  AppointmentItem,
+  AppointmentStatusApi,
+  Practitioner,
+  PractitionerScheduleRow,
+  QueueVisit,
+  RouteStep,
+  ServicePoint,
+  ServicePointKind,
+  VisitPriority,
+  VisitStatus,
+  VisitType,
+} from "./api/types";
 
 /**
  * Adapters from the clinic API to the design system's queue board and
@@ -40,13 +53,66 @@ export function toQueueEntry(v: QueueVisit): QueueEntry {
     id: v.id,
     ticket: v.ticket,
     patientName: v.patient?.displayName ?? "Patient",
-    // Where the patient was called to, else what they are waiting for.
+    // Where the patient was called to, else what they are waiting for — the service point they were sent to, and the next stop of their route.
     station: v.calledTo
-      ? `Called to ${v.calledTo}`
-      : [VISIT_STATUS_LABEL[v.status], checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint].filter(Boolean).join(" · "),
+      ? [`Called to ${v.calledTo}`, v.servicePoint?.name, nextStopLabel(v.route)].filter(Boolean).join(" · ")
+      : [VISIT_STATUS_LABEL[v.status], v.servicePoint?.name, nextStopLabel(v.route), checkedInOnline(v) ? "Checked in online" : null, v.chiefComplaint]
+          .filter(Boolean)
+          .join(" · "),
     status: QUEUE_COLUMN[v.status],
     arrivedAt: v.checkedInAt,
-    priority: v.priority === "routine" ? undefined : v.priority,
+    // A senior is marked on the board; the order of the queue is the API's (priority, then arrival) and does not change.
+    priority: v.priority !== "routine" ? v.priority : v.patient && v.patient.age >= SENIOR_AGE ? "senior" : undefined,
+    arrival: v.arrivalMode === "appointment" ? "appointment" : "walk-in",
+    detail: v.calledTo
+      ? [`Called to ${v.calledTo}`, v.servicePoint?.name, nextStopLabel(v.route)].filter(Boolean).join(" · ")
+      : [v.chiefComplaint, v.servicePoint?.name, nextStopLabel(v.route), checkedInOnline(v) ? "Checked in online" : null].filter(Boolean).join(" · ") ||
+        undefined,
+  };
+}
+
+/**
+ * Waiting minutes from which a ticket on the board is shown as waiting a while and as waiting long. These are the board's
+ * display thresholds, not a clinical target or a rule of the API.
+ */
+export const WAIT_WARN_MINUTES = 15;
+export const WAIT_LONG_MINUTES = 30;
+
+/** The statuses in which a patient is still waiting for the provider (the board's wait timer runs). */
+const STILL_WAITING: readonly VisitStatus[] = ["waiting", "in_triage", "awaiting_consultation"];
+
+export interface QueueFigures {
+  /** Everyone who has not been seen or closed yet, the ones with a provider included. */
+  inQueue: number;
+  /** Seen, cancelled or left without being seen. */
+  done: number;
+  waiting: number;
+  withProvider: number;
+  averageWaitMinutes: number | null;
+  longestWait: { minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null;
+}
+
+/** The figure tiles above the board, from the visits on it, as of `now` (waits tick without another request). */
+export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFigures {
+  const waits = visits
+    .filter((v) => STILL_WAITING.includes(v.status))
+    .map((v) => ({
+      minutes: Math.max(0, Math.floor((now.getTime() - new Date(v.checkedInAt).getTime()) / 60_000)),
+      patientName: v.patient?.displayName ?? "Patient",
+      ticket: v.ticket,
+      priority: v.priority,
+    }));
+  const longest = waits.reduce<{ minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null>(
+    (best, w) => (best && best.minutes >= w.minutes ? best : w),
+    null,
+  );
+  return {
+    inQueue: visits.filter((v) => ["waiting", "in_triage", "awaiting_consultation", "in_consultation"].includes(v.status)).length,
+    done: visits.filter((v) => ["completed", "cancelled", "left_without_being_seen"].includes(v.status)).length,
+    waiting: waits.length,
+    withProvider: visits.filter((v) => v.status === "in_consultation").length,
+    averageWaitMinutes: waits.length ? Math.round(waits.reduce((sum, w) => sum + w.minutes, 0) / waits.length) : null,
+    longestWait: longest,
   };
 }
 
@@ -80,6 +146,50 @@ export function canTriage(status: VisitStatus): boolean {
 /** A consultation can start from any active status before it (`libs/clinic` queue-state transitions to in_consultation). */
 export function canStartConsultation(status: VisitStatus): boolean {
   return status === "waiting" || status === "in_triage" || status === "awaiting_consultation";
+}
+
+/** A visit can be sent to a service point from in triage or awaiting consultation (`libs/clinic` queue-state, migration 0113). */
+export function canRouteVisit(status: VisitStatus): boolean {
+  return status === "in_triage" || status === "awaiting_consultation";
+}
+
+export const SERVICE_POINT_KIND_LABEL: Record<ServicePointKind, string> = {
+  consultation: "Consultation",
+  emergency: "Emergency",
+  imaging: "Imaging",
+  other: "Other",
+};
+
+/**
+ * What the triage picker starts on: the visit's own service point when it has one, else the first active
+ * `consultation` service point, else "" — the ordinary consultation line (no routing).
+ */
+export function defaultServicePoint(servicePoints: ReadonlyArray<Pick<ServicePoint, "id" | "kind" | "status">>, currentId: string | null): string {
+  if (currentId) return currentId;
+  return servicePoints.find((s) => s.kind === "consultation" && s.status === "active")?.id ?? "";
+}
+
+// ---- Visit routes (migration 0115) ----------------------------------------------------------------------
+
+/** The step the visit is at, if it is at a step of its route. */
+export function currentRouteStep(route: readonly RouteStep[]): RouteStep | null {
+  return route.find((s) => s.status === "current") ?? null;
+}
+
+/** The next stop still ahead (the planned step with the lowest position). */
+export function nextRouteStep(route: readonly RouteStep[]): RouteStep | null {
+  return [...route].filter((s) => s.status === "planned").sort((a, b) => a.position - b.position)[0] ?? null;
+}
+
+/** A route with stops and none left: the patient is at (or past) the last one. */
+export function routeComplete(route: readonly RouteStep[]): boolean {
+  return route.length > 0 && route.every((s) => s.status === "done" || s.status === "skipped");
+}
+
+/** "next: X-ray" for queue cards; nothing without a next stop. */
+export function nextStopLabel(route: readonly RouteStep[]): string | null {
+  const next = nextRouteStep(route);
+  return next ? `next: ${next.servicePoint?.name ?? "service point"}` : null;
 }
 
 export function moveNeedsReason(move: QueueMove): boolean {
@@ -182,6 +292,72 @@ export function groupByRoom<T extends { room?: { id: string; name: string } | nu
   const none = byRoom.get(null);
   if (none?.length) columns.push({ roomId: null, name: "No room", items: sortByStart(none) });
   return columns;
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** 0 (Sunday) – 6 for a YYYY-MM-DD date (calendar arithmetic, no time zone). */
+export function weekdayOf(date: string): number {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** The schedule blocks of one practitioner at a facility that are active and valid on `date`. */
+export function scheduleBlocksOn(
+  rows: readonly PractitionerScheduleRow[],
+  practitionerId: string,
+  facilityId: string,
+  date: string,
+): PractitionerScheduleRow[] {
+  const weekday = weekdayOf(date);
+  return rows.filter(
+    (s) =>
+      s.practitionerId === practitionerId &&
+      s.facilityId === facilityId &&
+      s.status === "active" &&
+      s.dayOfWeek === weekday &&
+      s.validFrom <= date &&
+      (!s.validUntil || s.validUntil >= date),
+  );
+}
+
+/**
+ * The practitioner's weekly schedule at a facility in one line, for the booking form when a day has no slots:
+ * "Mon, Wed 08:00–12:00 · Fri 13:00–17:00" (blocks active today or starting later; grouped by hours, in weekday order).
+ */
+export function scheduleDaysText(rows: readonly PractitionerScheduleRow[], practitionerId: string, facilityId: string, today: string): string {
+  const current = rows.filter(
+    (s) => s.practitionerId === practitionerId && s.facilityId === facilityId && s.status === "active" && (!s.validUntil || s.validUntil >= today),
+  );
+  const byHours = new Map<string, Set<number>>();
+  for (const s of current) {
+    const hours = `${s.startTime.slice(0, 5)}–${s.endTime.slice(0, 5)}`;
+    byHours.set(hours, (byHours.get(hours) ?? new Set()).add(s.dayOfWeek));
+  }
+  return [...byHours.entries()]
+    .map(([hours, days]) => ({ hours, days: [...days].sort((a, b) => a - b) }))
+    .sort((a, b) => (a.days[0] ?? 0) - (b.days[0] ?? 0) || a.hours.localeCompare(b.hours))
+    .map(({ hours, days }) => `${days.map((d) => DAY_NAMES[d]).join(", ")} ${hours}`)
+    .join(" · ");
+}
+
+/**
+ * The first date after `date` (within `horizonDays`) on which the practitioner has a schedule block at the facility —
+ * the day to jump to when the chosen one has no slots. Closures and bookings are not known here: the API decides the
+ * slots once there. Null when no block falls in the horizon.
+ */
+export function nextScheduledDate(
+  rows: readonly PractitionerScheduleRow[],
+  practitionerId: string,
+  facilityId: string,
+  date: string,
+  horizonDays = 90,
+): string | null {
+  for (let i = 1; i <= horizonDays; i++) {
+    const candidate = shiftDate(date, i);
+    if (scheduleBlocksOn(rows, practitionerId, facilityId, candidate).length > 0) return candidate;
+  }
+  return null;
 }
 
 /** YYYY-MM-DD shifted by whole days (calendar arithmetic, no time zone). */

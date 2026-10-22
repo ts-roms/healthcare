@@ -26,27 +26,13 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import type { LabInstrument, LabQcBoard, LabQcMaterial, LabQcRun, LabTest } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 import { createQcLot, createQcMaterial, loadQcRuns, recordQcAction, recordQcRun, retireQcLot, setQcTarget } from "../quality-actions";
 
 type Pair = { instrumentId: string; testId: string };
 
 const RULE_LABEL: Record<string, string> = { "1_2s": "1-2s", "1_3s": "1-3s", "2_2s": "2-2s", R_4s: "R-4s", "4_1s": "4-1s", "10_x": "10-x" };
 const rules = (violations: string[]) => violations.map((v) => RULE_LABEL[v] ?? v).join(", ");
-
-function useRun() {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run = (call: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
-    start(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(success);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message ?? "Something went wrong.");
-    });
-  return { pending, run };
-}
 
 /** Lots with a current target for a test on an instrument (what a control can be run with). */
 function lotsFor(materials: LabQcMaterial[], pair: Partial<Pair>) {
@@ -262,8 +248,13 @@ function RecordRun({
           </div>
           <div className="grid gap-1">
             <Label htmlFor="qc-test">Test</Label>
-            <NativeSelect id="qc-test" value={f.testId} onChange={(e) => setF({ ...f, testId: e.target.value, qcLotId: "" })}>
-              <option value="">{testsWithTargets.length ? "Choose…" : "No targets on this instrument"}</option>
+            <NativeSelect
+              id="qc-test"
+              placeholder="Choose…"
+              emptyText="No targets on this instrument"
+              value={f.testId}
+              onChange={(e) => setF({ ...f, testId: e.target.value, qcLotId: "" })}
+            >
               {testsWithTargets.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -413,7 +404,7 @@ function RunHistory({ pair, instrumentName, test, canEnter }: { pair: Pair; inst
 }
 
 function ActionForm({ runId, onDone }: { runId: string; onDone: () => void }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState("");
   if (!open) {
@@ -501,7 +492,7 @@ function MaterialBlock({ material, children }: { material: LabQcMaterial; childr
 }
 
 function QcSetup({ materials, instruments, tests }: { materials: LabQcMaterial[]; instruments: LabInstrument[]; tests: LabTest[] }) {
-  const { pending, run } = useRun();
+  const { pending, run } = useServerAction();
   const [material, setMaterial] = React.useState({ code: "", name: "", level: "", manufacturer: "" });
   const [lot, setLot] = React.useState({ materialId: "", lotNumber: "", expiresOn: "" });
   const [target, setTarget] = React.useState({ qcLotId: "", testId: "", instrumentId: "", mean: "", sd: "", source: "" });

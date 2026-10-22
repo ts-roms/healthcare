@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { UserPlusIcon } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, toast } from "@healthcare/ui/primitives";
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, PasswordInput, toast } from "@healthcare/ui/primitives";
 import { addStaffMember } from "./actions";
 
 /** Adds a person to the organization. A new email also gets an account with a first password to hand over in person. */
@@ -55,9 +55,8 @@ export function AddStaffMember() {
             </div>
             <div className="grid gap-1">
               <Label htmlFor="staff-password">First password (new accounts only)</Label>
-              <Input
+              <PasswordInput
                 id="staff-password"
-                type="password"
                 autoComplete="new-password"
                 maxLength={128}
                 value={form.initialPassword}

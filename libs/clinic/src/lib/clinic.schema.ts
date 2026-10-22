@@ -235,6 +235,127 @@ export const waitlistOffer = pgTable("waitlist_offer", {
 
 export type WaitlistOfferRecord = typeof waitlistOffer.$inferSelect;
 
+export const SERVICE_POINT_KINDS = ["consultation", "emergency", "imaging", "other"] as const;
+export type ServicePointKind = (typeof SERVICE_POINT_KINDS)[number];
+
+/**
+ * A queue line of a facility the organization defines itself — the consultation line, the emergency room, X-ray …
+ * (migration 0113, ADR-0014). The kind only labels and orders it in the staff app.
+ */
+export const servicePoint = pgTable("service_point", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  kind: text("kind").$type<ServicePointKind>().notNull(),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+  /** What the waiting-room display says when a route sends a patient here (migration 0115); the name when null. */
+  location: text("location"),
+});
+export type ServicePointRecord = typeof servicePoint.$inferSelect;
+
+/** Per-facility routing settings (migration 0115); a facility without a row calls nobody automatically. */
+export const servicePointSetting = pgTable("service_point_setting", {
+  facilityId: uuid("facility_id").primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  autoCallOnRoute: boolean("auto_call_on_route").notNull().default(false),
+  /** List routine visits of seniors before other routine visits (migration 0123). */
+  seniorsFirst: boolean("seniors_first").notNull().default(false),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type ServicePointSettingRecord = typeof servicePointSetting.$inferSelect;
+
+export const ROUTE_STEP_STATUSES = ["planned", "current", "done", "skipped", "removed"] as const;
+export type RouteStepStatus = (typeof ROUTE_STEP_STATUSES)[number];
+
+/**
+ * One planned stop of a visit's route (migration 0115): the planning never changes; the step's progress moves forward
+ * only (planned → current → done, skipped with a reason, or removed from the plan before it is reached; trigger).
+ */
+export const visitRouteStep = pgTable("visit_route_step", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  visitId: uuid("visit_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  position: integer("position").notNull(),
+  servicePointId: uuid("service_point_id").notNull(),
+  status: text("status").$type<RouteStepStatus>().notNull().default("planned"),
+  plannedBy: uuid("planned_by").notNull(),
+  plannedAt: ts("planned_at").notNull().defaultNow(),
+  startedAt: ts("started_at"),
+  completedAt: ts("completed_at"),
+  completedBy: uuid("completed_by"),
+  note: text("note"),
+});
+export type VisitRouteStepRecord = typeof visitRouteStep.$inferSelect;
+
+/**
+ * A route a facility plans again and again (migration 0116): its stops in order. Only a recipe — applying it writes an
+ * ordinary visit route, and editing it never changes a route already planned.
+ */
+export const routeTemplate = pgTable("route_template", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type RouteTemplateRecord = typeof routeTemplate.$inferSelect;
+
+export const routeTemplateStep = pgTable(
+  "route_template_step",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    facilityId: uuid("facility_id").notNull(),
+    routeTemplateId: uuid("route_template_id").notNull(),
+    position: integer("position").notNull(),
+    servicePointId: uuid("service_point_id").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.routeTemplateId, table.position] })],
+);
+
+/** The template offered first for a visit type at a facility (migration 0116). */
+export const routeTemplateDefault = pgTable(
+  "route_template_default",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    facilityId: uuid("facility_id").notNull(),
+    visitTypeId: uuid("visit_type_id").notNull(),
+    routeTemplateId: uuid("route_template_id").notNull(),
+    updatedBy: uuid("updated_by").notNull(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.facilityId, table.visitTypeId] })],
+);
+
+/** One move of a visit between service points (from null = the consultation line it started on); append-only. */
+export const visitRouting = pgTable("visit_routing", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  visitId: uuid("visit_id").notNull(),
+  patientId: uuid("patient_id").notNull(),
+  fromServicePointId: uuid("from_service_point_id"),
+  toServicePointId: uuid("to_service_point_id").notNull(),
+  routedBy: uuid("routed_by").notNull(),
+  reason: text("reason"),
+  routedAt: ts("routed_at").notNull().defaultNow(),
+});
+export type VisitRoutingRecord = typeof visitRouting.$inferSelect;
+
 export const facilityQueueCounter = pgTable(
   "facility_queue_counter",
   {
@@ -270,6 +391,8 @@ export const visit = pgTable("visit", {
   closedReason: text("closed_reason"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
+  /** Where the visit is now (migration 0113); null = the facility's consultation line. */
+  servicePointId: uuid("service_point_id"),
 });
 
 export const triageAssessment = pgTable("triage_assessment", {
@@ -468,6 +591,8 @@ export const medicalCertificate = pgTable("medical_certificate", {
   status: text("status").$type<"issued" | "void">().notNull().default("issued"),
   issuedAt: ts("issued_at").notNull().defaultNow(),
   issuedBy: uuid("issued_by").notNull(),
+  /** The practitioner's signature printed on the certificate, recorded when it was issued (0122). */
+  practitionerSignatureId: uuid("practitioner_signature_id"),
   voidedAt: ts("voided_at"),
   voidedBy: uuid("voided_by"),
   voidReason: text("void_reason"),
@@ -509,6 +634,8 @@ export const referral = pgTable("referral", {
   status: text("status").$type<ReferralStatus>().notNull().default("sent"),
   issuedAt: ts("issued_at").notNull().defaultNow(),
   issuedBy: uuid("issued_by").notNull(),
+  /** The referring practitioner's signature printed on the letter, recorded when it was issued (0122). */
+  practitionerSignatureId: uuid("practitioner_signature_id"),
   respondedAt: ts("responded_at"),
   respondedBy: uuid("responded_by"),
   responseNote: text("response_note"),

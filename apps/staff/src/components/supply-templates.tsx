@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { PackageIcon, PlusIcon, XIcon } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, NativeSelect, toast } from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, NativeSelect } from "@healthcare/ui/primitives";
 import type { SupplyOptions } from "@/lib/api/types";
+import { useServerAction } from "@/lib/use-server-action";
 
 type TemplateLine = { itemId: string; quantity: number };
 
@@ -26,21 +26,10 @@ export function SupplyTemplates({
   canManage: boolean;
   onSave: (procedureId: string, items: TemplateLine[]) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const { pending, run } = useServerAction();
   const [editing, setEditing] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<TemplateLine[]>([]);
   const itemName = new Map(options.items.map((i) => [i.id, `${i.name} (${i.stockUnit})`]));
-
-  const act = (call: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string, after?: () => void) =>
-    startTransition(async () => {
-      const result = await call();
-      if (result.ok) {
-        toast.success(done);
-        after?.();
-        router.refresh();
-      } else toast.error(result.message);
-    });
 
   return (
     <Card>
@@ -120,7 +109,7 @@ export function SupplyTemplates({
                         size="sm"
                         disabled={pending || draft.some((l) => !l.itemId || l.quantity < 1)}
                         onClick={() =>
-                          act(
+                          run(
                             () => onSave(t.id, draft),
                             `Supplies for ${t.name} saved`,
                             () => setEditing(null),

@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangleIcon, CalendarPlusIcon } from "lucide-react";
-import { clinicalTime } from "@healthcare/ui/healthcare";
+import { AlertTriangleIcon, CalendarDaysIcon, CalendarPlusIcon } from "lucide-react";
+import { clinicalDate, clinicalTime } from "@healthcare/ui/healthcare";
 import {
   Button,
   Card,
@@ -23,6 +23,8 @@ import { updateCareActivity } from "../../clinic/care-plans/actions";
 import { bookAppointment } from "../actions";
 
 type Option = { id: string; name: string };
+/** "Tue, 27 Oct 2026"-style label for a YYYY-MM-DD day (noon, so no zone shifts the date). */
+const dayLabel = (date: string) => clinicalDate(`${date}T12:00:00Z`);
 type Selection = { practitionerId: string; visitTypeId: string; date: string };
 
 export function BookingForm({
@@ -34,6 +36,7 @@ export function BookingForm({
   selection,
   slots,
   availabilityError,
+  schedule,
   context,
 }: {
   facilityId: string;
@@ -44,6 +47,8 @@ export function BookingForm({
   selection: Selection;
   slots: Array<{ startsAt: string; endsAt: string }> | null;
   availabilityError: string | null;
+  /** The chosen practitioner's schedule days at this facility, and the next day a block falls on after the chosen one. */
+  schedule?: { days: string; nextDate: string | null } | null;
   /** Booking started elsewhere: return there afterwards, and link a care-plan follow-up activity. */
   context: { returnTo: string; activity: { carePlanId: string; activityId: string } | null; reason: string };
 }) {
@@ -106,7 +111,7 @@ export function BookingForm({
   };
 
   return (
-    <form onSubmit={book} className="flex max-w-3xl flex-col gap-4 p-4">
+    <form onSubmit={book} className="flex max-w-3xl flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>{patient.displayName}</CardTitle>
@@ -129,10 +134,13 @@ export function BookingForm({
       <fieldset disabled={pending} className="grid gap-3 sm:grid-cols-3">
         <div className="grid gap-1">
           <Label htmlFor="practitioner">Practitioner *</Label>
-          <NativeSelect id="practitioner" value={selection.practitionerId} onChange={(e) => select({ practitionerId: e.target.value })}>
-            <option value="" disabled>
-              Select…
-            </option>
+          <NativeSelect
+            id="practitioner"
+            placeholder="Choose…"
+            emptyText="No practitioner has a schedule at this facility"
+            value={selection.practitionerId}
+            onChange={(e) => select({ practitionerId: e.target.value })}
+          >
             {practitioners.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -142,10 +150,13 @@ export function BookingForm({
         </div>
         <div className="grid gap-1">
           <Label htmlFor="visitType">Visit type *</Label>
-          <NativeSelect id="visitType" value={selection.visitTypeId} onChange={(e) => select({ visitTypeId: e.target.value })}>
-            <option value="" disabled>
-              Select…
-            </option>
+          <NativeSelect
+            id="visitType"
+            placeholder="Choose…"
+            emptyText="No active visit types"
+            value={selection.visitTypeId}
+            onChange={(e) => select({ visitTypeId: e.target.value })}
+          >
             {visitTypes.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -182,7 +193,20 @@ export function BookingForm({
             ))}
           </RadioGroup>
         ) : (
-          <p className="text-body text-muted-foreground">No open slots on this day. Try another day or practitioner.</p>
+          <div className="flex flex-col gap-2">
+            <p className="text-body text-muted-foreground">
+              No open slots on this day.
+              {schedule?.days
+                ? ` ${practitioners.find((p) => p.id === selection.practitionerId)?.name ?? "The practitioner"} is scheduled here ${schedule.days}.`
+                : ""}
+              {schedule?.nextDate ? "" : " Try another day or practitioner."}
+            </p>
+            {schedule?.nextDate ? (
+              <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => select({ date: schedule.nextDate! })}>
+                <CalendarDaysIcon /> Next scheduled day: {dayLabel(schedule.nextDate)}
+              </Button>
+            ) : null}
+          </div>
         )}
       </section>
 

@@ -1,13 +1,15 @@
 import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { KeyRoundIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { Card, CardContent, CardHeader, CardTitle, manualSections } from "@healthcare/ui/primitives";
+import { IdleSignOut } from "@/components/idle-sign-out";
 import { MfaEnrollmentGate } from "@/components/mfa-enrollment-gate";
 import { StaffShell } from "@/components/staff-shell";
 import { api } from "@/lib/api/client";
-import { COOKIES } from "@/lib/api/config";
+import { COOKIES, STAFF_IDLE_MINUTES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
-import type { StaffBadges } from "@/lib/api/types";
+import { loadManual } from "@/lib/manual-content";
+import type { StaffBadges, StaffTourSetting } from "@/lib/api/types";
 import { isDisplayOnly } from "@/lib/queue-display";
 import { setRequestTimeZone } from "@/lib/time-zone";
 import { PasswordForm } from "./account/account-forms";
@@ -19,6 +21,16 @@ async function unreadNotices(): Promise<number> {
   } catch (error) {
     unstable_rethrow(error);
     return 0;
+  }
+}
+
+/** Whether the organization offers the guided tour (on unless an administrator switched it off); a failure here keeps it on. */
+async function tourOffered(): Promise<boolean> {
+  try {
+    return (await api<StaffTourSetting>("/organization/tour-setting")).enabled;
+  } catch (error) {
+    unstable_rethrow(error);
+    return true;
   }
 }
 
@@ -34,12 +46,21 @@ async function navigationBadges(): Promise<StaffBadges | null> {
 
 /** Every staff page renders inside the signed-in shell; the session and permissions come from the API. */
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
-  const [session, facilities, jar, unread, badges] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
+  const [session, facilities, jar, unread, badges, tourEnabled] = await Promise.all([
+    getSession(),
+    getFacilities(),
+    cookies(),
+    unreadNotices(),
+    navigationBadges(),
+    tourOffered(),
+  ]);
   // A waiting-room display account holds nothing else: it only ever shows the display.
   if (isDisplayOnly(session.permissions)) redirect("/display/queue");
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
   const timeZone = facilities.find((f) => f.id === facilityId)?.timezone ?? null;
   setRequestTimeZone(timeZone);
+  const manual = loadManual();
+  const manualChapters = manual.chapters.map(({ slug, title }) => ({ slug, title }));
   return (
     <StaffShell
       permissions={session.permissions}
@@ -50,7 +71,12 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       timeZone={timeZone}
       unreadNotices={unread}
       badges={badges}
+      tourEnabled={tourEnabled}
+      manualChapters={manualChapters}
+      manualSections={manualSections(manual.chapters)}
     >
+      {/* Shared clinic computers: sign out after a period without activity (STAFF_IDLE_MINUTES; 0 turns it off). */}
+      <IdleSignOut minutes={STAFF_IDLE_MINUTES} />
       {/* Until the member replaces a temporary password, or sets up the two-step verification their organization requires, the API opens nothing else. */}
       {session.user.passwordChangeRequired ? (
         <ChooseNewPassword />

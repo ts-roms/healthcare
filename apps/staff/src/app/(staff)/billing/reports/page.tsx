@@ -1,16 +1,15 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DailyAccountFigures, DailyBillingReport, DailyNoteFigures } from "@/lib/api/types";
 import { METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
-import { BillingNav } from "../billing-nav";
 
 export const metadata = { title: "Daily billing report" };
 
@@ -20,45 +19,41 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export default async function DailyReportPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "billing.report.read")) redirect("/billing");
-  const nav = <BillingNav canReport canConfigure={can(session, "billing.pricelist.manage")} />;
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Daily billing report" actions={nav} />
+      <ModulePage title="Daily billing report">
         <FacilityRequired action="Reports are per facility." />
-      </>
+      </ModulePage>
     );
   }
   const today = todayIn(facility.timezone);
   const date = params.date && DATE.test(params.date) ? params.date : today;
   const r = await api<DailyBillingReport & DailyAccountFigures & DailyNoteFigures>("/billing/reports/daily", { query: { date } });
   return (
-    <>
-      <PageHeader
-        title="Daily billing report"
-        description={`${facility.name} · ${clinicalDate(date)}${date === today ? " (today)" : ""}`}
-        actions={
-          <>
-            <nav aria-label="Change day" className="flex items-center gap-1">
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={`/billing/reports?date=${shiftDate(date, -1)}`} aria-label="Previous day">
-                  <ChevronLeftIcon />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/billing/reports">Today</Link>
-              </Button>
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={`/billing/reports?date=${shiftDate(date, 1)}`} aria-label="Next day">
-                  <ChevronRightIcon />
-                </Link>
-              </Button>
-            </nav>
-            {nav}
-          </>
-        }
-      />
-      <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+    <ModulePage
+      title="Daily billing report"
+      description={`${facility.name} · ${clinicalDate(date)}${date === today ? " (today)" : ""}`}
+      actions={
+        <>
+          <nav aria-label="Change day" className="flex items-center gap-1">
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={`/billing/reports?date=${shiftDate(date, -1)}`} aria-label="Previous day">
+                <ChevronLeftIcon />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/billing/reports">Today</Link>
+            </Button>
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={`/billing/reports?date=${shiftDate(date, 1)}`} aria-label="Next day">
+                <ChevronRightIcon />
+              </Link>
+            </Button>
+          </nav>
+        </>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Figures
           title="Invoices issued"
           rows={[
@@ -128,7 +123,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
           rows={r.discounts.length ? r.discounts.map((d): [string, string] => [`${d.name} (${d.count})`, peso(d.amount)]) : [["None", "—"]]}
         />
       </div>
-    </>
+    </ModulePage>
   );
 }
 
