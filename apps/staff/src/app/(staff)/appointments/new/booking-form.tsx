@@ -111,7 +111,7 @@ export function BookingForm({
   };
 
   return (
-    <form onSubmit={book} className="flex max-w-3xl flex-col gap-4 p-4">
+    <form onSubmit={book} className="flex max-w-3xl flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>{patient.displayName}</CardTitle>

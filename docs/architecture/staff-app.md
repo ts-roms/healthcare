@@ -388,6 +388,10 @@ The consultations list, care-plan recall list, referrals (and a referral), presc
 
 The record's sub-pages (timeline, history, immunizations, procedures, communications, edit details, merge and its comparison, YAKAP consultation) and patient registration and QR scanning use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the registration form and the scan field lost their own outer padding). The patient record itself and Patient 360 (`/patients/[id]`, `/patients/[id]/360`) are phase 3 and keep their identity card / banner. Pages that stack a `PatientHeader` banner above their content (the encounter workspace, the care-plan page, a visit's procedures, Patient 360) are unchanged: the banner component is shared with the doctor's workspace and moves with a redesign of that workspace.
 
+### Front desk (UI redesign, phase 10)
+
+Appointments (and booking, the waiting list), the calendar, online consultations (and one), doctors, patient messages, notifications, My account and the walk-in check-in use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the day schedule, calendar board, waiting-list tables, booking form, walk-in form, pre-consult panel and notice list lost their own outer padding). The queue board (`/queue`: lanes, live updates, calls, routing), triage and vitals, and a doctor's profile keep their own full-width layouts: they are live working surfaces that need their own pass, and nothing about calling, moving, routing or the waiting-room display changed.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

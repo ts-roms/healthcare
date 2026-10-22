@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { ApiError } from "@healthcare/web-session";
 import { api } from "@/lib/api/client";
 import { getPractitioners } from "@/lib/api/clinic";
@@ -35,10 +35,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   if (!can(session, "calendar.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Calendar" />
+      <ModulePage title="Calendar">
         <FacilityRequired action="Calendars are kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const today = todayIn(facility.timezone);
@@ -62,39 +61,38 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       : clinicalDate(date);
 
   return (
-    <>
-      <PageHeader
-        title="Calendar"
-        description={`${facility.name} · ${title}`}
-        actions={
-          <>
-            <nav aria-label="Change period" className="flex items-center gap-1">
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={href(view, stepDate(view, date, -1))} aria-label={`Previous ${view}`}>
-                  <ChevronLeftIcon />
+    <ModulePage
+      title="Calendar"
+      description={`${facility.name} · ${title}`}
+      actions={
+        <>
+          <nav aria-label="Change period" className="flex items-center gap-1">
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={href(view, stepDate(view, date, -1))} aria-label={`Previous ${view}`}>
+                <ChevronLeftIcon />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={href(view, today)}>Today</Link>
+            </Button>
+            <Button asChild variant="outline" size="icon-sm">
+              <Link href={href(view, stepDate(view, date, 1))} aria-label={`Next ${view}`}>
+                <ChevronRightIcon />
+              </Link>
+            </Button>
+          </nav>
+          <nav aria-label="Calendar view" className="flex items-center gap-1">
+            {CALENDAR_VIEWS.map((v) => (
+              <Button key={v} asChild variant={v === view ? "default" : "outline"} size="sm">
+                <Link href={href(v, date)} aria-current={v === view ? "page" : undefined}>
+                  {v[0]!.toUpperCase() + v.slice(1)}
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href={href(view, today)}>Today</Link>
-              </Button>
-              <Button asChild variant="outline" size="icon-sm">
-                <Link href={href(view, stepDate(view, date, 1))} aria-label={`Next ${view}`}>
-                  <ChevronRightIcon />
-                </Link>
-              </Button>
-            </nav>
-            <nav aria-label="Calendar view" className="flex items-center gap-1">
-              {CALENDAR_VIEWS.map((v) => (
-                <Button key={v} asChild variant={v === view ? "default" : "outline"} size="sm">
-                  <Link href={href(v, date)} aria-current={v === view ? "page" : undefined}>
-                    {v[0]!.toUpperCase() + v.slice(1)}
-                  </Link>
-                </Button>
-              ))}
-            </nav>
-          </>
-        }
-      />
+            ))}
+          </nav>
+        </>
+      }
+    >
       <CalendarBoard
         view={view}
         date={date}
@@ -108,6 +106,6 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         facilityId={facility.id}
         timeZone={facility.timezone}
       />
-    </>
+    </ModulePage>
   );
 }
