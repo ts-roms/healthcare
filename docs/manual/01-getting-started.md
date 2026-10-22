@@ -145,6 +145,11 @@ the selected facility. What you see depends on your permissions and needs a sele
 - **Figures** (with `clinic.dashboard.read`; select one to open its screen): **Appointments** (with how many arrived and how many did not come),
   **Waiting** (with the average wait), **Longest wait** (red with a warning icon from 30 minutes, with the patient and ticket when you may open the
   queue), **With provider** and **Seen** (compared with the same weekday last week).
+- **Cashier figures and panels** (with `billing.charge.read`; the day's collections need `billing.report.read`): **To invoice** (patients with charges
+  waiting and the amount), and for someone who has no clinic figures also **Balances owed**, **Collected today** and **Invoices today**; the panels **To invoice**
+  (each patient with **Create invoice**), **Balances owed** (the largest unpaid invoices) and **Collected today** by payment method. **Create invoice**
+  and **End-of-day report** buttons sit at the top.
+- **Queue now** (with the queue permission): how many are **Waiting**, in **Triage**, **Ready**, **With provider** and **Done**; **Open queue** opens the board.
 - **Needs attention**: the urgent and soon things of the day, each with a tag (**Urgent**, **Soon**, **Info**, **Setup**) and a button to where it is dealt
   with. The chips **All**, **Patients**, **Lab** and **Setup** narrow the list. It shows, for example, a patient waiting 30 minutes or more ("Call now"),
   unsigned consultations, patients who left without being seen, overdue care-plan activities, critical laboratory results not yet acknowledged, tests

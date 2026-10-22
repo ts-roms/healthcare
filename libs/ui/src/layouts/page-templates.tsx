@@ -198,7 +198,7 @@ export function DashboardPage({
       <PageHeader variant="plain" title={title} description={description} actions={actions} Link={Link} />
       {alert}
       {tiles ? (
-        <section aria-label="Today in figures" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section aria-label="Today in figures" className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
           {tiles}
         </section>
       ) : null}
