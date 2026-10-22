@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ClipboardListIcon, UserIcon } from "lucide-react";
 import { clinicalTime, sexLabel } from "@healthcare/ui/healthcare";
 import { Badge, Button } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type {
@@ -62,89 +62,86 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
   const p = record.patient;
 
   return (
-    <>
-      <PageHeader
-        title={`Dental · ${p.displayName}`}
-        description={`${p.patientNumber} · ${p.age} y · ${sexLabel(p.sex)}${facility ? ` · ${facility.name}` : ""}`}
-        actions={
-          <>
-            {visit ? (
-              <Badge variant="teal">Dental visit in progress since {clinicalTime(visit.startedAt)}</Badge>
-            ) : facility && can(session, "encounter.write") && can(session, "dental.chart.write") ? (
-              <StartVisit patientId={id} />
-            ) : null}
-            {visit && can(session, "encounter.read") ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/clinic/encounters/${visit.encounterId}`}>
-                  <ClipboardListIcon /> Notes &amp; prescriptions
-                </Link>
-              </Button>
-            ) : null}
-            {can(session, "patient.read") ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/patients/${id}`}>
-                  <UserIcon /> Patient record
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        }
+    <ModulePage
+      title={`Dental · ${p.displayName}`}
+      description={`${p.patientNumber} · ${p.age} y · ${sexLabel(p.sex)}${facility ? ` · ${facility.name}` : ""}`}
+      actions={
+        <>
+          {visit ? (
+            <Badge variant="teal">Dental visit in progress since {clinicalTime(visit.startedAt)}</Badge>
+          ) : facility && can(session, "encounter.write") && can(session, "dental.chart.write") ? (
+            <StartVisit patientId={id} />
+          ) : null}
+          {visit && can(session, "encounter.read") ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/clinic/encounters/${visit.encounterId}`}>
+                <ClipboardListIcon /> Notes &amp; prescriptions
+              </Link>
+            </Button>
+          ) : null}
+          {can(session, "patient.read") ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/patients/${id}`}>
+                <UserIcon /> Patient record
+              </Link>
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      {!facility ? <p className="text-meta text-muted-foreground">Select your facility to record examinations and procedures.</p> : null}
+      <DentalChartPanel
+        patientId={id}
+        patientAge={p.age}
+        teeth={record.chart}
+        notation={record.notation}
+        encounterId={encounterId}
+        canChart={can(session, "dental.chart.write")}
       />
-      <div className="flex flex-col gap-4 p-4">
-        {!facility ? <p className="text-meta text-muted-foreground">Select your facility to record examinations and procedures.</p> : null}
-        <DentalChartPanel
+      <div className="grid gap-4 xl:grid-cols-2">
+        <TreatmentPlans
           patientId={id}
-          patientAge={p.age}
-          teeth={record.chart}
+          plans={record.plans}
+          types={types}
+          notation={record.notation}
+          canManage={can(session, "dental.treatment-plan.manage")}
+          estimates={Object.fromEntries(estimates.map((e) => [e.planId, e]))}
+        />
+        <Procedures
+          patientId={id}
+          procedures={record.procedures}
+          types={types}
+          plans={record.plans}
+          notation={record.notation}
+          encounterId={encounterId}
+          canRecord={canRecordProcedure}
+          canCorrect={canCorrect}
+          supplyUses={record.supplyUses ?? []}
+          supplyOptions={supplyOptions}
+        />
+        <Examinations patientId={id} examinations={record.examinations} notation={record.notation} canCorrect={canCorrect} />
+        <Periodontal
+          patientId={id}
+          charts={record.perioCharts ?? []}
+          chart={record.chart}
           notation={record.notation}
           encounterId={encounterId}
           canChart={can(session, "dental.chart.write")}
+          canCorrect={canCorrect}
         />
-        <div className="grid gap-4 xl:grid-cols-2">
-          <TreatmentPlans
-            patientId={id}
-            plans={record.plans}
-            types={types}
-            notation={record.notation}
-            canManage={can(session, "dental.treatment-plan.manage")}
-            estimates={Object.fromEntries(estimates.map((e) => [e.planId, e]))}
-          />
-          <Procedures
-            patientId={id}
-            procedures={record.procedures}
-            types={types}
-            plans={record.plans}
-            notation={record.notation}
-            encounterId={encounterId}
-            canRecord={canRecordProcedure}
-            canCorrect={canCorrect}
-            supplyUses={record.supplyUses ?? []}
-            supplyOptions={supplyOptions}
-          />
-          <Examinations patientId={id} examinations={record.examinations} notation={record.notation} canCorrect={canCorrect} />
-          <Periodontal
-            patientId={id}
-            charts={record.perioCharts ?? []}
-            chart={record.chart}
-            notation={record.notation}
-            encounterId={encounterId}
-            canChart={can(session, "dental.chart.write")}
-            canCorrect={canCorrect}
-          />
-          <DentalImages
-            patientId={id}
-            images={record.images}
-            notation={record.notation}
-            encounterId={encounterId}
-            today={todayIn(facility?.timezone ?? "Asia/Manila")}
-            canRead={can(session, "dental.imaging.read")}
-            canUpload={can(session, "dental.imaging.upload") && can(session, "document.upload") && Boolean(facility)}
-            canCorrect={canCorrect}
-            canRelease={can(session, "dental.imaging.release")}
-            portalOn={portal.portalDentalRecords}
-          />
-        </div>
+        <DentalImages
+          patientId={id}
+          images={record.images}
+          notation={record.notation}
+          encounterId={encounterId}
+          today={todayIn(facility?.timezone ?? "Asia/Manila")}
+          canRead={can(session, "dental.imaging.read")}
+          canUpload={can(session, "dental.imaging.upload") && can(session, "document.upload") && Boolean(facility)}
+          canCorrect={canCorrect}
+          canRelease={can(session, "dental.imaging.release")}
+          portalOn={portal.portalDentalRecords}
+        />
       </div>
-    </>
+    </ModulePage>
   );
 }

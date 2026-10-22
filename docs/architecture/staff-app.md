@@ -380,6 +380,10 @@ Stock, movements, purchase orders (and an order), supplier invoices (and an invo
 
 The cashier's desk, invoices, an invoice, a patient's billing and the daily report use `ModulePage` (their headers, descriptions and actions are unchanged; the page-level padding moved into the page template). The module tabs (Cashier, Invoices, Daily report) replace the header button rows; prices and discounts are under Settings. Charges, packages, deposits, discounts, payments, refunds, credit and debit notes, the PhilHealth claim panel and every permission check are untouched.
 
+### Clinical module (UI redesign, phase 8)
+
+The consultations list, care-plan recall list, referrals (and a referral), prescriptions, dental (and a dental record) and pharmacy (and a dispense) pages use `ModulePage`: the plain page header with the existing title, description and actions, and the page-level padding from the template. The encounter workspace (`/clinic/encounters/[id]`) and the care-plan page keep their own patient-banner layouts; they move with the patient-record and workspace phase. Notes, prescribing, drug-allergy decision support, signing, dental charting, referrals and dispensing are untouched.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and
