@@ -295,7 +295,14 @@ service (information, not a condition). See `docs/interoperability/philhealth-el
 
 ## Administration and My account
 
-`/admin` lists the administration pages open to the user (the same list as the menu, from `navigationForPermissions`).
+`/admin` is the Settings home: it lists every settings page open to the user, grouped (the same list as the Settings menu, from `settingsForPermissions`).
+
+### Navigation, module tabs and Settings (UI redesign, phase 2)
+
+- **Sidebar** (`libs/ui/src/layouts/staff-navigation.ts`, `staff-layout.tsx`): items carry a `group` (`NAV_GROUPS`: Today, Patients, Clinical, Operations, Engagement) and `placement: "footer"` pins **Settings** and **Help** to the bottom. A module is one entry; `match` lets an entry stay current on pages it owns (Appointments on `/doctors`; Consultations on `/clinic/prescriptions`). A count may be an alert (`countAlert`, danger colours with a "need attention" label; the laboratory's unacknowledged critical results). The rail collapses to icons and the choice is kept in local storage; the mobile drawer is unchanged. Only counts from `GET /me/badges` are shown; queue and STAT counts are not in badges today (needs API).
+- **Permissions** decide the menu (`apps/staff/src/lib/navigation.ts`, `MODULE_PERMISSIONS`): the same checks as each page. `navigationForPermissions` shows Settings when at least one settings page is open.
+- **Module tabs** (`apps/staff/src/lib/module-tabs.ts`, `ModuleTabs` in `libs/ui/src/layouts`, drawn by `StaffShell` through `ModuleTabsBar` under the top bar): Laboratory, Billing, Inventory, Consultations (+ Prescriptions), Appointments (+ Waiting list, Doctors), Records and Management. Each tab is gated by its page's permission; a module with fewer than two tabs open to the user shows none. They replace the sidebar sub-items and the header button rows (`BillingNav`, `InventoryNav` are gone).
+- **Settings area** (`apps/staff/src/lib/settings-navigation.ts`, `components/settings-frame.tsx`): every configuration page keeps its address and its own permission check; pages listed in `SETTINGS_GROUPS` (and everything under `/admin`) are drawn inside `SettingsFrame`, a grouped sub-navigation of the pages open to the user beside the page (a "Settings section" list on a phone). No route moved, so no redirect was needed.
 
 - `/admin/users` (`user.read`; changes `user.manage`): staff with status, two-step verification, roles and scope, last sign-in; **Add staff member**
   (a first password only for an email new to the platform). `/admin/users/[userId]`: grant a role organization-wide, for a facility or a department

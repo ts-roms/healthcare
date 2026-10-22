@@ -18,7 +18,6 @@ import type {
   SharedAccount,
 } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { BillingNav } from "../../billing-nav";
 import { PatientAccountPanel } from "./patient-account";
 import { PatientCharges } from "./patient-charges";
 import { PatientPackages } from "./patient-packages";
@@ -31,11 +30,10 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
   const [{ patientId }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "billing.charge.read")) redirect("/");
   if (!UUID.test(patientId)) notFound();
-  const nav = <BillingNav canReport={can(session, "billing.report.read")} canConfigure={can(session, "billing.pricelist.manage")} />;
   if (!facility) {
     return (
       <>
-        <PageHeader title="Patient billing" actions={nav} />
+        <PageHeader title="Patient billing" />
         <FacilityRequired action="Charges and invoices are kept per facility." />
       </>
     );
@@ -55,7 +53,7 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
   const number = patient?.patientNumber ?? charges[0]?.patient?.patientNumber ?? invoices[0]?.patient?.patientNumber;
   return (
     <>
-      <PageHeader title={name} description={`${number ? `${number} · ` : ""}Billing at ${facility.name}`} actions={nav} />
+      <PageHeader title={name} description={`${number ? `${number} · ` : ""}Billing at ${facility.name}`} />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
         <PatientCharges
           patientId={patientId}

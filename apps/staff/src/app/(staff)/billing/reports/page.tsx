@@ -10,7 +10,6 @@ import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DailyAccountFigures, DailyBillingReport, DailyNoteFigures } from "@/lib/api/types";
 import { METHOD_LABEL, peso } from "@/lib/billing-mapping";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
-import { BillingNav } from "../billing-nav";
 
 export const metadata = { title: "Daily billing report" };
 
@@ -20,11 +19,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export default async function DailyReportPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "billing.report.read")) redirect("/billing");
-  const nav = <BillingNav canReport canConfigure={can(session, "billing.pricelist.manage")} />;
   if (!facility) {
     return (
       <>
-        <PageHeader title="Daily billing report" actions={nav} />
+        <PageHeader title="Daily billing report" />
         <FacilityRequired action="Reports are per facility." />
       </>
     );
@@ -54,7 +52,6 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
                 </Link>
               </Button>
             </nav>
-            {nav}
           </>
         }
       />

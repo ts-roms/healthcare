@@ -8,7 +8,6 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { SupplierInvoice } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { InventoryNav } from "../inventory-nav";
 import { SupplierInvoiceStatusBadge } from "./status-badge";
 
 export const metadata = { title: "Supplier invoices" };
@@ -25,17 +24,10 @@ const FILTERS = [
 export default async function SupplierInvoicesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Supplier invoices" actions={nav} />
+        <PageHeader title="Supplier invoices" />
         <FacilityRequired action="Supplier invoices are kept per facility." />
       </>
     );
@@ -48,7 +40,6 @@ export default async function SupplierInvoicesPage({ searchParams }: { searchPar
       <PageHeader
         title="Supplier invoices"
         description={`${facility.name} · recorded against purchase orders and matched with what was received. Record an invoice from its purchase order.`}
-        actions={nav}
       />
       <div className="flex flex-col gap-3 p-4">
         <nav aria-label="Filter" className="flex flex-wrap gap-1">

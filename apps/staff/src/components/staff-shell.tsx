@@ -20,11 +20,15 @@ import {
 import { selectFacility, signOut } from "@/app/(staff)/actions";
 import type { StaffBadges } from "@/lib/api/types";
 import { NOTICE_EVENTS } from "@/lib/live-queue";
+import { moduleTabsFor } from "@/lib/module-tabs";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
+import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
 import { HelpFab, type HelpChapter } from "./help-fab";
 import { useLiveUpdates } from "./live-queue";
+import { ModuleTabsBar } from "./module-tabs-bar";
 import { OfflineBanner } from "./offline-banner";
+import { SettingsFrame } from "./settings-frame";
 
 const NextLink: LinkComponent = (props) => <Link {...props} />;
 
@@ -96,8 +100,11 @@ export function StaffShell({
   useLiveUpdates(NOTICE_EVENTS, () => void refreshCounts(), { refreshPage: false });
   const navigation = React.useMemo(() => withBadgeCounts(navigationForPermissions(permissions), counts), [permissions, counts]);
 
-  // Company settings are the administration pages; staff without access to any of them only see their own account.
-  const canOpenCompanySettings = navigation.some((item) => item.href === "/admin" && item.children?.some((c) => c.href === "/admin/organization"));
+  // Settings: every configuration page open to the user, drawn beside a sub-navigation; a module's other pages are its tabs.
+  const settingsGroups = React.useMemo(() => settingsForPermissions(permissions), [permissions]);
+  const moduleTabs = moduleTabsFor(pathname, permissions, counts);
+  const inSettings = isSettingsPath(pathname);
+  const canOpenCompanySettings = settingsGroups.some((g) => g.pages.some((p) => p.href === "/admin/organization"));
 
   return (
     <StaffLayout
@@ -194,7 +201,14 @@ export function StaffShell({
     >
       {isDemoPath(pathname) ? <DemoDataBanner /> : null}
       <OfflineBanner />
-      {children}
+      {moduleTabs ? <ModuleTabsBar label={moduleTabs.label} tabs={moduleTabs.tabs} pathname={pathname} /> : null}
+      {inSettings ? (
+        <SettingsFrame groups={settingsGroups} pathname={pathname}>
+          {children}
+        </SettingsFrame>
+      ) : (
+        children
+      )}
       <HelpFab chapters={manualChapters} sections={manualSections} />
     </StaffLayout>
   );

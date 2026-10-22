@@ -24,10 +24,9 @@ const people: Record<"walkin" | "urgent" | "appointment" | "triage", Person> = {
   triage: { id: "", family: "Queuetriage" },
 };
 const tickets: Partial<Record<keyof typeof people, string>> = {};
-let triageVisitType = "";
-let triageRoom = { id: "", name: "Triage Room" };
-let xray = { id: "", name: "X-ray" };
-let counter = { id: "", name: "Counter" };
+const triageRoom = { id: "", name: "Triage Room" };
+const xray = { id: "", name: "X-ray" };
+const counter = { id: "", name: "Counter" };
 
 let desk: Page;
 let admin: Page;
@@ -70,9 +69,7 @@ test.beforeAll(async ({ browser }) => {
     person.id = created.id;
   }
   // A visit type that needs triage, and three service points to route through.
-  triageVisitType = (
-    await api.post<{ id: string }>("/clinic/visit-types", { code: "triage-visit", name: "Triage visit", defaultDurationMinutes: 15, requiresTriage: true })
-  ).id;
+  await api.post("/clinic/visit-types", { code: "triage-visit", name: "Triage visit", defaultDurationMinutes: 15, requiresTriage: true });
   const point = (code: string, name: string, kind: string, location: string) =>
     api.post<{ id: string }>("/clinic/service-points", { facilityId: state.facilityId, code, name, kind, location });
   triageRoom.id = (await point("triage-room", triageRoom.name, "consultation", "Triage 1")).id;

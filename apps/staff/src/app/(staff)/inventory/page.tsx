@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier, StockRow } from "@/lib/api/types";
-import { InventoryNav } from "./inventory-nav";
 import { MovementForm } from "./movement-form";
 import { ExpiryStatus, StockStatus } from "./stock-status";
 
@@ -22,17 +21,10 @@ const FILTERS = [
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ show?: string; location?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Inventory" actions={nav} />
+        <PageHeader title="Inventory" />
         <FacilityRequired action="Stock is kept per facility." />
       </>
     );
@@ -53,7 +45,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const href = (key: string) => `/inventory?show=${key}${params.location ? `&location=${params.location}` : ""}`;
   return (
     <>
-      <PageHeader title="Inventory" description={`${facility.name} · medicines, supplies and reagents by location, lot and expiry`} actions={nav} />
+      <PageHeader title="Inventory" description={`${facility.name} · medicines, supplies and reagents by location, lot and expiry`} />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex flex-wrap items-center gap-1">

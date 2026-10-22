@@ -10,7 +10,6 @@ import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InvoiceSummary } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { todayIn } from "@/lib/clinic-mapping";
-import { BillingNav } from "../billing-nav";
 
 export const metadata = { title: "Invoices" };
 
@@ -26,11 +25,10 @@ const FILTERS = [
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ show?: string; date?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "billing.charge.read")) redirect("/");
-  const nav = <BillingNav canReport={can(session, "billing.report.read")} canConfigure={can(session, "billing.pricelist.manage")} />;
   if (!facility) {
     return (
       <>
-        <PageHeader title="Invoices" actions={nav} />
+        <PageHeader title="Invoices" />
         <FacilityRequired action="Invoices are kept per facility." />
       </>
     );
@@ -47,7 +45,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const href = (key: string) => `/billing/invoices?show=${key}${date && key === "all" ? `&date=${date}` : ""}`;
   return (
     <>
-      <PageHeader title="Invoices" description={`${facility.name}${date ? ` · ${date}` : ""}`} actions={nav} />
+      <PageHeader title="Invoices" description={`${facility.name}${date ? ` · ${date}` : ""}`} />
       <div className="flex flex-col gap-3 p-4">
         <nav aria-label="Filter" className="flex flex-wrap items-center gap-1">
           {FILTERS.map((f) => (

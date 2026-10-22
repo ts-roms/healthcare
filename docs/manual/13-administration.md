@@ -235,7 +235,7 @@ advises.
   organization management. Grant them to a custom role if someone else must do them.
 - The facility selector lists the facilities where a person holds a role (every facility for an organization-wide role). It does not need
   `organization.read`, so a cashier-only user can choose their facility.
-- The **Auditor** role reads the audit trail at **Administration → Audit log** (see below).
+- The **Auditor** role reads the audit trail at **Settings → Audit log** (see below).
 
 ## How to set who signs consent forms
 
@@ -246,13 +246,13 @@ sign for whom: a guardian signs in MyHealth only through the access you recorded
 
 ## How to print practitioners' signatures on certificates and referral letters
 
-Under **Clinic → Signatures**, tick **Print the practitioner's signature on medical certificates and referral letters** and save. Each practitioner draws their
+Under **Settings → Signatures**, tick **Print the practitioner's signature on medical certificates and referral letters** and save. Each practitioner draws their
 own signature under **My account**; documents issued from then on carry it above their name. It is a mark on the page, not a digital signature: the system
 records who issued each document either way. Documents already issued keep what they printed. Whether to print signatures is your organization's decision.
 
 ## How staff accounts are managed
 
-**Administration → Staff users** (`/admin/users`, needs `user.read`; changes need `user.manage`) lists everyone in the organization with their status,
+**Settings → Staff users** (`/admin/users`, needs `user.read`; changes need `user.manage`) lists everyone in the organization with their status,
 two-step verification, roles (and where each applies) and last sign-in. Every change below is audited.
 
 1. **Add a person:** click **Add staff member**, enter their work email and the name to show. If the email is new to the platform, also set a **first
@@ -264,7 +264,7 @@ two-step verification, roles (and where each applies) and last sign-in. Every ch
 4. **Suspend or reactivate:** click **Suspend…** (or **Reactivate…**), give the reason and confirm. Suspension signs the person out everywhere at once. You
    cannot suspend yourself.
 
-**Administration → Roles** (`/admin/roles`, needs `user.read`) shows every role and its permissions. With `role.manage`, **New role…** creates your
+**Settings → Roles** (`/admin/roles`, needs `user.read`) shows every role and its permissions. With `role.manage`, **New role…** creates your
 organization's own role: a name, a key (lower-case letters, digits and underscores), an optional description, and the permissions — only those you hold
 yourself can be ticked. **Edit…** on one of your organization's own roles changes its name, description and permissions together (with an optional
 reason for the audit trail): permissions you do not hold yourself are greyed out and stay as they are, the key never changes, and everyone holding the
@@ -292,7 +292,7 @@ organization").
 
 ## Two-step verification for patients (MyHealth)
 
-The same page (**Administration → Sign-in security**) has a card **Two-step verification for patients**: how many active MyHealth accounts have it on
+The same page (**Settings → Sign-in security**) has a card **Two-step verification for patients**: how many active MyHealth accounts have it on
 and how many do not. Patients can always turn it on themselves (chapter 12). To require it:
 
 1. Click **Require it for patients…**, choose the date from which it is required — at least a week ahead, so patients see the notice first — give a
@@ -307,7 +307,7 @@ Changes are audited.
 
 ## Two-step verification for staff
 
-**Administration → Sign-in security** (`/admin/security`, needs `user.read`; changes need `user.mfa.manage`, organization administrators by default) shows
+**Settings → Sign-in security** (`/admin/security`, needs `user.read`; changes need `user.mfa.manage`, organization administrators by default) shows
 whether your organization requires two-step verification, how many active members have it on, are exempt or still lack it, the list of those still
 without it, and the exempt accounts. Every change is audited.
 
@@ -324,7 +324,7 @@ without it, and the exempt accounts. Every change is audited.
 
 ## How facilities and departments are managed
 
-The organization itself is created by a platform administrator. **Administration → Facilities** (`/admin/facilities`, needs `organization.read`; changes
+The organization itself is created by a platform administrator. **Settings → Facilities** (`/admin/facilities`, needs `organization.read`; changes
 need `organization.manage`) shows each facility (clinics, laboratories, dental clinics …) with its departments.
 
 1. **Add a facility:** click **New facility**, enter a code (lower-case letters, digits and hyphens; it cannot change later), the name, type and, if you
@@ -346,11 +346,11 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Users, roles, role grants                                                                                                          | Screens: `/admin/users`, `/admin/roles`                                                    | `user.manage`, `role.manage`    | this chapter                                                                                              |
 | Facilities and departments                                                                                                         | Screen: `/admin/facilities`                                                                | `organization.manage`           | this chapter                                                                                              |
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                               | Screen: `/appointments/schedules`                                                          | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
-| Diagnosis coding systems                                                                                                           | Screen: `/clinic/coding-systems` (**Clinic → Coding systems**)                             | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
+| Diagnosis coding systems                                                                                                           | Screen: `/clinic/coding-systems` (**Settings → Coding systems**)                           | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
 | Visit types patients may book online                                                                                               | Screen: `/appointments/visit-types`                                                        | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
-| Service points of each facility (consultation line, emergency room, X-ray …) where a triaged patient can be sent                   | Screen: `/admin/service-points` (**Administration → Service points**)                      | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
-| Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                  | Screen: `/clinic/vaccines` (**Clinic → Vaccines**)                                         | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
-| Procedure catalogue (your own codes and names, another code if you use one, whether the body site is asked, supplies usually used) | Screen: `/clinic/procedures` (**Clinic → Procedures**)                                     | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
+| Service points of each facility (consultation line, emergency room, X-ray …) where a triaged patient can be sent                   | Screen: `/admin/service-points` (**Settings → Service points**)                            | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
+| Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                  | Screen: `/clinic/vaccines` (**Settings → Vaccines**)                                       | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
+| Procedure catalogue (your own codes and names, another code if you use one, whether the body site is asked, supplies usually used) | Screen: `/clinic/procedures` (**Settings → Procedures**)                                   | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
 | Services and prices, discount rules, payers, packages, tax and documents, document numbers                                         | Screen: `/billing/settings`                                                                | `billing.pricelist.manage`      | [Billing](10-billing.md)                                                                                  |
 | PhilHealth accreditation number, PhilHealth YAKAP participation reference (per facility)                                           | Screen: `/billing/settings` (facility selected)                                            | `philhealth.settings.manage`    | [Billing](10-billing.md)                                                                                  |
 | Laboratory tests, reference ranges, panels, reference laboratories and referred tests                                              | Screen: `/laboratory/catalog`                                                              | `lab.catalog.manage`            | [Laboratory](06-laboratory.md)                                                                            |
@@ -366,7 +366,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Document retention periods                                                                                                         | Screen: `/records/retention`                                                               | `document.retention.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Document integrity review                                                                                                          | Screen: `/records/integrity`                                                               | `document.integrity.manage`     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Records-request procedure (response time, identity check, notice to patients)                                                      | Screen: `/records/requests/settings`                                                       | `organization.manage`           | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
-| Breach-notification window, Data Protection Officer, the breach register                                                           | Screen: `/admin/privacy` (**Administration → Data privacy**)                               | `privacy.incident.manage`       | this chapter                                                                                              |
+| Breach-notification window, Data Protection Officer, the breach register                                                           | Screen: `/admin/privacy` (**Settings → Data privacy**)                                     | `privacy.incident.manage`       | this chapter                                                                                              |
 | Compliance reviews (who validated each area's configuration)                                                                       | Screen: `/admin/compliance`                                                                | `compliance.review.manage`      | this chapter                                                                                              |
 | Integration payload keys                                                                                                           | Deployment configuration (usage shown on `/admin/integrations` to platform administrators) | IT / platform administrator     | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Payment provider, PhilHealth, DOH and reference-laboratory adapters                                                                | Not configured: no adapter exists yet (integration dependencies)                           | —                               | [Billing](10-billing.md), [Records, reporting and integrations](11-records-reporting-and-integrations.md) |
@@ -374,20 +374,20 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 
 ## How to review integrations
 
-**Administration → Integrations** (`/admin/integrations`) lists requests to external systems that did not succeed or are stalled. You can re-queue stalled
+**Settings → Integrations** (`/admin/integrations`) lists requests to external systems that did not succeed or are stalled. You can re-queue stalled
 ones or resolve others with a note. It needs `integration.exchange.manage` (organization administrators by default). Platform administrators also see which
 payload key ids stored values still need. Because no PhilHealth, DOH, payment or reference-laboratory adapter is configured by default, nothing is actually
 transmitted to those systems. Details are in [Records, reporting and integrations](11-records-reporting-and-integrations.md).
 
-> The **Administration** menu entry appears only for people who can open one of its pages: **Staff users** and **Roles** (`user.read`), **Facilities**
-> (`organization.read`), **Audit log** (`audit.read`), **Integrations** (`integration.exchange.manage`), **Compliance** (`compliance.review.manage`) or
-> **Consent wording** (`consent.wording.manage`). **Administration** itself lists the pages open to you.
+> **Settings** (bottom of the menu) appears only for people who can open one of its pages: **Staff users** and **Roles** (`user.read`), **Facilities** and
+> **Company** (`organization.read`), **Audit log** (`audit.read`), **Integrations** (`integration.exchange.manage`), **Compliance** (`compliance.review.manage`),
+> **Consent wording** (`consent.wording.manage`), **Service points** (`clinic.configure`) and the settings of each module. **Settings** itself lists the pages open to you.
 
 ## How to watch sign-in limits (platform administrators)
 
 The platform refuses a client address that sends more than 10 sign-in or account requests a minute ("Too many attempts"). Patients using the
 MyHealth app on one mobile network can share an address, so several of them may be refused together. Platform administrators see **Rate-limit
-refusals, last 30 days** at the bottom of **Administration → Sign-in security** (`/admin/security`): one row per route and day, MyHealth routes
+refusals, last 30 days** at the bottom of **Settings → Sign-in security** (`/admin/security`): one row per route and day, MyHealth routes
 first, with how many times an address went over its allowance. No address, account or patient is shown or stored. Counts cover the whole platform
 and are kept for 100 days. Repeated refusals on MyHealth sign-in are the evidence for asking IT to review the allowance; an account's own lockout
 after 5 wrong passwords is separate and not counted here.
@@ -397,7 +397,7 @@ after 5 wrong passwords is separate and not counted here.
 Patients can give some consents themselves in MyHealth, but only after reading **your organization's own wording**. The platform provides no wording and does
 not say what a consent legally needs: have your data protection officer approve the text. Needs `consent.wording.manage` (organization administrators).
 
-1. Open **Administration → Consent wording**. Each consent patients may give online (**Online consultations**, **Sharing with the patient's HMO**, **Sharing
+1. Open **Settings → Consent wording**. Each consent patients may give online (**Online consultations**, **Sharing with the patient's HMO**, **Sharing
    with PhilHealth**, **Research**) shows whether it is offered and its version.
 2. Enter the **Title patients see**, **The wording**, and the **Statement the patient confirms**, then choose **Publish and offer online** (or **Publish as a new
    version** to change it). Versions are never edited: each save is a new one, and patients who are reading see the new one before they can give.
@@ -408,7 +408,7 @@ information, to general treatment, and to MyHealth itself is always given at the
 
 ## How to set up patient QR codes
 
-Choose **Administration → Patient QR codes** (`patient.qr.manage`). Tick **Use patient QR codes**, say whether a code is issued when a patient is registered, and
+Choose **Settings → Patient QR codes** (`patient.qr.manage`). Tick **Use patient QR codes**, say whether a code is issued when a patient is registered, and
 choose what it holds: a random key (recommended; a lost card is revoked and replaced) the patient number (easier to read, but anyone who knows the number can make
 the same code), or a **MyHealth link**: the patient scans the card with their phone, MyHealth opens with their patient number filled in and they choose their own password
 (their date of birth and email are filled in; they only enter the activation code the clinic gives them and a password). You can also tick **Offer MyHealth access at registration**: the registration form then starts with MyHealth access ticked, records the patient's consent (the registering person confirms they agreed) and shows the activation code once. Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
@@ -416,7 +416,7 @@ the same code), or a **MyHealth link**: the patient scans the card with their ph
 
 ## How to keep the breach register (Data privacy)
 
-**Administration → Data privacy** (`/admin/privacy`; `privacy.incident.manage`, organization administrators by default — grant it to your Data
+**Settings → Data privacy** (`/admin/privacy`; `privacy.incident.manage`, organization administrators by default — grant it to your Data
 Protection Officer's role) keeps your organization's personal data breach register and its privacy settings. Opening the register is recorded.
 
 1. **Settings** (right): **Notify within (hours from discovery)** is your own notification window — the National Privacy Commission's circular is
@@ -460,13 +460,13 @@ denials, user and role changes, facility changes, every patient record view and 
 consent, portal invitations and disabling, timeline views, document uploads and downloads, clinical documentation, prescriptions and decision-support
 overrides, laboratory result actions, billing actions, PhilHealth, DOH and FHIR actions.
 
-**Reading the audit trail.** **Administration → Audit log** (`/admin/audit`; `audit.read`: Auditor, Organization administrator) lists entries newest
+**Reading the audit trail.** **Settings → Audit log** (`/admin/audit`; `audit.read`: Auditor, Organization administrator) lists entries newest
 first, 50 a page (**Older** / **Newer**). Filter by day range (local days), action (for example `patient.read`), record type (for example `patient`), staff
 member and patient id, then click **Search**; **Clear** removes the filters. **Show** opens an entry's record id, before/after values, details and where the
 request came from; **Open patient** goes to the patient concerned. Each search is itself recorded in the audit trail.
 
 **Keeping and archiving the audit trail (platform administrators).** The audit trail is stored in monthly parts for the whole platform. Under
-**Administration → Sign-in security → Audit trail retention**, **Archive** saves a month that has ended to private storage; it shows as **Archived, N
+**Settings → Sign-in security → Audit trail retention**, **Archive** saves a month that has ended to private storage; it shows as **Archived, N
 events** once it has been read back and checked, and **Download** gets the file. If your deployment has a retention period
 (`AUDIT_RETENTION_MONTHS`), an archived month older than that period can be removed from the database with **Remove from database…** and a reason; the
 archive stays. Without a retention period nothing is ever removed. How long audit records must be kept is your organization's decision.

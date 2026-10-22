@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { ProcurementMethod, WithholdingCode } from "@/lib/api/types";
-import { InventoryNav } from "../inventory-nav";
 import { DeactivateButton, NewProcurementMethod, NewWithholdingCode } from "./compliance-forms";
 
 export const metadata = { title: "Tax and procurement" };
@@ -21,19 +20,11 @@ export default async function InventoryCompliancePage() {
     api<WithholdingCode[]>("/inventory/withholding-codes"),
     api<ProcurementMethod[]>("/inventory/procurement-methods"),
   ]);
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   return (
     <>
       <PageHeader
         title="Tax and procurement"
         description="Your organization's own withholding codes and procurement methods, as your accountant and procurement rules define them."
-        actions={nav}
       />
       <div className="flex flex-col gap-4 p-4">
         <p className="rounded-md border border-dashed p-3 text-meta text-muted-foreground">

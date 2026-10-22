@@ -7,7 +7,6 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryMovement } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { InventoryNav } from "../inventory-nav";
 
 export const metadata = { title: "Stock movements" };
 
@@ -34,17 +33,10 @@ const SOURCE: Record<NonNullable<InventoryMovement["sourceType"]>, string> = {
 export default async function MovementsPage() {
   const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Stock movements" actions={nav} />
+        <PageHeader title="Stock movements" />
         <FacilityRequired action="Stock is kept per facility." />
       </>
     );
@@ -52,7 +44,7 @@ export default async function MovementsPage() {
   const movements = await api<InventoryMovement[]>("/inventory/movements");
   return (
     <>
-      <PageHeader title="Stock movements" description={`${facility.name} · the latest 200 movements`} actions={nav} />
+      <PageHeader title="Stock movements" description={`${facility.name} · the latest 200 movements`} />
       <div className="p-4">
         <Card className="py-0">
           {movements.length === 0 ? (

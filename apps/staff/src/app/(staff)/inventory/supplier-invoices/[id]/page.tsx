@@ -10,7 +10,6 @@ import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { SupplierInvoiceDetail, WithholdingCode } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { quantityWithUnit, supplierInvoiceActions } from "@/lib/inventory-mapping";
-import { InventoryNav } from "../../inventory-nav";
 import { SupplierInvoiceStatusBadge } from "../status-badge";
 import { SupplierInvoiceActions } from "./invoice-actions";
 
@@ -21,17 +20,10 @@ const day = (d: string) => clinicalDate(`${d}T12:00:00Z`);
 export default async function SupplierInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Supplier invoice" actions={nav} />
+        <PageHeader title="Supplier invoice" />
         <FacilityRequired action="Supplier invoices are kept per facility." />
       </>
     );
@@ -53,7 +45,6 @@ export default async function SupplierInvoicePage({ params }: { params: Promise<
       <PageHeader
         title={`Supplier invoice ${invoice.invoiceNumber}`}
         description={`${invoice.supplier?.name ?? "—"} · dated ${day(invoice.invoiceDate)}${invoice.dueDate ? ` · due ${day(invoice.dueDate)}` : ""}`}
-        actions={nav}
       />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">

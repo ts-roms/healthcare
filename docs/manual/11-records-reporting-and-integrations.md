@@ -153,7 +153,7 @@ recorded. Billing records and dental charts are not included; whether a copy mus
 - **What patients read before asking** — your own words on fees, identification to bring and how answers are given, shown in MyHealth above
   the request form.
 
-Nothing here is a National Privacy Commission rule. Have your Data Protection Officer check it and record the review under **Admin → Compliance**.
+Nothing here is a National Privacy Commission rule. Have your Data Protection Officer check it and record the review under **Settings → Compliance**.
 
 ## How to set document retention periods
 
@@ -185,7 +185,7 @@ a file that was corrupted, replaced, or lost (for example after a failed restore
    on (archive it first if it must stay out of use). A resolved finding is kept under **Show resolved** and never changes.
 
 The platform never repairs, replaces or deletes a file. How often to run a review, and what to do about a finding, is your organization's own
-procedure; record it under **Admin → Compliance**.
+procedure; record it under **Settings → Compliance**.
 
 ## How to review records sent by another provider (FHIR imports)
 
@@ -294,7 +294,7 @@ Under **Decision** (while the case is To review, Rejected or Not sent):
 
 ## How to configure reportable conditions (DOH settings)
 
-Go to **Disease reporting → Reportable conditions** (`/reporting/settings`). You need `doh.settings.manage` (organization administrators by
+Go to **Settings → Disease reporting** (`/reporting/settings`). You need `doh.settings.manage` (organization administrators by
 default).
 
 ### Add a rule
@@ -344,7 +344,7 @@ recorded in billing settings ([Billing](10-billing.md)); a patient's YAKAP regis
 ## How to review integration exchanges (administrators)
 
 When an adapter for an external system is configured, the platform prepares each request (a PhilHealth claim, eligibility check or YAKAP package,
-a DOH case report) and a background worker sends it, retrying automatically. **Administration → Integrations** (`/admin/integrations`) shows the
+a DOH case report) and a background worker sends it, retrying automatically. **Settings → Integrations** (`/admin/integrations`) shows the
 ones that did not succeed. Until any adapter is configured, this page normally shows "Nothing needs attention."
 
 You need `integration.exchange.manage` (organization administrators by default).

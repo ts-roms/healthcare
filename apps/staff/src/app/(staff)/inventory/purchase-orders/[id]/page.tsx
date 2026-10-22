@@ -9,7 +9,6 @@ import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { PurchaseOrder, PurchaseOrderInvoicing, SupplierInvoice } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { purchaseOrderActions } from "@/lib/inventory-mapping";
-import { InventoryNav } from "../../inventory-nav";
 import { SupplierInvoiceStatusBadge } from "../../supplier-invoices/status-badge";
 import { PurchaseOrderStatusBadge } from "../status-badge";
 import { PurchaseOrderActions } from "./purchase-order-actions";
@@ -20,17 +19,10 @@ export const metadata = { title: "Purchase order" };
 export default async function PurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, facility] = await Promise.all([params, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Purchase order" actions={nav} />
+        <PageHeader title="Purchase order" />
         <FacilityRequired action="Purchase orders are placed per facility." />
       </>
     );
@@ -58,7 +50,6 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
             ? ` · ${order.procurementMethod.name}${order.procurementReference ? ` (${order.procurementMethod.referenceLabel ?? "reference"} ${order.procurementReference})` : ""}`
             : ""
         }`}
-        actions={nav}
       />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
