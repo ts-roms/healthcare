@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileTextIcon, ReceiptIcon, UserCheckIcon, UserPlusIcon } from "lucide-react";
+import { FileTextIcon, QrCodeIcon, ReceiptIcon, UserCheckIcon, UserPlusIcon } from "lucide-react";
 import { DashboardPage as DashboardTemplate } from "@healthcare/ui/layouts";
 import { StatTile } from "@healthcare/ui/healthcare";
 import { Button, Callout } from "@healthcare/ui/primitives";
@@ -286,6 +286,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <Button asChild variant="outline">
               <Link href="/patients/new">
                 <UserPlusIcon /> Register patient
+              </Link>
+            </Button>
+          ) : null}
+          {/* A patient's card is scanned here; the result offers Check in (or the record) without searching first. */}
+          {can(session, "patient.search") ? (
+            <Button asChild variant="outline">
+              <Link href="/patients/scan">
+                <QrCodeIcon /> Scan QR code
               </Link>
             </Button>
           ) : null}
