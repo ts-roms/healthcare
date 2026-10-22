@@ -226,7 +226,7 @@ test("editing the role changes what its holder can open at the next request, and
   await expect.poll(() => adminMenu(hire!)).toEqual(["/admin/users", "/admin/roles", "/admin/security", "/admin/audit"]);
   await hire!.goto("/admin/users");
   await expect(hire!.getByRole("heading", { name: "Staff users" })).toBeVisible();
-  await expect(hire!.getByText(NEWHIRE.name)).toBeVisible();
+  await expect(hire!.getByText(NEWHIRE.name).first()).toBeVisible();
   // They can read but not manage: no button to add staff.
   await expect(hire!.getByRole("button", { name: "Add staff member" })).toHaveCount(0);
 

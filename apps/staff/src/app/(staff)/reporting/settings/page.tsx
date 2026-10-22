@@ -1,5 +1,5 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DohFacilityCode, DohRescanOverview, ReportableRule } from "@/lib/api/types";
@@ -19,19 +19,21 @@ export default async function ReportingSettingsPage() {
       : Promise.resolve(null),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Reportable conditions"
-        description="Which diagnoses open a case report, as your organization configures them from the DOH issuances it follows."
-        actions={<ReportingNav canConfigure />}
-      />
-      <ReportingSettings
-        rules={rules}
-        rescans={rescans.rescans}
-        today={rescans.today}
-        timeZone={rescans.timeZone}
-        facility={facility ? { id: facility.id, name: facility.name, code } : null}
-      />
-    </>
+    <StaffSettingsPage
+      group="Operations"
+      title="Reportable conditions"
+      description="Which diagnoses open a case report, as your organization configures them from the DOH issuances it follows."
+      actions={<ReportingNav canConfigure />}
+    >
+      <SettingsStack>
+        <ReportingSettings
+          rules={rules}
+          rescans={rescans.rescans}
+          today={rescans.today}
+          timeZone={rescans.timeZone}
+          facility={facility ? { id: facility.id, name: facility.name, code } : null}
+        />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

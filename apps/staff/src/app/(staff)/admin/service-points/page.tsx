@@ -1,6 +1,6 @@
+import { StaffSettingsPage, SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { RouteTemplate, ServicePoint, ServicePointSettings, VisitType } from "@/lib/api/types";
@@ -19,10 +19,9 @@ export default async function ServicePointsPage() {
   if (!can(session, "clinic.configure")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Service points" />
+      <StaffSettingsPage group="Organization" title="Service points">
         <FacilityRequired action="Service points belong to a facility." />
-      </>
+      </StaffSettingsPage>
     );
   }
   const [servicePoints, settings, templates, visitTypes] = await Promise.all([
@@ -32,14 +31,20 @@ export default async function ServicePointsPage() {
     api<VisitType[]>("/clinic/visit-types").then((all) => all.filter((v) => v.status === "active" && v.modality === "in_person")),
   ]);
   return (
-    <>
-      <PageHeader
-        title="Service points"
-        description={`${facility.name} · where a patient can be sent after triage. Without any, the facility keeps its single consultation line. A deactivated service point keeps the visits already sent to it and only refuses new ones.`}
-      />
-      <ServicePointList facilityId={facility.id} servicePoints={servicePoints} />
-      <RoutingSettings key={settings.version ?? 0} settings={settings} />
-      <RouteTemplates facilityId={facility.id} templates={templates} servicePoints={servicePoints} visitTypes={visitTypes} />
-    </>
+    <StaffSettingsPage
+      group="Organization"
+      title="Service points"
+      description={`${facility.name} · where a patient can be sent after triage.`}
+      details={[
+        "Without any service point, the facility keeps its single consultation line.",
+        "A deactivated service point keeps the visits already sent to it and only refuses new ones.",
+      ]}
+    >
+      <SettingsStack>
+        <ServicePointList facilityId={facility.id} servicePoints={servicePoints} />
+        <RoutingSettings key={settings.version ?? 0} settings={settings} />
+        <RouteTemplates facilityId={facility.id} templates={templates} servicePoints={servicePoints} visitTypes={visitTypes} />
+      </SettingsStack>
+    </StaffSettingsPage>
   );
 }

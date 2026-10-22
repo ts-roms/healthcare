@@ -1,6 +1,6 @@
+import { StaffSettingsPage } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
-import { PageHeader } from "@/components/page-header";
 import { can, getSession } from "@/lib/api/session";
 import { organizationDirectory } from "../users/directory";
 import { facilityTypeLabel } from "./facility-types";
@@ -15,13 +15,14 @@ export default async function FacilitiesPage() {
   const { facilities, departments } = await organizationDirectory(session);
   const manage = can(session, "organization.manage");
   return (
-    <>
-      <PageHeader
-        title="Facilities"
-        description="Where your organization works. Roles can be granted for one facility or one of its departments."
-        actions={manage ? <NewFacility /> : null}
-      />
-      <div className="grid gap-4 p-4 lg:grid-cols-2">
+    <StaffSettingsPage
+      group="Organization"
+      title="Facilities"
+      description="Where your organization works."
+      details={["Roles can be granted for one facility or one of its departments."]}
+      actions={manage ? <NewFacility /> : null}
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
         {facilities.map((facility) => {
           const address = [facility.addressLine, facility.barangay, facility.cityMunicipality, facility.province, facility.postalCode]
             .filter(Boolean)
@@ -69,6 +70,6 @@ export default async function FacilitiesPage() {
           );
         })}
       </div>
-    </>
+    </StaffSettingsPage>
   );
 }
