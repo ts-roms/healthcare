@@ -99,7 +99,7 @@ export function InvoiceWorkspace({
   const draft = invoice.status === "draft";
   return (
     <InvoiceUpdate.Provider value={setLatest}>
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
           <Lines invoice={invoice} canEdit={draft && can.issue} />
           {invoice.status === "issued" || invoice.payments.length ? <Payments key={invoice.balance} invoice={invoice} can={can} /> : null}
