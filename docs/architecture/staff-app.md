@@ -392,6 +392,10 @@ The record's sub-pages (timeline, history, immunizations, procedures, communicat
 
 Appointments (and booking, the waiting list), the calendar, online consultations (and one), doctors, patient messages, notifications, My account and the walk-in check-in use `ModulePage`: the plain page header with the existing title, description and actions, and page padding from the template (the day schedule, calendar board, waiting-list tables, booking form, walk-in form, pre-consult panel and notice list lost their own outer padding). The queue board (`/queue`: lanes, live updates, calls, routing), triage and vitals, and a doctor's profile keep their own full-width layouts: they are live working surfaces that need their own pass, and nothing about calling, moving, routing or the waiting-room display changed.
 
+### Role dashboards (UI redesign, phase 11)
+
+There is one dashboard (`/`); each part appears by permission, not by role name, so every role's view follows from what it may see. Added for the cashier and the desk: billing figures and panels (`_dashboard/billing-today.tsx`: **To invoice**, **Balances owed**, **Collected today**; `billing.charge.read`, the day's collections `billing.report.read`; figures from `/billing/worklist`, unpaid `/billing/invoices` and `/billing/reports/daily`, derived in `lib/dashboard-billing.ts` with tests), a **Queue now** card (the five lanes from `/clinic/dashboard` `queue.byStatus`), and the header's **Create invoice** and **End-of-day report**. Someone with no clinic figures (a cashier) gets the money tiles instead; others who bill get a **To invoice** tile beside the clinic's. The page body is two columns (what to do on the left; the schedule, money and calendar on the right) and the stat row adapts to its number of tiles. Not built because the API has no data for them: the mockups' reception **To do** list (reply to a message, confirm tomorrow's appointments, invoice) and a receipt list with times and invoice numbers.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and
