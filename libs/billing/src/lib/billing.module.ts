@@ -11,6 +11,7 @@ import { DebitNoteService } from "./credit-notes/debit-note.service";
 import { BillingDocuments } from "./documents/billing-documents";
 import { InvoiceService } from "./invoices/invoice.service";
 import { PackageService } from "./packages/package.service";
+import { PrepaymentService } from "./prepayments/prepayment.service";
 import { DepositService } from "./payments/deposit.service";
 import { OnlinePaymentService } from "./payments/online-payment.service";
 import { paymentGatewayProvider } from "./payments/payment-gateway";
@@ -47,11 +48,21 @@ export class BillingModule {
         OnlinePaymentService,
         PackageService,
         PaymentService,
+        PrepaymentService,
         options.paymentGateway ?? paymentGatewayProvider,
         { provide: BILLING_SOURCES, useClass: options.sources },
         { provide: BILLING_PATIENTS, useClass: options.patients },
       ],
-      exports: [BillingDocuments, BillingRecordQueries, BillingReportingQueries, ChargeService, DepositService, InvoiceService, OnlinePaymentService],
+      exports: [
+        BillingDocuments,
+        BillingRecordQueries,
+        BillingReportingQueries,
+        ChargeService,
+        DepositService,
+        InvoiceService,
+        OnlinePaymentService,
+        PrepaymentService,
+      ],
     };
   }
 }

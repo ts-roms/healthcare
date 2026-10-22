@@ -61,6 +61,26 @@ export class ConsentTextService {
     });
   }
 
+  /** The wording of a consent type as offered right now (the latest version, when it says offered), or null. Read by other domains through a port. */
+  async currentOffered(organizationId: string, consentType: ConsentType): Promise<ConsentTextView | null> {
+    const [latest] = await this.db
+      .select()
+      .from(consentText)
+      .where(and(eq(consentText.organizationId, organizationId), eq(consentText.consentType, consentType)))
+      .orderBy(desc(consentText.version))
+      .limit(1);
+    return latest?.offered && latest.title && latest.body && latest.acknowledgement ? toView(latest) : null;
+  }
+
+  /** One version of a wording by id (any version, offered or not): what a patient was shown. */
+  async byId(organizationId: string, id: string): Promise<ConsentTextView | null> {
+    const [row] = await this.db
+      .select()
+      .from(consentText)
+      .where(and(eq(consentText.organizationId, organizationId), eq(consentText.id, id)));
+    return row ? toView(row) : null;
+  }
+
   async publish(actor: Actor, input: z.infer<typeof publishConsentTextSchema>): Promise<ConsentTextView> {
     return this.db.transaction(async (tx) => {
       // One writer per consent type, so versions count up without gaps.

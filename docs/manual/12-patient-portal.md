@@ -236,8 +236,14 @@ Open the online visit from **Home** or **Visits** (it says "Answer the questions
 **2. Wait for the waiting room to open.** You see "Your answers are with your doctor". The waiting room opens 30 minutes before your visit time. Keep the
 page open or come back then.
 
+**2a. Payment, if your clinic asks for it.** Some clinics ask you to pay before the consultation. You then see **Get my bill**; choose it to see the
+amount. Pay it in **Bills** (when online payment is offered) or at the clinic, then come back and choose **I have paid: enter the waiting room**.
+
 **3. Enter the waiting room.** When you see **Ready when you are**, go to a quiet, private place with good signal and choose **Enter the waiting
 room**. The clinic now knows you are there. The page updates by itself while you wait.
+
+**3a. Chat.** From the waiting room until the call ends you can write to your doctor in the **Chat** box under the page, for example if the video does
+not work. Messages stay readable afterwards. It is not for emergencies: call 911 or go to the nearest emergency room.
 
 **4. Join the call.** When the doctor starts, you see "… is ready". Choose **Join the video call** and allow your browser to use your camera and
 microphone. If video is not available, you see "Your doctor will call you" — keep your phone nearby; the doctor calls the number you gave.

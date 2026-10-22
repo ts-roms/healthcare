@@ -78,12 +78,16 @@ export interface CommunicationFilters {
   patient: string;
   facility: string;
   page: number;
+  pageSize: number;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TEMPLATE = /^[a-z0-9.-]{1,60}$/;
 export const MAX_DAYS = 92;
+/** Rows per page the log offers (the API allows up to 100). */
+export const PAGE_SIZES = [25, 50, 100] as const;
+export const DEFAULT_PAGE_SIZE = 50;
 
 function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
@@ -119,6 +123,7 @@ export function readCommunicationFilters(
     adjusted = true;
   }
   const page = Number.parseInt(one("page") ?? "1", 10);
+  const size = Number.parseInt(one("pageSize") ?? "", 10);
   const channel = one("channel") ?? "";
   const category = one("category") ?? "";
   const status = one("status") ?? "";
@@ -133,13 +138,14 @@ export function readCommunicationFilters(
       patient: pick("patient", UUID),
       facility: pick("facility", UUID),
       page: Number.isFinite(page) && page > 0 ? page : 1,
+      pageSize: (PAGE_SIZES as readonly number[]).includes(size) ? size : DEFAULT_PAGE_SIZE,
     },
     adjusted,
   };
 }
 
 /** The API query for the log (or its CSV export, without paging). */
-export function communicationApiQuery(filters: CommunicationFilters, pageSize = 50): Record<string, string | number | undefined> {
+export function communicationApiQuery(filters: CommunicationFilters, pageSize = filters.pageSize): Record<string, string | number | undefined> {
   return {
     from: filters.from,
     to: filters.to,
@@ -157,8 +163,12 @@ export function communicationApiQuery(filters: CommunicationFilters, pageSize = 
 /** The URL of the same search on another page (or, with `base`, of the CSV export). */
 export function communicationHref(filters: CommunicationFilters, page: number, base = "/communications"): string {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...filters, page: String(page) }))
-    if (value && !(key === "page" && (value === "1" || base !== "/communications"))) params.set(key, String(value));
+  for (const [key, value] of Object.entries({ ...filters, page: String(page) })) {
+    if (!value) continue;
+    if (key === "page" && (value === "1" || base !== "/communications")) continue;
+    if (key === "pageSize" && (value === DEFAULT_PAGE_SIZE || base !== "/communications")) continue;
+    params.set(key, String(value));
+  }
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }

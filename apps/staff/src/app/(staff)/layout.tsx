@@ -9,7 +9,7 @@ import { api } from "@/lib/api/client";
 import { COOKIES, STAFF_IDLE_MINUTES } from "@/lib/api/config";
 import { getFacilities, getSession } from "@/lib/api/session";
 import { loadManual } from "@/lib/manual-content";
-import type { StaffBadges } from "@/lib/api/types";
+import type { StaffBadges, StaffTourSetting } from "@/lib/api/types";
 import { isDisplayOnly } from "@/lib/queue-display";
 import { setRequestTimeZone } from "@/lib/time-zone";
 import { PasswordForm } from "./account/account-forms";
@@ -21,6 +21,16 @@ async function unreadNotices(): Promise<number> {
   } catch (error) {
     unstable_rethrow(error);
     return 0;
+  }
+}
+
+/** Whether the organization offers the guided tour (on unless an administrator switched it off); a failure here keeps it on. */
+async function tourOffered(): Promise<boolean> {
+  try {
+    return (await api<StaffTourSetting>("/organization/tour-setting")).enabled;
+  } catch (error) {
+    unstable_rethrow(error);
+    return true;
   }
 }
 
@@ -36,7 +46,14 @@ async function navigationBadges(): Promise<StaffBadges | null> {
 
 /** Every staff page renders inside the signed-in shell; the session and permissions come from the API. */
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
-  const [session, facilities, jar, unread, badges] = await Promise.all([getSession(), getFacilities(), cookies(), unreadNotices(), navigationBadges()]);
+  const [session, facilities, jar, unread, badges, tourEnabled] = await Promise.all([
+    getSession(),
+    getFacilities(),
+    cookies(),
+    unreadNotices(),
+    navigationBadges(),
+    tourOffered(),
+  ]);
   // A waiting-room display account holds nothing else: it only ever shows the display.
   if (isDisplayOnly(session.permissions)) redirect("/display/queue");
   const facilityId = jar.get(COOKIES.facility)?.value ?? null;
@@ -54,6 +71,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
       timeZone={timeZone}
       unreadNotices={unread}
       badges={badges}
+      tourEnabled={tourEnabled}
       manualChapters={manualChapters}
       manualSections={manualSections(manual.chapters)}
     >

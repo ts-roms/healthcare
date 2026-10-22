@@ -17,8 +17,8 @@ import { PageHeader, type Breadcrumb } from "./page-header";
  */
 
 const WIDTH = {
-  /** Lists, dashboards, records: the full working width. */
-  wide: "max-w-[90rem]",
+  /** Lists, dashboards, records, boards: the whole working width, no cap. */
+  wide: "max-w-none",
   /** Settings pages: a readable column beside the settings menu. */
   medium: "max-w-5xl",
   /** One short form. */
@@ -27,7 +27,11 @@ const WIDTH = {
 
 /** The page column: the redesign's width, padding and vertical rhythm. Wrap a page's content in it. */
 export function PageShell({ width = "wide", className, children }: { width?: keyof typeof WIDTH; className?: string; children: React.ReactNode }) {
-  return <div className={cn("mx-auto flex w-full flex-col gap-4 p-4 md:p-6", WIDTH[width], className)}>{children}</div>;
+  return (
+    <div className={cn("mx-auto flex w-full animate-in flex-col gap-4 p-4 duration-300 fade-in slide-in-from-bottom-1 md:p-6", WIDTH[width], className)}>
+      {children}
+    </div>
+  );
 }
 
 interface HeaderProps {
@@ -164,7 +168,7 @@ export function SettingsPage({
   explain,
   tabs,
   children,
-  width = "medium",
+  width = "wide",
 }: HeaderProps & { explain?: React.ReactNode; tabs?: React.ReactNode; children: React.ReactNode; width?: keyof typeof WIDTH }) {
   return (
     <PageShell width={width}>

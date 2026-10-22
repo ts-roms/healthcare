@@ -10,6 +10,8 @@ export interface BillableEncounter {
   patientId: string;
   facilityId: string;
   visitTypeCode: string | null;
+  /** The appointment the visit came from, if any (an online visit may already have been charged at booking). */
+  appointmentId: string | null;
   /** Local service date (YYYY-MM-DD, facility time). */
   serviceDate: string;
 }

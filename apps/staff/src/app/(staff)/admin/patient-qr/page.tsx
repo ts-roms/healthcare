@@ -17,7 +17,6 @@ export default async function PatientQrSettingsPage() {
       title="Patient QR codes"
       description="A QR code on the patient's card or wristband that staff scan to find the record."
       details={["It holds a key only, never health, contact or identity details."]}
-      width="narrow"
     >
       <p className="rounded-md border border-dashed p-3 text-meta text-muted-foreground">
         Scanning needs a signed-in member of staff who may search patients, and every scan is recorded. A code grants no access by itself, including to

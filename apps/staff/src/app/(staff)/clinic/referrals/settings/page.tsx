@@ -14,7 +14,7 @@ export default async function ReferralSettingsPage() {
   if (!can(session, "clinic.configure")) redirect("/clinic/referrals");
   const settings = await api<ReferralSettings>("/referrals/settings");
   return (
-    <StaffSettingsPage group="Clinical" title="Referral follow-up" description="For the whole organization. Changes are audited." width="narrow">
+    <StaffSettingsPage group="Clinical" title="Referral follow-up" description="For the whole organization. Changes are audited.">
       <Card>
         <CardHeader>
           <CardTitle>Overdue referrals</CardTitle>

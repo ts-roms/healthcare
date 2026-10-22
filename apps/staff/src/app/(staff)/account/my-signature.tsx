@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { hasEnoughInk, type SignatureStroke } from "@healthcare/domain";
-import { SignaturePad } from "@healthcare/ui/healthcare";
+import { clinicalDateTime, SignaturePad } from "@healthcare/ui/healthcare";
 import { Button, toast } from "@healthcare/ui/primitives";
 import type { MyPractitionerSignature } from "@/lib/api/types";
 import { drawMySignature, withdrawMySignature } from "./actions";
@@ -37,64 +37,94 @@ export function MySignature({ mine }: { mine: MyPractitionerSignature }) {
   const [strokes, setStrokes] = React.useState<SignatureStroke[]>([]);
   const [padKey, setPadKey] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
+  // With a saved signature the pad stays closed until "Update signature"; without one it is the way in.
+  const [updating, setUpdating] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
+  const showPad = !mine.signature || updating;
+  const closePad = () => {
+    setUpdating(false);
+    setStrokes([]);
+    setPadKey((k) => k + 1);
+    setError(null);
+  };
   return (
     <div className="flex flex-col gap-3">
-      {mine.signature ? <SignaturePreview strokes={mine.signature.strokes} /> : <p className="text-muted-foreground">You have not drawn a signature.</p>}
+      {mine.signature ? (
+        <>
+          <SignaturePreview strokes={mine.signature.strokes} />
+          <p className="text-meta text-muted-foreground">Saved {clinicalDateTime(mine.signature.drawnAt)}</p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">You have not drawn a signature.</p>
+      )}
       <p className="text-muted-foreground">
         {mine.enabled
-          ? "Your clinic prints it on the medical certificates and referral letters you issue."
+          ? "Your clinic prints it on the medical certificates and referral letters you issue. Documents already issued keep the signature they printed."
           : "Your clinic does not print signatures on certificates and letters yet; an administrator can turn it on."}
       </p>
-      <div className="flex flex-col gap-1.5">
-        <span className="font-medium">{mine.signature ? "Draw a new one" : "Draw your signature"}</span>
-        <SignaturePad key={padKey} id="my-signature-pad" onChange={setStrokes} disabled={pending} />
-      </div>
+      {showPad ? (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-medium">{mine.signature ? "Draw your new signature" : "Draw your signature"}</span>
+          <SignaturePad key={padKey} id="my-signature-pad" onChange={setStrokes} disabled={pending} />
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className="text-danger-foreground">
           {error}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={pending || !hasEnoughInk(strokes)}
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              const result = await drawMySignature(strokes);
-              if (result.ok) {
-                toast.success("Signature saved");
-                setStrokes([]);
-                setPadKey((k) => k + 1);
-                router.refresh();
-              } else setError(result.message);
-            })
-          }
-        >
-          Save signature
-        </Button>
-        {mine.signature ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                setError(null);
-                const result = await withdrawMySignature();
-                if (result.ok) {
-                  toast.success("Signature removed");
-                  router.refresh();
-                } else setError(result.message);
-              })
-            }
-          >
-            Remove it
-          </Button>
-        ) : null}
+        {showPad ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !hasEnoughInk(strokes)}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const result = await drawMySignature(strokes);
+                  if (result.ok) {
+                    toast.success(mine.signature ? "Signature updated" : "Signature saved");
+                    closePad();
+                    router.refresh();
+                  } else setError(result.message);
+                })
+              }
+            >
+              {mine.signature ? "Save new signature" : "Save signature"}
+            </Button>
+            {mine.signature ? (
+              <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={closePad}>
+                Cancel
+              </Button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Button type="button" size="sm" onClick={() => setUpdating(true)}>
+              Update signature
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const result = await withdrawMySignature();
+                  if (result.ok) {
+                    toast.success("Signature removed");
+                    router.refresh();
+                  } else setError(result.message);
+                })
+              }
+            >
+              Remove it
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

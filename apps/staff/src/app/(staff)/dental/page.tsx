@@ -33,7 +33,7 @@ export default async function DentalPage({ searchParams }: { searchParams: Promi
   const { date: shown, visits } = await api<DentalVisits>("/dental/visits", { query: { date: day } });
   return (
     <ModulePage title="Dental" description={`${facility.name} · ${day ? clinicalDate(shown) : "today"} · dentists' consultations`} actions={actions}>
-      <Card className="max-w-5xl">
+      <Card>
         {visits.length === 0 ? (
           <p className="p-4 text-body text-muted-foreground">
             No dental consultations yet. Start one from the queue (Consultations) or from a patient&apos;s dental record.

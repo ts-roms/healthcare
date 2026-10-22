@@ -11,7 +11,12 @@ import { PROFESSIONS, ROOM_TYPES } from "./labels";
 
 const PATH = "/appointments/schedules";
 const done = <T>(result: ActionResult<T>) => {
-  if (result.ok) revalidatePath(PATH);
+  if (result.ok) {
+    revalidatePath(PATH);
+    // The doctors' list and profile show the same weekly hours (and can set them in place).
+    revalidatePath("/doctors");
+    revalidatePath("/doctors/[id]", "page");
+  }
   return result;
 };
 const firstIssue = (error: z.ZodError) => error.issues[0]?.message ?? "Check the details.";

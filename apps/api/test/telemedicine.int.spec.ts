@@ -1,4 +1,16 @@
-import { as, auditRows, createClinician, createStaff, createTenant, createTestApp, drainEvents, login, type Tenant, type TestContext } from "./harness";
+import {
+  as,
+  auditRows,
+  createClinician,
+  createStaff,
+  createTenant,
+  createTestApp,
+  drainEvents,
+  login,
+  manilaDate,
+  type Tenant,
+  type TestContext,
+} from "./harness";
 
 const PATIENT_PASSWORD = "Maaraw-na-umaga-2026";
 
@@ -142,6 +154,14 @@ describe("telemedicine", () => {
       await portal(patient.token).get(`/${inPerson}`).expect(404);
     });
 
+    it("reports whether video is set up and answering, to staff who can read online consultations", async () => {
+      // The test configuration names a video server that does not exist: set up, but not reachable.
+      const status = await staff(nurse).get("/api/v1/telemedicine/consultations/video-status").expect(200);
+      expect(status.body).toMatchObject({ configured: true, reachable: false, detail: expect.any(String) });
+      expect(JSON.stringify(status.body)).not.toContain("test-key");
+      expect(JSON.stringify(status.body)).not.toContain("video.test.invalid");
+    });
+
     it("requires the questionnaire, with the acknowledgement, before the waiting room", async () => {
       await portal(patient.token)
         .post(`/${appointmentId}/waiting-room`)
@@ -281,5 +301,177 @@ describe("telemedicine", () => {
     await portal(other.token).get(`/${later}`).expect(404);
     await portal(other.token).put(`/${later}/questionnaire`).send(answers).expect(404);
     await portal(doctor).get("").expect(401);
+  });
+
+  it("keeps a text chat between patient and clinician from the waiting room until the call ends, append-only", async () => {
+    const patient = await portalPatient("Ines", "ines@tele.ph");
+    const appointmentId = await book(patient.patientId, onlineType, 26, otherPractitionerId);
+    const chat = `/${appointmentId}/messages`;
+    // Not open before the patient is in the waiting room.
+    await portal(patient.token)
+      .post(chat)
+      .send({ body: "Hello" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("chat_closed"));
+    expect((await portal(patient.token).get(chat).expect(200)).body).toEqual({ messages: [], open: false });
+
+    await portal(patient.token).put(`/${appointmentId}/questionnaire`).send(answers).expect(200);
+    await portal(patient.token).post(`/${appointmentId}/waiting-room`).expect(200);
+
+    const first = await portal(patient.token).post(chat).send({ body: "  My video is not working  " }).expect(201);
+    expect(first.body).toMatchObject({ sender: "patient", body: "My video is not working" });
+    await portal(patient.token).post(chat).send({ body: "   " }).expect(400);
+    await portal(patient.token)
+      .post(chat)
+      .send({ body: "x".repeat(1001) })
+      .expect(400);
+
+    // The clinician reads it (any staff who can read online consultations) and answers (only who conducts them).
+    const url = `/api/v1/telemedicine/consultations/${appointmentId}/messages`;
+    expect((await staff(nurse).get(url).expect(200)).body.messages).toEqual([expect.objectContaining({ sender: "patient", body: "My video is not working" })]);
+    await staff(nurse).post(url).send({ body: "I cannot answer" }).expect(403);
+    const reply = await staff(doctor).post(url).send({ body: "I will call you on 0917 123 4567" }).expect(201);
+    expect(reply.body).toMatchObject({ sender: "staff", name: expect.any(String) });
+
+    // Only what is new, in order.
+    const newer = await portal(patient.token).get(`${chat}?after=${first.body.id}`).expect(200);
+    expect(newer.body.messages.map((m: { body: string }) => m.body)).toEqual(["I will call you on 0917 123 4567"]);
+    expect(newer.body.open).toBe(true);
+
+    // The patient cannot read another patient's chat; messages are never edited or removed.
+    const other = await portalPatient("Olga", "olga@tele.ph");
+    await portal(other.token).get(chat).expect(404);
+    await expect(ctx.pool.query("DELETE FROM telemedicine_message")).rejects.toThrow();
+    await expect(ctx.pool.query("UPDATE telemedicine_message SET body = 'changed'")).rejects.toThrow();
+
+    // Closed once the call ends, still readable.
+    await staff(doctor).post(`/api/v1/telemedicine/consultations/${appointmentId}/start`).expect(200);
+    await staff(doctor).post(`/api/v1/telemedicine/consultations/${appointmentId}/end`).send({ patientInstructions: "Rest." }).expect(200);
+    await portal(patient.token)
+      .post(chat)
+      .send({ body: "Thank you" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("chat_closed"));
+    const after = await staff(doctor).get(url).expect(200);
+    expect(after.body).toMatchObject({ open: false, messages: [expect.anything(), expect.anything()] });
+
+    // Sending is audited without the text.
+    const audits = await auditRows(ctx.pool, "action IN ('portal.teleconsult-message', 'telemedicine.message-send')");
+    expect(audits).toHaveLength(2);
+    expect(JSON.stringify(audits)).not.toContain("video is not working");
+  });
+
+  it("can require payment before the waiting room: the visit is charged and invoiced once, and opens when it is paid", async () => {
+    const service = (
+      await staff(admin)
+        .post("/api/v1/billing/services")
+        .send({
+          code: "online-fee",
+          name: "Online consultation fee",
+          category: "consultation",
+          sourceKind: "visit_type",
+          sourceCode: "online",
+          unitPrice: 30_000,
+          effectiveFrom: manilaDate(-30),
+        })
+        .expect(201)
+    ).body;
+    expect(service.id).toBeDefined();
+    const setting = (url: string) => staff(admin).get(url);
+    expect((await setting("/api/v1/telemedicine/settings").expect(200)).body).toMatchObject({ paymentRequired: false, version: 0 });
+    await ctx.http().put("/api/v1/telemedicine/settings").set(as(nurse, tenant.facilityId)).send({ paymentRequired: true, version: 0 }).expect(403);
+    await ctx.http().put("/api/v1/telemedicine/settings").set(as(admin, tenant.facilityId)).send({ paymentRequired: true, version: 0 }).expect(200);
+    await ctx.http().put("/api/v1/telemedicine/settings").set(as(admin, tenant.facilityId)).send({ paymentRequired: true, version: 0 }).expect(409);
+
+    const patient = await portalPatient("Pia", "pia@tele.ph");
+    // A third practitioner, so the waiting room is open (within 30 minutes of the start) without overlapping another booking.
+    const { practitionerId: thirdPractitionerId } = await createClinician(ctx, tenant, "cruz@tele.ph", ["physician"]);
+    const appointmentId = await book(patient.patientId, onlineType, 10, thirdPractitionerId);
+    await portal(patient.token).put(`/${appointmentId}/questionnaire`).send(answers).expect(200);
+    // Reading never charges.
+    expect((await portal(patient.token).get(`/${appointmentId}`).expect(200)).body.payment).toMatchObject({
+      required: true,
+      state: "not_required",
+      invoiceId: null,
+    });
+
+    // Asking for the waiting room first charges and invoices the visit, and is refused until it is paid.
+    const refused = await portal(patient.token).post(`/${appointmentId}/waiting-room`).expect(422);
+    expect(refused.body.error.code).toBe("payment_required");
+    const unpaid = (await portal(patient.token).get(`/${appointmentId}`).expect(200)).body.payment;
+    expect(unpaid).toMatchObject({ required: true, state: "unpaid", amount: 30_000, balance: 30_000, invoiceId: expect.any(String) });
+    // Asking again, or asking to pay, finds the same invoice (once per appointment).
+    const again = (await portal(patient.token).post(`/${appointmentId}/payment`).expect(200)).body;
+    expect(again).toMatchObject({ invoiceId: unpaid.invoiceId, state: "unpaid" });
+    const charges = await ctx.pool.query("SELECT count(*)::int AS n FROM billing_charge WHERE source_type = 'appointment' AND source_id = $1", [appointmentId]);
+    expect(charges.rows[0].n).toBe(1);
+    const invoice = await ctx.pool.query("SELECT status, created_by, created_via, patient_total FROM billing_invoice WHERE id = $1", [unpaid.invoiceId]);
+    expect(invoice.rows[0]).toMatchObject({ status: "issued", created_by: null, created_via: "system" });
+    expect(Number(invoice.rows[0].patient_total)).toBe(30_000);
+
+    // The cashier takes the payment at the counter; the waiting room opens.
+    await staff(admin)
+      .post(`/api/v1/billing/invoices/${unpaid.invoiceId}/payments`)
+      .send({ amount: 30_000, method: "cash", idempotencyKey: "tele-prepay-0001" })
+      .expect((r) => expect([200, 201]).toContain(r.status));
+    expect((await portal(patient.token).get(`/${appointmentId}`).expect(200)).body.payment).toMatchObject({ state: "paid", balance: 0 });
+    await portal(patient.token).post(`/${appointmentId}/waiting-room`).expect(200);
+    expect((await staff(doctor).get(`/api/v1/telemedicine/consultations/${appointmentId}`).expect(200)).body.payment).toMatchObject({
+      required: true,
+      state: "paid",
+    });
+
+    // Turned off again, nothing is asked for.
+    await ctx.http().put("/api/v1/telemedicine/settings").set(as(admin, tenant.facilityId)).send({ paymentRequired: false, version: 1 }).expect(200);
+    await portal(patient.token).post(`/${appointmentId}/payment`).expect(422);
+  });
+
+  // Keep last: once the organization has its own wording, every questionnaire must confirm it.
+  it("asks for the organization's own acknowledgement wording once it has one, and records which version the patient saw", async () => {
+    const patient = await portalPatient("Nena", "nena@tele.ph");
+    const appointmentId = await book(patient.patientId, onlineType, 8 * 60);
+    // Before any wording: the platform's plain statement; the staff view says so.
+    expect((await portal(patient.token).get(`/${appointmentId}`).expect(200)).body.acknowledgement).toBeNull();
+
+    const published = await ctx
+      .http()
+      .post("/api/v1/consent-texts")
+      .set(as(admin, tenant.facilityId))
+      .send({
+        consentType: "telemedicine",
+        offered: true,
+        title: "Online consultation",
+        body: "What an online consultation can and cannot do, in the clinic's words.",
+        acknowledgement: "I have read how online consultations work at this clinic.",
+      })
+      .expect(201);
+
+    const shown = (await portal(patient.token).get(`/${appointmentId}`).expect(200)).body.acknowledgement;
+    expect(shown).toMatchObject({
+      id: published.body.id,
+      version: 1,
+      title: "Online consultation",
+      statement: "I have read how online consultations work at this clinic.",
+    });
+
+    // Confirming without the version offered now (or an older one) is refused.
+    await portal(patient.token)
+      .put(`/${appointmentId}/questionnaire`)
+      .send(answers)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("acknowledgement_wording_changed"));
+    await portal(patient.token)
+      .put(`/${appointmentId}/questionnaire`)
+      .send({ ...answers, acknowledgementTextId: "00000000-0000-4000-8000-000000000000" })
+      .expect(422);
+    await portal(patient.token)
+      .put(`/${appointmentId}/questionnaire`)
+      .send({ ...answers, acknowledgementTextId: published.body.id })
+      .expect(200);
+
+    const detail = await staff(doctor).get(`/api/v1/telemedicine/consultations/${appointmentId}`).expect(200);
+    expect(detail.body.acknowledgement).toEqual({ source: "organization", version: 1, title: "Online consultation" });
+    const stored = await ctx.pool.query("SELECT acknowledgement_text_id FROM telemedicine_session WHERE appointment_id = $1", [appointmentId]);
+    expect(stored.rows[0].acknowledgement_text_id).toBe(published.body.id);
   });
 });

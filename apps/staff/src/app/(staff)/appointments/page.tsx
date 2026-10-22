@@ -66,7 +66,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/appointments/visit-types">
-              <GlobeIcon /> Online booking
+              <GlobeIcon /> Booking settings
             </Link>
           </Button>
           {can(session, "appointment.manage") && can(session, "patient.search") ? (

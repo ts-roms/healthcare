@@ -3,14 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  ActivityIcon,
   ArrowRightIcon,
-  BellRingIcon,
   ClockIcon,
   MaximizeIcon,
+  MinimizeIcon,
   Play,
   RadioIcon,
   RefreshCwIcon,
-  UsersIcon,
+  SettingsIcon,
   Volume2Icon,
   VolumeXIcon,
   WifiOffIcon,
@@ -60,6 +61,7 @@ export function DisplayBoard({
   const sound = useDisplaySound(callKey, current ?? null);
   const highlighted = useCallHighlight(callKey);
   useWakeLock();
+  const fullscreen = React.useSyncExternalStore(subscribeToFullscreen, isFullscreen, () => false);
 
   // The clock moves on the minute's scale, not every second (the queue's own updates refresh it too).
   React.useEffect(() => {
@@ -72,85 +74,73 @@ export function DisplayBoard({
   const recent = earlier.slice(0, RECENT_CALLS_SHOWN);
 
   return (
-    <div className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-7 overflow-hidden px-12 py-10">
+    <div className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-6 overflow-hidden px-10 py-8">
       <header className="flex items-center justify-between gap-6">
-        <div className="min-w-0">
-          <h1 className="text-qd-ink truncate text-[clamp(28px,2.3vw,44px)] leading-tight font-semibold">{facilityName}</h1>
-          <p className="text-qd-muted text-[clamp(16px,1.15vw,22px)]">{today}</p>
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="bg-qd-accent grid size-[clamp(40px,3vw,56px)] shrink-0 place-items-center rounded-xl text-white" aria-hidden>
+            <ActivityIcon className="size-[55%]" />
+          </span>
+          <h1 className="text-qd-ink truncate text-[clamp(24px,2.1vw,40px)] leading-tight font-semibold">{facilityName}</h1>
         </div>
-        <div className="flex shrink-0 items-center gap-6">
-          <div className="flex items-center gap-2">
-            <SoundMenu sound={sound} />
-            <Button
-              variant="outline"
-              className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
-              aria-label="Full screen"
-              onClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}
-            >
-              <MaximizeIcon aria-hidden />
-            </Button>
-            {canLeave ? (
-              <Button asChild variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5">
-                <Link href="/queue">Back to the queue</Link>
-              </Button>
-            ) : null}
-          </div>
-          <div className="border-qd-divider border-l pl-6 text-right">
-            <p className="text-qd-ink text-[clamp(32px,2.7vw,52px)] leading-none font-semibold tabular-nums">{time(now)}</p>
-            <ConnectionStatus status={status} />
-          </div>
+        <div className="shrink-0 text-right">
+          <p className="text-qd-ink text-[clamp(32px,2.7vw,52px)] leading-none font-semibold tabular-nums">{time(now)}</p>
+          <p className="text-qd-muted mt-1 text-[clamp(14px,1.05vw,20px)]">{today}</p>
         </div>
       </header>
 
       {display === null ? (
-        <main className="border-qd-border bg-qd-card flex flex-1 items-center justify-center rounded-xl border-2 p-8 text-center">
+        <main className="border-qd-border bg-qd-card flex flex-1 items-center justify-center rounded-3xl border-2 p-8 text-center">
           <p className="text-qd-muted text-[clamp(22px,2vw,36px)]">Reconnecting… This screen will update by itself.</p>
         </main>
       ) : (
-        <main className="grid min-h-0 flex-1 gap-7 lg:grid-cols-[1.7fr_1fr]">
+        <main className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2fr_1fr]">
           <section
             aria-labelledby="now-serving"
-            className={cn("bg-qd-card flex min-h-0 flex-col rounded-xl border-2 p-10", highlighted ? "qd-call-highlight border-qd-accent" : "border-qd-border")}
+            className={cn(
+              "bg-qd-accent relative flex min-h-0 flex-col justify-center gap-[2vh] overflow-hidden rounded-3xl border-2 border-transparent p-[clamp(32px,4vw,72px)] text-white",
+              highlighted && "qd-call-highlight border-white/70",
+            )}
           >
-            <h2 id="now-serving" className="text-qd-muted flex items-center gap-3 text-[clamp(20px,1.6vw,30px)] font-semibold tracking-wide uppercase">
-              <BellRingIcon className="size-[1.1em]" aria-hidden /> {current ? "Now serving" : "First number to be called"}
+            <span className="pointer-events-none absolute -top-[18%] -right-[8%] size-[45%] rounded-full bg-white/10" aria-hidden />
+            <h2 id="now-serving" className="relative flex items-center gap-3 text-[clamp(18px,1.5vw,28px)] font-semibold tracking-widest uppercase">
+              <span className="size-[0.7em] rounded-full bg-white" aria-hidden />
+              {current ? "Now calling · Tinatawag na" : "First number to be called"}
             </h2>
             {current ? (
               <>
-                <p className="text-qd-accent flex-1 content-center text-[clamp(150px,15.6vw,300px)] leading-none font-semibold tracking-tighter tabular-nums">
-                  {current.ticket}
+                <p className="relative text-[clamp(120px,14vw,280px)] leading-none font-semibold tracking-tighter tabular-nums">{current.ticket}</p>
+                <p className="relative flex items-center gap-4 text-[clamp(40px,4.4vw,88px)] leading-tight font-semibold break-words">
+                  <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
+                  {current.calledTo}
                 </p>
-                <div className="border-qd-divider flex items-end justify-between gap-6 border-t pt-6">
-                  <div className="min-w-0">
-                    <p className="text-qd-muted text-[clamp(18px,1.6vw,30px)]">Please proceed to</p>
-                    <p className="text-qd-accent flex items-center gap-4 text-[clamp(48px,5vw,96px)] leading-tight font-semibold break-words">
-                      <ArrowRightIcon className="size-[0.8em] shrink-0" aria-hidden />
-                      {current.calledTo}
-                    </p>
-                  </div>
-                  <p className="text-qd-muted shrink-0 pb-2 text-[clamp(16px,1.15vw,22px)] tabular-nums">Called at {time(current.calledAt)}</p>
-                </div>
+                <p className="relative text-[clamp(16px,1.4vw,26px)] text-white/85">
+                  Please proceed to the room. Keep your ticket and ID ready. <span className="tabular-nums">Called at {time(current.calledAt)}.</span>
+                </p>
               </>
             ) : (
-              <div className="flex flex-1 flex-col justify-center gap-4">
-                <p className="text-qd-accent text-[clamp(56px,6vw,120px)] leading-tight font-semibold">Please have a seat</p>
-                <p className="text-qd-muted max-w-[28ch] text-[clamp(22px,2vw,36px)] leading-snug">Your number and counter will appear here, with a chime.</p>
+              <div className="relative flex flex-col gap-4">
+                <p className="text-[clamp(56px,6vw,120px)] leading-tight font-semibold">Please have a seat</p>
+                <p className="max-w-[28ch] text-[clamp(22px,2vw,36px)] leading-snug text-white/85">Your number and place will appear here, with a chime.</p>
               </div>
             )}
           </section>
 
-          <aside className="flex min-h-0 flex-col gap-7">
-            <section aria-labelledby="recently-called" className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col rounded-xl border-2 p-8">
-              <h2 id="recently-called" className="text-qd-ink text-[clamp(20px,1.6vw,30px)] font-semibold">
-                Recently called
+          <aside className="flex min-h-0 flex-col gap-6">
+            <section
+              aria-labelledby="recently-called"
+              className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col rounded-3xl border-2 p-[clamp(20px,2vw,36px)]"
+            >
+              <h2 id="recently-called" className="text-qd-muted text-[clamp(14px,1.1vw,20px)] font-semibold tracking-widest uppercase">
+                Earlier calls
               </h2>
               {recent.length ? (
-                <ul className="divide-qd-divider mt-4 divide-y">
-                  {recent.map((call) => (
-                    <li key={`${call.ticket}-${call.calledAt}`} className="grid grid-cols-[auto_1fr_auto] items-baseline gap-5 py-3">
-                      <span className="text-qd-ink text-[clamp(24px,1.8vw,34px)] font-semibold tabular-nums">{call.ticket}</span>
-                      <span className="truncate text-[clamp(16px,1.25vw,24px)]">{call.calledTo}</span>
-                      <span className="text-qd-muted text-[clamp(14px,1.05vw,20px)] tabular-nums">{time(call.calledAt)}</span>
+                <ul className="divide-qd-divider mt-3 divide-y">
+                  {recent.map((call, i) => (
+                    <li key={`${call.ticket}-${call.calledAt}`} className="flex items-baseline justify-between gap-5 py-3">
+                      <span className={cn("text-[clamp(24px,2vw,38px)] font-semibold tabular-nums", i === 0 ? "text-qd-accent" : "text-qd-ink")}>
+                        {call.ticket}
+                      </span>
+                      <span className="truncate text-[clamp(16px,1.3vw,26px)]">{call.calledTo}</span>
                     </li>
                   ))}
                 </ul>
@@ -161,17 +151,53 @@ export function DisplayBoard({
                 </div>
               )}
             </section>
-            <section aria-label="Waiting" className="border-qd-border bg-qd-card flex items-center gap-5 rounded-xl border-2 p-8">
-              <UsersIcon className="text-qd-muted size-12 shrink-0" aria-hidden />
-              <p className="text-qd-muted flex items-baseline gap-3 text-[clamp(18px,1.6vw,30px)]">
-                <span className="text-qd-ink text-[clamp(48px,3.8vw,72px)] leading-none font-semibold tabular-nums">{display.waiting}</span> waiting
+            <section aria-label="Waiting" className="border-qd-border bg-qd-card flex items-center gap-5 rounded-3xl border-2 p-[clamp(20px,2vw,36px)]">
+              <span className="text-qd-accent text-[clamp(56px,4.6vw,88px)] leading-none font-semibold tabular-nums">{display.waiting}</span>
+              <p className="text-qd-muted text-[clamp(16px,1.3vw,26px)] leading-snug">
+                {display.waiting === 1 ? "person waiting." : "people waiting."}
+                <br />
+                Please have a seat. Your number will appear here with a chime.
               </p>
             </section>
           </aside>
         </main>
       )}
 
-      <footer className="text-qd-muted text-center text-[clamp(16px,1.25vw,24px)]">Please keep your ticket and ID ready.</footer>
+      <footer className="flex items-center justify-between gap-6">
+        <div className="min-w-0">
+          <p className="text-qd-muted flex items-center gap-2 text-[clamp(14px,1.15vw,22px)]">
+            <Volume2Icon className="size-[1.1em] shrink-0" aria-hidden />
+            {spokenNote(sound)}
+          </p>
+          <ConnectionStatus status={status} />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canLeave ? (
+            <Button asChild variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5">
+              <Link href="/queue">Back to the queue</Link>
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
+            aria-label={sound.on ? "Turn sound off" : "Turn sound on"}
+            aria-pressed={sound.on}
+            onClick={sound.toggle}
+          >
+            {sound.on ? <Volume2Icon aria-hidden /> : <VolumeXIcon aria-hidden />}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0"
+            aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+            aria-pressed={fullscreen}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? <MinimizeIcon aria-hidden /> : <MaximizeIcon aria-hidden />}
+          </Button>
+          <SettingsMenu sound={sound} />
+        </div>
+      </footer>
 
       {/* New calls are announced to screen readers; the visual call is not repeated here. */}
       <p className="sr-only" aria-live="assertive" aria-atomic="true">
@@ -181,13 +207,31 @@ export function DisplayBoard({
   );
 }
 
+/** The footer's one line about what the screen does when a number is called. */
+function spokenNote(sound: DisplaySound): string {
+  if (!sound.on) return "Sound is off. Tap the speaker to hear calls.";
+  switch (sound.settings.voice) {
+    case "en":
+      return "Calls are read out in English.";
+    case "fil":
+      return "Calls are read out in Filipino.";
+    case "both":
+      return "Calls are read out in English and Filipino.";
+    default:
+      return "A chime sounds when a number is called.";
+  }
+}
+
 /** Connection text with its own icon (a dropped feed never changes only a colour). */
 function ConnectionStatus({ status }: { status: LiveStatus }) {
   const Icon = status === "live" ? RadioIcon : status === "connecting" ? RefreshCwIcon : WifiOffIcon;
   return (
     <p
       role="status"
-      className={cn("mt-1 inline-flex items-center gap-2 text-[clamp(14px,1.05vw,20px)] font-medium", status === "live" ? "text-qd-live-text" : "text-qd-ink")}
+      className={cn(
+        "mt-0.5 inline-flex items-center gap-2 text-[clamp(12px,0.95vw,18px)] font-medium",
+        status === "live" ? "text-qd-live-text" : "text-qd-ink",
+      )}
     >
       {status === "live" ? <span className="bg-qd-live-dot size-2.5 rounded-full" aria-hidden /> : null}
       <Icon className={cn("size-[1em]", status === "connecting" && "motion-safe:animate-spin")} aria-hidden />
@@ -222,16 +266,16 @@ interface DisplaySound {
   test: () => void;
 }
 
-/** The sound controls: on/off, how loud, whether the call is read out, and a test of what the screen will do. */
-function SoundMenu({ sound }: { sound: DisplaySound }) {
+/** The settings: a gear in the footer that opens sound on/off, volume, whether the call is read out, and a test of what the screen will do. */
+function SettingsMenu({ sound }: { sound: DisplaySound }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="border-qd-border bg-qd-card text-qd-ink h-11 rounded-full px-5" aria-pressed={sound.on}>
-          {sound.on ? <Volume2Icon /> : <VolumeXIcon />} {sound.on ? "Sound on" : "Sound off"}
+        <Button variant="outline" className="border-qd-border bg-qd-card text-qd-ink size-11 rounded-full p-0" aria-label="Settings">
+          <SettingsIcon aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 space-y-4">
+      <PopoverContent align="end" side="top" className="w-80 space-y-4">
         <div className="space-y-1">
           <p className="text-body font-medium">Sound</p>
           <p className="text-meta text-muted-foreground">A chime when a ticket is called. Browsers play sound only after a click on this screen.</p>
@@ -381,6 +425,21 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
     setVoice: (voice) => save({ ...latest.current.settings, voice }),
     test: () => play(latest.current.current ?? { ticket: "A-001", calledTo: "Room 1" }),
   };
+}
+
+// ---- full screen, as the browser reports it (Esc or the button can end it) ---------------------------------------------------
+
+function subscribeToFullscreen(listener: () => void): () => void {
+  document.addEventListener("fullscreenchange", listener);
+  return () => document.removeEventListener("fullscreenchange", listener);
+}
+
+const isFullscreen = () => document.fullscreenElement !== null;
+
+/** Enters full screen, or leaves it when already there. */
+function toggleFullscreen(): void {
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  else void document.documentElement.requestFullscreen?.().catch(() => undefined);
 }
 
 /** Keeps the screen from sleeping while the display is shown (where the browser supports it). */

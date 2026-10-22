@@ -270,3 +270,25 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 }
+
+/* Motion: a skeleton's shimmer. Entrance animations come from tw-animate-css; all of it stops for people who ask for less motion. */
+@theme {
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="skeleton"] {
+    animation: none;
+  }
+  .animate-in {
+    animation-duration: 1ms;
+  }
+}

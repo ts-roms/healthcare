@@ -3,9 +3,10 @@ import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
-import type { MyPractitionerSignature } from "@/lib/api/types";
+import type { MyPractitionerSignature, StaffTourSetting } from "@/lib/api/types";
 import { PasswordForm, RecoveryCodesSettings, TwoStepSettings } from "./account-forms";
 import { MySignature } from "./my-signature";
+import { TourSetting } from "./tour-setting";
 
 export const metadata = { title: "My account" };
 
@@ -14,6 +15,9 @@ export default async function AccountPage() {
   const session = await getSession();
   // Practitioners draw their own signature for the certificates and letters they issue.
   const signature = can(session, "encounter.read") ? await api<MyPractitionerSignature>("/me/practitioner-signature").catch(() => null) : null;
+  const tourOffered = await api<StaffTourSetting>("/organization/tour-setting")
+    .then((s) => s.enabled)
+    .catch(() => true);
   return (
     <ModulePage title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`}>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -60,6 +64,7 @@ export default async function AccountPage() {
             </CardContent>
           </Card>
         ) : null}
+        <TourSetting offered={tourOffered} permissions={session.permissions} />
       </div>
     </ModulePage>
   );

@@ -53,8 +53,8 @@ export function SettingsFrame({ groups, pathname, children }: { groups: Settings
           Overview
         </Link>
         {groups.map((group) => (
-          <section key={group.label} aria-label={group.label} className="mb-3">
-            <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase" aria-hidden>
+          <section key={group.label} aria-label={group.label} className="mb-4">
+            <p className="mb-1.5 rounded-md bg-primary px-2 py-1.5 text-meta font-bold tracking-wider text-primary-foreground uppercase" aria-hidden>
               {group.label}
             </p>
             <ul className="flex flex-col gap-0.5">

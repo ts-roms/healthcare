@@ -7,3 +7,5 @@ export * from "./lib/compliance/compliance-review.service";
 export * from "./lib/privacy/privacy.schema";
 export * from "./lib/privacy/privacy.rules";
 export * from "./lib/privacy/privacy-incident.service";
+export * from "./lib/tour/tour.schema";
+export * from "./lib/tour/tour-setting.service";

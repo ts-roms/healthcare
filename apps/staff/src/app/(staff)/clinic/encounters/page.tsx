@@ -35,7 +35,7 @@ export default async function EncountersPage() {
   const canStart = can(session, "encounter.write");
   return (
     <ModulePage title="Consultations" description={`${facility.name} · today`}>
-      <Card className="max-w-4xl">
+      <Card>
         {shown.length === 0 ? <p className="p-4 text-body text-muted-foreground">No patients are ready for a consultation yet.</p> : null}
         <ul className="divide-y">
           {shown.map((v) => (

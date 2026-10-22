@@ -1,8 +1,14 @@
 import { AlertOctagonIcon, PhoneIcon } from "lucide-react";
-import type { TelemedicineConsultation } from "@/lib/api/types";
+import type { TelemedicineAcknowledgement, TelemedicineConsultation } from "@/lib/api/types";
 
 /** The patient's pre-consult answers, red flags first. Their own words: not a triage decision. */
-export function QuestionnaireSummary({ session }: { session: TelemedicineConsultation["session"] }) {
+export function QuestionnaireSummary({
+  session,
+  acknowledgement,
+}: {
+  session: TelemedicineConsultation["session"];
+  acknowledgement?: TelemedicineAcknowledgement | null;
+}) {
   const q = session.questionnaire;
   if (!q) return <p className="text-table text-muted-foreground">The patient has not answered the pre-consult questions yet.</p>;
   return (
@@ -54,7 +60,17 @@ export function QuestionnaireSummary({ session }: { session: TelemedicineConsult
           </a>
         </dd>
       </dl>
-      {session.consentAcknowledgedAt ? <p className="text-meta text-muted-foreground">The patient acknowledged how online consultations work.</p> : null}
+      {session.consentAcknowledgedAt ? (
+        <p className="text-meta text-muted-foreground">
+          The patient acknowledged how online consultations work
+          {acknowledgement?.source === "organization"
+            ? ` (your clinic's wording${acknowledgement.title ? `, "${acknowledgement.title}"` : ""}, version ${acknowledgement.version ?? "?"})`
+            : acknowledgement?.source === "platform"
+              ? " (the platform's plain statement; your clinic has not written its own wording)"
+              : ""}
+          .
+        </p>
+      ) : null}
     </div>
   );
 }

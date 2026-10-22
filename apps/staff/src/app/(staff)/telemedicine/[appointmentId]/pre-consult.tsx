@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ClockIcon, VideoIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, toast } from "@healthcare/ui/primitives";
+import { ConsultChatPanel } from "@/components/consult-chat-panel";
 import { QuestionnaireSummary } from "@/components/questionnaire-summary";
 import type { TelemedicineConsultation } from "@/lib/api/types";
 import { sessionLabel } from "@/lib/telemedicine-mapping";
@@ -31,7 +32,7 @@ export function PreConsult({ consultation, canConduct }: { consultation: Telemed
           <CardTitle>Pre-consult answers</CardTitle>
         </CardHeader>
         <CardContent>
-          <QuestionnaireSummary session={session} />
+          <QuestionnaireSummary session={session} acknowledgement={consultation.acknowledgement} />
         </CardContent>
       </Card>
       <Card>
@@ -45,6 +46,20 @@ export function PreConsult({ consultation, canConduct }: { consultation: Telemed
           <Badge variant={waiting ? "warning" : "neutral"} className="self-start">
             <ClockIcon aria-hidden /> {sessionLabel(session)}
           </Badge>
+          {consultation.payment?.required ? (
+            <p>
+              Payment before the call:{" "}
+              <strong>{consultation.payment.state === "paid" ? "paid" : consultation.payment.state === "unpaid" ? "not paid yet" : "not asked yet"}</strong>
+              {consultation.payment.state === "unpaid" && consultation.payment.invoiceId ? (
+                <>
+                  {" · "}
+                  <a href={`/billing/invoices/${consultation.payment.invoiceId}`} className="text-primary hover:underline">
+                    open the invoice
+                  </a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
           {session.status === "scheduled" ? <p className="text-muted-foreground">Start becomes available when the patient enters the waiting room.</p> : null}
           {session.status === "escalated" || session.status === "ended" ? <p className="text-muted-foreground">This consultation is closed.</p> : null}
           {canConduct && waiting ? (
@@ -66,6 +81,11 @@ export function PreConsult({ consultation, canConduct }: { consultation: Telemed
           ) : null}
         </CardContent>
       </Card>
+      {session.status !== "scheduled" ? (
+        <div className="lg:col-span-2">
+          <ConsultChatPanel appointmentId={appointment.id} canWrite={canConduct} />
+        </div>
+      ) : null}
     </div>
   );
 }

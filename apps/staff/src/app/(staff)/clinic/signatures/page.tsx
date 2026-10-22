@@ -14,7 +14,7 @@ export default async function SignaturesPage() {
   if (!can(session, "clinic.configure")) redirect("/clinic/encounters");
   const setting = await api<PractitionerSignatureSetting>("/clinic/practitioner-signature/settings");
   return (
-    <StaffSettingsPage group="Clinical" title="Signatures on documents" description="For the whole organization. Changes are audited." width="narrow">
+    <StaffSettingsPage group="Clinical" title="Signatures on documents" description="For the whole organization. Changes are audited.">
       <Card>
         <CardHeader>
           <CardTitle>Practitioners&apos; signatures</CardTitle>

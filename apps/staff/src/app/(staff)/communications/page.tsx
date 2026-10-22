@@ -1,13 +1,14 @@
 import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DownloadIcon, InfoIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, DownloadIcon, InfoIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Button, DateInput, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { DeliveryStatus } from "@/components/communications/delivery-status";
 import { MessageActions } from "@/components/communications/message-actions";
 import { api } from "@/lib/api/client";
 import { can, getFacilities, getSession } from "@/lib/api/session";
+import type { CommunicationFilters } from "@/lib/communications";
 import type { CommunicationLogEntry, CommunicationSummary, Page } from "@/lib/api/types";
 import {
   CATEGORY_LABEL,
@@ -15,6 +16,7 @@ import {
   communicationApiQuery,
   communicationHref,
   MAX_DAYS,
+  PAGE_SIZES,
   readCommunicationFilters,
   shareText,
   STATUS_FILTERS,
@@ -31,6 +33,62 @@ function Figure({ label, value, hint }: { label: string; value: string | number;
       <span className="text-page font-semibold">{value}</span>
       {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
     </div>
+  );
+}
+
+/** Where the list stands, and how to move: first, newer, older, and how many rows to a page. The log has no total, so "older" shows while more exist. */
+function Pager({ filters, page }: { filters: CommunicationFilters; page: Page<CommunicationLogEntry> }) {
+  const first = (filters.page - 1) * filters.pageSize + 1;
+  const last = first + page.items.length - 1;
+  return (
+    <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3 text-table">
+      <p className="text-muted-foreground">
+        Showing{" "}
+        <span className="tabular font-medium text-foreground">
+          {first}–{last}
+        </span>
+        {page.hasMore ? " · more beyond" : " · end of list"}
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1" role="group" aria-label="Rows per page">
+          <span className="mr-1 text-muted-foreground">Rows</span>
+          {PAGE_SIZES.map((n) => (
+            <Link
+              key={n}
+              href={communicationHref({ ...filters, pageSize: n }, 1)}
+              aria-current={n === filters.pageSize ? "true" : undefined}
+              className={`tabular rounded-md border px-2 py-0.5 ${n === filters.pageSize ? "border-primary bg-primary-subtle font-semibold text-primary-deep" : "bg-card text-muted-foreground hover:text-foreground"}`}
+            >
+              {n}
+            </Link>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          {filters.page > 1 ? (
+            <>
+              <Button asChild size="icon-sm" variant="outline">
+                <Link href={communicationHref(filters, 1)} aria-label="First page">
+                  <ChevronsLeftIcon />
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href={communicationHref(filters, filters.page - 1)}>
+                  <ChevronLeftIcon /> Newer
+                </Link>
+              </Button>
+            </>
+          ) : null}
+          <span className="px-2 text-muted-foreground">Page {filters.page}</span>
+          {page.hasMore ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={communicationHref(filters, filters.page + 1)}>
+                Older <ChevronRightIcon />
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </nav>
   );
 }
 
@@ -126,6 +184,7 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
           </NativeSelect>
         </div>
         {filters.patient ? <input type="hidden" name="patient" value={filters.patient} /> : null}
+        {filters.pageSize !== 50 ? <input type="hidden" name="pageSize" value={filters.pageSize} /> : null}
         <div className="flex flex-wrap items-center gap-2 sm:col-span-3 lg:col-span-7">
           <Button type="submit" size="sm">
             Show
@@ -215,79 +274,78 @@ export default async function CommunicationsPage({ searchParams }: { searchParam
       {page === null ? (
         <p className="text-table text-muted-foreground">The list of messages names patients; it is shown to staff who may read patient records.</p>
       ) : page.items.length === 0 ? (
-        <p className="text-table text-muted-foreground">No messages match.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>When</TableHead>
-              <TableHead>Facility</TableHead>
-              <TableHead>Patient</TableHead>
-              <TableHead>Message</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Requested by</TableHead>
-              {canManage ? <TableHead className="sr-only">Actions</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {page.items.map((m) => (
-              <TableRow key={m.id}>
-                <TableCell className="whitespace-nowrap">
-                  {clinicalDateTime(m.createdAt)}
-                  {m.scheduledFor ? <span className="block text-meta text-muted-foreground">for {clinicalDateTime(m.scheduledFor)}</span> : null}
-                </TableCell>
-                <TableCell>{m.facilityName ?? <span className="text-muted-foreground">{m.facilityId ? "Facility" : "Not recorded"}</span>}</TableCell>
-                <TableCell>
-                  {m.patient ? (
-                    <Link className="text-primary hover:underline" href={`/patients/${m.patient.id}/communications`}>
-                      {m.patient.displayName}
-                      <span className="block font-mono text-meta text-muted-foreground">{m.patient.patientNumber}</span>
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Unknown patient</span>
-                  )}
-                </TableCell>
-                <TableCell className="max-w-72 whitespace-normal">
-                  {m.templateLabel}
-                  <span className="block text-meta text-muted-foreground">{CATEGORY_LABEL[m.category]}</span>
-                </TableCell>
-                <TableCell>
-                  {CHANNEL_LABEL[m.channel]}
-                  {m.destinationMasked ? <span className="block font-mono text-meta text-muted-foreground">{m.destinationMasked}</span> : null}
-                </TableCell>
-                <TableCell>
-                  <DeliveryStatus status={m.status} reason={m.suppressionReason} />
-                  {m.status === "failed" ? <span className="text-meta text-muted-foreground">after {m.attemptCount} attempts</span> : null}
-                  {m.resentAs ? <span className="block text-meta text-muted-foreground">sent again later</span> : null}
-                  {m.resentFrom ? <span className="block text-meta text-muted-foreground">sent again from an earlier message</span> : null}
-                </TableCell>
-                <TableCell>{m.requestedBy ? (m.requestedByName ?? "A staff member") : <span className="text-muted-foreground">Automatic</span>}</TableCell>
-                {canManage ? (
-                  <TableCell className="text-right">
-                    <MessageActions notificationId={m.id} status={m.status} patientId={m.patientId} resentAs={m.resentAs} />
-                  </TableCell>
-                ) : null}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      {page ? (
-        <nav aria-label="Pages" className="flex items-center gap-2 text-table">
+        <p className="text-table text-muted-foreground">
+          No messages match.
           {filters.page > 1 ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={communicationHref(filters, filters.page - 1)}>Newer</Link>
-            </Button>
+            <>
+              {" "}
+              <Link className="text-primary hover:underline" href={communicationHref(filters, 1)}>
+                Back to the first page
+              </Link>
+            </>
           ) : null}
-          <span className="text-muted-foreground">Page {filters.page}</span>
-          {page.hasMore ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={communicationHref(filters, filters.page + 1)}>Older</Link>
-            </Button>
-          ) : null}
-        </nav>
-      ) : null}
+        </p>
+      ) : (
+        <>
+          <Pager filters={filters} page={page} />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>When</TableHead>
+                <TableHead>Facility</TableHead>
+                <TableHead>Patient</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Channel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Requested by</TableHead>
+                {canManage ? <TableHead className="sr-only">Actions</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {page.items.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="whitespace-nowrap">
+                    {clinicalDateTime(m.createdAt)}
+                    {m.scheduledFor ? <span className="block text-meta text-muted-foreground">for {clinicalDateTime(m.scheduledFor)}</span> : null}
+                  </TableCell>
+                  <TableCell>{m.facilityName ?? <span className="text-muted-foreground">{m.facilityId ? "Facility" : "Not recorded"}</span>}</TableCell>
+                  <TableCell>
+                    {m.patient ? (
+                      <Link className="text-primary hover:underline" href={`/patients/${m.patient.id}/communications`}>
+                        {m.patient.displayName}
+                        <span className="block font-mono text-meta text-muted-foreground">{m.patient.patientNumber}</span>
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">Unknown patient</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-72 whitespace-normal">
+                    {m.templateLabel}
+                    <span className="block text-meta text-muted-foreground">{CATEGORY_LABEL[m.category]}</span>
+                  </TableCell>
+                  <TableCell>
+                    {CHANNEL_LABEL[m.channel]}
+                    {m.destinationMasked ? <span className="block font-mono text-meta text-muted-foreground">{m.destinationMasked}</span> : null}
+                  </TableCell>
+                  <TableCell>
+                    <DeliveryStatus status={m.status} reason={m.suppressionReason} />
+                    {m.status === "failed" ? <span className="text-meta text-muted-foreground">after {m.attemptCount} attempts</span> : null}
+                    {m.resentAs ? <span className="block text-meta text-muted-foreground">sent again later</span> : null}
+                    {m.resentFrom ? <span className="block text-meta text-muted-foreground">sent again from an earlier message</span> : null}
+                  </TableCell>
+                  <TableCell>{m.requestedBy ? (m.requestedByName ?? "A staff member") : <span className="text-muted-foreground">Automatic</span>}</TableCell>
+                  {canManage ? (
+                    <TableCell className="text-right">
+                      <MessageActions notificationId={m.id} status={m.status} patientId={m.patientId} resentAs={m.resentAs} />
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+      {page && page.items.length > 0 ? <Pager filters={filters} page={page} /> : null}
     </ModulePage>
   );
 }
