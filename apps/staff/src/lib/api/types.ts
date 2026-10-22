@@ -1120,6 +1120,8 @@ export interface LabDashboard {
   facilityId: string;
   date: string;
   pendingCollection: number;
+  /** Of `pendingCollection`, the tests of STAT orders. */
+  statPendingCollection: number;
   awaitingReceipt: number;
   awaitingEntry: number;
   awaitingVerification: number;

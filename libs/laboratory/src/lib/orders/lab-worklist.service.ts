@@ -73,6 +73,8 @@ export class LabWorklistService {
     const [items] = await this.db
       .select({
         pendingCollection: sql<number>`count(*) filter (where ${labOrderItem.status} = 'pending_collection')::int`,
+        // STAT tests still to collect: the dashboard lists them as urgent, apart from routine collection.
+        statPendingCollection: sql<number>`count(*) filter (where ${labOrder.priority} = 'stat' and ${labOrderItem.status} = 'pending_collection')::int`,
         awaitingReceipt: sql<number>`count(*) filter (where ${labOrderItem.status} = 'collected')::int`,
         // Tests with a send-out in flight wait on the reference laboratory, not on result entry.
         awaitingEntry: sql<number>`count(*) filter (where ${labOrderItem.status} = 'received' and not exists (

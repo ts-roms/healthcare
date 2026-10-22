@@ -105,8 +105,8 @@ export function StaffShell({
       navigation={navigation}
       Link={NextLink}
       onSearch={(q) => router.push(`/patients?q=${encodeURIComponent(q)}`)}
-      // Room under every page for the floating help button, so it never sits on a form's last controls.
-      contentClassName="pb-20"
+      // Room under every page for the floating help button (from md up), so it never sits on a form's last controls.
+      contentClassName="md:pb-20"
       topbarEnd={
         <>
           {facilities.length > 0 ? (
@@ -139,6 +139,8 @@ export function StaffShell({
               ))}
             </NativeSelect>
           ) : null}
+          {/* On phones the help button lives here instead of floating over the page. */}
+          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
           <Button asChild variant="ghost" size="icon" className="relative">
             <Link
               href="/notifications"

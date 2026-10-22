@@ -43,3 +43,5 @@ Thumbs.db
 .claude/worktrees
 .claude/settings.local.json
 npm-debug.log
+
+ui-*/*

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
+import { PatientPicker } from "@/components/patient-picker";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { getPatientForAction, getPractitioners, getVisitTypes } from "@/lib/api/clinic";
@@ -16,6 +17,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Search = {
   patientId?: string;
+  /** Patient search text while choosing the patient (only when opened without one). */
+  q?: string;
   practitionerId?: string;
   visitTypeId?: string;
   date?: string;
@@ -37,6 +40,16 @@ export default async function BookAppointmentPage({ searchParams }: { searchPara
       <>
         <PageHeader title="Book appointment" />
         <FacilityRequired action="Appointments are booked at a facility." />
+      </>
+    );
+  }
+  // Opened without a patient (a bookmark, a typed address): find the patient first, keeping the rest of the request.
+  if (!params.patientId) {
+    const { patientId: _patientId, q = "", ...keep } = params;
+    return (
+      <>
+        <PageHeader title="Book appointment" description={`At ${facility.name}. Only open slots in the practitioner's schedule are offered.`} />
+        <PatientPicker action="/appointments/new" q={q} keep={keep} verb="Book" canRegister={can(session, "patient.register")} />
       </>
     );
   }

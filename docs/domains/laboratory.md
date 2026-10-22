@@ -112,7 +112,7 @@ back, record a rejection by the reference laboratory, cancel.
 
 Catalog lists; orders by patient or encounter; order detail; barcode lookup by accession; specimen event log;
 worklists by stage (`collect | receive | enter | verify | approve | release`, STAT first, optional department filter);
-dashboard (per-stage counts, STAT open, overdue against turnaround time, released today, average collection-to-release
+dashboard (per-stage counts, STAT open, STAT tests still to collect (`statPendingCollection`, listed as urgent on the staff dashboard), overdue against turnaround time, released today, average collection-to-release
 minutes, rejections today, unacknowledged criticals); a patient's released results; result history per test; trend of
 one analyte (tests sharing a LOINC code line up) with each point's range snapshot; critical-result list; a patient's
 archived reports and the stored PDF of one; send-outs by view (to dispatch, awaiting results with turnaround, closed,

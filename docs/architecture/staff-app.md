@@ -55,12 +55,13 @@ links to developer documentation are shown as text. A search box above the chapt
 searches an index of every section built on the server from the Markdown (`manualSections` / `searchManual` in `@healthcare/ui/primitives`:
 sections at `##`/`###` headings, anchors as the `Markdown` view gives them, every query word must occur, heading matches first, a
 passage around the match); results link to `/help/<slug>#<anchor>`; the same box sits at the top of the help dialog (below), whose results close it. The menu shows **Help** to every signed-in user, and `StaffShell` renders
-`components/help-fab.tsx` once on every signed-in page: a round **Open the user manual** button fixed at the bottom-right (16px gutter and
-the phone's safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
+`components/help-fab.tsx` on every signed-in page: a round **Open the user manual** button fixed at the bottom-right from `md` up (16px gutter and
+the safe area, `z-30` under dialogs and toasts, a tooltip on hover and focus) that opens a **Need a hand?** dialog: an **About this
 screen** link to the chapter for the current route (`chapterForPath` in `lib/manual.ts`, longest route prefix first; nothing when no chapter
 fits, e.g. on `/help`), every chapter (the `(staff)` layout passes slugs and titles from `loadManual()` through `StaffShell`), and a button
 to `/help`; links close the dialog. The content area is padded at the bottom (`contentClassName` on `StaffLayout`) so the button never covers
-a form's last controls. The waiting-room display and the signed-out pages have their own layouts and never show it.
+a form's last controls. Below `md` the same dialog opens from a lifebuoy icon button in the top bar instead (`placement="topbar"`), because a
+floating button sits on tables' right-hand column and row actions on a phone. The waiting-room display and the signed-out pages have their own layouts and never show it.
 
 ## Notifications
 
@@ -155,7 +156,7 @@ form (`patient.register`, `clinic.queue.manage`, `clinic.triage.write`) and the 
 
 ## Queue and appointments
 
-Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule.
+Front-desk flow: find the patient → **Check in (walk-in)** or **Book appointment** on the patient record → the queue board or day schedule. Opened without a patient (a bookmark, a typed address), `/queue/walk-in` and `/appointments/new` start with **Find the patient** (`components/patient-picker.tsx`: search, then **Check in** / **Book** reopens the page with `patientId`, keeping its other parameters); a malformed or unknown `patientId` is still "not found".
 Nurse flow: queue board → select a ticket → **Triage & vitals** (`/queue/visits/[id]/triage`) → "Complete triage" moves the patient to _Ready for provider_ ("Save, keep in triage" leaves them in triage).
 
 - **Facility-scoped.** `/queue`, `/queue/walk-in`, `/appointments` and `/appointments/new` need a facility selected in the top bar (the queue, check-in and schedule belong to a facility; the day and its time zone come from the facility).
