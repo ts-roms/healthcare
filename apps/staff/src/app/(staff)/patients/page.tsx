@@ -1,26 +1,15 @@
 import Link from "next/link";
-import { QrCodeIcon, SearchIcon, UserPlusIcon } from "lucide-react";
-import {
-  Badge,
-  Button,
-  Checkbox,
-  DateInput,
-  Input,
-  NativeSelect,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@healthcare/ui/primitives";
+import { ArrowRightIcon, QrCodeIcon, SearchIcon, SearchXIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import { ListPage, Pager } from "@healthcare/ui/layouts";
+import { Badge, Button, Callout, Checkbox, DateInput, EmptyState, Input, Label, NativeSelect, ResponsiveTable } from "@healthcare/ui/primitives";
+import type { ResponsiveColumn } from "@healthcare/ui/primitives";
 import { clinicalDate, sexLabel } from "@healthcare/ui/healthcare";
-import { PageHeader } from "@/components/page-header";
+import { NextLink } from "@/components/next-link";
 import { api } from "@/lib/api/client";
 import { ApiError, userMessage } from "@healthcare/web-session";
 import { can, getSession } from "@/lib/api/session";
 import type { Page, PatientSummary } from "@/lib/api/types";
-import { label } from "@/lib/patient-mapping";
+import { initialsOf, label } from "@/lib/patient-mapping";
 import { IDENTIFIER_TYPE_OPTIONS } from "@/lib/patient-edit";
 
 export const metadata = { title: "Patients" };
@@ -38,6 +27,7 @@ export default async function PatientsPage({
   const includeInactive = inactive === "1";
   const session = await getSession();
   const canOpenWorkspace = can(session, "patient.read");
+  const canRegister = can(session, "patient.register");
   const page = Math.max(1, Number(pageParam) || 1);
   const query = q.trim();
   const hasCriteria = query.length >= 2 || Boolean(birthDate) || Boolean(idValue);
@@ -74,42 +64,83 @@ export default async function PatientsPage({
       page: String(p),
     })}`;
 
-  return (
-    <>
-      <PageHeader
-        title="Patients"
-        description="All patients A–Z, or look up by name, patient number, mobile number or an ID number, optionally with birth date."
-        actions={
-          <>
-            {can(session, "patient.search") ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href="/patients/scan">
-                  <QrCodeIcon /> Scan QR code
-                </Link>
-              </Button>
+  const columns: ResponsiveColumn<PatientSummary>[] = [
+    {
+      key: "patient",
+      header: "Patient",
+      primary: true,
+      cell: (p) => (
+        <span className="flex items-center gap-3">
+          <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-subtle text-meta font-semibold text-primary-deep">
+            {initialsOf(p.displayName)}
+          </span>
+          <span className="min-w-0">
+            <Link href={`/patients/${p.id}`} className="font-semibold text-foreground hover:text-primary hover:underline">
+              {p.displayName}
+            </Link>
+            {p.resolvedFrom ? (
+              <span className="block text-meta font-normal whitespace-normal text-muted-foreground">
+                Found through <span className="font-mono">{p.resolvedFrom.patientNumber}</span>, merged into this record
+              </span>
             ) : null}
-            {can(session, "patient.register") ? (
-              <Button asChild size="sm">
-                <Link href="/patients/new">
-                  <UserPlusIcon /> Register patient
-                </Link>
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-      <form role="search" className="flex flex-wrap items-end gap-2 border-b bg-card px-4 py-3" action="/patients">
-        <label className="grid gap-1">
-          <span className="text-meta font-medium text-muted-foreground">Name, patient no. or mobile</span>
-          <Input name="q" defaultValue={query} placeholder="e.g. dela cruz juan" className="w-72" autoFocus={!query} />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-meta font-medium text-muted-foreground">Birth date</span>
-          <DateInput name="birthDate" defaultValue={birthDate} className="w-44" />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-meta font-medium text-muted-foreground">ID</span>
-          <NativeSelect name="idType" defaultValue={idType} className="w-44">
+          </span>
+        </span>
+      ),
+    },
+    { key: "number", header: "Patient no.", cell: (p) => <span className="font-mono text-table">{p.patientNumber}</span> },
+    { key: "age", header: "Age · sex", cell: (p) => `${p.age} · ${sexLabel(p.sex, true)}` },
+    { key: "birth", header: "Birth date", cell: (p) => clinicalDate(p.birthDate) },
+    { key: "mobile", header: "Mobile", cell: (p) => <span className="text-muted-foreground">{p.primaryMobileMasked ?? "—"}</span> },
+    {
+      key: "status",
+      header: "Status",
+      cell: (p) => (p.status === "active" ? <span className="text-muted-foreground">Active</span> : <Badge variant="warning">{label(p.status)}</Badge>),
+    },
+    {
+      key: "actions",
+      header: "Open",
+      actions: true,
+      cell: (p) => (
+        <span className="inline-flex items-center gap-1">
+          {canOpenWorkspace ? (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/patients/${p.id}/360`} aria-label={`Patient 360 for ${p.displayName}`}>
+                360
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/patients/${p.id}`} aria-label={`Open the record of ${p.displayName}`}>
+              Open <ArrowRightIcon aria-hidden />
+            </Link>
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const toolbar = (
+    <form role="search" action="/patients" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="grid min-w-64 flex-1 gap-1">
+          <Label htmlFor="patient-search">Name, patient no. or mobile</Label>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input id="patient-search" name="q" defaultValue={query} placeholder="e.g. dela cruz juan" className="pl-8" autoFocus={!query} />
+          </div>
+        </div>
+        <Button type="submit">
+          <SearchIcon /> Search
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="grid gap-1">
+          <Label htmlFor="patient-birth-date">Birth date</Label>
+          <DateInput id="patient-birth-date" name="birthDate" defaultValue={birthDate} className="w-44" />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="patient-id-type">ID</Label>
+          <NativeSelect id="patient-id-type" name="idType" defaultValue={idType} className="w-44">
             <option value="">Any (no ID)</option>
             {IDENTIFIER_TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>
@@ -117,107 +148,86 @@ export default async function PatientsPage({
               </option>
             ))}
           </NativeSelect>
-        </label>
-        <label className="grid gap-1">
-          <span className="text-meta font-medium text-muted-foreground">ID number</span>
-          <Input name="idValue" defaultValue={idValue} className="w-44 font-mono" maxLength={64} />
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-table">
-          <Checkbox name="inactive" value="1" defaultChecked={includeInactive} />
-          Include inactive records
-        </label>
-        <Button type="submit" size="sm">
-          <SearchIcon /> Search
-        </Button>
-      </form>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="patient-id-value">ID number</Label>
+          <Input id="patient-id-value" name="idValue" defaultValue={idValue} className="w-44 font-mono" maxLength={64} />
+        </div>
+        <div className="flex items-center gap-2 pb-1.5">
+          <Checkbox id="patient-inactive" name="inactive" value="1" defaultChecked={includeInactive} />
+          <Label htmlFor="patient-inactive" className="text-body font-normal">
+            Include inactive records
+          </Label>
+        </div>
+      </div>
+    </form>
+  );
 
-      {!hasCriteria && !browsing ? (
-        <p className="p-6 text-center text-muted-foreground">
-          {query.length === 1 ? "Enter at least 2 characters." : "Choose the kind of ID to search by its number."}
-        </p>
-      ) : error ? (
-        <p role="alert" className="m-4 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2 text-danger-foreground">
-          {error}
-        </p>
-      ) : result && result.items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 p-8 text-center text-muted-foreground">
-          <p>
-            {browsing ? "No patients registered yet." : "No patients match. Check the spelling, or try the birth date or mobile number."}
-            {includeInactive ? null : " Inactive records are left out unless you tick Include inactive records."}
-          </p>
-          {can(session, "patient.register") ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href="/patients/new">
-                <UserPlusIcon /> Register a new patient
+  const registerButton = canRegister ? (
+    <Button asChild>
+      <Link href="/patients/new">
+        <UserPlusIcon /> Register a new patient
+      </Link>
+    </Button>
+  ) : undefined;
+
+  return (
+    <ListPage
+      title="Patients"
+      description="All patients A–Z, or look up by name, patient number, mobile number or an ID number, optionally with birth date."
+      Link={NextLink}
+      actions={
+        <>
+          {can(session, "patient.search") ? (
+            <Button asChild variant="outline">
+              <Link href="/patients/scan">
+                <QrCodeIcon /> Scan QR code
               </Link>
             </Button>
           ) : null}
+          {canRegister ? (
+            <Button asChild>
+              <Link href="/patients/new">
+                <UserPlusIcon /> Register patient
+              </Link>
+            </Button>
+          ) : null}
+        </>
+      }
+      toolbar={toolbar}
+      footer={
+        result && result.items.length > 0 ? (
+          <Pager page={result.page} hasMore={result.hasMore} previousHref={pageHref(result.page - 1)} nextHref={pageHref(result.page + 1)} Link={NextLink} />
+        ) : undefined
+      }
+    >
+      {!hasCriteria && !browsing ? (
+        <EmptyState
+          compact
+          icon={SearchIcon}
+          title={query.length === 1 ? "Enter at least 2 characters" : "Choose the kind of ID"}
+          description={query.length === 1 ? "A one-letter name is too broad to search." : "Pick the kind of ID to search by its number."}
+        />
+      ) : error ? (
+        <div className="p-4">
+          <Callout tone="danger" title="The patient list could not be loaded">
+            {error}
+          </Callout>
         </div>
+      ) : result && result.items.length === 0 ? (
+        <EmptyState
+          icon={browsing ? UsersIcon : SearchXIcon}
+          title={browsing ? "No patients registered yet" : "No patients match"}
+          description={
+            browsing
+              ? "Registered patients appear here."
+              : `Check the spelling, or try the birth date or mobile number.${includeInactive ? "" : " Inactive records are left out unless you tick Include inactive records."}`
+          }
+          actions={registerButton}
+        />
       ) : result ? (
-        <div className="bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Patient</TableHead>
-                <TableHead>Patient no.</TableHead>
-                <TableHead>Birth date</TableHead>
-                <TableHead>Age / Sex</TableHead>
-                <TableHead>Mobile</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.items.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <Link href={`/patients/${p.id}`} className="font-medium text-primary hover:underline">
-                      {p.displayName}
-                    </Link>
-                    {canOpenWorkspace ? (
-                      <Link
-                        href={`/patients/${p.id}/360`}
-                        className="ml-2 text-meta text-primary hover:underline"
-                        aria-label={`Patient 360 for ${p.displayName}`}
-                      >
-                        360
-                      </Link>
-                    ) : null}
-                    {p.resolvedFrom ? (
-                      <span className="block text-meta text-muted-foreground">
-                        Found through <span className="font-mono">{p.resolvedFrom.patientNumber}</span>, merged into this record
-                      </span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="font-mono">{p.patientNumber}</TableCell>
-                  <TableCell>{clinicalDate(p.birthDate)}</TableCell>
-                  <TableCell>
-                    {p.age} {sexLabel(p.sex, true)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{p.primaryMobileMasked ?? "—"}</TableCell>
-                  <TableCell>
-                    {p.status === "active" ? <span className="text-muted-foreground">Active</span> : <Badge variant="warning">{label(p.status)}</Badge>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <nav aria-label="Pagination" className="flex items-center justify-between border-t px-4 py-2 text-table">
-            <span className="text-muted-foreground">Page {result.page}</span>
-            <span className="flex gap-2">
-              {result.page > 1 ? (
-                <Button asChild variant="outline" size="xs">
-                  <Link href={pageHref(result.page - 1)}>Previous</Link>
-                </Button>
-              ) : null}
-              {result.hasMore ? (
-                <Button asChild variant="outline" size="xs">
-                  <Link href={pageHref(result.page + 1)}>Next</Link>
-                </Button>
-              ) : null}
-            </span>
-          </nav>
-        </div>
+        <ResponsiveTable caption="Patients" columns={columns} rows={result.items} getRowKey={(p) => p.id} className="px-2 pb-1" />
       ) : null}
-    </>
+    </ListPage>
   );
 }

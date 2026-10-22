@@ -8,7 +8,7 @@ import { PROFILE_TABS, type ProfileTab } from "@/lib/patient-profile";
  */
 export function ProfileTabs({ patientId, active }: { patientId: string; active: ProfileTab }) {
   return (
-    <nav aria-label="Sections of the patient record" className="border-b bg-card px-4">
+    <nav aria-label="Sections of the patient record" className="border-b">
       <ul className="-mb-px flex gap-1 overflow-x-auto">
         {PROFILE_TABS.map((tab) => {
           const isActive = tab.key === active;

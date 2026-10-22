@@ -351,6 +351,19 @@ them; built-in roles are read-only; no delete). `/clinic/coding-systems` (**Clin
 to change) registers diagnosis coding systems, renames them, changes the edition and stops offering them (`PATCH /clinic/coding-systems/:id`,
 audited `coding-system.update`); the encounter workspace offers the active ones and points here when none is.
 
+### Page templates (UI redesign, phase 3)
+
+`libs/ui/src/layouts/page-templates.tsx` composes the phase 1 components into one template per kind of screen. They are layout only; data, permission checks and server actions stay in the page.
+
+| Template        | For                                                             | Used by              |
+| --------------- | --------------------------------------------------------------- | -------------------- |
+| `ListPage`      | header + actions, a card with a filter toolbar, rows, `Pager`   | `/patients`          |
+| `DetailPage`    | identity card, banners, section tabs, main column + side rail   | `/patients/[id]`     |
+| `SettingsPage`  | header, "How this works", tabs, sections; `AddSheet` for create | `/clinic/procedures` |
+| `DashboardPage` | greeting header, urgent callouts, `StatTile` row, cards         | `/`                  |
+
+`PageShell` is the shared column (wide, medium or narrow). Lists use `ResponsiveTable` (cards below `md`) and `EmptyState`; the add/edit forms of a catalogue open in a side sheet (`/clinic/procedures`: `ProcedureForm` inside `AddSheet`, one for the header button and one per row). `NextLink` (`components/next-link.tsx`) passes `next/link` to templates and tiles from server components. The old `FigureTiles` is replaced by `StatTile`; the dashboard shows STAT samples and unacknowledged critical results as danger callouts first. Screens not yet moved keep the earlier full-width `PageHeader` bar until their module is redesigned.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

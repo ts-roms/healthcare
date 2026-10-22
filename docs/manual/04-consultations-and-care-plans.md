@@ -210,7 +210,7 @@ history. It works the same as on the patient record (see [Patients](02-patients.
 
 The encounter workspace has a **Procedures** section for what you did to the patient in this visit — dressing, suturing, incision and drainage,
 nebulization, an injection and the like (dental work and vaccines have their own sections). Your clinic lists the procedures it performs under
-**Settings → Procedures**; an administrator adds them.
+**Settings → Procedures**; an administrator adds them with **Add procedure** at the top right (the form opens at the side; **Edit** on a row opens the same form). The page has four tabs: **Catalog**, **Consent wording**, **Signing** and **Supply templates**.
 
 1. Select **Record procedure**.
 2. Choose the **Procedure**, who **Performed by** (you, or another practitioner such as the nurse who did it), **When** (leave empty for now),
@@ -235,7 +235,7 @@ nebulization, an injection and the like (dental work and vaccines have their own
 
 Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the
 system records what you enter and decides nothing about it. An administrator writes the consent wording and note template per procedure under
-**Settings → Procedures** (**Consent wording**: each published version is kept, and a recorded consent names the version shown).
+**Settings → Procedures** (the **Consent wording** tab: each published version is kept, and a recorded consent names the version shown).
 
 Procedures are not recorded in online consultations. After the consultation is signed, only staff who may amend consultations can add one, and
 they must say **why it is recorded after signing**; it is marked **Recorded after signing**. A mistake: **Entered in error…** with a reason (the
@@ -254,7 +254,7 @@ listed for traceability. To record more later, use the form again. To give back 
 many of each lot come back and a reason, then **Return to stock** — this also works after a procedure was entered in error, which never returns
 supplies by itself.
 
-An administrator lists the supplies each procedure usually uses under **Settings → Procedures**, **Supplies per procedure** (**Edit**, **Add supply**,
+An administrator lists the supplies each procedure usually uses under **Settings → Procedures**, on the **Supply templates** tab (**Edit**, **Add supply**,
 **Save**). This is only a starting list. Only medical supplies, medicines, PPE and other items can be used; dental supplies, reagents and vaccines
 cannot.
 

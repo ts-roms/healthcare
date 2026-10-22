@@ -15,7 +15,7 @@ export function ProcedureSupplyTemplates({
   canConfigure: boolean;
 }) {
   return (
-    <div className="px-4 pb-4">
+    <div className="p-4">
       <SupplyTemplates
         options={options}
         procedures={definitions.filter((d) => d.status === "active").map((d) => ({ id: d.id, name: `${d.name} (${d.code})` }))}

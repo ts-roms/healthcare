@@ -21,7 +21,7 @@ export function ProcedureConsentWording({ definitions, canConfigure }: { definit
   const chosen = definitions.find((d) => d.id === definitionId);
   const withWording = definitions.filter((d) => d.consentWording);
   return (
-    <section className="flex flex-col gap-3 border-t p-4" aria-labelledby="consent-wording-heading">
+    <section className="flex flex-col gap-3 p-4" aria-labelledby="consent-wording-heading">
       <div>
         <h2 id="consent-wording-heading" className="flex items-center gap-1.5 text-body font-semibold">
           <FileTextIcon className="size-4 text-muted-foreground" aria-hidden /> Consent wording
