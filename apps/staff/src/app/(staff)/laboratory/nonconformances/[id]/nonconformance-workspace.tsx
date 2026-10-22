@@ -24,7 +24,7 @@ const ENTRY_LABEL: Record<LabNonconformanceDetail["entries"][number]["kind"], st
 export function NonconformanceWorkspace({ record, canEnter, canManage }: { record: LabNonconformanceDetail; canEnter: boolean; canManage: boolean }) {
   const closed = record.status === "closed";
   return (
-    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <div className="flex min-w-0 flex-col gap-4">
         <Card>
           <CardHeader>

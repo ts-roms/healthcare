@@ -70,7 +70,9 @@ describe("navigationForPermissions", () => {
   it("keeps a module current on the pages it owns, and not on its settings page", () => {
     const nav = navigationForPermissions(["appointment.read", "dental.record.read", "encounter.read"]);
     const appointments = nav.find((i) => i.href === "/appointments");
-    expect(appointments?.match?.("/doctors")).toBe(true);
+    expect(appointments?.match?.("/doctors")).toBe(false);
+    expect(nav.find((i) => i.href === "/doctors")?.match).toBeUndefined();
+    expect(hrefs(["appointment.read"])).toContain("/doctors");
     expect(appointments?.match?.("/appointments/waitlist")).toBe(true);
     expect(appointments?.match?.("/appointments/visit-types")).toBe(false);
     expect(nav.find((i) => i.href === "/dental")?.match?.("/dental/settings")).toBe(false);

@@ -20,6 +20,7 @@ import {
   SettingsIcon,
   SmileIcon,
   StethoscopeIcon,
+  UserRoundIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -71,11 +72,9 @@ export const STAFF_NAVIGATION: NavItem[] = [
     group: "Today",
     roles: FRONT_DESK,
     match: (p) =>
-      p === "/appointments" ||
-      (p.startsWith("/appointments/") && !p.startsWith("/appointments/visit-types") && !p.startsWith("/appointments/schedules")) ||
-      p === "/doctors" ||
-      p.startsWith("/doctors/"),
+      p === "/appointments" || (p.startsWith("/appointments/") && !p.startsWith("/appointments/visit-types") && !p.startsWith("/appointments/schedules")),
   },
+  { label: "Doctors", href: "/doctors", icon: UserRoundIcon, group: "Today", roles: FRONT_DESK },
   { label: "Calendar", href: "/calendar", icon: CalendarRangeIcon, group: "Today", roles: FRONT_DESK },
 
   { label: "Patients", href: "/patients", icon: UsersIcon, group: "Patients", roles: ["doctor", "nurse", "reception", "dentist", "billing", "admin"] },

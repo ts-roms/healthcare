@@ -26,7 +26,7 @@ export function CaseReview({ detail }: { detail: CaseReportDetail }) {
   const r = detail.report;
 
   return (
-    <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
