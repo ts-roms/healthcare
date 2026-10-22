@@ -110,10 +110,7 @@ export function DisplayBoard({
         <main className="grid min-h-0 flex-1 gap-7 lg:grid-cols-[1.7fr_1fr]">
           <section
             aria-labelledby="now-serving"
-            className={cn(
-              "bg-qd-card flex min-h-0 flex-col rounded-xl border-2 p-10",
-              highlighted ? "qd-call-highlight border-qd-accent" : "border-qd-border",
-            )}
+            className={cn("bg-qd-card flex min-h-0 flex-col rounded-xl border-2 p-10", highlighted ? "qd-call-highlight border-qd-accent" : "border-qd-border")}
           >
             <h2 id="now-serving" className="text-qd-muted flex items-center gap-3 text-[clamp(20px,1.6vw,30px)] font-semibold tracking-wide uppercase">
               <BellRingIcon className="size-[1.1em]" aria-hidden /> {current ? "Now serving" : "First number to be called"}

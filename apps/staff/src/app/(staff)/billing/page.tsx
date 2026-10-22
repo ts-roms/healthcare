@@ -9,7 +9,6 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { BillingWorklistRow, InvoiceSummary } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { BillingNav } from "./billing-nav";
 
 export const metadata = { title: "Billing" };
 
@@ -17,11 +16,10 @@ export const metadata = { title: "Billing" };
 export default async function BillingPage() {
   const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
   if (!can(session, "billing.charge.read")) redirect("/");
-  const nav = <BillingNav canReport={can(session, "billing.report.read")} canConfigure={can(session, "billing.pricelist.manage")} />;
   if (!facility) {
     return (
       <>
-        <PageHeader title="Billing" actions={nav} />
+        <PageHeader title="Billing" />
         <FacilityRequired action="Charges, invoices and payments are kept per facility." />
       </>
     );
@@ -33,7 +31,7 @@ export default async function BillingPage() {
   ]);
   return (
     <>
-      <PageHeader title="Billing" description={`${facility.name} · charges to invoice, drafts and balances`} actions={nav} />
+      <PageHeader title="Billing" description={`${facility.name} · charges to invoice, drafts and balances`} />
       <div className="grid gap-4 p-4 xl:grid-cols-2">
         <Card className="py-0 xl:col-span-2">
           <CardHeader className="pt-4">

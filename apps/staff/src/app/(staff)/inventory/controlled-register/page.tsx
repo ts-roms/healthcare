@@ -21,7 +21,6 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { ControlledRegister } from "@/lib/api/types";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
-import { InventoryNav } from "../inventory-nav";
 import { RegisterSettingForm } from "./register-setting";
 
 export const metadata = { title: "Controlled register" };
@@ -47,11 +46,10 @@ const KIND_LABEL: Record<string, string> = {
 export default async function ControlledRegisterPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.controlled-register.read")) redirect("/inventory");
-  const nav = <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue={can(session, "inventory.valuation.read")} canRegister />;
   if (!facility) {
     return (
       <>
-        <PageHeader title="Controlled register" actions={nav} />
+        <PageHeader title="Controlled register" />
         <FacilityRequired action="The register is kept per facility." />
       </>
     );
@@ -62,7 +60,7 @@ export default async function ControlledRegisterPage({ searchParams }: { searchP
   const register = await api<ControlledRegister>("/inventory/controlled-register", { query: { from, to } });
   return (
     <>
-      <PageHeader title="Controlled register" description={`${facility.name} · every movement of controlled items, from the stock ledger`} actions={nav} />
+      <PageHeader title="Controlled register" description={`${facility.name} · every movement of controlled items, from the stock ledger`} />
       <div className="flex flex-col gap-4 p-4">
         <p className="rounded-md border border-dashed p-3 text-meta text-muted-foreground">
           This is the platform&apos;s own layout of the stock ledger. Dangerous Drugs Board and FDA register requirements are not built in: confirm with your

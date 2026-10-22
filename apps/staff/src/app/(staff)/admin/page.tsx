@@ -3,45 +3,39 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { getSession } from "@/lib/api/session";
-import { navigationForPermissions } from "@/lib/navigation";
+import { settingsForPermissions } from "@/lib/settings-navigation";
 
-export const metadata = { title: "Administration" };
+export const metadata = { title: "Settings" };
 
-const DESCRIPTIONS: Record<string, string> = {
-  "/admin/organization": "Your organization's name and identifier.",
-  "/admin/users": "Who can sign in, their roles and where each applies; suspend and reactivate.",
-  "/admin/security": "Whether staff must use two-step verification, who still needs it, and exempt integration accounts.",
-  "/admin/roles": "What each role allows; your organization's own roles.",
-  "/admin/facilities": "Clinics, laboratories and other sites, and their departments.",
-  "/admin/service-points": "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
-  "/admin/audit": "Who did what, when and to which record.",
-  "/admin/integrations": "Outbound exchanges that failed or stalled.",
-  "/admin/compliance": "Your organization's own compliance configuration and who validated it.",
-  "/admin/consent-wording": "The wording patients agree to when they give consent online.",
-  "/admin/privacy": "The personal data breach register, your notification window and your Data Protection Officer.",
-  "/admin/patient-qr": "Whether patients get a QR code on a card, when it is issued and what it holds.",
-};
-
-/** The administration pages open to the signed-in user (the same list as the menu). */
-export default async function AdministrationPage() {
+/** Settings home: every configuration page open to the signed-in user, grouped (the same list as the Settings menu). */
+export default async function SettingsPage() {
   const session = await getSession();
-  const admin = navigationForPermissions(session.permissions).find((item) => item.href === "/admin");
-  if (!admin?.children?.length) redirect("/");
+  const groups = settingsForPermissions(session.permissions);
+  if (groups.length === 0) redirect("/");
   return (
     <>
-      <PageHeader title="Administration" />
-      <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
-        {admin.children.map((child) => (
-          <Card key={child.href}>
-            <CardHeader>
-              <CardTitle>
-                <Link className="text-primary hover:underline" href={child.href}>
-                  {child.label}
-                </Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-table text-muted-foreground">{DESCRIPTIONS[child.href] ?? null}</CardContent>
-          </Card>
+      <PageHeader title="Settings" description="Set up your organization, its facilities and each module." />
+      <div className="flex flex-col gap-6 p-4">
+        {groups.map((group) => (
+          <section key={group.label} aria-labelledby={`settings-${group.label}`} className="flex flex-col gap-3">
+            <h2 id={`settings-${group.label}`} className="text-section font-semibold">
+              {group.label}
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {group.pages.map((page) => (
+                <Card key={page.href}>
+                  <CardHeader>
+                    <CardTitle>
+                      <Link className="text-primary hover:underline" href={page.href}>
+                        {page.label}
+                      </Link>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-table text-muted-foreground">{page.description}</CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </>

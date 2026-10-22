@@ -1,5 +1,6 @@
 import type { StaffBadges } from "./api/types";
 import { STAFF_NAVIGATION, type NavItem } from "@healthcare/ui/layouts";
+import { isSettingsPath, SETTINGS_HOME, settingsForPermissions } from "./settings-navigation";
 
 /** Modules whose screens still run on demo fixtures (their API may exist but is not wired yet). */
 export const DEMO_MODULES: string[] = [];
@@ -9,9 +10,10 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/patients": ["patient.search"],
   "/calendar": ["calendar.read"],
   "/appointments": ["appointment.read"],
-  "/doctors": ["appointment.read"],
   "/queue": ["clinic.queue.read"],
-  "/clinic": ["encounter.read"],
+  "/clinic/encounters": ["encounter.read"],
+  "/clinic/care-plans": ["care-plan.read"],
+  "/clinic/referrals": ["encounter.read"],
   "/laboratory": ["lab.order.read"],
   "/dental": ["dental.record.read"],
   "/telemedicine": ["telemedicine.read"],
@@ -24,77 +26,24 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/reporting": ["doh.report.manage"],
   "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage", "document.integrity.manage"],
   "/messages": ["patient.message.read"],
-  "/admin": [
-    "user.read",
-    "user.manage",
-    "role.manage",
-    "organization.manage",
-    "audit.read",
-    "integration.exchange.manage",
-    "compliance.review.manage",
-    "consent.wording.manage",
-    "clinic.configure",
-    "privacy.incident.manage",
-    "patient.qr.manage",
-  ],
-};
-
-/**
- * Pages inside a module that need more than the module's own permission (any one is enough). They mirror each
- * page's own check, so the menu never offers a page that sends the user back to the dashboard.
- */
-const PAGE_PERMISSIONS: Record<string, string[]> = {
-  "/clinic/care-plans": ["care-plan.read"],
-  "/clinic/vaccines": ["immunization.read"],
-  "/clinic/procedures": ["encounter.read"],
-  "/clinic/signatures": ["clinic.configure"],
-  "/clinic/coding-systems": ["encounter.read"],
-  "/laboratory/critical": ["lab.result.read"],
-  "/laboratory/instrument-results": ["lab.result.read"],
-  "/laboratory/qc": ["lab.qc.read"],
-  "/laboratory/instruments": ["lab.qc.read"],
-  "/laboratory/reagents": ["lab.qc.read"],
-  "/laboratory/temperatures": ["lab.qc.read"],
-  "/laboratory/nonconformances": ["lab.qc.read"],
-  "/laboratory/eqa": ["lab.qc.read"],
-  "/laboratory/competency": ["lab.qc.read"],
-  "/laboratory/licence": ["lab.qc.read"],
-  "/management/reports": ["management.dashboard.read"],
-  "/records/imports": ["interop.fhir.import.review"],
-  "/records/retention": ["document.retention.manage"],
-  "/records/integrity": ["document.integrity.manage"],
-  "/records/requests": ["patient.records-request.manage"],
-  "/messages/settings": ["patient.message.read"],
-  "/admin/organization": ["organization.read"],
-  "/admin/users": ["user.read"],
-  "/admin/security": ["user.read"],
-  "/admin/roles": ["user.read"],
-  "/admin/facilities": ["organization.read"],
-  "/admin/service-points": ["clinic.configure"],
-  "/admin/audit": ["audit.read"],
-  "/admin/integrations": ["integration.exchange.manage"],
-  "/admin/compliance": ["compliance.review.manage"],
-  "/admin/consent-wording": ["consent.wording.manage"],
-  "/admin/privacy": ["privacy.incident.manage"],
-  "/admin/patient-qr": ["patient.qr.manage"],
 };
 
 /**
  * Navigation for the signed-in user, from the permissions the API grants (not a client-side role). A module whose
- * pages are all out of reach is left out.
+ * pages are all out of reach is left out; Settings appears when at least one settings page is open to the user.
  */
 export function navigationForPermissions(permissions: readonly string[], items: NavItem[] = STAFF_NAVIGATION): NavItem[] {
   const granted = new Set(permissions);
   const allowed = (required: string[] | undefined) => !required || required.some((p) => granted.has(p));
+  const hasSettings = settingsForPermissions(permissions).length > 0;
   return items
-    .filter((item) => allowed(MODULE_PERMISSIONS[item.href]))
+    .filter((item) => (item.href === SETTINGS_HOME ? hasSettings : allowed(MODULE_PERMISSIONS[item.href])))
     .map((item) => {
-      // Children pass the module's gate and their own page's; per-role child filtering is a demo concept.
-      const { roles: _roles, ...rest } = item;
-      const children = item.children?.filter((child) => allowed(PAGE_PERMISSIONS[child.href])).map(({ roles: _r, ...child }) => child);
-      return { ...rest, ...(children ? { children } : {}), ...(DEMO_MODULES.includes(item.href) ? { badge: "Demo" } : {}) };
-    })
-    .filter((item) => !item.children || item.children.length > 0);
+      // Per-role filtering is a demo concept; the permissions above decide.
+      const { roles: _roles, children: _children, ...rest } = item;
+      const settings = item.href === SETTINGS_HOME ? { match: isSettingsPath } : {};
+      return { ...rest, ...settings, ...(DEMO_MODULES.includes(item.href) ? { badge: "Demo" } : {}) };
+    });
 }
 
 export function isDemoPath(pathname: string): boolean {
@@ -109,11 +58,14 @@ export const BADGE_COUNTS: Record<string, (b: StaffBadges) => number | null> = {
   "/reporting": (b) => b.caseReports,
 };
 
+/** Counts that need action (a danger colour with a "need attention" label) rather than just waiting. */
+const ALERT_COUNTS = new Set(["/laboratory"]);
+
 /** Adds the counts to the navigation entries that have one (0 and withheld counts show nothing). */
 export function withBadgeCounts(items: NavItem[], badges: StaffBadges | null): NavItem[] {
   if (!badges) return items;
   return items.map((item) => {
     const count = BADGE_COUNTS[item.href]?.(badges) ?? null;
-    return count ? { ...item, count } : item;
+    return count ? { ...item, count, ...(ALERT_COUNTS.has(item.href) ? { countAlert: true } : {}) } : item;
   });
 }

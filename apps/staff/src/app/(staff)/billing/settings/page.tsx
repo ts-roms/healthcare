@@ -16,7 +16,6 @@ import type {
   VisitType,
   YakapParticipation,
 } from "@/lib/api/types";
-import { BillingNav } from "../billing-nav";
 import { BillingSettings } from "./billing-settings";
 
 export const metadata = { title: "Prices and discounts" };
@@ -50,7 +49,6 @@ export default async function BillingSettingsPage() {
       <PageHeader
         title="Prices and discounts"
         description="Billable services and their prices, packages, HMO and other payers, discount rules, tax settings and document numbers."
-        actions={<BillingNav canReport={can(session, "billing.report.read")} canConfigure={false} />}
       />
       <BillingSettings
         services={services.filter((s) => !s.isPackage)}

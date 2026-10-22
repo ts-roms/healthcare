@@ -16,7 +16,7 @@ const errors: string[] = [];
 const names = { triage: "Template Triage", lab: "Template Lab", xray: "Template X-ray" };
 const patient = { id: "", family: "Templatepatient" };
 let ticket = "";
-let visitTypeName = "Template check-up";
+const visitTypeName = "Template check-up";
 
 let admin: Page;
 let nurse: Page;

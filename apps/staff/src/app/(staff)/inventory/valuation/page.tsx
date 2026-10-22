@@ -10,7 +10,6 @@ import type { InventoryUsage, InventoryValuation } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
 import { shiftDate, todayIn } from "@/lib/clinic-mapping";
 import { INVENTORY_CATEGORY_LABEL, quantityWithUnit, usageLabel } from "@/lib/inventory-mapping";
-import { InventoryNav } from "../inventory-nav";
 
 export const metadata = { title: "Inventory valuation" };
 
@@ -21,13 +20,10 @@ const day = (date: string) => clinicalDate(`${date}T12:00:00Z`);
 export default async function ValuationPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.valuation.read")) redirect("/inventory");
-  const nav = (
-    <InventoryNav canConfigure={can(session, "inventory.catalog.manage")} canValue canRegister={can(session, "inventory.controlled-register.read")} />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Inventory valuation" actions={nav} />
+        <PageHeader title="Inventory valuation" />
         <FacilityRequired action="Stock is valued per facility." />
       </>
     );
@@ -49,7 +45,6 @@ export default async function ValuationPage({ searchParams }: { searchParams: Pr
       <PageHeader
         title="Inventory valuation"
         description={`${facility.name} · stock at cost (each lot at the average price of its receipts). Operational figures for stock control, not an accounting or BIR valuation.`}
-        actions={nav}
       />
       <div className="flex flex-col gap-4 p-4">
         <section aria-label="Totals" className="grid grid-cols-2 gap-3 md:grid-cols-4">

@@ -13,16 +13,16 @@ selected in the top bar. Times are shown in that facility's time zone (Asia/Mani
 - **Physicians and dentists** see the queue and start consultations from it (see [Consultations and care plans](04-consultations-and-care-plans.md)).
 - **Clinic administrators** set up the visit types, choose which of them patients may book online, and set up each facility's service points.
 
-| Screen               | Where                                                         | Needs                                                    |
-| -------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
-| Day schedule         | **Appointments** (`/appointments`)                            | `appointment.read`                                       |
-| Book appointment     | `/appointments/new` (from the record)                         | `appointment.manage`                                     |
-| Visit types          | **Online booking** (`/appointments/visit-types`)              | `appointment.read` to view, `clinic.configure` to change |
-| Queue board          | **Queue** (`/queue`)                                          | `clinic.queue.read`; `clinic.queue.manage` to act        |
-| Check in walk-in     | `/queue/walk-in` (from the record)                            | `clinic.queue.manage`                                    |
-| Triage               | `/queue/visits/[id]/triage`                                   | `clinic.triage.write`                                    |
-| Waiting-room display | `/display/queue` (from **Queue**)                             | `clinic.queue.display`                                   |
-| Service points       | **Administration → Service points** (`/admin/service-points`) | `clinic.configure`                                       |
+| Screen               | Where                                                   | Needs                                                    |
+| -------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| Day schedule         | **Appointments** (`/appointments`)                      | `appointment.read`                                       |
+| Book appointment     | `/appointments/new` (from the record)                   | `appointment.manage`                                     |
+| Visit types          | **Online booking** (`/appointments/visit-types`)        | `appointment.read` to view, `clinic.configure` to change |
+| Queue board          | **Queue** (`/queue`)                                    | `clinic.queue.read`; `clinic.queue.manage` to act        |
+| Check in walk-in     | `/queue/walk-in` (from the record)                      | `clinic.queue.manage`                                    |
+| Triage               | `/queue/visits/[id]/triage`                             | `clinic.triage.write`                                    |
+| Waiting-room display | `/display/queue` (from **Queue**)                       | `clinic.queue.display`                                   |
+| Service points       | **Settings → Service points** (`/admin/service-points`) | `clinic.configure`                                       |
 
 By default, receptionists have `appointment.read`, `appointment.manage`, `clinic.queue.read` and `clinic.queue.manage`. Nurses have
 `appointment.read`, the queue permissions and `clinic.triage.write`, but not `appointment.manage`. Physicians (and dentists) have all of these.
@@ -77,7 +77,7 @@ case, after booking you return to where you started.
 3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
 4. Choose **Add event**.
 
-Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Appointments → Schedules** for that.
+Click an event to see it. Only its organizer (or someone who manages clinic set-up) can **Edit** it or **Cancel event…** with a reason. A cancelled event stays on the calendar, struck through. Do not write patient details in an event. Blocking time here does not stop appointments from being booked; change the schedule under **Settings → Schedules** for that.
 
 ## How to confirm, cancel or mark a no-show
 
@@ -199,7 +199,7 @@ through, the one the patient is at marked **here**, and the stops still ahead; *
 calls patients automatically, that they will be called there.
 
 - **Done here, send on** — when the patient is finished at the current stop. Add a note if useful (for example "CBC sample taken") and select
-  **Send on**: the stop is marked done, the patient moves to the next stop, and — if your facility turned it on under **Administration → Service
+  **Send on**: the stop is marked done, the patient moves to the next stop, and — if your facility turned it on under **Settings → Service
   points → Routes** — they are called there at once, so the waiting-room display shows and announces it ("A-002 → Laboratory, 2nd floor") just
   as if you had typed it under **Call patient to**. At the last stop the button reads **Mark done**: the patient stays where they are and the
   route shows **Complete**.
@@ -216,7 +216,7 @@ kept with the visit and in the audit trail.
 ## How to set up service points
 
 A larger facility is not one line: after triage a patient may go to the consultation line, the emergency room, X-ray or another station. A clinic
-administrator (`clinic.configure`) sets these up under **Administration → Service points** (`/admin/service-points`) for the facility selected in the
+administrator (`clinic.configure`) sets these up under **Settings → Service points** (`/admin/service-points`) for the facility selected in the
 top bar:
 
 1. Select **Add a service point**: a **Code** (lower-case letters, digits and hyphens; it cannot change later), a **Name** as staff should see it,
@@ -340,7 +340,7 @@ child's normal is different) and the platform never acts on them.
 
 Some procedures — a wound dressing, an injection, a nebulization — are done by a nurse during a visit without the doctor seeing the patient.
 Your clinic decides which procedures these are: an administrator ticks **May be recorded under a visit without a consultation** for the entry
-under **Clinic → Procedures**. Staff who may record procedures (physicians and nurses) see **Procedures** on the queue ticket.
+under **Settings → Procedures**. Staff who may record procedures (physicians and nurses) see **Procedures** on the queue ticket.
 
 1. On the queue board, select the ticket and then **Procedures**. The page lists what was recorded in this visit outside a consultation.
 2. Select **Record procedure** and choose the **Procedure** (only entries your clinic allows outside a consultation are offered), who

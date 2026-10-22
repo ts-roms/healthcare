@@ -8,7 +8,6 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { InventoryItem, InventoryLocation, InventorySupplier, PurchaseOrder, ReorderSuggestion, ProcurementMethod } from "@/lib/api/types";
 import { peso } from "@/lib/billing-mapping";
-import { InventoryNav } from "../inventory-nav";
 import { NewPurchaseOrder } from "./new-purchase-order";
 import { PurchaseOrderStatusBadge } from "./status-badge";
 
@@ -18,17 +17,10 @@ export const metadata = { title: "Purchase orders" };
 export default async function PurchaseOrdersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "inventory.read")) redirect("/");
-  const nav = (
-    <InventoryNav
-      canConfigure={can(session, "inventory.catalog.manage")}
-      canValue={can(session, "inventory.valuation.read")}
-      canRegister={can(session, "inventory.controlled-register.read")}
-    />
-  );
   if (!facility) {
     return (
       <>
-        <PageHeader title="Purchase orders" actions={nav} />
+        <PageHeader title="Purchase orders" />
         <FacilityRequired action="Purchase orders are placed per facility." />
       </>
     );
@@ -45,11 +37,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
   ]);
   return (
     <>
-      <PageHeader
-        title="Purchase orders"
-        description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`}
-        actions={nav}
-      />
+      <PageHeader title="Purchase orders" description={`${facility.name} · ordered from suppliers, approved by someone else, received into stock`} />
       <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex gap-1">
