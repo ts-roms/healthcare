@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
+import { BellIcon, CompassIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import {
@@ -22,6 +22,7 @@ import type { StaffBadges } from "@/lib/api/types";
 import { NOTICE_EVENTS } from "@/lib/live-queue";
 import { moduleTabsFor } from "@/lib/module-tabs";
 import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/navigation";
+import { TOUR_START_EVENT } from "@/lib/tour";
 import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
 import { GuidedTour } from "./guided-tour";
@@ -192,6 +193,11 @@ export function StaffShell({
                   <Link href="/admin/organization">
                     <SettingsIcon aria-hidden /> Company settings
                   </Link>
+                </DropdownMenuItem>
+              ) : null}
+              {tourEnabled ? (
+                <DropdownMenuItem onSelect={() => window.dispatchEvent(new CustomEvent(TOUR_START_EVENT, { detail: {} }))}>
+                  <CompassIcon aria-hidden /> Tour this page
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator />

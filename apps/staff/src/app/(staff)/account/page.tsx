@@ -64,7 +64,7 @@ export default async function AccountPage() {
             </CardContent>
           </Card>
         ) : null}
-        <TourSetting offered={tourOffered} />
+        <TourSetting offered={tourOffered} permissions={session.permissions} />
       </div>
     </ModulePage>
   );

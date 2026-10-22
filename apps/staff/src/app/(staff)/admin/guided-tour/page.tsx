@@ -19,7 +19,6 @@ export default async function GuidedTourSettingsPage() {
       details={[
         "The tour is shown once per browser and holds no patient information. Staff can still turn it off for themselves on My account; this switch turns it off for everyone.",
       ]}
-      width="narrow"
     >
       <TourSwitch setting={setting} />
     </StaffSettingsPage>

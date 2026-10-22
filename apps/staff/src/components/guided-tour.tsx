@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@healthcare/ui/primitives";
-import { TOUR_START_EVENT, TOUR_STEPS, isTourEnabled, markTourSeen, resolveTarget, shouldAutoStart, TOUR_CHANGE_EVENT } from "@/lib/tour";
+import { TOUR_START_EVENT, WELCOME_TOUR_ID, markTourSeen, resolveTarget, tourForPath, tourToAutoStart, type TourDef } from "@/lib/tour";
+import { TOURS } from "@/lib/tour-steps";
 
 const PAD = 6;
 const CARD_WIDTH = 340;
@@ -20,50 +23,69 @@ interface Box {
  * Rendered by `StaffShell`, so the signed-out pages and the waiting-room display never show it.
  */
 export function GuidedTour() {
-  const [index, setIndex] = React.useState<number | null>(null);
+  const pathname = usePathname();
+  const [active, setActive] = React.useState<{ tour: TourDef; index: number } | null>(null);
   const [box, setBox] = React.useState<Box | null>(null);
   const cardRef = React.useRef<HTMLDivElement>(null);
-  const step = index === null ? null : TOUR_STEPS[index];
+  const tour = active?.tour ?? null;
+  const index = active?.index ?? null;
+  const step = tour && index !== null ? (tour.steps[index] ?? null) : null;
+  const setIndex = React.useCallback((next: number) => setActive((a) => (a ? { ...a, index: Math.min(Math.max(next, 0), a.tour.steps.length - 1) } : a)), []);
 
-  // Start on the first visit (after the page has drawn its navigation) or when Settings asks.
+  // Start on the first visit to a screen (after it has drawn) — and when someone asks.
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (shouldAutoStart()) setIndex(0);
+      // A page that could not be shown (not found, an error) has nothing to point at.
+      if (document.querySelector('[data-slot="error-state"]')) return;
+      const next = tourToAutoStart(TOURS, pathname);
+      if (next) setActive((current) => current ?? { tour: next, index: 0 });
     }, 800);
-    const onStart = () => setIndex(0);
-    const onChange = () => {
-      if (!isTourEnabled()) setIndex(null);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  React.useEffect(() => {
+    const onStart = (event: Event) => {
+      const id = (event as CustomEvent<{ id?: string } | undefined>).detail?.id;
+      const wanted = id ? TOURS.find((t) => t.id === id) : (tourForPath(TOURS, window.location.pathname) ?? TOURS.find((t) => t.id === WELCOME_TOUR_ID));
+      if (wanted) setActive({ tour: wanted, index: 0 });
     };
     window.addEventListener(TOUR_START_EVENT, onStart);
-    window.addEventListener(TOUR_CHANGE_EVENT, onChange);
     return () => {
-      window.clearTimeout(timer);
       window.removeEventListener(TOUR_START_EVENT, onStart);
-      window.removeEventListener(TOUR_CHANGE_EVENT, onChange);
     };
   }, []);
 
   const finish = React.useCallback(() => {
-    markTourSeen();
-    setIndex(null);
+    setActive((a) => {
+      if (a) markTourSeen(a.tour);
+      return null;
+    });
   }, []);
 
   // Follow the target through scrolling and resizing.
   React.useEffect(() => {
     if (!step) return;
+    let scrolled = false;
     const place = () => {
-      const el = resolveTarget(step);
-      if (!el) return setBox(null);
-      const r = el.getBoundingClientRect();
-      setBox({ top: r.top - PAD, left: r.left - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
+      const found = resolveTarget(step);
+      if (found && !scrolled) {
+        scrolled = true;
+        found.el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+      if (!found) return setBox((current) => (current === null ? current : null));
+      const r = found.rect;
+      const next = { top: r.top - PAD, left: r.left - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 };
+      setBox((c) => (c && c.top === next.top && c.left === next.left && c.width === next.width && c.height === next.height ? c : next));
     };
-    resolveTarget(step)?.scrollIntoView({ block: "nearest", inline: "nearest" });
     place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    // A page may still be loading (skeleton) or move things (animation, a panel opening): follow the target until the step ends.
+    const timer = window.setInterval(place, 250);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      window.clearInterval(timer);
     };
   }, [step]);
 
@@ -71,8 +93,8 @@ export function GuidedTour() {
     if (index === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") finish();
-      if (e.key === "ArrowRight") setIndex((i) => (i === null ? i : Math.min(i + 1, TOUR_STEPS.length - 1)));
-      if (e.key === "ArrowLeft") setIndex((i) => (i === null ? i : Math.max(i - 1, 0)));
+      if (e.key === "ArrowRight") setActive((a) => (a ? { ...a, index: Math.min(a.index + 1, a.tour.steps.length - 1) } : a));
+      if (e.key === "ArrowLeft") setActive((a) => (a ? { ...a, index: Math.max(a.index - 1, 0) } : a));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -82,8 +104,8 @@ export function GuidedTour() {
     if (index !== null) cardRef.current?.focus();
   }, [index]);
 
-  if (index === null || !step) return null;
-  const last = index === TOUR_STEPS.length - 1;
+  if (index === null || !step || !tour) return null;
+  const last = index === tour.steps.length - 1;
 
   const margin = 12;
   const vw = typeof window === "undefined" ? 1024 : window.innerWidth;
@@ -122,7 +144,7 @@ export function GuidedTour() {
         style={cardStyle}
       >
         <p className="text-meta text-muted-foreground">
-          Step {index + 1} of {TOUR_STEPS.length}
+          {tour.title} · step {index + 1} of {tour.steps.length}
         </p>
         <h2 id="tour-title" className="mt-1 text-section font-semibold">
           {step.title}
@@ -130,6 +152,13 @@ export function GuidedTour() {
         <p id="tour-body" className="mt-2 text-body text-muted-foreground">
           {step.body}
         </p>
+        {step.link ? (
+          <Button asChild variant="link" size="sm" className="mt-1 h-auto px-0">
+            <Link href={step.link.href} onClick={finish}>
+              {step.link.label}
+            </Link>
+          </Button>
+        ) : null}
         <div className="mt-4 flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={finish}>
             Skip tour
