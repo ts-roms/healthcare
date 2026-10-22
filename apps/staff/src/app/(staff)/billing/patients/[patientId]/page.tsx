@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { InvoiceBadge } from "@/components/invoice-badge";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type {
@@ -32,10 +32,9 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
   if (!UUID.test(patientId)) notFound();
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Patient billing" />
+      <ModulePage title="Patient billing">
         <FacilityRequired action="Charges and invoices are kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [charges, invoices, services, account, enrollments, packages, patient] = await Promise.all([
@@ -52,9 +51,8 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
     : (charges[0]?.patient?.displayName ?? invoices[0]?.patient?.displayName ?? "Patient");
   const number = patient?.patientNumber ?? charges[0]?.patient?.patientNumber ?? invoices[0]?.patient?.patientNumber;
   return (
-    <>
-      <PageHeader title={name} description={`${number ? `${number} · ` : ""}Billing at ${facility.name}`} />
-      <div className="grid gap-4 p-4 xl:grid-cols-[2fr_1fr]">
+    <ModulePage title={name} description={`${number ? `${number} · ` : ""}Billing at ${facility.name}`}>
+      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <PatientCharges
           patientId={patientId}
           charges={charges.filter((c) => c.status === "pending")}
@@ -94,6 +92,6 @@ export default async function PatientBillingPage({ params }: { params: Promise<{
           />
         </div>
       </div>
-    </>
+    </ModulePage>
   );
 }

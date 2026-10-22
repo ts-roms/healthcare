@@ -376,6 +376,10 @@ The laboratory's working pages (critical results, send-outs, instrument results,
 
 Stock, movements, purchase orders (and an order), supplier invoices (and an invoice), valuation, controlled register and tax and procurement use `ModulePage`: one sentence of description in the plain header, the longer text under "How this works" (valuation), and the compliance notes (controlled register, tax and procurement) as information callouts. The module tabs sit above; the catalog is in Settings. Data, permission checks, filters and the movement form are unchanged.
 
+### Billing module (UI redesign, phase 7)
+
+The cashier's desk, invoices, an invoice, a patient's billing and the daily report use `ModulePage` (their headers, descriptions and actions are unchanged; the page-level padding moved into the page template). The module tabs (Cashier, Invoices, Daily report) replace the header button rows; prices and discounts are under Settings. Charges, packages, deposits, discounts, payments, refunds, credit and debit notes, the PhilHealth claim panel and every permission check are untouched.
+
 ## Integrations (administration)
 
 `/admin/integrations` (`integration.exchange.manage`): outbound exchanges needing attention — unsuccessful and

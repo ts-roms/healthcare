@@ -1,10 +1,10 @@
+import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { InvoiceBadge } from "@/components/invoice-badge";
-import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { BillingWorklistRow, InvoiceSummary } from "@/lib/api/types";
@@ -18,10 +18,9 @@ export default async function BillingPage() {
   if (!can(session, "billing.charge.read")) redirect("/");
   if (!facility) {
     return (
-      <>
-        <PageHeader title="Billing" />
+      <ModulePage title="Billing">
         <FacilityRequired action="Charges, invoices and payments are kept per facility." />
-      </>
+      </ModulePage>
     );
   }
   const [worklist, drafts, unpaid] = await Promise.all([
@@ -30,9 +29,8 @@ export default async function BillingPage() {
     api<InvoiceSummary[]>("/billing/invoices", { query: { unpaid: "true" } }),
   ]);
   return (
-    <>
-      <PageHeader title="Billing" description={`${facility.name} · charges to invoice, drafts and balances`} />
-      <div className="grid gap-4 p-4 xl:grid-cols-2">
+    <ModulePage title="Billing" description={`${facility.name} · charges to invoice, drafts and balances`}>
+      <div className="grid gap-4 xl:grid-cols-2">
         <Card className="py-0 xl:col-span-2">
           <CardHeader className="pt-4">
             <CardTitle>To invoice</CardTitle>
@@ -73,7 +71,7 @@ export default async function BillingPage() {
         <InvoiceList title="Drafts in progress" empty="No drafts." invoices={drafts} />
         <InvoiceList title="Balances owed" empty="Nothing owed on issued invoices." invoices={unpaid} />
       </div>
-    </>
+    </ModulePage>
   );
 }
 
