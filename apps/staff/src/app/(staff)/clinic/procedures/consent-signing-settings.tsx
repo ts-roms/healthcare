@@ -21,7 +21,7 @@ export function ConsentSigningSettings({ setting, canConfigure }: { setting: Con
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
   return (
-    <section className="flex flex-col gap-3 border-t p-4" aria-labelledby="consent-signing-heading">
+    <section className="flex flex-col gap-3 p-4" aria-labelledby="consent-signing-heading">
       <div>
         <h2 id="consent-signing-heading" className="flex items-center gap-1.5 text-body font-semibold">
           <PenLineIcon className="size-4 text-muted-foreground" aria-hidden /> Signing consent forms

@@ -38,7 +38,7 @@ export function PageHeader({
 }) {
   return (
     <header data-slot="page-header" className={cn("flex flex-wrap items-end gap-3", variant === "bar" ? "border-b bg-card px-4 py-3" : "pb-1", className)}>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-64">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav aria-label="Breadcrumb" className="mb-1.5">
             <ol className="flex flex-wrap items-center gap-1 text-table text-muted-foreground">

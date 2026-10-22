@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { UserCheckIcon, UserPlusIcon } from "lucide-react";
-import { Button } from "@healthcare/ui/primitives";
+import { DashboardPage as DashboardTemplate } from "@healthcare/ui/layouts";
+import { StatTile } from "@healthcare/ui/healthcare";
+import { Button, Callout } from "@healthcare/ui/primitives";
+import { NextLink } from "@/components/next-link";
 import { LiveQueueRefresh } from "@/components/live-queue";
 import { LAB_EVENTS, QUEUE_EVENTS } from "@/lib/live-queue";
 import { api } from "@/lib/api/client";
@@ -33,7 +36,6 @@ import {
   weekStartOf,
 } from "@/lib/dashboard-today";
 import { monthOf, monthRange, shiftMonth } from "@/lib/doctor-profile";
-import { FigureTiles, type FigureTile } from "./_dashboard/figure-tiles";
 import { LabToday } from "./_dashboard/lab-today";
 import { LoadCalendar } from "./_dashboard/load-calendar";
 import { NeedsAttention } from "./_dashboard/needs-attention";
@@ -41,6 +43,17 @@ import { NextUp } from "./_dashboard/next-up";
 import { WeekChart } from "./_dashboard/week-chart";
 
 export const metadata = { title: "Dashboard" };
+
+/** One figure of the day as the stat row shows it. */
+interface DashboardTile {
+  key: string;
+  label: string;
+  value: string | number;
+  unit?: string;
+  sub: string;
+  href?: string;
+  alert?: boolean;
+}
 
 /** Runs a request only when the viewer may see what it answers. */
 const when = <T,>(allowed: boolean, request: () => Promise<T>): Promise<T | null> => (allowed ? request() : Promise.resolve(null));
@@ -94,7 +107,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ]);
   const showAttention = canClinic || labDashboard !== null || quality !== null || (criticals?.length ?? 0) > 0;
 
-  const tiles: FigureTile[] = [];
+  const tiles: DashboardTile[] = [];
   if (dashboard) {
     const appts = appointmentFigures(dashboard);
     const longest = visits ? (queueFigures(visits, now).longestWait ?? null) : null;
@@ -158,32 +171,70 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hasSide = Boolean(nextUp || monthLoad || weekLoad);
   const dateLabel = new Intl.DateTimeFormat("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone }).format(now);
 
+  // What is urgent right now, first and in the danger treatment: STAT samples not yet collected, critical results waiting to be acknowledged.
+  const statToCollect = labDashboard?.statPendingCollection ?? 0;
+  const criticalCount = criticals?.length ?? 0;
+  const urgent =
+    statToCollect > 0 || criticalCount > 0 ? (
+      <div className="flex flex-col gap-2">
+        {statToCollect > 0 ? (
+          <Callout
+            tone="danger"
+            title={`${statToCollect} STAT lab ${statToCollect === 1 ? "sample is" : "samples are"} not yet collected`}
+            actions={
+              canWorkbench ? (
+                <Button asChild variant="destructive" size="sm">
+                  <Link href="/laboratory/worklist?stage=collect">Open worklist</Link>
+                </Button>
+              ) : undefined
+            }
+          >
+            STAT orders waiting to be collected.
+          </Callout>
+        ) : null}
+        {criticalCount > 0 ? (
+          <Callout
+            tone="danger"
+            title={`${criticalCount} critical ${criticalCount === 1 ? "result is" : "results are"} waiting to be acknowledged`}
+            actions={
+              can(session, "lab.result.read") ? (
+                <Button asChild variant="destructive" size="sm">
+                  <Link href="/laboratory/critical">Open critical results</Link>
+                </Button>
+              ) : undefined
+            }
+          >
+            Document who was told, then the ordering side acknowledges.
+          </Callout>
+        ) : null}
+      </div>
+    ) : undefined;
+
   return (
-    <>
-      <header className="flex flex-wrap items-start gap-3 border-b bg-card px-6 py-5">
-        <div className="min-w-0">
-          <h1 className="text-page-lg font-semibold tracking-tight">
-            {greeting(now, timeZone)}, {session.user.displayName}
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-table text-muted-foreground">
-            <span>{dateLabel}</span>
-            <span aria-hidden>·</span>
-            <span>{session.organization.name}</span>
-            {facility ? (
-              <>
-                <span aria-hidden>·</span>
-                <span>{facility.name}</span>
-              </>
-            ) : null}
-            {canQueue || canWorkbench ? (
-              <span className="rounded-full border border-success/25 bg-success-subtle px-2 py-0.5">
-                {/* One socket keeps the figures and the laboratory current (each only if the viewer may see it). */}
-                <LiveQueueRefresh events={[...QUEUE_EVENTS, ...LAB_EVENTS]} />
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <DashboardTemplate
+      title={`${greeting(now, timeZone)}, ${session.user.displayName}`}
+      Link={NextLink}
+      description={
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{dateLabel}</span>
+          <span aria-hidden>·</span>
+          <span>{session.organization.name}</span>
+          {facility ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{facility.name}</span>
+            </>
+          ) : null}
+          {canQueue || canWorkbench ? (
+            <span className="rounded-full border border-success/25 bg-success-subtle px-2 py-0.5">
+              {/* One socket keeps the figures and the laboratory current (each only if the viewer may see it). */}
+              <LiveQueueRefresh events={[...QUEUE_EVENTS, ...LAB_EVENTS]} />
+            </span>
+          ) : null}
+        </span>
+      }
+      actions={
+        <>
           {can(session, "patient.register") ? (
             <Button asChild variant="outline">
               <Link href="/patients/new">
@@ -198,58 +249,74 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </Link>
             </Button>
           ) : null}
-        </div>
-      </header>
-
-      <div className="flex flex-col gap-4 p-4 md:p-6">
-        {facilities.length > 1 && !facility ? (
-          <p className="rounded-lg bg-info-subtle px-4 py-2 text-table text-info-foreground">
-            Select your facility in the top bar to see today&apos;s clinic. Registering patients needs one too.
-          </p>
+        </>
+      }
+      alert={
+        <>
+          {facilities.length > 1 && !facility ? (
+            <Callout tone="info">Select your facility in the top bar to see today&apos;s clinic. Registering patients needs one too.</Callout>
+          ) : null}
+          {urgent}
+        </>
+      }
+      tiles={
+        tiles.length > 0
+          ? tiles.map((tile) => (
+              <StatTile
+                key={tile.key}
+                label={tile.label}
+                value={tile.value}
+                unit={tile.unit}
+                hint={tile.sub}
+                href={tile.href}
+                tone={tile.alert ? "alert" : "default"}
+                Link={NextLink}
+              />
+            ))
+          : undefined
+      }
+    >
+      <div className={`grid items-start gap-4 ${hasSide ? "xl:grid-cols-[minmax(0,1fr)_23rem]" : ""}`}>
+        {showAttention ? (
+          <div className="min-w-0 xl:col-start-1">
+            <NeedsAttention rows={attention} />
+          </div>
         ) : null}
-        {tiles.length > 0 ? <FigureTiles tiles={tiles} /> : null}
-        <div className={`grid items-start gap-4 ${hasSide ? "xl:grid-cols-[minmax(0,1fr)_23rem]" : ""}`}>
-          {showAttention ? (
-            <div className="min-w-0 xl:col-start-1">
-              <NeedsAttention rows={attention} />
-            </div>
-          ) : null}
-          {nextUp ? (
-            <div className="min-w-0 xl:col-start-2">
-              <NextUp
-                rows={nextUp}
-                title={mine ? "Your next patients" : "Next up"}
-                scheduleHref={mine ? `/appointments?practitionerId=${mine.id}` : "/appointments"}
-                canOpenRecord={can(session, "patient.read")}
-              />
-            </div>
-          ) : null}
-          {labDashboard ? (
-            <div className="min-w-0 xl:col-start-1">
-              <LabToday dashboard={labDashboard} workbench={canWorkbench ? "/laboratory/worklist" : undefined} />
-            </div>
-          ) : null}
-          {monthLoad ? (
-            <div className="min-w-0 xl:col-start-2">
-              <LoadCalendar
-                month={month}
-                today={today}
-                days={monthLoad.days}
-                todayDay={todayDay}
-                previousHref={`/?month=${shiftMonth(month, -1)}`}
-                nextHref={`/?month=${shiftMonth(month, 1)}`}
-                todayHref="/"
-                openDayHref={canAppointments ? `/appointments?date=${today}` : undefined}
-              />
-            </div>
-          ) : null}
-          {weekLoad ? (
-            <div className="min-w-0 xl:col-start-2">
-              <WeekChart bars={weekBars(weekLoad.days, today)} followUps={due ? due.filter((a) => !a.overdue).length : null} />
-            </div>
-          ) : null}
-        </div>
+        {nextUp ? (
+          <div className="min-w-0 xl:col-start-2">
+            <NextUp
+              rows={nextUp}
+              title={mine ? "Your next patients" : "Next up"}
+              scheduleHref={mine ? `/appointments?practitionerId=${mine.id}` : "/appointments"}
+              canOpenRecord={can(session, "patient.read")}
+            />
+          </div>
+        ) : null}
+        {labDashboard ? (
+          <div className="min-w-0 xl:col-start-1">
+            <LabToday dashboard={labDashboard} workbench={canWorkbench ? "/laboratory/worklist" : undefined} />
+          </div>
+        ) : null}
+        {monthLoad ? (
+          <div className="min-w-0 xl:col-start-2">
+            <LoadCalendar
+              month={month}
+              today={today}
+              days={monthLoad.days}
+              todayDay={todayDay}
+              previousHref={`/?month=${shiftMonth(month, -1)}`}
+              nextHref={`/?month=${shiftMonth(month, 1)}`}
+              todayHref="/"
+              openDayHref={canAppointments ? `/appointments?date=${today}` : undefined}
+            />
+          </div>
+        ) : null}
+        {weekLoad ? (
+          <div className="min-w-0 xl:col-start-2">
+            <WeekChart bars={weekBars(weekLoad.days, today)} followUps={due ? due.filter((a) => !a.overdue).length : null} />
+          </div>
+        ) : null}
       </div>
-    </>
+    </DashboardTemplate>
   );
 }

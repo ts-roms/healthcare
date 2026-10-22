@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ActivityIcon,
-  AlertTriangleIcon,
   ArchiveIcon,
   BadgeCheckIcon,
   CalendarIcon,
@@ -23,7 +22,8 @@ import {
   HandIcon,
 } from "lucide-react";
 import { clinicalDate, clinicalDateTime, sexLabel, SummarySection, VitalSigns } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { DetailPage } from "@healthcare/ui/layouts";
+import { Badge, Button, Callout, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { AllergiesPanel } from "@/components/allergies-panel";
 import { api } from "@/lib/api/client";
 import { ApiError } from "@healthcare/web-session";
@@ -348,226 +348,223 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     ...(can(session, "patient.merge") && !merged ? [{ key: "merge", label: "Merge duplicate…", href: `/patients/${p.id}/merge` }] : []),
   ];
 
-  return (
-    <div className="flex min-h-full flex-col">
-      <ProfileHeader
-        patient={toBannerPatient(p, summary?.allergies)}
-        statusLabel={merged ? "Merged" : active ? null : label(p.status)}
-        allergiesHidden={!summary}
-        allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
-        todaysVisit={todaysVisit}
-        canStartConsultation={canStartConsultation(todaysVisit?.status ?? "completed") && can(session, "encounter.write")}
-        checkInHref={canCheckIn && active && facility ? `/queue/walk-in?patientId=${p.id}` : undefined}
-        bookHref={canBook && active ? `/appointments/new?patientId=${p.id}` : undefined}
-        billingHref={canBill ? `/billing/patients/${p.id}` : undefined}
-        more={more}
-      />
-      {merged && p.mergedInto ? (
-        <p
-          role="alert"
-          className="flex flex-wrap items-center gap-2 border-b border-warning/40 bg-warning-subtle px-4 py-2 text-table font-medium text-warning-foreground"
-        >
-          <GitMergeIcon className="size-4" aria-hidden />
-          Merged into <span className="font-mono">{p.mergedInto.patientNumber}</span> ({p.mergedInto.displayName})
-          {p.mergedInto.mergedAt ? ` on ${clinicalDateTime(p.mergedInto.mergedAt)}` : ""}
-          {lastMerge?.performedBy.name ? ` by ${lastMerge.performedBy.name}` : ""}. This record is read only; its care is shown on the surviving record.
-          <Link href={`/patients/${p.mergedInto.id}`} className="underline">
-            Open {p.mergedInto.patientNumber}
-          </Link>
-        </p>
-      ) : !active ? (
-        <p
-          role="alert"
-          className="flex items-center gap-2 border-b border-warning/40 bg-warning-subtle px-4 py-2 text-table font-medium text-warning-foreground"
-        >
-          <AlertTriangleIcon className="size-4" aria-hidden />
-          Record status: {label(p.status)}
-          {p.deceasedAt ? ` — deceased ${clinicalDate(p.deceasedAt)}` : ""}
-          {p.mergedIntoPatientId ? (
-            <Link href={`/patients/${p.mergedIntoPatientId}`} className="underline">
-              Open the surviving record
-            </Link>
-          ) : null}
-        </p>
-      ) : null}
-      <StaleVisitBanner
-        canManage={canCheckIn}
-        visits={openVisits.earlier.map((v) => ({
-          id: v.id,
-          version: v.version,
-          status: v.status,
-          statusLabel: visitStatusLabel(v.status),
-          ticket: v.ticket,
-          dayLabel: clinicalDate(`${v.queueDate}T12:00:00Z`),
-          encounterId: v.encounterId,
-        }))}
-      />
-
-      <ProfileTabs patientId={p.id} active={tab} />
-
-      {tab === "overview" ? (
-        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="flex min-w-0 flex-col gap-4">
-            <CompletenessCard
-              completeness={recordCompleteness(p)}
-              editHref={(can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged ? `/patients/${p.id}/edit` : undefined}
+  const rail =
+    tab === "overview" ? (
+      <Card id="clinical-summary">
+        <CardHeader>
+          <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
+          <CardTitle>Clinical summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {summary ? (
+            <ClinicalPanel
+              summary={summary}
+              patientId={p.id}
+              canOpenEncounters={can(session, "encounter.read")}
+              canOpenCarePlans={can(session, "care-plan.read")}
+              canManageAllergies={can(session, "allergy.manage") && !merged}
             />
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Demographics</CardTitle>
-                </CardHeader>
-                <CardContent>
+          ) : (
+            <NoClinicalAccess />
+          )}
+        </CardContent>
+      </Card>
+    ) : undefined;
+
+  return (
+    <DetailPage
+      identity={
+        <ProfileHeader
+          patient={toBannerPatient(p, summary?.allergies)}
+          statusLabel={merged ? "Merged" : active ? null : label(p.status)}
+          allergiesHidden={!summary}
+          allergiesRecorded={summary ? summary.allergies.status !== "not_reviewed" : true}
+          todaysVisit={todaysVisit}
+          canStartConsultation={canStartConsultation(todaysVisit?.status ?? "completed") && can(session, "encounter.write")}
+          checkInHref={canCheckIn && active && facility ? `/queue/walk-in?patientId=${p.id}` : undefined}
+          bookHref={canBook && active ? `/appointments/new?patientId=${p.id}` : undefined}
+          billingHref={canBill ? `/billing/patients/${p.id}` : undefined}
+          more={more}
+        />
+      }
+      notices={
+        <>
+          {merged && p.mergedInto ? (
+            <Callout tone="warning" role="alert" title="This record was merged">
+              Merged into <span className="font-mono">{p.mergedInto.patientNumber}</span> ({p.mergedInto.displayName})
+              {p.mergedInto.mergedAt ? ` on ${clinicalDateTime(p.mergedInto.mergedAt)}` : ""}
+              {lastMerge?.performedBy.name ? ` by ${lastMerge.performedBy.name}` : ""}. This record is read only; its care is shown on the surviving record.{" "}
+              <Link href={`/patients/${p.mergedInto.id}`} className="font-medium underline">
+                Open {p.mergedInto.patientNumber}
+              </Link>
+            </Callout>
+          ) : !active ? (
+            <Callout tone="warning" role="alert" title={`Record status: ${label(p.status)}${p.deceasedAt ? ` — deceased ${clinicalDate(p.deceasedAt)}` : ""}`}>
+              {p.mergedIntoPatientId ? (
+                <Link href={`/patients/${p.mergedIntoPatientId}`} className="font-medium underline">
+                  Open the surviving record
+                </Link>
+              ) : null}
+            </Callout>
+          ) : null}
+          <StaleVisitBanner
+            canManage={canCheckIn}
+            visits={openVisits.earlier.map((v) => ({
+              id: v.id,
+              version: v.version,
+              status: v.status,
+              statusLabel: visitStatusLabel(v.status),
+              ticket: v.ticket,
+              dayLabel: clinicalDate(`${v.queueDate}T12:00:00Z`),
+              encounterId: v.encounterId,
+            }))}
+          />
+        </>
+      }
+      tabs={<ProfileTabs patientId={p.id} active={tab} />}
+      rail={rail}
+    >
+      {tab === "overview" ? (
+        <>
+          <CompletenessCard
+            completeness={recordCompleteness(p)}
+            editHref={(can(session, "patient.update") || can(session, "patient.consent.manage")) && !merged ? `/patients/${p.id}/edit` : undefined}
+          />
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Demographics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-body">
+                  <Row term="Name">{p.displayName}</Row>
+                  <Row term="Birth date">
+                    {clinicalDate(p.birthDate)}
+                    {p.birthDateIsEstimated ? <Badge className="ml-2">Estimated</Badge> : null} <span className="text-muted-foreground">({p.age} y)</span>
+                  </Row>
+                  <Row term="Sex">{sexLabel(p.sex)}</Row>
+                  {p.genderIdentity ? <Row term="Gender identity">{p.genderIdentity}</Row> : null}
+                  <Row term="Civil status">{label(p.civilStatus)}</Row>
+                  <Row term="Nationality">{p.nationality ?? "—"}</Row>
+                  <Row term="Occupation">{p.occupation ?? "—"}</Row>
+                </dl>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <PhoneIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Contact &amp; address</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 text-body">
+                {p.contacts.length ? (
+                  <ul className="flex flex-col gap-1">
+                    {p.contacts.map((c) => (
+                      <li key={c.id} className="flex items-baseline gap-2">
+                        <span className="w-16 text-meta text-muted-foreground">{label(c.system)}</span>
+                        <span className="tabular">{c.value}</span>
+                        {c.isPrimary ? <Badge variant="info">Primary</Badge> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">No contact details recorded.</p>
+                )}
+                {p.addresses.length ? (
+                  <ul className="flex flex-col gap-1 border-t pt-2">
+                    {p.addresses.map((a) => (
+                      <li key={a.id} className="flex items-baseline gap-2">
+                        <span className="w-16 text-meta text-muted-foreground">{label(a.use)}</span>
+                        <span>{formatAddress(a)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="border-t pt-2 text-muted-foreground">No address recorded.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Identifiers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {p.identifiers.length ? (
                   <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-body">
-                    <Row term="Name">{p.displayName}</Row>
-                    <Row term="Birth date">
-                      {clinicalDate(p.birthDate)}
-                      {p.birthDateIsEstimated ? <Badge className="ml-2">Estimated</Badge> : null} <span className="text-muted-foreground">({p.age} y)</span>
-                    </Row>
-                    <Row term="Sex">{sexLabel(p.sex)}</Row>
-                    {p.genderIdentity ? <Row term="Gender identity">{p.genderIdentity}</Row> : null}
-                    <Row term="Civil status">{label(p.civilStatus)}</Row>
-                    <Row term="Nationality">{p.nationality ?? "—"}</Row>
-                    <Row term="Occupation">{p.occupation ?? "—"}</Row>
+                    {p.identifiers.map((i) => (
+                      <Row key={i.id} term={label(i.type)}>
+                        <span className="font-mono">{i.value}</span>
+                        {i.validUntil ? <span className="ml-2 text-meta text-muted-foreground">until {clinicalDate(i.validUntil)}</span> : null}
+                      </Row>
+                    ))}
                   </dl>
-                </CardContent>
-              </Card>
+                ) : (
+                  <p className="text-body text-muted-foreground">No identifiers recorded (PhilHealth PIN, PhilSys, SC/PWD ID, HMO).</p>
+                )}
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <PhoneIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <CardTitle>Contact &amp; address</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3 text-body">
-                  {p.contacts.length ? (
-                    <ul className="flex flex-col gap-1">
-                      {p.contacts.map((c) => (
-                        <li key={c.id} className="flex items-baseline gap-2">
-                          <span className="w-16 text-meta text-muted-foreground">{label(c.system)}</span>
-                          <span className="tabular">{c.value}</span>
-                          {c.isPrimary ? <Badge variant="info">Primary</Badge> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-muted-foreground">No contact details recorded.</p>
-                  )}
-                  {p.addresses.length ? (
-                    <ul className="flex flex-col gap-1 border-t pt-2">
-                      {p.addresses.map((a) => (
-                        <li key={a.id} className="flex items-baseline gap-2">
-                          <span className="w-16 text-meta text-muted-foreground">{label(a.use)}</span>
-                          <span>{formatAddress(a)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="border-t pt-2 text-muted-foreground">No address recorded.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Identifiers</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {p.identifiers.length ? (
-                    <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-body">
-                      {p.identifiers.map((i) => (
-                        <Row key={i.id} term={label(i.type)}>
-                          <span className="font-mono">{i.value}</span>
-                          {i.validUntil ? <span className="ml-2 text-meta text-muted-foreground">until {clinicalDate(i.validUntil)}</span> : null}
-                        </Row>
-                      ))}
-                    </dl>
-                  ) : (
-                    <p className="text-body text-muted-foreground">No identifiers recorded (PhilHealth PIN, PhilSys, SC/PWD ID, HMO).</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <UsersIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <CardTitle>Emergency contacts &amp; guardians</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {emergency.length ? (
-                    <ul className="flex flex-col gap-1.5 text-body">
-                      {emergency.map((r) => (
-                        <li key={r.id}>
-                          <span className="font-medium">{r.name ?? "Registered patient"}</span>{" "}
-                          <span className="text-muted-foreground">· {label(r.relationship)}</span>
-                          {r.isLegalGuardian ? <Badge className="ml-2">Guardian</Badge> : null}
-                          {r.contactNumber ? <span className="tabular ml-2">{r.contactNumber}</span> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-body text-muted-foreground">None recorded.</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {p.mergedRecords?.length || (merged && mergeHistory?.length) ? (
-              <Card id="merged-records">
-                <CardHeader>
-                  <GitMergeIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <CardTitle>{merged ? "Merge history" : "Merged records"}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <MergedRecords survivorId={p.id} records={p.mergedRecords ?? []} history={mergeHistory} canUnmerge={can(session, "patient.merge")} />
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {recent ? (
-              <Card id="recent-activity">
-                <CardHeader>
-                  <HistoryIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <CardTitle>Recent activity</CardTitle>
-                  <Button asChild size="sm" variant="ghost" className="ml-auto">
-                    <Link href={`/patients/${p.id}/timeline`}>Open timeline</Link>
-                  </Button>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  {recent.items.length ? (
-                    <PatientTimelineView entries={recent.items} patientId={p.id} timeZone={recent.timeZone} />
-                  ) : recent.withheld.length ? null : (
-                    <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
-                  )}
-                  <WithheldNote withheld={recent.withheld} />
-                </CardContent>
-              </Card>
-            ) : null}
+            <Card>
+              <CardHeader>
+                <UsersIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Emergency contacts &amp; guardians</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {emergency.length ? (
+                  <ul className="flex flex-col gap-1.5 text-body">
+                    {emergency.map((r) => (
+                      <li key={r.id}>
+                        <span className="font-medium">{r.name ?? "Registered patient"}</span>{" "}
+                        <span className="text-muted-foreground">· {label(r.relationship)}</span>
+                        {r.isLegalGuardian ? <Badge className="ml-2">Guardian</Badge> : null}
+                        {r.contactNumber ? <span className="tabular ml-2">{r.contactNumber}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-body text-muted-foreground">None recorded.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          <Card id="clinical-summary" className="self-start">
-            <CardHeader>
-              <ActivityIcon className="size-4 text-muted-foreground" aria-hidden />
-              <CardTitle>Clinical summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {summary ? (
-                <ClinicalPanel
-                  summary={summary}
-                  patientId={p.id}
-                  canOpenEncounters={can(session, "encounter.read")}
-                  canOpenCarePlans={can(session, "care-plan.read")}
-                  canManageAllergies={can(session, "allergy.manage") && !merged}
-                />
-              ) : (
-                <NoClinicalAccess />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          {p.mergedRecords?.length || (merged && mergeHistory?.length) ? (
+            <Card id="merged-records">
+              <CardHeader>
+                <GitMergeIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>{merged ? "Merge history" : "Merged records"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MergedRecords survivorId={p.id} records={p.mergedRecords ?? []} history={mergeHistory} canUnmerge={can(session, "patient.merge")} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {recent ? (
+            <Card id="recent-activity">
+              <CardHeader>
+                <HistoryIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Recent activity</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href={`/patients/${p.id}/timeline`}>Open timeline</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {recent.items.length ? (
+                  <PatientTimelineView entries={recent.items} patientId={p.id} timeZone={recent.timeZone} />
+                ) : recent.withheld.length ? null : (
+                  <p className="text-body text-muted-foreground">Nothing recorded yet.</p>
+                )}
+                <WithheldNote withheld={recent.withheld} />
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
       {tab === "clinical" ? (
-        <div className="flex flex-col gap-4 p-4">
+        <>
           {medicalHistory ? (
             <Card id="history">
               <CardHeader>
@@ -620,11 +617,11 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               </CardContent>
             </Card>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {tab === "visits" ? (
-        <div className="flex flex-col gap-4 p-4">
+        <>
           <Card id="visits">
             <CardHeader>
               <CalendarIcon className="size-4 text-muted-foreground" aria-hidden />
@@ -709,11 +706,11 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               </CardContent>
             </Card>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {tab === "labs" ? (
-        <div className="flex flex-col gap-4 p-4">
+        <>
           {labResults ? (
             <Card id="laboratory">
               <CardHeader>
@@ -741,11 +738,11 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               </CardContent>
             </Card>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {tab === "coverage" ? (
-        <div className="flex flex-col gap-4 p-4">
+        <>
           {eligibility ? (
             <Card>
               <CardHeader>
@@ -784,11 +781,11 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               </CardContent>
             </Card>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {tab === "portal" ? (
-        <div className="flex flex-col gap-4 p-4">
+        <>
           <Card>
             <CardHeader>
               <ShieldCheckIcon className="size-4 text-muted-foreground" aria-hidden />
@@ -859,20 +856,18 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               ) : null}
             </CardContent>
           </Card>
-        </div>
+        </>
       ) : null}
 
       {tab === "portal" && can(session, "patient.qr.issue") && can(session, "patient.read") && p.status !== "merged" ? (
-        <div className="px-4 pb-4">
-          <PatientQrCard patientId={p.id} />
-        </div>
+        <PatientQrCard patientId={p.id} />
       ) : null}
 
-      <p className="px-4 pb-4 text-meta text-muted-foreground">
+      <p className="text-meta text-muted-foreground">
         Registered {clinicalDateTime(p.createdAt)} · last updated {clinicalDateTime(p.updatedAt)} · version {p.version}. Viewing this record is recorded in the
         audit trail.
       </p>
-    </div>
+    </DetailPage>
   );
 }
 
