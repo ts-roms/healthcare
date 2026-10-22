@@ -431,6 +431,6 @@ describe("laboratory journey", () => {
     expect(external.body).toMatchObject({ source: "external", orderingPractitionerId: null, externalOrderer: "Dr. Reyes, St. Luke's" });
     const dashboard = await get("/dashboard", medtech).expect(200);
     // Current released results (the superseded first version no longer counts).
-    expect(dashboard.body).toMatchObject({ pendingCollection: 1, releasedToday: 3, criticalUnacknowledged: 0 });
+    expect(dashboard.body).toMatchObject({ pendingCollection: 1, statPendingCollection: 0, releasedToday: 3, criticalUnacknowledged: 0 });
   });
 });

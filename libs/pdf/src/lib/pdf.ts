@@ -210,6 +210,57 @@ export class PdfWriter {
     return this;
   }
 
+  /**
+   * A signature drawn on screen, placed in a box above its caption. `strokes` are polylines of [x, y] points in 0..1 inside
+   * the box (the capture pad's own proportions, 3:1); anything outside is clipped to the box. Printed with the signer's name
+   * and role and a verification line, so the page shows who signed what and when.
+   */
+  signatureMark(mark: { strokes: number[][][]; name: string; role: string; signedAt?: string; verification?: string }): this {
+    const boxWidth = Math.min(210, this.width / 2);
+    const boxHeight = boxWidth / 3;
+    this.ensure(boxHeight + 56);
+    this.doc.moveDown(0.8);
+    const x = MARGIN;
+    const y = this.doc.y;
+    this.doc.save();
+    this.doc.rect(x, y, boxWidth, boxHeight).clip();
+    this.doc.lineWidth(1.4).lineJoin("round").lineCap("round").strokeColor("black");
+    for (const stroke of mark.strokes) {
+      const points = stroke.filter((point) => point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]));
+      if (points.length === 0) continue;
+      const at = (point: number[]): [number, number] => [x + clamp01(point[0]!) * boxWidth, y + clamp01(point[1]!) * boxHeight];
+      const [startX, startY] = at(points[0]!);
+      if (points.length === 1) {
+        this.doc.circle(startX, startY, 0.7).fillAndStroke("black", "black");
+        continue;
+      }
+      this.doc.moveTo(startX, startY);
+      for (const point of points.slice(1)) this.doc.lineTo(...at(point));
+      this.doc.stroke();
+    }
+    this.doc.restore();
+    this.doc
+      .moveTo(x, y + boxHeight)
+      .lineTo(x + boxWidth, y + boxHeight)
+      .strokeColor(RULE)
+      .lineWidth(1)
+      .stroke();
+    this.doc
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor("black")
+      .text(winAnsi(mark.name), x, y + boxHeight + 4, { width: this.width });
+    this.doc
+      .font("Helvetica")
+      .fontSize(8)
+      .fillColor(MUTED)
+      .text(winAnsi(mark.signedAt ? `${mark.role}  |  ${mark.signedAt}` : mark.role), x, this.doc.y, { width: this.width });
+    if (mark.verification) this.doc.text(winAnsi(mark.verification), x, this.doc.y, { width: this.width });
+    this.doc.fillColor("black");
+    this.doc.x = MARGIN;
+    return this;
+  }
+
   space(lines = 0.6): this {
     this.doc.moveDown(lines);
     return this;
@@ -310,6 +361,10 @@ function letterhead(doc: Doc, spec: PdfSpec): void {
 // WinAnsi (cp1252) extras beyond Latin-1 that the standard fonts can draw.
 const WIN_ANSI_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
 const REPLACEMENTS: Record<string, string> = { "₱": "PHP ", "−": "-", "≥": ">=", "≤": "<=", "→": "->", "✓": "v", " ": " " };
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
 
 /** Reduces text to what the standard PDF fonts can draw. */
 export function winAnsi(text: string): string {

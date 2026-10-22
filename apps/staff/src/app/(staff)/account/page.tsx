@@ -1,14 +1,19 @@
 import { ShieldCheckIcon, ShieldOffIcon } from "lucide-react";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
-import { getSession } from "@/lib/api/session";
+import { api } from "@/lib/api/client";
+import { can, getSession } from "@/lib/api/session";
+import type { MyPractitionerSignature } from "@/lib/api/types";
 import { PasswordForm, RecoveryCodesSettings, TwoStepSettings } from "./account-forms";
+import { MySignature } from "./my-signature";
 
 export const metadata = { title: "My account" };
 
 /** The signed-in person's own sign-in settings: password and two-step verification. */
 export default async function AccountPage() {
   const session = await getSession();
+  // Practitioners draw their own signature for the certificates and letters they issue.
+  const signature = can(session, "encounter.read") ? await api<MyPractitionerSignature>("/me/practitioner-signature").catch(() => null) : null;
   return (
     <>
       <PageHeader title="My account" description={`${session.user.displayName} · ${session.user.email} · ${session.organization.name}`} />
@@ -46,6 +51,16 @@ export default async function AccountPage() {
             {session.user.mfaEnabled ? <RecoveryCodesSettings remaining={session.user.recoveryCodesRemaining} /> : null}
           </CardContent>
         </Card>
+        {signature?.practitioner ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>My signature</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-table">
+              <MySignature mine={signature} />
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </>
   );

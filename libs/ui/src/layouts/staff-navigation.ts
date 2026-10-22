@@ -64,6 +64,7 @@ export const STAFF_NAVIGATION: NavItem[] = [
       { label: "Coding systems", href: "/clinic/coding-systems", roles: ["doctor", "admin"] },
       { label: "Prescriptions", href: "/clinic/prescriptions", roles: ["doctor", "admin"] },
       { label: "Referrals", href: "/clinic/referrals", roles: ["doctor", "admin"] },
+      { label: "Signatures", href: "/clinic/signatures", roles: ["admin"] },
     ],
   },
   {

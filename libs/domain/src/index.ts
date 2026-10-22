@@ -3,3 +3,4 @@ export * from "./dental";
 export * from "./types";
 export * from "./roles";
 export * from "./vital-bands";
+export * from "./signature";

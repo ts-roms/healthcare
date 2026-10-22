@@ -47,7 +47,7 @@ open it with the menu button (**Open navigation**) at the top left.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
 - **Help** at the end of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
-  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page opens a small **Need a hand?**
+  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, the lifebuoy button in the top bar) opens a small **Need a hand?**
   window instead: the chapter about the screen you are on comes first (**About this screen**), then every chapter, and **Open the user manual**
   opens the manual's contents page. Press Escape or the × to close it. Hover over the button or move to it with the keyboard to see its name.
 
@@ -94,6 +94,8 @@ Open the **Account menu** (your initials in the top bar) and choose **My account
   phone, and click **I have saved them**. From then on, signing in also asks for a code. Each code works once: if a code is refused, wait for the
   next one the app shows. To turn it off, click **Turn off…** and enter your password and a current code (or a recovery code). If your
   organization requires two-step verification, the page says so and it cannot be turned off.
+- **My signature** (practitioners only): draw your signature in the box with a finger, a pen or the mouse and click **Save signature**; **Remove it** takes it away.
+  When your clinic prints signatures, the medical certificates and referral letters you issue from then on carry it above your name.
 - **Recovery codes:** without your phone, type a recovery code instead of the 6 digits when signing in; each works once. **My account** shows how
   many are left. **New recovery codes…** (your password and a code from the app) makes a new set, and the old ones stop working.
 

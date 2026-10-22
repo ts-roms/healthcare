@@ -114,3 +114,10 @@ patient record (starts a conversation) with a link to all conversations with tha
 Notification platform (in-app to staff; SMS/email to patients), documents platform (patient uploads are
 `clinical_attachment` documents of the record; signed links), the staff directory (`UsersService.holdersOfRole` for
 routed roles), patient merge (links, not moves), audit. No external system.
+
+## Live updates
+
+Conversation pages stay current without a reload, on both sides:
+
+- **Staff:** the realtime gateway sends `messages.updated` (thread id, message id and who sent it, never the text) to sockets of users holding `patient.message.read` at the facility whenever a `PatientMessageSent` event is published; the staff pages refresh through the REST API (polling every 15 seconds while the socket is down).
+- **MyHealth:** a patient's browser opens the same gateway with a 60-second ticket from `POST /portal/realtime-tickets` (the portal server asks for it; the browser never holds an access token; the ticket is always the account holder's own). The gateway re-checks the portal session, account and consent on connect, joins the socket to the patient's own room only and sends `messages.updated` (thread id, no text) when the clinic replies. The conversation and message list refresh on it, re-read every 10 seconds while the socket is down and every 30 seconds as a safety net while it is up (`LiveRefresh`; typed text is kept). Someone acting for another person (guardian access) hears the account holder's own channel only, so the safety refresh covers the dependent's conversations.

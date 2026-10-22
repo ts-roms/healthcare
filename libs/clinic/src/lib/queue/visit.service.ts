@@ -408,8 +408,18 @@ export class VisitService {
     return { facilityName: facility.name, date, timeZone: facility.timezone, calls, waiting };
   }
 
-  async get(actor: Actor, visitId: string): Promise<VisitView> {
-    return toVisitView(await this.find(this.db, actor.organizationId, visitId));
+  /** One visit, with the modality of its visit type and its consultation (as the queue board rows carry them). */
+  async get(actor: Actor, visitId: string): Promise<VisitView & { modality: Modality; encounterId: string | null }> {
+    const row = await this.find(this.db, actor.organizationId, visitId);
+    const [type] = await this.db
+      .select({ modality: visitType.modality })
+      .from(visitType)
+      .where(and(eq(visitType.organizationId, actor.organizationId), eq(visitType.id, row.visitTypeId)));
+    const [consultation] = await this.db
+      .select({ id: encounter.id })
+      .from(encounter)
+      .where(and(eq(encounter.organizationId, actor.organizationId), eq(encounter.visitId, row.id), ne(encounter.status, "entered_in_error")));
+    return { ...toVisitView(row), modality: type?.modality ?? "in_person", encounterId: consultation?.id ?? null };
   }
 
   /** Moves a visit through triage/waiting states, or closes it without care (reason required). */
@@ -579,7 +589,13 @@ export class VisitService {
     if (row.status !== status && !canTransition(row.status, status)) throw invalidMove(row.status, status);
     const [updated] = await tx
       .update(visit)
-      .set({ status, ...(row.status !== status ? { calledAt: null, calledTo: null } : {}), ...extra, updatedAt: new Date(), version: sql`${visit.version} + 1` })
+      .set({
+        status,
+        ...(row.status !== status ? { calledAt: null, calledTo: null } : {}),
+        ...extra,
+        updatedAt: new Date(),
+        version: sql`${visit.version} + 1`,
+      })
       .where(eq(visit.id, row.id))
       .returning();
     const result = found(updated, "Visit");

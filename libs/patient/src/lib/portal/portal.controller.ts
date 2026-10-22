@@ -100,6 +100,16 @@ export class PortalController {
     await this.accounts.logout(patient);
   }
 
+  @Post("realtime-tickets")
+  @Public()
+  @UseGuards(PatientAccessGuard)
+  @HttpCode(201)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Short-lived ticket to open the realtime socket for the signed-in patient (never an access token)" })
+  realtimeTicket(@CurrentPatient() patient: PortalPrincipal) {
+    return this.accounts.realtimeTicket(patient);
+  }
+
   @Get("me")
   @Public()
   @UseGuards(PatientAccessGuard)

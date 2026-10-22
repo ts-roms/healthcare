@@ -11,6 +11,7 @@ import {
   offerExpiry,
   offerable,
   type OfferCandidate,
+  isPastForPatient,
 } from "./patient-booking";
 
 const now = new Date("2026-09-28T01:00:00Z");
@@ -159,5 +160,23 @@ describe("online check-in and automatic no-shows", () => {
       expect(offerable(now, new Date("2026-10-06T08:00:00Z"), rules)).toBe(true);
       expect(offerable(now, new Date("2026-10-06T02:00:30Z"), rules)).toBe(false);
     });
+  });
+});
+
+describe("past and upcoming visits in MyHealth", () => {
+  it("lists a visit by its end time while it may still happen", () => {
+    expect(isPastForPatient("booked", inMinutes(30), now)).toBe(false);
+    expect(isPastForPatient("checked_in", inMinutes(5), now)).toBe(false);
+    expect(isPastForPatient("booked", inMinutes(-1), now)).toBe(true);
+  });
+
+  it("moves an attended or missed visit to the past even before its booked end", () => {
+    expect(isPastForPatient("completed", inMinutes(20), now)).toBe(true);
+    expect(isPastForPatient("no_show", inMinutes(20), now)).toBe(true);
+  });
+
+  it("keeps a cancelled visit where its time puts it", () => {
+    expect(isPastForPatient("cancelled", inMinutes(60), now)).toBe(false);
+    expect(isPastForPatient("cancelled", inMinutes(-60), now)).toBe(true);
   });
 });

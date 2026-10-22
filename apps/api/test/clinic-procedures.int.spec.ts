@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { extractPdfText } from "@healthcare/pdf";
 import {
   as,
@@ -408,5 +409,92 @@ describe("clinic procedures", () => {
       .find((r) => r.id === ids.onVisit);
     expect(resource).toMatchObject({ status: "completed" });
     expect(resource).not.toHaveProperty("encounter");
+  });
+
+  it("signs the consent form on screen, keeps the evidence beside the signed document and links it to the consent", async () => {
+    // The visit page needs the visit type's modality and any consultation from the single-visit read.
+    expect((await staff(nurse).get(`/queue/visits/${ids.visit}`).expect(200)).body).toMatchObject({ modality: "in_person", encounterId: null });
+    const stroke = [
+      [0.05, 0.6],
+      [0.2, 0.2],
+      [0.35, 0.7],
+      [0.5, 0.25],
+      [0.8, 0.55],
+    ];
+    const requestId = randomUUID();
+    const sign = (t: string, over: object = {}) =>
+      staff(t).post(`/clinic/procedure-definitions/${ids.suture}/consent-form/sign`, {
+        patientId,
+        requestId,
+        signerKind: "patient",
+        signerName: "Juan Dela Cruz",
+        identityCheck: "PhilSys card shown",
+        strokes: [stroke],
+        ...over,
+      });
+
+    // Who may: those who record procedures; the signature must be drawn; a representative says how they are related.
+    await sign(cashier).expect(403);
+    await sign(nurse, { strokes: [[[0.5, 0.5]]] }).expect(code(422, "signature_empty"));
+    await sign(nurse, { strokes: [] }).expect(400);
+    await sign(nurse, { signerKind: "representative" }).expect(400);
+    await sign(nurse, { signerRelationship: "mother" }).expect(400);
+    await sign(nurse, { identityCheck: "" }).expect(400);
+    await staff(nurse)
+      .post(`/clinic/procedure-definitions/${ids.neb}/consent-form/sign`, {
+        patientId,
+        requestId: randomUUID(),
+        signerKind: "patient",
+        signerName: "Juan Dela Cruz",
+        identityCheck: "PhilSys card shown",
+        strokes: [stroke],
+      })
+      .expect(code(422, "consent_wording_not_published"));
+
+    const signed = await sign(nurse).expect(200);
+    expect(signed.body).toMatchObject({ documentId: requestId });
+    // A retry (same request id) finds the same document and signature.
+    const retry = await sign(nurse).expect(200);
+    expect(retry.body).toMatchObject({ documentId: requestId, signatureId: signed.body.signatureId });
+    expect((await ctx.pool.query(`SELECT count(*)::int AS n FROM document_signature WHERE document_id = $1`, [requestId])).rows[0].n).toBe(1);
+
+    // The stored document is a consent form of the patient, the platform's own output.
+    const stored = (await staff(doctor).get(`/documents/${requestId}`).expect(200)).body;
+    expect(stored).toMatchObject({ category: "consent_form", status: "available", source: "generated", patientId });
+
+    // The evidence: who, how identified, when, the hash of the text agreed to; never the strokes.
+    const evidence = (await staff(doctor).get(`/documents/${requestId}/signatures`).expect(200)).body as Array<Record<string, unknown>>;
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]).toMatchObject({
+      id: signed.body.signatureId,
+      signerKind: "patient",
+      signerName: "Juan Dela Cruz",
+      identityCheck: "PhilSys card shown",
+      method: "drawn",
+    });
+    expect(evidence[0]!.shownSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(evidence[0]).not.toHaveProperty("strokes");
+    await staff(cashier).get(`/documents/${requestId}/signatures`).expect(403);
+
+    // The signature table cannot be edited or emptied.
+    await expect(ctx.pool.query(`UPDATE document_signature SET signer_name = 'x' WHERE document_id = $1`, [requestId])).rejects.toThrow();
+    await expect(ctx.pool.query(`DELETE FROM document_signature WHERE document_id = $1`, [requestId])).rejects.toThrow();
+
+    // The audit carries ids only.
+    const audit = await auditRows(ctx.pool, "action = 'document.sign' AND patient_id = $1", [patientId]);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ metadata: { signatureId: signed.body.signatureId, signerKind: "patient", method: "drawn" } });
+    expect(JSON.stringify(audit)).not.toMatch(/Juan|PhilSys|0\.2/);
+
+    // Linked as the consent of a procedure, captured electronically with the wording version shown.
+    const encounterId = ids.encounter2!;
+    const recorded = await staff(doctor)
+      .post(`/encounters/${encounterId}/procedures`, {
+        definitionId: ids.suture,
+        bodySite: "left hand",
+        consent: { capturedVia: "electronic", documentId: requestId },
+      })
+      .expect(201);
+    expect(recorded.body.consent).toMatchObject({ capturedVia: "electronic", documentId: requestId, wording: { version: 2 } });
   });
 });

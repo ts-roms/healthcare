@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { LiveMessagesRefresh } from "@/components/live-queue";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
@@ -33,6 +34,7 @@ export default async function PatientMessagesPage({ searchParams }: { searchPara
   };
   return (
     <>
+      <LiveMessagesRefresh />
       <PageHeader
         title="Patient messages"
         description="Conversations patients start in MyHealth. Read during clinic hours and reply in plain words. Patients are told this is not for emergencies; if a message describes one, call the patient."

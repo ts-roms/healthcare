@@ -11,6 +11,7 @@ import {
   HomeIcon,
   LogOutIcon,
   MessageSquareIcon,
+  PenLineIcon,
   SmileIcon,
   UserIcon,
   UsersIcon,
@@ -26,6 +27,7 @@ const NAV = [
   { label: "Visits", href: "/appointments", icon: CalendarIcon },
   { label: "Results", href: "/results", icon: FlaskConicalIcon },
   { label: "Dental", href: "/dental", icon: SmileIcon },
+  { label: "Forms", href: "/forms", icon: PenLineIcon },
   { label: "Messages", href: "/messages", icon: MessageSquareIcon },
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];
@@ -35,6 +37,7 @@ export function PortalShell({
   timeZone,
   unreadMessages,
   dental,
+  forms,
   acting,
   hasDependents,
   signOut,
@@ -46,6 +49,8 @@ export function PortalShell({
   unreadMessages: number;
   /** The clinic shares dental records and there is something to show. */
   dental: boolean;
+  /** Forms the clinic asked this person to sign. */
+  forms: number;
   /** Acting for another person: who, how the signed-in person is related, and whether they may only look. */
   acting: { name: string; relationship: string; viewOnly: boolean } | null;
   /** The signed-in person may act for someone else. */
@@ -55,7 +60,9 @@ export function PortalShell({
 }) {
   // Set during render, before the page below renders (one patient per page).
   setClinicTimeZone(timeZone);
-  const nav = NAV.filter((n) => dental || n.href !== "/dental").map((n) => (n.href === "/messages" ? { ...n, count: unreadMessages } : n));
+  const nav = NAV.filter((n) => (dental || n.href !== "/dental") && (forms > 0 || n.href !== "/forms")).map((n) =>
+    n.href === "/messages" ? { ...n, count: unreadMessages } : n.href === "/forms" ? { ...n, count: forms } : n,
+  );
   return (
     <PatientLayout
       nav={nav}
@@ -102,7 +109,8 @@ export function PortalShell({
             You are looking at <strong>{acting.name}</strong>&apos;s MyHealth as their {acting.relationship.toLowerCase()}.
             {acting.viewOnly ? " You can look but not make changes." : ""}
           </span>
-          <Link href="/people/stop" className="font-medium text-primary underline">
+          {/* No prefetch: this route ends the acting cookie, so a prefetch would end acting as soon as the page loaded. */}
+          <Link href="/people/stop" prefetch={false} className="font-medium text-primary underline">
             Back to my own MyHealth
           </Link>
         </div>

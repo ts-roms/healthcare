@@ -133,6 +133,7 @@ export function RecordProcedureForm({
         printHref={consentPrintHref(chosen, patientId)}
         documents={documents}
         required={chosen?.consentRequired ?? false}
+        signing={chosen ? { definitionId: chosen.id, patientId } : null}
       />
       {signed ? (
         <div className="grid gap-1 sm:col-span-6">

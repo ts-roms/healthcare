@@ -1,29 +1,17 @@
+import { actingForHeader as header } from "@healthcare/domain/proxy-access";
+
 /**
  * Acting for another person in MyHealth (guardian access). The chosen person's patient id is kept in an httpOnly cookie
  * and sent to the API as `X-Acting-For` — except on the routes about the account holder's own account (sign-in security,
- * notification settings, consents, devices, this feature itself), which the API refuses while acting.
+ * notification settings, consents, devices, this feature itself), which the API refuses while acting. The rules for which
+ * paths those are live in `@healthcare/domain/proxy-access`, shared with the mobile app.
  */
 export const ACTING_COOKIE = "hp_for";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const OWN_ACCOUNT_API_PATHS = [
-  "/portal/auth",
-  "/portal/consents",
-  "/portal/communication-preferences",
-  "/portal/push",
-  "/portal/proxy",
-  "/portal/email",
-  "/portal/mfa",
-];
+export { isOwnAccountApiPath, RELATIONSHIP_LABEL } from "@healthcare/domain/proxy-access";
 
 /** Screens about the account holder's own account: not available while acting for someone. */
 export const OWN_ACCOUNT_SCREENS = ["/profile", "/security", "/notification-settings", "/privacy"];
-
-export function isOwnAccountApiPath(path: string): boolean {
-  const clean = path.split("?")[0] ?? path;
-  return OWN_ACCOUNT_API_PATHS.some((p) => clean === p || clean.startsWith(`${p}/`));
-}
 
 export function isOwnAccountScreen(pathname: string): boolean {
   return OWN_ACCOUNT_SCREENS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -31,8 +19,7 @@ export function isOwnAccountScreen(pathname: string): boolean {
 
 /** The header to send for an API path, or none. A cookie that is not a patient id is ignored. */
 export function actingForHeader(path: string, cookieValue: string | undefined): Record<string, string> {
-  if (!cookieValue || !UUID.test(cookieValue) || isOwnAccountApiPath(path)) return {};
-  return { "x-acting-for": cookieValue };
+  return header(path, cookieValue);
 }
 
 /** What the API's refusal of an acting request means to the person using MyHealth. */
@@ -46,12 +33,3 @@ export function proxyMessage(code: string | undefined, fallback: string): string
       return fallback;
   }
 }
-
-export const RELATIONSHIP_LABEL: Record<string, string> = {
-  parent: "Parent",
-  legal_guardian: "Legal guardian",
-  caregiver: "Caregiver",
-  spouse_or_partner: "Spouse or partner",
-  adult_child: "Adult child",
-  other: "Other",
-};

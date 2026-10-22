@@ -23,13 +23,24 @@ import { StaffHelpSearch } from "./help-search";
 export type HelpChapter = Pick<ManualChapter, "slug" | "title">;
 
 /**
- * The floating help button at the bottom-right of every signed-in staff page. It opens a dialog with the manual's
- * chapters (the one about the current screen first) and a button to the full manual (`/help`, the same page as
- * **Help** in the menu). Fixed to the viewport with a 16px gutter (and the phone's safe area), below dialogs,
- * sheets and toasts (`z-30`); the content area keeps enough bottom padding that it never covers a form's last
- * buttons. Rendered by `StaffShell`, so the waiting-room display and the signed-out pages never show it.
+ * The help button of every signed-in staff page. It opens a dialog with the manual's chapters (the one about the
+ * current screen first) and a button to the full manual (`/help`, the same page as **Help** in the menu).
+ *
+ * `floating` (from `md` up): round, fixed at the bottom-right with a 16px gutter, below dialogs, sheets and toasts
+ * (`z-30`); the content area keeps enough bottom padding that it never covers a form's last buttons.
+ * `topbar` (below `md`): an icon button in the top bar, because on a phone a floating button sits on the right-hand
+ * column of tables and on row actions while the page scrolls under it.
+ * Rendered by `StaffShell`, so the waiting-room display and the signed-out pages never show it.
  */
-export function HelpFab({ chapters, sections = [] }: { chapters: HelpChapter[]; sections?: ManualSection[] }) {
+export function HelpFab({
+  chapters,
+  sections = [],
+  placement = "floating",
+}: {
+  chapters: HelpChapter[];
+  sections?: ManualSection[];
+  placement?: "floating" | "topbar";
+}) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const suggestedSlug = chapterForPath(pathname);
@@ -42,16 +53,22 @@ export function HelpFab({ chapters, sections = [] }: { chapters: HelpChapter[]; 
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button
-              size="icon"
-              aria-label="Open the user manual"
-              className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 size-11 shadow-lg"
-            >
-              <LifeBuoyIcon className="size-5" aria-hidden />
-            </Button>
+            {placement === "topbar" ? (
+              <Button variant="ghost" size="icon" aria-label="Open the user manual" className="md:hidden">
+                <LifeBuoyIcon aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                size="icon"
+                aria-label="Open the user manual"
+                className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden size-11 shadow-lg md:inline-flex"
+              >
+                <LifeBuoyIcon className="size-5" aria-hidden />
+              </Button>
+            )}
           </DialogTrigger>
         </TooltipTrigger>
-        <TooltipContent side="left">Open the user manual</TooltipContent>
+        <TooltipContent side={placement === "topbar" ? "bottom" : "left"}>Open the user manual</TooltipContent>
       </Tooltip>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>

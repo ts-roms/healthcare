@@ -83,7 +83,7 @@ describe("patientAttentionRows", () => {
 });
 
 describe("labAttentionRows", () => {
-  const lab = { pendingCollection: 3, overdue: 0 } as LabDashboard;
+  const lab = { pendingCollection: 3, statPendingCollection: 0, overdue: 0 } as LabDashboard;
   const critical = [{ testName: "Potassium", patient: { patientNumber: "P9" } }] as LabCriticalAlert[];
   const quality = {
     nonconformances: { open: 0, investigating: 0, critical: 0, major: 0 },
@@ -114,6 +114,27 @@ describe("labAttentionRows", () => {
         action: undefined,
       },
     ]);
+  });
+
+  it("lists STAT samples to collect as urgent, ahead of the other lab rows, and counts the rest separately", () => {
+    const rows = labAttentionRows({
+      dashboard: { ...lab, pendingCollection: 3, statPendingCollection: 2, overdue: 1 },
+      criticals: [],
+      quality: null,
+      canOpenWorkbench: true,
+    });
+    expect(rows.map((r) => [r.id, r.tone, r.title, r.action?.label])).toEqual([
+      ["lab-collect-stat", "urgent", "2 STAT lab samples not yet collected", "Collect now"],
+      ["lab-overdue", "soon", "Tests past their turnaround time", "Open lab"],
+      ["lab-collect", "soon", "1 lab sample not yet collected", "Open lab"],
+    ]);
+    const onlyStat = labAttentionRows({
+      dashboard: { ...lab, pendingCollection: 1, statPendingCollection: 1 },
+      criticals: [],
+      quality: null,
+      canOpenWorkbench: false,
+    });
+    expect(onlyStat.map((r) => [r.id, r.title, r.action])).toEqual([["lab-collect-stat", "1 STAT lab sample not yet collected", undefined]]);
   });
 
   it("leaves a licence that was never recorded to Setup, and keeps an expired one here", () => {

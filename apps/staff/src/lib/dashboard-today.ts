@@ -123,7 +123,20 @@ export function labAttentionRows(input: {
       ),
     );
   }
-  const toCollect = input.dashboard?.pendingCollection ?? 0;
+  // STAT samples waiting to be collected are urgent: right after unacknowledged critical results, before everything else
+  // of the lab's; routine collection waits as usual.
+  const statToCollect = input.dashboard?.statPendingCollection ?? 0;
+  const toCollect = Math.max(0, (input.dashboard?.pendingCollection ?? 0) - statToCollect);
+  if (statToCollect > 0) {
+    rows.splice(input.criticals.length ? 1 : 0, 0, {
+      id: "lab-collect-stat",
+      group: "lab",
+      tone: "urgent",
+      title: `${statToCollect} STAT lab ${statToCollect === 1 ? "sample" : "samples"} not yet collected`,
+      detail: "STAT orders waiting to be collected",
+      action: workbench ? { label: "Collect now", href: `${workbench}?stage=collect` } : undefined,
+    });
+  }
   if (toCollect > 0) {
     rows.push({
       id: "lab-collect",

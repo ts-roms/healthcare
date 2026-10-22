@@ -255,7 +255,7 @@ and notifies no one by itself. See [Administration](13-administration.md#how-to-
 **Patients** lists every active patient A–Z, 25 a page, until you search. Tick **Include inactive records** to see inactive and merged ones too.
 
 **13f. How do I find something in this manual?**
-Type a few words in the search box at the top of any Help page, or in the **Need a hand?** window (the round button at the bottom-right): the
+Type a few words in the search box at the top of any Help page, or in the **Need a hand?** window (the round button at the bottom-right; on a phone, the lifebuoy in the top bar): the
 sections whose heading or text contain all the words are listed, best match first, each with a passage. Select one to open it.
 
 ### For patients

@@ -10,6 +10,7 @@ import {
   LIVE_REFRESH_DEBOUNCE_MS,
   type LiveStatus,
   liveStatusLabel,
+  MESSAGE_EVENTS,
   QUEUE_EVENTS,
   QUEUE_TICK_MS,
   RECONNECT_DELAY_MS,
@@ -23,7 +24,7 @@ import {
  * Messages carry ids and statuses only; the refresh re-reads through the
  * authorized API. Callers keep polling as a fallback while not "live".
  */
-export function useLiveUpdates(events: readonly string[], onRefresh?: () => void): LiveStatus {
+export function useLiveUpdates(events: readonly string[], onRefresh?: () => void, options: { refreshPage?: boolean } = {}): LiveStatus {
   const router = useRouter();
   const [status, setStatus] = React.useState<LiveStatus>("connecting");
   const refreshed = React.useRef(onRefresh);
@@ -32,6 +33,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
   });
 
   const eventKey = events.join(",");
+  const refreshPage = options.refreshPage ?? true;
 
   React.useEffect(() => {
     const subscribed = eventKey.split(",").filter(Boolean);
@@ -44,7 +46,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
       window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         refreshed.current?.();
-        router.refresh();
+        if (refreshPage) router.refresh();
       }, LIVE_REFRESH_DEBOUNCE_MS);
     };
     const retryLater = () => {
@@ -95,7 +97,7 @@ export function useLiveUpdates(events: readonly string[], onRefresh?: () => void
       window.clearTimeout(retryTimer);
       socket?.close();
     };
-  }, [router, eventKey]);
+  }, [router, eventKey, refreshPage]);
 
   return status;
 }
@@ -143,6 +145,12 @@ export function LiveIndicator({ status }: { status: LiveStatus }) {
 /** For pages that show the queue without managing it (the dashboard): keeps it current and shows the indicator. */
 export function LiveQueueRefresh({ events = QUEUE_EVENTS }: { events?: readonly string[] }) {
   return <LiveIndicator status={useQueueUpdates(undefined, events)} />;
+}
+
+/** Keeps a conversation or the message list current: live when a message is sent, polling while the socket is down. */
+export function LiveMessagesRefresh() {
+  useQueueUpdates(undefined, MESSAGE_EVENTS);
+  return null;
 }
 
 /** Keeps a laboratory screen (worklists, critical results) current and shows the indicator. */

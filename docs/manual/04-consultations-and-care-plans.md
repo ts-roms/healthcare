@@ -193,6 +193,9 @@ Certificates are issued once the consultation is signed — in person or online 
 4. Select **Issue certificate**. It gets a number (`MC########`); select **Print** for the printed copy with your name and license number. The
    patient can also download it in MyHealth (**Documents**) and gets a message that it is ready — without the findings.
 
+If your clinic prints signatures and you drew yours under **My account**, the certificate (and the referral letters you issue) shows it above your name;
+it is the one you had when the document was issued, so drawing a new one later does not change earlier documents.
+
 An issued certificate cannot be edited. If it is wrong, select **Void…**, give the reason and issue a new one. The issuing practitioner, or staff
 who may amend consultations, can void. A voided certificate leaves MyHealth; its printed copy shows **VOID**. The platform adds no wording that
 an employer, school or agency may require — write what they need in your own words.
@@ -221,6 +224,13 @@ nebulization, an injection and the like (dental work and vaccines have their own
    it), a **Signed form** scan if one was uploaded as a consent form document on the patient record, and any notes. **Print consent form** opens a
    form with your clinic's wording for this patient to sign; upload the signed form as a document and link it here or later with
    **Record consent…** under the procedure (once).
+   To skip the paper, select **Sign on screen**: hand over the tablet, the signer reads the wording and signs with a finger or pen,
+   and you write how you identified them (for example "PhilSys card shown"). **Save signed form** stores the signed form on the
+   patient record and attaches it as the **Signed form**. If the patient cannot sign on screen, use the paper form as before.
+   To let the patient sign at home, open the patient's **Procedures** page and use **Ask the patient to sign** (when your clinic turned on
+   signing in MyHealth): the patient is told, reads the wording in MyHealth and signs there after confirming their password. When the form is
+   signed it appears as a **Signed form** you can link here. For a patient under your clinic's age (18 unless your administrator set another),
+   a parent or guardian signs: at the clinic as the representative, or in MyHealth by opening the child's MyHealth.
 4. Select **Record procedure**. If your clinic has priced it, the charge appears at the cashier.
 
 Who may consent for a child or for a patient who cannot decide, and what a valid consent must say, follow your clinic's own rules: the

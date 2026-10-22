@@ -237,6 +237,19 @@ advises.
   `organization.read`, so a cashier-only user can choose their facility.
 - The **Auditor** role reads the audit trail at **Administration → Audit log** (see below).
 
+## How to set who signs consent forms
+
+Under **Clinic → Procedures → Signing consent forms**: tick **A parent or guardian signs for a patient under this age** and give the age (18 is a
+reference until your organization confirms its own); tick **Patients and guardians sign requested forms in MyHealth** to let staff ask patients to
+sign online; and set how many days a request stays open. Your organization decides these. The system applies them and decides nothing about who may
+sign for whom: a guardian signs in MyHealth only through the access you recorded for them (**Guardians and caregivers** on the patient record).
+
+## How to print practitioners' signatures on certificates and referral letters
+
+Under **Clinic → Signatures**, tick **Print the practitioner's signature on medical certificates and referral letters** and save. Each practitioner draws their
+own signature under **My account**; documents issued from then on carry it above their name. It is a mark on the page, not a digital signature: the system
+records who issued each document either way. Documents already issued keep what they printed. Whether to print signatures is your organization's decision.
+
 ## How staff accounts are managed
 
 **Administration → Staff users** (`/admin/users`, needs `user.read`; changes need `user.manage`) lists everyone in the organization with their status,

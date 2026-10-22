@@ -148,6 +148,9 @@ describe("notifications", () => {
     const second = await send(body).expect(201);
     expect(second.body.id).toBe(first.body.id);
     expect(first.body.status).toBe("delivered");
+    // The realtime gateway hears of it (once, even though the request was repeated): the member's open pages update at once.
+    const announced = await ctx.pool.query(`SELECT payload FROM domain_event WHERE event_type = 'StaffNoticeCreated' AND aggregate_id = $1`, [first.body.id]);
+    expect(announced.rows).toEqual([{ payload: { userId } }]);
 
     const inbox = await ctx.http().get("/api/v1/me/notifications").set(as(token)).expect(200);
     expect(inbox.body).toEqual([expect.objectContaining({ id: first.body.id, subject: "Shift", readAt: null })]);

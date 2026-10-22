@@ -37,6 +37,13 @@ export class DocumentsController {
     return this.documents.get(actor, documentId);
   }
 
+  @Get(":documentId/signatures")
+  @RequirePermissions("document.read")
+  @ApiOperation({ summary: "Electronic signatures recorded on a document: signer, identity check, time and the hash of the text agreed to (no strokes)" })
+  signatures(@CurrentActor() actor: Actor, @Param("documentId", ParseUUIDPipe) documentId: string) {
+    return this.documents.signatures(actor, documentId);
+  }
+
   @Get(":documentId/download-url")
   @RequirePermissions("document.read")
   @ApiOperation({ summary: "Short-lived signed download URL (audited)" })

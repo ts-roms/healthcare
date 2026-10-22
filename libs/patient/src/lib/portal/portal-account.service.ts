@@ -35,7 +35,7 @@ import { displayName } from "../patient.views";
 import { ACTIVATION_TTL_HOURS, generateActivationCode, hashActivationCode, MAX_ACTIVATION_ATTEMPTS } from "./activation-code";
 import type { PortalMfaRequiredResponse, PortalTokenResponse, portalActivateSchema, portalLoginSchema } from "./portal.dto";
 import { type PortalActivationFailure, patientPortalAccount, type PatientPortalAccountRecord, patientPasskey, patientPortalSession } from "./portal.schema";
-import { PortalTokenService } from "./portal-tokens";
+import { PATIENT_REALTIME_TICKET_TTL_SECONDS, PortalTokenService } from "./portal-tokens";
 import type { ProxyContext } from "../proxy/proxy.rules";
 import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
 import { PortalTrustedDeviceService } from "../security/portal-trusted-device.service";
@@ -547,7 +547,26 @@ export class PortalAccountService {
    * effect immediately rather than at token expiry.
    */
   async authenticate(token: string, request: RequestMetadata): Promise<PortalPrincipal> {
-    const claims = await this.tokens.verify(token);
+    return this.principalFor(await this.tokens.verify(token), request);
+  }
+
+  /** A ticket for the realtime socket of the signed-in patient (60 seconds; not an access token). */
+  async realtimeTicket(principal: PortalPrincipal): Promise<{ ticket: string; expiresInSeconds: number }> {
+    const ticket = await this.tokens.signRealtimeTicket({
+      sub: principal.accountId,
+      sid: principal.sessionId,
+      org: principal.organizationId,
+      pat: principal.patientId,
+    });
+    return { ticket, expiresInSeconds: PATIENT_REALTIME_TICKET_TTL_SECONDS };
+  }
+
+  /** For the realtime gateway: the patient behind a ticket, with session, account and consent re-checked as for any request. */
+  async authenticateRealtimeTicket(ticket: string, request: RequestMetadata): Promise<PortalPrincipal> {
+    return this.principalFor(await this.tokens.verifyRealtimeTicket(ticket), request);
+  }
+
+  private async principalFor(claims: { sub: string; sid: string; org: string; pat: string }, request: RequestMetadata): Promise<PortalPrincipal> {
     const [row] = await this.db
       .select({ session: patientPortalSession, account: patientPortalAccount })
       .from(patientPortalSession)

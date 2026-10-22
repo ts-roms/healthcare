@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * Rules for procedures performed at the clinic (docs/domains/clinic.md, "Procedures"). Nothing here decides whether a
  * procedure was indicated: that is the clinician's judgement.
@@ -75,4 +77,78 @@ export function consentProblem(
 /** "Suture repair of laceration × 2 (left forearm)". */
 export function procedureText(p: { name: string; quantity: number; bodySite: string | null }): string {
   return `${p.name}${p.quantity > 1 ? ` × ${p.quantity}` : ""}${p.bodySite ? ` (${p.bodySite})` : ""}`;
+}
+
+// ---- electronic signature on a consent form (migration 0120) ----------------------------------------------------
+
+/** SHA-256 (hex) of what a signer agreed to: the wording (id, version, title, text) for this patient and procedure. Recomputable from the records. */
+export function consentTextHash(text: {
+  wordingId: string;
+  version: number;
+  title: string;
+  body: string;
+  patientNumber: string;
+  procedureCode: string;
+}): string {
+  return createHash("sha256")
+    .update(JSON.stringify([text.wordingId, text.version, text.title, text.body, text.patientNumber, text.procedureCode]))
+    .digest("hex");
+}
+
+export const SIGNATURE_MAX_STROKES = 64;
+export const SIGNATURE_MAX_POINTS = 3000;
+/** Total pen travel, as a share of the box width, below which the mark is a dot or a tap rather than a signature. */
+export const SIGNATURE_MIN_INK = 0.25;
+
+export type SignatureProblem = "signature_empty" | "signature_too_large";
+
+/**
+ * Whether drawn strokes (polylines of [x, y] in 0..1) can stand as a signature: some real ink, and not an
+ * unreasonable amount of data. Nothing here judges whether a drawing is "really" a signature.
+ */
+export function signatureProblem(strokes: number[][][]): SignatureProblem | null {
+  if (strokes.length > SIGNATURE_MAX_STROKES || strokes.reduce((n, stroke) => n + stroke.length, 0) > SIGNATURE_MAX_POINTS) return "signature_too_large";
+  let ink = 0;
+  for (const stroke of strokes) {
+    for (let i = 1; i < stroke.length; i += 1) {
+      const [x0, y0] = stroke[i - 1]!;
+      const [x1, y1] = stroke[i]!;
+      ink += Math.hypot(x1! - x0!, (y1! - y0!) / 3);
+    }
+  }
+  return ink < SIGNATURE_MIN_INK ? "signature_empty" : null;
+}
+
+// ---- signing consent forms online and for minors (migration 0121) ------------------------------------------------
+
+/** The organization's defaults until it sets its own: a reference age and nothing in MyHealth. */
+export const DEFAULT_MINOR_AGE_YEARS = 18;
+export const DEFAULT_REQUEST_VALID_DAYS = 14;
+
+/**
+ * Whether a parent or guardian must sign for this patient: the organization chose an age and the patient (in full years, on
+ * the facility's local date) is under it. The platform encodes no age of majority; the organization confirms its own value.
+ */
+export function representativeRequired(patientAge: number, minorAgeYears: number | null): boolean {
+  return minorAgeYears !== null && patientAge < minorAgeYears;
+}
+
+export type SignerProblem = "minor_requires_representative";
+
+/** A minor's form is signed by a representative, at the clinic or in MyHealth. */
+export function signerProblem(signerKind: "patient" | "representative", needsRepresentative: boolean): SignerProblem | null {
+  return needsRepresentative && signerKind === "patient" ? "minor_requires_representative" : null;
+}
+
+export type SignatureRequestProblem = "request_not_pending" | "request_expired";
+
+/** A request can be signed (or cancelled) only while pending and not past its expiry. */
+export function signatureRequestProblem(request: { status: "pending" | "signed" | "cancelled"; expiresAt: Date }, now: Date): SignatureRequestProblem | null {
+  if (request.status !== "pending") return "request_not_pending";
+  return request.expiresAt.getTime() <= now.getTime() ? "request_expired" : null;
+}
+
+/** When a request made now stops being open. */
+export function signatureRequestExpiry(now: Date, validDays: number): Date {
+  return new Date(now.getTime() + validDays * 86_400_000);
 }

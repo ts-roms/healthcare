@@ -48,3 +48,27 @@ export interface PushStatus {
   /** The device with the token asked about, if it is registered. */
   thisDeviceId: string | null;
 }
+
+/** A person this account holder may act for (`GET /portal/proxy/dependents`; guardian access granted by the clinic). */
+export interface PortalDependent {
+  grantId: string;
+  patientId: string;
+  displayName: string;
+  relationship: string;
+  /** "view": look only. "act": also sign forms, book and write. */
+  scopes: Array<"view" | "act">;
+  grantedAt: string;
+  expiresAt: string | null;
+}
+
+/** A consent form the clinic asked the patient (or their guardian) to sign (`GET /portal/forms`). */
+export interface PortalForm {
+  id: string;
+  procedureName: string;
+  facilityName: string;
+  wording: { title: string; body: string; version: number };
+  /** A parent or guardian must sign: the patient is under the clinic's age. */
+  representativeRequired: boolean;
+  requestedAt: string;
+  expiresAt: string;
+}

@@ -416,6 +416,8 @@ export const TEMPLATES = [
       z.object({ kind: z.literal("request-answered"), organizationName: shortText, requestNumber: z.string().regex(/^RR\d{8}$/) }),
       // No recipient, specialty or reason: those are in the letter, behind sign-in.
       z.object({ kind: z.literal("referral-ready"), organizationName: shortText }),
+      // No procedure or wording: the form is behind sign-in.
+      z.object({ kind: z.literal("form-ready"), organizationName: shortText }),
     ]),
     render: (v) => {
       switch (v.kind) {
@@ -433,6 +435,11 @@ export const TEMPLATES = [
           return {
             subject: "Your referral letter is ready",
             text: `${v.organizationName}: a referral letter from your visit is ready in MyHealth. Sign in to see it and download the letter.`,
+          };
+        case "form-ready":
+          return {
+            subject: "A form is waiting for your signature",
+            text: `${v.organizationName}: a form is waiting for a signature in MyHealth. Sign in to read and sign it.`,
           };
       }
     },

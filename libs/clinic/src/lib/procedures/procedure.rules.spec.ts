@@ -1,4 +1,16 @@
-import { consentProblem, performedAtProblem, procedureText, recordingProblem, visitRecordingProblem } from "./procedure.rules";
+import {
+  consentProblem,
+  performedAtProblem,
+  procedureText,
+  recordingProblem,
+  consentTextHash,
+  representativeRequired,
+  signatureProblem,
+  signatureRequestExpiry,
+  signatureRequestProblem,
+  signerProblem,
+  visitRecordingProblem,
+} from "./procedure.rules";
 
 describe("clinic procedure rules", () => {
   const started = new Date("2026-09-30T01:00:00Z");
@@ -53,5 +65,56 @@ describe("clinic procedure rules", () => {
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "electronic" }), performed)).toBe("consent_wording_required");
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "electronic", wordingId: "w1" }), performed)).toBeNull();
     expect(consentProblem({ consentRequired: true }, given({ capturedVia: "verbal" }), performed)).toBeNull();
+  });
+
+  it("hashes the text a signer agreed to, changing with any part of it", () => {
+    const text = { wordingId: "w1", version: 2, title: "Consent", body: "I agree.", patientNumber: "P1", procedureCode: "SUT" };
+    const hash = consentTextHash(text);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(consentTextHash({ ...text })).toBe(hash);
+    for (const change of [{ version: 3 }, { body: "I agree!" }, { patientNumber: "P2" }, { procedureCode: "XYZ" }, { wordingId: "w2" }]) {
+      expect(consentTextHash({ ...text, ...change })).not.toBe(hash);
+    }
+  });
+
+  it("accepts a drawn signature with ink and refuses a tap or an oversized drawing", () => {
+    const line = [
+      [0.1, 0.5],
+      [0.6, 0.5],
+    ];
+    expect(signatureProblem([line])).toBeNull();
+    expect(signatureProblem([[[0.5, 0.5]]])).toBe("signature_empty");
+    expect(
+      signatureProblem([
+        [
+          [0.5, 0.5],
+          [0.52, 0.5],
+        ],
+      ]),
+    ).toBe("signature_empty");
+    expect(signatureProblem(Array.from({ length: 65 }, () => line))).toBe("signature_too_large");
+    expect(signatureProblem([Array.from({ length: 3001 }, (_, i) => [i / 3001, 0.5])])).toBe("signature_too_large");
+  });
+});
+
+describe("signing for minors and requests", () => {
+  it("asks a representative to sign for a patient under the organization's age", () => {
+    expect(representativeRequired(17, 18)).toBe(true);
+    expect(representativeRequired(18, 18)).toBe(false);
+    expect(representativeRequired(5, null)).toBe(false);
+    expect(representativeRequired(15, 16)).toBe(true);
+    expect(signerProblem("patient", true)).toBe("minor_requires_representative");
+    expect(signerProblem("representative", true)).toBeNull();
+    expect(signerProblem("patient", false)).toBeNull();
+  });
+
+  it("lets a request be signed only while pending and before it expires", () => {
+    const now = new Date("2026-10-21T04:00:00Z");
+    const expiresAt = signatureRequestExpiry(now, 14);
+    expect(expiresAt.toISOString()).toBe("2026-11-04T04:00:00.000Z");
+    expect(signatureRequestProblem({ status: "pending", expiresAt }, now)).toBeNull();
+    expect(signatureRequestProblem({ status: "pending", expiresAt }, expiresAt)).toBe("request_expired");
+    expect(signatureRequestProblem({ status: "signed", expiresAt }, now)).toBe("request_not_pending");
+    expect(signatureRequestProblem({ status: "cancelled", expiresAt }, now)).toBe("request_not_pending");
   });
 });

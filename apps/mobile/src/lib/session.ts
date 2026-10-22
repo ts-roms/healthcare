@@ -1,3 +1,4 @@
+import { actingForHeader } from "@healthcare/domain/proxy-access";
 import { ApiError, SessionEndedError } from "./api-error";
 import type { PortalMfaRequired, PortalTokenResponse } from "./api-types";
 
@@ -11,7 +12,9 @@ import type { PortalMfaRequired, PortalTokenResponse } from "./api-types";
  *   revoking the session, so concurrent requests must share one refresh.
  * - The patient is signed out only when the API refuses the session (401 on refresh, or on a request right after a
  *   refresh). Other errors — 422 for a wrong code, 403, 429, 5xx, no network — are shown and the session is kept.
- * - The app never sends `X-Acting-For`: it acts only for the signed-in patient.
+ * - The app sends `X-Acting-For` only while the signed-in person has chosen to act for someone the clinic gave them access
+ *   to (`setActingFor`; guardian access) and never on the routes about their own account. The choice is kept in memory only:
+ *   it ends with the session and when the app restarts.
  */
 
 export interface TokenStore {
@@ -39,6 +42,7 @@ export class PatientSession {
   private access: { token: string; expiresAt: number } | null = null;
   private challenge: string | null = null;
   private refreshing: Promise<void> | null = null;
+  private actingFor: string | null = null;
   private listeners = new Set<(state: SessionState) => void>();
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
@@ -55,6 +59,15 @@ export class PatientSession {
   subscribe(listener: (state: SessionState) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** Act for another person's record (their patient id), or back to the signed-in person's own (null). */
+  setActingFor(patientId: string | null): void {
+    this.actingFor = patientId;
+  }
+
+  get acting(): string | null {
+    return this.actingFor;
   }
 
   /** At app start: resumes a stored session. False when there is none or the API refused it; errors (e.g. offline) propagate. */
@@ -155,6 +168,7 @@ export class PatientSession {
       headers: {
         accept: "application/json",
         authorization: `Bearer ${this.access?.token ?? ""}`,
+        ...actingForHeader(path, this.actingFor),
         ...(method === "POST" ? { "content-type": "application/json" } : {}),
       },
       ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
@@ -209,6 +223,7 @@ export class PatientSession {
     const wasSignedIn = this.access !== null;
     this.access = null;
     this.challenge = null;
+    this.actingFor = null;
     await this.options.store.clear();
     if (wasSignedIn || reason === "signed_out") this.emit({ status: "signed_out", reason });
   }
