@@ -122,6 +122,19 @@ One store app per organization, published under the organization's own Apple and
 (`apps/mobile/app.config.ts`, `apps/mobile/eas.json`). Each organization sets its own identifiers — none is in the repository, and builds
 refuse to run without them. Steps, store listing inputs and the release checklist: [mobile-release.md](docs/deployment/mobile-release.md).
 
+## Releases
+
+Versions are tags (`v1.0.0`) on a `release/vX.Y.Z` branch cut from `main`; Railway deploys the `production` branch, which is moved to a tag, so a rollback is moving it back.
+
+```bash
+pnpm release minor --dry-run       # from main: show the new branch, version bump, commit and tag
+pnpm release minor --deploy        # do it, push the branch and tag, and move production to the tag
+pnpm release patch --deploy        # on release/vX.Y.*, after cherry-picking a fix
+pnpm release:check v1.0.0          # a tag must equal the version in package.json
+```
+
+Migrations are forward-only, so a rollback is only safe while the previous version still works on the new schema. See [Releases and rollback](docs/runbooks/releases.md).
+
 ## Frontend stack
 
 | Concern            | Choice                                                    |
