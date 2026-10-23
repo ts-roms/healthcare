@@ -15,22 +15,20 @@ Version numbers follow `MAJOR.MINOR.PATCH`: a patch is a fix only, a minor adds 
 
 ## Cutting a release
 
-1. Make sure `main` is green (`ci.yml`) and contains what the release should.
-2. Branch and tag:
+`pnpm release` does the bump, the commit and the tag; pushing and deploying are flags, so nothing leaves your machine unless you ask.
 
 ```bash
-git switch main && git pull
-git switch -c release/v1.0.0
-git tag -a v1.0.0 -m "v1.0.0"
-git push origin release/v1.0.0 v1.0.0
+pnpm release minor --dry-run   # show what would happen
+pnpm release minor             # on main: branch release/vX.Y.0, set the version, commit, tag
+pnpm release minor --push      # …and push the branch and the tag
+pnpm release minor --deploy    # …and move `production` to the tag (implies --push)
 ```
 
-3. Pushing the tag runs `.github/workflows/release.yml`, which creates the GitHub Release with generated notes (the pull requests since the previous tag). Read them, and add the migration numbers the release contains.
-4. Deploy: point `production` at the tag.
+`minor`, `major` or an explicit `1.2.0` are cut from `main` and create `release/vX.Y.Z`. The working tree must be clean and the tag must not exist.
 
-```bash
-git push origin v1.0.0:refs/heads/production
-```
+Pushing the tag runs `.github/workflows/release.yml`, which checks that the tag equals the version in `package.json` (`pnpm release:check`) and creates the GitHub Release with generated notes (the pull requests since the previous tag). Read them, and add the migration numbers the release contains.
+
+By hand, the same thing is: `git switch -c release/v1.0.0`, `pnpm pkg set version=1.0.0`, `git commit -am "Release v1.0.0"`, `git tag -a v1.0.0 -m v1.0.0`, `git push origin release/v1.0.0 v1.0.0`, then `git push origin v1.0.0:refs/heads/production`.
 
 Railway services (`api`, `integration-worker`, `notification-worker`, `staff`, `portal`) deploy from the `production` branch. Set that once per service under Settings → Source → Branch.
 
@@ -39,17 +37,15 @@ Order within a release that has a migration: the API runs `pnpm db:migrate` in i
 ## A fix after release
 
 1. Fix on `main` through a pull request as usual.
-2. Cherry-pick onto the release branch, tag the patch and deploy it:
+2. On the release branch, cherry-pick it and cut the patch:
 
 ```bash
 git switch release/v1.0.0 && git pull
 git cherry-pick <commit>
-git tag -a v1.0.1 -m "v1.0.1"
-git push origin release/v1.0.0 v1.0.1
-git push origin v1.0.1:refs/heads/production --force-with-lease
+pnpm release patch --deploy    # 1.0.0 → 1.0.1: bump, commit, tag, push, move production
 ```
 
-`production` is moved with `--force-with-lease` because it is a pointer, not a history.
+A patch is made on `release/vX.Y.*` and stays on that branch. `production` is moved with `--force-with-lease` because it is a pointer, not a history.
 
 ## Rolling back
 
