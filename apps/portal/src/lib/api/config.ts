@@ -5,7 +5,20 @@ export const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:3333/
  * The realtime socket the patient's browser opens (a short-lived ticket from the portal server, never a token). Defaults to
  * the API's origin; set it when the browser reaches the API under another address.
  */
-export const REALTIME_URL = process.env.REALTIME_URL ?? `${new URL(API_BASE_URL).origin}/realtime`;
+export const REALTIME_URL = process.env.REALTIME_URL ?? `${originOf(API_BASE_URL)}/realtime`;
+
+/**
+ * The origin of an address, or "" when it is not a full URL (for example `API_BASE_URL` set without `https://`). Never throws:
+ * this runs when the module loads, including during `next build`, which must not fail on a runtime setting. A wrong
+ * `API_BASE_URL` shows up as failing API calls (and a realtime address to set with `REALTIME_URL`), not as a failed build.
+ */
+function originOf(address: string): string {
+  try {
+    return new URL(address).origin;
+  } catch {
+    return "";
+  }
+}
 
 /**
  * The organization this portal deployment serves (its `organization.code`).

@@ -9,7 +9,19 @@ export const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:3333/
  * `/realtime` to the API through the same trusted proxy). Browsers only ever
  * present a short-lived ticket, never an access token.
  */
-export const REALTIME_URL = process.env.REALTIME_URL ?? `${new URL(API_BASE_URL).origin}/realtime`;
+export const REALTIME_URL = process.env.REALTIME_URL ?? `${originOf(API_BASE_URL)}/realtime`;
+
+/**
+ * The origin of an address, or "" when it is not a full URL (for example `API_BASE_URL` set without `https://`). Never throws:
+ * this runs when the module loads, including during `next build`, which must not fail on a runtime setting.
+ */
+function originOf(address: string): string {
+  try {
+    return new URL(address).origin;
+  } catch {
+    return "";
+  }
+}
 
 /** Session cookies. Tokens live only in httpOnly cookies set by the staff app's server. */
 export const COOKIES = {
