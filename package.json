@@ -1,6 +1,6 @@
 {
   "name": "healthcare",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.33.0",
