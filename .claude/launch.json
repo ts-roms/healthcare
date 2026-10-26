@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["-C", "apps/staff", "exec", "next", "dev", "--port", "3005"],
       "port": 3005
+    },
+    {
+      "name": "portal",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "apps/portal", "exec", "next", "dev", "--port", "3001"],
+      "port": 3001
     }
   ]
 }

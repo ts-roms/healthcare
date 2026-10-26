@@ -26,7 +26,8 @@ export function SettingsFrame({ groups, pathname, children }: { groups: Settings
   const router = useRouter();
   const current = currentHref(pathname, groups);
   return (
-    <div className="flex flex-col lg:flex-row lg:items-start">
+    // Fills the page: as tall as the visible area, cancelling the shell's bottom padding (kept inside the page column instead).
+    <div className="flex flex-col md:-mb-20 lg:min-h-[calc(100dvh-3.5rem)] lg:flex-row lg:items-start">
       <div className="border-b bg-card px-4 py-2 lg:hidden">
         <NativeSelect aria-label="Settings section" value={current ?? SETTINGS_HOME} onChange={(e) => router.push(e.target.value)}>
           <option value={SETTINGS_HOME}>Settings overview</option>
@@ -41,7 +42,7 @@ export function SettingsFrame({ groups, pathname, children }: { groups: Settings
           ))}
         </NativeSelect>
       </div>
-      <nav aria-label="Settings" className="sticky top-0 hidden max-h-dvh w-56 shrink-0 self-start overflow-y-auto border-r bg-card px-3 py-4 lg:block">
+      <nav aria-label="Settings" className="sticky top-0 hidden h-[calc(100dvh-3.5rem)] w-56 shrink-0 self-start overflow-y-auto border-r bg-card px-3 py-4 lg:block">
         <Link
           href={SETTINGS_HOME}
           aria-current={current === SETTINGS_HOME ? "page" : undefined}
@@ -79,7 +80,7 @@ export function SettingsFrame({ groups, pathname, children }: { groups: Settings
           </section>
         ))}
       </nav>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1 md:pb-20 lg:self-stretch">{children}</div>
     </div>
   );
 }
