@@ -117,6 +117,27 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
 - Not built: clicks or bookings attributed to a campaign (a tracking link would identify the patient; the audit and the
   appointment list show bookings), per-channel caps, caps that include care reminders, quiet hours per facility or time zone.
 
+## Wording variables and one message per patient
+
+- **Variables.** A campaign's wording (subject and body) may contain `{{firstName}}` and `{{clinicName}}`, filled in for each patient
+  when the message is created: the first word of their given name (at most 30 characters, "there" if empty) and the organization's
+  name. These two are all there is: nothing clinical, and no appointment, balance or contact detail, can be put in a message this
+  way. Any other `{{name}}` is refused while drafting (`wording_invalid`, naming it). What the second person approves is the
+  wording with its placeholders; the message each patient receives is stored on its notification (the communications log still
+  shows no content). Pure rules `renderWording`, `firstNameOf`, `unknownPlaceholders`, `renderedLength` in `crm.rules.ts`; the staff
+  form mirrors them in `lib/outreach-mapping.ts` (the API is authoritative).
+- **Length.** Each channel's limit is checked against the **longest** the message can become: a first name of 30 characters, the
+  organization's real name, and the booking link when present. So whatever was approved always fits, for any patient.
+- **Delivery mode** (`crm_campaign.delivery_mode`, migration `0132`, chosen while drafting and approved with the wording):
+  `all` (default: every channel named, as before) or `first_available`: one message per patient, on the first channel that can reach
+  them, tried in the order push, text message, email, MyHealth inbox (`CHANNEL_PRIORITY`). The channel is chosen at the time of the
+  send from the same consent checks as the reach figures. The delivery record holds one row for the patient: the channel used, or,
+  when none can reach them, the first channel in that order with the reason it was not sent (so the record still says why). The
+  frequency cap and quiet hours apply as before. A rerun after an interruption skips patients already handled. A campaign's reach
+  says how many patients each channel would carry and how many none reaches (`plannedChannels`).
+- Not built: variables beyond these two (a clinic phone number is not offered because a campaign is not tied to one facility; type it in
+  the wording), a choice of channel order, per-patient channel preference.
+
 ## Open questions / assumptions
 
 - **Compliance dependency.** The platform enforces an explicit opt-in per channel, a second person's approval, the
@@ -127,5 +148,5 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   MyHealth or the clinic.
 - The frequency cap and quiet-hour values are the organization's own policy: the platform sets none by default and encodes no
   rule on how often or when people may be contacted (compliance register, "Patient outreach").
-- Not built: segmentation by clinical data (decision first), recurring campaigns, message templates with variables,
+- Not built: segmentation by clinical data (decision first), recurring campaigns, saved message templates,
   delivery analytics beyond counts, recipients outside the organization.

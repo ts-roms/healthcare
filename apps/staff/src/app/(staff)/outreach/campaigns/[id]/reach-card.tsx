@@ -38,6 +38,16 @@ export function CampaignReachCard({ campaignId }: { campaignId: string }) {
         ) : (
           <>
             <ReachPanel reach={reach} total={reach.evaluated} />
+            {reach.plannedChannels ? (
+              <p className="text-table">
+                One message per patient:{" "}
+                {reach.plannedChannels.byChannel
+                  .filter((c) => c.total > 0)
+                  .map((c) => `${c.total} by ${CHANNEL_LABEL[c.channel].toLowerCase()}`)
+                  .join(", ") || "none can be reached"}
+                {reach.plannedChannels.none > 0 ? `; ${reach.plannedChannels.none} cannot be reached on any channel and are recorded as not sent` : ""}.
+              </p>
+            ) : null}
             {reach.frequencyCap ? (
               <p className="flex items-start gap-2 text-table">
                 <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />

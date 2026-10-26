@@ -7,7 +7,7 @@ import { ApiError } from "@healthcare/web-session";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
-import { CAMPAIGN_STATUS, CHANNEL_LABEL, SUPPRESSION_LABEL } from "@/lib/outreach-mapping";
+import { CAMPAIGN_STATUS, CHANNEL_LABEL, DELIVERY_MODE_LABEL, fillWording, SUPPRESSION_LABEL } from "@/lib/outreach-mapping";
 import { CampaignActions } from "./campaign-actions";
 import { CampaignReachCard } from "./reach-card";
 
@@ -52,6 +52,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           <CardContent className="flex flex-col gap-2 text-table">
             {campaign.subject ? <p className="font-medium">{campaign.subject}</p> : null}
             <p className="whitespace-pre-wrap">{campaign.body}</p>
+            {/{{\s*\w+\s*}}/.test(`${campaign.subject ?? ""}${campaign.body}`) ? (
+              <p className="rounded-md bg-muted/50 p-2 text-meta">
+                <span className="font-medium">How it reads for Maria: </span>
+                {fillWording(campaign.body, "Maria", session.organization.name)}
+              </p>
+            ) : null}
+            <p className="text-meta text-muted-foreground">{DELIVERY_MODE_LABEL[campaign.deliveryMode]}.</p>
             <p className="text-meta text-muted-foreground">
               {campaign.sendAt ? `Send at ${clinicalDateTime(campaign.sendAt)}.` : "Sent as soon as approved."} Emails carry an opt-out link.
               {campaign.includeBookingLink ? " Each message ends with a link to book a visit in MyHealth." : ""}
@@ -79,6 +86,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               canManage={can(session, "crm.campaign.manage")}
               canApprove={can(session, "crm.campaign.approve")}
               currentUserId={session.user.id}
+              clinicName={session.organization.name}
             />
           </CardContent>
         </Card>

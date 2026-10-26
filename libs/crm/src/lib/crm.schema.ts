@@ -37,6 +37,8 @@ export const crmCampaign = pgTable(
     body: text("body").notNull(),
     /** Whether the message ends with a link to book a visit in MyHealth (chosen while drafting, approved with the wording). */
     includeBookingLink: boolean("include_booking_link").notNull().default(false),
+    /** Every channel the campaign names, or one message per patient on the first channel that reaches them (migration 0132). */
+    deliveryMode: text("delivery_mode").$type<"all" | "first_available">().notNull().default("all"),
     status: text("status").$type<CampaignStatus>().notNull().default("draft"),
     sendAt: ts("send_at"),
     createdBy: uuid("created_by").notNull(),

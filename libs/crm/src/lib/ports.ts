@@ -8,6 +8,8 @@ export interface SegmentMember {
   displayName: string;
   sex: string;
   age: number;
+  /** Given name, for the first name a message may carry; left out of every preview. */
+  givenName?: string;
 }
 
 /**

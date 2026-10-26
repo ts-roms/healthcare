@@ -68,6 +68,7 @@ const campaignSchema = z.object({
   body: z.string().trim().min(10, "Write the message (at least 10 characters).").max(2000),
   sendAt: optionalText,
   includeBookingLink: z.boolean().optional(),
+  deliveryMode: z.enum(["all", "first_available"]).optional(),
 });
 
 export async function saveCampaign(

@@ -3357,6 +3357,8 @@ export interface PatientTimelinePage {
 
 export type OutreachChannel = "sms" | "email" | "push" | "in_app";
 
+export type OutreachDeliveryMode = "all" | "first_available";
+
 export interface OutreachSegmentCriteria {
   ageMin?: number;
   ageMax?: number;
@@ -3407,6 +3409,9 @@ export interface OutreachCampaignReach extends OutreachReach {
   frequencyCap: { maxCampaigns: number; windowDays: number; heldBack: number } | null;
   quietHours: { start: string; end: string; channels: OutreachChannel[]; holdingNow: boolean; until: string | null } | null;
   includeBookingLink: boolean;
+  deliveryMode: OutreachDeliveryMode;
+  /** One message per patient only: how many patients each channel would carry, and how many no channel reaches. */
+  plannedChannels: { byChannel: Array<{ channel: OutreachChannel; total: number }>; none: number } | null;
 }
 
 /** GET /outreach/settings: how often and when outreach goes out (both off until set). */
@@ -3437,6 +3442,8 @@ export interface OutreachCampaign {
   body: string;
   /** Ends with a link to book a visit in MyHealth. */
   includeBookingLink: boolean;
+  /** Every channel named, or one message per patient on the first channel that reaches them. */
+  deliveryMode: OutreachDeliveryMode;
   status: OutreachCampaignStatus;
   sendAt: string | null;
   createdBy: string;

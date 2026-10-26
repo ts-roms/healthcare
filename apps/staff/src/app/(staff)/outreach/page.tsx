@@ -42,6 +42,7 @@ export default async function OutreachPage() {
         canManage={can(session, "crm.campaign.manage")}
         canApprove={can(session, "crm.campaign.approve")}
         currentUserId={session.user.id}
+        clinicName={session.organization.name}
       />
       <p className="text-meta text-muted-foreground">
         Segments use what the record says about a person (age, sex, place, registration and visit dates, a care-plan activity due, an opt-in) and never a

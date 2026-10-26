@@ -4,10 +4,17 @@ import {
   canApprove,
   canTransition,
   capReached,
+  firstAvailableChannel,
+  firstNameOf,
   isDueToSend,
+  plannedChannels,
+  prioritized,
   quietHoldUntil,
+  renderedLength,
+  renderWording,
   segmentCriteriaSchema,
   summarizeReach,
+  unknownPlaceholders,
   wordingProblems,
 } from "./crm.rules";
 
@@ -114,5 +121,71 @@ describe("outreach limits and reach", () => {
     const reserved = bookingLinkText("https://myhealth.example.ph").length;
     expect(wordingProblems({ channels: ["sms"], subject: null, body: "x".repeat(300) })).toEqual([]);
     expect(wordingProblems({ channels: ["sms"], subject: null, body: "x".repeat(300), reservedChars: reserved }).map((p) => p.channel)).toEqual(["sms"]);
+  });
+});
+
+describe("wording variables", () => {
+  it("fills in the first name and the clinic's name, and nothing else", () => {
+    expect(renderWording("Hello {{firstName}}, {{ clinicName }} has flu shots.", { firstName: "Maria", clinicName: "Demo Health" })).toBe(
+      "Hello Maria, Demo Health has flu shots.",
+    );
+    expect(unknownPlaceholders("Hi {{firstName}}, your balance is {{balance}} {{ Diagnosis }}")).toEqual(["balance", "Diagnosis"]);
+    expect(unknownPlaceholders("Hello {{firstName}} at {{clinicName}}")).toEqual([]);
+  });
+
+  it("shows a first name that is short and never empty", () => {
+    expect(firstNameOf("Juan Carlos")).toBe("Juan");
+    expect(firstNameOf("  Maria  ")).toBe("Maria");
+    expect(firstNameOf("")).toBe("there");
+    expect(firstNameOf(null)).toBe("there");
+    expect(firstNameOf("A".repeat(50))).toHaveLength(30);
+  });
+
+  it("checks the length with the longest first name, so what was approved always fits", () => {
+    expect(renderedLength("Hi {{firstName}}", "Demo")).toBe(3 + 30);
+    expect(renderedLength("{{clinicName}}", "Demo Health")).toBe("Demo Health".length);
+    // 310 characters including the placeholder fit a text message as typed (limit 320) but not with a 30-letter name.
+    const body = `${"x".repeat(297)}{{firstName}}`;
+    expect(body.length).toBe(310);
+    expect(wordingProblems({ channels: ["sms"], subject: null, body, clinicName: "Demo" }).map((p) => p.channel)).toEqual(["sms"]);
+    expect(wordingProblems({ channels: ["email"], subject: "Hi {{firstName}}", body, clinicName: "Demo" })).toEqual([]);
+  });
+
+  it("refuses a placeholder the platform does not fill in", () => {
+    const problems = wordingProblems({ channels: ["sms"], subject: null, body: "Dear {{firstName}}, your result {{labResult}} is ready.", clinicName: "Demo" });
+    expect(problems).toEqual([{ channel: "body", message: expect.stringContaining("{{labResult}}") }]);
+  });
+});
+
+describe("one message per patient", () => {
+  const yes = { allowed: true } as const;
+  const no = { allowed: false, reason: "no_outreach_opt_in" } as const;
+
+  it("tries push, then text message, then email, then the MyHealth inbox", () => {
+    expect(prioritized(["email", "sms", "in_app", "push"])).toEqual(["push", "sms", "email", "in_app"]);
+    expect(firstAvailableChannel(["email", "sms"], { sms: yes, email: yes })).toBe("sms");
+    expect(firstAvailableChannel(["email", "sms"], { sms: no, email: yes })).toBe("email");
+    expect(firstAvailableChannel(["sms", "push"], { sms: yes, push: yes })).toBe("push");
+    expect(firstAvailableChannel(["sms", "email"], { sms: no, email: no })).toBeNull();
+  });
+
+  it("counts how many patients each channel would carry, and how many none reaches", () => {
+    expect(
+      plannedChannels(
+        ["email", "sms"],
+        [
+          { sms: yes, email: yes },
+          { sms: no, email: yes },
+          { sms: no, email: no },
+          { sms: yes, email: no },
+        ],
+      ),
+    ).toEqual({
+      byChannel: [
+        { channel: "sms", total: 2 },
+        { channel: "email", total: 1 },
+      ],
+      none: 1,
+    });
   });
 });

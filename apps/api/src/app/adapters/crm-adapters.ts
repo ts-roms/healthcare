@@ -110,6 +110,7 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
       displayName: displayName(row),
       sex: row.sex,
       age: ageInYears(row.birthDate, today),
+      givenName: row.givenName,
     }));
   }
 }

@@ -5,8 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import type { OutreachCampaign, OutreachChannel, OutreachSegment } from "@/lib/api/types";
-import { CAMPAIGN_STATUS, CHANNEL_LABEL } from "@/lib/outreach-mapping";
+import type { OutreachCampaign, OutreachChannel, OutreachDeliveryMode, OutreachSegment } from "@/lib/api/types";
+import {
+  CAMPAIGN_STATUS,
+  CHANNEL_LABEL,
+  DELIVERY_MODE_HELP,
+  DELIVERY_MODE_LABEL,
+  fillWording,
+  PLACEHOLDERS,
+  unknownPlaceholders,
+  worstCaseLength,
+} from "@/lib/outreach-mapping";
 import { saveCampaign } from "./actions";
 
 const BODY_LIMIT: Record<OutreachChannel, number> = { sms: 320, push: 160, email: 2000, in_app: 2000 };
@@ -17,12 +26,15 @@ export function CampaignList({
   canManage,
   canApprove,
   currentUserId,
+  clinicName,
 }: {
   campaigns: OutreachCampaign[];
   segments: OutreachSegment[];
   canManage: boolean;
   canApprove: boolean;
   currentUserId: string;
+  /** The organization's name, which fills {{clinicName}}. */
+  clinicName: string;
 }) {
   const [creating, setCreating] = React.useState(false);
   return (
@@ -60,13 +72,23 @@ export function CampaignList({
             );
           })}
         </ul>
-        {creating ? <CampaignForm campaign={null} segments={segments} onDone={() => setCreating(false)} /> : null}
+        {creating ? <CampaignForm campaign={null} segments={segments} clinicName={clinicName} onDone={() => setCreating(false)} /> : null}
       </CardContent>
     </Card>
   );
 }
 
-export function CampaignForm({ campaign, segments, onDone }: { campaign: OutreachCampaign | null; segments: OutreachSegment[]; onDone: () => void }) {
+export function CampaignForm({
+  campaign,
+  segments,
+  clinicName,
+  onDone,
+}: {
+  campaign: OutreachCampaign | null;
+  segments: OutreachSegment[];
+  clinicName: string;
+  onDone: () => void;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [name, setName] = React.useState(campaign?.name ?? "");
@@ -76,14 +98,30 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
   const [body, setBody] = React.useState(campaign?.body ?? "");
   const [sendAt, setSendAt] = React.useState(campaign?.sendAt ? campaign.sendAt.slice(0, 16) : "");
   const [includeBookingLink, setIncludeBookingLink] = React.useState(campaign?.includeBookingLink ?? false);
+  const [deliveryMode, setDeliveryMode] = React.useState<OutreachDeliveryMode>(campaign?.deliveryMode ?? "all");
+  const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const limit = Math.min(...channels.map((ch) => BODY_LIMIT[ch]), 2000);
+  // Length counts the longest first name a message could carry, so what is approved always fits.
+  const length = worstCaseLength(body.trim(), clinicName);
+  const unknown = unknownPlaceholders(`${subject}\n${body}`);
+  const insert = (token: string) => {
+    const field = bodyRef.current;
+    const at = field?.selectionStart ?? body.length;
+    const end = field?.selectionEnd ?? at;
+    setBody(`${body.slice(0, at)}${token}${body.slice(end)}`);
+    requestAnimationFrame(() => {
+      field?.focus();
+      field?.setSelectionRange(at + token.length, at + token.length);
+    });
+  };
   const needsSubject = channels.includes("email") || channels.includes("in_app");
   const valid =
     name.trim().length >= 2 &&
     segmentId &&
     channels.length > 0 &&
     body.trim().length >= 10 &&
-    body.trim().length <= limit &&
+    length <= limit &&
+    unknown.length === 0 &&
     (!needsSubject || subject.trim().length >= 2);
 
   return (
@@ -94,7 +132,7 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
         e.preventDefault();
         startTransition(async () => {
           const result = await saveCampaign(
-            { segmentId, name, channels, subject, body, sendAt, includeBookingLink },
+            { segmentId, name, channels, subject, body, sendAt, includeBookingLink, deliveryMode },
             campaign ? { id: campaign.id, version: campaign.version } : null,
           );
           if (result.ok) {
@@ -147,11 +185,41 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
       ) : null}
       <div className="grid gap-1">
         <Label htmlFor="cp-body">Message</Label>
-        <Textarea id="cp-body" value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={2000} />
+        <Textarea id="cp-body" ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={2000} />
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Fill in for each patient">
+          {PLACEHOLDERS.map((p) => (
+            <Button key={p.token} type="button" size="xs" variant="outline" onClick={() => insert(p.token)}>
+              {p.label}
+            </Button>
+          ))}
+        </div>
+        {unknown.length > 0 ? (
+          <p role="alert" className="text-meta text-danger-foreground">
+            {unknown.map((u) => `{{${u}}}`).join(", ")} cannot be filled in. You can use {PLACEHOLDERS.map((p) => p.token).join(" or ")}.
+          </p>
+        ) : null}
+        {body.trim().length >= 10 ? (
+          <p className="rounded-md bg-muted/50 p-2 text-meta">
+            <span className="font-medium">How it reads for Maria: </span>
+            {needsSubject && subject.trim() ? <span className="font-medium">{fillWording(subject.trim(), "Maria", clinicName)} — </span> : null}
+            {fillWording(body.trim(), "Maria", clinicName)}
+          </p>
+        ) : null}
         <p className="text-meta text-muted-foreground">
-          {body.trim().length} / {limit} characters for the chosen channels. Plain text; no diagnosis, result or anything about a person&apos;s health. Emails
-          get an opt-out link added automatically.
+          {length} / {limit} characters for the chosen channels (counted with the longest first name). Plain text; no diagnosis, result or anything about a
+          person&apos;s health. Emails get an opt-out link added automatically.
         </p>
+      </div>
+      <div className="grid max-w-xl gap-1">
+        <Label htmlFor="cp-mode">How to send</Label>
+        <NativeSelect id="cp-mode" value={deliveryMode} onChange={(e) => setDeliveryMode(e.target.value as OutreachDeliveryMode)}>
+          {(Object.keys(DELIVERY_MODE_LABEL) as OutreachDeliveryMode[]).map((mode) => (
+            <option key={mode} value={mode}>
+              {DELIVERY_MODE_LABEL[mode]}
+            </option>
+          ))}
+        </NativeSelect>
+        <p className="text-meta text-muted-foreground">{DELIVERY_MODE_HELP[deliveryMode]}</p>
       </div>
       <label className="flex items-start gap-2 text-table">
         <Checkbox checked={includeBookingLink} onCheckedChange={(v) => setIncludeBookingLink(v === true)} className="mt-0.5" />

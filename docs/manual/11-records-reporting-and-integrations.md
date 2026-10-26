@@ -488,6 +488,16 @@ Records officers can read segments and campaigns.
 and why the others cannot (no opt-in, opted out, no mobile number or email address, no MyHealth account). On a draft, **Check reach** on the campaign
 page shows the same for the campaign's own channels, and how many patients the frequency cap would hold back. Nothing is sent and only counts are shown.
 
+**Personal touches.** In the message you can use **Insert first name** and **Insert clinic name** (written `{{firstName}}` and `{{clinicName}}`): each
+patient's message has their own first name and your clinic's name in their place, and the screen shows how it reads for a sample patient. Nothing else can
+be filled in, so a message can never carry anything about a person's health. The length limit is checked with the longest first name, so a message that is
+approved always fits.
+
+**One message per patient.** Under **How to send**, choose **One message per patient, on the first channel that reaches them** to stop a patient who can be
+reached in several ways from getting the same message several times. Channels are tried in this order: push, text message, email, MyHealth inbox. **Check
+reach** on the campaign shows how many patients each channel would carry and how many cannot be reached at all. With **On every channel I chose** (the
+default), a patient gets the message on each channel they have opted in to.
+
 **Booking link.** Tick **End the message with a link to book a visit in MyHealth** and each message ends with "Book a visit:" and the address of MyHealth's
 booking page. The address has nothing about the patient in it; they sign in to book. It uses up about 65 characters of a text message's limit.
 

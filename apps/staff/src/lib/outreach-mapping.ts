@@ -43,3 +43,46 @@ export function describeCriteria(c: OutreachSegmentCriteria): string {
   if (c.optedInChannel) parts.push(`Opted in to ${CHANNEL_LABEL[c.optedInChannel].toLowerCase()}`);
   return parts.join(" · ") || "No criteria";
 }
+
+// ---- wording variables (mirrors libs/crm; the API checks every campaign) ----------------------------------------------
+
+/** What a campaign's wording may fill in for each patient: their first name and the organization's name, nothing else. */
+export const PLACEHOLDERS = [
+  { token: "{{firstName}}", label: "Insert first name" },
+  { token: "{{clinicName}}", label: "Insert clinic name" },
+] as const;
+/** The longest first name a message carries (a longer one is cut at its first word). */
+export const FIRST_NAME_MAX = 30;
+const PLACEHOLDER_PATTERN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+/** The wording as one patient sees it. */
+export function fillWording(text: string, firstName: string, clinicName: string): string {
+  return text.replace(PLACEHOLDER_PATTERN, (whole, name: string) =>
+    name === "firstName" ? firstName : name === "clinicName" ? clinicName.slice(0, 80) : whole,
+  );
+}
+
+/** The longest the wording can be once filled in (a first name of the greatest length): what the length limits are checked against. */
+export function worstCaseLength(text: string, clinicName: string): number {
+  return fillWording(text, "x".repeat(FIRST_NAME_MAX), clinicName).length;
+}
+
+/** Placeholder names in the text that the platform does not fill in. */
+export function unknownPlaceholders(text: string): string[] {
+  const unknown = new Set<string>();
+  for (const match of text.matchAll(PLACEHOLDER_PATTERN)) {
+    const name = match[1] ?? "";
+    if (!PLACEHOLDERS.some((p) => p.token === `{{${name}}}`)) unknown.add(name);
+  }
+  return [...unknown];
+}
+
+export const DELIVERY_MODE_LABEL: Record<"all" | "first_available", string> = {
+  all: "On every channel I chose",
+  first_available: "One message per patient, on the first channel that reaches them",
+};
+export const DELIVERY_MODE_HELP: Record<"all" | "first_available", string> = {
+  all: "A patient who can be reached on several of the channels gets the message on each.",
+  first_available:
+    "Tried in this order: push, text message, email, MyHealth inbox. A patient gets one message, on the first of your channels that can reach them.",
+};

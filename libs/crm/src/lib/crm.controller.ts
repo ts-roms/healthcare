@@ -20,6 +20,7 @@ const campaignSchema = z.object({
   body: z.string().trim().min(10).max(2000),
   sendAt: z.iso.datetime({ offset: true }).nullable().optional(),
   includeBookingLink: z.boolean().optional(),
+  deliveryMode: z.enum(["all", "first_available"]).optional(),
 });
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 22:00");
 const settingsSchema = z

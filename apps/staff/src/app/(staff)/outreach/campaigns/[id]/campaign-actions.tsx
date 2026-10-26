@@ -13,12 +13,14 @@ export function CampaignActions({
   canManage,
   canApprove,
   currentUserId,
+  clinicName,
 }: {
   campaign: OutreachCampaign;
   segments: OutreachSegment[];
   canManage: boolean;
   canApprove: boolean;
   currentUserId: string;
+  clinicName: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -36,7 +38,7 @@ export function CampaignActions({
       } else toast.error(result.message);
     });
 
-  if (editing) return <CampaignForm campaign={campaign} segments={segments} onDone={() => setEditing(false)} />;
+  if (editing) return <CampaignForm campaign={campaign} segments={segments} clinicName={clinicName} onDone={() => setEditing(false)} />;
   return (
     <div className="mt-2 flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">

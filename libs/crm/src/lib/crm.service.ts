@@ -22,12 +22,19 @@ import {
   canApprove,
   canTransition,
   capReached,
+  type ChannelReach,
+  type DeliveryMode,
+  firstAvailableChannel,
+  firstNameOf,
   type FrequencyCap,
   isDueToSend,
   OPT_OUT_TOKEN_DAYS,
+  plannedChannels,
+  prioritized,
   type QuietHours,
   quietHoldUntil,
   type ReachSummary,
+  renderWording,
   type SegmentCriteria,
   segmentCriteriaSchema,
   summarizeReach,
@@ -71,6 +78,8 @@ export interface CampaignInput {
   sendAt?: string | null;
   /** End the message with a link to book a visit in MyHealth. */
   includeBookingLink?: boolean;
+  /** Every channel named (default), or one message per patient on the first channel that reaches them. */
+  deliveryMode?: DeliveryMode;
 }
 
 export interface CampaignSummary {
@@ -101,6 +110,9 @@ export interface CampaignReach extends ReachSummary {
   frequencyCap: (FrequencyCap & { heldBack: number }) | null;
   quietHours: { start: string; end: string; channels: OutreachChannel[]; holdingNow: boolean; until: string | null } | null;
   includeBookingLink: boolean;
+  deliveryMode: DeliveryMode;
+  /** One message per patient only: how many patients each channel would carry, and how many no channel reaches. */
+  plannedChannels: { byChannel: Array<{ channel: OutreachChannel; total: number }>; none: number } | null;
 }
 
 export type SegmentView = CrmSegmentRecord;
@@ -221,7 +233,11 @@ export class CrmService {
       resourceId: segmentId,
       metadata: { total: members.length, listed: Math.min(members.length, PREVIEW_LIMIT), reachableOnAny: reach.reachableOnAny },
     });
-    return { total: members.length, members: members.slice(0, PREVIEW_LIMIT), truncated: members.length > PREVIEW_LIMIT, reach };
+    // The work list shows number, name, sex and age; the given name kept for wording variables never leaves the server.
+    const listed = members
+      .slice(0, PREVIEW_LIMIT)
+      .map(({ patientId, patientNumber, displayName, sex, age }) => ({ patientId, patientNumber, displayName, sex, age }));
+    return { total: members.length, members: listed, truncated: members.length > PREVIEW_LIMIT, reach };
   }
 
   /**
@@ -233,7 +249,8 @@ export class CrmService {
     const segment = await this.getSegment(actor.organizationId, campaign.segmentId);
     const now = new Date();
     const members = await this.source.evaluate(actor.organizationId, segment.criteria, todayInPhilippines(now));
-    const reach = await this.reachOf(actor.organizationId, members, campaign.channels);
+    const results = await this.reachResults(actor.organizationId, members, campaign.channels);
+    const reach = summarizeReach(campaign.channels, results, members.length);
     const { cap, quiet } = await this.loadLimits(actor.organizationId);
     let frequencyCap: CampaignReach["frequencyCap"] = null;
     if (cap) {
@@ -260,12 +277,28 @@ export class CrmService {
       resourceId: campaignId,
       metadata: { total: members.length, reachableOnAny: reach.reachableOnAny, heldByCap: frequencyCap?.heldBack ?? 0 },
     });
-    return { ...reach, frequencyCap, quietHours, includeBookingLink: campaign.includeBookingLink };
+    return {
+      ...reach,
+      frequencyCap,
+      quietHours,
+      includeBookingLink: campaign.includeBookingLink,
+      deliveryMode: campaign.deliveryMode,
+      plannedChannels: campaign.deliveryMode === "first_available" ? plannedChannels(campaign.channels, results) : null,
+    };
   }
 
   private async reachOf(organizationId: string, members: SegmentMember[], channels: OutreachChannel[]): Promise<ReachSummary> {
+    return summarizeReach(channels, await this.reachResults(organizationId, members, channels), members.length);
+  }
+
+  /** What the consent checks say for each of the first REACH_LIMIT patients on each channel. */
+  private async reachResults(
+    organizationId: string,
+    members: SegmentMember[],
+    channels: OutreachChannel[],
+  ): Promise<Array<Partial<Record<OutreachChannel, ChannelReach>>>> {
     const checked = members.slice(0, REACH_LIMIT);
-    const results: Array<Partial<Record<OutreachChannel, { allowed: true } | { allowed: false; reason: string }>>> = [];
+    const results: Array<Partial<Record<OutreachChannel, ChannelReach>>> = [];
     for (let i = 0; i < checked.length; i += REACH_CONCURRENCY) {
       const chunk = await this.reachSource.reach(
         organizationId,
@@ -274,7 +307,18 @@ export class CrmService {
       );
       results.push(...chunk.map((c) => c.channels));
     }
-    return summarizeReach(channels, results, members.length);
+    return results;
+  }
+
+  /** For one message per patient: the channel each patient of the batch is sent on (the first that reaches them, else the first in order, so the record shows why nothing went). */
+  private async planBatch(organizationId: string, batch: SegmentMember[], channels: OutreachChannel[]): Promise<Map<string, OutreachChannel>> {
+    const plan = new Map<string, OutreachChannel>();
+    const order = prioritized(channels);
+    const results = await this.reachResults(organizationId, batch, channels);
+    batch.forEach((member, i) => {
+      plan.set(member.patientId, (results[i] ? firstAvailableChannel(channels, results[i]) : null) ?? order[0]!);
+    });
+    return plan;
   }
 
   // ---- limits on how often and when -------------------------------------------------------------------------------------
@@ -389,7 +433,7 @@ export class CrmService {
   }
 
   async createCampaign(actor: Actor, input: CampaignInput): Promise<CampaignView> {
-    const wording = validateWording(input, this.portalBaseUrl);
+    const wording = validateWording(input, this.portalBaseUrl, (await this.organizations.getOrganization(actor.organizationId)).name);
     return this.db.transaction(async (tx) => {
       const segment = await this.getSegment(actor.organizationId, input.segmentId, tx);
       if (segment.status !== "active") throw new BusinessRuleError("The segment is archived", "segment_archived");
@@ -403,6 +447,7 @@ export class CrmService {
           subject: wording.subject,
           body: wording.body,
           includeBookingLink: input.includeBookingLink ?? false,
+          deliveryMode: input.deliveryMode ?? "all",
           sendAt: input.sendAt ? new Date(input.sendAt) : null,
           createdBy: actor.userId,
         })
@@ -419,7 +464,7 @@ export class CrmService {
 
   /** Only drafts change (a submitted campaign goes back to draft first); the change makes the caller the author. */
   async updateCampaign(actor: Actor, campaignId: string, input: CampaignInput & { version: number }): Promise<CampaignView> {
-    const wording = validateWording(input, this.portalBaseUrl);
+    const wording = validateWording(input, this.portalBaseUrl, (await this.organizations.getOrganization(actor.organizationId)).name);
     return this.db.transaction(async (tx) => {
       const current = await this.lockCampaign(tx, actor.organizationId, campaignId);
       if (current.version !== input.version) throw new VersionConflictError("Campaign", current.version);
@@ -435,6 +480,7 @@ export class CrmService {
           subject: wording.subject,
           body: wording.body,
           includeBookingLink: input.includeBookingLink ?? false,
+          deliveryMode: input.deliveryMode ?? "all",
           sendAt: input.sendAt ? new Date(input.sendAt) : null,
           createdBy: actor.userId,
           version: current.version + 1,
@@ -451,6 +497,7 @@ export class CrmService {
           subject: { from: current.subject, to: row!.subject },
           channels: { from: current.channels, to: row!.channels },
           includeBookingLink: { from: current.includeBookingLink, to: row!.includeBookingLink },
+          deliveryMode: { from: current.deliveryMode, to: row!.deliveryMode },
           segmentId: { from: current.segmentId, to: row!.segmentId },
         },
       });
@@ -559,6 +606,8 @@ export class CrmService {
     const { cap, quiet } = await this.loadLimits(campaign.organizationId);
     const holdUntil = (channel: OutreachChannel): Date | null =>
       quiet && quiet.channels.includes(channel as "sms" | "email" | "push") ? quietHoldUntil(now, quiet) : null;
+    const onePerPatient = campaign.deliveryMode === "first_available";
+    const donePatients = new Set([...done].map((key) => key.split("/")[0]));
     let sent = 0;
     for (let i = 0; i < members.length; i += SEND_BATCH) {
       const batch = members.slice(i, i + SEND_BATCH);
@@ -571,12 +620,22 @@ export class CrmService {
             now,
           )
         : new Map<string, number>();
+      // One message per patient: each patient not yet handled gets one channel, chosen from who can be reached now.
+      const plan = onePerPatient
+        ? await this.planBatch(
+            campaign.organizationId,
+            batch.filter((m) => !donePatients.has(m.patientId)),
+            campaign.channels,
+          )
+        : null;
       for (const member of batch) {
         const held = capReached(recent.get(member.patientId) ?? 0, cap);
-        for (const channel of campaign.channels) {
-          if (done.has(`${member.patientId}/${channel}`)) continue;
+        const planned = plan?.get(member.patientId);
+        const targets: OutreachChannel[] = plan ? (planned ? [planned] : []) : campaign.channels;
+        for (const channel of targets) {
+          if (!plan && done.has(`${member.patientId}/${channel}`)) continue;
           if (held) await this.recordHeldBack(campaign, member.patientId, channel);
-          else await this.deliver(actor, campaign, organization.name, member.patientId, channel, now, holdUntil(channel));
+          else await this.deliver(actor, campaign, organization.name, member, channel, now, holdUntil(channel));
           sent += 1;
         }
       }
@@ -599,11 +658,14 @@ export class CrmService {
     actor: Actor,
     campaign: CrmCampaignRecord,
     organizationName: string,
-    patientId: string,
+    member: SegmentMember,
     channel: OutreachChannel,
     now: Date,
     holdUntil: Date | null = null,
   ): Promise<void> {
+    const patientId = member.patientId;
+    // The wording is the one that was approved, with the placeholders filled in for this patient (first name, clinic name).
+    const values = { firstName: firstNameOf(member.givenName), clinicName: organizationName };
     let outcome: DeliveryOutcome = "failed";
     let reason: string | null = null;
     let notificationId: string | null = null;
@@ -614,7 +676,13 @@ export class CrmService {
         recipient: { type: "patient", patientId },
         channel,
         templateKey: "outreach.campaign",
-        variables: { organizationName, subject: campaign.subject ?? undefined, body: campaign.body, optOutLink, bookingLink },
+        variables: {
+          organizationName,
+          subject: campaign.subject ? renderWording(campaign.subject, values) : undefined,
+          body: renderWording(campaign.body, values),
+          optOutLink,
+          bookingLink,
+        },
         idempotencyKey: `crm:${campaign.id}:${patientId}:${channel}`,
         ...(holdUntil ? { scheduledFor: holdUntil.toISOString() } : {}),
       });
@@ -752,14 +820,14 @@ function parseCriteria(input: unknown): SegmentCriteria {
   return parsed.data;
 }
 
-function validateWording(input: CampaignInput, portalBase: string | undefined): { subject: string | null; body: string } {
+function validateWording(input: CampaignInput, portalBase: string | undefined, clinicName: string): { subject: string | null; body: string } {
   const subject = input.subject?.trim() || null;
   const body = input.body.trim();
   if (input.includeBookingLink && !portalBase) {
     throw new BusinessRuleError("MyHealth's address is not set up, so a booking link cannot be added", "portal_base_missing");
   }
   const reservedChars = input.includeBookingLink && portalBase ? bookingLinkText(portalBase).length : 0;
-  const problems = wordingProblems({ channels: input.channels, subject, body, reservedChars });
+  const problems = wordingProblems({ channels: input.channels, subject, body, reservedChars, clinicName });
   if (problems.length > 0) throw new BusinessRuleError("The wording does not fit the chosen channels", "wording_invalid", problems);
   if (input.sendAt && Number.isNaN(Date.parse(input.sendAt))) throw new BusinessRuleError("sendAt is not a date", "invalid_send_at");
   return { subject, body };

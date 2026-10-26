@@ -400,4 +400,76 @@ describe("outreach segments and campaigns", () => {
     ).rows[0]!.variables;
     expect(plain["bookingLink"]).toBeUndefined();
   });
+
+  it("fills the approved wording in for each patient: their first name and the clinic's name, and refuses anything else", async () => {
+    const org = (await ctx.pool.query<{ name: string }>("SELECT name FROM organization WHERE id = $1", [tenant.organizationId])).rows[0]!.name;
+    const personal = await sendCampaign(
+      { segmentId: reachSegment, name: "Personal", channels: ["sms"], body: "Hello {{firstName}}, {{clinicName}} has flu shots this month. Call us to book." },
+      new Date("2026-10-27T04:00:00Z"),
+    );
+    const mariaBody = (
+      await ctx.pool.query<{ variables: { body: string } }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${personal.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables.body;
+    expect(mariaBody).toBe(`Hello Maria, ${org} has flu shots this month. Call us to book.`);
+    // What staff approved, with the placeholders, is what the campaign keeps.
+    expect((await api(admin).get(`/outreach/campaigns/${personal.id}`).expect(200)).body.body).toContain("{{firstName}}");
+
+    await api(admin)
+      .post("/outreach/campaigns", {
+        segmentId: reachSegment,
+        name: "Bad variable",
+        channels: ["sms"],
+        body: "Hello {{firstName}}, your balance is {{balance}} pesos.",
+      })
+      .expect(422)
+      .expect((r) => {
+        expect(r.body.error.code).toBe("wording_invalid");
+        expect(JSON.stringify(r.body.error.details)).toContain("{{balance}}");
+      });
+    // 310 characters as typed, but a long first name would push a text message over its 320 limit.
+    await api(admin)
+      .post("/outreach/campaigns", { segmentId: reachSegment, name: "Too long when filled", channels: ["sms"], body: `${"x".repeat(297)}{{firstName}}` })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+  });
+
+  it("can send one message per patient, on the first channel that reaches them, and says so before sending", async () => {
+    // Maria can now be reached by text message and by email.
+    await api(admin)
+      .put(`/patients/${optedIn}/communication-preferences`, { preferences: [{ channel: "email", category: "outreach", optedIn: true }] })
+      .expect(200);
+    const body = {
+      segmentId: reachSegment,
+      name: "One message",
+      channels: ["email", "sms"],
+      subject: "From the clinic",
+      body: "One message for each of you, on the best channel.",
+      deliveryMode: "first_available",
+    };
+    const draft = (await api(admin).post("/outreach/campaigns", body).expect(201)).body;
+    expect(draft.deliveryMode).toBe("first_available");
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.deliveryMode).toBe("first_available");
+    expect(reach.plannedChannels).toEqual({
+      byChannel: [
+        { channel: "sms", total: 1 },
+        { channel: "email", total: 0 },
+      ],
+      none: 1,
+    });
+
+    const sent = await sendCampaign(body, new Date("2026-10-27T04:00:00Z"));
+    const rows = await deliveries(sent.id);
+    // Maria: one text message, no email. Ana: nothing could reach her, so one row says why, on the first channel tried.
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.patient_id === optedIn)).toMatchObject({ channel: "sms", outcome: "queued" });
+    expect(rows.find((r) => r.patient_id === notOptedIn)).toMatchObject({ channel: "sms", outcome: "suppressed", reason: "no_outreach_opt_in" });
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE idempotency_key = $1", [`crm:${sent.id}:${optedIn}:email`])).rows[0].n,
+    ).toBe(0);
+    // Running it again sends nothing more.
+    expect(await runs.tick(new Date("2026-10-27T04:05:00Z"))).toEqual({ campaigns: 0, deliveries: 0 });
+  });
 });

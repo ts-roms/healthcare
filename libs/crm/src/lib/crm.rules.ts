@@ -43,7 +43,7 @@ export type SegmentCriteria = z.infer<typeof segmentCriteriaSchema>;
 export const BODY_LIMITS: Record<"sms" | "email" | "push" | "in_app", number> = { sms: 320, push: 160, email: 2000, in_app: 2000 };
 
 export interface WordingProblem {
-  channel: keyof typeof BODY_LIMITS | "subject";
+  channel: keyof typeof BODY_LIMITS | "subject" | "body";
   message: string;
 }
 
@@ -54,10 +54,16 @@ export function wordingProblems(input: {
   body: string;
   /** Characters added after the body (the booking link), which count against every channel's length. */
   reservedChars?: number;
+  /** The organization's name, which fills {{clinicName}}; the length check uses the longest a first name could be. */
+  clinicName?: string;
 }): WordingProblem[] {
   const problems: WordingProblem[] = [];
   const body = input.body.trim();
-  const length = body.length + (input.reservedChars ?? 0);
+  for (const token of unknownPlaceholders(`${input.subject ?? ""}\n${body}`)) {
+    problems.push({ channel: "body", message: `{{${token}}} is not a placeholder you can use. Use ${PLACEHOLDERS.map((p) => `{{${p}}}`).join(" or ")}.` });
+  }
+  if (input.subject && renderedLength(input.subject, input.clinicName ?? "") > SUBJECT_MAX) problems.push({ channel: "subject", message: `The subject is longer than ${SUBJECT_MAX} characters` });
+  const length = renderedLength(body, input.clinicName ?? "") + (input.reservedChars ?? 0);
   for (const channel of input.channels) {
     if (length > BODY_LIMITS[channel])
       problems.push({
@@ -193,4 +199,79 @@ export function summarizeReach(
   });
   const reachableOnAny = results.filter((result) => channels.some((channel) => result[channel]?.allowed)).length;
   return { evaluated: results.length, sampled: totalMatched > results.length, byChannel, reachableOnAny, unreachable: results.length - reachableOnAny };
+}
+
+// ---- wording variables -----------------------------------------------------------------------------------------------
+
+/**
+ * What a campaign's wording may fill in for each patient: their first name and the organization's name, nothing else.
+ * Nothing clinical, and no appointment, balance or contact detail, can be put into a message this way.
+ */
+export const PLACEHOLDERS = ["firstName", "clinicName"] as const;
+export type Placeholder = (typeof PLACEHOLDERS)[number];
+
+/** The longest first name a message carries (a longer one is cut at its first word), so the length check can be exact. */
+export const FIRST_NAME_MAX = 30;
+export const CLINIC_NAME_MAX = 80;
+export const SUBJECT_MAX = 120;
+
+const PLACEHOLDER_PATTERN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+/** Placeholder names in the text that are not ones the platform fills in (typos, or an attempt to put other data in). */
+export function unknownPlaceholders(text: string): string[] {
+  const unknown = new Set<string>();
+  for (const match of text.matchAll(PLACEHOLDER_PATTERN)) {
+    const name = match[1] ?? "";
+    if (!(PLACEHOLDERS as readonly string[]).includes(name)) unknown.add(name);
+  }
+  return [...unknown];
+}
+
+/** The patient's first name as the message shows it: their given name's first word, never empty or long. */
+export function firstNameOf(givenName: string | null | undefined): string {
+  const word = (givenName ?? "").trim().split(/\s+/)[0] ?? "";
+  return word.slice(0, FIRST_NAME_MAX) || "there";
+}
+
+/** The wording with each placeholder filled in for one patient (an unknown one is left as written). */
+export function renderWording(text: string, values: { firstName: string; clinicName: string }): string {
+  return text.replace(PLACEHOLDER_PATTERN, (whole, name: string) => (name === "firstName" ? values.firstName : name === "clinicName" ? values.clinicName.slice(0, CLINIC_NAME_MAX) : whole));
+}
+
+/** The longest the wording can be once filled in: a first name of the greatest length, the organization's own name. */
+export function renderedLength(text: string, clinicName: string): number {
+  return renderWording(text, { firstName: "x".repeat(FIRST_NAME_MAX), clinicName }).length;
+}
+
+// ---- one message per patient -----------------------------------------------------------------------------------------
+
+export const DELIVERY_MODES = ["all", "first_available"] as const;
+export type DeliveryMode = (typeof DELIVERY_MODES)[number];
+
+/** For "one message per patient": the order channels are tried in. The app comes first, the inbox copy only as a last resort. */
+export const CHANNEL_PRIORITY: readonly ReachChannel[] = ["push", "sms", "email", "in_app"];
+
+/** The campaign's channels, in the order a patient is tried. */
+export function prioritized(channels: readonly ReachChannel[]): ReachChannel[] {
+  return CHANNEL_PRIORITY.filter((c) => channels.includes(c));
+}
+
+/** The first channel, in priority order, that can reach the patient; null when none can. */
+export function firstAvailableChannel(channels: readonly ReachChannel[], result: Partial<Record<ReachChannel, ChannelReach>>): ReachChannel | null {
+  return prioritized(channels).find((c) => result[c]?.allowed) ?? null;
+}
+
+/** How many patients each channel would carry in "one message per patient", and how many no channel reaches. */
+export function plannedChannels(
+  channels: readonly ReachChannel[],
+  results: ReadonlyArray<Partial<Record<ReachChannel, ChannelReach>>>,
+): { byChannel: Array<{ channel: ReachChannel; total: number }>; none: number } {
+  const counts = new Map<ReachChannel, number>();
+  let none = 0;
+  for (const result of results) {
+    const channel = firstAvailableChannel(channels, result);
+    if (channel) counts.set(channel, (counts.get(channel) ?? 0) + 1);
+    else none += 1;
+  }
+  return { byChannel: prioritized(channels).map((channel) => ({ channel, total: counts.get(channel) ?? 0 })), none };
 }
