@@ -418,6 +418,8 @@ export const TEMPLATES = [
       z.object({ kind: z.literal("referral-ready"), organizationName: shortText }),
       // No procedure or wording: the form is behind sign-in.
       z.object({ kind: z.literal("form-ready"), organizationName: shortText }),
+      // Neither the report nor the answer: both are behind sign-in.
+      z.object({ kind: z.literal("outside-result-answered"), organizationName: shortText }),
     ]),
     render: (v) => {
       switch (v.kind) {
@@ -425,6 +427,11 @@ export const TEMPLATES = [
           return {
             subject: "Your medical certificate is ready",
             text: `${v.organizationName}: a medical certificate from your visit is ready in MyHealth. Sign in to download it.`,
+          };
+        case "outside-result-answered":
+          return {
+            subject: "The clinic answered the result you sent",
+            text: `${v.organizationName}: the records office answered the result you sent from another laboratory or hospital. Sign in to MyHealth to see the answer.`,
           };
         case "request-answered":
           return {
@@ -514,6 +521,19 @@ export const TEMPLATES = [
       subject: "New records request",
       text: "A patient asked for copies of their records. Open the request to answer it.",
       href: `/records/requests/${v.requestId}`,
+    }),
+  }),
+  defineTemplate({
+    key: "records.outside-result-new",
+    version: 1,
+    category: "administrative",
+    // In-app to the records office. No patient or report detail: that is read in the queue, behind access control.
+    channels: ["in_app"],
+    variables: z.object({ submissionId: z.uuid() }),
+    render: () => ({
+      subject: "A patient sent a result from another laboratory or hospital",
+      text: "A patient sent a report from another laboratory or hospital. Read it, then file it on their record or decline it with a reason.",
+      href: "/records/outside-results",
     }),
   }),
   defineTemplate({
@@ -802,6 +822,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "dental.record-update": "Dental record update in MyHealth",
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
+  "records.outside-result-new": "Outside result sent by a patient (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
   "document.integrity-notice": "Document integrity finding (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",

@@ -6,6 +6,7 @@ import {
   BusinessRuleError,
   DATABASE,
   type Database,
+  type DbExecutor,
   DomainEventPublisher,
   filedAsPatient,
   isFiledAs,
@@ -76,56 +77,67 @@ export class OutsideResultService {
     if (!(await this.patients.summaries(actor.organizationId, [patientId])).has(patientId)) throw new NotFoundError("Patient");
     const timeZone = actor.facilityId ? (await this.organizations.getFacility(actor.organizationId, actor.facilityId)).timezone : PH_TIMEZONE;
     if (input.performedOn > localDate(new Date(), timeZone)) throw new BusinessRuleError("The date given is in the future", "performed_on_in_future");
-    const doc = (await this.documents.describe(actor.organizationId, [input.documentId])).get(input.documentId);
+    await this.assertReport(actor.organizationId, patientId, input.documentId);
+
+    let row: OutsideResultRecord;
+    try {
+      row = await this.db.transaction((tx) => this.fileIn(tx, actor, patientId, input));
+    } catch (error) {
+      throw this.filingError(error);
+    }
+    return (await this.views(actor.organizationId, [row]))[0]!;
+  }
+
+  /** The report must be an uploaded, finished `outside_result` document of this patient. */
+  async assertReport(organizationId: string, patientId: string, documentId: string): Promise<void> {
+    const doc = (await this.documents.describe(organizationId, [documentId])).get(documentId);
     if (!doc || doc.category !== "outside_result" || !doc.patientId || !(await isFiledAs(this.db, doc.patientId, patientId))) {
       throw new BusinessRuleError("Upload the report for this patient first", "document_not_of_patient");
     }
     if (doc.status !== "available") throw new BusinessRuleError("The report has not finished uploading", "document_unavailable");
+  }
 
-    let row: OutsideResultRecord;
-    try {
-      row = await this.db.transaction(async (tx) => {
-        const [inserted] = await tx
-          .insert(outsideResult)
-          .values({
-            organizationId: actor.organizationId,
-            patientId,
-            facilityId: actor.facilityId ?? null,
-            documentId: input.documentId,
-            sourceName: input.sourceName,
-            sourceKind: input.sourceKind,
-            performedOn: input.performedOn,
-            tests: input.tests,
-            receivedFrom: input.receivedFrom,
-            notes: input.notes ?? null,
-            recordedBy: actor.userId,
-          })
-          .returning();
-        const created = found(inserted, "Outside result");
-        await this.audit.record(tx, actor, {
-          action: "outside-result.record",
-          resourceType: "outside_result",
-          resourceId: created.id,
-          patientId,
-          metadata: { documentId: created.documentId, sourceKind: created.sourceKind, receivedFrom: created.receivedFrom },
-        });
-        await this.events.record(tx, {
-          type: "OutsideResultFiled",
-          organizationId: actor.organizationId,
-          aggregateType: "outside_result",
-          aggregateId: created.id,
-          facilityId: created.facilityId,
-          patientId,
-          payload: { outsideResultId: created.id, documentId: created.documentId },
-        });
-        return created;
-      });
-    } catch (error) {
-      const pg = asPgError(error);
-      if (pg?.code === PgErrorCode.uniqueViolation) throw new BusinessRuleError("This report is already filed", "outside_result_exists");
-      throw error;
-    }
-    return (await this.views(actor.organizationId, [row]))[0]!;
+  /** Files the report in the caller's transaction (staff filing, or the records office answering a patient's submission). */
+  async fileIn(tx: DbExecutor, actor: Actor, patientId: string, input: z.output<typeof recordOutsideResultSchema>): Promise<OutsideResultRecord> {
+    const [inserted] = await tx
+      .insert(outsideResult)
+      .values({
+        organizationId: actor.organizationId,
+        patientId,
+        facilityId: actor.facilityId ?? null,
+        documentId: input.documentId,
+        sourceName: input.sourceName,
+        sourceKind: input.sourceKind,
+        performedOn: input.performedOn,
+        tests: input.tests,
+        receivedFrom: input.receivedFrom,
+        notes: input.notes ?? null,
+        recordedBy: actor.userId,
+      })
+      .returning();
+    const created = found(inserted, "Outside result");
+    await this.audit.record(tx, actor, {
+      action: "outside-result.record",
+      resourceType: "outside_result",
+      resourceId: created.id,
+      patientId,
+      metadata: { documentId: created.documentId, sourceKind: created.sourceKind, receivedFrom: created.receivedFrom },
+    });
+    await this.events.record(tx, {
+      type: "OutsideResultFiled",
+      organizationId: actor.organizationId,
+      aggregateType: "outside_result",
+      aggregateId: created.id,
+      facilityId: created.facilityId,
+      patientId,
+      payload: { outsideResultId: created.id, documentId: created.documentId },
+    });
+    return created;
+  }
+
+  /** A second filing of the same report is a business error; anything else passes through. */
+  filingError(error: unknown): unknown {
+    return asPgError(error)?.code === PgErrorCode.uniqueViolation ? new BusinessRuleError("This report is already filed", "outside_result_exists") : error;
   }
 
   /** The patient's filed outside results (and those of records merged into it), latest first; entries in error included, marked. */

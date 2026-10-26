@@ -143,6 +143,16 @@ received from other providers are labelled. Allergies and the medical, family an
 includes its private parts: the copy answers the patient's own request). Dates follow your facility's time zone. Preparing a copy is
 recorded. Billing records and dental charts are not included; whether a copy must be signed or certified is your organization's procedure.
 
+## How to answer a result a patient sent
+
+Patients can send a report from another laboratory or hospital in MyHealth. Nothing they send is on their record until you file it. It needs the permission `outside-result.submission.manage` (administrators and the records office). You are told in the app when one arrives.
+
+1. Go to **Records → Outside results** (`/records/outside-results`). The oldest are first; the tab shows how many are waiting.
+2. Choose **Open report** and read it. The system has not read it and does not know what it says.
+3. Either choose **File on the record…** and fill in, from the report itself, the laboratory or hospital as written, its kind, the day the test was done and the tests as the report names them (what the patient wrote is only a starting point), then **File outside result**; or choose **Decline…** and give a reason the patient can understand, then **Decline**.
+
+Filing adds an outside result to the patient's record, received from the patient, which a doctor or dentist then reviews (see the Laboratory chapter). Declining files nothing; the patient reads your reason in MyHealth. Each submission is answered once, and the patient is told without any detail of the report. A patient can take a result back while it waits.
+
 ### Your records-request procedure
 
 **Records → Requests → Your procedure** (`/records/requests/settings`) holds your organization's own procedure; administrators change it:

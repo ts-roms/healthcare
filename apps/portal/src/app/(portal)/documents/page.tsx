@@ -1,10 +1,12 @@
-import { FileSignatureIcon, FolderOpenIcon, WaypointsIcon } from "lucide-react";
+import { FileSignatureIcon, FileUpIcon, FolderOpenIcon, WaypointsIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { portalApi } from "@/lib/api/client";
-import type { PortalDocuments } from "@/lib/api/types";
+import type { PortalDocuments, PortalOutsideResult } from "@/lib/api/types";
 import { issuedOn, referralState, requestOpen } from "@/lib/documents";
 import { formatCalendarDate } from "@/lib/greeting";
 import { OpenFile } from "./open-file";
+import { OutsideResultCard } from "./outside-result-card";
+import { OutsideResultForm } from "./outside-result-form";
 import { RecordsRequestForm } from "./records-request-form";
 import { RequestCard } from "./request-card";
 
@@ -14,6 +16,8 @@ export const metadata = { title: "Documents" };
 export default async function DocumentsPage() {
   const { certificates, referrals = [], requests, requestNotice, responseDays } = await portalApi<PortalDocuments>("/portal/documents");
   const openCount = requests.filter((r) => requestOpen(r.status)).length;
+  const sentResults = await portalApi<PortalOutsideResult[]>("/portal/outside-results");
+  const sentOpen = sentResults.filter((r) => r.status === "submitted").length;
   return (
     <div className="flex flex-col gap-7">
       <div>
@@ -84,6 +88,30 @@ export default async function DocumentsPage() {
                 </li>
               );
             })}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3" aria-labelledby="sent-results">
+        <h2 id="sent-results" className="text-section font-semibold">
+          Results from another laboratory or hospital
+        </h2>
+        <p className="text-meta text-muted-foreground">
+          Had a test somewhere else? Send the result to the clinic so your doctor can see it. The records office reads it and adds it to your record, or tells
+          you why it cannot.
+        </p>
+        <OutsideResultForm canSend={sentOpen < 3} />
+        {sentResults.length === 0 ? (
+          <EmptyState icon={FileUpIcon} title="Nothing sent yet">
+            The results you send and the clinic&apos;s answers will appear here.
+          </EmptyState>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {sentResults.map((r) => (
+              <li key={r.id}>
+                <OutsideResultCard result={r} />
+              </li>
+            ))}
           </ul>
         )}
       </section>

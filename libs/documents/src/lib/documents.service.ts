@@ -174,10 +174,18 @@ export class DocumentsService {
    */
   async createForPatient(
     context: PatientAuditContext,
-    input: { title: string; fileName: string; contentType: (typeof ALLOWED_CONTENT_TYPES)[number]; sizeBytes: number },
+    input: {
+      title: string;
+      fileName: string;
+      contentType: (typeof ALLOWED_CONTENT_TYPES)[number];
+      sizeBytes: number;
+      /** What the calling domain files it as; a message attachment unless said otherwise. */
+      category?: "clinical_attachment" | "outside_result";
+    },
   ): Promise<{ document: DocumentView; upload: PresignedUpload }> {
     const id = crypto.randomUUID();
     const storageKey = `org/${context.organizationId}/documents/${id}`;
+    const category = input.category ?? "clinical_attachment";
     const created = await this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(document)
@@ -186,7 +194,7 @@ export class DocumentsService {
           organizationId: context.organizationId,
           facilityId: null,
           patientId: context.patientId,
-          category: "clinical_attachment",
+          category,
           title: input.title,
           fileName: input.fileName,
           contentType: input.contentType,
@@ -202,7 +210,7 @@ export class DocumentsService {
         resourceType: "document",
         resourceId: id,
         patientId: context.patientId,
-        metadata: { category: "clinical_attachment", contentType: input.contentType, sizeBytes: input.sizeBytes, via: "patient_portal" },
+        metadata: { category, contentType: input.contentType, sizeBytes: input.sizeBytes, via: "patient_portal" },
       });
       return row;
     });
@@ -307,6 +315,23 @@ export class DocumentsService {
       throw new BusinessRuleError("The file was found to contain malware and cannot be accepted", "upload_quarantined");
     }
     return toView(updated);
+  }
+
+  /** Whether the document is one this patient's own MyHealth account uploaded and finished uploading (for the calling domain's checks). */
+  async isOwnPatientUpload(context: PatientAuditContext, documentId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.organizationId, context.organizationId),
+          eq(document.id, documentId),
+          eq(document.createdByPortalAccount, context.accountId),
+          eq(document.patientId, context.patientId),
+          eq(document.status, "available"),
+        ),
+      );
+    return Boolean(row);
   }
 
   /** How many documents a patient's account uploaded in the last 24 hours (the calling domain's daily limit). */

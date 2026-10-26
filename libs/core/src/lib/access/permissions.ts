@@ -160,6 +160,7 @@ export const PERMISSIONS = [
   "outside-result.read",
   "outside-result.record",
   "outside-result.review",
+  "outside-result.submission.manage",
   // Patient history: past procedures and conditions, family and social history (migration 0082). Substance use and
   // sexual history also need encounter.write.
   "history.read",

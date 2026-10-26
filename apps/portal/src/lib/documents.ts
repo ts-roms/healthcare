@@ -1,4 +1,4 @@
-import type { PortalRecordsKind, PortalRecordsRequestStatus, PortalRecordsScope, PortalReferral } from "./api/types";
+import type { PortalOutsideResultStatus, PortalRecordsKind, PortalRecordsRequestStatus, PortalRecordsScope, PortalReferral } from "./api/types";
 import { formatCalendarDate } from "./greeting";
 
 /** What a patient may ask copies of, in their words. */
@@ -74,4 +74,31 @@ export function referralState(status: PortalReferral["status"]): { tone: Referra
 /** "October 1, 2026" for an instant: its calendar date in the clinic's time zone. */
 export function issuedOn(iso: string, timeZone = "Asia/Manila"): string {
   return formatCalendarDate(new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(iso)));
+}
+
+export type OutsideResultTone = "waiting" | "done" | "declined" | "closed";
+
+/** Where a result the patient sent stands, in their words. */
+export function outsideResultState(status: PortalOutsideResultStatus): { tone: OutsideResultTone; text: string } {
+  switch (status) {
+    case "submitted":
+      return { tone: "waiting", text: "Sent — waiting for the records office to read it" };
+    case "filed":
+      return { tone: "done", text: "Added to your record. Your doctor will read it at your next visit." };
+    case "declined":
+      return { tone: "declined", text: "The records office could not add it" };
+    case "withdrawn":
+      return { tone: "closed", text: "You took it back" };
+  }
+}
+
+export const OUTSIDE_RESULT_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
+export const OUTSIDE_RESULT_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Why a file cannot be sent (null when it can). */
+export function outsideResultFileProblem(file: { type: string; size: number }): string | null {
+  if (file.size === 0) return "The file is empty.";
+  if (!OUTSIDE_RESULT_FILE_TYPES.includes(file.type)) return "Send a PDF or a photo (JPEG, PNG or HEIC).";
+  if (file.size > OUTSIDE_RESULT_MAX_BYTES) return "The file is larger than 10 MB. Send a smaller photo or a PDF.";
+  return null;
 }

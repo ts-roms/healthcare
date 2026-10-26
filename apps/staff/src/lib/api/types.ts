@@ -4672,6 +4672,24 @@ export interface OutsideResult {
   recordedByName: string | null;
 }
 
+/** A result a patient sent from MyHealth, waiting for the records office (GET /outside-result-submissions). */
+export interface OutsideResultSubmission {
+  id: string;
+  status: "submitted" | "filed" | "declined" | "withdrawn";
+  /** In the patient's own words. */
+  sourceName: string;
+  tests: string;
+  performedOn: string | null;
+  notes: string | null;
+  submittedAt: string;
+  answeredAt: string | null;
+  declineReason: string | null;
+  documentId: string;
+  outsideResultId: string | null;
+  decidedByName: string | null;
+  patient: { id: string; patientNumber: string; displayName: string };
+}
+
 /** A filing awaiting review, with the patient it is filed for (GET /outside-results/unreviewed). */
 export interface UnreviewedOutsideResult extends OutsideResult {
   patient: { id: string; patientNumber: string; displayName: string };
@@ -5309,6 +5327,7 @@ export interface StaffBadges {
   recordsRequests: number | null;
   caseReports: number | null;
   outsideResultsUnreviewed: number | null;
+  outsideResultSubmissions: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
