@@ -591,4 +591,156 @@ describe("outreach segments and campaigns", () => {
     expect((await preview({ birthMonth: 1, identifierOnFile: "philhealth_pin", myHealth: "not_active" })).total).toBe(1);
     expect((await preview({ birthMonth: 5, identifierOnFile: "philhealth_pin" })).total).toBe(0);
   });
+
+  it("repeats a campaign every month once two people approve it, creating each occurrence at its time and skipping one the system missed", async () => {
+    const segment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (monthly)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body;
+    const body = {
+      segmentId: segment.id,
+      name: "Monthly checkup reminder",
+      channels: ["sms"],
+      body: "Hello {{firstName}}, a friendly reminder to book your yearly checkup.",
+      cadence: "monthly",
+      dayOfMonth: 1,
+      sendTime: "09:00",
+      startsOn: "2027-03-01",
+      endsOn: "2027-05-31",
+    };
+    // What is refused while drafting: a schedule that does not fit, a start in the past, a placeholder that is not allowed.
+    await api(admin)
+      .post("/outreach/series", { ...body, cadence: "weekly", dayOfMonth: null })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("schedule_invalid"));
+    await api(admin)
+      .post("/outreach/series", { ...body, startsOn: "2020-01-01" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("schedule_invalid"));
+    await api(admin)
+      .post("/outreach/series", { ...body, dayOfMonth: 31 })
+      .expect(400);
+    await api(admin)
+      .post("/outreach/series", { ...body, body: "Hello {{firstName}}, your balance is {{balance}}." })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+    await api(auditor).post("/outreach/series", body).expect(403);
+
+    const draft = (await api(admin).post("/outreach/series", body).expect(201)).body;
+    expect(draft).toMatchObject({ status: "draft", cadence: "monthly", dayOfMonth: 1, nextRunAt: null });
+    // The segment cannot be archived while a recurring campaign uses it.
+    await api(admin)
+      .post(`/outreach/segments/${segment.id}/archive`, { version: segment.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("segment_in_use"));
+
+    const submitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await api(admin)
+      .post(`/outreach/series/${draft.id}/approve`, { version: submitted.version })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("approver_is_author"));
+    await drainEvents(ctx);
+    const asked = (
+      (await ctx.http().get("/api/v1/me/notifications").set(as(approver, tenant.facilityId)).expect(200)).body as Array<{ href: string; subject: string }>
+    ).filter((n) => n.subject.includes("Monthly checkup reminder"));
+    expect(asked.map((n) => n.href)).toEqual([`/outreach/series/${draft.id}`]);
+
+    const active = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: submitted.version }).expect(201)).body;
+    expect(active.status).toBe("active");
+    expect(new Date(active.nextRunAt).toISOString()).toBe("2027-03-01T01:00:00.000Z");
+    // An active series is not edited in place.
+    await api(admin)
+      .put(`/outreach/series/${draft.id}`, { ...body, version: active.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("series_not_draft"));
+
+    const occurrences = async () =>
+      (
+        await ctx.pool.query<{ occurrence_on: string; status: string; name: string; approved_by: string }>(
+          "SELECT occurrence_on::text, status, name, approved_by FROM crm_campaign WHERE series_id = $1 ORDER BY occurrence_on",
+          [draft.id],
+        )
+      ).rows;
+    // Before its time nothing is created; at its time the occurrence is created, approved as the series was, and sent in the same pass.
+    await runs.tick(new Date("2027-03-01T00:30:00Z"));
+    expect(await occurrences()).toEqual([]);
+    await runs.tick(new Date("2027-03-01T01:01:00Z"));
+    const [march] = await occurrences();
+    expect(march).toMatchObject({ occurrence_on: "2027-03-01", status: "completed", name: expect.stringContaining("Monthly checkup reminder — ") });
+    expect(march!.approved_by).toBe(active.approvedBy);
+    const sent = await ctx.pool.query<{ variables: { body: string } }>(
+      "SELECT n.variables FROM notification n JOIN crm_campaign c ON n.idempotency_key = 'crm:' || c.id || ':' || $2 || ':sms' WHERE c.series_id = $1 AND c.occurrence_on = '2027-03-01'",
+      [draft.id, optedIn],
+    );
+    expect(sent.rows[0]!.variables.body).toBe("Hello Maria, a friendly reminder to book your yearly checkup.");
+    // The same moment again creates nothing more.
+    await runs.tick(new Date("2027-03-01T01:02:00Z"));
+    expect(await occurrences()).toHaveLength(1);
+    const afterMarch = (await api(admin).get(`/outreach/series/${draft.id}`).expect(200)).body;
+    expect(new Date(afterMarch.series.nextRunAt).toISOString()).toBe("2027-04-01T01:00:00.000Z");
+    expect(afterMarch.occurrences).toHaveLength(1);
+
+    // The system was down in April: that occurrence is skipped, not sent late. May goes out, and the series ends after its last day.
+    await runs.tick(new Date("2027-05-01T01:01:00Z"));
+    expect((await occurrences()).map((o) => o.occurrence_on)).toEqual(["2027-03-01", "2027-05-01"]);
+    const ended = (await api(admin).get(`/outreach/series/${draft.id}`).expect(200)).body.series;
+    expect(ended).toMatchObject({ status: "ended", nextRunAt: null, closeReason: "Reached its last day" });
+    expect(await auditRows(ctx.pool, `action = 'crm.series.run' AND resource_id = $1`, [draft.id])).toHaveLength(2);
+    expect(await auditRows(ctx.pool, `action = 'crm.series.end' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+  });
+
+  it("pauses and resumes a recurring campaign, takes it back to a draft to change it, and ends it with a reason", async () => {
+    const segment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (series two)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body;
+    const body = {
+      segmentId: segment.id,
+      name: "Weekly hello",
+      channels: ["sms"],
+      body: "A weekly hello from the clinic, every Monday.",
+      cadence: "weekly",
+      weekday: 1,
+      sendTime: "09:00",
+      startsOn: "2027-06-07",
+    };
+    const draft = (await api(admin).post("/outreach/series", body).expect(201)).body;
+    const submitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    const active = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: submitted.version }).expect(201)).body;
+    expect(new Date(active.nextRunAt).toISOString()).toBe("2027-06-07T01:00:00.000Z"); // 2027-06-07 is a Monday
+
+    const paused = (await api(admin).post(`/outreach/series/${draft.id}/pause`, { version: active.version }).expect(201)).body;
+    expect(paused).toMatchObject({ status: "paused", nextRunAt: null });
+    await runs.tick(new Date("2027-06-07T01:05:00Z"));
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign WHERE series_id = $1", [draft.id])).rows[0].n).toBe(0);
+    const resumed = (await api(admin).post(`/outreach/series/${draft.id}/resume`, { version: paused.version }).expect(201)).body;
+    expect(resumed.status).toBe("active");
+    expect(resumed.nextRunAt).not.toBeNull();
+
+    // To change it: pause, back to a draft (the approval is gone), change, submit, approve again.
+    const again = (await api(admin).post(`/outreach/series/${draft.id}/pause`, { version: resumed.version }).expect(201)).body;
+    const reopened = (await api(admin).post(`/outreach/series/${draft.id}/reopen`, { version: again.version }).expect(201)).body;
+    expect(reopened).toMatchObject({ status: "draft", approvedBy: null, approvedAt: null, submittedBy: null, nextRunAt: null });
+    const changed = (
+      await api(admin)
+        .put(`/outreach/series/${draft.id}`, { ...body, body: "A different weekly hello from the clinic.", version: reopened.version })
+        .expect(200)
+    ).body;
+    expect(changed.body).toBe("A different weekly hello from the clinic.");
+    const resubmitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: changed.version }).expect(201)).body;
+    const reapproved = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: resubmitted.version }).expect(201)).body;
+    expect(reapproved.status).toBe("active");
+
+    await api(admin).post(`/outreach/series/${draft.id}/end`, { version: reapproved.version, reason: "x" }).expect(400);
+    const done = (await api(admin).post(`/outreach/series/${draft.id}/end`, { version: reapproved.version, reason: "The campaign is over" }).expect(201)).body;
+    expect(done).toMatchObject({ status: "ended", nextRunAt: null, closeReason: "The campaign is over" });
+    await api(admin)
+      .post(`/outreach/series/${draft.id}/resume`, { version: done.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("series_status"));
+    // The segment is free again.
+    await api(admin).post(`/outreach/segments/${segment.id}/archive`, { version: segment.version }).expect(201);
+  });
 });

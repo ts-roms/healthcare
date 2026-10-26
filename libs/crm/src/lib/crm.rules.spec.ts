@@ -3,16 +3,20 @@ import {
   bookingLinkText,
   bookingLinkUrl,
   canApprove,
+  canSeriesTransition,
   canTransition,
   capReached,
   firstAvailableChannel,
   firstNameOf,
   isDueToSend,
+  nextOccurrence,
   plannedChannels,
   prioritized,
   quietHoldUntil,
   renderedLength,
   renderWording,
+  type Schedule,
+  scheduleProblems,
   segmentCriteriaSchema,
   summarizeReach,
   unknownPlaceholders,
@@ -219,5 +223,52 @@ describe("approval reminders", () => {
     expect(approvalReminderDue({ ...waiting, approvalRemindedAt: new Date("2026-10-22T09:00:00Z") }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
     expect(approvalReminderDue({ ...waiting, status: "approved" }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
     expect(approvalReminderDue({ ...waiting, status: "draft", submittedAt: null }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
+  });
+});
+
+describe("recurring schedules", () => {
+  // 2026-10-26 is a Monday; Manila is UTC+8, so 09:00 there is 01:00 UTC.
+  const mondays: Schedule = { cadence: "weekly", weekday: 1, dayOfMonth: null, sendTime: "09:00", startsOn: "2026-10-26", endsOn: null };
+  const fifteenth: Schedule = { cadence: "monthly", weekday: null, dayOfMonth: 15, sendTime: "21:30", startsOn: "2026-10-01", endsOn: null };
+
+  it("finds the next weekly occurrence strictly after a moment, never before the first day", () => {
+    expect(nextOccurrence(mondays, new Date("2026-10-20T00:00:00Z"))?.toISOString()).toBe("2026-10-26T01:00:00.000Z");
+    expect(nextOccurrence(mondays, new Date("2026-10-26T00:59:00Z"))?.toISOString()).toBe("2026-10-26T01:00:00.000Z");
+    expect(nextOccurrence(mondays, new Date("2026-10-26T01:00:00Z"))?.toISOString()).toBe("2026-11-02T01:00:00.000Z");
+    expect(nextOccurrence(mondays, new Date("2026-10-31T10:00:00Z"))?.toISOString()).toBe("2026-11-02T01:00:00.000Z");
+  });
+
+  it("finds the next monthly occurrence, on the local day (a late evening in Manila is the same day in UTC)", () => {
+    expect(nextOccurrence(fifteenth, new Date("2026-10-10T00:00:00Z"))?.toISOString()).toBe("2026-10-15T13:30:00.000Z");
+    expect(nextOccurrence(fifteenth, new Date("2026-10-15T13:30:00Z"))?.toISOString()).toBe("2026-11-15T13:30:00.000Z");
+    expect(nextOccurrence({ ...fifteenth, sendTime: "23:30" }, new Date("2026-10-15T00:00:00Z"))?.toISOString()).toBe("2026-10-15T15:30:00.000Z");
+  });
+
+  it("stops after the last day", () => {
+    const ending = { ...mondays, endsOn: "2026-11-01" };
+    expect(nextOccurrence(ending, new Date("2026-10-26T01:00:00Z"))).toBeNull();
+    expect(nextOccurrence({ ...mondays, endsOn: "2026-11-02" }, new Date("2026-10-26T01:00:00Z"))?.toISOString()).toBe("2026-11-02T01:00:00.000Z");
+    expect(nextOccurrence({ ...mondays, endsOn: "2026-10-25" }, new Date("2026-10-01T00:00:00Z"))).toBeNull();
+  });
+
+  it("names what is wrong with a schedule being drafted", () => {
+    const ok = { cadence: "weekly" as const, weekday: 1, dayOfMonth: null, sendTime: "09:00", startsOn: "2026-10-27", endsOn: null };
+    expect(scheduleProblems(ok, "2026-10-26")).toEqual([]);
+    expect(scheduleProblems({ ...ok, weekday: null }, "2026-10-26")).toEqual(["Choose the day of the week"]);
+    expect(scheduleProblems({ ...ok, startsOn: "2026-10-01" }, "2026-10-26")).toEqual(["The first day cannot be in the past"]);
+    expect(scheduleProblems({ ...ok, sendTime: "9am" }, "2026-10-26")).toEqual(["Give the time of day, like 09:00"]);
+    expect(scheduleProblems({ ...ok, endsOn: "2026-10-01" }, "2026-10-26")).toEqual(["The last day is before the first day"]);
+    expect(scheduleProblems({ ...ok, cadence: "monthly", weekday: 1, dayOfMonth: 5 }, "2026-10-26")).toEqual(["A monthly schedule has no day of the week"]);
+  });
+
+  it("moves a recurring campaign through approval, pause and end, and changes only by going back to a draft", () => {
+    expect(canSeriesTransition("draft", "submitted")).toBe(true);
+    expect(canSeriesTransition("submitted", "active")).toBe(true);
+    expect(canSeriesTransition("active", "paused")).toBe(true);
+    expect(canSeriesTransition("paused", "active")).toBe(true);
+    expect(canSeriesTransition("paused", "draft")).toBe(true);
+    expect(canSeriesTransition("active", "draft")).toBe(false);
+    expect(canSeriesTransition("ended", "active")).toBe(false);
+    expect(canSeriesTransition("cancelled", "draft")).toBe(false);
   });
 });

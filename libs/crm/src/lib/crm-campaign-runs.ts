@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/
 import { asPlatform, DATABASE, type Database } from "@healthcare/core";
 import { sql } from "drizzle-orm";
 import { CrmService } from "./crm.service";
+import { CrmSeriesService } from "./crm-series.service";
 
 const MINUTE_MS = 60_000;
 
@@ -18,6 +19,7 @@ export class CrmCampaignRuns implements OnApplicationShutdown {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly crm: CrmService,
+    private readonly series: CrmSeriesService,
   ) {}
 
   start(intervalMs = MINUTE_MS): void {
@@ -38,6 +40,8 @@ export class CrmCampaignRuns implements OnApplicationShutdown {
       return await this.db.transaction(async (tx) => {
         const lock = await tx.execute<{ locked: boolean }>(sql`SELECT pg_try_advisory_xact_lock(hashtext('crm-campaign-runs')) AS locked`);
         if (!lock.rows[0]?.locked) return null;
+        // Recurring campaigns first: an occurrence that is due becomes an approved campaign the same pass sends.
+        await this.series.generateDue(now);
         return this.crm.sendDue(now);
       });
     } catch (error) {

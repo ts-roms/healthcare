@@ -5,6 +5,8 @@ import { NotificationService } from "@healthcare/notification";
 import { OrganizationModule, OrganizationService } from "@healthcare/organization";
 import { CrmCampaignRuns } from "./crm-campaign-runs";
 import { CrmController } from "./crm.controller";
+import { CrmSeriesController } from "./crm-series.controller";
+import { CrmSeriesService } from "./crm-series.service";
 import { CrmService } from "./crm.service";
 import { CRM_PREFERENCES, CRM_REACH_SOURCE, CRM_SEGMENT_SOURCE, type CrmPreferenceWriter, type CrmReachSource, type CrmSegmentSource } from "./ports";
 
@@ -25,7 +27,7 @@ export class CrmModule {
     return {
       module: CrmModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [CrmController],
+      controllers: [CrmController, CrmSeriesController],
       providers: [
         { provide: CRM_SEGMENT_SOURCE, useClass: options.segmentSource },
         { provide: CRM_PREFERENCES, useClass: options.preferenceWriter },
@@ -55,9 +57,15 @@ export class CrmModule {
             events: DomainEventPublisher,
           ) => new CrmService(db, source, preferences, notifications, organizations, audit, config.PORTAL_BASE_URL, reach, events),
         },
+        {
+          provide: CrmSeriesService,
+          inject: [DATABASE, OrganizationService, AuditService, DomainEventPublisher, APP_CONFIG],
+          useFactory: (db: Database, organizations: OrganizationService, audit: AuditService, events: DomainEventPublisher, config: AppConfig) =>
+            new CrmSeriesService(db, organizations, audit, events, config.PORTAL_BASE_URL),
+        },
         CrmCampaignRuns,
       ],
-      exports: [CrmService, CrmCampaignRuns],
+      exports: [CrmService, CrmSeriesService, CrmCampaignRuns],
     };
   }
 }

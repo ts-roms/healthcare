@@ -153,6 +153,32 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   email, and to nobody else: no patient, no delivery row, nothing counted against a cap. Only a campaign that has not gone out. Text
   messages and push cannot be tried this way (staff have no number or app on file for it): check their length in the form.
 
+## Recurring campaigns
+
+A campaign can repeat weekly or monthly (migration `0135`). The recurring campaign is a **series** (`crm_campaign_series`): the same
+fields as a campaign (segment, channels, wording, delivery mode, booking link) and a schedule: `cadence` `weekly` (a `weekday`, 0 =
+Sunday) or `monthly` (a `day_of_month` from 1 to 28, so every month has it), a `send_time` in Asia/Manila time, a first day and an
+optional last day.
+
+- **Approval.** Two people, as for a campaign: `draft → submitted → active` (approved by someone who is neither author nor
+  submitter, `approver_is_author`), with the same in-app notices (`CrmSeriesSubmitted`, `CrmSeriesApproved`; the reminder after two
+  days is for single campaigns only). Approving approves **every** occurrence. A series changes only as a draft: an active series
+  is paused (`paused`), taken back to `draft` (the approval and submission are cleared) and submitted and approved again.
+  `active ⇄ paused`, `active | paused → ended` (with a reason, or by itself after its last day: "Reached its last day"),
+  `draft | submitted → cancelled` (with a reason). Audited as `crm.series.*`. Routes `GET|POST /outreach/series`,
+  `GET|PUT /outreach/series/:id`, `POST …/submit|reopen|approve|pause|resume|end|cancel`; staff `/outreach` (the form's **Repeat**
+  section and the Recurring campaigns list) and `/outreach/series/[id]`.
+- **Occurrences.** Every minute, before sending, the runner (`CrmCampaignRuns`, under its advisory lock) creates the occurrence of each
+  active series whose `next_run_at` has come, as an **ordinary approved campaign** (`series_id`, `occurrence_on`; unique per series and
+  day; `approved_by` is the series' approver). The sender then takes it in the same pass: the segment is evaluated at that moment, each
+  patient's opt-in, the frequency cap and quiet hours apply, deliveries and results are the campaign's, an occurrence can be cancelled
+  on its own with a reason, and the series page lists them. A campaign created this way is never edited.
+- **Missed occurrences.** One missed by more than six hours (the system was down) is **skipped**, never sent late or in a burst; the
+  series moves on to its next. Resuming a paused series picks up at the next occurrence after now; those missed while paused are not sent.
+- A segment cannot be archived while a series that has not ended or been cancelled uses it.
+- Not built: several send times a day, "every N weeks", an end after N occurrences, reminders for a series waiting for approval, a calendar
+  of upcoming occurrences, and a preview of who would receive the next occurrence (use **Check reach** on an occurrence once created).
+
 ## Open questions / assumptions
 
 - **Compliance dependency.** The platform enforces an explicit opt-in per channel, a second person's approval, the

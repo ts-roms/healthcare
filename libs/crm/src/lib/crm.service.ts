@@ -47,6 +47,7 @@ import {
   crmCampaign,
   crmCampaignDelivery,
   type CrmCampaignRecord,
+  crmCampaignSeries,
   crmOptOutToken,
   crmSegment,
   type CrmSegmentRecord,
@@ -206,6 +207,15 @@ export class CrmService {
     });
   }
 
+  private async seriesInUse(segmentId: string, tx: Pick<Database, "select">): Promise<boolean> {
+    const [row] = await tx
+      .select({ id: crmCampaignSeries.id })
+      .from(crmCampaignSeries)
+      .where(and(eq(crmCampaignSeries.segmentId, segmentId), inArray(crmCampaignSeries.status, ["draft", "submitted", "active", "paused"])))
+      .limit(1);
+    return Boolean(row);
+  }
+
   /** A facility named in the criteria must be one of this organization's (a stranger's id would otherwise just match nobody). */
   private async checkFacility(organizationId: string, criteria: SegmentCriteria): Promise<void> {
     if (criteria.registeredFacilityId) await this.organizations.getFacility(organizationId, criteria.registeredFacilityId);
@@ -220,7 +230,7 @@ export class CrmService {
         .from(crmCampaign)
         .where(and(eq(crmCampaign.segmentId, segmentId), inArray(crmCampaign.status, ["draft", "submitted", "approved", "sending"])))
         .limit(1);
-      if (open) throw new BusinessRuleError("A segment with an open campaign cannot be archived", "segment_in_use");
+      if (open || (await this.seriesInUse(segmentId, tx))) throw new BusinessRuleError("A segment with an open campaign cannot be archived", "segment_in_use");
       const [row] = await tx
         .update(crmSegment)
         .set({ status: "archived", version: current.version + 1, updatedBy: actor.userId, updatedAt: new Date() })
@@ -913,7 +923,7 @@ function parseCriteria(input: unknown): SegmentCriteria {
   return parsed.data;
 }
 
-function validateWording(input: CampaignInput, portalBase: string | undefined, clinicName: string): { subject: string | null; body: string } {
+export function validateWording(input: CampaignInput, portalBase: string | undefined, clinicName: string): { subject: string | null; body: string } {
   const subject = input.subject?.trim() || null;
   const body = input.body.trim();
   if (input.includeBookingLink && !portalBase) {

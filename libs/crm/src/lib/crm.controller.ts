@@ -13,7 +13,7 @@ const segmentSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   criteria: segmentCriteriaSchema,
 });
-const campaignSchema = z.object({
+export const campaignSchema = z.object({
   segmentId: z.uuid(),
   name: z.string().trim().min(2).max(120),
   channels: z.array(z.enum(OUTREACH_CHANNELS)).min(1).max(4),

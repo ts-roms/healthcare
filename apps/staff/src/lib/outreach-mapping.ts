@@ -1,4 +1,4 @@
-import type { OutreachCampaignStatus, OutreachChannel, OutreachSegmentCriteria } from "./api/types";
+import type { OutreachCampaignStatus, OutreachChannel, OutreachSegmentCriteria, OutreachSeriesStatus } from "./api/types";
 
 /** Display rules for outreach; the API enforces every rule. */
 
@@ -94,3 +94,32 @@ export const DELIVERY_MODE_HELP: Record<"all" | "first_available", string> = {
   first_available:
     "Tried in this order: push, text message, email, MyHealth inbox. A patient gets one message, on the first of your channels that can reach them.",
 };
+
+// ---- recurring campaigns -------------------------------------------------------------------------------------------
+
+export const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+export const SERIES_STATUS: Record<OutreachSeriesStatus, { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" }> = {
+  draft: { label: "Draft", tone: "neutral" },
+  submitted: { label: "Awaiting approval", tone: "info" },
+  active: { label: "Active", tone: "success" },
+  paused: { label: "Paused", tone: "warning" },
+  ended: { label: "Ended", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "danger" },
+};
+
+const day = (iso: string): string =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** "Every Monday at 09:00 · from 1 Mar 2027 until 31 May 2027" (Philippine time). */
+export function describeSchedule(s: {
+  cadence: "weekly" | "monthly";
+  weekday: number | null;
+  dayOfMonth: number | null;
+  sendTime: string;
+  startsOn: string;
+  endsOn: string | null;
+}): string {
+  const when = s.cadence === "weekly" ? `Every ${WEEKDAY_NAMES[s.weekday ?? 0]}` : `On day ${s.dayOfMonth} of every month`;
+  return `${when} at ${s.sendTime} · from ${day(s.startsOn)}${s.endsOn ? ` until ${day(s.endsOn)}` : ", until stopped"}`;
+}

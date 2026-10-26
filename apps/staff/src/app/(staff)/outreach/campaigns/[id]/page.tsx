@@ -39,9 +39,16 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         </>
       }
       actions={
-        <Link href="/outreach" className="text-table text-primary hover:underline">
-          All campaigns
-        </Link>
+        <span className="flex flex-wrap gap-3">
+          {campaign.seriesId ? (
+            <Link href={`/outreach/series/${campaign.seriesId}`} className="text-table text-primary hover:underline">
+              Part of a recurring campaign
+            </Link>
+          ) : null}
+          <Link href="/outreach" className="text-table text-primary hover:underline">
+            All campaigns
+          </Link>
+        </span>
       }
     >
       <div className="grid gap-4 lg:grid-cols-2">

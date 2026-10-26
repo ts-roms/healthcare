@@ -304,3 +304,79 @@ export function approvalReminderDue(
     campaign.submittedAt.getTime() <= now.getTime() - days * 86_400_000
   );
 }
+
+// ---- recurring campaigns ---------------------------------------------------------------------------------------------
+
+export const SERIES_STATUSES = ["draft", "submitted", "active", "paused", "ended", "cancelled"] as const;
+export type SeriesStatus = (typeof SERIES_STATUSES)[number];
+
+export const SERIES_TRANSITIONS: Record<SeriesStatus, readonly SeriesStatus[]> = {
+  draft: ["submitted", "cancelled"],
+  submitted: ["active", "draft", "cancelled"],
+  active: ["paused", "ended"],
+  // Changing a series means taking it back to a draft and having it approved again.
+  paused: ["active", "ended", "draft"],
+  ended: [],
+  cancelled: [],
+};
+
+export function canSeriesTransition(from: string, to: string): boolean {
+  return (SERIES_TRANSITIONS as Record<string, readonly string[]>)[from]?.includes(to) ?? false;
+}
+
+export interface Schedule {
+  cadence: "weekly" | "monthly";
+  /** Weekly: 0 = Sunday to 6 = Saturday. */
+  weekday: number | null;
+  /** Monthly: 1 to 28, so every month has the day. */
+  dayOfMonth: number | null;
+  /** "HH:MM", Asia/Manila time. */
+  sendTime: string;
+  /** First and last local day an occurrence may fall on (YYYY-MM-DD). */
+  startsOn: string;
+  endsOn: string | null;
+}
+
+/** An occurrence missed by more than this (the system was down) is skipped, never sent late. */
+export const MISSED_OCCURRENCE_GRACE_MS = 6 * 3_600_000;
+
+const phDay = (at: Date): string => new Date(at.getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
+const addDays = (day: string, days: number): string => new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+/** The instant a local day and clock time (Asia/Manila, UTC+8, no daylight saving) falls on. */
+export function occurrenceInstant(day: string, sendTime: string): Date {
+  return new Date(`${day}T${sendTime}:00+08:00`);
+}
+
+/** Whether the local day is one the schedule sends on. */
+export function dayMatches(schedule: Pick<Schedule, "cadence" | "weekday" | "dayOfMonth">, day: string): boolean {
+  if (schedule.cadence === "weekly") return new Date(`${day}T00:00:00Z`).getUTCDay() === schedule.weekday;
+  return Number(day.slice(8, 10)) === schedule.dayOfMonth;
+}
+
+/** The first occurrence strictly after `after`, within the schedule's dates; null when there is none left. */
+export function nextOccurrence(schedule: Schedule, after: Date): Date | null {
+  let day = phDay(after) < schedule.startsOn ? schedule.startsOn : phDay(after);
+  for (let i = 0; i <= 400; i += 1, day = addDays(day, 1)) {
+    if (schedule.endsOn && day > schedule.endsOn) return null;
+    if (!dayMatches(schedule, day)) continue;
+    const at = occurrenceInstant(day, schedule.sendTime);
+    if (at.getTime() > after.getTime()) return at;
+  }
+  return null;
+}
+
+/** Problems with a schedule being drafted (an empty list is fine). `today` is the local day (YYYY-MM-DD). */
+export function scheduleProblems(input: Partial<Schedule>, today: string): string[] {
+  const problems: string[] = [];
+  if (input.cadence !== "weekly" && input.cadence !== "monthly") problems.push("Choose weekly or monthly");
+  if (input.cadence === "weekly" && (input.weekday === null || input.weekday === undefined)) problems.push("Choose the day of the week");
+  if (input.cadence === "monthly" && (input.dayOfMonth === null || input.dayOfMonth === undefined)) problems.push("Choose the day of the month (1 to 28)");
+  if (input.cadence === "weekly" && input.dayOfMonth !== null && input.dayOfMonth !== undefined) problems.push("A weekly schedule has no day of the month");
+  if (input.cadence === "monthly" && input.weekday !== null && input.weekday !== undefined) problems.push("A monthly schedule has no day of the week");
+  if (!input.sendTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.sendTime)) problems.push("Give the time of day, like 09:00");
+  if (!input.startsOn) problems.push("Give the first day");
+  else if (input.startsOn < today) problems.push("The first day cannot be in the past");
+  if (input.endsOn && input.startsOn && input.endsOn < input.startsOn) problems.push("The last day is before the first day");
+  return problems;
+}

@@ -531,7 +531,7 @@ export const TEMPLATES = [
     category: "administrative",
     // In-app to staff who approve or write outreach campaigns. The campaign's name and a pointer to it; never patient detail.
     channels: ["in_app"],
-    variables: z.object({ kind: z.enum(["awaiting-approval", "reminder", "approved"]), campaignId: z.uuid(), name: shortText }),
+    variables: z.object({ kind: z.enum(["awaiting-approval", "reminder", "approved"]), campaignId: z.uuid(), name: shortText, series: z.boolean().optional() }),
     render: (v) => ({
       subject:
         v.kind === "approved"
@@ -545,7 +545,7 @@ export const TEMPLATES = [
           : v.kind === "reminder"
             ? "This campaign has waited for approval for two days. Read it and approve it, or ask the author to change it."
             : "A campaign was submitted and needs a second person to approve it. Read the wording and the segment, then approve it.",
-      href: `/outreach/campaigns/${v.campaignId}`,
+      href: v.series ? `/outreach/series/${v.campaignId}` : `/outreach/campaigns/${v.campaignId}`,
     }),
   }),
   defineTemplate({

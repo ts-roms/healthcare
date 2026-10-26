@@ -3448,6 +3448,9 @@ export interface OutreachCampaign {
   includeBookingLink: boolean;
   /** Every channel named, or one message per patient on the first channel that reaches them. */
   deliveryMode: OutreachDeliveryMode;
+  /** The recurring campaign this is one occurrence of, and the local day it is for. */
+  seriesId: string | null;
+  occurrenceOn: string | null;
   status: OutreachCampaignStatus;
   sendAt: string | null;
   createdBy: string;
@@ -5574,4 +5577,50 @@ export interface MyPractitionerSignature {
 export interface PractitionerSignatureSetting {
   enabled: boolean;
   version: number;
+}
+
+// ---- Recurring outreach (GET /outreach/series) ------------------------------------------------------------------------
+
+export type OutreachSeriesStatus = "draft" | "submitted" | "active" | "paused" | "ended" | "cancelled";
+
+export interface OutreachSeries {
+  id: string;
+  segmentId: string;
+  segmentName: string;
+  name: string;
+  channels: OutreachChannel[];
+  subject: string | null;
+  body: string;
+  includeBookingLink: boolean;
+  deliveryMode: OutreachDeliveryMode;
+  cadence: "weekly" | "monthly";
+  /** Weekly: 0 = Sunday to 6 = Saturday. */
+  weekday: number | null;
+  /** Monthly: 1 to 28. */
+  dayOfMonth: number | null;
+  /** "HH:MM", Philippine time. */
+  sendTime: string;
+  startsOn: string;
+  endsOn: string | null;
+  status: OutreachSeriesStatus;
+  nextRunAt: string | null;
+  createdBy: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  closedAt: string | null;
+  closeReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachSeriesOccurrence {
+  id: string;
+  name: string;
+  occurrenceOn: string;
+  status: OutreachCampaignStatus;
+  sendAt: string | null;
+  completedAt: string | null;
 }

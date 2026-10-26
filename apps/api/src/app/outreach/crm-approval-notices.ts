@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import { UsersService } from "@healthcare/auth";
 import { asPlatform, DATABASE, type Database, DomainEventHandlers, type DomainEventRecord, systemActor } from "@healthcare/core";
-import { CrmService } from "@healthcare/crm";
+import { CrmSeriesService, CrmService } from "@healthcare/crm";
 import { NotificationService } from "@healthcare/notification";
 import { sql } from "drizzle-orm";
 
@@ -18,6 +18,7 @@ export class CrmApprovalNotices implements OnModuleInit {
   constructor(
     private readonly handlers: DomainEventHandlers,
     private readonly crm: CrmService,
+    private readonly series: CrmSeriesService,
     private readonly users: UsersService,
     private readonly notifications: NotificationService,
   ) {}
@@ -25,6 +26,8 @@ export class CrmApprovalNotices implements OnModuleInit {
   onModuleInit(): void {
     this.handlers.on("CrmCampaignSubmitted", "crm.notice-awaiting-approval", (event) => this.awaitingApproval(event));
     this.handlers.on("CrmCampaignApproved", "crm.notice-approved", (event) => this.approved(event));
+    this.handlers.on("CrmSeriesSubmitted", "crm.notice-series-awaiting-approval", (event) => this.seriesAwaitingApproval(event));
+    this.handlers.on("CrmSeriesApproved", "crm.notice-series-approved", (event) => this.seriesApproved(event));
   }
 
   /** The approvers of the organization, except the people who wrote and submitted the campaign. */
@@ -40,6 +43,7 @@ export class CrmApprovalNotices implements OnModuleInit {
     campaignId: string,
     name: string,
     key: string,
+    series = false,
   ): Promise<void> {
     const actor = systemActor(organizationId, null, "outreach-approval-notice");
     for (const userId of userIds) {
@@ -47,7 +51,7 @@ export class CrmApprovalNotices implements OnModuleInit {
         recipient: { type: "user", userId },
         channel: "in_app",
         templateKey: "outreach.campaign-notice",
-        variables: { kind, campaignId, name: name.slice(0, 80) },
+        variables: { kind, campaignId, name: name.slice(0, 80), ...(series ? { series: true } : {}) },
         idempotencyKey: `${key}:${userId}`,
       });
     }
@@ -58,6 +62,20 @@ export class CrmApprovalNotices implements OnModuleInit {
     if (!campaign) return;
     const approvers = await this.approversFor(campaign.organizationId, [campaign.createdBy, campaign.submittedBy]);
     await this.tell(campaign.organizationId, approvers, "awaiting-approval", campaign.id, campaign.name, `crm-awaiting:${event.id}`);
+  }
+
+  private async seriesAwaitingApproval(event: DomainEventRecord): Promise<void> {
+    const series = await this.series.forNotice(event.organizationId, event.aggregateId);
+    if (!series) return;
+    const approvers = await this.approversFor(series.organizationId, [series.createdBy, series.submittedBy]);
+    await this.tell(series.organizationId, approvers, "awaiting-approval", series.id, series.name, `crm-series-awaiting:${event.id}`, true);
+  }
+
+  private async seriesApproved(event: DomainEventRecord): Promise<void> {
+    const series = await this.series.forNotice(event.organizationId, event.aggregateId);
+    if (!series) return;
+    const people = [...new Set([series.createdBy, series.submittedBy].filter((id): id is string => Boolean(id)))];
+    await this.tell(series.organizationId, people, "approved", series.id, series.name, `crm-series-approved:${event.id}`, true);
   }
 
   private async approved(event: DomainEventRecord): Promise<void> {

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { OutreachCampaign, OutreachCampaignReach, OutreachSegment, OutreachSettings } from "@/lib/api/types";
+import type { OutreachCampaign, OutreachCampaignReach, OutreachSegment, OutreachSeries, OutreachSettings } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates the criteria, the wording and every transition.
 
@@ -173,4 +173,63 @@ export async function testSendCampaign(
       method: "POST",
     }),
   );
+}
+
+const seriesSchema = campaignSchema.omit({ sendAt: true }).extend({
+  cadence: z.enum(["weekly", "monthly"]),
+  weekday: z.number().int().min(0).max(6).nullable().optional(),
+  dayOfMonth: z.number().int().min(1).max(28).nullable().optional(),
+  sendTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Give the time like 09:00."),
+  startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Give the first day."),
+  endsOn: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : null)),
+});
+
+/** Drafts or changes a recurring campaign (the API checks the wording and the schedule). */
+export async function saveSeries(input: z.input<typeof seriesSchema>, existing: { id: string; version: number } | null): Promise<ActionResult<OutreachSeries>> {
+  const parsed = seriesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the recurring campaign." };
+  const body = { ...parsed.data, subject: parsed.data.subject || null };
+  const result = await actionResult(() =>
+    existing
+      ? api<OutreachSeries>(`/outreach/series/${existing.id}`, { method: "PUT", body: { ...body, version: existing.version } })
+      : api<OutreachSeries>("/outreach/series", { method: "POST", body }),
+  );
+  if (result.ok) {
+    revalidatePath("/outreach");
+    revalidatePath(`/outreach/series/${result.data.id}`);
+  }
+  return result;
+}
+
+export async function moveSeries(
+  seriesId: string,
+  action: "submit" | "reopen" | "approve" | "pause" | "resume",
+  seriesVersion: number,
+): Promise<ActionResult<OutreachSeries>> {
+  const result = await actionResult(() =>
+    api<OutreachSeries>(`/outreach/series/${id.parse(seriesId)}/${action}`, { method: "POST", body: { version: version.parse(seriesVersion) } }),
+  );
+  if (result.ok) {
+    revalidatePath("/outreach");
+    revalidatePath(`/outreach/series/${seriesId}`);
+  }
+  return result;
+}
+
+/** Ends an approved recurring campaign for good, or cancels one that was never approved, with a reason. */
+export async function closeSeries(seriesId: string, action: "end" | "cancel", seriesVersion: number, reason: string): Promise<ActionResult<OutreachSeries>> {
+  const text = reason.trim();
+  if (text.length < 3) return { ok: false, message: "Say why." };
+  const result = await actionResult(() =>
+    api<OutreachSeries>(`/outreach/series/${id.parse(seriesId)}/${action}`, { method: "POST", body: { version: version.parse(seriesVersion), reason: text } }),
+  );
+  if (result.ok) {
+    revalidatePath("/outreach");
+    revalidatePath(`/outreach/series/${seriesId}`);
+  }
+  return result;
 }

@@ -490,6 +490,15 @@ Records officers can read segments and campaigns.
 and why the others cannot (no opt-in, opted out, no mobile number or email address, no MyHealth account). On a draft, **Check reach** on the campaign
 page shows the same for the campaign's own channels, and how many patients the frequency cap would hold back. Nothing is sent and only counts are shown.
 
+**Recurring campaigns.** To send the same message again and again (for example a monthly reminder to people who have not visited for a year), in
+**New campaign** choose **Repeat → Every week** or **Every month**, then the day, the time (Manila time), the first day and, if you like, the last day.
+The recurring campaign is submitted and **approved once by someone else**; from then on each occurrence is sent at its time to whoever matches the
+segment that day, with each patient's opt-in, the frequency cap and quiet hours still applying. Each occurrence appears under the recurring campaign
+(**Outreach → Recurring campaigns**) as its own campaign with its own result, and you can cancel one without stopping the rest. You can **Pause** and
+**Resume** it, and **End for good** with a reason. To change the wording, the segment or the schedule, pause it, choose **Change (back to draft)**, edit it and
+have it approved again. An occurrence the system missed by more than six hours (for example it was down) is skipped, not sent late. Monthly days go up to
+the 28th, so every month has the day.
+
 **Approval.** When you submit a campaign, the other people who can approve campaigns are told in their notifications (the bell); if it is still waiting
 after two days they are reminded once. You are told when it is approved. **Send a test to me** on a campaign that has not gone out puts the message,
 as a sample patient would get it, in your own notifications and emails it to you; nobody else receives it. Text messages and push cannot be tested
